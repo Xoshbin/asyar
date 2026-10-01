@@ -40,7 +40,9 @@ Or manually run the steps:
 
 ## 5. Architectural Invariants
 
-- **Rust-First**: Rust is the brain, frontend is the presenter. Move filtering, ranking, scoring, fuzzy search, parsing, caching, and state logic to Rust.
+- **Data-Affinity & Zero-IPC Fast Path (Evolved Rust-First)**: Logic lives where the data natively resides:
+  - **Rust Domain (System & Heavy Data)**: System applications, file system indexing, SQLite persistence, OS clipboard, native watchers, and global fuzzy ranking belong in Rust. Filter, rank, and truncate in Rust before crossing the IPC bridge, returning only top results.
+  - **Frontend Domain (UI-Resident Data)**: Data that already natively resides in frontend memory (UI-local lists, transient settings views, snippets, walkthrough tasks) must be filtered and ranked in TypeScript using zero-IPC fast paths. Never serialize frontend in-memory arrays over the IPC bridge for keystroke filtering.
 - **No Singletons**: Never introduce `getInstance()` or static singleton state; use `ServiceRegistry`.
 - **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
 
