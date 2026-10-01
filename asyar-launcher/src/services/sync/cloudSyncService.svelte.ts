@@ -79,7 +79,18 @@ class CloudSyncService {
     return result.allowed ? null : (result.reason ?? 'Cloud sync denied by policy');
   }
 
+  private authUnsub: (() => void) | null = null;
+
   async init(): Promise<void> {
+    if (this.authUnsub === null) {
+      this.authUnsub = authService.onAuthChange(async (isLoggedIn) => {
+        if (isLoggedIn) {
+          await this.start();
+        } else {
+          this.dispose();
+        }
+      });
+    }
     this.watchSettings();
     await this.start();
   }
@@ -183,6 +194,10 @@ class CloudSyncService {
    */
   dispose(): void {
     this.stop();
+    if (this.authUnsub !== null) {
+      this.authUnsub();
+      this.authUnsub = null;
+    }
     if (this.settingsUnsub !== null) {
       try {
         this.settingsUnsub();

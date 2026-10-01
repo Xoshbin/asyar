@@ -105,6 +105,7 @@ vi.mock('./commandService.svelte', () => ({
 }));
 vi.mock('./extensionDispatcher.svelte', () => ({
   dispatch: vi.fn().mockResolvedValue(undefined),
+  registerExtensionNameResolver: vi.fn(),
 }));
 vi.mock('./viewManager.svelte', () => ({
   viewManager: {

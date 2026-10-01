@@ -14,7 +14,6 @@ import { extensionPreferencesService } from './extensionPreferencesService.svelt
 import { permissionConsentService } from './permissionConsentService.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { actionService } from '../action/actionService.svelte';
-import { searchOrchestrator } from '../search/searchOrchestrator.svelte';
 import { searchStores } from '../search/stores/search.svelte';
 
 /**
@@ -436,9 +435,7 @@ export class ExtensionLoader {
               visible: () => {
                 if (settingsService.getSettings().search.allowExtensionActions === false)
                   return false;
-                const idx = searchStores.selectedIndex;
-                if (idx < 0) return false;
-                const item = searchOrchestrator.items[idx];
+                const item = actionService.getSelectedSearchItem();
                 return item?.type === 'command' && item.extensionId === extensionId;
               },
               // execute intentionally omitted — triggers sendToExtension fallback
@@ -465,9 +462,7 @@ export class ExtensionLoader {
             visible: () => {
               if (settingsService.getSettings().search.allowExtensionActions === false)
                 return false;
-              const idx = searchStores.selectedIndex;
-              if (idx < 0) return false;
-              const item = searchOrchestrator.items[idx];
+              const item = actionService.getSelectedSearchItem();
               return item?.objectId === cmdObjectId;
             },
           } as any);

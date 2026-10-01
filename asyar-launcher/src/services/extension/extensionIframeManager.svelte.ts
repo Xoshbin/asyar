@@ -1,7 +1,9 @@
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { logService } from '../log/logService';
 import { pickExtensionIframe } from './extensionIframeSelector';
-import type { viewManager } from './viewManager.svelte';
+export interface ActiveViewProvider {
+  getActiveView(): string | null;
+}
 
 // Track pending search requests
 const pendingSearchRequests = new Map<
@@ -21,9 +23,9 @@ function generateSearchMessageId(): string {
 
 export class ExtensionIframeManager {
   hasInputFocus = $state(false);
-  private viewManagerInstance: typeof viewManager | null = null;
+  private viewManagerInstance: ActiveViewProvider | null = null;
 
-  public init(viewManagerInstance: typeof viewManager) {
+  public init(viewManagerInstance: ActiveViewProvider) {
     this.viewManagerInstance = viewManagerInstance;
   }
 

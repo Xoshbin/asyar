@@ -43,7 +43,10 @@ Or manually run the steps:
 - **Data-Affinity & Zero-IPC Fast Path (Evolved Rust-First)**: Logic lives where the data natively resides:
   - **Rust Domain (System & Heavy Data)**: System applications, file system indexing, SQLite persistence, OS clipboard, native watchers, and global fuzzy ranking belong in Rust. Filter, rank, and truncate in Rust before crossing the IPC bridge, returning only top results.
   - **Frontend Domain (UI-Resident Data)**: Data that already natively resides in frontend memory (UI-local lists, transient settings views, snippets, walkthrough tasks) must be filtered and ranked in TypeScript using zero-IPC fast paths. Never serialize frontend in-memory arrays over the IPC bridge for keystroke filtering.
-- **No Singletons**: Never introduce `getInstance()` or static singleton state; use `ServiceRegistry`.
+- **Managed Lifecycle & Explicit Composition (Evolved "No Singletons")**:
+  - In a single-window desktop launcher, long-lived domain services are naturally singletons, but unmanaged, cyclic module-level singletons that import each other at top-level are strictly forbidden.
+  - Ban direct cross-module singleton imports that form circular cycles. Invert dependencies: lower-level services (e.g. Auth, IPC wrappers) must never import higher-level services (e.g. CloudSync, UI reset). Use pub/sub listeners, callbacks, or provider hooks.
+  - All services participating in extension IPC must still be registered in and exposed through `ServiceRegistry` (`buildServiceRegistry`).
 - **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
 
 ## 6. Tech Stack Standards

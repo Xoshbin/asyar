@@ -3,7 +3,6 @@ import type {
   DynamicCommandRegistration,
   ICommandService,
 } from 'asyar-sdk/contracts';
-import type { ExtensionManager } from './extensionManager.svelte';
 import { logService } from '../log/logService';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { preferencesPromptStore } from './preferencesPromptStore.svelte';
@@ -33,22 +32,21 @@ export class CommandService implements ICommandService {
    * `setShortCommandId`, called from `ExtensionLoader` at registration time.
    */
   private shortCommandIds = new Map<string, string>();
-  private extensionManager: ExtensionManager | null = null;
+  private initialized = false;
 
   constructor() {}
 
   /**
    * Initialize the service with necessary dependencies.
    * Should be called once during application startup.
-   * @param manager - The ExtensionManager instance.
    */
-  initialize(manager: ExtensionManager): void {
-    if (this.extensionManager) {
+  initialize(_manager?: unknown): void {
+    if (this.initialized) {
       logService.warn('CommandService already initialized.');
       return;
     }
-    this.extensionManager = manager;
-    logService.debug('CommandService initialized and connected to ExtensionManager.');
+    this.initialized = true;
+    logService.debug('CommandService initialized.');
   }
 
   /**

@@ -1,4 +1,4 @@
-import { appInitializer } from '../appInitializer';
+import { isAppInitialized } from '../appInitState';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
 import { searchStores } from './stores/search.svelte';
@@ -10,8 +10,8 @@ import * as commands from '../../lib/ipc/commands';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
-import { actionService } from '../action/actionService.svelte';
 import { contextModeService } from '../context/contextModeService.svelte';
+import { actionService, setSelectedItemProvider } from '../action/actionService.svelte';
 
 export { invalidateTopItemsCache };
 
@@ -61,7 +61,7 @@ class SearchOrchestratorClass {
   >();
 
   async handleSearch(query: string): Promise<void> {
-    if (!appInitializer.isAppInitialized() || viewManager.activeView) return;
+    if (!isAppInitialized() || viewManager.activeView) return;
     const token = ++this.#searchToken;
     this.#resultActions.clear();
     // Local map for inline action closures (e.g. Calculator's copy-to-clipboard)
@@ -191,3 +191,9 @@ class SearchOrchestratorClass {
 }
 
 export const searchOrchestrator = new SearchOrchestratorClass();
+
+// Wire provider so actionService doesn't import searchOrchestrator (breaks circular dependency)
+setSelectedItemProvider(() => {
+  const idx = searchStores.selectedIndex;
+  return idx >= 0 ? searchOrchestrator.items[idx] : undefined;
+});

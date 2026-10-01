@@ -108,12 +108,21 @@ export async function factoryReset(): Promise<void> {
   await invokeSafe('factory_reset');
 }
 
+type LauncherResetHandler = () => void;
+let launcherResetHandler: LauncherResetHandler | null = null;
+
+/**
+ * Register a hook to reset launcher state when opening windows like settings.
+ * Inverts the dependency so low-level IPC wrappers never import UI coordinators.
+ */
+export function registerLauncherResetHook(fn: LauncherResetHandler): void {
+  launcherResetHandler = fn;
+}
+
 export async function showSettingsWindow(tab?: string, extensionId?: string): Promise<void> {
   // Direct callers bypass the no-view command hide path, so reset here too.
-  // Dynamic import breaks the commands ↔ extensionManager module cycle.
-  const { resetLauncherState } = await import('../launcher/launcherReset');
   await hideWindow();
-  resetLauncherState();
+  launcherResetHandler?.();
   const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
   const settingsWindow = await WebviewWindow.getByLabel('settings');
   if (settingsWindow) {

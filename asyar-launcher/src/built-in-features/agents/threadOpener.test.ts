@@ -21,21 +21,17 @@ vi.mock('../../services/extension/viewManager.svelte', () => ({
   },
 }));
 
-vi.mock('./index', () => ({
-  default: {
-    onViewSubmit: vi.fn(),
-  },
-}));
-
 vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { openAgentForTab } from './threadOpener';
+import { openAgentForTab, registerAgentSubmitHandler } from './threadOpener';
 import { agentsManager } from './agentsManager.svelte';
 import { agentService } from './agentService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
-import agentsExtension from './index';
+
+const mockOnViewSubmit = vi.fn();
+registerAgentSubmitHandler(mockOnViewSubmit);
 
 const thread1 = {
   id: 'thread-1',
@@ -93,7 +89,7 @@ describe('openAgentForTab', () => {
   it('dispatches the initial query via onViewSubmit', async () => {
     vi.mocked(agentService.listThreads).mockResolvedValue([]);
     await openAgentForTab('agent-a', 'hello world', false);
-    expect(agentsExtension.onViewSubmit).toHaveBeenCalledWith('hello world');
+    expect(mockOnViewSubmit).toHaveBeenCalledWith('hello world');
   });
 
   it('opens the chat view in empty state when agentId is null', async () => {

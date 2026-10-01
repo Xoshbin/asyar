@@ -55,6 +55,7 @@ import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from './feedback/feedbackService.svelte';
 import { setInvokeFailureReporter } from '../lib/ipc/invokeSafe';
 import { startBridgeLoop } from '../lib/ipc/bridgeEvents';
+import { setAppInitialized, isAppInitialized } from './appInitState';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -83,6 +84,7 @@ export const appInitializer = {
       return true;
     }
     isInitialized = true; // Set early to prevent concurrent calls
+    setAppInitialized(true);
 
     try {
       // Start the eval-free event bridge loop first so early Rust events
@@ -261,6 +263,12 @@ export const appInitializer = {
       );
       extensionUpdateService.checkAndAutoApply(); // non-blocking initial check + auto-apply
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
+      void import('./dev/inspectorStore.svelte').then(({ setInspectorManifestProvider }) => {
+        setInspectorManifestProvider(
+          (id) =>
+            extensionManager.getManifestById(id) as { background?: { main?: string } } | undefined,
+        );
+      });
 
       // Initialize app auto-update store (listens for Rust scheduler events)
       const { initAppUpdateStore } = await import('./update/appUpdateStore.svelte');
@@ -469,11 +477,12 @@ export const appInitializer = {
     } catch (error) {
       logService.error(`Failed to initialize application: ${error}`);
       isInitialized = false; // Reset flag on error
+      setAppInitialized(false);
       return false;
     }
   },
 
   isAppInitialized(): boolean {
-    return isInitialized;
+    return isAppInitialized();
   },
 };

@@ -19,9 +19,6 @@ vi.mock('../log/logService', () => ({
 vi.mock('../settings/developerSettingsService.svelte', () => ({
   developerSettingsService: { isDeveloperMode: true },
 }));
-vi.mock('../extension/extensionManager.svelte', () => ({
-  default: { getManifestById: vi.fn(() => undefined) },
-}));
 
 // The inspector store gates every method behind isDevActive(), which checks
 // import.meta.env.DEV || developerSettingsService.isDeveloperMode. Vitest

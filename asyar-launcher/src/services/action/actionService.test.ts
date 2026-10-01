@@ -93,7 +93,12 @@ vi.mock('@tauri-apps/plugin-os', () => ({
 
 // Fresh instance per test so tests are isolated
 function freshService(): ActionService {
-  return new ActionService();
+  const svc = new ActionService();
+  svc.setSelectedItemProvider(() => {
+    const idx = mockSearchStores.selectedIndex;
+    return idx >= 0 ? mockSearchOrchestrator.items[idx] : undefined;
+  });
+  return svc;
 }
 
 // Minimal action factory

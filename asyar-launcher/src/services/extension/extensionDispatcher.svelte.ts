@@ -8,7 +8,13 @@ import {
 import { post } from './extensionDelivery';
 import { extensionPendingState } from './extensionPendingState.svelte';
 import { extensionDegradedState } from './extensionDegradedState.svelte';
-import { extensionManager } from './extensionManager.svelte';
+
+type ExtensionNameResolver = (extensionId: string) => string | undefined;
+let extensionNameResolver: ExtensionNameResolver | null = null;
+
+export function registerExtensionNameResolver(resolver: ExtensionNameResolver): void {
+  extensionNameResolver = resolver;
+}
 
 export interface DispatchRequest {
   extensionId: string;
@@ -66,12 +72,8 @@ export async function dispatch(req: DispatchRequest): Promise<void> {
         `[dispatcher] extension ${req.extensionId} is degraded (${outcome.strikes} strikes); dropping ${req.source}`,
       );
       if (USER_FACING.has(req.source)) {
-        const manifest = extensionManager.getManifestById?.(req.extensionId);
-        extensionDegradedState.noticeForUser(
-          req.extensionId,
-          (manifest as { name?: string } | undefined)?.name ?? req.extensionId,
-          outcome.strikes,
-        );
+        const name = extensionNameResolver?.(req.extensionId) ?? req.extensionId;
+        extensionDegradedState.noticeForUser(req.extensionId, name, outcome.strikes);
       }
       return;
   }

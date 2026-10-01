@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { searchOrchestrator, invalidateTopItemsCache } from './searchOrchestrator.svelte';
-import { appInitializer } from '../appInitializer';
+import { isAppInitialized } from '../appInitState';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
 import { searchStores } from './stores/search.svelte';
@@ -9,10 +9,9 @@ import { isBuiltInFeature } from '../extension/extensionDiscovery';
 import { actionService } from '../action/actionService.svelte';
 
 // Mocking dependencies
-vi.mock('../appInitializer', () => ({
-  appInitializer: {
-    isAppInitialized: vi.fn(),
-  },
+vi.mock('../appInitState', () => ({
+  isAppInitialized: vi.fn(),
+  setAppInitialized: vi.fn(),
 }));
 
 vi.mock('../extension/viewManager.svelte', () => ({
@@ -69,6 +68,7 @@ vi.mock('../action/actionService.svelte', () => ({
   actionService: {
     executeExtensionAction: vi.fn().mockReturnValue(true),
   },
+  setSelectedItemProvider: vi.fn(),
 }));
 
 describe('searchOrchestrator characterization tests', () => {
@@ -80,13 +80,13 @@ describe('searchOrchestrator characterization tests', () => {
     invalidateTopItemsCache();
 
     // Default mock behaviors
-    vi.mocked(appInitializer.isAppInitialized).mockReturnValue(true);
+    vi.mocked(isAppInitialized).mockReturnValue(true);
     vi.mocked(extensionManager.searchAll).mockResolvedValue([]);
     vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
   });
 
   it('returns empty and DOES NOT set loading states when app not initialized', async () => {
-    vi.mocked(appInitializer.isAppInitialized).mockReturnValue(false);
+    vi.mocked(isAppInitialized).mockReturnValue(false);
 
     await searchOrchestrator.handleSearch('test');
 

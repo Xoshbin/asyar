@@ -11,8 +11,14 @@
 
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
-import extensionManager from '../extension/extensionManager.svelte';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
+
+type ManifestProvider = (extensionId: string) => { background?: { main?: string } } | undefined;
+let manifestProvider: ManifestProvider | null = null;
+
+export function setInspectorManifestProvider(provider: ManifestProvider): void {
+  manifestProvider = provider;
+}
 import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { getExtensionRuntimeSnapshot } from '../../lib/ipc/iframeLifecycleCommands';
 import {
@@ -320,8 +326,7 @@ class InspectorStore {
 
   async forceRemountWorker(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
-    const manifest = extensionManager.getManifestById(extensionId) as
-      { background?: { main?: string } } | undefined;
+    const manifest = manifestProvider?.(extensionId);
     const hasBackgroundMain = !!manifest?.background?.main;
     const ok = await forceRemountWorkerCommand(extensionId, hasBackgroundMain);
     if (!ok) logService.debug('[dev-inspector] force_remount_worker failed');

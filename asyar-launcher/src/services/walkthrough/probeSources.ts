@@ -3,9 +3,15 @@ import { portalStore } from '../../built-in-features/portals/portalStore.svelte'
 import { noteStore } from '../../built-in-features/notes/noteStore.svelte';
 import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import { aliasStore } from '../../built-in-features/aliases/aliasStore.svelte';
-import { extensionManager } from '../extension/extensionManager.svelte';
 import { countUserCreatedPortals } from './portalCounting';
 import type { ProbeSources } from './walkthroughService.svelte';
+
+type CountProvider = () => number;
+let installedExtensionCountProvider: CountProvider = () => 0;
+
+export function setInstalledExtensionCountProvider(provider: CountProvider): void {
+  installedExtensionCountProvider = provider;
+}
 
 /**
  * Only for facts launch history cannot answer. Prefer a `launch`/`count`
@@ -17,6 +23,5 @@ export const walkthroughProbeSources: ProbeSources = {
   shortcutCount: () => shortcutStore.shortcuts?.length ?? 0,
   portalCount: () => countUserCreatedPortals(portalStore.portals),
   noteCount: () => noteStore.notes?.length ?? 0,
-  installedExtensionCount: () =>
-    extensionManager.extensionRecords.filter((r) => !r.isBuiltIn).length,
+  installedExtensionCount: () => installedExtensionCountProvider(),
 };

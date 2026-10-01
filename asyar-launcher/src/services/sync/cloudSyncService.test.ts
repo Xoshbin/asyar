@@ -29,6 +29,7 @@ vi.mock('../auth/authService.svelte', () => ({
     isLoggedIn: true,
     entitlements: ['sync:settings', 'sync:ai-conversations'],
     logout: vi.fn().mockResolvedValue(undefined),
+    onAuthChange: vi.fn(() => () => {}),
   },
 }));
 

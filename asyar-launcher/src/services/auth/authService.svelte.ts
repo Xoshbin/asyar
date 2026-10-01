@@ -42,6 +42,24 @@ class AuthService {
    * Loads cached auth from Rust, registers cross-window event listeners,
    * then attempts a background entitlement refresh if logged in.
    */
+  private authListeners = new Set<(isLoggedIn: boolean) => void | Promise<void>>();
+
+  /** Subscribe to authentication state changes (login, logout, token refresh). */
+  onAuthChange(listener: (isLoggedIn: boolean) => void | Promise<void>): () => void {
+    this.authListeners.add(listener);
+    return () => this.authListeners.delete(listener);
+  }
+
+  private async notifyAuthChange(isLoggedIn: boolean): Promise<void> {
+    for (const listener of this.authListeners) {
+      try {
+        await listener(isLoggedIn);
+      } catch (err) {
+        logService.warn(`Auth: listener threw on auth change: ${err}`);
+      }
+    }
+  }
+
   async init(): Promise<void> {
     if (!this.authChangedUnlisten) {
       try {
@@ -54,19 +72,9 @@ class AuthService {
               this.isLoggedIn = true;
               this.user = payload.user ?? null;
               this.entitlements = payload.entitlements ?? [];
-              try {
-                const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
-                await cloudSyncService.init();
-              } catch (err) {
-                logService.warn(`Auth: cloud sync init failed on auth change: ${err}`);
-              }
+              await this.notifyAuthChange(true);
             } else {
-              try {
-                const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
-                cloudSyncService.dispose();
-              } catch (err) {
-                logService.warn(`Auth: cloud sync dispose failed on auth change: ${err}`);
-              }
+              await this.notifyAuthChange(false);
               this.isLoggedIn = false;
               this.user = null;
               this.entitlements = [];
@@ -218,13 +226,7 @@ class AuthService {
       // before clearing auth state, so an in-flight syncNow() can't fire
       // again post-logout (the entitlement gate inside syncNow would reject
       // it, but that surfaces a misleading `lastError`).
-      // Dynamic import to avoid the cycle authService → cloudSyncService → gateService → authService
-      try {
-        const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
-        cloudSyncService.dispose();
-      } catch (err) {
-        logService.warn(`Auth: cloud sync dispose failed during logout: ${err}`);
-      }
+      await this.notifyAuthChange(false);
 
       this.isLoggedIn = false;
       this.user = null;
@@ -276,16 +278,7 @@ class AuthService {
     this.isLoggedIn = true;
     logService.info(`Auth: logged in as ${result.user?.email ?? 'unknown'}`);
 
-    // Start cloud sync for this fresh session — appInitializer only calls
-    // cloudSyncService.init() at startup, where it no-ops if the launcher
-    // came up signed-out. Mirror of the dispose() in logout(); same dynamic
-    // import to break the module cycle.
-    try {
-      const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
-      await cloudSyncService.init();
-    } catch (err) {
-      logService.warn(`Auth: cloud sync init failed after login: ${err}`);
-    }
+    await this.notifyAuthChange(true);
   }
 }
 

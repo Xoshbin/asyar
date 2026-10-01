@@ -8,10 +8,14 @@
   - **Zero-IPC Fast Path**: Never serialize frontend in-memory arrays over the IPC bridge for keystroke filtering. IPC round-trips for UI-local collections introduce unnecessary JSON serialization overhead and latency into active typing.
   - **Presentation & Interaction**: Rendering, UI layout, animations, DOM event handling, and immediate visual interactions belong strictly in Svelte 5 / TypeScript.
 
-## 2. No Service Singletons
+## 2. Managed Lifecycle & Dependency Inversion (Evolved "No Singletons")
 
-- Never create `getInstance()`, `static instance`, or hidden singleton states.
-- All long-lived services must be registered in and resolved through `ServiceRegistry` (`buildServiceRegistry`).
+- **Ban on Cyclic Module Singletons**:
+  - Never import companion service singletons directly across module boundaries in a way that introduces circular dependency cycles.
+  - Invert dependencies: lower-level services (such as `authService` or low-level IPC wrappers) must NEVER import higher-level feature services (such as `cloudSyncService` or UI coordinators).
+  - Use dependency inversion: expose event listeners (`onAuthChange`), provider setters (`setSelectedItemProvider`), or hook registries (`registerLauncherResetHook`) instead of cyclic module imports.
+- **ServiceRegistry as the Extension Boundary**:
+  - All host services accessible to Tier 2 extensions must be explicitly registered and projected through `ServiceRegistry` (`buildServiceRegistry`).
 
 ## 3. Never Hand-Edit Generated Files
 
