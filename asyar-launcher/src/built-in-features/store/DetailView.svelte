@@ -23,6 +23,7 @@
   import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
   import type { ManifestCommand, ManifestPreference } from './state.svelte';
   import { t } from '../../services/i18n';
+  import { isSdkCompatible } from './sdkCompatibility';
 
   // Define structure for detailed API response
   interface ExtensionDetail {
@@ -82,6 +83,10 @@
       : undefined,
   );
   let isTheme = $derived(extensionDetail?.category?.toLowerCase() === 'theme');
+  let isSdkCompatibleWithHost = $derived(
+    !extensionDetail?.asyarSdk ||
+      isSdkCompatible(extensionDetail.asyarSdk, envService.supportedSdkVersion),
+  );
   let detailGradient = $derived(
     extensionDetail
       ? nameToGradient(extensionDetail.name)
@@ -194,6 +199,18 @@
 
   async function installExtension() {
     if (!extensionDetail || !currentSlug) return;
+    if (!isSdkCompatibleWithHost) {
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'warning',
+        retryable: false,
+        context: {
+          message: `Cannot install ${extensionDetail.name}: requires newer SDK (${extensionDetail.asyarSdk})`,
+        },
+      });
+      return;
+    }
 
     error = null;
     try {
@@ -350,8 +367,21 @@
                   Uninstall
                 </Button>
               {:else}
-                <Button class="btn-primary h-10 px-6 font-semibold" onclick={installExtension}>
-                  {isTheme ? 'Install Theme' : 'Install Extension'}
+                <Button
+                  class="btn-primary h-10 px-6 font-semibold"
+                  disabled={!isSdkCompatibleWithHost}
+                  title={!isSdkCompatibleWithHost
+                    ? `This extension requires Asyar SDK ${extensionDetail?.asyarSdk}. Please update Asyar to install.`
+                    : undefined}
+                  onclick={installExtension}
+                >
+                  {#if !isSdkCompatibleWithHost}
+                    Incompatible (Requires SDK {extensionDetail?.asyarSdk})
+                  {:else if isTheme}
+                    Install Theme
+                  {:else}
+                    Install Extension
+                  {/if}
                 </Button>
               {/if}
 
@@ -376,8 +406,7 @@
                 </div>
               {/if}
 
-              <!-- TODO: Implement actual satisfaction check against SUPPORTED_SDK_VERSION when store API provides asyarSdk -->
-              {#if !isInstalled && extensionDetail?.asyarSdk}
+              {#if !isInstalled && extensionDetail?.asyarSdk && !isSdkCompatibleWithHost}
                 <WarningBanner>
                   {#snippet children()}
                     <p class="text-caption">

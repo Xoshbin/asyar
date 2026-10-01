@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/
+build-backup/
 .svelte-kit/
 target/
 extensions/

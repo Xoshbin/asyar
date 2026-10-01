@@ -18,6 +18,14 @@ class EnvService {
   get storeApiBaseUrl(): string {
     return 'https://asyar.org';
   }
+
+  /**
+   * The semver version of the Asyar SDK bundled and supported by this host.
+   */
+  get supportedSdkVersion(): string {
+    return SUPPORTED_SDK_VERSION;
+  }
 }
 
+export const SUPPORTED_SDK_VERSION = '4.13.0';
 export const envService = new EnvService();
