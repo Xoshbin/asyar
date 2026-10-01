@@ -94,6 +94,21 @@ try {
       }
     }
 
+    // 2b. envService.ts SUPPORTED_SDK_VERSION
+    const envServicePath = resolve(root, 'src', 'services', 'envService.ts');
+    if (existsSync(envServicePath)) {
+      const before = readFileSync(envServicePath, 'utf8');
+      const after = before.replace(
+        /export const SUPPORTED_SDK_VERSION = '[\d.]+';/,
+        `export const SUPPORTED_SDK_VERSION = '${sdkVersion}';`,
+      );
+      if (after !== before) {
+        writeFileSync(envServicePath, after);
+        filesToAdd.push('src/services/envService.ts');
+        console.log('✓ envService.ts');
+      }
+    }
+
     // NOTE: discovery.rs / SUPPORTED_SDK_VERSION is handled at compile time by
     // src-tauri/build.rs (reads node_modules/asyar-sdk/package.json). No patch here.
 
