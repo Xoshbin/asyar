@@ -10,6 +10,7 @@ vi.mock('../../lib/ipc/bridgeEvents', () => ({
 }));
 vi.mock('../../lib/ipc/iframeLifecycleCommands', () => ({
   iframeUnmountAck: vi.fn(),
+  iframeReadyAck: vi.fn(async () => []),
 }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },

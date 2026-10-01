@@ -152,4 +152,12 @@ describe('asyar-sdk/worker — entry surface', () => {
     ctx.setExtensionId('ext.worker-rpc');
     expect(rpcSetIdSpy).toHaveBeenCalledWith('ext.worker-rpc');
   });
+
+  it('resolves when __ASYAR_ROLE__ is set on self without window', async () => {
+    delete (window as any).__ASYAR_ROLE__;
+    (self as any).__ASYAR_ROLE__ = 'worker';
+    const mod = await import('./worker');
+    expect(mod.ExtensionContext).toBeTypeOf('function');
+    delete (self as any).__ASYAR_ROLE__;
+  });
 });

@@ -10,14 +10,22 @@
  * mechanically incapable of touching the document.
  */
 
-if (
-  typeof window === 'undefined' ||
-  (window as { __ASYAR_ROLE__?: unknown }).__ASYAR_ROLE__ !== 'worker'
-) {
+const globalScope =
+  typeof self !== 'undefined'
+    ? self
+    : typeof window !== 'undefined'
+      ? window
+      : typeof globalThis !== 'undefined'
+        ? globalThis
+        : null;
+
+const activeRole = (globalScope as { __ASYAR_ROLE__?: unknown } | null)?.__ASYAR_ROLE__;
+
+if (activeRole !== 'worker') {
   throw new Error(
     '[asyar-sdk/worker] Imported outside a worker context. ' +
-      'This entry point is intended for code running in worker.html ' +
-      "(a Tier 2 extension's headless iframe). " +
+      'This entry point is intended for code running in worker contexts ' +
+      "(a Tier 2 extension's background worker). " +
       'Did you mean to import from "asyar-sdk/view"?',
   );
 }
@@ -111,9 +119,18 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
  * load so even the very first `onRequest` registration is covered without
  * a bootstrap ordering hazard.
  */
+function postToHost(message: Record<string, unknown>): void {
+  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    window.parent.postMessage(message, '*');
+  } else if (typeof self !== 'undefined' && typeof (self as any).postMessage === 'function') {
+    (self as any).postMessage(message);
+  }
+}
+
 function installWorkerRpcInterceptor(): void {
-  if (typeof window === 'undefined') return;
-  window.addEventListener('message', (event: MessageEvent) => {
+  const scope = typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
+  if (!scope || typeof scope.addEventListener !== 'function') return;
+  scope.addEventListener('message', (event: Event) => {
     const data = (event as MessageEvent<unknown>).data;
     if (!data || typeof data !== 'object') return;
     const d = data as { type?: unknown; payload?: unknown };
@@ -142,8 +159,9 @@ let _workerToolsProxy: ToolsServiceProxy | undefined;
  * `registerTool` call is covered without a bootstrap ordering hazard.
  */
 function installToolsInvokeInterceptor(): void {
-  if (typeof window === 'undefined') return;
-  window.addEventListener('message', async (event: MessageEvent) => {
+  const scope = typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
+  if (!scope || typeof scope.addEventListener !== 'function') return;
+  scope.addEventListener('message', (async (event: Event) => {
     const data = (event as MessageEvent<unknown>).data;
     if (!data || typeof data !== 'object') return;
     const d = data as { type?: unknown; messageId?: unknown; payload?: unknown };
@@ -156,46 +174,40 @@ function installToolsInvokeInterceptor(): void {
     if (!_workerToolsProxy) return;
     try {
       const result = await _workerToolsProxy.invokeHandler(toolId, args);
-      window.parent.postMessage({ type: 'asyar:tools:invoke:response', messageId, result }, '*');
+      postToHost({ type: 'asyar:tools:invoke:response', messageId, result });
     } catch (err) {
-      window.parent.postMessage(
-        {
-          type: 'asyar:tools:invoke:response',
-          messageId,
-          error: err instanceof Error ? err.message : String(err),
-        },
-        '*',
-      );
+      postToHost({
+        type: 'asyar:tools:invoke:response',
+        messageId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
-  });
+  }) as EventListener);
 }
 
 // Auto-report uncaught errors / rejections to host parent (Task 24).
-if (typeof window !== 'undefined' && window.parent !== window) {
-  window.addEventListener('error', (e: ErrorEvent) => {
-    window.parent.postMessage(
-      {
-        type: 'asyar:feedback:uncaught',
-        payload: {
-          kind: 'iframe_uncaught',
-          developerDetail: e.error?.stack ?? String(e.message),
-        },
+const errorScope =
+  typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
+if (errorScope && typeof errorScope.addEventListener === 'function') {
+  errorScope.addEventListener('error', ((e: ErrorEvent) => {
+    postToHost({
+      type: 'asyar:feedback:uncaught',
+      payload: {
+        kind: 'iframe_uncaught',
+        developerDetail: e.error?.stack ?? String(e.message),
       },
-      '*',
-    );
-  });
-  window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
-    window.parent.postMessage(
-      {
-        type: 'asyar:feedback:uncaught',
-        payload: {
-          kind: 'iframe_unhandled_rejection',
-          developerDetail: String(e.reason),
-        },
+    });
+  }) as EventListener);
+
+  errorScope.addEventListener('unhandledrejection', ((e: PromiseRejectionEvent) => {
+    postToHost({
+      type: 'asyar:feedback:uncaught',
+      payload: {
+        kind: 'iframe_unhandled_rejection',
+        developerDetail: String(e.reason),
       },
-      '*',
-    );
-  });
+    });
+  }) as EventListener);
 }
 
 export class ExtensionContext extends ExtensionContextCore {

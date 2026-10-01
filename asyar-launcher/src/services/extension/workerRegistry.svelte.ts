@@ -1,6 +1,7 @@
 import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { iframeUnmountAck } from '../../lib/ipc/iframeLifecycleCommands';
 import { logService } from '../log/logService';
+import { workerHost } from './workerHost.svelte';
 
 export interface WorkerRegistryEntry {
   extensionId: string;
@@ -14,6 +15,10 @@ class WorkerRegistry {
 
   get entries(): ReadonlyArray<WorkerRegistryEntry> {
     return this._entries;
+  }
+
+  get fallbackEntries(): ReadonlyArray<{ extensionId: string; mountToken: number }> {
+    return workerHost.fallbackEntries;
   }
 
   async init(): Promise<void> {
@@ -36,6 +41,7 @@ class WorkerRegistry {
     this.unlistenMount = null;
     this.unlistenUnmount = null;
     this._entries.splice(0, this._entries.length);
+    workerHost.reset();
   }
 
   handleMount(p: { extensionId: string; mountToken: number; role?: string }): void {
@@ -48,6 +54,7 @@ class WorkerRegistry {
     } else {
       this._entries.push(entry);
     }
+    workerHost.mount(p.extensionId, p.mountToken);
   }
 
   async handleUnmount(p: { extensionId: string; reason: string; role?: string }): Promise<void> {
@@ -55,6 +62,7 @@ class WorkerRegistry {
     logService.debug(`[workerRegistry] unmount ${p.extensionId} reason=${p.reason}`);
     const idx = this._entries.findIndex((e) => e.extensionId === p.extensionId);
     if (idx >= 0) this._entries.splice(idx, 1);
+    workerHost.unmount(p.extensionId, p.reason);
     try {
       await iframeUnmountAck(p.extensionId, 'worker');
     } catch (err) {

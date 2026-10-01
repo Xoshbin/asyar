@@ -47,6 +47,10 @@ Or manually run the steps:
   - In a single-window desktop launcher, long-lived domain services are naturally singletons, but unmanaged, cyclic module-level singletons that import each other at top-level are strictly forbidden.
   - Ban direct cross-module singleton imports that form circular cycles. Invert dependencies: lower-level services (e.g. Auth, IPC wrappers) must never import higher-level services (e.g. CloudSync, UI reset). Use pub/sub listeners, callbacks, or provider hooks.
   - All services participating in extension IPC must still be registered in and exposed through `ServiceRegistry` (`buildServiceRegistry`).
+- **Separation of Headless Compute and Visual Canvas (Evolved Extension Sandboxing)**:
+  - Background workers (`role: 'worker'`) must execute off-main-thread in dedicated headless compute environments (Web Workers / isolated worker contexts), with zero DOM/style overhead and zero main-thread event loop contention, keeping the launcher's search bar, input, and 120 FPS animations smooth.
+  - Browser `<iframe>` contexts are strictly reserved for visual canvases and on-demand UI presentation (`role: 'view'`).
+  - Multi-engine horizon: Web Workers today $\rightarrow$ isolated native/QuickJS/Wasm runtime options for high-throughput extensions.
 - **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
 
 ## 6. Tech Stack Standards

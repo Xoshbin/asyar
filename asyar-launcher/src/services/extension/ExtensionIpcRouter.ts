@@ -7,6 +7,7 @@ import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { HandledDispatchError } from './ipc/errors';
 import { runIpcPipeline } from './ipc/pipeline';
 import type { IframeRole, IpcContext, IpcDeps } from './ipc/types';
+import { workerHost } from './workerHost.svelte';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
   search_items: (args) => commands.searchItems(args?.query ?? ''),
@@ -99,6 +100,10 @@ export class ExtensionIpcRouter {
       void this.handleMessage(event);
     });
 
+    workerHost.setIpcHandler((event: MessageEvent) => {
+      void this.handleMessage(event);
+    });
+
     // Tier-1 built-ins run in the host window; dispatch their invokes
     // synchronously so nav-stack side effects land before the caller's
     // await resumes. This bypasses the pipeline by design — the host is the
@@ -117,11 +122,14 @@ export class ExtensionIpcRouter {
     const data = event.data ?? {};
     const source = event.source;
     const messageId = data.messageId;
+    const isWorker = workerHost.hasSource(source);
     const post = (body: Record<string, unknown>) => {
-      (source as WindowProxy | null)?.postMessage(
-        { type: 'asyar:response', messageId, ...body },
-        '*',
-      );
+      const resp = { type: 'asyar:response', messageId, ...body };
+      if (isWorker && source && typeof (source as any).postMessage === 'function') {
+        (source as any).postMessage(resp);
+      } else {
+        (source as WindowProxy | null)?.postMessage(resp, '*');
+      }
     };
 
     return {
@@ -145,22 +153,21 @@ export class ExtensionIpcRouter {
   }
 
   /**
-   * Find the iframe whose `contentWindow` matches `source` and read its
-   * `data-extension-id` attribute. Returns undefined when source is not a
-   * known Tier 2 iframe. Trusted — the attribute is host-set on the element.
+   * Find the iframe or worker whose source matches `source` and read its
+   * extensionId. Returns undefined when source is not a known Tier 2 context.
    */
   private findExtensionIdForSource(source: MessageEventSource | null): string | undefined {
+    const workerExtId = workerHost.findExtensionIdForSource(source);
+    if (workerExtId) return workerExtId;
     return this.findFrameForSource(source)?.dataset.extensionId;
   }
 
   /**
-   * Find the iframe whose `contentWindow` matches `source` and read its
-   * `data-role` attribute. Returns undefined for Tier 1 built-ins (host
-   * window = privileged context) or anything that doesn't look like a
-   * Tier 2 iframe. Trusted path — the attribute is set by the host when
-   * the iframe is created, not by extension code.
+   * Find the role for `source`. Returns 'worker' if the source is an active
+   * worker in workerHost, or reads `data-role` for iframes.
    */
   private findIframeRoleForSource(source: MessageEventSource | null): IframeRole | undefined {
+    if (workerHost.hasSource(source)) return 'worker';
     const role = this.findFrameForSource(source)?.dataset.role;
     return role === 'view' || role === 'worker' ? role : undefined;
   }

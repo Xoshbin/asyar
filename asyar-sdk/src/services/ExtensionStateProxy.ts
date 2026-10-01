@@ -105,10 +105,14 @@ export class ExtensionStateProxy extends BaseServiceProxy {
   }
 
   private resolveRole(): WireRole {
-    if (typeof window !== 'undefined') {
-      const injected = (window as { __ASYAR_ROLE__?: unknown }).__ASYAR_ROLE__;
-      if (injected === 'worker' || injected === 'view') return injected;
-    }
+    const scope =
+      typeof self !== 'undefined'
+        ? (self as any)
+        : typeof window !== 'undefined'
+          ? (window as any)
+          : globalThis;
+    const injected = scope?.__ASYAR_ROLE__;
+    if (injected === 'worker' || injected === 'view') return injected;
     // Neutral default. Entry-point role assertion runs at module-load, so
     // reaching this branch implies a test harness that didn't stub the
     // global — 'view' is the safer fallback (never fans out to workers).

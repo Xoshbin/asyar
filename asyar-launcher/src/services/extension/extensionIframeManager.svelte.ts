@@ -1,6 +1,7 @@
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { logService } from '../log/logService';
 import { pickExtensionIframe } from './extensionIframeSelector';
+import { workerHost } from './workerHost.svelte';
 export interface ActiveViewProvider {
   getActiveView(): string | null;
 }
@@ -62,6 +63,13 @@ export class ExtensionIframeManager {
     role?: 'view' | 'worker',
     payload?: unknown,
   ): void {
+    if (role === 'worker' && workerHost.hasWorker(extensionId)) {
+      workerHost.post(extensionId, {
+        type: 'asyar:action:execute',
+        payload: { actionId, actionPayload: payload },
+      });
+      return;
+    }
     const iframe = pickExtensionIframe(extensionId, role ?? 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
@@ -96,6 +104,9 @@ export class ExtensionIframeManager {
       commands: Record<string, Record<string, unknown>>;
     },
   ): void {
+    if (workerHost.hasWorker(extensionId)) {
+      workerHost.broadcastPreferences(extensionId, bundle);
+    }
     const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
       // Use the `asyar:event:*` namespace so MessageBroker inside the

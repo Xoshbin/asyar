@@ -30,3 +30,10 @@
   - Disabling a built-in feature in **Settings → Extensions** cleanly unregisters its UI contributions without stopping, killing, or clearing the underlying platform service.
   - Permission-authorized Tier 2 extensions must retain uninterrupted access to platform services (e.g. `files:search`, `screen:capture`, `calculator:evaluate`, `notes:read`) regardless of whether the bundled UI is enabled or disabled.
   - Only core platform infrastructure (`system` and `settings`) is non-disableable (`lifecycle.disableable: false`).
+
+## 5. Separation of Headless Compute and Visual Canvas (Evolved Sandboxing)
+
+- **Decoupled Compute from DOM Presentation**:
+  - **Headless Worker (`role: 'worker'`)**: Must execute in off-main-thread compute environments (e.g. Web Workers or isolated worker host contexts). Headless background execution (schedules, interval pollers, push subscriptions, WebSocket/fetch connections, tools, RPC handlers) must never reside in main-window DOM iframes where JavaScript execution contends with the launcher's search bar, input latency, and 120 FPS animations.
+  - **Visual Canvas (`role: 'view'`)**: Strictly reserved for UI presentation. Sandboxed `<iframe>` elements at `asyar-extension://` are mounted on-demand only when a foreground visual view is active and dismissed when the user navigates away.
+  - **Multi-Engine Horizon**: Web Workers off the main thread today $\rightarrow$ pluggable isolated native runtimes (e.g. QuickJS or Wasm components with direct Rust IPC bindings) for high-throughput extensions tomorrow, completely eliminating browser engine overhead for background compute.

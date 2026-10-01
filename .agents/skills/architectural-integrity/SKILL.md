@@ -28,9 +28,13 @@ All features might eventually be extended by third parties. Design every capabil
 Asyar already implements this with its **Two-Tier Extension Model**:
 
 - **Tier 1 (Built-in features)** run in the privileged host context at `src/built-in-features/*/`. They share the main JS execution context with full Tauri API access.
-- **Tier 2 (Installed extensions)** run in **two sandboxed `<iframe>` elements per extension** (worker + view) at the `asyar-extension://` custom protocol. They communicate exclusively via `postMessage` IPC. A misbehaving Tier 2 extension cannot crash the host. The worker is always-on (push subscriptions, schedules, timers, tray, RPC handlers); the view is on-demand UI. See [`docs/explanation/extension-runtime.md`](../../../docs/explanation/extension-runtime.md).
+- **Tier 2 (Installed extensions)** follow the **Separation of Headless Compute and Visual Canvas**:
+  - **Headless Worker (`role: 'worker'`)**: Executes in an **off-main-thread compute environment** (e.g. Web Worker / dedicated worker host) completely decoupled from the launcher window's DOM and main renderer thread. Always-on (push subscriptions, schedules, timers, tray, RPC handlers). Heavy compute or interval polling in background workers can never drop launcher UI frames, micro-stutter the search bar, or block input handling.
+  - **Visual View (`role: 'view'`)**: Executes in a **sandboxed visual `<iframe>`** at the `asyar-extension://` custom protocol, mounted on-demand strictly when the user navigates to an extension view and unmounted when dismissed.
+  - **Multi-Engine Horizon**: Web Workers off the main thread today $\rightarrow$ pluggable isolated native runtimes (QuickJS / Wasm component hosts with direct Rust IPC) for high-throughput extensions tomorrow.
+  - They communicate exclusively via typed IPC envelopes. A misbehaving Tier 2 extension cannot crash the host or degrade the UI event loop. See [`docs/explanation/extension-runtime.md`](../../../docs/explanation/extension-runtime.md).
 
-This was a hard-learned lesson. The early implementation tried `import()` to load Tier 2 extensions directly into the host window. It failed in three ways: duplicate MessageBroker singletons, `window.parent === window` breaking postMessage routing, and lost extensionId context. The iframe model solved all three by giving each extension a genuinely separate JS execution context. Phase 6 split the single iframe into worker + view to fix the silent-push-drop class of bugs that the dispatch-evicted single iframe caused.
+This was a hard-learned lesson. The early implementation tried `import()` to load Tier 2 extensions directly into the host window. It failed in three ways: duplicate MessageBroker singletons, `window.parent === window` breaking postMessage routing, and lost extensionId context. The initial iframe model solved all three by isolating execution, but hit the "Everything is an Iframe" ceiling when headless workers competed with the Svelte 5 main thread. The evolved architecture enforces a strict boundary: `<iframe>` is exclusively for visual canvases, while headless compute lives off-main-thread in dedicated worker environments.
 
 ### How to Apply This
 
@@ -171,7 +175,7 @@ VS Code's architecture has a strict process boundary: the renderer process (UI),
 
 Early extensible platforms tried passing DOM access or UI framework components directly to extensions. This tightly couples extensions to the host's internal framework and breaks constantly when the host upgrades.
 
-**Asyar's correct approach:** Tier 2 extensions get sandboxed iframes and communicate through `postMessage` IPC. They cannot touch the host's DOM or internal Svelte components. This is exactly how VS Code's Webview API works — extensions provide HTML content rendered in a sandboxed frame, but never access the host's Electron renderer DOM.
+**Asyar's correct approach:** Tier 2 extensions get sandboxed iframes for visual presentation (`role: 'view'`) and off-main-thread worker contexts for headless compute (`role: 'worker'`), communicating through typed IPC. They cannot touch the host's DOM or internal Svelte components. This is exactly how VS Code's Webview and Extension Host APIs work — extension views provide HTML content rendered in a sandboxed frame, while extension logic runs off the UI thread without accessing the host renderer DOM.
 
 **For data-driven UI (like lists and trees):** Use declarative data structures. The extension provides data (title, icon, description, actions); the host renders it in the standard UI. This is the pattern behind `ExtensionResult[]` returned from `search()` — the extension describes results, the host renders them in `ResultsList`.
 

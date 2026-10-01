@@ -9,13 +9,18 @@ const WIRE: Record<IpcPendingMessage['kind'], string | null> = {
   predictiveWarm: null,
 };
 
-export function post(iframe: HTMLIFrameElement, message: IpcPendingMessage): void {
+export function toWireMessage(
+  message: IpcPendingMessage,
+): { type: string; payload: Record<string, unknown> } | null {
   const type = WIRE[message.kind];
-  if (!type) return;
+  if (!type) return null;
+  return { type, payload: message.payload };
+}
+
+export function post(iframe: HTMLIFrameElement, message: IpcPendingMessage): void {
+  const wire = toWireMessage(message);
+  if (!wire) return;
   const extensionId = iframe.getAttribute('data-extension-id');
   if (!extensionId || !iframe.contentWindow) return;
-  iframe.contentWindow.postMessage(
-    { type, payload: message.payload },
-    getExtensionFrameOrigin(extensionId),
-  );
+  iframe.contentWindow.postMessage(wire, getExtensionFrameOrigin(extensionId));
 }
