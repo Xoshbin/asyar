@@ -252,11 +252,6 @@ Snippet "private" tag / local-only sync opt-out (shipped 2026-09-30):
 - **Tombstone suppression**: Local updates or deletions of private snippets suppress cloud sync change events and tombstones, eliminating cross-device leakage.
 - Remote sync merge or replace imports preserve local private snippets without overwriting or removing them.
 
-Additional planned controls under Layer 5:
-
-- Optional "scrub long pastes" mode — drops conversation messages over
-  X lines that look like code blocks.
-
 ## What this is NOT
 
 Asyar does not promise to detect every secret. Layer 1 catches items

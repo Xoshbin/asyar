@@ -243,10 +243,6 @@ Opt-in passphrase-based E2EE on top of the per-item sync layer. Default OFF. Ena
 - **AI Conversation Retention Cap** — Maximum retained threads (Unlimited, 25, 50, 100 [default], or custom) with pinned thread protection (**Settings → AI → Behavior**).
 - **Snippet Private Tag (Local-Only Sync Opt-Out)** — Mark sensitive snippets as private; they remain strictly local and are never included in cloud sync payloads or tombstones.
 
-### Future layers (planned)
-
-- Optional long paste scrubber.
-
 See [`docs/explanation/clipboard-privacy.md`](docs/explanation/clipboard-privacy.md) for the full design.
 
 ---
