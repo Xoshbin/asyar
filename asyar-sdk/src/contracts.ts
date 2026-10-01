@@ -114,6 +114,8 @@ export { OpenerServiceProxy } from './services';
 export { CalculatorServiceProxy } from './services';
 export { AiServiceProxy } from './services';
 export type { IAiService, AiCompletionOptions, AiStreamOptions } from './services';
+export { McpServiceProxy } from './services';
+export type { IMcpService, McpServerInfo, McpToolDescriptor } from './services';
 
 export type { ISearchBarAccessoryService } from './services/ISearchBarAccessoryService';
 export type {

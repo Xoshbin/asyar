@@ -3,6 +3,8 @@ import type { ExtensionAction } from './types/ActionType';
 import type { CommandHandler } from './types/CommandType';
 import type { Namespace } from './ipc/namespaces';
 import type { BaseServiceProxy } from './services/BaseServiceProxy';
+import type { IMcpService } from './contracts/IMcpService';
+import type { IAiService } from './contracts/IAiService';
 
 import { PreferencesFacade, buildFrozenSnapshot } from './PreferencesFacade';
 import { registerSyncProvider as setupSyncProvider } from './lib/syncProviderBridge';
@@ -62,6 +64,14 @@ export class ExtensionContextCore {
       throw new Error(`Service "${namespace}" not registered`);
     }
     return service as T;
+  }
+
+  get mcp(): IMcpService {
+    return this.getService<IMcpService>('mcp');
+  }
+
+  get ai(): IAiService {
+    return this.getService<IAiService>('ai');
   }
 
   setExtensionId(id: string): void {

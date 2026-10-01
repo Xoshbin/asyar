@@ -233,6 +233,7 @@ export const VALID_PERMISSIONS = [
   'files:read',
   'notes:read',
   'notes:write',
+  'mcp',
 ] as const;
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const;

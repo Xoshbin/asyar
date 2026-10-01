@@ -1434,6 +1434,7 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
         apiType.startsWith('asyar:api:notes:get')
       )
         required = 'notes:read';
+      else if (apiType.startsWith('asyar:api:mcp:')) required = 'mcp';
 
       if (required && declaredPermissions.has(required)) {
         return { allowed: true } as any;
@@ -1875,5 +1876,171 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
     const replies = getReplies();
     const reply = replies.find((r) => r.messageId === 'unknown-1');
     expect(reply?.error).toContain('Unknown extension: org.unknown.extension');
+  });
+
+  describe('mcp service routes', () => {
+    it('blocks mcp:listServers when extension lacks mcp permission', async () => {
+      const listServers = vi.fn(async () => []);
+      const registry = { mcp: { listServers } } as unknown as ServiceRegistry;
+      const router = new ExtensionIpcRouter(
+        registry,
+        (id) => knownManifests.get(id),
+        vi.fn(),
+        vi.fn(),
+      );
+
+      await router.handleMessage(
+        new MessageEvent('message', {
+          source: iframeEl.contentWindow,
+          data: {
+            type: 'asyar:api:mcp:listServers',
+            messageId: 'mcp-list-denied',
+          },
+        }),
+      );
+
+      expect(listServers).not.toHaveBeenCalled();
+      const replies = getReplies();
+      const reply = replies.find((r) => r.messageId === 'mcp-list-denied');
+      expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+      expect(reply?.error).toContain('mcp');
+    });
+
+    it('allows mcp:listServers when extension has mcp permission', async () => {
+      declaredPermissions.add('mcp');
+      const listServers = vi.fn(async () => [
+        { id: 'server-1', name: 'GitHub Tools', enabled: true, toolsCount: 3 },
+      ]);
+      const registry = { mcp: { listServers } } as unknown as ServiceRegistry;
+      const router = new ExtensionIpcRouter(
+        registry,
+        (id) => knownManifests.get(id),
+        vi.fn(),
+        vi.fn(),
+      );
+
+      await router.handleMessage(
+        new MessageEvent('message', {
+          source: iframeEl.contentWindow,
+          data: {
+            type: 'asyar:api:mcp:listServers',
+            messageId: 'mcp-list-1',
+          },
+        }),
+      );
+
+      expect(listServers).toHaveBeenCalledWith('org.example.tier2');
+      const replies = getReplies();
+      expect(replies.find((r) => r.messageId === 'mcp-list-1')?.result).toEqual([
+        { id: 'server-1', name: 'GitHub Tools', enabled: true, toolsCount: 3 },
+      ]);
+    });
+
+    it('allows mcp:listTools when extension has mcp permission', async () => {
+      declaredPermissions.add('mcp');
+      const listTools = vi.fn(async (_callerId: string, serverId?: string) => [
+        { name: 'search_repos', description: 'Search', inputSchema: {}, serverId },
+      ]);
+      const registry = { mcp: { listTools } } as unknown as ServiceRegistry;
+      const router = new ExtensionIpcRouter(
+        registry,
+        (id) => knownManifests.get(id),
+        vi.fn(),
+        vi.fn(),
+      );
+
+      await router.handleMessage(
+        new MessageEvent('message', {
+          source: iframeEl.contentWindow,
+          data: {
+            type: 'asyar:api:mcp:listTools',
+            messageId: 'mcp-tools-1',
+            payload: { serverId: 'github' },
+          },
+        }),
+      );
+
+      expect(listTools).toHaveBeenCalledWith('org.example.tier2', 'github');
+      const replies = getReplies();
+      expect(replies.find((r) => r.messageId === 'mcp-tools-1')?.result).toEqual([
+        { name: 'search_repos', description: 'Search', inputSchema: {}, serverId: 'github' },
+      ]);
+    });
+
+    it('allows mcp:invokeTool and forwards caller extensionId, serverId, toolId, and args', async () => {
+      declaredPermissions.add('mcp');
+      const invokeTool = vi.fn(
+        async (
+          _callerId: string,
+          _serverId: string,
+          _toolId: string,
+          args: Record<string, unknown>,
+        ) => ({
+          result: `Invoked with ${JSON.stringify(args)}`,
+        }),
+      );
+      const registry = { mcp: { invokeTool } } as unknown as ServiceRegistry;
+      const router = new ExtensionIpcRouter(
+        registry,
+        (id) => knownManifests.get(id),
+        vi.fn(),
+        vi.fn(),
+      );
+
+      await router.handleMessage(
+        new MessageEvent('message', {
+          source: iframeEl.contentWindow,
+          data: {
+            type: 'asyar:api:mcp:invokeTool',
+            messageId: 'mcp-invoke-1',
+            payload: {
+              serverId: 'github',
+              toolId: 'search_repos',
+              args: { q: 'asyar' },
+            },
+          },
+        }),
+      );
+
+      expect(invokeTool).toHaveBeenCalledWith('org.example.tier2', 'github', 'search_repos', {
+        q: 'asyar',
+      });
+      const replies = getReplies();
+      expect(replies.find((r) => r.messageId === 'mcp-invoke-1')?.result).toEqual({
+        result: 'Invoked with {"q":"asyar"}',
+      });
+    });
+
+    it('blocks mcp:invokeTool when extension lacks mcp permission', async () => {
+      const invokeTool = vi.fn(async () => 'should not run');
+      const registry = { mcp: { invokeTool } } as unknown as ServiceRegistry;
+      const router = new ExtensionIpcRouter(
+        registry,
+        (id) => knownManifests.get(id),
+        vi.fn(),
+        vi.fn(),
+      );
+
+      await router.handleMessage(
+        new MessageEvent('message', {
+          source: iframeEl.contentWindow,
+          data: {
+            type: 'asyar:api:mcp:invokeTool',
+            messageId: 'mcp-invoke-denied',
+            payload: {
+              serverId: 'server-1',
+              toolId: 'tool-1',
+              args: {},
+            },
+          },
+        }),
+      );
+
+      expect(invokeTool).not.toHaveBeenCalled();
+      const replies = getReplies();
+      const reply = replies.find((r) => r.messageId === 'mcp-invoke-denied');
+      expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+      expect(reply?.error).toContain('mcp');
+    });
   });
 });

@@ -56,6 +56,7 @@ import { OpenerServiceProxy } from './services/OpenerServiceProxy';
 import { EnvironmentServiceProxy } from './services/EnvironmentServiceProxy';
 import { CalculatorServiceProxy } from './services/CalculatorServiceProxy';
 import { AiServiceProxy } from './services/AiServiceProxy';
+import { McpServiceProxy } from './services/McpServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { ExtensionContextCore } from './ExtensionContextCore';
@@ -92,6 +93,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     opener: new OpenerServiceProxy(),
     environment: new EnvironmentServiceProxy(),
     ai: new AiServiceProxy(),
+    mcp: new McpServiceProxy(),
     // Role-neutral: pure postMessage forwarder. Exposes registerAction,
     // unregisterAction, and registerActionHandler so manifest root actions
     // (send-notification, show-hud, notification callbacks) can register
@@ -245,4 +247,6 @@ export { PreferencesFacade } from './PreferencesFacade';
 export type { PreferencesSnapshot } from './PreferencesFacade';
 export { environment } from './environment';
 export type { EnvironmentSnapshot, IEnvironmentService } from './types/EnvironmentType';
+export { McpServiceProxy } from './services/McpServiceProxy';
+export type { IMcpService, McpServerInfo, McpToolDescriptor } from './contracts/IMcpService';
 export * from './errors';

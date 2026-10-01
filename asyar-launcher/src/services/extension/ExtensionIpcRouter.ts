@@ -55,6 +55,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'tools',
   'environment',
   'ai',
+  'mcp',
 ] as const satisfies readonly Namespace[]);
 
 /**
@@ -255,6 +256,18 @@ export class ExtensionIpcRouter {
       } else if (methodName === 'streamChat') {
         const p = payload as { prompt?: string; streamId?: string; options?: unknown } | undefined;
         args = [p?.prompt ?? '', p?.streamId ?? '', p?.options];
+      }
+    }
+    if (ns === 'mcp') {
+      if (methodName === 'listServers') {
+        args = [];
+      } else if (methodName === 'listTools') {
+        const p = payload as { serverId?: string } | undefined;
+        args = [p?.serverId];
+      } else if (methodName === 'invokeTool') {
+        const p = payload as
+          { serverId: string; toolId: string; args: Record<string, unknown> } | undefined;
+        args = [p?.serverId ?? '', p?.toolId ?? '', p?.args ?? {}];
       }
     }
     if (INJECTS_EXTENSION_ID.has(ns) && extensionId) {

@@ -1,4 +1,4 @@
-import { invokeSafe, invokeSafeVoid } from './invokeSafe';
+import { invokeRaw, invokeSafe, invokeSafeVoid } from './invokeSafe';
 import type {
   McpServerInstallInput,
   McpServerSummary,
@@ -67,6 +67,15 @@ export async function mcpInvokeTool(
   agentId?: string,
 ): Promise<unknown> {
   return invokeSafe<unknown>('mcp_invoke_tool', { serverId, toolId, agentId, args });
+}
+
+export async function mcpInvokeToolRaw(
+  serverId: string,
+  toolId: string,
+  args: Record<string, unknown>,
+  agentId?: string,
+): Promise<unknown> {
+  return invokeRaw<unknown>('mcp_invoke_tool', { serverId, toolId, agentId, args });
 }
 
 export async function mcpSetPermission(

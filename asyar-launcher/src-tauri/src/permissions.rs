@@ -303,6 +303,10 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:tools:registerTool"
         | "asyar:api:tools:unregisterTool"
         | "asyar:api:tools:listTools" => Some("tools:register"),
+        // Model Context Protocol (MCP) client: discover servers, inspect tools, invoke tools
+        "asyar:api:mcp:listServers" | "asyar:api:mcp:listTools" | "asyar:api:mcp:invokeTool" => {
+            Some("mcp")
+        }
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
         // permission-free (discovery, low blast radius).
         // search:rank is intentionally permission-free: the caller supplies its
@@ -1280,6 +1284,22 @@ mod tests {
     fn removed_ai_stream_chat_wire_type_is_not_registered() {
         assert_eq!(get_required_permission("asyar:api:ai:streamChat"), None);
         assert_eq!(get_required_permission("asyar:api:ai:complete"), None);
+    }
+
+    #[test]
+    fn mcp_calls_map_to_mcp_permission() {
+        assert_eq!(
+            get_required_permission("asyar:api:mcp:listServers"),
+            Some("mcp")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:mcp:listTools"),
+            Some("mcp")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:mcp:invokeTool"),
+            Some("mcp")
+        );
     }
 
     #[test]

@@ -81,6 +81,7 @@ expands the placement guidance.
 | `OpenerService`            | `IOpenerService`            | both                           | `shell:open-url`, `shell:open-path`, `fs:read`    | Open URLs, local paths in external applications, or reveal files/folders in the system file manager                                    |
 | `OnboardingService`        | `IOnboardingService`        | both                           | None (implicit)                                   | Signal first-run onboarding completion and trigger automatic re-dispatch of pending commands                                           |
 | `AiService`                | `IAiService`                | both                           | None                                              | Prompt the host's configured AI model for one-shot completions or streamed responses                                                   |
+| `McpService`               | `IMcpService`               | both                           | `mcp`                                             | Discover configured MCP servers and invoke external tools                                                                              |
 | `EnvironmentService`       | `IEnvironmentService`       | both                           | None                                              | Host OS runtime, platform, theme, and locale metadata                                                                                  |
 
 **Utilities & Metadata (direct import, no `getService()`):**
@@ -130,6 +131,7 @@ expands the placement guidance.
 - **[OpenerService](./opener-service.md)**
 - **[OnboardingService](./onboarding-service.md)**
 - **[AiService](./ai-service.md)**
+- **[McpService](./mcp-service.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**
 - **[Error Handling & Error Classes](./errors.md)**
