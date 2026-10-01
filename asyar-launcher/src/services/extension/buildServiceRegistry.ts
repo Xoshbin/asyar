@@ -50,6 +50,7 @@ import { agentsToolsRegisterTier2, agentsToolsList, getSystemLocale } from '../.
 import { calculatorEvaluateForExtension } from '../../lib/ipc/calculatorCommands';
 import { completeExtensionOnboarding } from '../../lib/ipc/extensionLifecycleCommands';
 import { aiService } from '../ai/aiService';
+import { extensionMcpService } from '../mcp/extensionMcpService';
 import type { ManifestTool } from 'asyar-sdk/contracts';
 
 export function buildServiceRegistry(deps: {
@@ -254,5 +255,6 @@ export function buildServiceRegistry(deps: {
       evaluate: async (query: string) => calculatorEvaluateForExtension(query),
     },
     ai: aiService,
+    mcp: extensionMcpService,
   });
 }

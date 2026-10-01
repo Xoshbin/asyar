@@ -209,7 +209,7 @@ Asyar enforces an explicit lifecycle policy distinguishing required core infrast
    - **Shortcuts** service/UI boundary:
      - Disabling the bundled `shortcuts` feature removes its commands (`cmd_shortcuts_manage`), views (`shortcuts/ShortcutManagerView`), and view actions (`shortcuts:record`, `shortcuts:remove`).
      - Disabling does not stop or disable the global hotkey listening service in Rust (`GlobalShortcutManager`), which continues listening for manifest-declared extension commands.
-     - Disabling the bundled UI removes shortcut management and recording views; no public Tier 2 runtime API exists for dynamic global shortcut registration (planned follow-up).
+     - Disabling the bundled UI removes shortcut management and recording views; global shortcuts remain strictly manifest-declared and user-configured by design, with no public Tier 2 runtime API for dynamic shortcut registration.
      - Configured keybindings and assigned item shortcuts in SQLite (`item_shortcuts`) are preserved across disable/re-enable.
      - Active shortcut management views and recording modal listeners close cleanly upon deactivation.
      - Re-enabling restores the shortcut manager view idempotently.

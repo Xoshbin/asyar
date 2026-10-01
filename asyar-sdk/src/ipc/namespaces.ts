@@ -41,6 +41,7 @@ export const NAMESPACES = [
   'environment',
   'calculator',
   'ai',
+  'mcp',
 ] as const;
 
 export type Namespace = (typeof NAMESPACES)[number];

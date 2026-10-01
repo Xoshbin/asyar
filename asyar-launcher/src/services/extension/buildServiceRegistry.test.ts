@@ -67,6 +67,9 @@ vi.mock('../selection/selectionService', () => ({
 vi.mock('../ai/aiService', () => ({
   aiService: {},
 }));
+vi.mock('../mcp/extensionMcpService', () => ({
+  extensionMcpService: {},
+}));
 vi.mock('../oauth/extensionOAuthService.svelte', () => ({
   extensionOAuthService: {},
 }));

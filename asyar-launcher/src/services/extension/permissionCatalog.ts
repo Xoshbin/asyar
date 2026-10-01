@@ -230,6 +230,10 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     title: 'Act on pages',
     description: 'Interact with page content in the paired browser.',
   },
+  mcp: {
+    title: 'Model Context Protocol (MCP)',
+    description: 'Discover configured MCP servers and invoke external tools.',
+  },
 };
 
 export interface PermissionDisplay extends PermissionInfo {

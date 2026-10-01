@@ -128,3 +128,6 @@ export { EnvironmentServiceProxy } from './EnvironmentServiceProxy';
 
 export type { IAiService, AiCompletionOptions, AiStreamOptions } from '../contracts/IAiService';
 export { AiServiceProxy } from './AiServiceProxy';
+
+export type { IMcpService, McpServerInfo, McpToolDescriptor } from '../contracts/IMcpService';
+export { McpServiceProxy } from './McpServiceProxy';

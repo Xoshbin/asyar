@@ -46,6 +46,7 @@ describe('NAMESPACES', () => {
       'environment',
       'calculator',
       'ai',
+      'mcp',
     ]);
   });
 

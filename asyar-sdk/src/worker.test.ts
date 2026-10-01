@@ -33,6 +33,7 @@ const WORKER_PROXY_NAMESPACES = [
   'environment',
   'calculator',
   'ai',
+  'mcp',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = ['selection', 'interop', 'clipboard'] as const;
