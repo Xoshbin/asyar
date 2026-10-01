@@ -201,7 +201,7 @@ pub fn handle_extension_request(
             tauri::http::Response::builder()
                 .header("Content-Type", mime_type)
                 .header("Access-Control-Allow-Origin", "*")
-                .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self' data:; img-src asyar-extension: 'self' asyar-icon: http://asyar-icon.localhost data:;")
+                .header("Content-Security-Policy", extension_csp_header())
                 .body(content)
                 .unwrap()
         }
@@ -210,6 +210,29 @@ pub fn handle_extension_request(
             .body(Vec::new())
             .unwrap(),
     }
+}
+
+/// Baseline Content Security Policy for `asyar-extension://` in release builds.
+/// Strictly disallows `'unsafe-eval'`.
+pub(crate) const EXTENSION_CSP_RELEASE: &str = "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self' data:; img-src asyar-extension: 'self' asyar-icon: http://asyar-icon.localhost data:;";
+
+/// Content Security Policy for `asyar-extension://` in debug builds.
+/// Allows `'unsafe-eval'` for local development tools.
+pub(crate) const EXTENSION_CSP_DEBUG: &str = "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self' data:; img-src asyar-extension: 'self' asyar-icon: http://asyar-icon.localhost data:;";
+
+/// Resolves the CSP header string based on whether debug mode is enabled.
+pub(crate) fn resolve_extension_csp(is_debug: bool) -> &'static str {
+    if is_debug {
+        EXTENSION_CSP_DEBUG
+    } else {
+        EXTENSION_CSP_RELEASE
+    }
+}
+
+/// Returns the Content Security Policy header value for `asyar-extension://` requests,
+/// enforcing strict CSP without `'unsafe-eval'` in release builds while allowing `'unsafe-eval'` in debug builds.
+pub(crate) fn extension_csp_header() -> &'static str {
+    resolve_extension_csp(cfg!(debug_assertions))
 }
 
 /// Injects `<script>window.__ASYAR_ROLE__ = "<role>";</script>` immediately
@@ -644,5 +667,44 @@ mod role_injection_tests {
             "existing head content preserved"
         );
         assert!(s.contains("<p>hello</p>"), "body content preserved");
+    }
+
+    #[test]
+    fn test_extension_csp_release_does_not_contain_unsafe_eval() {
+        use super::resolve_extension_csp;
+        let csp = resolve_extension_csp(false);
+        assert!(
+            !csp.contains("'unsafe-eval'"),
+            "release CSP must not contain 'unsafe-eval', got: {csp}"
+        );
+        assert!(
+            csp.contains("default-src asyar-extension: 'self';"),
+            "CSP must define baseline default-src"
+        );
+        assert!(
+            csp.contains("script-src asyar-extension: 'self' 'unsafe-inline';"),
+            "CSP must restrict script-src without unsafe-eval"
+        );
+    }
+
+    #[test]
+    fn test_extension_csp_debug_contains_unsafe_eval() {
+        use super::resolve_extension_csp;
+        let csp = resolve_extension_csp(true);
+        assert!(
+            csp.contains("'unsafe-eval'"),
+            "debug CSP should allow 'unsafe-eval' for dev tooling, got: {csp}"
+        );
+    }
+
+    #[test]
+    fn test_extension_csp_header_matches_build_mode() {
+        use super::extension_csp_header;
+        let csp = extension_csp_header();
+        if cfg!(debug_assertions) {
+            assert!(csp.contains("'unsafe-eval'"));
+        } else {
+            assert!(!csp.contains("'unsafe-eval'"));
+        }
     }
 }
