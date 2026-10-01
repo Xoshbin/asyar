@@ -32,6 +32,7 @@ const WORKER_PROXY_NAMESPACES = [
   'opener',
   'environment',
   'calculator',
+  'ai',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = ['selection', 'interop', 'clipboard'] as const;

@@ -125,3 +125,6 @@ export { FileSystemWatcherServiceProxy } from './FileSystemWatcherService';
 
 export type { IEnvironmentService, EnvironmentSnapshot } from '../types/EnvironmentType';
 export { EnvironmentServiceProxy } from './EnvironmentServiceProxy';
+
+export type { IAiService, AiCompletionOptions, AiStreamOptions } from '../contracts/IAiService';
+export { AiServiceProxy } from './AiServiceProxy';

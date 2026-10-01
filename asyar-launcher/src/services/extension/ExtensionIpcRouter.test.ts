@@ -428,6 +428,83 @@ describe('ExtensionIpcRouter — originRole injection for WebSocket pushes', () 
   });
 });
 
+describe('ExtensionIpcRouter — originRole injection for AI streams', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivilegedHostContext: boolean,
+    originRole?: 'view' | 'worker',
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('ai:streamChat from a worker iframe receives originRole as trailing argument', async () => {
+    const streamChat = vi.fn(async () => 'worker-reply');
+    const registry = {
+      ai: { streamChat, complete: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:ai:streamChat',
+      { prompt: 'Tell a joke', streamId: 'st-1', options: { temperature: 0.7 } },
+      'ext.ai',
+      false,
+      'worker',
+    );
+
+    expect(streamChat).toHaveBeenCalledWith(
+      'ext.ai',
+      'Tell a joke',
+      'st-1',
+      { temperature: 0.7 },
+      'worker',
+    );
+    expect(result).toBe('worker-reply');
+  });
+
+  it('ai:streamChat from a view iframe receives originRole=view as trailing argument', async () => {
+    const streamChat = vi.fn(async () => 'view-reply');
+    const registry = {
+      ai: { streamChat, complete: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:ai:streamChat',
+      { prompt: 'Explain gravity', streamId: 'st-2', options: undefined },
+      'ext.ai',
+      false,
+      'view',
+    );
+
+    expect(streamChat).toHaveBeenCalledWith('ext.ai', 'Explain gravity', 'st-2', undefined, 'view');
+  });
+
+  it('ai:complete does not receive originRole', async () => {
+    const complete = vi.fn(async () => 'one-shot answer');
+    const registry = {
+      ai: { complete, streamChat: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:ai:complete',
+      { prompt: 'Translate', options: { maxTokens: 100 } },
+      'ext.ai',
+      false,
+      'worker',
+    );
+
+    expect(complete).toHaveBeenCalledWith('ext.ai', 'Translate', { maxTokens: 100 });
+    expect(complete.mock.calls[0]).toHaveLength(3);
+    expect(result).toBe('one-shot answer');
+  });
+});
+
 describe('ExtensionIpcRouter — snippets Tauri-direct routing', () => {
   type DispatchApiCall = (
     type: string,
@@ -1244,6 +1321,47 @@ describe('ExtensionIpcRouter — runs platform service dispatch with injected ca
     expect(registerTool).toHaveBeenCalledWith('org.example.tools', tool);
   });
 
+  it('dispatches ai:complete injecting caller extensionId to registry.ai', async () => {
+    const complete = vi.fn(async () => 'AI completed response');
+    const registry = { ai: { complete } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:ai:complete',
+      { prompt: 'Explain quantum computing', options: { temperature: 0.5 } },
+      'org.example.ai',
+      false,
+    );
+
+    expect(complete).toHaveBeenCalledWith('org.example.ai', 'Explain quantum computing', {
+      temperature: 0.5,
+    });
+    expect(result).toBe('AI completed response');
+  });
+
+  it('dispatches ai:streamChat injecting caller extensionId and originRole to registry.ai', async () => {
+    const streamChat = vi.fn(async () => 'Streamed response');
+    const registry = { ai: { streamChat } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:ai:streamChat',
+      { prompt: 'Hello', streamId: 's-123', options: { maxTokens: 50 } },
+      'org.example.ai',
+      false,
+      'view',
+    );
+
+    expect(streamChat).toHaveBeenCalledWith(
+      'org.example.ai',
+      'Hello',
+      's-123',
+      { maxTokens: 50 },
+      'view',
+    );
+    expect(result).toBe('Streamed response');
+  });
+
   it('dispatches window management commands to registry.window', async () => {
     const applyPreset = vi.fn(async () => undefined);
     const getWindowBounds = vi.fn(async () => ({ x: 0, y: 0, width: 800, height: 600 }));
@@ -1298,6 +1416,9 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
     });
 
     vi.mocked(commands.checkExtensionPermission).mockImplementation(async (_extId, apiType) => {
+      if (apiType === 'asyar:api:ai:complete' || apiType === 'asyar:api:ai:streamChat') {
+        return { allowed: true } as any;
+      }
       let required: string | undefined;
       if (apiType === 'asyar:api:calculator:evaluate') required = 'calculator:evaluate';
       else if (apiType === 'asyar:api:screen:captureText') required = 'screen:capture';
@@ -1652,6 +1773,80 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
     expect(replies.find((r) => r.messageId === 'note-search-1')?.result).toEqual([
       { id: 'n1', title: 'Test', snippet: 'snip' },
     ]);
+  });
+
+  it('allows ai:complete without declaring any permissions (public API)', async () => {
+    const complete = vi.fn(
+      async (_callerId: string, prompt: string) => `AI response to: ${prompt}`,
+    );
+    const registry = { ai: { complete } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:ai:complete',
+          messageId: 'ai-complete-1',
+          payload: { prompt: 'Hello world', options: { temperature: 0.7 } },
+        },
+      }),
+    );
+
+    expect(complete).toHaveBeenCalledWith('org.example.tier2', 'Hello world', {
+      temperature: 0.7,
+    });
+    const replies = getReplies();
+    expect(replies.find((r) => r.messageId === 'ai-complete-1')?.result).toBe(
+      'AI response to: Hello world',
+    );
+  });
+
+  it('allows ai:streamChat without declaring any permissions (public API)', async () => {
+    const streamChat = vi.fn(
+      async (
+        _callerId: string,
+        prompt: string,
+        streamId: string,
+        _options?: unknown,
+        originRole?: string,
+      ) => `Stream started for: ${streamId} from ${originRole}`,
+    );
+    const registry = { ai: { streamChat } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:ai:streamChat',
+          messageId: 'ai-stream-1',
+          payload: { prompt: 'Stream test', streamId: 'stream-42' },
+        },
+      }),
+    );
+
+    expect(streamChat).toHaveBeenCalledWith(
+      'org.example.tier2',
+      'Stream test',
+      'stream-42',
+      undefined,
+      'view',
+    );
+    const replies = getReplies();
+    expect(replies.find((r) => r.messageId === 'ai-stream-1')?.result).toBe(
+      'Stream started for: stream-42 from view',
+    );
   });
 
   it('rejects message from iframe with unregistered extension manifest', async () => {

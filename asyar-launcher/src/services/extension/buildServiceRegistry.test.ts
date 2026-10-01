@@ -64,7 +64,9 @@ vi.mock('../feedback/feedbackService.svelte', () => ({
 vi.mock('../selection/selectionService', () => ({
   selectionService: {},
 }));
-// aiService.svelte is deleted; no mock needed — the import is gone from buildServiceRegistry.
+vi.mock('../ai/aiService', () => ({
+  aiService: {},
+}));
 vi.mock('../oauth/extensionOAuthService.svelte', () => ({
   extensionOAuthService: {},
 }));
@@ -118,7 +120,7 @@ vi.mock('../../lib/ipc/commands', async (importOriginal) => {
 import { buildServiceRegistry } from './buildServiceRegistry';
 
 describe('buildServiceRegistry', () => {
-  it('returns a registry with every bound namespace and no removed ai service', () => {
+  it('returns a registry with every bound namespace', () => {
     const mockExtensionManager = {} as any;
     const mockGetManifestById = vi.fn();
     const mockHandleCommandAction = vi.fn();
@@ -137,7 +139,6 @@ describe('buildServiceRegistry', () => {
     //              topics handled by the launcher's extension IPC router,
     //              not through the JS service registry.
     const UNBOUND_NAMESPACES = new Set(['snippets']);
-    expect(registryKeys, `'ai' must NOT be in registry`).not.toContain('ai');
     expect(registryKeys, `'snippets' must NOT be in registry`).not.toContain('snippets');
     for (const ns of NAMESPACES) {
       if (UNBOUND_NAMESPACES.has(ns)) continue;

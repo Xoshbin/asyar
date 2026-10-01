@@ -54,6 +54,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'runs',
   'tools',
   'environment',
+  'ai',
 ] as const satisfies readonly Namespace[]);
 
 /**
@@ -247,12 +248,25 @@ export class ExtensionIpcRouter {
       }
       args = [callerId];
     }
+    if (ns === 'ai') {
+      if (methodName === 'complete') {
+        const p = payload as { prompt?: string; options?: unknown } | undefined;
+        args = [p?.prompt ?? '', p?.options];
+      } else if (methodName === 'streamChat') {
+        const p = payload as { prompt?: string; streamId?: string; options?: unknown } | undefined;
+        args = [p?.prompt ?? '', p?.streamId ?? '', p?.options];
+      }
+    }
     if (INJECTS_EXTENSION_ID.has(ns) && extensionId) {
       args = [extensionId, ...args];
     } else if (ALWAYS_INJECTS_CALLER_ID.has(ns)) {
       args = [isPrivilegedHostContext ? null : (extensionId ?? null), ...args];
     }
-    if (ns === 'shell' && (methodName === 'spawn' || methodName === 'attach') && originRole) {
+    if (
+      ((ns === 'shell' && (methodName === 'spawn' || methodName === 'attach')) ||
+        (ns === 'ai' && methodName === 'streamChat')) &&
+      originRole
+    ) {
       args = [...args, originRole];
     }
     if (ns === 'network' && methodName === 'wsConnect' && originRole) {
