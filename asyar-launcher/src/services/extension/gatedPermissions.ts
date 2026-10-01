@@ -8,6 +8,7 @@
 // declarable permissions (see asyar-sdk/cli/lib/manifest.ts VALID_PERMISSIONS
 // for that); some permissions are declarative-only and never appear here.
 export const GATED_PERMISSIONS = [
+  "ai",
   "app:frontmost-watch",
   "application:read",
   "browser:bookmarks.read",

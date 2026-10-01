@@ -1416,9 +1416,6 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
     });
 
     vi.mocked(commands.checkExtensionPermission).mockImplementation(async (_extId, apiType) => {
-      if (apiType === 'asyar:api:ai:complete' || apiType === 'asyar:api:ai:streamChat') {
-        return { allowed: true } as any;
-      }
       let required: string | undefined;
       if (apiType === 'asyar:api:calculator:evaluate') required = 'calculator:evaluate';
       else if (apiType === 'asyar:api:screen:captureText') required = 'screen:capture';
@@ -1435,6 +1432,7 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
       )
         required = 'notes:read';
       else if (apiType.startsWith('asyar:api:mcp:')) required = 'mcp';
+      else if (apiType.startsWith('asyar:api:ai:')) required = 'ai';
 
       if (required && declaredPermissions.has(required)) {
         return { allowed: true } as any;
@@ -1776,7 +1774,36 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
     ]);
   });
 
-  it('allows ai:complete without declaring any permissions (public API)', async () => {
+  it('blocks ai:complete when extension lacks ai permission', async () => {
+    const complete = vi.fn(async () => 'AI completed response');
+    const registry = { ai: { complete } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:ai:complete',
+          messageId: 'ai-complete-denied',
+          payload: { prompt: 'Hello world', options: { temperature: 0.7 } },
+        },
+      }),
+    );
+
+    expect(complete).not.toHaveBeenCalled();
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'ai-complete-denied');
+    expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+    expect(reply?.error).toContain('ai');
+  });
+
+  it('allows ai:complete when extension has ai permission', async () => {
+    declaredPermissions.add('ai');
     const complete = vi.fn(
       async (_callerId: string, prompt: string) => `AI response to: ${prompt}`,
     );
@@ -1808,7 +1835,36 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
     );
   });
 
-  it('allows ai:streamChat without declaring any permissions (public API)', async () => {
+  it('blocks ai:streamChat when extension lacks ai permission', async () => {
+    const streamChat = vi.fn(async () => 'Stream started');
+    const registry = { ai: { streamChat } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:ai:streamChat',
+          messageId: 'ai-stream-denied',
+          payload: { prompt: 'Stream test', streamId: 'stream-42' },
+        },
+      }),
+    );
+
+    expect(streamChat).not.toHaveBeenCalled();
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'ai-stream-denied');
+    expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+    expect(reply?.error).toContain('ai');
+  });
+
+  it('allows ai:streamChat when extension has ai permission', async () => {
+    declaredPermissions.add('ai');
     const streamChat = vi.fn(
       async (
         _callerId: string,

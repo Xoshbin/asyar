@@ -8,6 +8,7 @@
 // VALID_PERMISSIONS in lib/manifest.ts for that (deliberately broader:
 // includes declarative-only permissions this gate never checks).
 export const GATED_PERMISSIONS = [
+  "ai",
   "app:frontmost-watch",
   "application:read",
   "browser:bookmarks.read",

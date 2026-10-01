@@ -234,6 +234,7 @@ export const VALID_PERMISSIONS = [
   'notes:read',
   'notes:write',
   'mcp',
+  'ai',
 ] as const;
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const;
