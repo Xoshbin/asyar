@@ -142,6 +142,25 @@ mod tests {
 
     static TEST_LOCK: Mutex<()> = Mutex::new(());
 
+    fn acquire_test_lock() -> std::sync::MutexGuard<'static, ()> {
+        TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Checks if the operating system clipboard service is available and functional.
+    ///
+    /// Headless environments (like standard Linux CI containers without X11/Wayland display servers)
+    /// cannot connect to a clipboard daemon, so live tests must skip gracefully.
+    fn is_clipboard_functional() -> bool {
+        let mut cb = match arboard::Clipboard::new() {
+            Ok(cb) => cb,
+            Err(_) => return false,
+        };
+        if cb.set_text("__asyar_clipboard_probe__").is_err() {
+            return false;
+        }
+        cb.get_text().is_ok()
+    }
+
     fn create_test_image(
         width: usize,
         height: usize,
@@ -182,8 +201,26 @@ mod tests {
     }
 
     #[test]
+    fn test_clipboard_guard_from_snapshot_accessors() {
+        let _lock = acquire_test_lock();
+
+        let explicit_text = ClipboardSnapshot::Text("unit_test".to_string());
+        let guard = ClipboardGuard::from_snapshot(explicit_text.clone());
+        assert_eq!(guard.snapshot(), &explicit_text);
+
+        let explicit_img = ClipboardSnapshot::Image(create_test_image(1, 1, 10, 20, 30, 255));
+        let img_guard = ClipboardGuard::from_snapshot(explicit_img.clone());
+        assert_eq!(img_guard.snapshot(), &explicit_img);
+    }
+
+    #[test]
     fn test_clipboard_guard_from_snapshot_and_drop() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = acquire_test_lock();
+
+        if !is_clipboard_functional() {
+            eprintln!("Skipping live clipboard test: display/clipboard service unavailable in headless environment");
+            return;
+        }
 
         // Preserve developer's current clipboard
         let original_snapshot = ClipboardGuard::capture_snapshot();
@@ -247,7 +284,12 @@ mod tests {
 
     #[test]
     fn test_clipboard_guard_new_captures_and_restores_text() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = acquire_test_lock();
+
+        if !is_clipboard_functional() {
+            eprintln!("Skipping live clipboard test: display/clipboard service unavailable in headless environment");
+            return;
+        }
 
         let original_snapshot = ClipboardGuard::capture_snapshot();
 
@@ -280,7 +322,12 @@ mod tests {
 
     #[test]
     fn test_clipboard_guard_new_captures_and_restores_image() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = acquire_test_lock();
+
+        if !is_clipboard_functional() {
+            eprintln!("Skipping live clipboard test: display/clipboard service unavailable in headless environment");
+            return;
+        }
 
         let original_snapshot = ClipboardGuard::capture_snapshot();
 
@@ -322,7 +369,12 @@ mod tests {
 
     #[test]
     fn test_clipboard_guard_empty_handling() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = acquire_test_lock();
+
+        if !is_clipboard_functional() {
+            eprintln!("Skipping live clipboard test: display/clipboard service unavailable in headless environment");
+            return;
+        }
 
         let original_snapshot = ClipboardGuard::capture_snapshot();
 
@@ -353,6 +405,8 @@ mod tests {
 
     #[test]
     fn test_clipboard_guard_retry_and_exception_safety() {
+        let _lock = acquire_test_lock();
+
         // Test that 0 attempts doesn't panic and returns Empty
         let empty = ClipboardGuard::capture_snapshot_with_retries(0, Duration::from_millis(0));
         assert_eq!(empty, ClipboardSnapshot::Empty);
