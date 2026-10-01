@@ -2,7 +2,7 @@
 
 **Runs in:** both worker and view.
 
-**Permission required:** None (public API).
+**Permission required:** `ai`.
 
 `AiService` provides Tier 2 extensions with programmatic access to prompt the user's currently configured AI model without requiring direct provider credentials, API keys, or custom provider configuration. The host routes requests through Asyar's default agent runtime.
 
@@ -49,6 +49,14 @@ export interface IAiService {
 }
 ```
 
+**Manifest Declaration:**
+
+```json
+{
+  "permissions": ["ai"]
+}
+```
+
 **Usage (One-shot completion):**
 
 ```typescript
@@ -91,6 +99,9 @@ try {
 }
 ```
 
-**Privacy & Redaction:** Prompts dispatched through `AiService` automatically flow through Asyar's host secret-redaction pipeline, preventing accidental leakage of credentials (AWS keys, tokens, private keys) to upstream AI providers.
+**Security & Permission Gating:**
+
+- **Manifest Permission:** The extension must declare `"ai"` in its manifest permissions (`manifest.json["permissions"]`). Calling `complete()` or `stream()` without declaring `"ai"` is blocked by Asyar's fail-closed permission gate and returns an `AppError::Permission` error.
+- **Privacy & Redaction:** Prompts dispatched through `AiService` automatically flow through Asyar's host secret-redaction pipeline, preventing accidental leakage of credentials (AWS keys, tokens, private keys) to upstream AI providers.
 
 ---

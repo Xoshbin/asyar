@@ -234,6 +234,10 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     title: 'Model Context Protocol (MCP)',
     description: 'Discover configured MCP servers and invoke external tools.',
   },
+  ai: {
+    title: 'Prompt AI model',
+    description: "Prompt the host's configured AI model for completions and streaming responses.",
+  },
 };
 
 export interface PermissionDisplay extends PermissionInfo {

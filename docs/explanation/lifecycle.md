@@ -171,7 +171,7 @@ Asyar enforces an explicit lifecycle policy distinguishing required core infrast
    - **Agents** service/UI boundary:
      - Disabling the bundled `agents` feature removes its commands (`cmd_agents_open`, `cmd_agents_create-agent`, `cmd_agents_view-chats`), views (`agents/DefaultView`), context mode registrations (`agents`), and deeplink entry points.
      - Disabling does not stop or disable the underlying AI agent runtime or model execution engine in Rust (`AgentManager`, active generation threads, provider integrations, SQLite chat threads).
-     - Permission-authorized Tier 2 extensions retain full access to register custom agent tools (`tools:registerTool`, `tools:unregisterTool` via `IToolsService` with `tools:register` permission). Additionally, Tier 2 extensions can prompt the host's configured AI model directly via `IAiService` (`complete`, `stream`) as a permission-free public API.
+     - Permission-authorized Tier 2 extensions retain full access to register custom agent tools (`tools:registerTool`, `tools:unregisterTool` via `IToolsService` with `tools:register` permission). Additionally, Tier 2 extensions can prompt the host's configured AI model directly via `IAiService` (`complete`, `stream`) with the `ai` permission.
      - Saved chat sessions, custom agents, and model configuration in SQLite are preserved across disable/re-enable.
      - Active chat views close cleanly and in-flight UI generation abort controllers are aborted safely upon deactivation.
      - Re-enabling the bundled feature restores agent chat views, commands, and context modes idempotently.
