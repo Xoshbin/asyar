@@ -11,7 +11,7 @@ import type {
 import { storeViewState, initializeStore, type ApiExtension } from './state.svelte';
 import * as commands from '../../lib/ipc/commands';
 import DefaultView from './DefaultView.svelte'; // Import component
-import DetailView from './DetailView.svelte'; // Import component
+import DetailView from './LazyDetailView.svelte'; // Lazy-loaded component
 import { actionService } from '../../services/action/actionService.svelte';
 import { extensionUpdateService } from '../../services/extension/extensionUpdateService.svelte';
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';

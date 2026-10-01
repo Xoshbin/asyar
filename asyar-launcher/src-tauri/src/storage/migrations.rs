@@ -40,6 +40,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "query_history",
         up: super::query_history::init_table,
     },
+    Migration {
+        version: 4,
+        name: "snippets_is_private",
+        up: migration_4_snippets_is_private,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -131,6 +136,36 @@ fn baseline(conn: &Connection) -> Result<(), AppError> {
     crate::aliases::init_table(conn).map_err(sqlite)?;
     crate::oauth::token_store::init_table(conn)?;
     crate::extensions::onboarding_state::init_table(conn)?;
+
+    Ok(())
+}
+
+fn migration_4_snippets_is_private(conn: &Connection) -> Result<(), AppError> {
+    let exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('snippets') WHERE name='is_private'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !exists {
+        conn.execute(
+            "ALTER TABLE snippets ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to add is_private column: {e}")))?;
+    }
+
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_snippets_is_private ON snippets (is_private);",
+    )
+    .map_err(|e| {
+        AppError::Database(format!(
+            "Failed to create idx_snippets_is_private index: {e}"
+        ))
+    })?;
 
     Ok(())
 }
@@ -269,6 +304,52 @@ mod tests {
             .unwrap();
         assert_eq!(name, "Kept");
         assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
+    }
+
+    #[test]
+    fn version_three_db_adds_snippets_is_private_without_losing_existing_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..3]).unwrap();
+        assert_eq!(user_version(&conn), 3);
+
+        // Simulate an existing v3 database where snippets table does not have is_private
+        conn.execute_batch(
+            "DROP INDEX IF EXISTS idx_snippets_is_private;
+             CREATE TABLE snippets_backup AS SELECT id, keyword, expansion, name, created_at, pinned, redacted_kinds FROM snippets;
+             DROP TABLE snippets;
+             CREATE TABLE snippets (
+                 id TEXT PRIMARY KEY,
+                 keyword TEXT,
+                 expansion TEXT NOT NULL,
+                 name TEXT NOT NULL,
+                 created_at REAL NOT NULL,
+                 pinned INTEGER NOT NULL DEFAULT 0,
+                 redacted_kinds TEXT
+             );
+             INSERT INTO snippets SELECT id, keyword, expansion, name, created_at, pinned, redacted_kinds FROM snippets_backup;
+             DROP TABLE snippets_backup;",
+        )
+        .unwrap();
+
+        conn.execute(
+            "INSERT INTO snippets (id, expansion, name, created_at) VALUES ('s1', 'expansion_text', 'Snippet 1', 1.0)",
+            [],
+        )
+        .unwrap();
+
+        assert!(!column_names(&conn, "snippets").contains(&"is_private".to_string()));
+
+        run(&conn).unwrap();
+
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
+        assert!(column_names(&conn, "snippets").contains(&"is_private".to_string()));
+
+        let is_private: i32 = conn
+            .query_row("SELECT is_private FROM snippets WHERE id = 's1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(is_private, 0, "default is_private must be 0");
     }
 
     #[test]

@@ -60,6 +60,7 @@ export class WorkerHost {
   private sourceMap = new WeakMap<object, string>();
   private ipcHandler: WorkerIpcHandler | null = null;
   private _fallbackEntries = $state<{ extensionId: string; mountToken: number }[]>([]);
+  private readyWorkers = new Set<string>();
 
   get fallbackEntries(): ReadonlyArray<{ extensionId: string; mountToken: number }> {
     return this._fallbackEntries;
@@ -94,6 +95,7 @@ export class WorkerHost {
     this.unmount(extensionId, 'remount');
 
     const channel = this.createWorkerChannel(extensionId, mountToken);
+    if (!channel) return;
     this.activeWorkers.set(extensionId, channel);
     this.sourceMap.set(channel, extensionId);
     if (channel.rawWorker) {
@@ -102,20 +104,21 @@ export class WorkerHost {
   }
 
   public unmount(extensionId: string, reason: string): void {
-    const channel = this.activeWorkers.get(extensionId);
-    if (!channel) return;
-
     logService.debug(`[workerHost] unmount ${extensionId} reason=${reason}`);
-    try {
-      channel.terminate();
-    } catch (err) {
-      logService.warn(`[workerHost] error terminating worker ${extensionId}: ${err}`);
+    const channel = this.activeWorkers.get(extensionId);
+    if (channel) {
+      try {
+        channel.terminate();
+      } catch (err) {
+        logService.warn(`[workerHost] error terminating worker ${extensionId}: ${err}`);
+      }
+      this.sourceMap.delete(channel);
+      if (channel.rawWorker) {
+        this.sourceMap.delete(channel.rawWorker);
+      }
+      this.activeWorkers.delete(extensionId);
     }
-    this.sourceMap.delete(channel);
-    if (channel.rawWorker) {
-      this.sourceMap.delete(channel.rawWorker);
-    }
-    this.activeWorkers.delete(extensionId);
+    this.readyWorkers.delete(extensionId);
 
     const fallbackIdx = this._fallbackEntries.findIndex((e) => e.extensionId === extensionId);
     if (fallbackIdx >= 0) {
@@ -161,10 +164,35 @@ export class WorkerHost {
       this.unmount(id, 'reset');
     }
     this.activeWorkers.clear();
+    this.readyWorkers.clear();
     this._fallbackEntries.splice(0, this._fallbackEntries.length);
   }
 
-  private createWorkerChannel(extensionId: string, mountToken: number): WorkerChannel {
+  private fallbackToIframe(extensionId: string, mountToken: number, reason?: unknown): void {
+    logService.info(
+      `[workerHost] Web Worker bootstrap failed for ${extensionId} (${reason ?? 'bootstrap error'}); falling back to iframe`,
+    );
+    const existing = this.activeWorkers.get(extensionId);
+    if (existing) {
+      try {
+        existing.terminate();
+      } catch (err) {
+        logService.warn(`[workerHost] error terminating worker ${extensionId}: ${err}`);
+      }
+      this.sourceMap.delete(existing);
+      if (existing.rawWorker) {
+        this.sourceMap.delete(existing.rawWorker);
+      }
+      this.activeWorkers.delete(extensionId);
+    }
+    this.readyWorkers.delete(extensionId);
+
+    if (!this._fallbackEntries.some((e) => e.extensionId === extensionId)) {
+      this._fallbackEntries.push({ extensionId, mountToken });
+    }
+  }
+
+  private createWorkerChannel(extensionId: string, mountToken: number): WorkerChannel | null {
     const onHostMessage = (data: any) => {
       this.handleIncomingMessage(extensionId, mountToken, channel, data);
     };
@@ -219,12 +247,21 @@ export class WorkerHost {
         };
 
         rawWorker.onerror = (err) => {
+          if (!this.readyWorkers.has(extensionId)) {
+            const detail = (err as ErrorEvent)?.message ?? String(err);
+            this.fallbackToIframe(extensionId, mountToken, detail);
+            return;
+          }
           feedbackService.report({
             source: 'extension',
             kind: 'extension_crash',
             severity: 'error',
             retryable: true,
-            context: { extensionId, role: 'worker', detail: String(err.message || err) },
+            context: {
+              extensionId,
+              role: 'worker',
+              detail: String((err as ErrorEvent)?.message || err),
+            },
             extensionId,
           });
         };
@@ -241,6 +278,8 @@ export class WorkerHost {
         logService.warn(
           `[workerHost] failed to instantiate Web Worker for ${extensionId} (${err}); falling back`,
         );
+        this.fallbackToIframe(extensionId, mountToken, err);
+        return null;
       }
     }
 
@@ -258,11 +297,16 @@ export class WorkerHost {
     if (!data || typeof data !== 'object') return;
 
     if (data.type === 'asyar:extension:loaded') {
+      this.readyWorkers.add(extensionId);
       void this.handleReadiness(extensionId, mountToken, channel);
       return;
     }
 
     if (data.type === 'asyar:feedback:uncaught') {
+      if (data.payload?.kind === 'worker_bootstrap_error') {
+        this.fallbackToIframe(extensionId, mountToken, data.payload?.developerDetail);
+        return;
+      }
       void feedbackService.report({
         source: 'extension',
         kind: data.payload?.kind ?? 'worker_uncaught',

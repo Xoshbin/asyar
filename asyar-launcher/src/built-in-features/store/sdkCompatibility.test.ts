@@ -53,4 +53,21 @@ describe('isSdkCompatible', () => {
     expect(isSdkCompatible('invalid-semver', currentSdk)).toBe(true);
     expect(isSdkCompatible('not a range', currentSdk)).toBe(true);
   });
+
+  it('handles spaces around operators and compound ranges', () => {
+    expect(isSdkCompatible('>= 4.10.0 < 5.0.0', currentSdk)).toBe(true);
+    expect(isSdkCompatible('>= 4.10.0 < 4.13.0', currentSdk)).toBe(false);
+  });
+
+  it('handles hyphen ranges', () => {
+    expect(isSdkCompatible('4.0.0 - 4.15.0', currentSdk)).toBe(true);
+    expect(isSdkCompatible('4.0.0 - 4.12.0', currentSdk)).toBe(false);
+  });
+
+  it('handles || union ranges and wildcards', () => {
+    expect(isSdkCompatible('^3.0.0 || ^4.0.0', currentSdk)).toBe(true);
+    expect(isSdkCompatible('^1.0.0 || ^2.0.0', currentSdk)).toBe(false);
+    expect(isSdkCompatible('*', currentSdk)).toBe(true);
+    expect(isSdkCompatible('x', currentSdk)).toBe(true);
+  });
 });

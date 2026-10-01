@@ -62,6 +62,7 @@ vi.mock('../../lib/ipc/runtimeCommands', () => ({
 
 vi.mock('./DefaultView.svelte', () => ({ default: {} }));
 vi.mock('./DetailView.svelte', () => ({ default: {} }));
+vi.mock('./LazyDetailView.svelte', () => ({ default: {} }));
 
 import { actionService } from '../../services/action/actionService.svelte';
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';

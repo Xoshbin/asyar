@@ -106,6 +106,20 @@ export class ExtensionIframeManager {
   ): void {
     if (workerHost.hasWorker(extensionId)) {
       workerHost.broadcastPreferences(extensionId, bundle);
+    } else {
+      const workerIframe = pickExtensionIframe(extensionId, 'worker');
+      if (workerIframe?.contentWindow) {
+        workerIframe.contentWindow.postMessage(
+          {
+            type: 'asyar:event:preferences:set-all',
+            payload: {
+              extension: bundle.extension,
+              commands: bundle.commands,
+            },
+          },
+          getExtensionFrameOrigin(extensionId),
+        );
+      }
     }
     const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {

@@ -159,7 +159,7 @@ describe('workerHost', () => {
     });
   });
 
-  it('routes uncaught feedback errors to feedbackService', () => {
+  it('falls back to iframe on worker_bootstrap_error without reporting crash', () => {
     workerHost.mount('ext.test', 1);
     const channel = workerHost.getWorker('ext.test') as any;
 
@@ -171,14 +171,84 @@ describe('workerHost', () => {
       },
     });
 
+    expect(feedbackService.report).not.toHaveBeenCalled();
+    expect(workerHost.hasWorker('ext.test')).toBe(false);
+    expect(workerHost.fallbackEntries).toEqual([{ extensionId: 'ext.test', mountToken: 1 }]);
+  });
+
+  it('routes other uncaught feedback errors to feedbackService', () => {
+    workerHost.mount('ext.test', 1);
+    const channel = workerHost.getWorker('ext.test') as any;
+
+    channel.onHostMessage({
+      type: 'asyar:feedback:uncaught',
+      payload: {
+        kind: 'worker_uncaught',
+        developerDetail: 'Runtime error inside worker',
+      },
+    });
+
     expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({
         source: 'extension',
-        kind: 'worker_bootstrap_error',
-        developerDetail: 'Failed to import worker script',
+        kind: 'worker_uncaught',
+        developerDetail: 'Runtime error inside worker',
         extensionId: 'ext.test',
       }),
     );
+  });
+
+  it('cleans up fallbackEntries on unmount', () => {
+    workerHost.mount('ext.test', 1);
+    const channel = workerHost.getWorker('ext.test') as any;
+    channel.onHostMessage({
+      type: 'asyar:feedback:uncaught',
+      payload: {
+        kind: 'worker_bootstrap_error',
+      },
+    });
+    expect(workerHost.fallbackEntries.length).toBe(1);
+
+    workerHost.unmount('ext.test', 'user_close');
+    expect(workerHost.fallbackEntries.length).toBe(0);
+  });
+
+  it('falls back to iframe if rawWorker onerror occurs before readiness', () => {
+    const mockPostMessage = vi.fn();
+    const mockTerminate = vi.fn();
+    let workerInstance: any = null;
+    class MockWorker {
+      postMessage = mockPostMessage;
+      terminate = mockTerminate;
+      onmessage: ((e: any) => void) | null = null;
+      onerror: ((e: any) => void) | null = null;
+      constructor() {
+        workerInstance = this;
+      }
+    }
+
+    const originalWorker = globalThis.Worker;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+
+    try {
+      globalThis.Worker = MockWorker as any;
+      URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+      URL.revokeObjectURL = vi.fn();
+
+      workerHost.mount('ext.error', 1);
+      expect(workerHost.hasWorker('ext.error')).toBe(true);
+
+      workerInstance.onerror(new Error('SyntaxError in worker'));
+
+      expect(feedbackService.report).not.toHaveBeenCalled();
+      expect(workerHost.hasWorker('ext.error')).toBe(false);
+      expect(workerHost.fallbackEntries).toEqual([{ extensionId: 'ext.error', mountToken: 1 }]);
+    } finally {
+      globalThis.Worker = originalWorker;
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    }
   });
 
   it('routes incoming worker IPC messages through setIpcHandler', async () => {
