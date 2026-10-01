@@ -121,29 +121,20 @@ pub fn get_selected_finder_items(target_hwnd: isize) -> Result<Vec<String>, Sele
         Ok(vec![])
     }
 }
+pub use super::arboard_guard::{ClipboardGuard, ClipboardSnapshot};
 
-pub struct ClipboardGuard {
-    // TODO: multi-format snapshot — currently text-only, images will be lost
-    text: Option<String>,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl ClipboardGuard {
-    pub fn new() -> Self {
-        use arboard::Clipboard;
-        let mut cb = Clipboard::new().ok();
-        Self {
-            text: cb.as_mut().and_then(|c| c.get_text().ok()),
-        }
-    }
-}
+    #[test]
+    fn test_windows_clipboard_guard_type_exports() {
+        let empty = ClipboardSnapshot::Empty;
+        let guard = ClipboardGuard::from_snapshot(empty.clone());
+        assert_eq!(guard.snapshot(), &empty);
 
-impl Drop for ClipboardGuard {
-    fn drop(&mut self) {
-        if let Some(text) = &self.text {
-            use arboard::Clipboard;
-            if let Ok(mut cb) = Clipboard::new() {
-                let _ = cb.set_text(text.clone());
-            }
-        }
+        let text = ClipboardSnapshot::Text("windows_selection_test".to_string());
+        let guard_text = ClipboardGuard::from_snapshot(text.clone());
+        assert_eq!(guard_text.snapshot(), &text);
     }
 }

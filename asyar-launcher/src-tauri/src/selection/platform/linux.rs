@@ -31,7 +31,7 @@ pub fn clipboard_change_marker() -> [u8; 32] {
 pub fn get_selected_finder_items() -> Result<Vec<String>, SelectionError> {
     // Tier A: simulate Ctrl+C, read clipboard text/uri-list target
     // Snapshot current clipboard before we modify it
-    let before_text = Clipboard::new().ok().and_then(|mut c| c.get_text().ok());
+    let _guard = ClipboardGuard::new();
 
     // Post Ctrl+C to frontmost window
     crate::platform::input::post_key_chord_via_enigo(enigo::Key::Control, 'c');
@@ -56,11 +56,6 @@ pub fn get_selected_finder_items() -> Result<Vec<String>, SelectionError> {
         })
         .unwrap_or_default();
 
-    // Restore original clipboard
-    if let Some(text) = before_text {
-        let _ = Clipboard::new().map(|mut c| c.set_text(text));
-    }
-
     Ok(result)
 }
 
@@ -68,34 +63,20 @@ fn percent_decode(s: &str) -> String {
     percent_decode_str(s).decode_utf8_lossy().into_owned()
 }
 
-pub struct ClipboardGuard {
-    // TODO: multi-format snapshot — currently text-only, images will be lost
-    text: Option<String>,
-}
+pub use super::arboard_guard::{ClipboardGuard, ClipboardSnapshot};
 
-impl Default for ClipboardGuard {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl ClipboardGuard {
-    pub fn new() -> Self {
-        use arboard::Clipboard;
-        let mut cb = Clipboard::new().ok();
-        Self {
-            text: cb.as_mut().and_then(|c| c.get_text().ok()),
-        }
-    }
-}
+    #[test]
+    fn test_linux_clipboard_guard_type_exports() {
+        let empty = ClipboardSnapshot::Empty;
+        let guard = ClipboardGuard::from_snapshot(empty.clone());
+        assert_eq!(guard.snapshot(), &empty);
 
-impl Drop for ClipboardGuard {
-    fn drop(&mut self) {
-        if let Some(text) = &self.text {
-            use arboard::Clipboard;
-            if let Ok(mut cb) = Clipboard::new() {
-                let _ = cb.set_text(text.clone());
-            }
-        }
+        let text = ClipboardSnapshot::Text("linux_selection_test".to_string());
+        let guard_text = ClipboardGuard::from_snapshot(text.clone());
+        assert_eq!(guard_text.snapshot(), &text);
     }
 }
