@@ -15,7 +15,13 @@ The following rules are mandatory across all agent sessions, subagents, and task
 
 ## 3. Mandatory Verification & Local CI Matrix
 
-Before concluding any implementation, bug fix, or refactor, **ALWAYS** run the full local CI verification matrix:
+Asyar balances velocity and release-grade correctness using a **Two-Loop Verification Model**:
+
+- **Inner Loop (Iterative Development)**: Use fast, domain-specific checks that run in seconds:
+  - Frontend/UI changes: `pnpm check:ci:frontend` (or `node scripts/check-ci.mjs --frontend`)
+  - Rust changes: `pnpm check:ci:rust` (or `node scripts/check-ci.mjs --rust`)
+  - Auto-detected changes: `pnpm check:ci:changed` (or `node scripts/check-ci.mjs --changed`)
+- **Outer Loop (Task Conclusion / Hand-off / Pre-Push)**: Run the full verification matrix before concluding any task:
 
 ```bash
 pnpm check:ci
