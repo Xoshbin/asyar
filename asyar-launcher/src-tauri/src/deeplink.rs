@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::collections::HashMap;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 /// The custom URL scheme this running instance is registered for with the
 /// OS. Mirrors `plugins.deep-link.desktop.schemes` in the active tauri
@@ -152,10 +152,10 @@ pub fn dispatch_url(app: &AppHandle, scheme: &str, raw: &str) {
                 payload.extension_id,
                 payload.command_id
             );
-            let _ = app.emit("asyar:deeplink:extension", payload);
+            crate::event_bridge::bridge_emit(app, "asyar:deeplink:extension", payload);
         }
         Some(DeeplinkRoute::Raw(url)) => {
-            let _ = app.emit("asyar:deep-link", url);
+            crate::event_bridge::bridge_emit(app, "asyar:deep-link", url);
         }
         None => log::warn!("[Deeplink] Ignoring unroutable deep link: {raw}"),
     }

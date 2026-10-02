@@ -7,7 +7,7 @@ use futures_util::StreamExt;
 use log::{info, warn};
 use std::fs;
 use std::path::Path;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tempfile::NamedTempFile;
 use tokio::fs::File as TokioFile;
 use tokio::io::{AsyncWriteExt, BufReader};
@@ -439,9 +439,7 @@ pub(crate) async fn install_from_file(
         copy_dir_recursive(temp_dir.path(), &install_dir)?;
     }
 
-    if let Err(e) = app_handle.emit("extensions_updated", ()) {
-        warn!("Failed to emit extensions_updated event: {}", e);
-    }
+    crate::event_bridge::bridge_emit(app_handle, "extensions_updated", ());
 
     info!(
         "Extension '{}' v{} installed from file",
@@ -585,9 +583,7 @@ pub(crate) async fn install_from_url(
     }
 
     // --- 4. Emit event to frontend ---
-    if let Err(e) = app_handle.emit("extensions_updated", ()) {
-        warn!("Failed to emit extensions_updated event: {}", e);
-    }
+    crate::event_bridge::bridge_emit(app_handle, "extensions_updated", ());
 
     Ok(())
 }

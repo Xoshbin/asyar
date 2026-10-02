@@ -305,7 +305,7 @@ pub async fn agents_create(
         let conn = db.conn()?;
         agents_create_impl(&conn, input)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -319,7 +319,7 @@ pub async fn agents_update(
         let conn = db.conn()?;
         agents_update_impl(&conn, input)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -333,7 +333,7 @@ pub async fn agents_delete(
         let conn = db.conn()?;
         agents_delete_impl(&conn, id)?;
     }
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(())
 }
 
@@ -378,7 +378,7 @@ pub async fn agents_upsert_default(
             &model_id,
         )?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -393,7 +393,7 @@ pub async fn agents_seed_grammar_fix(
         let conn = db.conn()?;
         crate::agents::lifecycle::seed_grammar_fix_agent(&conn, &provider_id, &model_id)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -408,7 +408,7 @@ pub async fn agents_seed_emoji_fallback(
         let conn = db.conn()?;
         crate::agents::lifecycle::seed_emoji_fallback_agent(&conn, &provider_id, &model_id)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -422,7 +422,7 @@ pub async fn agents_thread_create(
         let conn = db.conn()?;
         agents_thread_create_impl(&conn, input)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -437,7 +437,7 @@ pub async fn agents_thread_set_pinned(
         let conn = db.conn()?;
         agents_thread_set_pinned_impl(&conn, id, pinned)?;
     }
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(())
 }
 
@@ -453,7 +453,7 @@ pub async fn agents_threads_prune(
         agents_threads_prune_impl(&conn, max_retained, active_thread_id)?
     };
     if pruned > 0 {
-        let _ = app.emit("agents:changed", ());
+        crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     }
     Ok(pruned)
 }
@@ -570,7 +570,7 @@ pub async fn agents_run_thread(
     )
     .await;
     if matches!(&result, Ok(true)) {
-        let _ = app.emit("agents:changed", ());
+        crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     }
     let cleanup = runner_state.finish_run(&stream_id);
     result.map(|_healed| ()).and(cleanup)
@@ -600,7 +600,7 @@ pub async fn agents_run_silent(
             &config.configs,
         )?;
         if healed {
-            let _ = app.emit("agents:changed", ());
+            crate::event_bridge::bridge_emit(&app, "agents:changed", ());
         }
         agent
     };

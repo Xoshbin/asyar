@@ -51,7 +51,7 @@ impl Default for EventBridge {
 /// Push `event`/`payload` to the bridge queue when the JS poller has
 /// connected; otherwise fall back to `app.emit` so early-boot events
 /// behave exactly as today. Payload shape is unchanged by this layer.
-pub fn bridge_emit<S: Serialize>(app: &AppHandle, event: &str, payload: S) {
+pub fn bridge_emit<R: tauri::Runtime, S: Serialize>(app: &AppHandle<R>, event: &str, payload: S) {
     let value = match serde_json::to_value(&payload) {
         Ok(v) => v,
         Err(e) => {
@@ -125,5 +125,39 @@ pub async fn bridge_poll(
             _ = &mut notified => continue,
             _ = tokio::time::sleep(POLL_TIMEOUT) => return Ok(vec![]),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_event_bridge_default() {
+        let bridge = EventBridge::default();
+        assert!(!bridge.connected.load(Ordering::Relaxed));
+        let q = bridge.queue.lock().unwrap();
+        assert!(q.is_empty());
+    }
+
+    #[test]
+    fn test_queue_cap_drops_oldest() {
+        let bridge = EventBridge::default();
+        bridge.connected.store(true, Ordering::Relaxed);
+
+        let mut q = bridge.queue.lock().unwrap();
+        for i in 0..QUEUE_CAP + 5 {
+            if q.len() >= QUEUE_CAP {
+                q.pop_front();
+            }
+            q.push_back(BridgeEvent {
+                event: format!("event_{i}"),
+                payload: serde_json::json!({ "index": i }),
+            });
+        }
+
+        assert_eq!(q.len(), QUEUE_CAP);
+        assert_eq!(q.front().unwrap().event, "event_5");
+        assert_eq!(q.back().unwrap().event, format!("event_{}", QUEUE_CAP + 4));
     }
 }

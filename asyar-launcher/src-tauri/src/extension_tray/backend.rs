@@ -23,7 +23,7 @@ use tauri::menu::{
     SubmenuBuilder,
 };
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 /// Tauri event name for tray clicks. The push-bridge picks this up and
 /// forwards the inner `event` to the owning extension iframe.
@@ -244,9 +244,7 @@ fn dispatch_menu_event(app: &AppHandle, router: &Arc<Mutex<ClickRouter>>, menu_i
     info!(
         "[extension_tray] emitting {TRAY_CLICK_EVENT} for ext='{extension_id}' path={item_path:?} checked={checked:?}"
     );
-    if let Err(e) = app.emit(TRAY_CLICK_EVENT, payload) {
-        warn!("[extension_tray] failed to emit {TRAY_CLICK_EVENT}: {e}");
-    }
+    crate::event_bridge::bridge_emit(app, TRAY_CLICK_EVENT, payload);
 }
 
 // ── Icon loading ────────────────────────────────────────────────────────────

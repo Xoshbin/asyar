@@ -9,7 +9,7 @@ use crate::storage::DataStore;
 use log::{info, warn};
 use std::fs;
 use std::path::Path;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 pub(crate) async fn uninstall(
     app_handle: &AppHandle,
@@ -303,7 +303,8 @@ pub(crate) async fn uninstall(
     {
         match manager.force_remove(extension_id) {
             Ok(res) if res.transition != crate::clipboard_capture::CaptureTransition::NoChange => {
-                let _ = app_handle.emit(
+                crate::event_bridge::bridge_emit(
+                    app_handle,
                     crate::commands::clipboard_capture::CAPTURE_STATE_CHANGED_EVENT,
                     &res,
                 );
@@ -448,9 +449,7 @@ pub(crate) async fn uninstall(
     }
 
     // Notify frontend
-    if let Err(e) = app_handle.emit("extensions_updated", ()) {
-        warn!("Failed to emit extensions_updated event: {}", e);
-    }
+    crate::event_bridge::bridge_emit(app_handle, "extensions_updated", ());
 
     // Tear down both worker and view context machines so a subsequent
     // reinstall doesn't collide with stale mailbox/strike entries.
@@ -1359,7 +1358,8 @@ pub(crate) async fn set_enabled(
                 Ok(res)
                     if res.transition != crate::clipboard_capture::CaptureTransition::NoChange =>
                 {
-                    let _ = app_handle.emit(
+                    crate::event_bridge::bridge_emit(
+                        app_handle,
                         crate::commands::clipboard_capture::CAPTURE_STATE_CHANGED_EVENT,
                         &res,
                     );
@@ -1397,15 +1397,11 @@ pub(crate) async fn set_enabled(
     // Broadcast so the main window — which owns the extension host, not the
     // settings window driving this command — reloads to match. Handled by
     // `extensionEventSubscriptions` frontend-side.
-    if let Err(e) = app_handle.emit(
+    crate::event_bridge::bridge_emit(
+        app_handle,
         "asyar:extension-enabled-changed",
         serde_json::json!({ "extensionId": extension_id, "enabled": enabled }),
-    ) {
-        warn!(
-            "Failed to emit extension-enabled-changed for '{}': {}",
-            extension_id, e
-        );
-    }
+    );
 
     info!("Extension {} set to enabled={}", extension_id, enabled);
     Ok(())

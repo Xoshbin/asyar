@@ -6,7 +6,7 @@ use crate::clipboard_capture::{
 use crate::error::AppError;
 use crate::extensions::ExtensionRegistryState;
 use crate::permissions::ExtensionPermissionRegistry;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 pub const CAPTURE_STATE_CHANGED_EVENT: &str = "asyar:clipboard:capture-state-changed";
 
@@ -25,7 +25,7 @@ pub fn clipboard_capture_subscribe(
 
     let result = manager.subscribe(&caller_id, &permissions, is_enabled)?;
     if result.transition != CaptureTransition::NoChange {
-        let _ = app.emit(CAPTURE_STATE_CHANGED_EVENT, &result);
+        crate::event_bridge::bridge_emit(&app, CAPTURE_STATE_CHANGED_EVENT, &result);
     }
     Ok(result)
 }
@@ -38,7 +38,7 @@ pub fn clipboard_capture_unsubscribe(
 ) -> Result<CaptureSubscriptionResult, AppError> {
     let result = manager.unsubscribe(&caller_id)?;
     if result.transition != CaptureTransition::NoChange {
-        let _ = app.emit(CAPTURE_STATE_CHANGED_EVENT, &result);
+        crate::event_bridge::bridge_emit(&app, CAPTURE_STATE_CHANGED_EVENT, &result);
     }
     Ok(result)
 }
@@ -51,7 +51,7 @@ pub fn clipboard_capture_force_remove(
 ) -> Result<CaptureSubscriptionResult, AppError> {
     let result = manager.force_remove(&extension_id)?;
     if result.transition != CaptureTransition::NoChange {
-        let _ = app.emit(CAPTURE_STATE_CHANGED_EVENT, &result);
+        crate::event_bridge::bridge_emit(&app, CAPTURE_STATE_CHANGED_EVENT, &result);
     }
     Ok(result)
 }

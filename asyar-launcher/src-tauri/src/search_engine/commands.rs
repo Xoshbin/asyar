@@ -1,6 +1,6 @@
 use super::models::{SearchResult, SearchableItem};
 use super::{SearchError, SearchState};
-use tauri::{Emitter, Manager, State};
+use tauri::{Manager, State};
 
 #[tauri::command]
 pub async fn search_items(
@@ -192,7 +192,7 @@ fn notify_favorite_walkthrough(app_handle: &tauri::AppHandle, count: u32) {
         Ok(newly) if !newly.is_empty() => {
             if let Ok(snapshot) = crate::walkthrough::service::snapshot(&data, &usage, &walkthrough)
             {
-                let _ = app_handle.emit("asyar:walkthrough:changed", snapshot);
+                crate::event_bridge::bridge_emit(app_handle, "asyar:walkthrough:changed", snapshot);
             }
         }
         Ok(_) => {}
@@ -217,7 +217,7 @@ fn notify_walkthrough(
         Ok(newly) if !newly.is_empty() => {
             if let Ok(snapshot) = crate::walkthrough::service::snapshot(&data, usage, &walkthrough)
             {
-                let _ = tauri::Emitter::emit(app_handle, "asyar:walkthrough:changed", snapshot);
+                crate::event_bridge::bridge_emit(app_handle, "asyar:walkthrough:changed", snapshot);
             }
         }
         Ok(_) => {}

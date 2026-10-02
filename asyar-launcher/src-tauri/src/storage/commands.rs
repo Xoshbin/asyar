@@ -4,7 +4,7 @@ use super::DataStore;
 use crate::crypto::keystore::KeystoreState;
 use crate::error::AppError;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 // ── Clipboard ────────────────────────────────────────────────────────────────
 
@@ -210,7 +210,7 @@ fn note_change_payload(id: &str, change_type: &str) -> serde_json::Value {
 }
 
 pub(crate) fn emit_note_changed(app: &AppHandle, id: &str, change_type: &str) {
-    let _ = app.emit("notes:changed", note_change_payload(id, change_type));
+    crate::event_bridge::bridge_emit(app, "notes:changed", note_change_payload(id, change_type));
 }
 
 #[tauri::command]
@@ -514,7 +514,7 @@ pub fn shortcut_upsert(
     // main launcher's in-memory cache — `handleFiredShortcut` then logs
     // "Received shortcut for unknown objectId" because the lookup misses
     // even though Rust dispatched the event correctly.
-    let _ = app.emit("shortcuts:changed", ());
+    crate::event_bridge::bridge_emit(&app, "shortcuts:changed", ());
     Ok(())
 }
 
@@ -534,6 +534,6 @@ pub fn shortcut_remove(
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
     super::shortcuts::remove(&conn, &object_id)?;
-    let _ = app.emit("shortcuts:changed", ());
+    crate::event_bridge::bridge_emit(&app, "shortcuts:changed", ());
     Ok(())
 }

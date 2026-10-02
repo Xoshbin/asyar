@@ -9,7 +9,7 @@
 // runtime snapshot (per `extensionId:role` key), and — added in later
 // steps — state values, subscriptions, event/RPC/IPC ring buffers.
 
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
 
@@ -19,7 +19,7 @@ let manifestProvider: ManifestProvider | null = null;
 export function setInspectorManifestProvider(provider: ManifestProvider): void {
   manifestProvider = provider;
 }
-import { bridgeListen } from '../../lib/ipc/bridgeEvents';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 import { getExtensionRuntimeSnapshot } from '../../lib/ipc/iframeLifecycleCommands';
 import {
   forceRemountWorker as forceRemountWorkerCommand,
@@ -207,7 +207,7 @@ class InspectorStore {
       void this.refreshSubscriptions(id);
     }, SUBS_POLL_MS);
 
-    const unsubMount = await bridgeListen<{
+    const unsubMount = await appListen<{
       extensionId: string;
       mountToken?: number;
       role?: ContextRoleWire;
@@ -220,7 +220,7 @@ class InspectorStore {
       });
     });
 
-    const unsubUnmount = await bridgeListen<{
+    const unsubUnmount = await appListen<{
       extensionId: string;
       role?: ContextRoleWire;
       reason?: string;
@@ -233,7 +233,7 @@ class InspectorStore {
       }
     });
 
-    const unsubDegraded = await bridgeListen<{
+    const unsubDegraded = await appListen<{
       extensionId: string;
       strikes?: number;
       role?: ContextRoleWire;
@@ -246,7 +246,7 @@ class InspectorStore {
       });
     });
 
-    const unsubStateChanged = await bridgeListen<{
+    const unsubStateChanged = await appListen<{
       extensionId: string;
       key: string;
       value: unknown;
@@ -259,19 +259,8 @@ class InspectorStore {
 
     this.#unlisteners.push(unsubMount, unsubUnmount, unsubDegraded, unsubStateChanged);
 
-    const BRIDGED_EVENTS = new Set([
-      'asyar:iframe:mount',
-      'asyar:iframe:unmount',
-      'asyar:iframe:degraded',
-      'asyar:state-changed',
-      'asyar:state-rpc-reply',
-      'asyar:system-event',
-      'asyar:app-event',
-    ]);
-
     for (const channel of TAPPED_EVENTS) {
-      const subscribe = BRIDGED_EVENTS.has(channel) ? bridgeListen<unknown> : listen<unknown>;
-      const un = await subscribe(channel, (event) => {
+      const un = await appListen<unknown>(channel, (event) => {
         this.recordEvent(channel, event.payload);
       });
       this.#unlisteners.push(un);

@@ -10,7 +10,7 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
 use tauri::AppHandle;
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutEvent, ShortcutState,
 };
@@ -468,7 +468,7 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
     // Check user item shortcuts
     if let Ok(user_shortcuts) = state.user_shortcuts.lock() {
         if let Some(object_id) = user_shortcuts.get(&canonical) {
-            let _ = app.emit("user-shortcut-fired", object_id.clone());
+            crate::event_bridge::bridge_emit(app, "user-shortcut-fired", object_id.clone());
             return;
         }
     }

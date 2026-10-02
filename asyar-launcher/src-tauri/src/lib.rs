@@ -1355,7 +1355,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                             // so a poisoned lock never emits a phantom prompt.
                             if let Ok(mut slot) = app.state::<feedback::PendingCrash>().0.lock() {
                                 *slot = Some(payload);
-                                let _ = handle.emit("crash-report-pending", true);
+                                crate::event_bridge::bridge_emit(
+                                    &handle,
+                                    "crash-report-pending",
+                                    true,
+                                );
                                 log::info!("crash-report: stored pending crash + emitted prompt");
                             }
                         }
@@ -1634,7 +1638,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 usage::sender::SendAction::Prompt => {
                     // Hand the day to the frontend; it shows UsageSharePrompt and
                     // calls send_pending_usage on confirm.
-                    let _ = handle.emit("usage:pending-share", &day);
+                    crate::event_bridge::bridge_emit(&handle, "usage:pending-share", &day);
                 }
             }
         }
@@ -1779,7 +1783,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(false);
             if result {
                 crate::storage::clipboard_fts::mark_ready();
-                let _ = app_handle.emit("clipboard:fts-ready", ());
+                crate::event_bridge::bridge_emit(&app_handle, "clipboard:fts-ready", ());
             }
         });
     }
@@ -1817,7 +1821,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(false);
             if result {
                 crate::storage::notes_fts::mark_ready();
-                let _ = app_handle.emit("notes:fts-ready", ());
+                crate::event_bridge::bridge_emit(&app_handle, "notes:fts-ready", ());
             }
         });
 
@@ -1881,7 +1885,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let app_handle_for_emit = app.handle().clone();
         let scripts_watcher =
             crate::scripts::watcher::ScriptsWatcher::start(directories_state, move || {
-                let _ = app_handle_for_emit.emit("scripts:changed", ());
+                crate::event_bridge::bridge_emit(&app_handle_for_emit, "scripts:changed", ());
             })?;
         app.manage(crate::commands::scripts::ScriptsWatcherState(Arc::clone(
             &scripts_watcher,
@@ -2343,8 +2347,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 handle.rearm(roots, exclusions, file_index_state.clone(), on_rescan);
             }
 
-            let _ = app_handle_for_file_index
-                .emit("asyar:file-index-status", file_index_state.status());
+            crate::event_bridge::bridge_emit(
+                &app_handle_for_file_index,
+                "asyar:file-index-status",
+                file_index_state.status(),
+            );
         });
     }
 
@@ -2428,7 +2435,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             token_store::KeyringTokenStore, BridgeState,
         };
         use std::sync::Arc;
-        use tauri::Emitter;
 
         let token_store = Arc::new(KeyringTokenStore::new());
         let token_store_clone = token_store.clone();
@@ -2455,8 +2461,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 Ok(handle) => {
                     let port = handle.port();
                     log::info!("browser bridge listening on 127.0.0.1:{}", port);
-                    let _ = app_handle_for_emit
-                        .emit("browser:bridge-ready", serde_json::json!({ "port": port }));
+                    crate::event_bridge::bridge_emit(
+                        &app_handle_for_emit,
+                        "browser:bridge-ready",
+                        serde_json::json!({ "port": port }),
+                    );
                     app_handle_for_manage.manage(handle);
                 }
                 Err(e) => {

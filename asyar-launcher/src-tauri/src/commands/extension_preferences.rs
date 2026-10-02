@@ -3,7 +3,7 @@ use crate::error::AppError;
 use crate::storage::extension_preferences as prefs_store;
 use crate::storage::DataStore;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 /// Event payload broadcast to all webview windows after a preference write.
 /// Listeners invalidate their in-memory cache and re-read from the DB.
@@ -20,13 +20,7 @@ fn emit_changed(app_handle: &AppHandle, extension_id: &str) {
     let payload = PreferencesChangedPayload {
         extension_id: extension_id.to_string(),
     };
-    if let Err(e) = app_handle.emit("asyar:preferences-changed", payload) {
-        log::warn!(
-            "Failed to emit asyar:preferences-changed for {}: {}",
-            extension_id,
-            e
-        );
-    }
+    crate::event_bridge::bridge_emit(app_handle, "asyar:preferences-changed", payload);
 }
 
 #[tauri::command]
