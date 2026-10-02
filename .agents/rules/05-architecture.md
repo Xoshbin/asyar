@@ -22,14 +22,17 @@
 - Files with an `AUTO-GENERATED` banner (such as `src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`) must never be edited manually.
 - Always edit the source file (e.g. `src-tauri/src/permissions.rs`, `error.rs`, `models.rs`) and run the corresponding generator command (`pnpm gen:all`, `cargo test export_bindings -- --ignored`).
 
-## 4. Built-in Feature Lifecycle & Service/UI Boundary
+## 4. First-Class Platform Primitives & Service Exposure
 
-- **Strict Service/UI Separation**:
-  - Every built-in feature must maintain a clean boundary between its underlying platform service (Rust engine, SQLite storage, background watchers, IPC handlers) and its bundled user-facing UI (commands, views, search fallback items, accessories, deeplinks).
-  - All 21 optional built-in features declare `"lifecycle": { "disableable": true }` in `manifest.json`.
-  - Disabling a built-in feature in **Settings → Extensions** cleanly unregisters its UI contributions without stopping, killing, or clearing the underlying platform service.
-  - Permission-authorized Tier 2 extensions must retain uninterrupted access to platform services (e.g. `files:search`, `screen:capture`, `calculator:evaluate`, `notes:read`) regardless of whether the bundled UI is enabled or disabled.
-  - Only core platform infrastructure (`system` and `settings`) is non-disableable (`lifecycle.disableable: false`).
+- **First-Class Platform Primitives (No Pseudo-Extensions)**:
+  - Core built-in features (Calculator, Clipboard History, Snippets, Notes, Aliases, Window Management, System, etc.) are statically compiled first-class platform primitives, not pseudo-extensions.
+  - Built-ins must not incur dynamic manifest parsing or IPC closure-stripping side-tables (`inlineActions`). Built-in providers contribute directly to search or UI without closure-stripping round-trips.
+  - Built-in features are defined with static descriptors / declarations; dynamic manifests and runtime directory scanning are strictly reserved for installed third-party (Tier 2) extensions.
+- **Strict Service/UI Separation & Tier 2 Exposure**:
+  - Every built-in feature maintains a clean boundary between its underlying platform service (Rust engine, SQLite storage, background watchers, IPC handlers) and its user-facing UI (commands, views, search fallback items, accessories, deeplinks).
+  - Platform services (e.g. `files:search`, `screen:capture`, `calculator:evaluate`, `notes:read`) must remain registered in `ServiceRegistry` (`buildServiceRegistry`) so permission-authorized Tier 2 extensions can consume them uninterrupted.
+  - Disabling an optional built-in feature via Settings uses a direct reactive gate (e.g. `if (!settings.features[id].enabled)` or settings toggle), cleanly suppressing its UI commands, accessories, and search suggestions without unregistering, killing, or clearing the underlying platform service.
+  - Only core platform infrastructure (`system` and `settings`) is non-disableable.
 
 ## 5. Separation of Headless Compute and Visual Canvas (Evolved Sandboxing)
 

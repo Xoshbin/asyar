@@ -409,4 +409,40 @@ describe('searchOrchestrator characterization tests', () => {
     expect(passedExternalResults).toHaveLength(1);
     expect(passedExternalResults[0].objectId).toBe('cmd_window-management_layout_custom-123');
   });
+
+  it('tryExecuteResultAction directly executes function closures for platform primitives', async () => {
+    const directActionSpy = vi.fn();
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      {
+        id: 'calc_result_1',
+        title: '42',
+        subtitle: '6 * 7',
+        score: 1.0,
+        extensionId: 'calculator',
+        action: directActionSpy,
+      } as any,
+    ]);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({
+      results: [
+        {
+          objectId: 'calc_result_1',
+          name: '42',
+          type: 'command',
+          score: 1.0,
+        } as any,
+      ],
+      aliasMatch: null,
+    });
+
+    await searchOrchestrator.handleSearch('6 * 7');
+
+    // Executed via tryExecuteResultAction
+    const handled = searchOrchestrator.tryExecuteResultAction('calc_result_1');
+    expect(handled).toBe(true);
+    expect(directActionSpy).toHaveBeenCalledTimes(1);
+
+    // Also attached to result for direct invocation
+    expect(searchOrchestrator.items[0].action).toBeDefined();
+    expect(typeof searchOrchestrator.items[0].action).toBe('function');
+  });
 });

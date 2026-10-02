@@ -53,6 +53,11 @@ Or manually run the steps:
 - **Strict Separation of Presentation Lifecycle and Daemon Compute**:
   - **Zero-Cost Reveal Invariant**: Revealing, typing in, and dismissing the launcher UI must never await or be blocked by extension daemon lifecycle events (mounting, syncing, network reconnection, command indexing). Hotkey summon (`showWindow`), dismiss (`hideWindow`), and state reset (`resetLauncherState`) touch strictly UI presentation concerns.
   - **Independent Daemon Lifespan**: Background extensions are long-lived daemons managed by the runtime; hiding, unmapping, or resetting the search window must never destroy, suspend, or corrupt background worker state. Workers, timers, and watchers persist across ephemeral window presentations.
+- **First-Class Platform Primitives & Service Exposure (Evolved Built-ins)**:
+  - Built-in features (Calculator, Clipboard History, Snippets, Notes, Aliases, Window Management, System, etc.) are statically compiled platform primitives, not pseudo-extensions.
+  - Built-ins must not incur dynamic manifest parsing or IPC closure-stripping side-tables (`inlineActions`). Built-in providers contribute directly to search results without closure stripping.
+  - Platform services (`files:search`, `screen:capture`, `calculator:evaluate`, `notes:read`) remain registered in `ServiceRegistry` (`buildServiceRegistry`) for Tier 2 extensions.
+  - Disabling optional built-ins is a direct reactive settings gate suppressing UI presentation without disrupting underlying platform services or requiring synthetic extension unregistration workflows.
 - **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
 
 ## 6. Tech Stack Standards

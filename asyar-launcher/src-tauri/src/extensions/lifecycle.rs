@@ -2,8 +2,8 @@
 
 use crate::error::AppError;
 use crate::extensions::{
-    discovery, get_app_data_dir, get_builtin_features_path, get_dev_extension_paths,
-    get_extensions_dir, ExtensionRecord, ExtensionRegistryState,
+    discovery, get_app_data_dir, get_dev_extension_paths, get_extensions_dir, ExtensionRecord,
+    ExtensionRegistryState,
 };
 use crate::storage::DataStore;
 use log::{info, warn};
@@ -520,9 +520,8 @@ pub(crate) fn discover_all(
 ) -> Result<Vec<ExtensionRecord>, AppError> {
     let mut all_records: Vec<ExtensionRecord> = Vec::new();
 
-    // 1. Scan built-in features
-    let builtin_path = get_builtin_features_path(app_handle)?;
-    let builtin_records = discovery::scan_extensions_dir(Path::new(&builtin_path), true);
+    // 1. Load built-in platform features from static descriptors (zero cold-boot disk crawling)
+    let builtin_records = discovery::get_builtin_records();
     all_records.extend(builtin_records);
 
     // 2. Scan installed extensions

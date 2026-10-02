@@ -288,6 +288,142 @@ pub fn validate_actions_cross_scope(
 
 const SUPPORTED_SDK_VERSION: &str = env!("ASYAR_SDK_VERSION");
 
+static BUILTIN_RECORDS: std::sync::OnceLock<Vec<ExtensionRecord>> = std::sync::OnceLock::new();
+
+/// Returns statically compiled ExtensionRecord descriptors for all built-in platform features.
+/// This completely eliminates cold-boot disk crawling and runtime manifest deserialization
+/// for core built-in features.
+pub fn get_builtin_records() -> Vec<ExtensionRecord> {
+    BUILTIN_RECORDS
+        .get_or_init(|| {
+            let raw_manifests: &[(&str, &str)] = &[
+                (
+                    "agents",
+                    include_str!("../../../src/built-in-features/agents/manifest.json"),
+                ),
+                (
+                    "calculator",
+                    include_str!("../../../src/built-in-features/calculator/manifest.json"),
+                ),
+                (
+                    "clipboard-history",
+                    include_str!("../../../src/built-in-features/clipboard-history/manifest.json"),
+                ),
+                (
+                    "create-extension",
+                    include_str!("../../../src/built-in-features/create-extension/manifest.json"),
+                ),
+                (
+                    "feedback",
+                    include_str!("../../../src/built-in-features/feedback/manifest.json"),
+                ),
+                (
+                    "file-search",
+                    include_str!("../../../src/built-in-features/file-search/manifest.json"),
+                ),
+                (
+                    "help",
+                    include_str!("../../../src/built-in-features/help/manifest.json"),
+                ),
+                (
+                    "mcp",
+                    include_str!("../../../src/built-in-features/mcp/manifest.json"),
+                ),
+                (
+                    "notes",
+                    include_str!("../../../src/built-in-features/notes/manifest.json"),
+                ),
+                (
+                    "portals",
+                    include_str!("../../../src/built-in-features/portals/manifest.json"),
+                ),
+                (
+                    "quit",
+                    include_str!("../../../src/built-in-features/quit/manifest.json"),
+                ),
+                (
+                    "raycast-import",
+                    include_str!("../../../src/built-in-features/raycast-import/manifest.json"),
+                ),
+                (
+                    "runs",
+                    include_str!("../../../src/built-in-features/runs/manifest.json"),
+                ),
+                (
+                    "screen-ocr",
+                    include_str!("../../../src/built-in-features/screen-ocr/manifest.json"),
+                ),
+                (
+                    "scripts",
+                    include_str!("../../../src/built-in-features/scripts/manifest.json"),
+                ),
+                (
+                    "settings",
+                    include_str!("../../../src/built-in-features/settings/manifest.json"),
+                ),
+                (
+                    "shortcuts",
+                    include_str!("../../../src/built-in-features/shortcuts/manifest.json"),
+                ),
+                (
+                    "snippets",
+                    include_str!("../../../src/built-in-features/snippets/manifest.json"),
+                ),
+                (
+                    "store",
+                    include_str!("../../../src/built-in-features/store/manifest.json"),
+                ),
+                (
+                    "system",
+                    include_str!("../../../src/built-in-features/system/manifest.json"),
+                ),
+                (
+                    "usage-stats",
+                    include_str!("../../../src/built-in-features/usage-stats/manifest.json"),
+                ),
+                (
+                    "walkthrough",
+                    include_str!("../../../src/built-in-features/walkthrough/manifest.json"),
+                ),
+                (
+                    "window-management",
+                    include_str!("../../../src/built-in-features/window-management/manifest.json"),
+                ),
+            ];
+
+            let mut records = Vec::with_capacity(raw_manifests.len());
+            for (id, raw) in raw_manifests {
+                match serde_json::from_str::<ExtensionManifest>(raw) {
+                    Ok(manifest) => {
+                        let disableable = manifest
+                            .lifecycle
+                            .as_ref()
+                            .and_then(|l| l.disableable)
+                            .unwrap_or(false);
+                        records.push(ExtensionRecord {
+                            first_view_component: manifest.first_view_component().map(String::from),
+                            manifest,
+                            enabled: true,
+                            is_built_in: true,
+                            disableable,
+                            path: format!("builtin://{}", id),
+                            compatibility: CompatibilityStatus::Compatible,
+                        });
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "Failed to parse statically compiled built-in manifest for '{}': {}",
+                            id,
+                            e
+                        );
+                    }
+                }
+            }
+            records
+        })
+        .clone()
+}
+
 /// Scan a directory for extension subdirectories containing manifest.json.
 /// Returns a Vec of (extension_id, manifest, directory_path).
 pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord> {
@@ -1974,6 +2110,32 @@ mod manifest_schema_tests {
                     Some(true),
                     "optional built-in '{}' must explicitly declare lifecycle.disableable=true",
                     manifest.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_builtin_records_statically_compiled() {
+        let records = get_builtin_records();
+        assert_eq!(records.len(), 23, "expected 23 built-in feature records");
+        for record in &records {
+            assert!(
+                record.is_built_in,
+                "record {} should be built-in",
+                record.manifest.id
+            );
+            if record.manifest.id == "system" || record.manifest.id == "settings" {
+                assert!(
+                    !record.disableable,
+                    "built-in {} must not be disableable",
+                    record.manifest.id
+                );
+            } else {
+                assert!(
+                    record.disableable,
+                    "built-in {} must be disableable",
+                    record.manifest.id
                 );
             }
         }

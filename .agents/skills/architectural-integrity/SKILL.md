@@ -274,20 +274,22 @@ Privacy and data security in Asyar are **fail-closed** by default. No private us
 
 ---
 
-## Principle 6: Built-in Feature Lifecycle & Service/UI Separation
+## Principle 6: First-Class Platform Primitives & Service Exposure
 
 ### The Pattern
 
-Built-in features in Asyar (Tier 1) are not monoliths. They consist of two distinct layers:
+Built-in features in Asyar (such as Calculator, Clipboard History, Snippets, Notes, Aliases, Window Management, and System) are first-class platform primitives, not pseudo-extensions. They do not incur dynamic manifest parsing or IPC closure-stripping side-tables (`inlineActions`). They consist of two distinct layers:
 
 1. **Platform Service Layer**: Rust engine, background SQLite store, system event watchers, and IPC service handlers registered in `buildServiceRegistry.ts`.
-2. **Bundled UI Layer**: Svelte views, command palette entries (`cmd_{extensionId}_{commandId}`), search bar interceptors/accessories, ⌘K actions, and deeplink routes.
+2. **Bundled UI Layer**: Svelte views, command palette entries, search bar interceptors/accessories, ⌘K actions, and deeplink routes.
 
 ### Invariants for Built-in Features
 
-- **Optional Built-ins are Disableable**: Every optional built-in feature declares `"lifecycle": { "disableable": true }` in its `manifest.json`.
-- **Core Infrastructure is Locked**: Only essential recovery infrastructure (`system` and `settings`) declares `"lifecycle": { "disableable": false }`. The Rust lifecycle strictly rejects any request to disable them, and Settings renders a locked toggle with an explanatory tooltip.
-- **Resilient Platform Services**: When an optional built-in is disabled, its UI contributions are unregistered idempotently and its views are closed. However, the underlying platform service **must keep running**. Disabling the bundled UI must never stop background watchers, drop SQLite tables, or revoke IPC access for permission-authorized Tier 2 extensions.
+- **Statically Compiled Primitives**: Built-ins are hardwired into the platform with zero runtime manifest parsing overhead or cold-boot disk crawling. Third-party extensions remain the sole consumers of dynamic manifests.
+- **Direct, Typed Search Contributions**: Built-in providers (e.g. Calculator) contribute directly to search results without closure stripping.
+- **Direct Reactive Settings Gate**: Disabling an optional built-in feature via Settings uses a direct reactive gate (`if (!settings.features[id].enabled)` or settings toggle), cleanly suppressing its UI commands, accessories, and search suggestions without unregistering, killing, or clearing the underlying platform service.
+- **Core Infrastructure is Locked**: Only essential recovery infrastructure (`system` and `settings`) is non-disableable.
+- **Resilient Platform Services**: Platform services (`files:search`, `screen:capture`, `calculator:evaluate`, `notes:read`) must remain registered in `ServiceRegistry` (`buildServiceRegistry`) so permission-authorized Tier 2 extensions can consume them uninterrupted regardless of whether the bundled UI is enabled or disabled.
 - **Ambient Search Interceptors vs Command/View Features**:
   - Destination features (Notes, Snippets, Runs, File Search) expose commands or views that Tier 2 extensions can replace 1:1.
   - Ambient search interceptors (Calculator) evaluate queries directly in the root search bar. Built-in interceptors have access to `priority: 'top'` (which is intentionally stripped for third-party extensions in `searchOrchestrator` to prevent search hijacking) and specialized hero cards (`CalcResultCard.svelte`). Disabling Calculator is primarily designed for users who want to disable inline math evaluation and keep the search bar clean; third-party extensions contribute calculation results via standard fuzzy ranking (`type: 'result'`).

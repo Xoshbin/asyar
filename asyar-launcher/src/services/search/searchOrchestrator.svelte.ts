@@ -59,15 +59,15 @@ class SearchOrchestratorClass {
     string,
     { extensionId: string; actionId: string; actionPayload: unknown }
   >();
+  // Maps a search-result objectId to its direct action execution handler (e.g. Calculator's copy-to-clipboard).
+  // First-class platform primitives execute directly without temporary closure-stashing side-tables.
+  #directActions = new Map<string, () => void | Promise<void>>();
 
   async handleSearch(query: string): Promise<void> {
     if (!isAppInitialized() || viewManager.activeView) return;
     const token = ++this.#searchToken;
     this.#resultActions.clear();
-    // Local map for inline action closures (e.g. Calculator's copy-to-clipboard)
-    // that can't survive the Rust serialization round-trip. Scoped to this
-    // invocation to avoid race conditions between concurrent searches.
-    const inlineActions = new Map<string, () => void | Promise<void>>();
+    this.#directActions.clear();
     searchStores.isLoading = true;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
@@ -87,10 +87,9 @@ class SearchOrchestratorClass {
               actionPayload: extRes.actionPayload,
             });
           }
-          // Preserve inline action closures (e.g. Calculator's copy-to-clipboard)
-          // that can't survive Rust serialization. Re-attached after mergedSearch.
+          // Direct, typed action execution path for platform primitives / built-ins
           if (typeof extRes.action === 'function') {
-            inlineActions.set(objectId, extRes.action);
+            this.#directActions.set(objectId, extRes.action);
           }
           return {
             objectId,
@@ -117,10 +116,9 @@ class SearchOrchestratorClass {
       const combinedResults: SearchResult[] = resp.results as SearchResult[];
       const aliasMatch = resp.aliasMatch ?? null;
 
-      // Re-attach inline action closures that were stripped for the Rust
-      // round-trip (e.g. Calculator's copy-to-clipboard).
+      // Direct action execution path: attach direct action reference if present
       for (const r of combinedResults) {
-        const action = inlineActions.get(r.objectId);
+        const action = this.#directActions.get(r.objectId);
         if (action) {
           (r as any).action = action;
         }
@@ -177,12 +175,21 @@ class SearchOrchestratorClass {
   }
 
   /**
-   * If the highlighted search result carries a worker-side action (an
-   * ExtensionResult with actionId), dispatch it and return true. Returns
-   * false for any objectId that is not a result-action — the caller then
-   * falls through to the normal command activation path.
+   * If the highlighted search result carries a direct action (e.g. Calculator)
+   * or a worker-side action (an ExtensionResult with actionId), execute/dispatch it
+   * and return true. Returns false for any objectId that is not an action result —
+   * the caller then falls through to the normal command activation path.
    */
   tryExecuteResultAction(objectId: string): boolean {
+    const directAction = this.#directActions.get(objectId);
+    if (directAction) {
+      try {
+        void directAction();
+      } catch (err) {
+        logService.error(`Direct result action failed for ${objectId}: ${err}`);
+      }
+      return true;
+    }
     const info = this.#resultActions.get(objectId);
     if (!info) return false;
     actionService.executeExtensionAction(info.extensionId, info.actionId, info.actionPayload);
