@@ -473,7 +473,8 @@ describe('IPC pipeline — trust boundary', () => {
     );
 
     expect(commands.checkExtensionPermission).toHaveBeenCalledWith(EXT_ID, 'asyar:api:storage:get');
-    expect(storageGet).toHaveBeenCalledWith(EXT_ID, 'org.asyar.malicious', 'secret');
+    expect(storageGet).toHaveBeenCalledWith(EXT_ID, 'secret');
+    expect(storageGet).not.toHaveBeenCalledWith('org.asyar.malicious', expect.anything());
   });
 
   it('reads the payload-supplied extensionId only for the privileged host context', async () => {

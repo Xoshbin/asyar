@@ -2100,3 +2100,110 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
     });
   });
 });
+
+describe('ExtensionIpcRouter — deterministic parameter mapping', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivileged: boolean,
+    originRole?: 'view' | 'worker',
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('reversed keys test: preserves parameter order when keys in payload object are reversed (notes:search)', async () => {
+    const search = vi.fn(async (_q: string, _l?: number) => []);
+    const registry = { notes: { search } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:notes:search',
+      { limit: 5, query: 'test' },
+      'org.example.notes',
+      false,
+    );
+
+    expect(search).toHaveBeenCalledWith('test', 5);
+    expect(search).not.toHaveBeenCalledWith(5, 'test');
+  });
+
+  it('reversed keys test: preserves parameter order when keys in payload object are reversed (notes:create)', async () => {
+    const create = vi.fn(async (_t: string, _b?: string) => ({ id: 'n1', title: _t }));
+    const registry = { notes: { create } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:notes:create',
+      { body: 'my body', title: 'my title' },
+      'org.example.notes',
+      false,
+    );
+
+    expect(create).toHaveBeenCalledWith('my title', 'my body');
+    expect(create).not.toHaveBeenCalledWith('my body', 'my title');
+  });
+
+  it('explicit args envelope test: forwards args array directly as positional arguments', async () => {
+    const search = vi.fn(async (_q: string, _l?: number) => []);
+    const registry = { notes: { search } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:notes:search',
+      { args: ['test', 5] },
+      'org.example.notes',
+      false,
+    );
+
+    expect(search).toHaveBeenCalledWith('test', 5);
+  });
+
+  it('array payload test: forwards raw array payload directly as positional arguments', async () => {
+    const search = vi.fn(async (_q: string, _l?: number) => []);
+    const registry = { notes: { search } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)('asyar:api:notes:search', ['test', 5], 'org.example.notes', false);
+
+    expect(search).toHaveBeenCalledWith('test', 5);
+  });
+
+  it('single options object test: passes payload directly to a single-parameter method without schema', async () => {
+    const configure = vi.fn((_options: { value: number }) => 'ok');
+    const registry = {
+      custom: {
+        configure: (_options: { value: number }) => configure(_options),
+      },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)('asyar:api:custom:configure', { value: 123 }, undefined, false);
+
+    expect(configure).toHaveBeenCalledWith({ value: 123 });
+  });
+
+  it('falls back gracefully with a debug log when no schema exists for a multi-argument method', async () => {
+    const multiArg = vi.fn((_a: unknown, _b: unknown) => 'ok');
+    const registry = {
+      custom: {
+        multiArg: (_a: unknown, _b: unknown) => multiArg(_a, _b),
+      },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:custom:multiArg',
+      { first: 1, second: 2 },
+      undefined,
+      false,
+    );
+
+    expect(logService.debug).toHaveBeenCalledWith(
+      expect.stringContaining('No parameter schema for custom:multiArg'),
+    );
+    expect(multiArg).toHaveBeenCalledWith(1, 2);
+  });
+});

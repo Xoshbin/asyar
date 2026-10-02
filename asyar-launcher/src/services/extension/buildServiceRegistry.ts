@@ -80,10 +80,9 @@ export function buildServiceRegistry(deps: {
     },
     statusBar: statusBarService,
     searchBar: {
-      // The IPC dispatcher spreads payload values via `Object.values`. The
-      // SDK proxy wraps `set` in a single-keyed envelope (`{ opts }`) so
-      // the spread yields `[opts]` rather than `[options, value]` in
-      // unstable key order — see ExtensionIpcRouter.dispatchApiCall.
+      // Dispatched deterministically via METHOD_PARAM_SCHEMAS['searchBar:set']
+      // in ExtensionIpcRouter. The SDK proxy provides `{ opts }`, mapped
+      // positionally after the injected extensionId.
       set: (
         extensionId: string,
         opts: { options?: SearchBarAccessoryDropdownOption[]; value?: string },
