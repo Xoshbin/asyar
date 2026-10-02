@@ -170,7 +170,7 @@ pub fn evaluate_color(query: &str) -> Option<CalcResult> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calculator::CalcKind;
+    use crate::CalcKind;
 
     #[test]
     fn hex_defaults_to_rgb() {

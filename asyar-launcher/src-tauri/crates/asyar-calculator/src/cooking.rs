@@ -114,7 +114,7 @@ pub fn evaluate_cooking(query: &str) -> Option<CalcResult> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calculator::CalcKind;
+    use crate::CalcKind;
 
     #[test]
     fn tablespoon_of_honey_in_grams() {

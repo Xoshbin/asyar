@@ -423,7 +423,7 @@ pub fn evaluate_date(query: &str, today: NaiveDate, _now_time: NaiveTime) -> Opt
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calculator::CalcKind;
+    use crate::CalcKind;
 
     // 2026-07-11 is a Saturday.
     fn today() -> NaiveDate {

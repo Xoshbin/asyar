@@ -188,6 +188,8 @@ dependencies = [
  "aes-gcm",
  "arboard",
  "argon2",
+ "asyar-calculator",
+ "asyar-search",
  "async-trait",
  "async_zip",
  "axum",
@@ -295,6 +297,33 @@ dependencies = [
  "zbus 4.4.0",
  "zeroize",
  "zip 2.4.2",
+]
+
+[[package]]
+name = "asyar-calculator"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "fend-core",
+ "iana-time-zone",
+ "regex",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "specta",
+ "sys-locale",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "asyar-search"
+version = "0.1.0"
+dependencies = [
+ "fuzzy-matcher",
+ "serde",
+ "specta",
 ]
 
 [[package]]

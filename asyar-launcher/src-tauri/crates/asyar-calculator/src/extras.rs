@@ -227,7 +227,7 @@ pub fn format_seconds(secs: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calculator::CalcKind;
+    use crate::CalcKind;
 
     #[test]
     fn ratio_simplifies_by_gcd() {

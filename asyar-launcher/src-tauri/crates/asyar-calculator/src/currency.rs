@@ -5,13 +5,11 @@
 //! returns "how many units of `currency` per one base unit".
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
 
 use super::CalculatorState;
 
@@ -94,31 +92,8 @@ impl fend_core::ExchangeRateFnV2 for FendRates {
     }
 }
 
-/// Where the rates cache lives on disk.
-pub fn rates_path(app: &tauri::AppHandle) -> Option<PathBuf> {
-    app.path()
-        .app_data_dir()
-        .ok()
-        .map(|d| d.join("calculator").join("rates.json"))
-}
-
-/// Non-blocking freshness guarantee: loads the disk cache on first call,
-/// and spawns a background fetch when the cache is missing or stale.
-/// Never delays the caller on the network.
-pub fn ensure_rates_fresh(app: &tauri::AppHandle, state: &CalculatorState) {
-    let Some(path) = rates_path(app) else {
-        return;
-    };
-
-    if !state.disk_loaded.swap(true, Ordering::SeqCst) {
-        if let Some(cache) = RatesCache::load(&path) {
-            let mut guard = state.rates.write().unwrap();
-            if guard.is_none() {
-                *guard = Some(cache);
-            }
-        }
-    }
-
+/// Helper to check if rates in state are currently stale or absent.
+pub fn is_rates_stale(state: &CalculatorState, now: SystemTime) -> bool {
     let ttl = {
         let ttl = *state.ttl_hours.read().unwrap();
         if ttl <= 0.0 {
@@ -127,26 +102,12 @@ pub fn ensure_rates_fresh(app: &tauri::AppHandle, state: &CalculatorState) {
             ttl
         }
     };
-    let stale = state
+    state
         .rates
         .read()
         .unwrap()
         .as_ref()
-        .is_none_or(|c| c.is_stale(ttl, SystemTime::now()));
-
-    if stale && !state.fetching.swap(true, Ordering::SeqCst) {
-        let app = app.clone();
-        tauri::async_runtime::spawn(async move {
-            let fetched = fetch_rates().await;
-            let state = app.state::<CalculatorState>();
-            if let Ok(rates) = fetched {
-                let cache = RatesCache::new(rates, SystemTime::now());
-                let _ = cache.save(&path);
-                *state.rates.write().unwrap() = Some(cache);
-            }
-            state.fetching.store(false, Ordering::SeqCst);
-        });
-    }
+        .is_none_or(|c| c.is_stale(ttl, now))
 }
 
 /// CoinGecko ids and the currency codes they map to.

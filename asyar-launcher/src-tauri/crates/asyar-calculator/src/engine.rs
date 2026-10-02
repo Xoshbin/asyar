@@ -129,7 +129,7 @@ pub fn evaluate_fend(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calculator::CalcKind;
+    use crate::CalcKind;
 
     fn rates() -> Option<Arc<HashMap<String, f64>>> {
         let mut m = HashMap::new();

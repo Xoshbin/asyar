@@ -307,7 +307,7 @@ pub fn evaluate_time(query: &str, now_utc: DateTime<Utc>, local_tz: Tz) -> Optio
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calculator::CalcKind;
+    use crate::CalcKind;
 
     // 2026-07-11 12:00 UTC. Local zone for tests: Asia/Baghdad (UTC+3).
     fn now() -> DateTime<Utc> {
