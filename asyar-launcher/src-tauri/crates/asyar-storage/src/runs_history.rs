@@ -1,6 +1,60 @@
 use crate::error::AppError;
-use crate::runs::types::{Run, RunKind, RunStatus};
 use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+
+/// Lifecycle state of a tracked run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RunStatus {
+    Pending,
+    Running,
+    Succeeded,
+    Failed,
+    Cancelled,
+}
+
+impl RunStatus {
+    /// Returns `true` for terminal states from which no further transition is allowed.
+    pub fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            RunStatus::Succeeded | RunStatus::Failed | RunStatus::Cancelled
+        )
+    }
+}
+
+/// The category of work a run represents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RunKind {
+    /// Preserved for deserializing historical SQLite rows; never written by new code.
+    AiChat,
+    ShellScript,
+    Agent,
+    Custom,
+}
+
+/// A single tracked execution unit.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Run {
+    pub id: String,
+    pub kind: RunKind,
+    pub label: String,
+    pub status: RunStatus,
+    pub extension_id: Option<String>,
+    /// Unix milliseconds — set when the run is inserted.
+    pub started_at: i64,
+    /// Unix milliseconds — set when the run reaches a terminal status.
+    pub ended_at: Option<i64>,
+    pub cancellable: bool,
+    pub error_message: Option<String>,
+    /// Stable join key linking a run back to its dynamic command's `object_id`.
+    pub subject_id: Option<String>,
+    /// Last captured lines from the script's stdout/stderr.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tail_output: Option<String>,
+}
 
 pub const HISTORY_CAP: usize = 50;
 
@@ -200,7 +254,6 @@ fn status_from_db(s: &str) -> Result<RunStatus, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runs::types::{RunKind, RunStatus};
 
     fn make_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();

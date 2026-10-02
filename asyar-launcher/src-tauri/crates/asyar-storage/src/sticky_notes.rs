@@ -249,11 +249,11 @@ mod tests {
     #[test]
     fn prune_orphans_drops_stickies_whose_note_is_gone() {
         let conn = setup();
-        crate::storage::notes::init_table(&conn).unwrap();
+        crate::notes::init_table(&conn).unwrap();
         let key = [7u8; 32];
-        crate::storage::notes::upsert(
+        crate::notes::upsert(
             &conn,
-            &crate::storage::notes::Note {
+            &crate::notes::Note {
                 id: "alive".into(),
                 title: "Alive".into(),
                 body: "b".into(),

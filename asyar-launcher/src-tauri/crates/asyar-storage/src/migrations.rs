@@ -138,9 +138,42 @@ fn baseline(conn: &Connection) -> Result<(), AppError> {
     mcp_audit::init_table(conn)?;
     mcp_permissions::init_table(conn)?;
     mcp_settings::init_table(conn)?;
-    crate::aliases::init_table(conn).map_err(sqlite)?;
-    crate::oauth::token_store::init_table(conn)?;
-    crate::extensions::onboarding_state::init_table(conn)?;
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS item_aliases (
+            object_id   TEXT PRIMARY KEY,
+            alias       TEXT NOT NULL UNIQUE,
+            item_name   TEXT NOT NULL,
+            item_type   TEXT NOT NULL,
+            created_at  INTEGER NOT NULL
+        );",
+    )
+    .map_err(sqlite)?;
+
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS oauth_tokens (
+            composite_key TEXT PRIMARY KEY,
+            extension_id  TEXT NOT NULL,
+            provider_id   TEXT NOT NULL,
+            access_token_enc  TEXT NOT NULL,
+            refresh_token_enc TEXT,
+            token_type    TEXT NOT NULL DEFAULT 'Bearer',
+            scopes        TEXT NOT NULL,
+            expires_at    INTEGER,
+            created_at    INTEGER NOT NULL,
+            updated_at    INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_oauth_tokens_ext_id
+            ON oauth_tokens(extension_id);",
+    )
+    .map_err(sqlite)?;
+
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS extension_onboarding (
+            extension_id TEXT PRIMARY KEY,
+            completed_at INTEGER NOT NULL
+        );",
+    )
+    .map_err(sqlite)?;
 
     Ok(())
 }
@@ -317,9 +350,7 @@ mod tests {
         run(&conn).unwrap();
 
         assert!(names_of(&conn, "table").contains(&"query_history".to_string()));
-        assert!(crate::storage::query_history::list(&conn)
-            .unwrap()
-            .is_empty());
+        assert!(crate::query_history::list(&conn).unwrap().is_empty());
         let name: String = conn
             .query_row("SELECT name FROM snippets WHERE id = 'kept'", [], |row| {
                 row.get(0)
@@ -529,7 +560,7 @@ mod tests {
         let production = Connection::open_in_memory().unwrap();
         run(&production).unwrap();
 
-        let test_store = crate::storage::create_test_store();
+        let test_store = crate::create_test_store();
         let guard = test_store.conn().unwrap();
 
         assert_eq!(

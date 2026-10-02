@@ -9,9 +9,19 @@
 //! subscriber machinery.
 
 use crate::error::AppError;
-use crate::extensions::extension_state::StateEntry;
 use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+/// One row returned by `list_all` — the SQLite shape plus `updated_at` so
+/// the dev inspector can render "last changed" timestamps.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StateEntry {
+    pub key: String,
+    pub value: Value,
+    pub updated_at: u64,
+}
 
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(

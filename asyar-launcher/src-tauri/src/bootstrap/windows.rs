@@ -12,13 +12,7 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut}
 use crate::AppState;
 use crate::SPOTLIGHT_LABEL;
 
-/// The user's explicit theme preference, read from `settings.dat` on startup.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ThemePreference {
-    Light,
-    Dark,
-    System,
-}
+pub use asyar_platform::ThemePreference;
 
 pub fn parse_theme_preference_str(s: &str) -> ThemePreference {
     match s {

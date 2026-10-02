@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use crate::storage::agents::{
+use crate::agents::{
     delete_agent, delete_thread, find_run_origin, get_agent, init_table, insert_agent,
     insert_message, insert_thread, list_agents, list_messages_for_thread, list_threads_for_agent,
     prune_sessions, prune_sessions_with_active, set_thread_pinned, update_agent, AgentRow,
@@ -553,7 +553,7 @@ fn prune_sessions_protects_active_thread() {
 #[test]
 fn prune_sessions_cascades_to_messages_and_runs() {
     let conn = make_conn();
-    crate::storage::runs_history::init_table(&conn).unwrap();
+    crate::runs_history::init_table(&conn).unwrap();
 
     insert_agent(&conn, &agent("a1", 1000)).unwrap();
     insert_thread(&conn, &thread("t1", "a1", 1000)).unwrap();
@@ -600,20 +600,14 @@ fn set_thread_pinned_updates_pin_status() {
     insert_agent(&conn, &agent("a1", 1000)).unwrap();
     insert_thread(&conn, &thread("t1", "a1", 1000)).unwrap();
 
-    let before = crate::storage::agents::get_thread(&conn, "t1")
-        .unwrap()
-        .unwrap();
+    let before = crate::agents::get_thread(&conn, "t1").unwrap().unwrap();
     assert!(!before.is_pinned);
 
     set_thread_pinned(&conn, "t1", true).unwrap();
-    let after = crate::storage::agents::get_thread(&conn, "t1")
-        .unwrap()
-        .unwrap();
+    let after = crate::agents::get_thread(&conn, "t1").unwrap().unwrap();
     assert!(after.is_pinned);
 
     set_thread_pinned(&conn, "t1", false).unwrap();
-    let after_unpin = crate::storage::agents::get_thread(&conn, "t1")
-        .unwrap()
-        .unwrap();
+    let after_unpin = crate::agents::get_thread(&conn, "t1").unwrap().unwrap();
     assert!(!after_unpin.is_pinned);
 }

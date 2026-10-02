@@ -41,7 +41,7 @@ pub fn init_storage(
     app.manage(store);
 
     // Initialize the SQLite data store for clipboard, snippets, shortcuts, search
-    let data_store = crate::storage::DataStore::initialize(app.handle())?;
+    let data_store = crate::storage::DataStore::initialize(&app_data_dir)?;
     let data_store = Arc::new(data_store);
     app.manage(data_store.as_ref().clone());
 

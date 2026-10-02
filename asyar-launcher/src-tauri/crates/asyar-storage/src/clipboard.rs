@@ -1,6 +1,6 @@
+use crate::clipboard_fts::ClipboardFts;
 use crate::crypto::cipher;
 use crate::error::AppError;
-use crate::storage::clipboard_fts::ClipboardFts;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -504,7 +504,7 @@ pub fn search(
     limit: usize,
     master_key: &[u8; 32],
 ) -> Result<SearchResult, AppError> {
-    if !crate::storage::clipboard_fts::is_ready() {
+    if !crate::clipboard_fts::is_ready() {
         return Ok(SearchResult {
             items: Vec::new(),
             index_state: "indexing",
@@ -699,7 +699,7 @@ pub fn toggle_favorite(conn: &Connection, id: &str) -> Result<bool, AppError> {
 /// `clipboard_items`. Order matters: tombstone first so the journal row is
 /// always present before the item disappears from the primary table.
 fn delete_and_tombstone(conn: &Connection, id: &str) -> Result<(), AppError> {
-    crate::storage::cloud_sync_state::mark_tombstone(conn, id, CLIPBOARD_CATEGORY)?;
+    crate::cloud_sync_state::mark_tombstone(conn, id, CLIPBOARD_CATEGORY)?;
     conn.execute("DELETE FROM clipboard_items WHERE id = ?1", params![id])
         .map_err(|e| AppError::Database(format!("Failed to delete clipboard item: {e}")))?;
     Ok(())
@@ -967,6 +967,8 @@ const LIST_SELECT_COLS: &str =
     "SELECT id, item_type, preview, created_at, favorite, metadata, source_app, redacted_kinds";
 
 /// Atomically record a new clipboard capture:
+pub type IconResolver<'a> = &'a dyn Fn(&str, &Path) -> Option<String>;
+
 /// 1. Find any duplicate (same content+type; same id for images).
 /// 2. If found: inherit its favorite status, then delete it.
 /// 3. Insert the new item.
@@ -975,21 +977,19 @@ const LIST_SELECT_COLS: &str =
 pub fn record_capture(
     conn: &Connection,
     item: &ClipboardItem,
-    icon_cache_dir: Option<&Path>,
+    icon_resolver: Option<(&Path, IconResolver<'_>)>,
     master_key: &[u8; 32],
     retention_ms: Option<f64>,
 ) -> Result<CaptureResult, AppError> {
     let mut new_item = item.clone();
-    if let Some(cache_dir) = icon_cache_dir {
+    if let Some((cache_dir, resolver)) = icon_resolver {
         if let Some(source_app_val) = new_item.source_app.as_mut() {
             if let Some(path_str) = source_app_val
                 .get("path")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
             {
-                if let Some(icon_url) =
-                    crate::application::service::extract_app_icon(&path_str, cache_dir)
-                {
+                if let Some(icon_url) = resolver(&path_str, cache_dir) {
                     if let Some(obj) = source_app_val.as_object_mut() {
                         obj.insert("iconUrl".to_string(), serde_json::Value::String(icon_url));
                     }
@@ -1032,7 +1032,7 @@ pub fn record_capture(
 pub fn record_capture_with_fts(
     conn: &Connection,
     item: &ClipboardItem,
-    icon_cache_dir: Option<&Path>,
+    icon_resolver: Option<(&Path, IconResolver<'_>)>,
     master_key: &[u8; 32],
     fts: &ClipboardFts,
     retention_ms: Option<f64>,
@@ -1049,7 +1049,7 @@ pub fn record_capture_with_fts(
     if let Some(d) = &dup {
         fts.delete(&d.id)?;
     }
-    let res = record_capture(conn, item, icon_cache_dir, master_key, retention_ms)?;
+    let res = record_capture(conn, item, icon_resolver, master_key, retention_ms)?;
     // New row is in the DB now — index it.
     fts.upsert(
         &res.inserted_id,
@@ -1087,7 +1087,7 @@ mod tests {
     fn setup() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
         init_table(&conn).unwrap();
-        crate::storage::cloud_sync_state::init_table(&conn).unwrap();
+        crate::cloud_sync_state::init_table(&conn).unwrap();
         conn
     }
 
@@ -2301,9 +2301,9 @@ mod tests {
         );
     }
 
-    fn setup_with_fts() -> (Connection, crate::storage::clipboard_fts::ClipboardFts) {
+    fn setup_with_fts() -> (Connection, crate::clipboard_fts::ClipboardFts) {
         let conn = setup();
-        let fts = crate::storage::clipboard_fts::ClipboardFts::new_in_memory().unwrap();
+        let fts = crate::clipboard_fts::ClipboardFts::new_in_memory().unwrap();
         (conn, fts)
     }
 
@@ -2392,7 +2392,7 @@ mod tests {
         record_capture_with_fts(&conn, &other, None, &key, &fts, None).unwrap();
 
         // Ready required.
-        crate::storage::clipboard_fts::mark_ready();
+        crate::clipboard_fts::mark_ready();
 
         let res = search(&conn, &fts, "apple", 20, &key).unwrap();
         assert_eq!(res.items.len(), 10);
@@ -2400,14 +2400,14 @@ mod tests {
         assert_eq!(res.index_state, "ready");
 
         // Clean up for other tests.
-        crate::storage::clipboard_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
+        crate::clipboard_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
     }
 
     #[test]
     fn search_returns_empty_when_index_not_ready() {
         let (conn, fts) = setup_with_fts();
         let key = test_key();
-        crate::storage::clipboard_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
+        crate::clipboard_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
         let res = search(&conn, &fts, "anything", 20, &key).unwrap();
         assert_eq!(res.index_state, "indexing");
         assert!(res.items.is_empty());

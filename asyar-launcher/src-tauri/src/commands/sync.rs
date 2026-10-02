@@ -299,7 +299,7 @@ pub async fn sync_mark_tombstone(
         "[sync] mark_tombstone done: id={item_id} ok={}",
         result.is_ok()
     );
-    result
+    Ok(result?)
 }
 
 /// Reset the local sync state — wipes the item journal and resets the cursor
@@ -308,7 +308,7 @@ pub async fn sync_mark_tombstone(
 pub async fn sync_reset(data_store: State<'_, DataStore>) -> Result<(), AppError> {
     log::info!("[sync] sync_reset: clearing journal and resetting cursor to 0");
     let conn = data_store.conn()?;
-    cloud_sync_state::clear_all(&conn)
+    Ok(cloud_sync_state::clear_all(&conn)?)
 }
 
 // ── _inner pure-but-async functions ──────────────────────────────────────────

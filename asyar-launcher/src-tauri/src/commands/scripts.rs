@@ -48,7 +48,7 @@ pub(crate) fn scripts_remove_directory_impl(
 
 /// Return all configured script directories in insertion order.
 pub(crate) fn scripts_list_directories_impl(conn: &Connection) -> Result<Vec<String>, AppError> {
-    crate::storage::script_directories::list(conn)
+    Ok(crate::storage::script_directories::list(conn)?)
 }
 
 /// Read configured directories from SQLite and scan them for scripts.

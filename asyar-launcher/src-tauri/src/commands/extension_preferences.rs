@@ -30,7 +30,11 @@ pub async fn extension_preferences_get_all(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<prefs_store::PreferenceExportRow>, AppError> {
     let conn = data_store.conn()?;
-    prefs_store::get_all_for_extension(&conn, &extension_id, keystore.master_key())
+    Ok(prefs_store::get_all_for_extension(
+        &conn,
+        &extension_id,
+        keystore.master_key(),
+    )?)
 }
 
 #[tauri::command]
@@ -93,7 +97,7 @@ pub async fn extension_preferences_export_all(
     data_store: State<'_, DataStore>,
 ) -> Result<prefs_store::PreferencesExport, AppError> {
     let conn = data_store.conn()?;
-    prefs_store::export_all(&conn)
+    Ok(prefs_store::export_all(&conn)?)
 }
 
 #[tauri::command]
@@ -113,5 +117,10 @@ pub async fn extension_preferences_import_all(
         }
     };
     let conn = data_store.conn()?;
-    prefs_store::import_all(&conn, payload, strat, keystore.master_key())
+    Ok(prefs_store::import_all(
+        &conn,
+        payload,
+        strat,
+        keystore.master_key(),
+    )?)
 }

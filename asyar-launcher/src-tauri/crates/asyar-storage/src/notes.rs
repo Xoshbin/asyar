@@ -1,6 +1,6 @@
 use crate::crypto::cipher;
 use crate::error::AppError;
-use crate::storage::notes_fts::NotesFts;
+use crate::notes_fts::NotesFts;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
@@ -328,7 +328,7 @@ pub fn search(
     limit: usize,
     master_key: &[u8; 32],
 ) -> Result<NoteSearchResult, AppError> {
-    if !crate::storage::notes_fts::is_ready() {
+    if !crate::notes_fts::is_ready() {
         return Ok(NoteSearchResult {
             items: Vec::new(),
             index_state: "indexing",
@@ -578,7 +578,7 @@ mod tests {
 #[cfg(test)]
 mod fts_coordination_tests {
     use super::*;
-    use crate::storage::notes_fts::NotesFts;
+    use crate::notes_fts::NotesFts;
 
     fn setup_with_fts() -> (Connection, NotesFts) {
         let conn = Connection::open_in_memory().unwrap();
@@ -660,7 +660,7 @@ mod fts_coordination_tests {
     fn search_returns_indexing_state_before_fts_marked_ready() {
         let (conn, fts) = setup_with_fts();
         let key = test_key();
-        crate::storage::notes_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
+        crate::notes_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
 
         let result = search(&conn, &fts, "anything", 10, &key).unwrap();
         assert_eq!(result.index_state, "indexing");
@@ -680,14 +680,14 @@ mod fts_coordination_tests {
             pinned: false,
         };
         upsert_with_fts(&conn, &note, &key, &fts).unwrap();
-        crate::storage::notes_fts::mark_ready();
+        crate::notes_fts::mark_ready();
 
         let result = search(&conn, &fts, "grocery", 10, &key).unwrap();
         assert_eq!(result.index_state, "ready");
         assert_eq!(result.items.len(), 1);
         assert_eq!(result.items[0].title, "Grocery list");
 
-        crate::storage::notes_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
+        crate::notes_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
     }
 
     #[test]

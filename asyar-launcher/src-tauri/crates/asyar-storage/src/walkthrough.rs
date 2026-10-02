@@ -7,9 +7,32 @@
 //! and source of the moment it first happened.
 
 use crate::error::AppError;
-use crate::walkthrough::progress::Latched;
-use crate::walkthrough::{CompletionRecord, CompletionSource};
 use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+/// Why a task is marked done. Surfaced so the UI can distinguish "you did
+/// this" from "you ticked this off".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CompletionSource {
+    /// A rule matched real usage.
+    Auto,
+    /// The user ticked it by hand.
+    Manual,
+}
+
+/// A latched completion record, as persisted in `walkthrough_state`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionRecord {
+    pub task_id: String,
+    /// Unix seconds.
+    pub completed_at: i64,
+    pub source: CompletionSource,
+}
+
+pub type Latched = HashMap<String, CompletionRecord>;
 
 const DISMISSED_KEY: &str = "dismissed";
 

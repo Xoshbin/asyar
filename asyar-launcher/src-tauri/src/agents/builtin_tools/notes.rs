@@ -49,7 +49,7 @@ fn find_note(
     master_key: &[u8; 32],
     id_or_title: &str,
 ) -> Result<Option<Note>, AppError> {
-    notes::get_by_id_or_title(conn, id_or_title, master_key)
+    Ok(notes::get_by_id_or_title(conn, id_or_title, master_key)?)
 }
 
 fn require_str<'a>(args: &'a serde_json::Value, field: &str) -> Result<&'a str, AppError> {

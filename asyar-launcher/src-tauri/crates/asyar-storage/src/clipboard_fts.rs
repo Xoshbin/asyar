@@ -70,18 +70,18 @@ pub fn rebuild_from_disk(
     let mut hash_writes: Vec<(String, Vec<u8>)> = Vec::new();
 
     for row in &rows {
-        let content = row.raw_content.as_ref().and_then(|v| {
+        let content = row.raw_content.as_deref().and_then(|v| {
             if cipher::is_encrypted_value(v) {
                 cipher::decrypt(v, master_key).ok()
             } else {
-                Some(v.clone())
+                Some(v.to_string())
             }
         });
-        let preview = row.raw_preview.as_ref().and_then(|v| {
+        let preview = row.raw_preview.as_deref().and_then(|v| {
             if cipher::is_encrypted_value(v) {
                 cipher::decrypt(v, master_key).ok()
             } else {
-                Some(v.clone())
+                Some(v.to_string())
             }
         });
         fts.upsert(&row.id, preview.as_deref(), content.as_deref())?;
@@ -389,7 +389,7 @@ mod tests {
 #[cfg(test)]
 mod rebuild_tests {
     use super::*;
-    use crate::storage::clipboard::{add_item, init_table, ClipboardItem};
+    use crate::clipboard::{add_item, init_table, ClipboardItem};
 
     fn test_key() -> [u8; 32] {
         let mut k = [0u8; 32];
@@ -417,7 +417,7 @@ mod rebuild_tests {
     fn rebuild_from_disk_indexes_every_row() {
         let conn = Connection::open_in_memory().unwrap();
         init_table(&conn).unwrap();
-        crate::storage::cloud_sync_state::init_table(&conn).unwrap();
+        crate::cloud_sync_state::init_table(&conn).unwrap();
         let key = test_key();
         for i in 0..20u32 {
             add_item(
@@ -438,7 +438,7 @@ mod rebuild_tests {
     fn rebuild_backfills_null_content_hash_rows() {
         let conn = Connection::open_in_memory().unwrap();
         init_table(&conn).unwrap();
-        crate::storage::cloud_sync_state::init_table(&conn).unwrap();
+        crate::cloud_sync_state::init_table(&conn).unwrap();
         let key = test_key();
         // Insert a row with NULL content_hash directly (simulating a legacy row).
         let encrypted = crate::crypto::cipher::encrypt("legacy body", &key).unwrap();

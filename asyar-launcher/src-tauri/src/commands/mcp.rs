@@ -117,7 +117,11 @@ pub async fn mcp_list_audit(
     limit: Option<u32>,
 ) -> Result<Vec<McpAuditRow>, AppError> {
     let conn = data_store.conn()?;
-    crate::storage::mcp_audit::list_recent(&conn, server_id.as_deref(), limit.unwrap_or(100))
+    Ok(crate::storage::mcp_audit::list_recent(
+        &conn,
+        server_id.as_deref(),
+        limit.unwrap_or(100),
+    )?)
 }
 
 // ── mcp_invoke_tool ───────────────────────────────────────────────────────────
@@ -180,7 +184,9 @@ pub async fn mcp_set_permission(
         decision: decision_enum,
         set_at: now_millis(),
     };
-    crate::storage::mcp_permissions::set_permission(&conn, &row)
+    Ok(crate::storage::mcp_permissions::set_permission(
+        &conn, &row,
+    )?)
 }
 
 // ── mcp_list_server_tools ─────────────────────────────────────────────────────
@@ -204,7 +210,10 @@ pub async fn mcp_list_permissions(
     server_id: Option<String>,
 ) -> Result<Vec<mcp_permissions::McpPermissionRow>, AppError> {
     let conn = data_store.conn()?;
-    mcp_permissions::list_permissions(&conn, server_id.as_deref())
+    Ok(mcp_permissions::list_permissions(
+        &conn,
+        server_id.as_deref(),
+    )?)
 }
 
 // ── mcp_delete_permission ─────────────────────────────────────────────────────
@@ -217,7 +226,9 @@ pub async fn mcp_delete_permission(
     agent_id: String,
 ) -> Result<(), AppError> {
     let conn = data_store.conn()?;
-    mcp_permissions::delete_permission(&conn, &server_id, &tool_id, &agent_id)
+    Ok(mcp_permissions::delete_permission(
+        &conn, &server_id, &tool_id, &agent_id,
+    )?)
 }
 
 // ── mcp_get_permission ────────────────────────────────────────────────────────
@@ -250,7 +261,7 @@ pub async fn mcp_get_permission(
 #[tauri::command]
 pub async fn mcp_get_strict_mode(data_store: State<'_, DataStore>) -> Result<bool, AppError> {
     let conn = data_store.conn()?;
-    crate::storage::mcp_settings::get_strict_mode(&conn)
+    Ok(crate::storage::mcp_settings::get_strict_mode(&conn)?)
 }
 
 #[tauri::command]
@@ -259,7 +270,9 @@ pub async fn mcp_set_strict_mode(
     enabled: bool,
 ) -> Result<(), AppError> {
     let conn = data_store.conn()?;
-    crate::storage::mcp_settings::set_strict_mode(&conn, enabled)
+    Ok(crate::storage::mcp_settings::set_strict_mode(
+        &conn, enabled,
+    )?)
 }
 
 fn now_millis() -> i64 {

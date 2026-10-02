@@ -62,6 +62,8 @@ window-vibrancy = "0.6"
 fuzzy-matcher = "0.3.7" # Added for better fuzzy search
 asyar-search = { path = "crates/asyar-search" }
 asyar-calculator = { path = "crates/asyar-calculator" }
+asyar-storage = { path = "crates/asyar-storage" }
+asyar-platform = { path = "crates/asyar-platform" }
 sysinfo = "0.31" # cross-platform process enumeration + kill
 sha2 = "0.10"
 hmac = "0.12"

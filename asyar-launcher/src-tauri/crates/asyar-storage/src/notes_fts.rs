@@ -234,7 +234,7 @@ mod tests {
 #[cfg(test)]
 mod rebuild_tests {
     use super::*;
-    use crate::storage::notes::{upsert, Note};
+    use crate::notes::{upsert, Note};
 
     fn test_key() -> [u8; 32] {
         let mut k = [0u8; 32];
@@ -258,7 +258,7 @@ mod rebuild_tests {
     #[test]
     fn rebuild_from_disk_indexes_every_row() {
         let conn = Connection::open_in_memory().unwrap();
-        crate::storage::notes::init_table(&conn).unwrap();
+        crate::notes::init_table(&conn).unwrap();
         let key = test_key();
         for i in 0..20u32 {
             upsert(

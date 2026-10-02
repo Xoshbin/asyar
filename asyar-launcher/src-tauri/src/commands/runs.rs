@@ -164,11 +164,11 @@ pub fn runs_get_impl(registry: &RunRegistry, id: &str) -> Option<Run> {
 }
 
 pub fn runs_history_list_impl(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError> {
-    runs_history::list_recent(conn, limit)
+    Ok(runs_history::list_recent(conn, limit)?)
 }
 
 pub fn runs_history_clear_impl(conn: &Connection) -> Result<(), AppError> {
-    runs_history::delete_all(conn)
+    Ok(runs_history::delete_all(conn)?)
 }
 
 pub fn runs_get_output_impl(buffer: &OutputBuffer, id: &str) -> Vec<String> {
