@@ -1580,8 +1580,37 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "linux")]
     let _ = crate::platform::linux::setup_spotlight_window(&window);
 
+    // At-rest encryption keystore — must come up before the SQLite store
+    // so any storage code path that runs during setup already has access
+    // to the master key. Linux falls back to a file-backed key when
+    // Secret Service is unavailable; macOS / Windows propagate keychain
+    // failures as fatal (this `?` is the upstream error path).
+    {
+        use tauri::Manager;
+        let app_data_dir = app
+            .handle()
+            .path()
+            .app_data_dir()
+            .expect("Failed to get app data dir");
+        std::fs::create_dir_all(&app_data_dir)?;
+        let store: std::sync::Arc<dyn crypto::keystore::KeyStore> =
+            std::sync::Arc::from(crypto::keystore::select_keystore(&app_data_dir));
+        let keystore_state = crypto::keystore::KeystoreState::from_keystore(&*store)?;
+        log::info!(
+            "[crypto] keystore initialised — os-backed: {}",
+            keystore_state.is_os_backed()
+        );
+        app.manage(keystore_state);
+        app.manage(store); // Arc<dyn KeyStore> for multi-slot ops (e2ee cloud sync)
+    }
+
+    // Initialize the SQLite data store for clipboard, snippets, shortcuts, search
+    let data_store = storage::DataStore::initialize(app.handle())?;
+    let data_store = std::sync::Arc::new(data_store);
+    app.manage(data_store.as_ref().clone());
+
     // Initialize the search state when the app starts
-    let state = search_engine::initialize_search_state(app.handle())?;
+    let state = search_engine::initialize_search_state(app.handle(), data_store.clone())?;
     let state = std::sync::Arc::new(state);
     app.manage(state.clone());
 
@@ -1644,33 +1673,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // At-rest encryption keystore — must come up before the SQLite store
-    // so any storage code path that runs during setup already has access
-    // to the master key. Linux falls back to a file-backed key when
-    // Secret Service is unavailable; macOS / Windows propagate keychain
-    // failures as fatal (this `?` is the upstream error path).
-    {
-        use tauri::Manager;
-        let app_data_dir = app
-            .handle()
-            .path()
-            .app_data_dir()
-            .expect("Failed to get app data dir");
-        std::fs::create_dir_all(&app_data_dir)?;
-        let store: std::sync::Arc<dyn crypto::keystore::KeyStore> =
-            std::sync::Arc::from(crypto::keystore::select_keystore(&app_data_dir));
-        let keystore_state = crypto::keystore::KeystoreState::from_keystore(&*store)?;
-        log::info!(
-            "[crypto] keystore initialised — os-backed: {}",
-            keystore_state.is_os_backed()
-        );
-        app.manage(keystore_state);
-        app.manage(store); // Arc<dyn KeyStore> for multi-slot ops (e2ee cloud sync)
-    }
-
-    // Initialize the SQLite data store for clipboard, snippets, shortcuts
-    let data_store = storage::DataStore::initialize(app.handle())?;
-
     // Prune all expired cache entries on setup
     {
         let conn = data_store.conn()?;
@@ -1679,7 +1681,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // One-shot timer registry — shares the DataStore. Must be built before
     // the backlog scan and the live scheduler so both can see the same rows.
-    let timer_registry = timers::TimerRegistry::new(data_store.clone());
+    let timer_registry = timers::TimerRegistry::new(data_store.as_ref().clone());
 
     // Launcher-brokered extension state store + RPC primitive.
     // Shares the DataStore so writes land in the same `asyar_data.db` file
@@ -1688,7 +1690,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // `state:set` of the boot can fan out cleanly. Logs the database file
     // path so the boot log evidences the SQLite location.
     let extension_state_service = std::sync::Arc::new(
-        crate::extensions::extension_state::ExtensionStateService::new(data_store.clone()),
+        crate::extensions::extension_state::ExtensionStateService::new(data_store.as_ref().clone()),
     );
     extension_state_service.set_emitter(Box::new(
         crate::extensions::extension_state::TauriStateEmitter {
@@ -1746,8 +1748,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         file_index::watcher::FileIndexWatcherHandle::new(),
     ));
     app.manage(std::sync::Arc::new(thumbnail::ThumbnailState::default()));
-
-    app.manage(data_store);
 
     // Clipboard FTS: build the in-memory index and spawn a background task
     // that decrypts every row, feeds the FTS, and backfills content_hash for

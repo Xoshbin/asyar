@@ -50,7 +50,9 @@ const BUSY_TIMEOUT_MS: i64 = 15_000;
 /// `busy_timeout` is per-connection state and has to be set on each one —
 /// which is exactly why it lives here and not in a one-time setup step.
 fn connection_pragmas() -> String {
-    format!("PRAGMA journal_mode=WAL; PRAGMA busy_timeout={BUSY_TIMEOUT_MS};")
+    format!(
+        "PRAGMA journal_mode=WAL; PRAGMA busy_timeout={BUSY_TIMEOUT_MS}; PRAGMA foreign_keys = ON;"
+    )
 }
 
 /// Cap on simultaneously open connections. SQLite still admits exactly one
@@ -168,14 +170,10 @@ pub fn create_test_store() -> DataStore {
     create_test_store_with_pragmas(connection_pragmas())
 }
 
-/// As [`create_test_store`], with foreign-key enforcement switched on.
-///
-/// Production deliberately leaves `foreign_keys` at SQLite's OFF default; a few
-/// agent tests predate the pool and assert cascade behaviour, so they get it
-/// explicitly rather than having it turned on globally.
+/// Retained for compatibility with tests; all stores now have foreign keys enabled by default.
 #[cfg(test)]
 pub fn create_test_store_with_foreign_keys() -> DataStore {
-    create_test_store_with_pragmas(format!("{} PRAGMA foreign_keys=ON;", connection_pragmas()))
+    create_test_store()
 }
 
 #[cfg(test)]
@@ -418,5 +416,100 @@ mod tests {
             })
             .expect("a clone must see rows written through the original");
         assert_eq!(name, "Shared");
+    }
+
+    #[test]
+    fn every_pooled_connection_enforces_foreign_keys() {
+        let store = create_test_store();
+        let conn = store.conn().expect("connection");
+        let fk: i32 = conn
+            .query_row("PRAGMA foreign_keys;", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(fk, 1);
+    }
+
+    #[test]
+    fn cascade_delete_agent_removes_threads_and_messages() {
+        let store = create_test_store();
+        let conn = store.conn().expect("connection");
+
+        let now = 1_700_000_000;
+        let agent_row = agents::AgentRow {
+            id: "agent_fk_test".to_string(),
+            name: "FK Test Agent".to_string(),
+            description: None,
+            system_prompt: "test".to_string(),
+            provider_id: "openai".to_string(),
+            model_id: "gpt-4o".to_string(),
+            tool_selection: vec![],
+            silent: false,
+            input_source: agents::SilentInputSource::Argument,
+            output_action: agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        };
+        agents::insert_agent(&conn, &agent_row).unwrap();
+
+        let thread_row = agents::ThreadRow {
+            id: "thread_fk_test".to_string(),
+            agent_id: "agent_fk_test".to_string(),
+            title: Some("Thread".to_string()),
+            is_pinned: false,
+            created_at: Some(now),
+            updated_at: Some(now),
+        };
+        agents::insert_thread(&conn, &thread_row).unwrap();
+
+        let msg_row = agents::MessageRow {
+            id: "msg_fk_test".to_string(),
+            thread_id: "thread_fk_test".to_string(),
+            role: agents::MessageRole::User,
+            content: serde_json::json!({"text": "hello"}),
+            created_at: now,
+            run_id: None,
+        };
+        agents::insert_message(&conn, &msg_row).unwrap();
+
+        // Verify rows exist
+        let thread_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM threads WHERE id = 'thread_fk_test'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(thread_count, 1);
+        let msg_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM messages WHERE id = 'msg_fk_test'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(msg_count, 1);
+
+        // Delete the agent
+        agents::delete_agent(&conn, "agent_fk_test").unwrap();
+
+        // Verify cascading delete removed the thread and message
+        let thread_count_after: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM threads WHERE id = 'thread_fk_test'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(thread_count_after, 0);
+
+        let msg_count_after: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM messages WHERE id = 'msg_fk_test'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(msg_count_after, 0);
     }
 }

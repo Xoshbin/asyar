@@ -45,6 +45,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "snippets_is_private",
         up: migration_4_snippets_is_private,
     },
+    Migration {
+        version: 5,
+        name: "search_engine_tables",
+        up: migration_5_search_engine_tables,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -170,6 +175,22 @@ fn migration_4_snippets_is_private(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
+fn migration_5_search_engine_tables(conn: &Connection) -> Result<(), AppError> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS search_items (
+            id TEXT PRIMARY KEY,
+            category TEXT NOT NULL,
+            data TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS search_favorites (
+            object_id TEXT PRIMARY KEY
+        );",
+    )
+    .map_err(|e| AppError::Database(format!("Failed to create search engine tables: {e}")))?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,6 +223,8 @@ mod tests {
         "query_history",
         "runs_history",
         "script_directories",
+        "search_favorites",
+        "search_items",
         "searchbar_accessory_state",
         "shell_trusted_binaries",
         "shortcuts",
@@ -350,6 +373,21 @@ mod tests {
             })
             .unwrap();
         assert_eq!(is_private, 0, "default is_private must be 0");
+    }
+
+    #[test]
+    fn version_four_db_adds_search_engine_tables_without_losing_existing_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..4]).unwrap();
+        assert_eq!(user_version(&conn), 4);
+        assert!(!names_of(&conn, "table").contains(&"search_items".to_string()));
+        assert!(!names_of(&conn, "table").contains(&"search_favorites".to_string()));
+
+        run(&conn).unwrap();
+
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
+        assert!(names_of(&conn, "table").contains(&"search_items".to_string()));
+        assert!(names_of(&conn, "table").contains(&"search_favorites".to_string()));
     }
 
     #[test]

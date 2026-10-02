@@ -488,21 +488,7 @@ mod tests {
     // --- sync_command_index tests ---
 
     fn make_test_state() -> SearchState {
-        use std::sync::{Mutex, RwLock};
-        let conn = rusqlite::Connection::open_in_memory().unwrap();
-        // Since we can't easily call init_db from here without making it public or duplicating,
-        // we'll just skip the DB persistence part in these unit tests by mocking save_items_to_db if needed,
-        // or just let it fail if it hits DB. Actually, let's just initialize the table.
-        conn.execute(
-            "CREATE TABLE search_items (id TEXT PRIMARY KEY, category TEXT, data TEXT)",
-            [],
-        )
-        .unwrap();
-        SearchState {
-            items: RwLock::new(vec![]),
-            favorites: RwLock::new(std::collections::HashSet::new()),
-            db: Mutex::new(conn),
-        }
+        SearchState::new_for_test()
     }
 
     #[tokio::test]

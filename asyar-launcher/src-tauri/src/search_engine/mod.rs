@@ -4,38 +4,21 @@ pub mod models;
 pub mod ranker;
 
 // Import necessary items
+use crate::storage::DataStore;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use models::{Command, SearchResult, SearchableItem};
 use rusqlite::params;
 use std::collections::HashSet;
 use std::fs;
-use std::sync::{Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use tauri::{AppHandle, Manager};
-
-// Constant for the persistence database name
-const DB_FILE_NAME: &str = "search_index.db";
 
 // Simplified state: A list of searchable items protected by a RwLock for concurrent reads
 pub struct SearchState {
     pub items: RwLock<Vec<SearchableItem>>,
     favorites: RwLock<HashSet<String>>,
-    db: Mutex<rusqlite::Connection>,
-}
-
-fn init_db(conn: &rusqlite::Connection) -> Result<(), SearchError> {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS search_items (
-            id TEXT PRIMARY KEY,
-            category TEXT NOT NULL,
-            data TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS search_favorites (
-            object_id TEXT PRIMARY KEY
-        );",
-    )
-    .map_err(|e| SearchError::Other(format!("Failed to initialize database: {}", e)))?;
-    Ok(())
+    pub data_store: Arc<DataStore>,
 }
 
 fn load_items_from_db(conn: &rusqlite::Connection) -> Result<Vec<SearchableItem>, SearchError> {
@@ -156,9 +139,76 @@ fn migrate_json_to_db(
     Ok(())
 }
 
+fn migrate_legacy_search_index_db(
+    app_data_dir: &std::path::Path,
+    conn: &rusqlite::Connection,
+) -> Result<(), SearchError> {
+    let legacy_path = app_data_dir.join("search_index.db");
+    if !legacy_path.exists() {
+        return Ok(());
+    }
+
+    log::info!("Migrating legacy search_index.db into unified DataStore...");
+    if let Ok(legacy_conn) = rusqlite::Connection::open(&legacy_path) {
+        let has_items_table: bool = legacy_conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='search_items'",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|c| c > 0)
+            .unwrap_or(false);
+
+        if has_items_table {
+            if let Ok(legacy_items) = load_items_from_db(&legacy_conn) {
+                let current_count: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM search_items", [], |r| r.get(0))
+                    .unwrap_or(0);
+                if current_count == 0 && !legacy_items.is_empty() {
+                    save_items_to_db(conn, &legacy_items)?;
+                }
+            }
+        }
+
+        let has_favs_table: bool = legacy_conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='search_favorites'",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|c| c > 0)
+            .unwrap_or(false);
+
+        if has_favs_table {
+            if let Ok(legacy_favs) = load_favorites_from_db(&legacy_conn) {
+                for fav in legacy_favs {
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO search_favorites (object_id) VALUES (?1)",
+                        [&fav],
+                    );
+                }
+            }
+        }
+    }
+
+    let migrated_path = app_data_dir.join("search_index.db.migrated");
+    if migrated_path.exists() {
+        let _ = fs::remove_file(&migrated_path);
+    }
+    if let Err(e) = fs::rename(&legacy_path, &migrated_path) {
+        log::warn!("Failed to rename legacy search_index.db: {e}; attempting remove");
+        let _ = fs::remove_file(&legacy_path);
+    }
+    let _ = fs::remove_file(app_data_dir.join("search_index.db-wal"));
+    let _ = fs::remove_file(app_data_dir.join("search_index.db-shm"));
+
+    Ok(())
+}
+
 // Initialize the state by loading from SQLite (with JSON migration)
 pub fn initialize_search_state<R: tauri::Runtime>(
     app_handle: &AppHandle<R>,
+    data_store: std::sync::Arc<DataStore>,
 ) -> Result<SearchState, Box<dyn std::error::Error>> {
     let app_data_dir = app_handle
         .path()
@@ -168,15 +218,10 @@ pub fn initialize_search_state<R: tauri::Runtime>(
     // Ensure directory exists
     fs::create_dir_all(&app_data_dir)?;
 
-    let db_path = app_data_dir.join(DB_FILE_NAME);
-    let conn = rusqlite::Connection::open(&db_path)
-        .map_err(|e| format!("Failed to open database: {}", e))?;
+    let conn = data_store.conn()?;
 
-    // Enable WAL mode for better concurrent read performance
-    conn.execute_batch("PRAGMA journal_mode=WAL;")
-        .map_err(|e| format!("Failed to set WAL mode: {}", e))?;
-
-    init_db(&conn)?;
+    // Migrate from legacy search_index.db if needed
+    migrate_legacy_search_index_db(&app_data_dir, &conn)?;
 
     // Migrate from JSON if needed
     migrate_json_to_db(&app_data_dir, &conn)?;
@@ -189,7 +234,7 @@ pub fn initialize_search_state<R: tauri::Runtime>(
     Ok(SearchState {
         items: RwLock::new(items),
         favorites: RwLock::new(favorites),
-        db: Mutex::new(conn),
+        data_store,
     })
 }
 
@@ -341,19 +386,20 @@ impl SearchState {
     /// a full Tauri app setup.
     #[cfg(test)]
     pub fn new_for_test() -> Self {
-        let conn = rusqlite::Connection::open_in_memory()
-            .expect("Failed to create in-memory database for SearchState::new_for_test");
-        init_db(&conn).expect("Failed to init search_items table for SearchState::new_for_test");
+        let store = std::sync::Arc::new(crate::storage::create_test_store());
         Self {
             items: RwLock::new(vec![]),
             favorites: RwLock::new(HashSet::new()),
-            db: Mutex::new(conn),
+            data_store: store,
         }
     }
 
     pub fn save_items_to_db(&self) -> Result<(), SearchError> {
         let items_guard = self.items.read().map_err(|_| SearchError::LockError)?;
-        let conn = self.db.lock().map_err(|_| SearchError::LockError)?;
+        let conn = self
+            .data_store
+            .conn()
+            .map_err(|e| SearchError::Other(e.to_string()))?;
         save_items_to_db(&conn, &items_guard)
     }
 
@@ -797,7 +843,10 @@ impl SearchState {
         if !found {
             return Ok(false);
         }
-        let conn = self.db.lock().map_err(|_| SearchError::LockError)?;
+        let conn = self
+            .data_store
+            .conn()
+            .map_err(|e| SearchError::Other(e.to_string()))?;
         if favorite {
             conn.execute(
                 "INSERT OR IGNORE INTO search_favorites (object_id) VALUES (?1)",
@@ -965,9 +1014,9 @@ impl SearchState {
             .write()
             .map_err(|_| SearchError::LockError)?
             .clear();
-        self.db
-            .lock()
-            .map_err(|_| SearchError::LockError)?
+        self.data_store
+            .conn()
+            .map_err(|e| SearchError::Other(e.to_string()))?
             .execute("DELETE FROM search_favorites", [])
             .map_err(|e| SearchError::Other(format!("Failed to reset favorites: {e}")))?;
         self.save_items_to_db()?;
@@ -1394,17 +1443,9 @@ impl SearchState {
 mod service_tests {
     use super::*;
     use models::{Application, Command};
-    use std::sync::RwLock;
 
     fn make_state() -> SearchState {
-        let conn =
-            rusqlite::Connection::open_in_memory().expect("Failed to create in-memory database");
-        init_db(&conn).expect("Failed to init test db");
-        SearchState {
-            items: RwLock::new(vec![]),
-            favorites: RwLock::new(HashSet::new()),
-            db: Mutex::new(conn),
-        }
+        SearchState::new_for_test()
     }
 
     fn app(id: &str, name: &str, usage: u32) -> SearchableItem {
@@ -2141,7 +2182,7 @@ mod service_tests {
             .unwrap();
 
         // Reload from DB to verify persistence
-        let conn = state.db.lock().unwrap();
+        let conn = state.data_store.conn().unwrap();
         let items = load_items_from_db(&conn).unwrap();
         let timer = items.iter().find(|i| i.id() == "cmd_test_timer").unwrap();
         if let SearchableItem::Command(c) = timer {
@@ -2149,6 +2190,65 @@ mod service_tests {
         } else {
             panic!("Expected Command variant");
         }
+    }
+
+    #[test]
+    fn test_migrate_legacy_search_index_db() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_data_dir = temp_dir.path();
+
+        // 1. Create a legacy search_index.db with some items and favorites
+        let legacy_db_path = app_data_dir.join("search_index.db");
+        {
+            let conn = rusqlite::Connection::open(&legacy_db_path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE search_items (id TEXT PRIMARY KEY, category TEXT NOT NULL, data TEXT NOT NULL);
+                 CREATE TABLE search_favorites (object_id TEXT PRIMARY KEY);",
+            )
+            .unwrap();
+            let sample_item = SearchableItem::Command(Command {
+                id: "cmd_test_legacy".to_string(),
+                name: "Legacy Test".to_string(),
+                extension: "test".to_string(),
+                trigger: "test".to_string(),
+                command_type: "command".to_string(),
+                usage_count: 5,
+                icon: None,
+                subtitle: Some("Legacy subtitle".to_string()),
+                last_used_at: None,
+                type_label: None,
+                has_arguments: false,
+                is_dynamic: false,
+            });
+            let data = serde_json::to_string(&sample_item).unwrap();
+            conn.execute(
+                "INSERT INTO search_items (id, category, data) VALUES (?1, ?2, ?3)",
+                rusqlite::params!["cmd_test_legacy", "command", data],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO search_favorites (object_id) VALUES (?1)",
+                ["cmd_test_legacy"],
+            )
+            .unwrap();
+        }
+
+        // 2. Create fresh DataStore and run migration
+        let data_store = crate::storage::create_test_store();
+        let conn = data_store.conn().unwrap();
+        migrate_legacy_search_index_db(app_data_dir, &conn).unwrap();
+
+        // 3. Verify items and favorites migrated into data_store
+        let items = load_items_from_db(&conn).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id(), "cmd_test_legacy");
+
+        let favs = load_favorites_from_db(&conn).unwrap();
+        assert!(favs.contains("cmd_test_legacy"));
+
+        // 4. Verify legacy file was renamed to .migrated
+        assert!(!legacy_db_path.exists());
+        assert!(app_data_dir.join("search_index.db.migrated").exists());
     }
 
     #[test]
@@ -2181,17 +2281,9 @@ mod service_tests {
     use crate::aliases::AliasState;
 
     fn fresh_search_state_with(items: Vec<SearchableItem>) -> SearchState {
-        let conn = rusqlite::Connection::open_in_memory().unwrap();
-        conn.execute(
-            "CREATE TABLE search_items (id TEXT PRIMARY KEY, category TEXT, data TEXT)",
-            [],
-        )
-        .unwrap();
-        SearchState {
-            items: std::sync::RwLock::new(items),
-            favorites: std::sync::RwLock::new(std::collections::HashSet::new()),
-            db: std::sync::Mutex::new(conn),
-        }
+        let state = SearchState::new_for_test();
+        *state.items.write().unwrap() = items;
+        state
     }
 
     #[test]
