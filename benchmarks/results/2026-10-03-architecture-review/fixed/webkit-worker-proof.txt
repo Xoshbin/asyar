@@ -1,0 +1,1 @@
+{"role":"worker","dom":"undefined","answer":42}

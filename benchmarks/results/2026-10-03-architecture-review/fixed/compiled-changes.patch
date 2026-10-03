@@ -1,0 +1,1280 @@
+diff --git a/asyar-launcher/src-tauri/tauri.conf.json b/asyar-launcher/src-tauri/tauri.conf.json
+index e5d339a8..0c7695e1 100644
+--- a/asyar-launcher/src-tauri/tauri.conf.json
++++ b/asyar-launcher/src-tauri/tauri.conf.json
+@@ -67,8 +67,8 @@
+       }
+     ],
+     "security": {
+-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asyar-icon: http://asyar-icon.localhost asyar-extension: http://asyar-extension.localhost asyar-thumb: http://asyar-thumb.localhost asset: https://asset.localhost data: https://*; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://openrouter.ai https://asyar.org http://localhost:* https://*; frame-src asyar-extension: http://asyar-extension.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
+-      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asyar-icon: http://asyar-icon.localhost asyar-extension: http://asyar-extension.localhost asyar-thumb: http://asyar-thumb.localhost asset: https://asset.localhost data: https://*; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://openrouter.ai https://asyar.org http://localhost:* https://*; frame-src asyar-extension: http://asyar-extension.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
++      "csp": "default-src 'self'; worker-src 'self' blob:; script-src 'self' blob: asyar-extension: http://asyar-extension.localhost 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asyar-icon: http://asyar-icon.localhost asyar-extension: http://asyar-extension.localhost asyar-thumb: http://asyar-thumb.localhost asset: https://asset.localhost data: https://*; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://openrouter.ai https://asyar.org http://localhost:* https://*; frame-src asyar-extension: http://asyar-extension.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
++      "devCsp": "default-src 'self'; worker-src 'self' blob:; script-src 'self' blob: asyar-extension: http://asyar-extension.localhost 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asyar-icon: http://asyar-icon.localhost asyar-extension: http://asyar-extension.localhost asyar-thumb: http://asyar-thumb.localhost asset: https://asset.localhost data: https://*; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://openrouter.ai https://asyar.org http://localhost:* https://*; frame-src asyar-extension: http://asyar-extension.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
+       "capabilities": ["default", "hud", "snap-guides"]
+     },
+     "macOSPrivateApi": true
+diff --git a/asyar-launcher/src/built-in-features/calculator/index.test.ts b/asyar-launcher/src/built-in-features/calculator/index.test.ts
+index bcb0386b..d1a96417 100644
+--- a/asyar-launcher/src/built-in-features/calculator/index.test.ts
++++ b/asyar-launcher/src/built-in-features/calculator/index.test.ts
+@@ -22,7 +22,7 @@ describe('calculator extension (thin presenter)', () => {
+   beforeEach(() => vi.clearAllMocks());
+ 
+   it('returns [] for empty queries without invoking Rust', async () => {
+-    expect(await calculator.search('   ')).toEqual([]);
++    expect(await calculator.searchRows('   ')).toEqual([]);
+     expect(invokeSafe).not.toHaveBeenCalled();
+   });
+ 
+@@ -30,7 +30,7 @@ describe('calculator extension (thin presenter)', () => {
+     const rust: CalcResult[] = [{ value: '4', detail: '2+2', kind: 'math' }];
+     vi.mocked(invokeSafe).mockResolvedValueOnce(rust);
+ 
+-    const results = await calculator.search('2+2');
++    const results = await calculator.searchRows('2+2');
+ 
+     expect(invokeSafe).toHaveBeenCalledWith(
+       'calculator_evaluate',
+@@ -52,14 +52,14 @@ describe('calculator extension (thin presenter)', () => {
+     ];
+     vi.mocked(invokeSafe).mockResolvedValueOnce(rust);
+ 
+-    const results = await calculator.search('whatever');
++    const results = await calculator.searchRows('whatever');
+     expect(results[0].icon).toBe('🕒');
+     expect(results[1].icon).toBe('🎨');
+   });
+ 
+   it('explicitly treats evaluation failure as best-effort empty results', async () => {
+     vi.mocked(invokeSafe).mockRejectedValueOnce(new Error('calculator unavailable'));
+-    expect(await calculator.search('2+2')).toEqual([]);
++    expect(await calculator.searchRows('2+2')).toEqual([]);
+   });
+ 
+   it('initialize pushes preferences to Rust', async () => {
+@@ -106,8 +106,8 @@ describe('calculator extension (thin presenter)', () => {
+     const rust: CalcResult[] = [{ value: '≈ 62.14 miles', detail: '100 km', kind: 'unit' }];
+     vi.mocked(invokeSafe).mockResolvedValueOnce(rust);
+ 
+-    const [result] = await calculator.search('100 km to miles');
+-    await result.action?.();
++    const [result] = await calculator.searchRows('100 km to miles');
++    await calculator.executeSearchResult(result.id, result.actionPayload);
+ 
+     expect(writeText).toHaveBeenCalledWith('62.14 miles');
+     expect(feedbackService.sendBackground).toHaveBeenCalled();
+@@ -118,11 +118,20 @@ describe('calculator extension (thin presenter)', () => {
+     vi.mocked(invokeSafe).mockResolvedValue(rust);
+ 
+     await calculator.deactivate();
+-    expect(await calculator.search('2+2')).toEqual([]);
++    expect(await calculator.searchRows('2+2')).toEqual([]);
+ 
+     await calculator.activate();
+-    const results = await calculator.search('2+2');
++    const results = await calculator.searchRows('2+2');
+     expect(results).toHaveLength(1);
+     expect(results[0].title).toBe('4');
+   });
+ });
++
++it('registers calculator as a typed platform search provider', async () => {
++  const { searchBuiltinProviders } = await import('../../services/search/builtinSearchProviders');
++  const search = vi.spyOn(calculator, 'searchRows').mockResolvedValueOnce([]);
++  const rows = await searchBuiltinProviders('2+2', (id) => id === 'calculator');
++  expect(search).toHaveBeenCalled();
++  search.mockRestore();
++  expect(rows.every((row) => typeof (row as any).action !== 'function')).toBe(true);
++});
+diff --git a/asyar-launcher/src/built-in-features/calculator/index.ts b/asyar-launcher/src/built-in-features/calculator/index.ts
+index dfbc6816..7b83686b 100644
+--- a/asyar-launcher/src/built-in-features/calculator/index.ts
++++ b/asyar-launcher/src/built-in-features/calculator/index.ts
+@@ -1,7 +1,10 @@
++import {
++  registerBuiltinSearchProvider,
++  type BuiltinSearchRow,
++} from '../../services/search/builtinSearchProviders';
+ import type {
+   Extension,
+   ExtensionContext,
+-  ExtensionResult,
+   ILogService,
+   IFeedbackService,
+ } from 'asyar-sdk/contracts';
+@@ -76,37 +79,41 @@ class CalculatorExtension implements Extension {
+     this.enabled = false;
+   }
+ 
+-  async search(query: string): Promise<ExtensionResult[]> {
++  async searchRows(query: string): Promise<BuiltinSearchRow[]> {
+     if (!this.enabled) return [];
+     const trimmed = query.trim();
+     if (!trimmed) return [];
+ 
+     const results = await calculatorEvaluate(trimmed);
+ 
+-    return results.map((r) => ({
++    return results.map((r, index) => ({
++      id: `calc_result_${index}`,
+       score: 1.0,
+       title: r.value,
+       subtitle: r.detail || trimmed,
+-      type: 'result',
+       icon: KIND_ICONS[r.kind] ?? '🧮',
+       style: 'large',
+       priority: 'top',
+-      action: async () => {
+-        const copyValue = r.value.replace(/^≈ /, '');
+-        try {
+-          await writeText(copyValue);
+-          this.feedbackService?.sendBackground({
+-            title: 'Calculator',
+-            body: `Copied: ${copyValue}`,
+-          });
+-        } catch (e) {
+-          this.logService?.error('Copy failed: ' + e);
+-        }
+-      },
++      actionPayload: { copyValue: r.value.replace(/^≈ /, '') },
+     }));
+   }
++  async executeSearchResult(_id: string, payload?: unknown): Promise<void> {
++    const copyValue = (payload as { copyValue?: unknown } | undefined)?.copyValue;
++    if (typeof copyValue !== 'string') return;
++    try {
++      await writeText(copyValue);
++      this.feedbackService?.sendBackground({ title: 'Calculator', body: `Copied: ${copyValue}` });
++    } catch (e) {
++      this.logService?.error('Copy failed: ' + e);
++    }
++  }
+ }
+ 
+ // Export singleton instance
+ const extension = new CalculatorExtension();
++registerBuiltinSearchProvider({
++  extensionId: 'calculator',
++  search: (query) => extension.searchRows(query),
++  execute: (id, payload) => extension.executeSearchResult(id, payload),
++});
+ export default extension;
+diff --git a/asyar-launcher/src/built-in-features/create-extension/template/src/worker.ts.logic.tmpl b/asyar-launcher/src/built-in-features/create-extension/template/src/worker.ts.logic.tmpl
+index 701ae59b..4fc19042 100644
+--- a/asyar-launcher/src/built-in-features/create-extension/template/src/worker.ts.logic.tmpl
++++ b/asyar-launcher/src/built-in-features/create-extension/template/src/worker.ts.logic.tmpl
+@@ -71,11 +71,7 @@ class WorkerExtension implements Extension {
+   onUnload = (): void => {};
+ }
+ 
+-const extensionId =
+-  window.location.hostname === 'localhost' ||
+-  window.location.hostname === 'asyar-extension.localhost'
+-    ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
+-    : window.location.hostname || '{{EXTENSION_ID}}';
++const extensionId = manifest.id;
+ 
+ const workerContext = new WorkerExtensionContext();
+ workerContext.setExtensionId(extensionId);
+diff --git a/asyar-launcher/src/built-in-features/create-extension/template/src/worker.ts.result.tmpl b/asyar-launcher/src/built-in-features/create-extension/template/src/worker.ts.result.tmpl
+index 13a2f54d..51e24da9 100644
+--- a/asyar-launcher/src/built-in-features/create-extension/template/src/worker.ts.result.tmpl
++++ b/asyar-launcher/src/built-in-features/create-extension/template/src/worker.ts.result.tmpl
+@@ -56,11 +56,7 @@ class WorkerExtension implements Extension {
+   onUnload = (): void => {};
+ }
+ 
+-const extensionId =
+-  window.location.hostname === 'localhost' ||
+-  window.location.hostname === 'asyar-extension.localhost'
+-    ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
+-    : window.location.hostname || '{{EXTENSION_ID}}';
++const extensionId = manifest.id;
+ 
+ const workerContext = new WorkerExtensionContext();
+ workerContext.setExtensionId(extensionId);
+diff --git a/asyar-launcher/src/built-in-features/walkthrough/index.test.ts b/asyar-launcher/src/built-in-features/walkthrough/index.test.ts
+index d1d3b1db..d865ff15 100644
+--- a/asyar-launcher/src/built-in-features/walkthrough/index.test.ts
++++ b/asyar-launcher/src/built-in-features/walkthrough/index.test.ts
+@@ -66,14 +66,14 @@ describe('WalkthroughExtension commands and root search', () => {
+   });
+ 
+   it('search("") returns progress row when shouldShowInRoot is true', async () => {
+-    const results = await walkthroughExtension.search('');
++    const results = await walkthroughExtension.searchRows('');
+     expect(results).toHaveLength(1);
+     expect(results[0].title).toBe('Beyond the basics');
+     expect(results[0].subtitle).toBe('2 of 5 tasks — learn what Asyar can really do');
+   });
+ 
+   it('search("something") returns empty array', async () => {
+-    const results = await walkthroughExtension.search('query');
++    const results = await walkthroughExtension.searchRows('query');
+     expect(results).toHaveLength(0);
+   });
+ });
+@@ -152,3 +152,12 @@ describe('WalkthroughExtension lifecycle: viewActivated, viewDeactivated, activa
+     expect(walkthroughViewState.reset).toHaveBeenCalled();
+   });
+ });
++
++it('registers walkthrough as a typed platform search provider', async () => {
++  const { searchBuiltinProviders } = await import('../../services/search/builtinSearchProviders');
++  const search = vi.spyOn(walkthroughExtension, 'searchRows').mockResolvedValueOnce([]);
++  const rows = await searchBuiltinProviders('', (id) => id === 'walkthrough');
++  expect(search).toHaveBeenCalled();
++  search.mockRestore();
++  expect(rows.every((row) => typeof (row as any).action !== 'function')).toBe(true);
++});
+diff --git a/asyar-launcher/src/built-in-features/walkthrough/index.ts b/asyar-launcher/src/built-in-features/walkthrough/index.ts
+index 8a9d1a0f..d25fdee6 100644
+--- a/asyar-launcher/src/built-in-features/walkthrough/index.ts
++++ b/asyar-launcher/src/built-in-features/walkthrough/index.ts
+@@ -1,10 +1,13 @@
++import {
++  registerBuiltinSearchProvider,
++  type BuiltinSearchRow,
++} from '../../services/search/builtinSearchProviders';
+ import type {
+   Extension,
+   ExtensionContext,
+   IExtensionManager,
+   ILogService,
+   ExtensionAction,
+-  ExtensionResult,
+ } from 'asyar-sdk/contracts';
+ import { actionService } from '../../services/action/actionService.svelte';
+ import { walkthroughService } from '../../services/walkthrough/walkthroughService.svelte';
+@@ -48,7 +51,7 @@ class WalkthroughExtension implements Extension {
+    * types, the ordinary `Walkthrough` command result covers it and a second
+    * row would just be noise. Disappears for good at 100% or on dismiss.
+    */
+-  async search(query: string): Promise<ExtensionResult[]> {
++  async searchRows(query: string): Promise<BuiltinSearchRow[]> {
+     if (query.trim() !== '') return [];
+     if (!walkthroughService.shouldShowInRoot) return [];
+ 
+@@ -58,12 +61,9 @@ class WalkthroughExtension implements Extension {
+         score: 1.0,
+         title: 'Beyond the basics',
+         subtitle: `${completed} of ${total} tasks — learn what Asyar can really do`,
+-        type: 'result',
++        id: 'walkthrough_progress',
+         icon: 'icon:star',
+         priority: 'top',
+-        action: async () => {
+-          await this.openWalkthrough();
+-        },
+       },
+     ];
+   }
+@@ -73,7 +73,7 @@ class WalkthroughExtension implements Extension {
+    * row records a launch like any other — which is what ticks the "start"
+    * task off. Imported lazily to keep the module graph acyclic.
+    */
+-  private async openWalkthrough(): Promise<void> {
++  async openWalkthrough(): Promise<void> {
+     try {
+       const { extensionManager } = await import('../../services/extension/extensionManager.svelte');
+       await extensionManager.handleCommandAction('cmd_walkthrough_show-walkthrough');
+@@ -236,5 +236,11 @@ class WalkthroughExtension implements Extension {
+   }
+ }
+ 
+-export default new WalkthroughExtension();
++const extension = new WalkthroughExtension();
++registerBuiltinSearchProvider({
++  extensionId: 'walkthrough',
++  search: (query) => extension.searchRows(query),
++  execute: () => extension.openWalkthrough(),
++});
++export default extension;
+ export { DefaultView };
+diff --git a/asyar-launcher/src/built-in-features/window-management/index.test.ts b/asyar-launcher/src/built-in-features/window-management/index.test.ts
+index 58a58b95..be15ce28 100644
+--- a/asyar-launcher/src/built-in-features/window-management/index.test.ts
++++ b/asyar-launcher/src/built-in-features/window-management/index.test.ts
+@@ -321,7 +321,7 @@ describe('WindowManagementExtension', () => {
+         configurable: true,
+       });
+       await extension.initialize(makeContext());
+-      const results = await extension.search('my');
++      const results = await extension.searchRows('my');
+       expect(results.length).toBeGreaterThan(0);
+       expect(results[0].title).toContain('My Layout');
+       expect(results[0].id).toBe('cmd_window-management_layout_1');
+@@ -333,7 +333,7 @@ describe('WindowManagementExtension', () => {
+         configurable: true,
+       });
+       await extension.initialize(makeContext());
+-      const results = await extension.search('anything');
++      const results = await extension.searchRows('anything');
+       expect(results).toEqual([]);
+     });
+   });
+@@ -372,3 +372,12 @@ describe('WindowManagementExtension', () => {
+     });
+   });
+ });
++
++it('registers window-management as a typed platform search provider', async () => {
++  const { searchBuiltinProviders } = await import('../../services/search/builtinSearchProviders');
++  const search = vi.spyOn(extension, 'searchRows').mockResolvedValueOnce([]);
++  const rows = await searchBuiltinProviders('', (id) => id === 'window-management');
++  expect(search).toHaveBeenCalled();
++  search.mockRestore();
++  expect(rows.every((row) => typeof (row as any).action !== 'function')).toBe(true);
++});
+diff --git a/asyar-launcher/src/built-in-features/window-management/index.ts b/asyar-launcher/src/built-in-features/window-management/index.ts
+index d1ad5554..4b000547 100644
+--- a/asyar-launcher/src/built-in-features/window-management/index.ts
++++ b/asyar-launcher/src/built-in-features/window-management/index.ts
+@@ -1,3 +1,7 @@
++import {
++  registerBuiltinSearchProvider,
++  type BuiltinSearchRow,
++} from '../../services/search/builtinSearchProviders';
+ import { logService } from '../../services/log/logService';
+ import { windowManagementService } from '../../services/windowManagement/windowManagementService';
+ import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+@@ -11,7 +15,6 @@ import SwitchWindowsView from './SwitchWindowsView.svelte';
+ import {
+   type Extension,
+   type ExtensionContext,
+-  type ExtensionResult,
+   type IStorageService,
+   type IExtensionManager,
+   ActionContext,
+@@ -163,7 +166,7 @@ class WindowManagementExtension implements Extension {
+     }
+   }
+ 
+-  async search(query: string): Promise<ExtensionResult[]> {
++  async searchRows(query: string): Promise<BuiltinSearchRow[]> {
+     const { customLayouts } = windowManagementState;
+     if (!customLayouts.length) return [];
+ 
+@@ -175,14 +178,17 @@ class WindowManagementExtension implements Extension {
+       title: layout.name,
+       subtitle: `${Math.round(layout.bounds.width)}x${Math.round(layout.bounds.height)} at (${Math.round(layout.bounds.x)}, ${Math.round(layout.bounds.y)})`,
+       score: 0.7,
+-      type: 'result' as const,
+       icon: 'icon:store',
+-      action: async () => {
+-        await applyCustomLayout(layout, this.store);
+-      },
++      actionPayload: { layoutId: layout.id },
+     }));
+   }
+ 
++  async executeSearchResult(_id: string, payload?: unknown): Promise<void> {
++    const layoutId = (payload as { layoutId?: unknown } | undefined)?.layoutId;
++    const layout = windowManagementState.customLayouts.find((layout) => layout.id === layoutId);
++    if (layout) await applyCustomLayout(layout, this.store);
++  }
++
+   private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
+ 
+   async viewActivated(viewPath: string): Promise<void> {
+@@ -288,5 +294,11 @@ class WindowManagementExtension implements Extension {
+   }
+ }
+ 
+-export default new WindowManagementExtension();
++const extension = new WindowManagementExtension();
++registerBuiltinSearchProvider({
++  extensionId: 'window-management',
++  search: (query) => extension.searchRows(query),
++  execute: (id, payload) => extension.executeSearchResult(id, payload),
++});
++export default extension;
+ export { ManageView, SwitchWindowsView };
+diff --git a/asyar-launcher/src/services/extension/extensionManager.svelte.ts b/asyar-launcher/src/services/extension/extensionManager.svelte.ts
+index 2e89cebf..0dd94acf 100644
+--- a/asyar-launcher/src/services/extension/extensionManager.svelte.ts
++++ b/asyar-launcher/src/services/extension/extensionManager.svelte.ts
+@@ -1,3 +1,4 @@
++import { setWorkerEntryProvider } from './workerRegistry.svelte';
+ import { settingsService } from '../settings/settingsService.svelte';
+ import * as commands from '../../lib/ipc/commands';
+ import type {
+@@ -141,6 +142,7 @@ export class ExtensionManager implements IExtensionManager {
+       this.goBack.bind(this),
+       () => searchService.saveIndex(),
+     );
++    setWorkerEntryProvider((id) => this.getManifestById(id)?.background?.main);
+     ipcRouter.setup();
+     registerExtensionNameResolver((id) => this.getManifestById(id)?.name);
+   }
+diff --git a/asyar-launcher/src/services/extension/extensionManager.test.ts b/asyar-launcher/src/services/extension/extensionManager.test.ts
+index b917f7e6..9ff2727a 100644
+--- a/asyar-launcher/src/services/extension/extensionManager.test.ts
++++ b/asyar-launcher/src/services/extension/extensionManager.test.ts
+@@ -530,7 +530,7 @@ describe('ExtensionManager Characterization Tests', () => {
+       expect(results).toEqual([]);
+     });
+ 
+-    it('calls search() on loaded extension instances that have it', async () => {
++    it('keeps statically loaded built-ins out of extension search transport', async () => {
+       const mockExt = { search: vi.fn().mockResolvedValue([{ title: 'Result' }]) };
+       // @ts-ignore
+       extensionManager.extensionModulesById.set('test-ext', mockExt);
+@@ -539,9 +539,8 @@ describe('ExtensionManager Characterization Tests', () => {
+       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+ 
+       const results = await extensionManager.searchAll('query');
+-      expect(mockExt.search).toHaveBeenCalledWith('query');
+-      expect(results).toHaveLength(1);
+-      expect(results[0].title).toBe('Result');
++      expect(mockExt.search).not.toHaveBeenCalled();
++      expect(results).toEqual([]);
+     });
+ 
+     it('skips extension instances that do not have search()', async () => {
+@@ -579,11 +578,18 @@ describe('ExtensionManager Characterization Tests', () => {
+           ),
+       };
+ 
++      const { extensionIframeManager } = await import('./extensionIframeManager.svelte');
++      vi.mocked(settingsService.getSettings).mockReturnValue({
++        search: { enableExtensionSearch: true },
++      } as any);
+       // @ts-ignore
+-      extensionManager.extensionModulesById.set('fast-ext', fastExt);
++      extensionManager.manifestsById.set('fast-ext', { id: 'fast-ext', searchable: true });
+       // @ts-ignore
+-      extensionManager.extensionModulesById.set('slow-ext', slowExt);
++      extensionManager.manifestsById.set('slow-ext', { id: 'slow-ext', searchable: true });
+       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
++      vi.mocked(extensionIframeManager.sendSearchRequestToExtension).mockImplementation(
++        async (id) => (id === 'fast-ext' ? fastExt.search() : slowExt.search()),
++      );
+ 
+       const results = await extensionManager.searchAll('query');
+ 
+diff --git a/asyar-launcher/src/services/extension/extensionSearchAggregator.test.ts b/asyar-launcher/src/services/extension/extensionSearchAggregator.test.ts
+index 71e816a6..edaabfd1 100644
+--- a/asyar-launcher/src/services/extension/extensionSearchAggregator.test.ts
++++ b/asyar-launcher/src/services/extension/extensionSearchAggregator.test.ts
+@@ -23,6 +23,8 @@ vi.mock('../settings/settingsService.svelte', () => ({
+   },
+ }));
+ 
++import { settingsService } from '../settings/settingsService.svelte';
++import { extensionIframeManager } from './extensionIframeManager.svelte';
+ import { ExtensionSearchAggregator } from './extensionSearchAggregator';
+ import type { Extension, ExtensionResult } from 'asyar-sdk/contracts';
+ 
+@@ -57,6 +59,22 @@ describe('ExtensionSearchAggregator.searchAll', () => {
+       new Map(),
+     );
+ 
++    vi.mocked(settingsService.getSettings).mockReturnValue({
++      search: { enableExtensionSearch: true },
++    } as any);
++    const manifests = new Map(
++      [...modulesById.keys()].map((id) => [id, { id, searchable: true } as any]),
++    );
++    aggregator.init(
++      new Map(),
++      manifests,
++      (id) => id !== 'clipboard-history',
++      () => {},
++      new Map(),
++    );
++    vi.mocked(extensionIframeManager.sendSearchRequestToExtension).mockImplementation(
++      async (id) => await modulesById.get(id)!.search!('test'),
++    );
+     const results = await aggregator.searchAll('test');
+ 
+     expect(results.map((r) => r.title)).toEqual(['Low', 'High']);
+@@ -77,6 +95,22 @@ describe('ExtensionSearchAggregator.searchAll', () => {
+       new Map(),
+     );
+ 
++    vi.mocked(settingsService.getSettings).mockReturnValue({
++      search: { enableExtensionSearch: true },
++    } as any);
++    const manifests = new Map(
++      [...modulesById.keys()].map((id) => [id, { id, searchable: true } as any]),
++    );
++    aggregator.init(
++      new Map(),
++      manifests,
++      (id) => id !== 'clipboard-history',
++      () => {},
++      new Map(),
++    );
++    vi.mocked(extensionIframeManager.sendSearchRequestToExtension).mockImplementation(
++      async (id) => await modulesById.get(id)!.search!('test'),
++    );
+     const results = await aggregator.searchAll('test');
+     expect(results.map((r) => r.title)).toEqual(['Calc Result']);
+   });
+diff --git a/asyar-launcher/src/services/extension/extensionSearchAggregator.ts b/asyar-launcher/src/services/extension/extensionSearchAggregator.ts
+index df417f78..bc12db4a 100644
+--- a/asyar-launcher/src/services/extension/extensionSearchAggregator.ts
++++ b/asyar-launcher/src/services/extension/extensionSearchAggregator.ts
+@@ -53,31 +53,6 @@ export class ExtensionSearchAggregator {
+     const settings = settingsService.getSettings();
+     const enableExtensionSearch = settings.search.enableExtensionSearch;
+ 
+-    // Tier 1: Direct function calls (EXISTING)
+-    this.extensionModulesById.forEach((module, id) => {
+-      const extensionInstance = this.resolveExtensionInstance(module);
+-      if (
+-        this.isExtensionEnabled(id) &&
+-        extensionInstance &&
+-        typeof extensionInstance.search === 'function'
+-      ) {
+-        searchPromises.push(
+-          Promise.resolve()
+-            .then(() => extensionInstance.search!(query))
+-            .then((results) => {
+-              return (results || []).map((res: ExtensionResult) => ({
+-                ...res,
+-                extensionId: id,
+-              }));
+-            })
+-            .catch((error) => {
+-              logService.error(`Error searching in extension ${id}: ${error}`);
+-              return [];
+-            }),
+-        );
+-      }
+-    });
+-
+     // Tier 2: Send postMessage to searchable iframes (NEW)
+     // Only include Tier 2 if the setting is enabled
+     if (enableExtensionSearch) {
+diff --git a/asyar-launcher/src/services/extension/workerHost.svelte.ts b/asyar-launcher/src/services/extension/workerHost.svelte.ts
+index cefa841b..c28bcb86 100644
+--- a/asyar-launcher/src/services/extension/workerHost.svelte.ts
++++ b/asyar-launcher/src/services/extension/workerHost.svelte.ts
+@@ -15,6 +15,37 @@ export function setWorkerPreferenceProvider(provider: PreferenceProvider): void
+   preferenceProvider = provider;
+ }
+ 
++export function createWorkerBootstrap(
++  extensionId: string,
++  mountToken: number,
++  entry: string,
++  isWindows: boolean,
++): string {
++  if (
++    !entry ||
++    entry.startsWith('/') ||
++    entry.includes('\\') ||
++    entry.includes(':') ||
++    entry.includes('?') ||
++    entry.includes('#') ||
++    entry.split('/').some((part) => !part || part === '.' || part === '..')
++  ) {
++    throw new Error('Invalid background.main module path');
++  }
++  const workerUrl = isWindows
++    ? `http://asyar-extension.localhost/${extensionId}/${entry}`
++    : `asyar-extension://${extensionId}/${entry}`;
++  return `
++    self.__ASYAR_ROLE__ = 'worker';
++    self.__ASYAR_EXTENSION_ID__ = ${JSON.stringify(extensionId)};
++    self.__ASYAR_MOUNT_TOKEN__ = ${mountToken};
++    import(${JSON.stringify(workerUrl)}).catch(err => self.postMessage({
++      type: 'asyar:feedback:uncaught',
++      payload: { kind: 'worker_bootstrap_error', developerDetail: String(err && err.stack ? err.stack : err) }
++    }));
++  `;
++}
++
+ export interface WorkerChannel {
+   extensionId: string;
+   mountToken: number;
+@@ -88,13 +119,13 @@ export class WorkerHost {
+     return this.sourceMap.has(source);
+   }
+ 
+-  public mount(extensionId: string, mountToken: number): void {
++  public mount(extensionId: string, mountToken: number, entry?: string): void {
+     logService.debug(`[workerHost] mount ${extensionId} token=${mountToken}`);
+ 
+     // Clean up existing worker if already running
+     this.unmount(extensionId, 'remount');
+ 
+-    const channel = this.createWorkerChannel(extensionId, mountToken);
++    const channel = this.createWorkerChannel(extensionId, mountToken, entry);
+     if (!channel) return;
+     this.activeWorkers.set(extensionId, channel);
+     this.sourceMap.set(channel, extensionId);
+@@ -183,7 +214,11 @@ export class WorkerHost {
+     });
+   }
+ 
+-  private createWorkerChannel(extensionId: string, mountToken: number): WorkerChannel | null {
++  private createWorkerChannel(
++    extensionId: string,
++    mountToken: number,
++    entry?: string,
++  ): WorkerChannel | null {
+     const onHostMessage = (data: any) => {
+       this.handleIncomingMessage(extensionId, mountToken, channel, data);
+     };
+@@ -194,39 +229,12 @@ export class WorkerHost {
+     if (typeof Worker !== 'undefined' && typeof window !== 'undefined') {
+       try {
+         const isWindows = navigator.userAgent.toLowerCase().includes('windows');
+-        const workerUrl = isWindows
+-          ? `http://asyar-extension.localhost/${extensionId}/dist/worker.js`
+-          : `asyar-extension://${extensionId}/dist/worker.js`;
+-
+-        const bootstrapCode = `
+-          self.__ASYAR_ROLE__ = 'worker';
+-          const extensionId = ${JSON.stringify(extensionId)};
+-          const mountToken = ${mountToken};
+-
+-          (async () => {
+-            try {
+-              await import(${JSON.stringify(workerUrl)});
+-            } catch (err) {
+-              try {
+-                const resp = await fetch(${JSON.stringify(workerUrl)});
+-                if (!resp.ok) throw new Error('HTTP ' + resp.status + ' loading ' + ${JSON.stringify(workerUrl)});
+-                const code = await resp.text();
+-                const blob = new Blob([code], { type: 'application/javascript' });
+-                const blobUrl = URL.createObjectURL(blob);
+-                await import(blobUrl);
+-                URL.revokeObjectURL(blobUrl);
+-              } catch (fallbackErr) {
+-                self.postMessage({
+-                  type: 'asyar:feedback:uncaught',
+-                  payload: {
+-                    kind: 'worker_bootstrap_error',
+-                    developerDetail: String(fallbackErr && fallbackErr.stack ? fallbackErr.stack : fallbackErr),
+-                  },
+-                });
+-              }
+-            }
+-          })();
+-        `;
++        const bootstrapCode = createWorkerBootstrap(
++          extensionId,
++          mountToken,
++          entry ?? '',
++          isWindows,
++        );
+ 
+         const blob = new Blob([bootstrapCode], { type: 'application/javascript' });
+         const blobUrl = URL.createObjectURL(blob);
+@@ -275,7 +283,11 @@ export class WorkerHost {
+       }
+     }
+ 
+-    // Headless simulated worker (test/jsdom or environments without direct Web Worker support)
++    if (import.meta.env.MODE !== 'test') {
++      this.failWorker(extensionId, mountToken, 'Web Workers are unavailable');
++      return null;
++    }
++    // Explicit test-only simulation; production must never pretend a daemon is running.
+     channel = new HeadlessSimulatedWorker(extensionId, mountToken, onHostMessage);
+     return channel;
+   }
+diff --git a/asyar-launcher/src/services/extension/workerHost.test.ts b/asyar-launcher/src/services/extension/workerHost.test.ts
+index b3a40e2a..25c25af3 100644
+--- a/asyar-launcher/src/services/extension/workerHost.test.ts
++++ b/asyar-launcher/src/services/extension/workerHost.test.ts
+@@ -21,7 +21,11 @@ vi.mock('../log/logService', () => ({
+ import { iframeReadyAck } from '../../lib/ipc/iframeLifecycleCommands';
+ import { feedbackService } from '../feedback/feedbackService.svelte';
+ import { extensionPendingState } from './extensionPendingState.svelte';
+-import { workerHost, setWorkerPreferenceProvider } from './workerHost.svelte';
++import {
++  workerHost,
++  setWorkerPreferenceProvider,
++  createWorkerBootstrap,
++} from './workerHost.svelte';
+ 
+ describe('workerHost', () => {
+   beforeEach(() => {
+@@ -36,7 +40,7 @@ describe('workerHost', () => {
+   it('mounts a worker channel and updates activeWorkers and sourceMap', () => {
+     expect(workerHost.hasWorker('ext.test')).toBe(false);
+ 
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+ 
+     expect(workerHost.hasWorker('ext.test')).toBe(true);
+     const channel = workerHost.getWorker('ext.test');
+@@ -49,7 +53,7 @@ describe('workerHost', () => {
+   });
+ 
+   it('unmounts a worker channel and terminates it', () => {
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+     const channel = workerHost.getWorker('ext.test');
+     const terminateSpy = vi.spyOn(channel!, 'terminate');
+ 
+@@ -62,11 +66,11 @@ describe('workerHost', () => {
+   });
+ 
+   it('remounts cleanly if mount is called for an already mounted worker', () => {
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+     const channel1 = workerHost.getWorker('ext.test');
+     const terminateSpy1 = vi.spyOn(channel1!, 'terminate');
+ 
+-    workerHost.mount('ext.test', 2);
++    workerHost.mount('ext.test', 2, 'dist/worker.js');
+     expect(terminateSpy1).toHaveBeenCalled();
+ 
+     const channel2 = workerHost.getWorker('ext.test');
+@@ -83,7 +87,7 @@ describe('workerHost', () => {
+       },
+     ]);
+ 
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+     const channel = workerHost.getWorker('ext.test');
+     const postSpy = vi.spyOn(channel!, 'postMessage');
+ 
+@@ -105,7 +109,7 @@ describe('workerHost', () => {
+     });
+     setWorkerPreferenceProvider(mockProvider);
+ 
+-    workerHost.mount('ext.prefs', 10);
++    workerHost.mount('ext.prefs', 10, 'dist/worker.js');
+     const channel = workerHost.getWorker('ext.prefs');
+     const postSpy = vi.spyOn(channel!, 'postMessage');
+ 
+@@ -122,7 +126,7 @@ describe('workerHost', () => {
+   });
+ 
+   it('delivers wire messages and direct posts to the worker', () => {
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+     const channel = workerHost.getWorker('ext.test');
+     const postSpy = vi.spyOn(channel!, 'postMessage');
+ 
+@@ -141,7 +145,7 @@ describe('workerHost', () => {
+   });
+ 
+   it('broadcasts preference changes to the worker', () => {
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+     const channel = workerHost.getWorker('ext.test');
+     const postSpy = vi.spyOn(channel!, 'postMessage');
+ 
+@@ -160,7 +164,7 @@ describe('workerHost', () => {
+   });
+ 
+   it('reports bootstrap failure without starting an iframe', () => {
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+     const channel = workerHost.getWorker('ext.test') as any;
+ 
+     channel.onHostMessage({
+@@ -177,7 +181,7 @@ describe('workerHost', () => {
+   });
+ 
+   it('routes other uncaught feedback errors to feedbackService', () => {
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+     const channel = workerHost.getWorker('ext.test') as any;
+ 
+     channel.onHostMessage({
+@@ -199,7 +203,7 @@ describe('workerHost', () => {
+   });
+ 
+   it('cleans up fallbackEntries on unmount', () => {
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+     const channel = workerHost.getWorker('ext.test') as any;
+     channel.onHostMessage({
+       type: 'asyar:feedback:uncaught',
+@@ -236,7 +240,7 @@ describe('workerHost', () => {
+       URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+       URL.revokeObjectURL = vi.fn();
+ 
+-      workerHost.mount('ext.error', 1);
++      workerHost.mount('ext.error', 1, 'dist/worker.js');
+       expect(workerHost.hasWorker('ext.error')).toBe(true);
+ 
+       workerInstance.onerror(new Error('SyntaxError in worker'));
+@@ -255,7 +259,7 @@ describe('workerHost', () => {
+     const ipcHandler = vi.fn();
+     workerHost.setIpcHandler(ipcHandler);
+ 
+-    workerHost.mount('ext.test', 1);
++    workerHost.mount('ext.test', 1, 'dist/worker.js');
+     const channel = workerHost.getWorker('ext.test') as any;
+ 
+     channel.onHostMessage({
+@@ -275,8 +279,8 @@ describe('workerHost', () => {
+   });
+ 
+   it('resets all workers on reset()', () => {
+-    workerHost.mount('ext.a', 1);
+-    workerHost.mount('ext.b', 2);
++    workerHost.mount('ext.a', 1, 'dist/worker.js');
++    workerHost.mount('ext.b', 2, 'dist/worker.js');
+     expect(workerHost.hasWorker('ext.a')).toBe(true);
+     expect(workerHost.hasWorker('ext.b')).toBe(true);
+ 
+@@ -309,7 +313,7 @@ describe('workerHost', () => {
+       URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+       URL.revokeObjectURL = vi.fn();
+ 
+-      workerHost.mount('ext.worker-real', 5);
++      workerHost.mount('ext.worker-real', 5, 'dist/worker.js');
+ 
+       const channel = workerHost.getWorker('ext.worker-real');
+       expect(channel).toBeDefined();
+@@ -335,11 +339,45 @@ describe('stale worker callbacks', () => {
+     workerHost.reset();
+     const handler = vi.fn();
+     workerHost.setIpcHandler(handler);
+-    workerHost.mount('ext.stale', 1);
++    workerHost.mount('ext.stale', 1, 'dist/worker.js');
+     const old = workerHost.getWorker('ext.stale') as any;
+-    workerHost.mount('ext.stale', 2);
++    workerHost.mount('ext.stale', 2, 'dist/worker.js');
+     old.onHostMessage({ type: 'asyar:api:clipboard:readText', messageId: 'stale' });
+     expect(handler).not.toHaveBeenCalled();
+     workerHost.reset();
+   });
+ });
++
++describe('worker module loading contract', () => {
++  it('uses the manifest entry and keeps relative imports at their original URL', () => {
++    const code = createWorkerBootstrap('org.test', 7, 'assets/daemon.js', false);
++    expect(code).toContain('asyar-extension://org.test/assets/daemon.js');
++    expect(code).not.toContain('dist/worker.js');
++    expect(code).not.toContain('resp.text');
++    expect(code).toContain("self.__ASYAR_ROLE__ = 'worker'");
++  });
++  it('uses the Windows custom-protocol URL', () => {
++    expect(createWorkerBootstrap('org.test', 7, 'assets/daemon.js', true)).toContain(
++      'http://asyar-extension.localhost/org.test/assets/daemon.js',
++    );
++  });
++  it.each(['../escape.js', '/absolute.js', 'https://other/worker.js', 'a/../../escape.js'])(
++    'rejects entry outside the extension: %s',
++    (entry) => {
++      expect(() => createWorkerBootstrap('org.test', 7, entry, false)).toThrow();
++    },
++  );
++});
++
++it('reports unsupported Workers instead of simulating readiness in production', () => {
++  vi.stubEnv('MODE', 'production');
++  vi.stubGlobal('Worker', undefined);
++  workerHost.reset();
++  workerHost.mount('org.unsupported', 1, 'dist/daemon.js');
++  expect(workerHost.hasWorker('org.unsupported')).toBe(false);
++  expect(feedbackService.report).toHaveBeenCalledWith(
++    expect.objectContaining({ kind: 'extension_crash', extensionId: 'org.unsupported' }),
++  );
++  vi.unstubAllGlobals();
++  vi.unstubAllEnvs();
++});
+diff --git a/asyar-launcher/src/services/extension/workerRegistry.svelte.ts b/asyar-launcher/src/services/extension/workerRegistry.svelte.ts
+index bac92817..767b3175 100644
+--- a/asyar-launcher/src/services/extension/workerRegistry.svelte.ts
++++ b/asyar-launcher/src/services/extension/workerRegistry.svelte.ts
+@@ -8,6 +8,11 @@ export interface WorkerRegistryEntry {
+   mountToken: number;
+ }
+ 
++let workerEntryProvider: (extensionId: string) => string | undefined = () => undefined;
++export function setWorkerEntryProvider(provider: typeof workerEntryProvider): void {
++  workerEntryProvider = provider;
++}
++
+ class WorkerRegistry {
+   private _entries = $state<WorkerRegistryEntry[]>([]);
+   private unlistenMount: (() => void) | null = null;
+@@ -54,7 +59,7 @@ class WorkerRegistry {
+     } else {
+       this._entries.push(entry);
+     }
+-    workerHost.mount(p.extensionId, p.mountToken);
++    workerHost.mount(p.extensionId, p.mountToken, workerEntryProvider(p.extensionId));
+   }
+ 
+   async handleUnmount(p: { extensionId: string; reason: string; role?: string }): Promise<void> {
+diff --git a/asyar-launcher/src/services/search/searchOrchestrator.svelte.ts b/asyar-launcher/src/services/search/searchOrchestrator.svelte.ts
+index 39ac78f7..73b5480a 100644
+--- a/asyar-launcher/src/services/search/searchOrchestrator.svelte.ts
++++ b/asyar-launcher/src/services/search/searchOrchestrator.svelte.ts
+@@ -1,3 +1,4 @@
++import { searchBuiltinProviders, executeBuiltinSearchResult } from './builtinSearchProviders';
+ import { isAppInitialized } from '../appInitState';
+ import extensionManager from '../extension/extensionManager.svelte';
+ import { viewManager } from '../extension/viewManager.svelte';
+@@ -75,7 +76,11 @@ class SearchOrchestratorClass {
+     logService.debug(`Starting combined search for query: "${query}"`);
+     try {
+       // Collect extension results (these run in JS, can't move to Rust)
+-      const resultsFromExtensions = await extensionManager.searchAll(query);
++      const [resultsFromExtensions, builtinRows] = await Promise.all([
++        extensionManager.searchAll(query),
++        searchBuiltinProviders(query, (id) => extensionManager.isExtensionEnabled(id)),
++      ]);
++      const builtinById = new Map(builtinRows.map((row) => [row.id, row]));
+ 
+       // Map extension results to serializable format for Rust
+       const externalResults = resultsFromExtensions.map(
+@@ -112,6 +117,20 @@ class SearchOrchestratorClass {
+         },
+       );
+ 
++      externalResults.push(
++        ...builtinRows.map((row) => ({
++          objectId: row.id,
++          name: row.title,
++          description: row.subtitle,
++          type: 'command',
++          score: row.score ?? 0.5,
++          icon: row.icon,
++          extensionId: row.extensionId,
++          category: 'builtin',
++          style: row.style,
++          priority: row.priority,
++        })),
++      );
+       const resp = await commands.mergedSearch(query, externalResults, 10);
+       const combinedResults: SearchResult[] = resp.results as SearchResult[];
+       const aliasMatch = resp.aliasMatch ?? null;
+@@ -121,6 +140,14 @@ class SearchOrchestratorClass {
+ 
+       // Direct action execution path: attach direct action reference if present
+       for (const r of combinedResults) {
++        const builtin = builtinById.get(r.objectId);
++        if (builtin) {
++          r.action = () =>
++            executeBuiltinSearchResult(builtin.extensionId, builtin.id, builtin.actionPayload).then(
++              () => {},
++            );
++          continue;
++        }
+         const action = directActions.get(r.objectId);
+         if (action) {
+           (r as any).action = action;
+@@ -191,6 +218,11 @@ class SearchOrchestratorClass {
+       actionService.executeExtensionAction(info.extensionId, info.actionId, info.actionPayload);
+       return true;
+     }
++    const row = this.items.find((item) => item.objectId === objectId);
++    if (typeof row?.action === 'function') {
++      void row.action();
++      return true;
++    }
+     const directAction = this.#directActions.get(objectId);
+     if (directAction) {
+       try {
+diff --git a/asyar-launcher/src/services/search/searchOrchestrator.test.ts b/asyar-launcher/src/services/search/searchOrchestrator.test.ts
+index 4b2f5349..bfdfc208 100644
+--- a/asyar-launcher/src/services/search/searchOrchestrator.test.ts
++++ b/asyar-launcher/src/services/search/searchOrchestrator.test.ts
+@@ -441,7 +441,9 @@ describe('searchOrchestrator characterization tests', () => {
+     // Executed via tryExecuteResultAction
+     const handled = searchOrchestrator.tryExecuteResultAction('calc_result_1');
+     expect(handled).toBe(true);
+-    expect(directActionSpy).toHaveBeenCalledTimes(1);
++    expect(executeBuiltinSearchResult).toHaveBeenCalledWith('calculator', 'calc_result_1', {
++      copyValue: '42',
++    });
+ 
+     // Also attached to result for direct invocation
+     expect(searchOrchestrator.items[0].action).toBeDefined();
+diff --git a/asyar-sdk/cli/commands/build.test.ts b/asyar-sdk/cli/commands/build.test.ts
+index 2bed9e41..bd29ab1d 100644
+--- a/asyar-sdk/cli/commands/build.test.ts
++++ b/asyar-sdk/cli/commands/build.test.ts
+@@ -33,8 +33,8 @@ describe('verifyBuildOutput', () => {
+     expect(() => verifyBuildOutput(cwd, manifest)).not.toThrow();
+   });
+ 
+-  it('accepts a worker-only extension with dist/worker.html and no view.html', () => {
+-    writeDist('worker.html');
++  it('accepts a worker-only extension with dist/worker module and no view.html', () => {
++    writeDist('worker.js');
+     const manifest = {
+       background: { main: 'dist/worker.js' },
+       commands: [{ mode: 'background' }],
+@@ -43,7 +43,7 @@ describe('verifyBuildOutput', () => {
+   });
+ 
+   it('accepts a view+worker extension with both entries', () => {
+-    writeDist('view.html', 'worker.html');
++    writeDist('view.html', 'worker.js');
+     const manifest = {
+       background: { main: 'dist/worker.js' },
+       commands: [{ mode: 'view' }, { mode: 'background' }],
+@@ -51,7 +51,7 @@ describe('verifyBuildOutput', () => {
+     expect(() => verifyBuildOutput(cwd, manifest)).not.toThrow();
+   });
+ 
+-  it('rejects a worker-only extension whose worker.html is missing', () => {
++  it('rejects a worker-only extension whose worker module is missing', () => {
+     const manifest = {
+       background: { main: 'dist/worker.js' },
+       commands: [{ mode: 'background' }],
+@@ -59,7 +59,7 @@ describe('verifyBuildOutput', () => {
+     expect(() => verifyBuildOutput(cwd, manifest)).toThrow('process.exit(1)');
+   });
+ 
+-  it('rejects a view+worker extension whose worker.html is missing', () => {
++  it('rejects a view+worker extension whose worker module is missing', () => {
+     writeDist('view.html');
+     const manifest = {
+       background: { main: 'dist/worker.js' },
+@@ -69,7 +69,7 @@ describe('verifyBuildOutput', () => {
+   });
+ 
+   it('rejects an extension with a view command but no view.html', () => {
+-    writeDist('worker.html');
++    writeDist('worker.js');
+     const manifest = {
+       background: { main: 'dist/worker.js' },
+       commands: [{ mode: 'view' }, { mode: 'background' }],
+@@ -78,12 +78,33 @@ describe('verifyBuildOutput', () => {
+   });
+ 
+   it('requires view.html when no manifest is provided (legacy call)', () => {
+-    writeDist('worker.html');
++    writeDist('worker.js');
+     expect(() => verifyBuildOutput(cwd)).toThrow('process.exit(1)');
+     writeDist('view.html');
+     expect(() => verifyBuildOutput(cwd)).not.toThrow();
+   });
+ 
++  it('accepts the actual custom manifest module without worker.html', () => {
++    fs.mkdirSync(path.join(cwd, 'dist', 'daemon'));
++    fs.writeFileSync(path.join(cwd, 'dist', 'daemon', 'main.js'), 'export {};');
++    expect(() =>
++      verifyBuildOutput(cwd, {
++        background: { main: 'dist/daemon/main.js' },
++        commands: [{ mode: 'background' }],
++      }),
++    ).not.toThrow();
++  });
++
++  it('does not let legacy output hide a missing declared worker module', () => {
++    writeDist('index.js');
++    expect(() =>
++      verifyBuildOutput(cwd, {
++        background: { main: 'dist/missing.js' },
++        commands: [{ mode: 'background' }],
++      }),
++    ).toThrow('process.exit(1)');
++  });
++
+   it('accepts legacy single-entry layouts without a manifest', () => {
+     writeDist('index.html');
+     expect(() => verifyBuildOutput(cwd)).not.toThrow();
+diff --git a/asyar-sdk/cli/commands/build.ts b/asyar-sdk/cli/commands/build.ts
+index 37e7af5b..673d3126 100644
+--- a/asyar-sdk/cli/commands/build.ts
++++ b/asyar-sdk/cli/commands/build.ts
+@@ -78,13 +78,18 @@ export function verifyBuildOutput(
+   const distDir = path.join(cwd, 'dist');
+ 
+   // Dual-entry layout (Tier 2 worker/view split): dist/view.html is the
+-  // user-facing iframe; dist/worker.html is additionally required when
++  // user-facing iframe; the declared JavaScript module is required when
+   // the manifest declares background.main (always-on headless worker).
+   // Worker-only extensions (background.main with no mode:"view" commands)
+   // legitimately build no view.html, so view.html is only required when a
+   // view command is declared — or when no manifest is available to tell.
+   const hasView = fs.existsSync(path.join(distDir, 'view.html'));
+-  const hasWorker = fs.existsSync(path.join(distDir, 'worker.html'));
++  const workerEntry = manifest?.background?.main;
++  const resolvedWorkerEntry = workerEntry ? path.resolve(cwd, workerEntry) : null;
++  const hasWorker =
++    !!resolvedWorkerEntry &&
++    resolvedWorkerEntry.startsWith(path.resolve(cwd) + path.sep) &&
++    fs.existsSync(resolvedWorkerEntry);
+   const requiresWorker = !!manifest?.background?.main;
+   const requiresView = manifest?.commands ? manifest.commands.some((c) => c.mode === 'view') : true;
+ 
+@@ -94,14 +99,14 @@ export function verifyBuildOutput(
+ 
+   const hasDualEntry =
+     (hasView || hasWorker) && (!requiresView || hasView) && (!requiresWorker || hasWorker);
+-  const hasLegacy = hasWebApp || hasLibrary;
++  const hasLegacy = !requiresWorker && (hasWebApp || hasLibrary);
+ 
+   if (!hasDualEntry && !hasLegacy) {
+     if (requiresWorker && !hasWorker) {
+       console.log(
+         chalk.red(
+-          '✗ Build output incomplete: manifest declares background.main but dist/worker.html is missing. ' +
+-            'Ensure vite.config.ts rollupOptions.input includes worker.html.',
++          '✗ Build output incomplete: manifest declares background.main but its JavaScript module is missing. ' +
++            'Ensure the declared module is emitted by your build.',
+         ),
+       );
+     } else {
+@@ -118,7 +123,7 @@ export function verifyBuildOutput(
+   console.log('\nOutput:');
+   if (hasDualEntry) {
+     printFileSize(cwd, path.join(distDir, 'view.html'));
+-    if (hasWorker) printFileSize(cwd, path.join(distDir, 'worker.html'));
++    if (hasWorker) printFileSize(cwd, resolvedWorkerEntry!);
+     for (const file of fs.readdirSync(distDir)) {
+       if (file === 'view.html' || file === 'worker.html') continue;
+       const full = path.join(distDir, file);
+diff --git a/asyar-sdk/src/ExtensionBridge.ts b/asyar-sdk/src/ExtensionBridge.ts
+index 4b3d0962..fa5b1faf 100644
+--- a/asyar-sdk/src/ExtensionBridge.ts
++++ b/asyar-sdk/src/ExtensionBridge.ts
+@@ -1,3 +1,4 @@
++import type { ExtensionContextCore } from './ExtensionContextCore';
+ import type { ExtensionContext } from './ExtensionContext';
+ import type { Extension, ExtensionManifest, ExtensionResult } from './types/ExtensionType';
+ import type { ExtensionAction } from './types/ActionType';
+@@ -36,7 +37,7 @@ export class ExtensionBridge {
+     string,
+     { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
+   > = new Map();
+-  private activeContexts: Map<string, ExtensionContext> = new Map();
++  private activeContexts: Map<string, ExtensionContextCore> = new Map();
+   private broker: MessageBroker;
+ 
+   constructor() {
+@@ -155,9 +156,15 @@ export class ExtensionBridge {
+     });
+ 
+     // Listen for search requests from the host
+-    if (typeof window !== 'undefined') {
+-      window.addEventListener('message', async (event) => {
+-        if (event.source !== window.parent) return;
++    const scope =
++      typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : null;
++    if (scope) {
++      const postToHost = (message: unknown) => {
++        if (typeof window !== 'undefined') window.parent.postMessage(message, '*');
++        else (self as unknown as { postMessage(message: unknown): void }).postMessage(message);
++      };
++      scope.addEventListener('message', async (event: MessageEvent) => {
++        if (typeof window !== 'undefined' && event.source !== window.parent) return;
+         const data = event.data;
+         if (!data || typeof data !== 'object') return;
+ 
+@@ -205,6 +212,7 @@ export class ExtensionBridge {
+               results = [
+                 ...results,
+                 ...extResults.map((r) => ({
++                  id: r.id,
+                   title: r.title,
+                   subtitle: r.subtitle,
+                   score: r.score ?? 0.5,
+@@ -221,23 +229,17 @@ export class ExtensionBridge {
+           }
+ 
+           // Send results back to host
+-          window.parent.postMessage(
+-            {
+-              type: 'asyar:search:response',
+-              messageId,
+-              result: results,
+-            },
+-            '*',
+-          );
++          postToHost({
++            type: 'asyar:search:response',
++            messageId,
++            result: results,
++          });
+         } catch (error: unknown) {
+-          window.parent.postMessage(
+-            {
+-              type: 'asyar:search:response',
+-              messageId,
+-              error: error instanceof Error ? error.message : String(error),
+-            },
+-            '*',
+-          );
++          postToHost({
++            type: 'asyar:search:response',
++            messageId,
++            error: error instanceof Error ? error.message : String(error),
++          });
+         }
+       });
+     }
+@@ -312,7 +314,7 @@ export class ExtensionBridge {
+    * Called from `ExtensionContext.setExtensionId`, so Tier 2 iframes get
+    * this for free as long as they call `setExtensionId(id)` during boot.
+    */
+-  registerActiveContext(extensionId: string, context: ExtensionContext): void {
++  registerActiveContext(extensionId: string, context: ExtensionContextCore): void {
+     this.activeContexts.set(extensionId, context);
+     // If we've already received a preferences bundle for this extension
+     // (e.g. boot reply arrived before the context was registered, or a
+@@ -379,7 +381,10 @@ export class ExtensionBridge {
+       // pulls in) off the worker entry's static import graph. Worker
+       // extensions that never call initializeExtensions() do not load
+       // this module at runtime — preserves the worker bundle-size budget.
+-      const { ExtensionContext } = await import('./ExtensionContext');
++      const { ExtensionContext } =
++        typeof window === 'undefined'
++          ? await import('./worker')
++          : await import('./ExtensionContext');
+       const context = new ExtensionContext();
+       // `setExtensionId` self-registers the context with the bridge and
+       // drains any stashed preferences bundle (either under `manifest.id`
+@@ -387,7 +392,7 @@ export class ExtensionBridge {
+       // or call `setPreferences` directly here — it already happened.
+       context.setExtensionId(manifest.id);
+       try {
+-        await extension.initialize(context);
++        await extension.initialize(context as unknown as ExtensionContext);
+       } catch (error) {
+         console.error(`[asyar-sdk] Failed to initialize extension ${manifest.id}: ${error}`);
+       }
+diff --git a/asyar-sdk/src/worker.test.ts b/asyar-sdk/src/worker.test.ts
+index dfc66391..e9d3525f 100644
+--- a/asyar-sdk/src/worker.test.ts
++++ b/asyar-sdk/src/worker.test.ts
+@@ -161,3 +161,17 @@ describe('asyar-sdk/worker — entry surface', () => {
+     delete (self as any).__ASYAR_ROLE__;
+   });
+ });
++
++it('registers the worker context for initial and live preference delivery', async () => {
++  vi.resetModules();
++  setRole('worker');
++  const { ExtensionContext, extensionBridge } = await import('./worker');
++  extensionBridge.setPreferences('org.preferences', {
++    extension: { interval: 7 },
++    commands: {},
++  });
++  const context = new ExtensionContext();
++  context.setExtensionId('org.preferences');
++  expect(context.preferences.values.interval).toBe(7);
++  setRole(undefined);
++});
+diff --git a/asyar-sdk/src/worker.ts b/asyar-sdk/src/worker.ts
+index 71263f5a..1e480cfb 100644
+--- a/asyar-sdk/src/worker.ts
++++ b/asyar-sdk/src/worker.ts
+@@ -67,6 +67,7 @@ import { AiServiceProxy } from './services/AiServiceProxy';
+ import { McpServiceProxy } from './services/McpServiceProxy';
+ import { extensionRpc } from './services/ExtensionRpc';
+ 
++import { extensionBridge } from './ExtensionBridge';
+ import { ExtensionContextCore } from './ExtensionContextCore';
+ 
+ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
+@@ -219,6 +220,10 @@ export class ExtensionContext extends ExtensionContextCore {
+     _workerToolsProxy = proxies.tools as ToolsServiceProxy | undefined;
+   }
+ 
++  protected override notifyBridgeIfAvailable(id: string): void {
++    extensionBridge.registerActiveContext(id, this);
++  }
++
+   protected override notifyRpcIfAvailable(id: string): void {
+     // Patch the extensionRpc singleton's broker so worker-side
+     // state:rpcReply messages carry the extensionId. Without this,

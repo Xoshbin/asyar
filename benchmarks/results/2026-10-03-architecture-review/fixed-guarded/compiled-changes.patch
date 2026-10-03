@@ -1,0 +1,621 @@
+diff --git a/.github/workflows/test-and-lint.yml b/.github/workflows/test-and-lint.yml
+index dd3f7814..98e9052a 100644
+--- a/.github/workflows/test-and-lint.yml
++++ b/.github/workflows/test-and-lint.yml
+@@ -63,6 +63,9 @@ jobs:
+         run: pnpm svelte-kit sync
+         working-directory: asyar-launcher
+ 
++      - name: Check launcher Svelte types
++        run: pnpm --dir asyar-launcher check
++
+       - name: Run workspace tests (SDK + launcher frontend)
+         run: pnpm -r --if-present test:run
+ 
+diff --git a/asyar-launcher/package.json b/asyar-launcher/package.json
+index be730d09..1d2a7805 100644
+--- a/asyar-launcher/package.json
++++ b/asyar-launcher/package.json
+@@ -32,7 +32,7 @@
+     "@tauri-apps/plugin-fs": "~2.5.1",
+     "@tauri-apps/plugin-global-shortcut": "~2.3.1",
+     "@tauri-apps/plugin-http": "~2.5.7",
+-    "@tauri-apps/plugin-log": "~2.8.0",
++    "@tauri-apps/plugin-log": "~2.9.0",
+     "@tauri-apps/plugin-notification": "~2.3.3",
+     "@tauri-apps/plugin-opener": "^2.5.3",
+     "@tauri-apps/plugin-os": "^2.3.2",
+diff --git a/asyar-launcher/src-tauri/src/extensions/installer.rs b/asyar-launcher/src-tauri/src/extensions/installer.rs
+index 592888b2..9a92c30b 100644
+--- a/asyar-launcher/src-tauri/src/extensions/installer.rs
++++ b/asyar-launcher/src-tauri/src/extensions/installer.rs
+@@ -256,9 +256,8 @@ pub(crate) fn validate_package_structure(
+         "extension" => {
+             // view.html is required when the extension exposes at least one
+             // view command (mode == "view" or mode absent, which defaults to
+-            // "view"). worker.html is required when background.main is
+-            // declared. Either file may live at the extraction root OR under
+-            // `dist/` — per-extension Vite configs emit into `dist/`, and the
++            // "view"). It may live at the extraction root OR under `dist/` —
++            // per-extension Vite configs emit into `dist/`, and the
+             // `asyar-extension://` scheme handler already resolves both paths,
+             // so the installer validator mirrors that contract.
+             let has_view_commands = manifest
+@@ -274,14 +273,31 @@ pub(crate) fn validate_package_structure(
+                         .to_string(),
+                 ));
+             }
+-            if manifest.background.is_some()
+-                && !extracted_dir.join("worker.html").exists()
+-                && !extracted_dir.join("dist/worker.html").exists()
+-            {
+-                return Err(AppError::Validation(
+-                    "Extension package with background.main must include worker.html at the root or dist/ directory"
+-                        .to_string()
+-                ));
++            // Background workers boot from a blob script that `import()`s
++            // `background.main` directly (see workerHost.svelte.ts) — no
++            // static worker.html page is involved. Validate that the declared
++            // module path itself is present and safe instead.
++            if let Some(background) = &manifest.background {
++                let main = background.main.trim();
++                let is_safe_relative_path = !main.is_empty()
++                    && !main.starts_with('/')
++                    && !main.contains('\\')
++                    && !main.contains(':')
++                    && main
++                        .split('/')
++                        .all(|part| !part.is_empty() && part != "." && part != "..");
++                if !is_safe_relative_path {
++                    return Err(AppError::Validation(format!(
++                        "Extension background.main '{}' is not a valid relative path",
++                        background.main
++                    )));
++                }
++                if !extracted_dir.join(main).exists() {
++                    return Err(AppError::Validation(format!(
++                        "Extension package with background.main must include '{}' in the package",
++                        background.main
++                    )));
++                }
+             }
+         }
+         other => {
+@@ -834,9 +850,9 @@ mod tests {
+         assert!(result.unwrap_err().to_string().contains("view.html"));
+     }
+ 
+-    /// extensions declaring `background.main` must include `worker.html`.
++    /// extensions declaring `background.main` must include the file it points to.
+     #[tokio::test]
+-    async fn validate_package_structure_with_background_main_requires_worker_html() {
++    async fn validate_package_structure_with_background_main_requires_main_file() {
+         let manifest = r#"{
+             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+             "background": {"main": "dist/worker.js"},
+@@ -844,7 +860,7 @@ mod tests {
+         }"#;
+         let dest = make_zip_and_extract(&[
+             ("manifest.json", manifest.as_bytes()),
+-            // worker.html deliberately absent.
++            // dist/worker.js deliberately absent.
+         ])
+         .await
+         .unwrap();
+@@ -853,18 +869,40 @@ mod tests {
+         let result = validate_package_structure(dest.path(), &m);
+         assert!(
+             result.is_err(),
+-            " installer must require worker.html when background.main is declared"
++            "installer must require the background.main file to be present"
+         );
+-        assert!(result.unwrap_err().to_string().contains("worker.html"));
++        assert!(result.unwrap_err().to_string().contains("dist/worker.js"));
+     }
+ 
+-    /// both view.html (for any extension) and worker.html (when
+-    /// background.main is set) present → passes validation.
++    /// a background.main path that is not a safe relative path is rejected.
+     #[tokio::test]
+-    async fn validate_package_structure_with_background_main_and_worker_html_valid() {
++    async fn validate_package_structure_with_background_main_path_traversal_rejected() {
+         let manifest = r#"{
+             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+-            "background": {"main": "dist/worker.js"},
++            "background": {"main": "../../etc/passwd"},
++            "commands":[{"id":"tick","name":"Tick","mode":"background"}]
++        }"#;
++        let dest = make_zip_and_extract(&[("manifest.json", manifest.as_bytes())])
++            .await
++            .unwrap();
++        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
++            .unwrap();
++        let result = validate_package_structure(dest.path(), &m);
++        assert!(
++            result.is_err(),
++            "path traversal in background.main must be rejected"
++        );
++    }
++
++    /// view.html (for any extension) present and the declared background.main
++    /// file present → passes validation. The background bundle may use any
++    /// filename — the blob Worker bootstrap imports it directly and does not
++    /// require a worker.html page.
++    #[tokio::test]
++    async fn validate_package_structure_with_background_main_valid() {
++        let manifest = r#"{
++            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
++            "background": {"main": "dist/daemon/main.js"},
+             "commands":[
+                 {"id":"open","name":"Open","mode":"view","component":"MainView"},
+                 {"id":"tick","name":"Tick","mode":"background"}
+@@ -873,7 +911,7 @@ mod tests {
+         let dest = make_zip_and_extract(&[
+             ("manifest.json", manifest.as_bytes()),
+             ("view.html", b"<html/>"),
+-            ("worker.html", b"<html/>"),
++            ("dist/daemon/main.js", b"self.postMessage(1);"),
+         ])
+         .await
+         .unwrap();
+@@ -906,14 +944,14 @@ mod tests {
+         );
+     }
+ 
+-    /// hotfix: `worker.html` nested under `dist/` must satisfy the
+-    /// validator when `background.main` is declared, with no presence at the
+-    /// extraction root.
++    /// background.main nested under a subdirectory (the shape per-extension
++    /// Vite configs emit, e.g. `dist/daemon/main.js`) must satisfy the
++    /// validator — the declared path is checked directly, not a fixed filename.
+     #[tokio::test]
+-    async fn validate_package_structure_with_worker_html_in_dist_valid() {
++    async fn validate_package_structure_with_background_main_in_nested_dir_valid() {
+         let manifest = r#"{
+             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+-            "background": {"main": "dist/worker.js"},
++            "background": {"main": "dist/daemon/main.js"},
+             "commands":[
+                 {"id":"open","name":"Open","mode":"view","component":"MainView"},
+                 {"id":"tick","name":"Tick","mode":"background"}
+@@ -922,7 +960,7 @@ mod tests {
+         let dest = make_zip_and_extract(&[
+             ("manifest.json", manifest.as_bytes()),
+             ("dist/view.html", b"<html/>"),
+-            ("dist/worker.html", b"<html/>"),
++            ("dist/daemon/main.js", b"self.postMessage(1);"),
+         ])
+         .await
+         .unwrap();
+@@ -930,7 +968,7 @@ mod tests {
+             .unwrap();
+         assert!(
+             validate_package_structure(dest.path(), &m).is_ok(),
+-            "worker.html at dist/worker.html must satisfy the validator"
++            "background.main at dist/daemon/main.js must satisfy the validator"
+         );
+     }
+ 
+@@ -1097,7 +1135,7 @@ mod tests {
+ 
+     /// End-to-end: the synthetic  fixture at
+     /// `tests/fixtures/worker_view_fixture/` must pass `validate_package_structure`
+-    /// with the  installer rules (view.html + worker.html both present).
++    /// with the  installer rules (view.html present, declared background.main present).
+     #[test]
+     fn worker_view_fixture_passes_validation() {
+         let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+@@ -1117,8 +1155,8 @@ mod tests {
+             "fixture must include view.html"
+         );
+         assert!(
+-            fixture.join("worker.html").exists(),
+-            "fixture must include worker.html"
++            fixture.join("worker.js").exists(),
++            "fixture must include the declared background.main file"
+         );
+         // Confirm first_view_component is correctly derived.
+         assert_eq!(m.first_view_component(), Some("MainView"));
+diff --git a/asyar-launcher/src-tauri/tests/fixtures/worker_view_fixture/manifest.json b/asyar-launcher/src-tauri/tests/fixtures/worker_view_fixture/manifest.json
+index 9c85bc5b..81556d68 100644
+--- a/asyar-launcher/src-tauri/tests/fixtures/worker_view_fixture/manifest.json
++++ b/asyar-launcher/src-tauri/tests/fixtures/worker_view_fixture/manifest.json
+@@ -4,7 +4,7 @@
+   "version": "1.0.0",
+   "description": "Synthetic fixture used by end-to-end Rust tests for the dual-context model: one view command + one background command + background.main.",
+   "type": "extension",
+-  "background": { "main": "dist/worker.js" },
++  "background": { "main": "worker.js" },
+   "commands": [
+     { "id": "open", "name": "Open", "mode": "view", "component": "MainView" },
+     { "id": "tick", "name": "Tick", "mode": "background" }
+diff --git a/asyar-launcher/src-tauri/tests/fixtures/worker_view_fixture/worker.html b/asyar-launcher/src-tauri/tests/fixtures/worker_view_fixture/worker.html
+deleted file mode 100644
+index 0ed4765b..00000000
+--- a/asyar-launcher/src-tauri/tests/fixtures/worker_view_fixture/worker.html
++++ /dev/null
+@@ -1,7 +0,0 @@
+-<!doctype html>
+-<html>
+-  <head>
+-    <title>Worker View Fixture — Worker Context</title>
+-  </head>
+-  <body></body>
+-</html>
+diff --git a/asyar-launcher/src/built-in-features/scripts/scriptsManager.test.ts b/asyar-launcher/src/built-in-features/scripts/scriptsManager.test.ts
+index 1cb9109e..7a1d34db 100644
+--- a/asyar-launcher/src/built-in-features/scripts/scriptsManager.test.ts
++++ b/asyar-launcher/src/built-in-features/scripts/scriptsManager.test.ts
+@@ -153,8 +153,8 @@ describe('ScriptsManager', () => {
+ 
+     await scriptsManager.start();
+ 
+-    let resolveScan!: (value: ScriptScanReport | null) => void;
+-    const pendingScan = new Promise<ScriptScanReport | null>((resolve) => {
++    let resolveScan!: (value: ScriptScanReport) => void;
++    const pendingScan = new Promise<ScriptScanReport>((resolve) => {
+       resolveScan = resolve;
+     });
+     vi.mocked(commands.scriptsRescan).mockReturnValueOnce(pendingScan);
+diff --git a/asyar-launcher/src/built-in-features/store/LazyDetailView.svelte b/asyar-launcher/src/built-in-features/store/LazyDetailView.svelte
+index 9438f5c5..d018c57a 100644
+--- a/asyar-launcher/src/built-in-features/store/LazyDetailView.svelte
++++ b/asyar-launcher/src/built-in-features/store/LazyDetailView.svelte
+@@ -1,11 +1,4 @@
+ <script lang="ts">
+-  interface Props {
+-    extensionManager?: any;
+-    [key: string]: any;
+-  }
+-
+-  let props: Props = $props();
+-
+   const detailViewPromise = import('./DetailView.svelte');
+ </script>
+ 
+@@ -15,7 +8,7 @@
+   </div>
+ {:then module}
+   {@const DetailView = module.default}
+-  <DetailView {...props} />
++  <DetailView />
+ {:catch}
+   <div class="p-4 text-center text-[var(--accent-danger)] text-sm font-mono">
+     Failed to load view
+diff --git a/asyar-launcher/src/lib/ipc/scriptCommands.ts b/asyar-launcher/src/lib/ipc/scriptCommands.ts
+index 2c31371e..ff6b9c21 100644
+--- a/asyar-launcher/src/lib/ipc/scriptCommands.ts
++++ b/asyar-launcher/src/lib/ipc/scriptCommands.ts
+@@ -22,7 +22,7 @@ export async function scriptsPickDirectory(): Promise<string | null> {
+ }
+ 
+ export async function scriptsRescan(): Promise<
+-  import('../../built-in-features/scripts/types').ScriptScanReport | null
++  import('../../built-in-features/scripts/types').ScriptScanReport
+ > {
+   return invokeSafe('scripts_rescan');
+ }
+diff --git a/asyar-launcher/src/lib/ipc/systemMiscCommands.ts b/asyar-launcher/src/lib/ipc/systemMiscCommands.ts
+index e98d6b7b..cc47a2fd 100644
+--- a/asyar-launcher/src/lib/ipc/systemMiscCommands.ts
++++ b/asyar-launcher/src/lib/ipc/systemMiscCommands.ts
+@@ -28,7 +28,7 @@ export async function fetchUrl(params: {
+   headers: Record<string, string>;
+   body: string;
+   ok: boolean;
+-} | null> {
++}> {
+   return invokeSafe('fetch_url', {
+     url: params.url,
+     method: params.method ?? 'GET',
+diff --git a/asyar-launcher/src/lib/rankItems.test.ts b/asyar-launcher/src/lib/rankItems.test.ts
+index b0dcfeb4..8a3c8052 100644
+--- a/asyar-launcher/src/lib/rankItems.test.ts
++++ b/asyar-launcher/src/lib/rankItems.test.ts
+@@ -36,7 +36,7 @@ describe('rankItems (Zero-IPC Fast Path)', () => {
+       id: (i) => i.id,
+       title: (i) => i.name,
+       subtitle: (i) => i.desc,
+-      keywords: (i) => i.tags,
++      keywords: (i) => i.tags ?? [],
+     });
+     expect(invoke).not.toHaveBeenCalled();
+   });
+@@ -83,7 +83,7 @@ describe('rankItems (Zero-IPC Fast Path)', () => {
+       id: (i) => i.id,
+       title: (i) => i.name,
+       subtitle: (i) => i.desc,
+-      keywords: (i) => i.tags,
++      keywords: (i) => i.tags ?? [],
+     });
+     expect(result.map((i) => i.id)).toEqual(['3']); // Terminal has tag 'shell'
+   });
+@@ -93,7 +93,7 @@ describe('rankItems (Zero-IPC Fast Path)', () => {
+       id: (i) => i.id,
+       title: (i) => i.name,
+       subtitle: (i) => i.desc,
+-      keywords: (i) => i.tags,
++      keywords: (i) => i.tags ?? [],
+     });
+     expect(result).toEqual([]);
+   });
+diff --git a/asyar-launcher/src/services/application/applicationService.ts b/asyar-launcher/src/services/application/applicationService.ts
+index e1a9d482..15c51314 100644
+--- a/asyar-launcher/src/services/application/applicationService.ts
++++ b/asyar-launcher/src/services/application/applicationService.ts
+@@ -80,7 +80,7 @@ export class ApplicationService {
+    * passing their `path` list to `uninstallApplication`. The scan is
+    * advisory — Rust re-validates each path before trashing.
+    */
+-  async scanUninstallTargets(path: string): Promise<UninstallScanResult | null> {
++  async scanUninstallTargets(path: string): Promise<UninstallScanResult> {
+     return scanUninstallTargets(path);
+   }
+ }
+diff --git a/asyar-launcher/src/services/extension/extensionEventSubscriptions.test.ts b/asyar-launcher/src/services/extension/extensionEventSubscriptions.test.ts
+index d9b4166d..2d79b04a 100644
+--- a/asyar-launcher/src/services/extension/extensionEventSubscriptions.test.ts
++++ b/asyar-launcher/src/services/extension/extensionEventSubscriptions.test.ts
+@@ -4,8 +4,8 @@ vi.mock('../log/logService', () => ({
+   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), custom: vi.fn() },
+ }));
+ 
+-vi.mock('@tauri-apps/api/event', () => ({
+-  listen: vi.fn(),
++vi.mock('../../lib/ipc/bridgeEvents', () => ({
++  appListen: vi.fn(),
+ }));
+ 
+ vi.mock('./extensionPreferencesService.svelte', () => ({
+@@ -28,7 +28,7 @@ vi.mock('./extensionIframeManager.svelte', () => ({
+   },
+ }));
+ 
+-import { listen } from '@tauri-apps/api/event';
++import { appListen as listen } from '../../lib/ipc/bridgeEvents';
+ import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
+ import { extensionPreferencesService } from './extensionPreferencesService.svelte';
+ import { isBuiltInFeature } from './extensionDiscovery';
+diff --git a/asyar-launcher/src/services/extension/extensionEventSubscriptions.ts b/asyar-launcher/src/services/extension/extensionEventSubscriptions.ts
+index 9b87d2db..433845e6 100644
+--- a/asyar-launcher/src/services/extension/extensionEventSubscriptions.ts
++++ b/asyar-launcher/src/services/extension/extensionEventSubscriptions.ts
+@@ -1,4 +1,4 @@
+-import { listen } from '@tauri-apps/api/event';
++import { appListen } from '../../lib/ipc/bridgeEvents';
+ import { logService } from '../log/logService';
+ import { isBuiltInFeature } from './extensionDiscovery';
+ import { extensionIframeManager } from './extensionIframeManager.svelte';
+@@ -19,7 +19,7 @@ export class ExtensionEventSubscriptions {
+   private enabledChangeReloadQueued = false;
+ 
+   async subscribe(deps: EventSubscriptionDeps): Promise<void> {
+-    this.unlistenScheduler = await listen<{ extensionId: string; commandId: string }>(
++    this.unlistenScheduler = await appListen<{ extensionId: string; commandId: string }>(
+       'asyar:scheduler:tick',
+       async (event) => {
+         await this.handleScheduledTick(
+@@ -31,7 +31,7 @@ export class ExtensionEventSubscriptions {
+       },
+     );
+ 
+-    this.unlistenPreferencesChanged = await listen<{ extensionId: string }>(
++    this.unlistenPreferencesChanged = await appListen<{ extensionId: string }>(
+       'asyar:preferences-changed',
+       async (event) => {
+         const extensionId = event.payload?.extensionId;
+@@ -59,7 +59,7 @@ export class ExtensionEventSubscriptions {
+     // owns the extension host — Rust broadcasts the change so the host
+     // reloads to match. Coalesced: a toggle burst runs one reload plus at
+     // most one trailing reload.
+-    this.unlistenEnabledChanged = await listen<{ extensionId: string; enabled: boolean }>(
++    this.unlistenEnabledChanged = await appListen<{ extensionId: string; enabled: boolean }>(
+       'asyar:extension-enabled-changed',
+       async () => {
+         if (this.enabledChangeReloadInFlight) {
+diff --git a/asyar-launcher/src/services/extensionState/extensionStateService.ts b/asyar-launcher/src/services/extensionState/extensionStateService.ts
+index 2350a73e..332d4953 100644
+--- a/asyar-launcher/src/services/extensionState/extensionStateService.ts
++++ b/asyar-launcher/src/services/extensionState/extensionStateService.ts
+@@ -9,6 +9,7 @@ import {
+ } from '../../lib/ipc/extensionLifecycleCommands';
+ import type { IpcDispatchOutcome } from '../../lib/ipc/iframeLifecycleCommands';
+ import { post } from '../extension/extensionDelivery';
++import { workerHost } from '../extension/workerHost.svelte';
+ import { logService } from '../log/logService';
+ 
+ /**
+@@ -24,13 +25,20 @@ import { logService } from '../log/logService';
+ /**
+  * When Rust's worker-enqueue paths (`state_rpc_request`, `state_rpc_abort`)
+  * return `ReadyDeliverNow`, the RPC envelope isn't in the worker mailbox —
+- * it comes back inline so the frontend can post it straight into the
+- * worker iframe. `NeedsMount` fires EVENT_MOUNT which the WorkerIframes
+- * harness listens for; the drain happens on the ready-ack path. This
+- * helper centralises both sides of that contract.
++ * it comes back inline so the frontend can post it straight to the worker.
++ * Extensions running under the headless `workerHost` (the normal case) are
++ * delivered to directly; the iframe DOM query is a fallback for the legacy
++ * worker-iframe path only. `NeedsMount` fires EVENT_MOUNT which the mount
++ * listeners wait for; the drain happens on the ready-ack path. This helper
++ * centralises both sides of that contract — mirrors the dispatch logic in
++ * `extensionDispatcher.svelte.ts`.
+  */
+ function handleWorkerRpcOutcome(extensionId: string, outcome: IpcDispatchOutcome | null): void {
+   if (outcome === null || outcome.kind !== 'readyDeliverNow') return;
++  if (workerHost.hasWorker(extensionId)) {
++    for (const m of outcome.messages) workerHost.deliver(extensionId, m);
++    return;
++  }
+   const iframe = document.querySelector(
+     `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
+   ) as HTMLIFrameElement | null;
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 126074da..71dfd1aa 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -65,8 +65,8 @@ importers:
+         specifier: ~2.5.7
+         version: 2.5.9
+       '@tauri-apps/plugin-log':
+-        specifier: ~2.8.0
+-        version: 2.8.0
++        specifier: ~2.9.0
++        version: 2.9.2
+       '@tauri-apps/plugin-notification':
+         specifier: ~2.3.3
+         version: 2.3.3
+@@ -2301,8 +2301,8 @@ packages:
+   '@tauri-apps/plugin-http@2.5.9':
+     resolution: {integrity: sha512-lCiY0+vs4HvIUSvZrBs8TC3TiCB0MOPRmiUjTq4prW7SlcJE2jdLeT6KBsJrT9Tlplufl7W1pY6SFAO3gCWxDA==}
+ 
+-  '@tauri-apps/plugin-log@2.8.0':
+-    resolution: {integrity: sha512-a+7rOq3MJwpTOLLKbL8d0qGZ85hgHw5pNOWusA9o3cf7cEgtYHiGY/+O8fj8MvywQIGqFv0da2bYQDlrqLE7rw==}
++  '@tauri-apps/plugin-log@2.9.2':
++    resolution: {integrity: sha512-QC2uTQyC+4269xawGXzVLDzIvMB2JwzZHd1lg3ltXtXqrauwikqlbNt6Tm3H++1RN0gPtcvp4cBc5bF6u/DUnw==}
+ 
+   '@tauri-apps/plugin-notification@2.3.3':
+     resolution: {integrity: sha512-Zw+ZH18RJb41G4NrfHgIuofJiymusqN+q8fGUIIV7vyCH+5sSn5coqRv/MWB9qETsUs97vmU045q7OyseCV3Qg==}
+@@ -7244,7 +7244,7 @@ snapshots:
+     dependencies:
+       '@tauri-apps/api': 2.12.1
+ 
+-  '@tauri-apps/plugin-log@2.8.0':
++  '@tauri-apps/plugin-log@2.9.2':
+     dependencies:
+       '@tauri-apps/api': 2.12.1
+ 
+diff --git a/scripts/check-ci.mjs b/scripts/check-ci.mjs
+index c314acf9..923a8663 100644
+--- a/scripts/check-ci.mjs
++++ b/scripts/check-ci.mjs
+@@ -18,7 +18,7 @@ function printHelp() {
+ Usage: node scripts/check-ci.mjs [options]
+ 
+ Options:
+-  -f, --frontend    Run frontend checks (Prettier, Design System, Vitest)
++  -f, --frontend    Run frontend checks (Prettier, Design System, Svelte types, Vitest)
+   -r, --rust        Run Rust checks (cargo fmt, clippy, cargo test)
+   -c, --changed     Inspect git status & diff to run only touched domains
+   -a, --all         Run full CI verification matrix (default)
+@@ -170,6 +170,7 @@ if (runFrontend) {
+   runStep('Prettier Format Check', 'pnpm format:check');
+   runStep('Design System Compliance', 'pnpm check:design');
+   runStep('Workspace CI Coverage', 'node --test scripts/workspace-ci.test.mjs');
++  runStep('Launcher Type Check', 'pnpm --dir asyar-launcher check');
+   runStep('Workspace Frontend Tests', 'pnpm -r --if-present test:run');
+ }
+ 
+diff --git a/scripts/workspace-ci.test.mjs b/scripts/workspace-ci.test.mjs
+index 7273b69a..ba79624c 100644
+--- a/scripts/workspace-ci.test.mjs
++++ b/scripts/workspace-ci.test.mjs
+@@ -17,3 +17,10 @@ test('local and platform CI include extracted Rust crates', () => {
+     }
+   }
+ });
++
++test('local and platform CI enforce launcher Svelte types', () => {
++  const local = readFileSync('scripts/check-ci.mjs', 'utf8');
++  const platform = readFileSync('.github/workflows/test-and-lint.yml', 'utf8');
++  assert.match(local, /runStep\('Launcher Type Check', 'pnpm --dir asyar-launcher check'\)/);
++  assert.match(platform, /run: pnpm --dir asyar-launcher check/);
++});
+ .github/workflows/test-and-lint.yml                |   3 +
+ asyar-launcher/package.json                        |   2 +-
+ .../src-tauri/src/extensions/installer.rs          | 100 ++++++++++++++-------
+ .../fixtures/worker_view_fixture/manifest.json     |   2 +-
+ .../tests/fixtures/worker_view_fixture/worker.html |   7 --
+ .../scripts/scriptsManager.test.ts                 |   4 +-
+ .../built-in-features/store/LazyDetailView.svelte  |   9 +-
+ asyar-launcher/src/lib/ipc/scriptCommands.ts       |   2 +-
+ asyar-launcher/src/lib/ipc/systemMiscCommands.ts   |   2 +-
+ asyar-launcher/src/lib/rankItems.test.ts           |   6 +-
+ .../src/services/application/applicationService.ts |   2 +-
+ .../extension/extensionEventSubscriptions.test.ts  |   6 +-
+ .../extension/extensionEventSubscriptions.ts       |   8 +-
+ .../extensionState/extensionStateService.ts        |  16 +++-
+ pnpm-lock.yaml                                     |  10 +--
+ scripts/check-ci.mjs                               |   3 +-
+ scripts/workspace-ci.test.mjs                      |   7 ++
+ 17 files changed, 116 insertions(+), 73 deletions(-)
+
+--- untracked new files ---
+asyar-launcher/src/services/extensionState/extensionStateService.test.ts:
+/** @vitest-environment jsdom */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../../lib/ipc/extensionLifecycleCommands', () => ({
+  stateGet: vi.fn(),
+  stateSet: vi.fn(),
+  stateSubscribe: vi.fn(),
+  stateUnsubscribe: vi.fn(),
+  stateRpcRequest: vi.fn(),
+  stateRpcAbort: vi.fn(),
+  stateRpcReply: vi.fn(),
+}));
+vi.mock('../extension/extensionDelivery', () => ({ post: vi.fn() }));
+vi.mock('../extension/workerHost.svelte', () => ({
+  workerHost: { hasWorker: vi.fn(), deliver: vi.fn() },
+}));
+vi.mock('../log/logService', () => ({
+  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+import { stateRpcRequest } from '../../lib/ipc/extensionLifecycleCommands';
+import { post } from '../extension/extensionDelivery';
+import { workerHost } from '../extension/workerHost.svelte';
+import { logService } from '../log/logService';
+import { extensionStateService } from './extensionStateService';
+
+const readyDeliverNow = {
+  kind: 'readyDeliverNow' as const,
+  messages: [{ kind: 'command' as const, payload: { foo: 'bar' }, source: 'search' as const }],
+};
+
+describe('extensionStateService.rpcRequest ReadyDeliverNow routing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.body.replaceChildren();
+  });
+
+  it('delivers via workerHost when a headless worker is registered, without touching the DOM', async () => {
+    vi.mocked(workerHost.hasWorker).mockReturnValue(true);
+    vi.mocked(stateRpcRequest).mockResolvedValueOnce(readyDeliverNow);
+
+    await extensionStateService.rpcRequest('ext.a', 'status', 'corr-1', {});
+
+    expect(workerHost.deliver).toHaveBeenCalledWith('ext.a', readyDeliverNow.messages[0]);
+    expect(post).not.toHaveBeenCalled();
+    expect(logService.warn).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the worker iframe DOM node when no headless worker is registered', async () => {
+    vi.mocked(workerHost.hasWorker).mockReturnValue(false);
+    vi.mocked(stateRpcRequest).mockResolvedValueOnce(readyDeliverNow);
+
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('data-extension-id', 'ext.a');
+    iframe.setAttribute('data-role', 'worker');
+    document.body.appendChild(iframe);
+
+    await extensionStateService.rpcRequest('ext.a', 'status', 'corr-1', {});
+
+    expect(workerHost.deliver).not.toHaveBeenCalled();
+    expect(post).toHaveBeenCalledWith(iframe, readyDeliverNow.messages[0]);
+  });
+
+  it('warns and drops the message when neither a worker nor an iframe is available', async () => {
+    vi.mocked(workerHost.hasWorker).mockReturnValue(false);
+    vi.mocked(stateRpcRequest).mockResolvedValueOnce(readyDeliverNow);
+
+    await extensionStateService.rpcRequest('ext.a', 'status', 'corr-1', {});
+
+    expect(workerHost.deliver).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
+    expect(logService.warn).toHaveBeenCalledWith(expect.stringContaining('message(s) dropped'));
+  });
+});
+
+asyar-launcher/src-tauri/tests/fixtures/worker_view_fixture/worker.js:
+self.postMessage(1);
