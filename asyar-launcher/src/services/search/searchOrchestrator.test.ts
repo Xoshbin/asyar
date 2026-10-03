@@ -445,4 +445,48 @@ describe('searchOrchestrator characterization tests', () => {
     expect(searchOrchestrator.items[0].action).toBeDefined();
     expect(typeof searchOrchestrator.items[0].action).toBe('function');
   });
+  it('executes worker action before the aggregated navigation callback', async () => {
+    const navigate = vi.fn();
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      {
+        id: 'row',
+        title: 'Row',
+        extensionId: 'worker',
+        actionId: 'open',
+        actionPayload: 7,
+        action: navigate,
+      } as any,
+    ]);
+    await searchOrchestrator.handleSearch('row');
+    expect(searchOrchestrator.tryExecuteResultAction('row')).toBe(true);
+    expect(actionService.executeExtensionAction).toHaveBeenCalledWith('worker', 'open', 7);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('keeps published actions while pending and ignores stale search mappings', async () => {
+    const old = vi.fn();
+    const fresh = vi.fn();
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      { id: 'row', title: 'Row', action: old } as any,
+    ]);
+    await searchOrchestrator.handleSearch('initial');
+    let resolveStale!: (rows: any[]) => void;
+    vi.mocked(extensionManager.searchAll).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStale = resolve;
+      }),
+    );
+    const stale = searchOrchestrator.handleSearch('stale');
+    searchOrchestrator.tryExecuteResultAction('row');
+    expect(old).toHaveBeenCalledOnce();
+    vi.mocked(extensionManager.searchAll).mockResolvedValueOnce([
+      { id: 'row', title: 'Row', action: fresh } as any,
+    ]);
+    await searchOrchestrator.handleSearch('fresh');
+    resolveStale([{ id: 'row', title: 'Row', action: old }]);
+    await stale;
+    searchOrchestrator.tryExecuteResultAction('row');
+    expect(fresh).toHaveBeenCalledOnce();
+    expect(old).toHaveBeenCalledOnce();
+  });
 });

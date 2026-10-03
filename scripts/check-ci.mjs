@@ -169,6 +169,7 @@ const totalStartTime = Date.now();
 if (runFrontend) {
   runStep('Prettier Format Check', 'pnpm format:check');
   runStep('Design System Compliance', 'pnpm check:design');
+  runStep('Workspace CI Coverage', 'node --test scripts/workspace-ci.test.mjs');
   runStep('Workspace Frontend Tests', 'pnpm -r --if-present test:run');
 }
 
@@ -176,8 +177,12 @@ if (runFrontend) {
 if (runRust) {
   if (existsSync(tauriRoot)) {
     runStep('Rust Formatting (cargo fmt)', 'cargo fmt --check', tauriRoot);
-    runStep('Rust Clippy (-D warnings)', 'cargo clippy --all-targets -- -D warnings', tauriRoot);
-    runStep('Rust Tests (cargo test)', 'cargo test', tauriRoot);
+    runStep(
+      'Rust Clippy (-D warnings)',
+      'cargo clippy --workspace --all-targets -- -D warnings',
+      tauriRoot,
+    );
+    runStep('Rust Tests (cargo test)', 'cargo test --workspace', tauriRoot);
   } else {
     console.warn('\n⚠️ asyar-launcher/src-tauri not found, skipping Rust checks.');
   }

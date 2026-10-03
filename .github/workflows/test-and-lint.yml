@@ -81,7 +81,7 @@ jobs:
             asyar-sdk/cli/lib/gatedPermissions.ts
 
       - name: Run Rust tests
-        run: cargo test
+        run: cargo test --workspace
         working-directory: asyar-launcher/src-tauri
 
       # Regenerates launcher and SDK bindings (specta) from Rust types registered in
@@ -96,7 +96,7 @@ jobs:
         run: git diff --exit-code -- asyar-launcher/src/bindings.ts asyar-sdk/src/generated/calculator.ts
 
       - name: Run Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
         working-directory: asyar-launcher/src-tauri
 
       - name: Check Rust docs compile
@@ -182,7 +182,7 @@ jobs:
       # by the windows_key_resolver matrix, which reads GetKeyboardLayoutList
       # rather than the active layout.
       - name: Run Rust tests
-        run: cargo test -- --skip resolve_keypress_routes_to_windows_resolver_for_shift_colon
+        run: cargo test --workspace -- --skip resolve_keypress_routes_to_windows_resolver_for_shift_colon
         working-directory: asyar-launcher/src-tauri
 
   # macOS-only Rust build/test/lint run. Deliberately lean — no frontend/
@@ -227,7 +227,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Run Rust tests
-        run: cargo test
+        run: cargo test --workspace
         working-directory: asyar-launcher/src-tauri
 
       # `cargo clippy --all-targets -D warnings` on ubuntu never compiles
@@ -237,5 +237,5 @@ jobs:
       # conditional compilation, so the ubuntu job's fmt check already
       # covers macOS-gated code correctly.
       - name: Run Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
         working-directory: asyar-launcher/src-tauri

@@ -180,6 +180,34 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
     cloudSyncService.stopPeriodicSync();
   });
 
+  it('retains lifetime subscriptions across login logout login', async () => {
+    const listeners = new Set<(loggedIn: boolean) => void | Promise<void>>();
+    vi.mocked(authService.onAuthChange).mockImplementation((cb) => {
+      listeners.add(cb);
+      return () => {
+        listeners.delete(cb);
+      };
+    });
+    const provider = makeProvider({ id: 'settings' });
+    vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+    await cloudSyncService.init();
+    await settleInFlightRun();
+    authService.isLoggedIn = false;
+    for (const cb of [...listeners]) await cb(false);
+    expect(provider.__emit).toBeUndefined();
+    expect(listeners.size).toBe(1);
+    authService.isLoggedIn = true;
+    for (const cb of [...listeners]) await cb(true);
+    await settleInFlightRun();
+    expect(provider.__emit).toBeTypeOf('function');
+    expect(commands.syncRun).toHaveBeenCalledTimes(2);
+    await cloudSyncService.init();
+    expect(listeners.size).toBe(1);
+    expect(settingsService.subscribe).toHaveBeenCalledOnce();
+    cloudSyncService.dispose();
+    expect(listeners.size).toBe(0);
+    expect(provider.__emit).toBeUndefined();
+  });
   // ── init() ────────────────────────────────────────────────────────────────
 
   describe('init()', () => {

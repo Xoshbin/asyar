@@ -38,8 +38,7 @@ export const PERIODIC_SYNC_INTERVAL_MS = 60 * 1000;
  * The whole machine only runs for a signed-in, entitled user who hasn't
  * turned the `user.syncEnabled` preference off (see [`blockedReason`]).
  * [`init`] (startup and post-login) arms a settings watcher that starts /
- * stops sync when that preference flips; [`dispose`] (logout) tears
- * everything down.
+ * stops sync when that preference flips; [`stop`] (logout) pauses operations while lifetime listeners stay armed.
  */
 class CloudSyncService {
   status = $state<'idle' | 'syncing' | 'error'>('idle');
@@ -58,6 +57,7 @@ class CloudSyncService {
   private lastEnabledSeen: boolean | null = null;
   private lastLoggedFailureSummary: string | null = null;
   private isApplyingSync = false;
+  private lifecycleToken = 0;
 
   /**
    * User preference (`user.syncEnabled`), defaulting to `true` so existing
@@ -87,7 +87,7 @@ class CloudSyncService {
         if (isLoggedIn) {
           await this.start();
         } else {
-          this.dispose();
+          this.stop();
         }
       });
     }
@@ -108,9 +108,12 @@ class CloudSyncService {
       return;
     }
 
+    const token = ++this.lifecycleToken;
     await this.checkStatus().catch((err) => {
       logService.warn(`Cloud sync checkStatus failed: ${err}`);
     });
+
+    if (token !== this.lifecycleToken || this.blockedReason() !== null) return;
 
     // Background syncNow — do not await; errors flow through diagnostics
     // and `lastError`, but the caller of `start` shouldn't block on a
@@ -176,6 +179,7 @@ class CloudSyncService {
    * watcher stays armed, so a later `syncEnabled` re-enable restarts sync.
    */
   private stop(): void {
+    this.lifecycleToken++;
     this.stopPeriodicSync();
     for (const unsub of this.providerUnsubs) {
       try {
@@ -188,7 +192,7 @@ class CloudSyncService {
   }
 
   /**
-   * Full teardown — [`stop`] plus the settings watcher. Use on logout, hot
+   * Full teardown — [`stop`] plus auth and settings watchers. Use on shutdown, hot
    * reload, or any flow where the service should fully stop reacting; a
    * later [`init`] re-arms everything. Safe to call multiple times.
    */
@@ -293,8 +297,8 @@ class CloudSyncService {
         errMsg.includes('Not logged in') ||
         errMsg.includes('401')
       ) {
-        logService.warn(`Cloud sync: auth token rejected/expired (${errMsg}); disposing sync`);
-        this.dispose();
+        logService.warn(`Cloud sync: auth token rejected/expired (${errMsg}); stopping sync`);
+        this.stop();
         authService.logout().catch(() => {});
         return;
       }

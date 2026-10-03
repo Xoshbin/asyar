@@ -66,8 +66,11 @@ class SearchOrchestratorClass {
   async handleSearch(query: string): Promise<void> {
     if (!isAppInitialized() || viewManager.activeView) return;
     const token = ++this.#searchToken;
-    this.#resultActions.clear();
-    this.#directActions.clear();
+    const resultActions = new Map<
+      string,
+      { extensionId: string; actionId: string; actionPayload: unknown }
+    >();
+    const directActions = new Map<string, () => void | Promise<void>>();
     searchStores.isLoading = true;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
@@ -81,7 +84,7 @@ class SearchOrchestratorClass {
             extRes.id ||
             `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`;
           if (extRes.actionId && extRes.extensionId) {
-            this.#resultActions.set(objectId, {
+            resultActions.set(objectId, {
               extensionId: extRes.extensionId,
               actionId: extRes.actionId,
               actionPayload: extRes.actionPayload,
@@ -89,7 +92,7 @@ class SearchOrchestratorClass {
           }
           // Direct, typed action execution path for platform primitives / built-ins
           if (typeof extRes.action === 'function') {
-            this.#directActions.set(objectId, extRes.action);
+            directActions.set(objectId, extRes.action);
           }
           return {
             objectId,
@@ -112,10 +115,13 @@ class SearchOrchestratorClass {
       const resp = await commands.mergedSearch(query, externalResults, 10);
       const combinedResults: SearchResult[] = resp.results as SearchResult[];
       const aliasMatch = resp.aliasMatch ?? null;
+      if (token !== this.#searchToken) return;
+      this.#resultActions = resultActions;
+      this.#directActions = directActions;
 
       // Direct action execution path: attach direct action reference if present
       for (const r of combinedResults) {
-        const action = this.#directActions.get(r.objectId);
+        const action = directActions.get(r.objectId);
         if (action) {
           (r as any).action = action;
         }
@@ -164,6 +170,8 @@ class SearchOrchestratorClass {
     } catch (error) {
       logService.error(`Combined search failed: ${error}`);
       if (token !== this.#searchToken) return;
+      this.#resultActions.clear();
+      this.#directActions.clear();
       this.items = [];
       this.lastCompletedQuery = query;
     } finally {
@@ -178,6 +186,11 @@ class SearchOrchestratorClass {
    * the caller then falls through to the normal command activation path.
    */
   tryExecuteResultAction(objectId: string): boolean {
+    const info = this.#resultActions.get(objectId);
+    if (info) {
+      actionService.executeExtensionAction(info.extensionId, info.actionId, info.actionPayload);
+      return true;
+    }
     const directAction = this.#directActions.get(objectId);
     if (directAction) {
       try {
@@ -187,10 +200,7 @@ class SearchOrchestratorClass {
       }
       return true;
     }
-    const info = this.#resultActions.get(objectId);
-    if (!info) return false;
-    actionService.executeExtensionAction(info.extensionId, info.actionId, info.actionPayload);
-    return true;
+    return false;
   }
 }
 
