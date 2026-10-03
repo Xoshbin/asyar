@@ -359,12 +359,13 @@ mod tests {
         conn
     }
 
+    #[test]
+    fn test_keys_are_fresh() {
+        assert_ne!(test_key(), test_key());
+    }
+
     fn test_key() -> [u8; 32] {
-        let mut k = [0u8; 32];
-        for (i, b) in k.iter_mut().enumerate() {
-            *b = (i * 17) as u8;
-        }
-        k
+        rand::random()
     }
 
     fn make_note(id: &str, title: &str, body: &str, updated_at: f64) -> Note {
@@ -587,12 +588,13 @@ mod fts_coordination_tests {
         (conn, fts)
     }
 
+    #[test]
+    fn test_keys_are_fresh() {
+        assert_ne!(test_key(), test_key());
+    }
+
     fn test_key() -> [u8; 32] {
-        let mut k = [0u8; 32];
-        for (i, b) in k.iter_mut().enumerate() {
-            *b = (i * 23) as u8;
-        }
-        k
+        rand::random()
     }
 
     #[test]

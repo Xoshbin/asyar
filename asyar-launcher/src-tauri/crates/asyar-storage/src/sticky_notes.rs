@@ -250,7 +250,7 @@ mod tests {
     fn prune_orphans_drops_stickies_whose_note_is_gone() {
         let conn = setup();
         crate::notes::init_table(&conn).unwrap();
-        let key = [7u8; 32];
+        let key: [u8; 32] = rand::random();
         crate::notes::upsert(
             &conn,
             &crate::notes::Note {

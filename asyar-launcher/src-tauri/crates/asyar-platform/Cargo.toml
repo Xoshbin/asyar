@@ -42,6 +42,7 @@ windows = { version = "0.62", features = [
 xkbcommon = "0.7"
 gtk = "0.18"
 gdk = "0.18"
+gio = "0.18"
 gdkx11 = "0.18"
 x11rb = "0.13"
 zbus = { version = "4", features = ["blocking"] }

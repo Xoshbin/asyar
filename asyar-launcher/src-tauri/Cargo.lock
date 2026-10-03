@@ -330,6 +330,7 @@ dependencies = [
  "enigo",
  "gdk",
  "gdkx11",
+ "gio",
  "gtk",
  "icns",
  "log",

@@ -325,12 +325,13 @@ mod tests {
         conn
     }
 
+    #[test]
+    fn test_keys_are_fresh() {
+        assert_ne!(test_key(), test_key());
+    }
+
     fn test_key() -> [u8; 32] {
-        let mut k = [0u8; 32];
-        for (i, b) in k.iter_mut().enumerate() {
-            *b = (i * 13) as u8;
-        }
-        k
+        rand::random()
     }
 
     fn make_snippet(id: &str, keyword: &str, expansion: &str) -> Snippet {
