@@ -66,14 +66,14 @@ describe('WalkthroughExtension commands and root search', () => {
   });
 
   it('search("") returns progress row when shouldShowInRoot is true', async () => {
-    const results = await walkthroughExtension.search('');
+    const results = await walkthroughExtension.searchRows('');
     expect(results).toHaveLength(1);
     expect(results[0].title).toBe('Beyond the basics');
     expect(results[0].subtitle).toBe('2 of 5 tasks — learn what Asyar can really do');
   });
 
   it('search("something") returns empty array', async () => {
-    const results = await walkthroughExtension.search('query');
+    const results = await walkthroughExtension.searchRows('query');
     expect(results).toHaveLength(0);
   });
 });
@@ -151,4 +151,13 @@ describe('WalkthroughExtension lifecycle: viewActivated, viewDeactivated, activa
     expect(actionService.unregisterAction).toHaveBeenCalledWith('walkthrough:mark-complete');
     expect(walkthroughViewState.reset).toHaveBeenCalled();
   });
+});
+
+it('registers walkthrough as a typed platform search provider', async () => {
+  const { searchBuiltinProviders } = await import('../../services/search/builtinSearchProviders');
+  const search = vi.spyOn(walkthroughExtension, 'searchRows').mockResolvedValueOnce([]);
+  const rows = await searchBuiltinProviders('', (id) => id === 'walkthrough');
+  expect(search).toHaveBeenCalled();
+  search.mockRestore();
+  expect(rows.every((row) => typeof (row as any).action !== 'function')).toBe(true);
 });

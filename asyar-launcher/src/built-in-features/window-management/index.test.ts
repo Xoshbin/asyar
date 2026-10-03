@@ -321,7 +321,7 @@ describe('WindowManagementExtension', () => {
         configurable: true,
       });
       await extension.initialize(makeContext());
-      const results = await extension.search('my');
+      const results = await extension.searchRows('my');
       expect(results.length).toBeGreaterThan(0);
       expect(results[0].title).toContain('My Layout');
       expect(results[0].id).toBe('cmd_window-management_layout_1');
@@ -333,7 +333,7 @@ describe('WindowManagementExtension', () => {
         configurable: true,
       });
       await extension.initialize(makeContext());
-      const results = await extension.search('anything');
+      const results = await extension.searchRows('anything');
       expect(results).toEqual([]);
     });
   });
@@ -371,4 +371,13 @@ describe('WindowManagementExtension', () => {
       expect(syncLayoutToIndex).toHaveBeenCalled();
     });
   });
+});
+
+it('registers window-management as a typed platform search provider', async () => {
+  const { searchBuiltinProviders } = await import('../../services/search/builtinSearchProviders');
+  const search = vi.spyOn(extension, 'searchRows').mockResolvedValueOnce([]);
+  const rows = await searchBuiltinProviders('', (id) => id === 'window-management');
+  expect(search).toHaveBeenCalled();
+  search.mockRestore();
+  expect(rows.every((row) => typeof (row as any).action !== 'function')).toBe(true);
 });

@@ -22,7 +22,7 @@ describe('calculator extension (thin presenter)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns [] for empty queries without invoking Rust', async () => {
-    expect(await calculator.search('   ')).toEqual([]);
+    expect(await calculator.searchRows('   ')).toEqual([]);
     expect(invokeSafe).not.toHaveBeenCalled();
   });
 
@@ -30,7 +30,7 @@ describe('calculator extension (thin presenter)', () => {
     const rust: CalcResult[] = [{ value: '4', detail: '2+2', kind: 'math' }];
     vi.mocked(invokeSafe).mockResolvedValueOnce(rust);
 
-    const results = await calculator.search('2+2');
+    const results = await calculator.searchRows('2+2');
 
     expect(invokeSafe).toHaveBeenCalledWith(
       'calculator_evaluate',
@@ -52,14 +52,14 @@ describe('calculator extension (thin presenter)', () => {
     ];
     vi.mocked(invokeSafe).mockResolvedValueOnce(rust);
 
-    const results = await calculator.search('whatever');
+    const results = await calculator.searchRows('whatever');
     expect(results[0].icon).toBe('🕒');
     expect(results[1].icon).toBe('🎨');
   });
 
   it('explicitly treats evaluation failure as best-effort empty results', async () => {
     vi.mocked(invokeSafe).mockRejectedValueOnce(new Error('calculator unavailable'));
-    expect(await calculator.search('2+2')).toEqual([]);
+    expect(await calculator.searchRows('2+2')).toEqual([]);
   });
 
   it('initialize pushes preferences to Rust', async () => {
@@ -106,8 +106,8 @@ describe('calculator extension (thin presenter)', () => {
     const rust: CalcResult[] = [{ value: '≈ 62.14 miles', detail: '100 km', kind: 'unit' }];
     vi.mocked(invokeSafe).mockResolvedValueOnce(rust);
 
-    const [result] = await calculator.search('100 km to miles');
-    await result.action?.();
+    const [result] = await calculator.searchRows('100 km to miles');
+    await calculator.executeSearchResult(result.id, result.actionPayload);
 
     expect(writeText).toHaveBeenCalledWith('62.14 miles');
     expect(feedbackService.sendBackground).toHaveBeenCalled();
@@ -118,11 +118,20 @@ describe('calculator extension (thin presenter)', () => {
     vi.mocked(invokeSafe).mockResolvedValue(rust);
 
     await calculator.deactivate();
-    expect(await calculator.search('2+2')).toEqual([]);
+    expect(await calculator.searchRows('2+2')).toEqual([]);
 
     await calculator.activate();
-    const results = await calculator.search('2+2');
+    const results = await calculator.searchRows('2+2');
     expect(results).toHaveLength(1);
     expect(results[0].title).toBe('4');
   });
+});
+
+it('registers calculator as a typed platform search provider', async () => {
+  const { searchBuiltinProviders } = await import('../../services/search/builtinSearchProviders');
+  const search = vi.spyOn(calculator, 'searchRows').mockResolvedValueOnce([]);
+  const rows = await searchBuiltinProviders('2+2', (id) => id === 'calculator');
+  expect(search).toHaveBeenCalled();
+  search.mockRestore();
+  expect(rows.every((row) => typeof (row as any).action !== 'function')).toBe(true);
 });

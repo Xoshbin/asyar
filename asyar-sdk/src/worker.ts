@@ -67,6 +67,7 @@ import { AiServiceProxy } from './services/AiServiceProxy';
 import { McpServiceProxy } from './services/McpServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
+import { extensionBridge } from './ExtensionBridge';
 import { ExtensionContextCore } from './ExtensionContextCore';
 
 function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
@@ -217,6 +218,10 @@ export class ExtensionContext extends ExtensionContextCore {
     // Wire up the module-level tools proxy reference so the
     // asyar:tools:invoke interceptor can dispatch to local handlers.
     _workerToolsProxy = proxies.tools as ToolsServiceProxy | undefined;
+  }
+
+  protected override notifyBridgeIfAvailable(id: string): void {
+    extensionBridge.registerActiveContext(id, this);
   }
 
   protected override notifyRpcIfAvailable(id: string): void {

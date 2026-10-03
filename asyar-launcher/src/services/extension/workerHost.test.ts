@@ -21,7 +21,11 @@ vi.mock('../log/logService', () => ({
 import { iframeReadyAck } from '../../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { extensionPendingState } from './extensionPendingState.svelte';
-import { workerHost, setWorkerPreferenceProvider } from './workerHost.svelte';
+import {
+  workerHost,
+  setWorkerPreferenceProvider,
+  createWorkerBootstrap,
+} from './workerHost.svelte';
 
 describe('workerHost', () => {
   beforeEach(() => {
@@ -36,7 +40,7 @@ describe('workerHost', () => {
   it('mounts a worker channel and updates activeWorkers and sourceMap', () => {
     expect(workerHost.hasWorker('ext.test')).toBe(false);
 
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
 
     expect(workerHost.hasWorker('ext.test')).toBe(true);
     const channel = workerHost.getWorker('ext.test');
@@ -49,7 +53,7 @@ describe('workerHost', () => {
   });
 
   it('unmounts a worker channel and terminates it', () => {
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.test');
     const terminateSpy = vi.spyOn(channel!, 'terminate');
 
@@ -62,11 +66,11 @@ describe('workerHost', () => {
   });
 
   it('remounts cleanly if mount is called for an already mounted worker', () => {
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel1 = workerHost.getWorker('ext.test');
     const terminateSpy1 = vi.spyOn(channel1!, 'terminate');
 
-    workerHost.mount('ext.test', 2);
+    workerHost.mount('ext.test', 2, 'dist/worker.js');
     expect(terminateSpy1).toHaveBeenCalled();
 
     const channel2 = workerHost.getWorker('ext.test');
@@ -83,7 +87,7 @@ describe('workerHost', () => {
       },
     ]);
 
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.test');
     const postSpy = vi.spyOn(channel!, 'postMessage');
 
@@ -105,7 +109,7 @@ describe('workerHost', () => {
     });
     setWorkerPreferenceProvider(mockProvider);
 
-    workerHost.mount('ext.prefs', 10);
+    workerHost.mount('ext.prefs', 10, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.prefs');
     const postSpy = vi.spyOn(channel!, 'postMessage');
 
@@ -122,7 +126,7 @@ describe('workerHost', () => {
   });
 
   it('delivers wire messages and direct posts to the worker', () => {
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.test');
     const postSpy = vi.spyOn(channel!, 'postMessage');
 
@@ -141,7 +145,7 @@ describe('workerHost', () => {
   });
 
   it('broadcasts preference changes to the worker', () => {
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.test');
     const postSpy = vi.spyOn(channel!, 'postMessage');
 
@@ -160,7 +164,7 @@ describe('workerHost', () => {
   });
 
   it('reports bootstrap failure without starting an iframe', () => {
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.test') as any;
 
     channel.onHostMessage({
@@ -177,7 +181,7 @@ describe('workerHost', () => {
   });
 
   it('routes other uncaught feedback errors to feedbackService', () => {
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.test') as any;
 
     channel.onHostMessage({
@@ -199,7 +203,7 @@ describe('workerHost', () => {
   });
 
   it('cleans up fallbackEntries on unmount', () => {
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.test') as any;
     channel.onHostMessage({
       type: 'asyar:feedback:uncaught',
@@ -236,7 +240,7 @@ describe('workerHost', () => {
       URL.createObjectURL = vi.fn(() => 'blob:mock-url');
       URL.revokeObjectURL = vi.fn();
 
-      workerHost.mount('ext.error', 1);
+      workerHost.mount('ext.error', 1, 'dist/worker.js');
       expect(workerHost.hasWorker('ext.error')).toBe(true);
 
       workerInstance.onerror(new Error('SyntaxError in worker'));
@@ -255,7 +259,7 @@ describe('workerHost', () => {
     const ipcHandler = vi.fn();
     workerHost.setIpcHandler(ipcHandler);
 
-    workerHost.mount('ext.test', 1);
+    workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.test') as any;
 
     channel.onHostMessage({
@@ -275,8 +279,8 @@ describe('workerHost', () => {
   });
 
   it('resets all workers on reset()', () => {
-    workerHost.mount('ext.a', 1);
-    workerHost.mount('ext.b', 2);
+    workerHost.mount('ext.a', 1, 'dist/worker.js');
+    workerHost.mount('ext.b', 2, 'dist/worker.js');
     expect(workerHost.hasWorker('ext.a')).toBe(true);
     expect(workerHost.hasWorker('ext.b')).toBe(true);
 
@@ -309,7 +313,7 @@ describe('workerHost', () => {
       URL.createObjectURL = vi.fn(() => 'blob:mock-url');
       URL.revokeObjectURL = vi.fn();
 
-      workerHost.mount('ext.worker-real', 5);
+      workerHost.mount('ext.worker-real', 5, 'dist/worker.js');
 
       const channel = workerHost.getWorker('ext.worker-real');
       expect(channel).toBeDefined();
@@ -335,11 +339,45 @@ describe('stale worker callbacks', () => {
     workerHost.reset();
     const handler = vi.fn();
     workerHost.setIpcHandler(handler);
-    workerHost.mount('ext.stale', 1);
+    workerHost.mount('ext.stale', 1, 'dist/worker.js');
     const old = workerHost.getWorker('ext.stale') as any;
-    workerHost.mount('ext.stale', 2);
+    workerHost.mount('ext.stale', 2, 'dist/worker.js');
     old.onHostMessage({ type: 'asyar:api:clipboard:readText', messageId: 'stale' });
     expect(handler).not.toHaveBeenCalled();
     workerHost.reset();
   });
+});
+
+describe('worker module loading contract', () => {
+  it('uses the manifest entry and keeps relative imports at their original URL', () => {
+    const code = createWorkerBootstrap('org.test', 7, 'assets/daemon.js', false);
+    expect(code).toContain('asyar-extension://org.test/assets/daemon.js');
+    expect(code).not.toContain('dist/worker.js');
+    expect(code).not.toContain('resp.text');
+    expect(code).toContain("self.__ASYAR_ROLE__ = 'worker'");
+  });
+  it('uses the Windows custom-protocol URL', () => {
+    expect(createWorkerBootstrap('org.test', 7, 'assets/daemon.js', true)).toContain(
+      'http://asyar-extension.localhost/org.test/assets/daemon.js',
+    );
+  });
+  it.each(['../escape.js', '/absolute.js', 'https://other/worker.js', 'a/../../escape.js'])(
+    'rejects entry outside the extension: %s',
+    (entry) => {
+      expect(() => createWorkerBootstrap('org.test', 7, entry, false)).toThrow();
+    },
+  );
+});
+
+it('reports unsupported Workers instead of simulating readiness in production', () => {
+  vi.stubEnv('MODE', 'production');
+  vi.stubGlobal('Worker', undefined);
+  workerHost.reset();
+  workerHost.mount('org.unsupported', 1, 'dist/daemon.js');
+  expect(workerHost.hasWorker('org.unsupported')).toBe(false);
+  expect(feedbackService.report).toHaveBeenCalledWith(
+    expect.objectContaining({ kind: 'extension_crash', extensionId: 'org.unsupported' }),
+  );
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });

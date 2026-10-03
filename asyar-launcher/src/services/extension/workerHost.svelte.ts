@@ -15,6 +15,37 @@ export function setWorkerPreferenceProvider(provider: PreferenceProvider): void 
   preferenceProvider = provider;
 }
 
+export function createWorkerBootstrap(
+  extensionId: string,
+  mountToken: number,
+  entry: string,
+  isWindows: boolean,
+): string {
+  if (
+    !entry ||
+    entry.startsWith('/') ||
+    entry.includes('\\') ||
+    entry.includes(':') ||
+    entry.includes('?') ||
+    entry.includes('#') ||
+    entry.split('/').some((part) => !part || part === '.' || part === '..')
+  ) {
+    throw new Error('Invalid background.main module path');
+  }
+  const workerUrl = isWindows
+    ? `http://asyar-extension.localhost/${extensionId}/${entry}`
+    : `asyar-extension://${extensionId}/${entry}`;
+  return `
+    self.__ASYAR_ROLE__ = 'worker';
+    self.__ASYAR_EXTENSION_ID__ = ${JSON.stringify(extensionId)};
+    self.__ASYAR_MOUNT_TOKEN__ = ${mountToken};
+    import(${JSON.stringify(workerUrl)}).catch(err => self.postMessage({
+      type: 'asyar:feedback:uncaught',
+      payload: { kind: 'worker_bootstrap_error', developerDetail: String(err && err.stack ? err.stack : err) }
+    }));
+  `;
+}
+
 export interface WorkerChannel {
   extensionId: string;
   mountToken: number;
@@ -88,13 +119,13 @@ export class WorkerHost {
     return this.sourceMap.has(source);
   }
 
-  public mount(extensionId: string, mountToken: number): void {
+  public mount(extensionId: string, mountToken: number, entry?: string): void {
     logService.debug(`[workerHost] mount ${extensionId} token=${mountToken}`);
 
     // Clean up existing worker if already running
     this.unmount(extensionId, 'remount');
 
-    const channel = this.createWorkerChannel(extensionId, mountToken);
+    const channel = this.createWorkerChannel(extensionId, mountToken, entry);
     if (!channel) return;
     this.activeWorkers.set(extensionId, channel);
     this.sourceMap.set(channel, extensionId);
@@ -183,7 +214,11 @@ export class WorkerHost {
     });
   }
 
-  private createWorkerChannel(extensionId: string, mountToken: number): WorkerChannel | null {
+  private createWorkerChannel(
+    extensionId: string,
+    mountToken: number,
+    entry?: string,
+  ): WorkerChannel | null {
     const onHostMessage = (data: any) => {
       this.handleIncomingMessage(extensionId, mountToken, channel, data);
     };
@@ -194,39 +229,12 @@ export class WorkerHost {
     if (typeof Worker !== 'undefined' && typeof window !== 'undefined') {
       try {
         const isWindows = navigator.userAgent.toLowerCase().includes('windows');
-        const workerUrl = isWindows
-          ? `http://asyar-extension.localhost/${extensionId}/dist/worker.js`
-          : `asyar-extension://${extensionId}/dist/worker.js`;
-
-        const bootstrapCode = `
-          self.__ASYAR_ROLE__ = 'worker';
-          const extensionId = ${JSON.stringify(extensionId)};
-          const mountToken = ${mountToken};
-
-          (async () => {
-            try {
-              await import(${JSON.stringify(workerUrl)});
-            } catch (err) {
-              try {
-                const resp = await fetch(${JSON.stringify(workerUrl)});
-                if (!resp.ok) throw new Error('HTTP ' + resp.status + ' loading ' + ${JSON.stringify(workerUrl)});
-                const code = await resp.text();
-                const blob = new Blob([code], { type: 'application/javascript' });
-                const blobUrl = URL.createObjectURL(blob);
-                await import(blobUrl);
-                URL.revokeObjectURL(blobUrl);
-              } catch (fallbackErr) {
-                self.postMessage({
-                  type: 'asyar:feedback:uncaught',
-                  payload: {
-                    kind: 'worker_bootstrap_error',
-                    developerDetail: String(fallbackErr && fallbackErr.stack ? fallbackErr.stack : fallbackErr),
-                  },
-                });
-              }
-            }
-          })();
-        `;
+        const bootstrapCode = createWorkerBootstrap(
+          extensionId,
+          mountToken,
+          entry ?? '',
+          isWindows,
+        );
 
         const blob = new Blob([bootstrapCode], { type: 'application/javascript' });
         const blobUrl = URL.createObjectURL(blob);
@@ -275,7 +283,11 @@ export class WorkerHost {
       }
     }
 
-    // Headless simulated worker (test/jsdom or environments without direct Web Worker support)
+    if (import.meta.env.MODE !== 'test') {
+      this.failWorker(extensionId, mountToken, 'Web Workers are unavailable');
+      return null;
+    }
+    // Explicit test-only simulation; production must never pretend a daemon is running.
     channel = new HeadlessSimulatedWorker(extensionId, mountToken, onHostMessage);
     return channel;
   }

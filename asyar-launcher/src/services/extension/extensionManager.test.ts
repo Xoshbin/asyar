@@ -530,7 +530,7 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(results).toEqual([]);
     });
 
-    it('calls search() on loaded extension instances that have it', async () => {
+    it('keeps statically loaded built-ins out of extension search transport', async () => {
       const mockExt = { search: vi.fn().mockResolvedValue([{ title: 'Result' }]) };
       // @ts-ignore
       extensionManager.extensionModulesById.set('test-ext', mockExt);
@@ -539,9 +539,8 @@ describe('ExtensionManager Characterization Tests', () => {
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
 
       const results = await extensionManager.searchAll('query');
-      expect(mockExt.search).toHaveBeenCalledWith('query');
-      expect(results).toHaveLength(1);
-      expect(results[0].title).toBe('Result');
+      expect(mockExt.search).not.toHaveBeenCalled();
+      expect(results).toEqual([]);
     });
 
     it('skips extension instances that do not have search()', async () => {
@@ -579,11 +578,18 @@ describe('ExtensionManager Characterization Tests', () => {
           ),
       };
 
+      const { extensionIframeManager } = await import('./extensionIframeManager.svelte');
+      vi.mocked(settingsService.getSettings).mockReturnValue({
+        search: { enableExtensionSearch: true },
+      } as any);
       // @ts-ignore
-      extensionManager.extensionModulesById.set('fast-ext', fastExt);
+      extensionManager.manifestsById.set('fast-ext', { id: 'fast-ext', searchable: true });
       // @ts-ignore
-      extensionManager.extensionModulesById.set('slow-ext', slowExt);
+      extensionManager.manifestsById.set('slow-ext', { id: 'slow-ext', searchable: true });
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+      vi.mocked(extensionIframeManager.sendSearchRequestToExtension).mockImplementation(
+        async (id) => (id === 'fast-ext' ? fastExt.search() : slowExt.search()),
+      );
 
       const results = await extensionManager.searchAll('query');
 

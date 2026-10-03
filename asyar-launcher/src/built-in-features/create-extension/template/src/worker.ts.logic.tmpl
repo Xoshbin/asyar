@@ -71,11 +71,7 @@ class WorkerExtension implements Extension {
   onUnload = (): void => {};
 }
 
-const extensionId =
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === 'asyar-extension.localhost'
-    ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
-    : window.location.hostname || '{{EXTENSION_ID}}';
+const extensionId = manifest.id;
 
 const workerContext = new WorkerExtensionContext();
 workerContext.setExtensionId(extensionId);

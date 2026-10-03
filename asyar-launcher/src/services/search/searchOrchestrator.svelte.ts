@@ -1,3 +1,4 @@
+import { searchBuiltinProviders, executeBuiltinSearchResult } from './builtinSearchProviders';
 import { isAppInitialized } from '../appInitState';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
@@ -75,7 +76,11 @@ class SearchOrchestratorClass {
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
       // Collect extension results (these run in JS, can't move to Rust)
-      const resultsFromExtensions = await extensionManager.searchAll(query);
+      const [resultsFromExtensions, builtinRows] = await Promise.all([
+        extensionManager.searchAll(query),
+        searchBuiltinProviders(query, (id) => extensionManager.isExtensionEnabled(id)),
+      ]);
+      const builtinById = new Map(builtinRows.map((row) => [row.id, row]));
 
       // Map extension results to serializable format for Rust
       const externalResults = resultsFromExtensions.map(
@@ -112,6 +117,20 @@ class SearchOrchestratorClass {
         },
       );
 
+      externalResults.push(
+        ...builtinRows.map((row) => ({
+          objectId: row.id,
+          name: row.title,
+          description: row.subtitle,
+          type: 'command',
+          score: row.score ?? 0.5,
+          icon: row.icon,
+          extensionId: row.extensionId,
+          category: 'builtin',
+          style: row.style,
+          priority: row.priority,
+        })),
+      );
       const resp = await commands.mergedSearch(query, externalResults, 10);
       const combinedResults: SearchResult[] = resp.results as SearchResult[];
       const aliasMatch = resp.aliasMatch ?? null;
@@ -121,6 +140,14 @@ class SearchOrchestratorClass {
 
       // Direct action execution path: attach direct action reference if present
       for (const r of combinedResults) {
+        const builtin = builtinById.get(r.objectId);
+        if (builtin) {
+          r.action = () =>
+            executeBuiltinSearchResult(builtin.extensionId, builtin.id, builtin.actionPayload).then(
+              () => {},
+            );
+          continue;
+        }
         const action = directActions.get(r.objectId);
         if (action) {
           (r as any).action = action;
@@ -189,6 +216,11 @@ class SearchOrchestratorClass {
     const info = this.#resultActions.get(objectId);
     if (info) {
       actionService.executeExtensionAction(info.extensionId, info.actionId, info.actionPayload);
+      return true;
+    }
+    const row = this.items.find((item) => item.objectId === objectId);
+    if (typeof row?.action === 'function') {
+      void row.action();
       return true;
     }
     const directAction = this.#directActions.get(objectId);

@@ -53,31 +53,6 @@ export class ExtensionSearchAggregator {
     const settings = settingsService.getSettings();
     const enableExtensionSearch = settings.search.enableExtensionSearch;
 
-    // Tier 1: Direct function calls (EXISTING)
-    this.extensionModulesById.forEach((module, id) => {
-      const extensionInstance = this.resolveExtensionInstance(module);
-      if (
-        this.isExtensionEnabled(id) &&
-        extensionInstance &&
-        typeof extensionInstance.search === 'function'
-      ) {
-        searchPromises.push(
-          Promise.resolve()
-            .then(() => extensionInstance.search!(query))
-            .then((results) => {
-              return (results || []).map((res: ExtensionResult) => ({
-                ...res,
-                extensionId: id,
-              }));
-            })
-            .catch((error) => {
-              logService.error(`Error searching in extension ${id}: ${error}`);
-              return [];
-            }),
-        );
-      }
-    });
-
     // Tier 2: Send postMessage to searchable iframes (NEW)
     // Only include Tier 2 if the setting is enabled
     if (enableExtensionSearch) {

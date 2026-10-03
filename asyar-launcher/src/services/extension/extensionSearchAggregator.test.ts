@@ -23,6 +23,8 @@ vi.mock('../settings/settingsService.svelte', () => ({
   },
 }));
 
+import { settingsService } from '../settings/settingsService.svelte';
+import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { ExtensionSearchAggregator } from './extensionSearchAggregator';
 import type { Extension, ExtensionResult } from 'asyar-sdk/contracts';
 
@@ -57,6 +59,22 @@ describe('ExtensionSearchAggregator.searchAll', () => {
       new Map(),
     );
 
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      search: { enableExtensionSearch: true },
+    } as any);
+    const manifests = new Map(
+      [...modulesById.keys()].map((id) => [id, { id, searchable: true } as any]),
+    );
+    aggregator.init(
+      new Map(),
+      manifests,
+      (id) => id !== 'clipboard-history',
+      () => {},
+      new Map(),
+    );
+    vi.mocked(extensionIframeManager.sendSearchRequestToExtension).mockImplementation(
+      async (id) => await modulesById.get(id)!.search!('test'),
+    );
     const results = await aggregator.searchAll('test');
 
     expect(results.map((r) => r.title)).toEqual(['Low', 'High']);
@@ -77,6 +95,22 @@ describe('ExtensionSearchAggregator.searchAll', () => {
       new Map(),
     );
 
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      search: { enableExtensionSearch: true },
+    } as any);
+    const manifests = new Map(
+      [...modulesById.keys()].map((id) => [id, { id, searchable: true } as any]),
+    );
+    aggregator.init(
+      new Map(),
+      manifests,
+      (id) => id !== 'clipboard-history',
+      () => {},
+      new Map(),
+    );
+    vi.mocked(extensionIframeManager.sendSearchRequestToExtension).mockImplementation(
+      async (id) => await modulesById.get(id)!.search!('test'),
+    );
     const results = await aggregator.searchAll('test');
     expect(results.map((r) => r.title)).toEqual(['Calc Result']);
   });

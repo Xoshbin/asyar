@@ -441,7 +441,9 @@ describe('searchOrchestrator characterization tests', () => {
     // Executed via tryExecuteResultAction
     const handled = searchOrchestrator.tryExecuteResultAction('calc_result_1');
     expect(handled).toBe(true);
-    expect(directActionSpy).toHaveBeenCalledTimes(1);
+    expect(executeBuiltinSearchResult).toHaveBeenCalledWith('calculator', 'calc_result_1', {
+      copyValue: '42',
+    });
 
     // Also attached to result for direct invocation
     expect(searchOrchestrator.items[0].action).toBeDefined();

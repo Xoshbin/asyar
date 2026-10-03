@@ -8,6 +8,11 @@ export interface WorkerRegistryEntry {
   mountToken: number;
 }
 
+let workerEntryProvider: (extensionId: string) => string | undefined = () => undefined;
+export function setWorkerEntryProvider(provider: typeof workerEntryProvider): void {
+  workerEntryProvider = provider;
+}
+
 class WorkerRegistry {
   private _entries = $state<WorkerRegistryEntry[]>([]);
   private unlistenMount: (() => void) | null = null;
@@ -54,7 +59,7 @@ class WorkerRegistry {
     } else {
       this._entries.push(entry);
     }
-    workerHost.mount(p.extensionId, p.mountToken);
+    workerHost.mount(p.extensionId, p.mountToken, workerEntryProvider(p.extensionId));
   }
 
   async handleUnmount(p: { extensionId: string; reason: string; role?: string }): Promise<void> {

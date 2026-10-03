@@ -1,3 +1,4 @@
+import { setWorkerEntryProvider } from './workerRegistry.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import type {
@@ -141,6 +142,7 @@ export class ExtensionManager implements IExtensionManager {
       this.goBack.bind(this),
       () => searchService.saveIndex(),
     );
+    setWorkerEntryProvider((id) => this.getManifestById(id)?.background?.main);
     ipcRouter.setup();
     registerExtensionNameResolver((id) => this.getManifestById(id)?.name);
   }
