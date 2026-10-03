@@ -101,7 +101,7 @@ class ShellService {
 
     const handle = streamDispatcher.create(extensionId, spawnId, originRole);
     handle.onAbort(() => {
-      void shellKill(spawnId);
+      void shellKill(spawnId).catch(() => undefined);
     });
 
     const resolvedLabel =
@@ -124,7 +124,7 @@ class ShellService {
 
     if (runHandle) {
       unsubscribeCancel = runHandle.onCancel(() => {
-        void shellKill(spawnId);
+        void shellKill(spawnId).catch(() => undefined);
       });
     }
 
@@ -190,21 +190,15 @@ class ShellService {
   }
 
   async writeStdin(spawnId: string, data: string, extensionId?: string): Promise<void> {
-    const ok = await shellWriteStdin(extensionId ?? '', spawnId, data);
-    if (!ok) {
-      throw { code: 'WRITE_STDIN_FAILED', message: `Failed to write stdin to spawn ${spawnId}` };
-    }
+    await shellWriteStdin(extensionId ?? '', spawnId, data);
   }
 
   async closeStdin(spawnId: string, extensionId?: string): Promise<void> {
-    const ok = await shellCloseStdin(extensionId ?? '', spawnId);
-    if (!ok) {
-      throw { code: 'CLOSE_STDIN_FAILED', message: `Failed to close stdin for spawn ${spawnId}` };
-    }
+    await shellCloseStdin(extensionId ?? '', spawnId);
   }
 
   async list(extensionId: string): Promise<ShellDescriptor[]> {
-    return (await shellList(extensionId)) ?? [];
+    return shellList(extensionId);
   }
 
   async attach(
@@ -220,15 +214,11 @@ class ShellService {
     if (!streamDispatcher.has(spawnId)) {
       const handle = streamDispatcher.create(extensionId, spawnId, originRole);
       handle.onAbort(() => {
-        void shellKill(spawnId);
+        void shellKill(spawnId).catch(() => undefined);
       });
     }
 
-    const descriptor = await shellAttach(extensionId, spawnId);
-    if (descriptor === null) {
-      throw { code: 'ATTACH_FAILED', message: `Failed to attach to spawn ${spawnId}` };
-    }
-    return descriptor;
+    return shellAttach(extensionId, spawnId);
   }
 }
 

@@ -22,12 +22,12 @@ export class QueryHistory {
     this.current = null;
     this.entries = null;
     this.index = -1;
-    void this.storage.reset?.();
+    void this.storage.reset?.().catch(() => undefined);
   }
 
   record(query: string) {
     this.reset();
-    this.pending = this.pending.then(() => this.storage.record?.(query));
+    this.pending = this.pending.then(() => this.storage.record?.(query)).catch(() => undefined);
     return this.pending;
   }
 
@@ -57,14 +57,14 @@ export class QueryHistory {
     let recalled: string | null = null;
     if (this.storage.navigate) {
       const nav = this.storage.navigate;
-      const res = await this.pending.then(() => nav(sessionId, direction));
+      const res = await this.pending.then(() => nav(sessionId, direction)).catch(() => null);
       if (generation !== this.generation || res === null) return null;
       recalled = res;
       this.current = recalled === '' ? null : recalled;
     } else if (this.storage.list) {
       if (this.entries === null) {
         const load = this.storage.list;
-        const entries = await this.pending.then(() => load());
+        const entries = await this.pending.then(() => load()).catch(() => null);
         if (generation !== this.generation || entries === null) return null;
         this.entries = entries;
       }
@@ -82,7 +82,7 @@ export class QueryHistory {
   async deleteCurrent(): Promise<boolean> {
     const query = this.current;
     if (query === null) return false;
-    const deleted = Boolean(await this.storage.delete?.(query));
+    const deleted = Boolean(await this.storage.delete?.(query).catch(() => false));
     if (deleted && this.current === query) this.reset();
     return deleted;
   }

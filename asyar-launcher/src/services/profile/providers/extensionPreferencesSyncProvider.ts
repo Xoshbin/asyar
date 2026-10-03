@@ -39,7 +39,6 @@ export class ExtensionPreferencesSyncProvider implements ISyncProvider {
 
   async exportForSync(): Promise<SyncProviderData> {
     const data = await extensionPreferencesExportAll();
-    if (data === null) throw new Error('extension_preferences_export_all failed');
     return {
       providerId: this.id,
       version: 1,
@@ -51,7 +50,6 @@ export class ExtensionPreferencesSyncProvider implements ISyncProvider {
   async preview(incoming: SyncProviderData): Promise<ImportPreview> {
     const incomingData = (incoming.data as PreferencesExport) ?? { rows: [] };
     const local = await extensionPreferencesExportAll();
-    if (local === null) throw new Error('extension_preferences_export_all failed');
     // Build a set of "extensionId|commandId|key" keys for quick lookup.
     const key = (r: { extensionId: string; commandId: string | null; key: string }) =>
       `${r.extensionId}|${r.commandId ?? ''}|${r.key}`;
@@ -86,7 +84,6 @@ export class ExtensionPreferencesSyncProvider implements ISyncProvider {
     }
     const payload = (incoming.data as PreferencesExport) ?? { rows: [] };
     const result = await extensionPreferencesImportAll(payload, strategy as 'replace' | 'merge');
-    if (result === null) throw new Error('extension_preferences_import_all failed');
     return {
       success: true,
       itemsAdded: result.itemsAdded,
@@ -98,7 +95,6 @@ export class ExtensionPreferencesSyncProvider implements ISyncProvider {
 
   async getLocalSummary(): Promise<DataSummary> {
     const data = await extensionPreferencesExportAll();
-    if (data === null) throw new Error('extension_preferences_export_all failed');
     const count = data.rows.length;
     return {
       itemCount: count,
@@ -113,7 +109,6 @@ export class ExtensionPreferencesSyncProvider implements ISyncProvider {
 
   async exportItems(): Promise<SyncItem[]> {
     const data = await extensionPreferencesExportAll();
-    if (data === null) throw new Error('extension_preferences_export_all failed');
     return [{ id: this.id, categoryId: this.id, content: data }];
   }
 

@@ -1028,7 +1028,7 @@ describe('image cache persistence', () => {
   // The plugin's own path stays readable, so a failed move must leave a
   // usable row rather than dropping the capture.
   it('falls back to the plugin path when the move fails', async () => {
-    vi.mocked(clipboardAdoptImage).mockResolvedValueOnce(null);
+    vi.mocked(clipboardAdoptImage).mockRejectedValueOnce(new Error('move failed'));
     const svc = getInstance();
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 

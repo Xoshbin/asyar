@@ -77,12 +77,10 @@ describe('runtimeService', () => {
     expect(ok).toBe(true);
   });
 
-  it('download() returns false when downloadRuntime reports failure', async () => {
-    vi.mocked(runtimeCommands.downloadRuntime).mockResolvedValueOnce(false);
+  it('download() propagates a rejected download', async () => {
+    vi.mocked(runtimeCommands.downloadRuntime).mockRejectedValueOnce(new Error('download failed'));
 
-    const ok = await runtimeService.download('bun');
-
-    expect(ok).toBe(false);
+    await expect(runtimeService.download('bun')).rejects.toThrow('download failed');
   });
 
   it('list() invokes listRuntimes', async () => {

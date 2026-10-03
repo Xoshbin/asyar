@@ -36,7 +36,7 @@ export function dispatchToExtension(
   extensionId: string,
   message: IpcPendingMessage,
   role: 'view' | 'worker',
-): Promise<IpcDispatchOutcome | null> {
+): Promise<IpcDispatchOutcome> {
   return invokeSafe('dispatch_to_extension', { extensionId, message, role });
 }
 
@@ -44,7 +44,7 @@ export function iframeReadyAck(
   extensionId: string,
   mountToken: number,
   role: 'view' | 'worker',
-): Promise<IpcPendingMessage[] | null> {
+): Promise<IpcPendingMessage[]> {
   return invokeSafe('iframe_ready_ack', { extensionId, mountToken, role });
 }
 
@@ -62,11 +62,11 @@ export async function iframeMountTimeoutReported(
   await invokeSafe('iframe_mount_timeout_reported', { extensionId, mountToken });
 }
 
-export function getExtensionRuntimeSnapshot(): Promise<IframeLifecycleSnapshotEntry[] | null> {
+export function getExtensionRuntimeSnapshot(): Promise<IframeLifecycleSnapshotEntry[]> {
   return invokeSafe('get_extension_runtime_snapshot');
 }
 
 // Silent: appInitializer.ts is the sole caller and reports its own diagnostic.
-export function restoreWorkers(): Promise<string[] | null> {
+export function restoreWorkers(): Promise<string[]> {
   return invokeSafe('restore_workers', undefined, { silent: true });
 }

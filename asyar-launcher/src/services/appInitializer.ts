@@ -239,16 +239,14 @@ export const appInitializer = {
       // typing have zero contention from background worker restoration.
       runWhenIdle(
         () => {
-          restoreWorkers().then((result) => {
-            if (result === null) {
-              void feedbackService.report({
-                source: 'frontend',
-                kind: 'extension-runtime/restore-workers-failed',
-                severity: 'error',
-                retryable: false,
-                developerDetail: 'restore_workers failed',
-              });
-            }
+          restoreWorkers().catch((error) => {
+            void feedbackService.report({
+              source: 'frontend',
+              kind: 'extension-runtime/restore-workers-failed',
+              severity: 'error',
+              retryable: false,
+              developerDetail: `restore_workers failed: ${error instanceof Error ? error.message : String(error)}`,
+            });
           });
         },
         { timeout: 1500 },

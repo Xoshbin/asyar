@@ -11,7 +11,7 @@ export interface PreferenceExportRow {
 
 export async function extensionPreferencesGetAll(
   extensionId: string,
-): Promise<PreferenceExportRow[] | null> {
+): Promise<PreferenceExportRow[]> {
   return invokeSafe('extension_preferences_get_all', { extensionId });
 }
 
@@ -50,7 +50,7 @@ export interface PreferencesImportResult {
  * Encrypted (password-type) rows are filtered at the Rust SQL layer and
  * never leave the device.
  */
-export async function extensionPreferencesExportAll(): Promise<PreferencesExport | null> {
+export async function extensionPreferencesExportAll(): Promise<PreferencesExport> {
   return invokeSafe('extension_preferences_export_all');
 }
 
@@ -62,6 +62,6 @@ export async function extensionPreferencesExportAll(): Promise<PreferencesExport
 export async function extensionPreferencesImportAll(
   payload: PreferencesExport,
   strategy: 'replace' | 'merge',
-): Promise<PreferencesImportResult | null> {
+): Promise<PreferencesImportResult> {
   return invokeSafe('extension_preferences_import_all', { payload, strategy });
 }

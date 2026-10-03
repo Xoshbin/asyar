@@ -1,6 +1,6 @@
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 
-export async function rankItemsCommand(query: string, items: unknown[]): Promise<string[] | null> {
+export async function rankItemsCommand(query: string, items: unknown[]): Promise<string[]> {
   return invokeSafe<string[]>('rank_items', { query, items });
 }
 

@@ -14,9 +14,6 @@ export async function applyTheme(themeId: string): Promise<void> {
   removeTheme();
 
   const definition = await getThemeDefinition(themeId);
-  if (definition === null) {
-    throw new Error(`get_theme_definition failed for ${themeId}`);
-  }
 
   const allowedSet = new Set(THEMEABLE_VAR_NAMES);
   for (const [name, value] of Object.entries(definition.variables)) {

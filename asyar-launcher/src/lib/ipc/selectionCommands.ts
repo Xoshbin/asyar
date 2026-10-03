@@ -2,8 +2,8 @@ import { invokeRaw } from './invokeSafe';
 
 /**
  * `selectionService` deliberately classifies raw Rust error text into a
- * structured `SelectionErrorCode` and rethrows — `invokeSafe`'s never-throws
- * contract would destroy that, so this uses the `invokeRaw` escape hatch
+ * structured `SelectionErrorCode` and owns its reporting, so it uses `invokeRaw`
+ * to retain the original rejection details
  * (see `selectionService.ts`'s `throwSelectionError`).
  */
 export async function getSelectedTextRaw(): Promise<string | null> {

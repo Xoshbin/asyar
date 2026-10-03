@@ -43,9 +43,13 @@
       outputLines = [];
       return;
     }
-    void invokeSafe<string[]>('runs_get_output', { id: run.id }).then((lines) => {
-      outputLines = lines ?? [];
-    });
+    void invokeSafe<string[]>('runs_get_output', { id: run.id })
+      .then((lines) => {
+        outputLines = lines;
+      })
+      .catch(() => {
+        outputLines = [];
+      });
   });
 
   $effect(() => {

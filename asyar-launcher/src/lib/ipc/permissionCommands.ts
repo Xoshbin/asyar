@@ -34,7 +34,7 @@ export async function registerExtensionPermissions(
   extensionId: string,
   permissions: string[],
   permissionArgs?: Record<string, unknown> | null,
-): Promise<PermissionRegistrationResult | null> {
+): Promise<PermissionRegistrationResult> {
   return invokeSafe<PermissionRegistrationResult>('register_extension_permissions', {
     extensionId,
     permissions,
@@ -42,9 +42,7 @@ export async function registerExtensionPermissions(
   });
 }
 
-export async function checkExtensionConsent(
-  extensionId: string,
-): Promise<ExtensionConsentStatus | null> {
+export async function checkExtensionConsent(extensionId: string): Promise<ExtensionConsentStatus> {
   return invokeSafe<ExtensionConsentStatus>('check_extension_consent', { extensionId });
 }
 
@@ -73,7 +71,7 @@ export async function revokeExtensionConsent(extensionId: string): Promise<boole
 export async function checkExtensionPermission(
   extensionId: string,
   callType: string,
-): Promise<PermissionCheckResult | null> {
+): Promise<PermissionCheckResult> {
   return invokeSafe<PermissionCheckResult>('check_extension_permission', { extensionId, callType });
 }
 
@@ -85,7 +83,7 @@ export interface TrustedBinary {
 }
 
 // Silent: ShellTrustManager.svelte is the sole caller and reports its own diagnostic.
-export async function shellListTrusted(extensionId: string): Promise<TrustedBinary[] | null> {
+export async function shellListTrusted(extensionId: string): Promise<TrustedBinary[]> {
   return invokeSafe<TrustedBinary[]>('shell_list_trusted', { extensionId }, { silent: true });
 }
 

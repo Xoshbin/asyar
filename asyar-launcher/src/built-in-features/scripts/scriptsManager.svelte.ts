@@ -68,7 +68,7 @@ export class ScriptsManager {
     // Abort every active inline timer + clear subtitles before unregistering
     // commands. Sending [] to the Rust scheduler will return all current ids
     // in `dropped`, which we then use to wipe liveSubtitles.
-    const outcome = await scriptsSetInlineScripts([]);
+    const outcome = await scriptsSetInlineScripts([]).catch(() => null);
     if (outcome === null) {
       logService.warn('[scripts] inline shutdown failed');
     } else {
@@ -169,9 +169,6 @@ export class ScriptsManager {
 
   private async performRefresh(): Promise<void> {
     const report = await scriptsRescan();
-    if (report === null) {
-      throw new Error('Failed to rescan scripts');
-    }
     const regs: DynamicCommandRegistration[] = report.scripts.map((s) => ({
       id: s.dynamicId,
       name: s.displayName,
@@ -238,7 +235,7 @@ export class ScriptsManager {
       refreshTimeSeconds: s.header.refreshTimeSeconds!,
     }));
 
-    const outcome = await scriptsSetInlineScripts(specs);
+    const outcome = await scriptsSetInlineScripts(specs).catch(() => null);
     if (outcome === null) {
       logService.warn('[scripts] scriptsSetInlineScripts failed');
       return;

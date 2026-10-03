@@ -99,9 +99,6 @@ export class ExtensionOAuthService {
 
     try {
       const result = await commands.oauthExchangeCode(state, code);
-      if (result === null) {
-        throw new Error('oauth_exchange_code failed');
-      }
       // Clean up local tracking now that exchange succeeded
       this._pendingFlows.delete(state);
       this._postToIframe(result.extensionId, result.flowId, { token: result.token });

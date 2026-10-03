@@ -31,15 +31,15 @@ export class EncryptionService {
   current = $state<EncryptionStatus>({ status: 'unknown' });
 
   async init(): Promise<void> {
-    const r = await cryptoGetStatus();
+    const r = await cryptoGetStatus().catch(() => null);
     this.current = toStatus(r);
   }
 
-  async encrypt(plaintext: string): Promise<string | null> {
+  async encrypt(plaintext: string): Promise<string> {
     return cryptoEncrypt(plaintext);
   }
 
-  async decrypt(value: string): Promise<string | null> {
+  async decrypt(value: string): Promise<string> {
     return cryptoDecrypt(value);
   }
 

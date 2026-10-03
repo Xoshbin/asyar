@@ -20,12 +20,14 @@ export interface PlaceholderDefinition {
 }
 
 export async function fetchPlaceholders(): Promise<PlaceholderDefinition[]> {
-  const result = await invokeSafe<PlaceholderDefinition[]>(
-    'get_available_placeholders',
-    undefined,
-    { silent: true },
-  );
-  return result ?? [];
+  try {
+    return await invokeSafe<PlaceholderDefinition[]>('get_available_placeholders', undefined, {
+      silent: true,
+    });
+  } catch {
+    // Placeholder discovery is best-effort during view construction.
+    return [];
+  }
 }
 
 /**
@@ -43,17 +45,22 @@ export async function resolveTemplate(
   context: ResolveContext = {},
   options: ResolveOptions = {},
 ): Promise<string> {
-  const resolvedTemplate = await invokeSafe<string>(
-    'resolve_template',
-    {
-      template,
-      context: {
-        query: context.query || null,
-        trigger: context.trigger || null,
+  let resolvedTemplate = template;
+  try {
+    resolvedTemplate = await invokeSafe<string>(
+      'resolve_template',
+      {
+        template,
+        context: {
+          query: context.query || null,
+          trigger: context.trigger || null,
+        },
       },
-    },
-    { silent: true },
-  );
+      { silent: true },
+    );
+  } catch {
+    // Keep the original template when optional expansion is unavailable.
+  }
 
   if (options.encodeValues) {
     // This isn't perfect for encodeValues: true, since it would encode the whole string
@@ -62,7 +69,7 @@ export async function resolveTemplate(
     // Assuming for now options.encodeValues is handled by the caller or not used.
   }
 
-  return resolvedTemplate ?? template;
+  return resolvedTemplate;
 }
 
 /** True if template contains at least one known placeholder token. */

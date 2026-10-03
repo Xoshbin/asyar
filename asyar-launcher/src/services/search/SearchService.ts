@@ -6,8 +6,11 @@ import * as commands from '../../lib/ipc/commands';
 
 export class SearchService {
   async performSearch(query: string): Promise<SearchResult[]> {
-    const results = await commands.searchItems(query, { silent: true });
-    if (results === null) {
+    try {
+      const results = await commands.searchItems(query, { silent: true });
+      logService.debug(`Search results for "${query}": ${results}`);
+      return results as SearchResult[];
+    } catch {
       logService.error('Search failed');
       void feedbackService.report({
         source: 'frontend',
@@ -20,8 +23,6 @@ export class SearchService {
       });
       return [];
     }
-    logService.debug(`Search results for "${query}": ${results}`);
-    return results as SearchResult[];
   }
 
   /**
@@ -30,8 +31,9 @@ export class SearchService {
    */
   async indexItem(item: SearchableItem): Promise<void> {
     logService.debug(`Indexing item category: ${item.category}, name: ${item.name}`);
-    const ok = await commands.indexItem(item);
-    if (!ok) {
+    try {
+      await commands.indexItem(item);
+    } catch {
       logService.error(`Failed indexing item ${item.name}`);
       void feedbackService.report({
         source: 'frontend',
@@ -94,12 +96,6 @@ export class SearchService {
     try {
       logService.debug(`Fetching indexed object IDs ${prefix ? `with prefix "${prefix}"` : ''}...`);
       const allIndexedIds = await commands.getIndexedObjectIds();
-      if (allIndexedIds === null) {
-        // commands.getIndexedObjectIds already reports its own diagnostic
-        // via invokeSafe (also relied on by ExtensionIpcRouter's dispatch
-        // table) — don't report a second time here.
-        return new Set<string>();
-      }
       if (!prefix) {
         return allIndexedIds;
       }
@@ -127,8 +123,10 @@ export class SearchService {
 
   async resetIndex(): Promise<void> {
     logService.info('Requesting search index reset...');
-    const ok = await commands.resetSearchIndex();
-    if (!ok) {
+    try {
+      await commands.resetSearchIndex();
+      logService.info('Search index reset successful.');
+    } catch {
       logService.error('Failed to reset search index');
       void feedbackService.report({
         source: 'frontend',
@@ -137,9 +135,7 @@ export class SearchService {
         retryable: false,
         developerDetail: 'reset_search_index failed',
       });
-      return;
     }
-    logService.info('Search index reset successful.');
   }
 
   /**
@@ -147,8 +143,9 @@ export class SearchService {
    * Currently used before hiding the launcher to persist usage counts.
    */
   async saveIndex(): Promise<void> {
-    const ok = await commands.saveSearchIndex();
-    if (!ok) {
+    try {
+      await commands.saveSearchIndex();
+    } catch {
       logService.error('Failed to save search index');
       void feedbackService.report({
         source: 'frontend',

@@ -27,12 +27,12 @@ export class ApplicationService {
     extraPaths?: string[],
   ): Promise<{ added: number; removed: number; total: number }> {
     const paths = extraPaths ?? settingsService.currentSettings.search.additionalScanPaths ?? [];
-    return (await syncApplicationIndex(paths)) ?? { added: 0, removed: 0, total: 0 };
+    return syncApplicationIndex(paths);
   }
 
   async listApplications(extraPaths?: string[]): Promise<any[]> {
     const paths = extraPaths ?? settingsService.currentSettings.search.additionalScanPaths ?? [];
-    return (await listApplications(paths)) ?? [];
+    return listApplications(paths);
   }
 
   /**
@@ -45,7 +45,7 @@ export class ApplicationService {
    * defense-in-depth check as a core-context call.
    */
   async isRunning(bundleId: string): Promise<boolean> {
-    return (await appIsRunning(bundleId)) ?? false;
+    return appIsRunning(bundleId);
   }
 
   /**

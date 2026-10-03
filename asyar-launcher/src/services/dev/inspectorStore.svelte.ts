@@ -290,7 +290,7 @@ class InspectorStore {
 
   async refreshRuntimeSnapshot(): Promise<void> {
     if (!isDevActive()) return;
-    const rows = await getExtensionRuntimeSnapshot();
+    const rows = await getExtensionRuntimeSnapshot().catch(() => null);
     if (rows === null) {
       logService.debug('[dev-inspector] snapshot invoke failed');
       return;
@@ -323,7 +323,7 @@ class InspectorStore {
 
   async refreshState(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
-    const rows = await stateGetAll(extensionId);
+    const rows = await stateGetAll(extensionId).catch(() => null);
     if (rows === null) {
       logService.debug('[dev-inspector] state_get_all failed');
       return;
@@ -340,7 +340,7 @@ class InspectorStore {
 
   async refreshSubscriptions(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
-    const rows = await stateGetSubscriptions(extensionId);
+    const rows = await stateGetSubscriptions(extensionId).catch(() => null);
     if (rows === null) {
       logService.debug('[dev-inspector] state_get_subscriptions failed');
       return;

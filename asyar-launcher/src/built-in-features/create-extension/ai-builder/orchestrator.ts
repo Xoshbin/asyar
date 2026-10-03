@@ -168,19 +168,19 @@ export async function startBuild(
   const baseDir = await join(await homeDir(), 'AsyarExtensions');
   const capabilitySpecDir = await resolveCapabilitySpecDir();
   buildJobStore.start(prompt, baseDir);
-  const result = await sidecarClient.start({
-    prompt,
-    targetDir: baseDir,
-    capabilitySpecDir,
-    anthropicKey: key,
-  });
-  if (result === null) {
-    // invokeSafe returns null on a real Rust-side Err — must fail closed,
-    // not fall through to `ok: true` and leave the job stuck 'working'.
+  let result;
+  try {
+    result = await sidecarClient.start({
+      prompt,
+      targetDir: baseDir,
+      capabilitySpecDir,
+      anthropicKey: key,
+    });
+  } catch (error) {
     buildJobStore.finishFailed({
       step: 'spawn',
       error: 'Failed to start the build. Please try again.',
-      log: 'ext_builder_start invoke rejected',
+      log: `ext_builder_start invoke rejected: ${String(error)}`,
     });
     return { ok: false, reason: 'Failed to start the build. Please try again.' };
   }

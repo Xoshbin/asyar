@@ -197,10 +197,11 @@ describe('togglePin', () => {
 });
 
 describe('loadPinnedFiles', () => {
-  it('defaults to an empty array when the backend returns null', async () => {
-    vi.mocked(fileSearchListPinned).mockResolvedValue(null as any);
+  it('preserves existing pins when the backend rejects', async () => {
+    fileSearchViewState.pinnedFiles = [hit('a')];
+    vi.mocked(fileSearchListPinned).mockRejectedValue(new Error('load failed'));
     await loadPinnedFiles();
-    expect(fileSearchViewState.pinnedFiles).toEqual([]);
+    expect(fileSearchViewState.pinnedFiles).toEqual([hit('a')]);
   });
 });
 

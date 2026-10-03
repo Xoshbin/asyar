@@ -30,11 +30,11 @@ export interface PollResponse {
   entitlements?: string[];
 }
 
-export async function authInitiate(provider: string): Promise<AuthInitResponse | null> {
+export async function authInitiate(provider: string): Promise<AuthInitResponse> {
   return invokeSafe<AuthInitResponse>('auth_initiate', { provider });
 }
 
-export async function authPoll(sessionCode: string): Promise<PollResponse | null> {
+export async function authPoll(sessionCode: string): Promise<PollResponse> {
   return invokeSafe<PollResponse>('auth_poll', { sessionCode });
 }
 
@@ -42,11 +42,11 @@ export async function authLoadCached(): Promise<AuthStateResponse | null> {
   return invokeSafe<AuthStateResponse | null>('auth_load_cached');
 }
 
-export async function authGetState(): Promise<AuthStateResponse | null> {
+export async function authGetState(): Promise<AuthStateResponse> {
   return invokeSafe<AuthStateResponse>('auth_get_state');
 }
 
-export async function authRefreshEntitlements(): Promise<string[] | null> {
+export async function authRefreshEntitlements(): Promise<string[]> {
   return invokeSafe<string[]>('auth_refresh_entitlements');
 }
 
@@ -68,7 +68,7 @@ export async function gateCheck(
     crashReportMode?: string;
     usageShareMode?: string;
   },
-): Promise<boolean | null> {
+): Promise<boolean> {
   return invokeSafe<boolean>('gate_check', {
     ability,
     syncEnabled: opts?.syncEnabled,
@@ -107,7 +107,7 @@ export async function oauthStartFlow(
   tokenUrl: string,
   scopes: string[],
   flowId: string,
-): Promise<OAuthStartResponse | null> {
+): Promise<OAuthStartResponse> {
   return invokeSafe<OAuthStartResponse>('oauth_start_flow', {
     extensionId,
     providerId,
@@ -122,7 +122,7 @@ export async function oauthStartFlow(
 export async function oauthExchangeCode(
   stateParam: string,
   code: string,
-): Promise<OAuthExchangeResponse | null> {
+): Promise<OAuthExchangeResponse> {
   return invokeSafe<OAuthExchangeResponse>('oauth_exchange_code', { stateParam, code });
 }
 

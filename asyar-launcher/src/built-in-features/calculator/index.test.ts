@@ -57,8 +57,8 @@ describe('calculator extension (thin presenter)', () => {
     expect(results[1].icon).toBe('🎨');
   });
 
-  it('returns [] when the invoke fails (null sentinel)', async () => {
-    vi.mocked(invokeSafe).mockResolvedValueOnce(null);
+  it('explicitly treats evaluation failure as best-effort empty results', async () => {
+    vi.mocked(invokeSafe).mockRejectedValueOnce(new Error('calculator unavailable'));
     expect(await calculator.search('2+2')).toEqual([]);
   });
 

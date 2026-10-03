@@ -82,7 +82,7 @@ export function getSelectedFile(): FileHit | undefined {
 
 export async function loadPinnedFiles(): Promise<void> {
   try {
-    fileSearchViewState.pinnedFiles = (await fileSearchListPinned()) ?? [];
+    fileSearchViewState.pinnedFiles = await fileSearchListPinned();
   } catch (err) {
     feedbackService.report({
       source: 'frontend',
@@ -158,7 +158,7 @@ export async function runDeepSearch(): Promise<void> {
   if (!q || !fileSearchViewState.deepSearchProviderId) return;
   fileSearchViewState.deepSearchLoading = true;
   try {
-    const hits = (await deepSearch(q, DEEP_SEARCH_LIMIT)) ?? [];
+    const hits = await deepSearch(q, DEEP_SEARCH_LIMIT);
     const existing = new Set(fileSearchViewState.results.map((r) => r.fileId));
     fileSearchViewState.deepResults = hits.filter((h) => !existing.has(h.fileId));
   } catch (err) {

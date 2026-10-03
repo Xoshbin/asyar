@@ -72,7 +72,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * being shared, exactly as every row captured before this existed.
    */
   private async adoptImage(id: string, sourcePath: string): Promise<string> {
-    return (await clipboardAdoptImage(id, sourcePath)) ?? sourcePath;
+    return clipboardAdoptImage(id, sourcePath).catch(() => sourcePath);
   }
 
   private async deleteImageFromCache(path: string): Promise<void> {
@@ -260,14 +260,19 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   }
 
   private async captureSourceApp(): Promise<ClipboardSourceApp | undefined> {
-    const frontmost = await getFrontmostApplication();
-    if (!frontmost?.name) return undefined;
-    return {
-      name: frontmost.name,
-      bundleId: frontmost.bundleId ?? undefined,
-      path: frontmost.path ?? undefined,
-      windowTitle: frontmost.windowTitle ?? undefined,
-    };
+    try {
+      const frontmost = await getFrontmostApplication();
+      if (!frontmost?.name) return undefined;
+      return {
+        name: frontmost.name,
+        bundleId: frontmost.bundleId ?? undefined,
+        path: frontmost.path ?? undefined,
+        windowTitle: frontmost.windowTitle ?? undefined,
+      };
+    } catch {
+      // Source attribution is best-effort and must not drop the capture.
+      return undefined;
+    }
   }
 
   /**

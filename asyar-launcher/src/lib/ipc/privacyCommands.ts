@@ -19,25 +19,25 @@ export interface ClipboardPrivacyClassification {
 
 export async function clipboardPrivacyClassify(
   sourceBundleId: string | null,
-): Promise<ClipboardPrivacyClassification | null> {
+): Promise<ClipboardPrivacyClassification> {
   return invokeSafe<ClipboardPrivacyClassification>('clipboard_privacy_classify', {
     sourceBundleId,
   });
 }
 
-export async function clipboardPrivacyGetSessionStats(): Promise<Record<string, number> | null> {
+export async function clipboardPrivacyGetSessionStats(): Promise<Record<string, number>> {
   return invokeSafe<Record<string, number>>('clipboard_privacy_get_session_stats');
 }
 
-export async function clipboardPrivacySetUserDenylist(entries: string[]): Promise<void | null> {
+export async function clipboardPrivacySetUserDenylist(entries: string[]): Promise<void> {
   return invokeSafe<void>('clipboard_privacy_set_user_denylist', { entries });
 }
 
-export async function clipboardPrivacyGetUserDenylist(): Promise<string[] | null> {
+export async function clipboardPrivacyGetUserDenylist(): Promise<string[]> {
   return invokeSafe<string[]>('clipboard_privacy_get_user_denylist');
 }
 
-export async function clipboardPrivacyGetDefaultDenylist(): Promise<string[] | null> {
+export async function clipboardPrivacyGetDefaultDenylist(): Promise<string[]> {
   return invokeSafe<string[]>('clipboard_privacy_get_default_denylist');
 }
 
@@ -54,15 +54,15 @@ export interface SecretDetectorRule {
   description: string;
 }
 
-export async function secretDetectionRedact(input: string): Promise<SecretRedactionResult | null> {
+export async function secretDetectionRedact(input: string): Promise<SecretRedactionResult> {
   return invokeSafe<SecretRedactionResult>('secret_detection_redact', { input });
 }
 
-export async function secretDetectionGetSessionStats(): Promise<Record<string, number> | null> {
+export async function secretDetectionGetSessionStats(): Promise<Record<string, number>> {
   return invokeSafe<Record<string, number>>('secret_detection_get_session_stats');
 }
 
-export async function secretDetectionGetCatalog(): Promise<SecretDetectorRule[] | null> {
+export async function secretDetectionGetCatalog(): Promise<SecretDetectorRule[]> {
   return invokeSafe<SecretDetectorRule[]>('secret_detection_get_catalog');
 }
 
@@ -73,14 +73,14 @@ export interface EncryptionStatusPayload {
   isOsBacked: boolean;
 }
 
-export async function cryptoGetStatus(): Promise<EncryptionStatusPayload | null> {
+export async function cryptoGetStatus(): Promise<EncryptionStatusPayload> {
   return invokeSafe<EncryptionStatusPayload>('crypto_get_status');
 }
 
-export async function cryptoEncrypt(plaintext: string): Promise<string | null> {
+export async function cryptoEncrypt(plaintext: string): Promise<string> {
   return invokeSafe<string>('crypto_encrypt', { plaintext });
 }
 
-export async function cryptoDecrypt(value: string): Promise<string | null> {
+export async function cryptoDecrypt(value: string): Promise<string> {
   return invokeSafe<string>('crypto_decrypt', { value });
 }

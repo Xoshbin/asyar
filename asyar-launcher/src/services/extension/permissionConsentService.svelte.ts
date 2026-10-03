@@ -106,8 +106,10 @@ class PermissionConsentService {
     extensionName: string,
     reason: ConsentReason,
   ): Promise<boolean> {
-    const status = await commands.checkExtensionConsent(extensionId);
-    if (!status) {
+    let status: commands.ExtensionConsentStatus;
+    try {
+      status = await commands.checkExtensionConsent(extensionId);
+    } catch {
       logService.warn(
         `[PermissionConsent] checkExtensionConsent failed for ${extensionId}; proceeding (Rust backstop still enforces)`,
       );

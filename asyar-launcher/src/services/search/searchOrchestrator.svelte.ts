@@ -110,9 +110,6 @@ class SearchOrchestratorClass {
       );
 
       const resp = await commands.mergedSearch(query, externalResults, 10);
-      if (resp === null) {
-        throw new Error('merged_search failed');
-      }
       const combinedResults: SearchResult[] = resp.results as SearchResult[];
       const aliasMatch = resp.aliasMatch ?? null;
 

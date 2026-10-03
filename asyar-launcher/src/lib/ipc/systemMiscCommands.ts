@@ -5,7 +5,7 @@ import { invokeSafe } from './invokeSafe';
 
 // ── Autostart ─────────────────────────────────────────────────────────────────
 
-export async function getAutostartStatus(): Promise<boolean | null> {
+export async function getAutostartStatus(): Promise<boolean> {
   return invokeSafe<boolean>('get_autostart_status');
 }
 
@@ -56,7 +56,7 @@ export async function sendNotification(params: {
   body?: string;
   actions?: NotificationActionInput[];
   callerExtensionId?: string | null;
-}): Promise<string | null> {
+}): Promise<string> {
   return invokeSafe<string>('send_notification', {
     title: params.title,
     body: params.body ?? '',
@@ -92,7 +92,7 @@ export async function openAccessibilityPreferences(): Promise<void> {
  * other platforms). Required before simulating a paste keystroke, which the OS
  * silently drops without this permission.
  */
-export async function checkAccessibilityPermission(): Promise<boolean | null> {
+export async function checkAccessibilityPermission(): Promise<boolean> {
   return invokeSafe<boolean>('check_accessibility_permission');
 }
 

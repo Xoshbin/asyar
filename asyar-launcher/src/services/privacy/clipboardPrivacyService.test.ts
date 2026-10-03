@@ -52,10 +52,12 @@ describe('clipboardPrivacyService', () => {
     expect(clipboardPrivacyService.sessionStats.transient).toBe(2);
   });
 
-  it('init tolerates host failures gracefully (returns null per invokeSafe)', async () => {
-    vi.mocked(clipboardPrivacyGetDefaultDenylist).mockResolvedValueOnce(null);
-    vi.mocked(clipboardPrivacyGetUserDenylist).mockResolvedValueOnce(null);
-    vi.mocked(clipboardPrivacyGetSessionStats).mockResolvedValueOnce(null);
+  it('init tolerates host rejections gracefully', async () => {
+    vi.mocked(clipboardPrivacyGetDefaultDenylist).mockRejectedValueOnce(
+      new Error('defaults failed'),
+    );
+    vi.mocked(clipboardPrivacyGetUserDenylist).mockRejectedValueOnce(new Error('user failed'));
+    vi.mocked(clipboardPrivacyGetSessionStats).mockRejectedValueOnce(new Error('stats failed'));
 
     await expect(clipboardPrivacyService.init()).resolves.toBeUndefined();
 
@@ -89,8 +91,8 @@ describe('clipboardPrivacyService', () => {
     expect(clipboardPrivacyGetSessionStats).not.toHaveBeenCalled();
   });
 
-  it('classify returns null on host error', async () => {
-    vi.mocked(clipboardPrivacyClassify).mockResolvedValueOnce(null);
+  it('classify returns null on host rejection', async () => {
+    vi.mocked(clipboardPrivacyClassify).mockRejectedValueOnce(new Error('classify failed'));
 
     const r = await clipboardPrivacyService.classify('com.apple.TextEdit');
 

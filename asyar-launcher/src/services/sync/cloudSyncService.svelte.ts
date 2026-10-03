@@ -248,7 +248,7 @@ class CloudSyncService {
 
   async checkStatus(): Promise<void> {
     if (this.blockedReason() !== null) return;
-    const statusResp = await commands.syncGetStatus();
+    const statusResp = await commands.syncGetStatus().catch(() => null);
     if (statusResp?.lastFullSyncAtIso) {
       this.lastSyncedAt = new Date(statusResp.lastFullSyncAtIso);
     } else {
@@ -269,23 +269,6 @@ class CloudSyncService {
       this.status = 'syncing';
       const sources = await this.collectSources();
       const report = await commands.syncRun(sources);
-      if (!report) {
-        // The Rust layer either failed or returned an error already
-        // surfaced via invokeSafe; layer our own user-facing diagnostic on
-        // top so the privacy UI surfaces a stable kind for "the run
-        // didn't complete." `developerDetail` carries the user-facing
-        // copy because the kind is frontend-namespaced and not in the
-        // auto-generated DIAGNOSTIC_MESSAGES registry.
-        await feedbackService.report({
-          source: 'frontend',
-          kind: 'sync.run-failed',
-          severity: 'warning',
-          retryable: true,
-          developerDetail: 'Cloud sync run did not complete. Will retry on next tick.',
-        });
-        this.status = 'error';
-        return;
-      }
 
       await this.applyPullRecords(report.appliedRecords);
       this.surfaceWarnings(report);
@@ -317,6 +300,13 @@ class CloudSyncService {
       }
 
       logService.error(`Cloud sync run failed: ${err}`);
+      await feedbackService.report({
+        source: 'frontend',
+        kind: 'sync.run-failed',
+        severity: 'warning',
+        retryable: true,
+        developerDetail: `Cloud sync run did not complete: ${errMsg}`,
+      });
     }
   }
 

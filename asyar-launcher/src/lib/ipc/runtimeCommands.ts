@@ -28,10 +28,10 @@ export interface RuntimeDownload {
 }
 
 export async function resolveRuntime(name: string): Promise<string | null> {
-  return invokeSafe<string>('resolve_runtime', { name });
+  return invokeSafe<string | null>('resolve_runtime', { name });
 }
 
-export async function ensureRuntime(name: string): Promise<EnsureRuntimeResult | null> {
+export async function ensureRuntime(name: string): Promise<EnsureRuntimeResult> {
   return invokeSafe<EnsureRuntimeResult>('ensure_runtime', { name });
 }
 
@@ -43,7 +43,7 @@ export async function downloadRuntime(name: string, consumer?: string): Promise<
   return invokeSafeVoid('download_runtime', { name, consumer: consumer ?? null });
 }
 
-export async function listRuntimes(): Promise<InstalledRuntimeInfo[] | null> {
+export async function listRuntimes(): Promise<InstalledRuntimeInfo[]> {
   return invokeSafe<InstalledRuntimeInfo[]>('list_runtimes');
 }
 
@@ -53,10 +53,10 @@ export async function removeRuntime(name: string): Promise<boolean> {
 
 /** Sizes for the subset of `names` not yet installed. */
 export async function getRuntimeDownloadSizes(names: string[]): Promise<RuntimeDownload[]> {
-  return (await invokeSafe<RuntimeDownload[]>('get_runtime_download_sizes', { names })) ?? [];
+  return invokeSafe<RuntimeDownload[]>('get_runtime_download_sizes', { names });
 }
 
 /** Consumer ids (e.g. `ext:<id>`, `mcp:<id>`, `builtin:ext-builder`) currently requiring `name`. */
 export async function getRuntimeConsumers(name: string): Promise<string[]> {
-  return (await invokeSafe<string[]>('get_runtime_consumers', { name })) ?? [];
+  return invokeSafe<string[]>('get_runtime_consumers', { name });
 }

@@ -44,10 +44,6 @@ export async function dispatch(req: DispatchRequest): Promise<void> {
   );
   const role: 'view' | 'worker' = req.commandMode === 'background' ? 'worker' : 'view';
   const outcome = await dispatchToExtension(req.extensionId, message, role);
-  if (outcome === null) {
-    logService.error(`[dispatcher] ${req.extensionId}/${req.kind} (${req.source}) dispatch failed`);
-    return;
-  }
   logService.debug(`[dispatcher] ← ${req.extensionId} outcome=${outcome.kind}`);
 
   switch (outcome.kind) {

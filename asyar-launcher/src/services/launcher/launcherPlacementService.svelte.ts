@@ -33,7 +33,7 @@ export class LauncherPlacementService {
   loaded = $state(false);
 
   async load(): Promise<void> {
-    this.placement = (await getLauncherPlacement()) ?? DEFAULT_PLACEMENT;
+    this.placement = await getLauncherPlacement().catch(() => DEFAULT_PLACEMENT);
     this.loaded = true;
   }
 

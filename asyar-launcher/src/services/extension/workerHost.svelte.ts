@@ -335,9 +335,11 @@ export class WorkerHost {
     mountToken: number,
     channel: WorkerChannel,
   ): Promise<void> {
-    const drained = await iframeReadyAck(extensionId, mountToken, 'worker');
-    if (drained === null) {
-      logService.warn(`[workerHost] ack failed for ${extensionId}`);
+    let drained;
+    try {
+      drained = await iframeReadyAck(extensionId, mountToken, 'worker');
+    } catch (error) {
+      logService.warn(`[workerHost] ack failed for ${extensionId}: ${String(error)}`);
       return;
     }
     for (const m of drained) {

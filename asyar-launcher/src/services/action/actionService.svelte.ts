@@ -520,15 +520,15 @@ export class ActionService implements IActionService {
         let confirmMessage: string;
 
         if (IS_MACOS) {
-          const scan = await applicationService.scanUninstallTargets(appPath);
-          if (scan === null) {
-            logService.warn(
-              `Uninstall scan failed for '${appPath}'. Falling back to app-only confirm.`,
-            );
-            confirmMessage = `This will move ${appName} to the Trash. You can restore it from there later.`;
-          } else {
+          try {
+            const scan = await applicationService.scanUninstallTargets(appPath);
             dataPaths = scan.dataPaths.map((p) => p.path);
             confirmMessage = buildMacosConfirmMessage(appName, scan);
+          } catch (error) {
+            logService.warn(
+              `Uninstall scan failed for '${appPath}'. Falling back to app-only confirm: ${String(error)}`,
+            );
+            confirmMessage = `This will move ${appName} to the Trash. You can restore it from there later.`;
           }
         } else {
           // Windows

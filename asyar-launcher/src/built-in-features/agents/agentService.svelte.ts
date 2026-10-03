@@ -28,6 +28,16 @@ import type {
   MessageInsertInput,
 } from './types';
 
+function reportAgentFailure(kind: string, operation: string, error: unknown): void {
+  feedbackService.report({
+    source: 'frontend',
+    kind,
+    severity: 'error',
+    retryable: false,
+    developerDetail: `${operation} failed: ${error instanceof Error ? error.message : String(error)}`,
+  });
+}
+
 // Tracks the most-recently-constructed AgentService instance.
 // Dispatch functions use this so that test code creating `new AgentService()`
 // for setup is automatically visible to the dispatch layer without requiring
@@ -54,15 +64,11 @@ export class AgentService {
   }
 
   async refresh(): Promise<void> {
-    const list = await agentsList();
-    if (list === null) {
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'agents_load_failed',
-        severity: 'error',
-        retryable: false,
-        developerDetail: 'agents_list returned null',
-      });
+    let list: AgentDef[];
+    try {
+      list = await agentsList();
+    } catch (error) {
+      reportAgentFailure('agents_load_failed', 'agents_list', error);
       return;
     }
     this.agents = list;
@@ -73,16 +79,12 @@ export class AgentService {
 
   async init(): Promise<void> {
     if (this.initialized) return;
-    const list = await agentsList();
-    if (list === null) {
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'agents_load_failed',
-        severity: 'error',
-        retryable: false,
-        developerDetail: 'agents_list returned null',
-      });
-      throw new Error('Failed to load agents');
+    let list: AgentDef[];
+    try {
+      list = await agentsList();
+    } catch (error) {
+      reportAgentFailure('agents_load_failed', 'agents_list', error);
+      throw error;
     }
     this.agents = list;
     this.defaultAgent = await agentsResolveDefault(
@@ -92,48 +94,35 @@ export class AgentService {
   }
 
   async create(input: AgentCreateInput): Promise<AgentDef> {
-    const row = await agentsCreate(input);
-    if (row === null) {
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'agents_create_failed',
-        severity: 'error',
-        retryable: false,
-        developerDetail: 'agents_create returned null',
-      });
-      throw new Error('Failed to create agent');
+    let row: AgentDef;
+    try {
+      row = await agentsCreate(input);
+    } catch (error) {
+      reportAgentFailure('agents_create_failed', 'agents_create', error);
+      throw error;
     }
     this.agents = [...this.agents, row];
     return row;
   }
 
   async update(input: AgentUpdateInput): Promise<AgentDef> {
-    const row = await agentsUpdate(input);
-    if (row === null) {
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'agents_update_failed',
-        severity: 'error',
-        retryable: false,
-        developerDetail: 'agents_update returned null',
-      });
-      throw new Error('Failed to update agent');
+    let row: AgentDef;
+    try {
+      row = await agentsUpdate(input);
+    } catch (error) {
+      reportAgentFailure('agents_update_failed', 'agents_update', error);
+      throw error;
     }
     this.agents = this.agents.map((a) => (a.id === row.id ? row : a));
     return row;
   }
 
   async delete(id: string): Promise<void> {
-    const ok = await agentsDelete(id);
-    if (!ok) {
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'agents_delete_failed',
-        severity: 'error',
-        retryable: false,
-        developerDetail: 'agents_delete returned false',
-      });
-      throw new Error('Failed to delete agent');
+    try {
+      await agentsDelete(id);
+    } catch (error) {
+      reportAgentFailure('agents_delete_failed', 'agents_delete', error);
+      throw error;
     }
     this.agents = this.agents.filter((a) => a.id !== id);
   }
@@ -181,9 +170,7 @@ export class AgentService {
   }
 
   async listThreads(agentId: string): Promise<ThreadDef[]> {
-    const result = await agentsThreadsList(agentId);
-    if (result === null) throw new Error('Failed to list agent threads');
-    return result;
+    return agentsThreadsList(agentId);
   }
 
   async createThread(
@@ -192,9 +179,7 @@ export class AgentService {
     isPinned?: boolean,
   ): Promise<ThreadDef> {
     const retentionCap = settingsService.currentSettings.ai.historyRetentionCap ?? 100;
-    const result = await agentsThreadCreate(agentId, title, isPinned, retentionCap);
-    if (result === null) throw new Error('Failed to create agent thread');
-    return result;
+    return agentsThreadCreate(agentId, title, isPinned, retentionCap);
   }
 
   async setThreadPinned(id: string, pinned: boolean): Promise<void> {
@@ -203,8 +188,7 @@ export class AgentService {
 
   async pruneThreads(cap?: number, activeThreadId?: string): Promise<number> {
     const effectiveCap = cap ?? settingsService.currentSettings.ai.historyRetentionCap ?? 100;
-    const pruned = await agentsThreadsPrune(effectiveCap, activeThreadId ?? null);
-    return pruned ?? 0;
+    return agentsThreadsPrune(effectiveCap, activeThreadId ?? null);
   }
 
   async deleteThread(id: string): Promise<void> {
@@ -216,15 +200,11 @@ export class AgentService {
   }
 
   async listMessages(threadId: string): Promise<MessageDef[]> {
-    const result = await agentsMessagesList(threadId);
-    if (result === null) throw new Error('Failed to list agent messages');
-    return result;
+    return agentsMessagesList(threadId);
   }
 
   async insertMessage(input: MessageInsertInput): Promise<MessageDef> {
-    const result = await agentsMessageInsert(input);
-    if (result === null) throw new Error('Failed to insert agent message');
-    return result;
+    return agentsMessageInsert(input);
   }
 }
 

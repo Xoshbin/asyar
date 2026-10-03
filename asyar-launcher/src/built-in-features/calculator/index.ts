@@ -81,7 +81,7 @@ class CalculatorExtension implements Extension {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const results = (await calculatorEvaluate(trimmed)) ?? [];
+    const results = await calculatorEvaluate(trimmed);
 
     return results.map((r) => ({
       score: 1.0,

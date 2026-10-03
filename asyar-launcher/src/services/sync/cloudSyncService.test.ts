@@ -368,7 +368,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
     });
 
     it('sync_run_failure_surfaces_diagnostic_warning', async () => {
-      vi.mocked(commands.syncRun).mockResolvedValue(null);
+      vi.mocked(commands.syncRun).mockRejectedValue(new Error('sync failed'));
 
       await cloudSyncService.syncNow();
 
@@ -478,10 +478,10 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
 
   describe('concurrency', () => {
     it('concurrent_sync_now_calls_collapse_to_one_in_flight_run', async () => {
-      let resolveSync: ((value: commands.SyncRunReport | null) => void) | null = null;
+      let resolveSync: ((value: commands.SyncRunReport) => void) | null = null;
       vi.mocked(commands.syncRun).mockImplementation(
         () =>
-          new Promise<commands.SyncRunReport | null>((resolve) => {
+          new Promise<commands.SyncRunReport>((resolve) => {
             resolveSync = resolve;
           }),
       );
@@ -872,8 +872,8 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       expect(cloudSyncService.lastSyncedAt).toEqual(new Date(now));
     });
 
-    it('handles host failure (null response)', async () => {
-      vi.mocked(commands.syncGetStatus).mockResolvedValue(null);
+    it('handles host rejection', async () => {
+      vi.mocked(commands.syncGetStatus).mockRejectedValue(new Error('status failed'));
 
       await cloudSyncService.checkStatus();
 

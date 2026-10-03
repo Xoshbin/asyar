@@ -22,7 +22,7 @@ function twoFrames(): Promise<void> {
  */
 /** Mirrors the `asyar_visible` atomic. The JS side reads this to decide
  * between the two-phase reveal and the single-shot `show` fallback. */
-export async function isVisible(): Promise<boolean | null> {
+export async function isVisible(): Promise<boolean> {
   return invokeSafe<boolean>('is_visible');
 }
 
@@ -154,7 +154,7 @@ export interface WindowBoundsUpdate {
   height?: number;
 }
 
-export async function windowGetBounds(): Promise<WindowBounds | null> {
+export async function windowGetBounds(): Promise<WindowBounds> {
   return invokeSafe<WindowBounds>('window_management_get_bounds');
 }
 
@@ -171,7 +171,7 @@ export async function windowSetFullscreen(enable: boolean): Promise<void> {
   await invokeSafe('window_management_set_fullscreen', { enable });
 }
 
-export async function windowGetMonitors(): Promise<WindowBounds[] | null> {
+export async function windowGetMonitors(): Promise<WindowBounds[]> {
   return invokeSafe<WindowBounds[]>('window_management_get_monitors');
 }
 
@@ -179,7 +179,7 @@ export async function windowApplyPreset(presetId: string): Promise<void> {
   await invokeSafe('window_management_apply_preset', { presetId });
 }
 
-export async function windowListWindows(): Promise<AppWindowInfo[] | null> {
+export async function windowListWindows(): Promise<AppWindowInfo[]> {
   return invokeSafe<AppWindowInfo[]>('window_management_list_windows');
 }
 
@@ -266,7 +266,7 @@ export async function windowDragEnd(label: string): Promise<void> {
 
 /** Where the launcher opens. Resolved against the target monitor on every
  * reveal, so a change takes effect on the next summon. */
-export async function getLauncherPlacement(): Promise<LauncherPlacement | null> {
+export async function getLauncherPlacement(): Promise<LauncherPlacement> {
   return invokeSafe<LauncherPlacement>('get_launcher_placement');
 }
 

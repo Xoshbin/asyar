@@ -12,7 +12,7 @@ export const sidecarClient = {
     targetDir: string;
     capabilitySpecDir: string;
     anthropicKey: string;
-  }): Promise<ExtBuilderStartResult | null> {
+  }): Promise<ExtBuilderStartResult> {
     return extBuilderStart(opts);
   },
   async send(cmd: BuilderCommand): Promise<void> {

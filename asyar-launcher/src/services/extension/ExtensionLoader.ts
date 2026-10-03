@@ -331,7 +331,9 @@ export class ExtensionLoader {
                   if (onboardingDecl?.command && !isOnboardingCmd) {
                     let onboarded = false;
                     try {
-                      onboarded = (await commands.isExtensionOnboarded(manifest.id)) ?? false;
+                      onboarded = await commands
+                        .isExtensionOnboarded(manifest.id)
+                        .catch(() => false);
                     } catch (err) {
                       logService.warn(
                         `[onboarding] is_extension_onboarded failed for ${manifest.id}: ${err}`,
@@ -514,9 +516,6 @@ export class ExtensionLoader {
         }));
 
       const result = await commands.syncCommandIndex(inputs);
-      if (result === null) {
-        throw new Error('sync_command_index failed');
-      }
       logService.info(
         `Command Sync complete: ${result.added} added, ${result.removed} removed, ${result.total} total commands indexed.`,
       );

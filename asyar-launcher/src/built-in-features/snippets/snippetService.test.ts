@@ -186,7 +186,7 @@ describe('setEnabled', () => {
     mockInvoke.mockRejectedValueOnce(new Error('permission denied'));
     const result = await snippetService.setEnabled(true);
     expect(result.ok).toBe(false);
-    expect(result.error).toContain('set_snippets_enabled failed');
+    expect(result.error).toContain('set_snippets_enabled: permission denied');
   });
 });
 

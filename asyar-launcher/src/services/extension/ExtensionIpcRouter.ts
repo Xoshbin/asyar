@@ -468,23 +468,17 @@ export class ExtensionIpcRouter {
         }
         throw new Error(`Command "${payload?.cmd}" is not available to extensions`);
       }
-      const result = await handler(payload?.args);
-      if (result === null) {
-        throw new HandledDispatchError(`Command "${payload?.cmd}" failed`);
-      }
-      return result;
+      return handler(payload?.args);
     }
 
     if (type === 'asyar:api:snippets:registerShortcodes') {
       const { map } = payload as { map: Record<string, string> };
-      const ok = await contributeShortcodes(extensionId, map);
-      if (!ok) throw new HandledDispatchError('contribute_shortcodes failed');
+      await contributeShortcodes(extensionId, map);
       return undefined;
     }
 
     if (type === 'asyar:api:snippets:unregisterShortcodes') {
-      const ok = await revokeShortcodes(extensionId);
-      if (!ok) throw new HandledDispatchError('revoke_shortcodes failed');
+      await revokeShortcodes(extensionId);
       return undefined;
     }
 

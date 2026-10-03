@@ -14,9 +14,7 @@ export class AliasService {
     itemName: string,
     itemType: 'application' | 'command',
   ): Promise<ItemAlias> {
-    const result = await commands.setAlias(objectId, alias, itemName, itemType);
-    if (result === null) throw new Error('set_alias failed');
-    return result;
+    return commands.setAlias(objectId, alias, itemName, itemType);
   }
 
   async unregister(alias: string): Promise<void> {
@@ -24,9 +22,7 @@ export class AliasService {
   }
 
   async list(): Promise<ItemAlias[]> {
-    const result = await commands.listAliases();
-    if (result === null) throw new Error('list_aliases failed');
-    return result;
+    return commands.listAliases();
   }
 
   async findConflict(alias: string, excludingObjectId?: string): Promise<AliasConflict | null> {

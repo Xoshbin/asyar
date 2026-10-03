@@ -356,10 +356,7 @@ export class CommandArgumentsService {
   /** Last-used values Rust has for this command, or none if the read fails. */
   private async loadPersisted(meta: CommandArgMeta): Promise<Record<string, string>> {
     try {
-      return (
-        (await commandArgDefaultsGet(meta.extensionId, meta.commandId, meta.isDynamic === true)) ??
-        {}
-      );
+      return await commandArgDefaultsGet(meta.extensionId, meta.commandId, meta.isDynamic === true);
     } catch (err) {
       logService.warn(
         `[CommandArgumentsService] Failed to load defaults for ${meta.extensionId}/${meta.commandId}: ${err}`,

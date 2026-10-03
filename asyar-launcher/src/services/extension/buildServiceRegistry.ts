@@ -112,8 +112,7 @@ export function buildServiceRegistry(deps: {
     // Same Rust ranker the launcher's own search uses (search_engine::ranker).
     // Stateless passthrough — no permission required (see permissions.rs).
     search: {
-      rank: async (query: string, items: RankableItem[]) =>
-        (await rankItemsCommand(query, items)) ?? [],
+      rank: (query: string, items: RankableItem[]) => rankItemsCommand(query, items),
     },
     feedback: {
       report: (extensionId: string, feedback: FeedbackReport) =>

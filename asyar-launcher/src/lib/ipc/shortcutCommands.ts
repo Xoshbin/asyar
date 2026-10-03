@@ -25,7 +25,7 @@ export async function updateGlobalShortcut(modifier: string, key: string): Promi
   return invokeSafeVoid('update_global_shortcut', { modifier, key });
 }
 
-export async function getPersistedShortcut(): Promise<{ modifier: string; key: string } | null> {
+export async function getPersistedShortcut(): Promise<{ modifier: string; key: string }> {
   return invokeSafe<{ modifier: string; key: string }>('get_persisted_shortcut');
 }
 
@@ -51,7 +51,7 @@ export async function resumeAllShortcuts(): Promise<void> {
   await invokeSafe('resume_all_shortcuts');
 }
 
-export async function getValidShortcutKeys(): Promise<string[] | null> {
+export async function getValidShortcutKeys(): Promise<string[]> {
   return invokeSafe<string[]>('get_valid_shortcut_keys');
 }
 
@@ -71,7 +71,7 @@ export async function shortcutUpsert(shortcut: StoredItemShortcut): Promise<void
   await invokeSafe('shortcut_upsert', { shortcut });
 }
 
-export async function shortcutGetAll(): Promise<StoredItemShortcut[] | null> {
+export async function shortcutGetAll(): Promise<StoredItemShortcut[]> {
   return invokeSafe<StoredItemShortcut[]>('shortcut_get_all');
 }
 

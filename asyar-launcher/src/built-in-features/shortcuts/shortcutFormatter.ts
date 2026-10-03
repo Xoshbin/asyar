@@ -144,7 +144,7 @@ export const VALID_KEYS = new Set<string>();
 export async function initValidKeys(): Promise<void> {
   if (VALID_KEYS.size > 0) return; // idempotent
   const { getValidShortcutKeys } = await import('../../lib/ipc/commands');
-  const keys = (await getValidShortcutKeys()) ?? [];
+  const keys = await getValidShortcutKeys().catch(() => []);
   for (const key of keys) VALID_KEYS.add(key);
 }
 

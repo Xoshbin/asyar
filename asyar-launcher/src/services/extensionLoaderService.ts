@@ -156,9 +156,6 @@ class ExtensionLoaderService {
     try {
       // 1. Get all extension records from Rust
       const records = await discoverExtensionsIpc();
-      if (records === null) {
-        return extensionsMap;
-      }
 
       // 2. Separate built-in features from installed third-party extensions
       const builtInRecords = records.filter((r) => r.isBuiltIn);
@@ -190,9 +187,6 @@ class ExtensionLoaderService {
     try {
       // 1. Get extension from Rust (checks all sources)
       const record = await getExtensionIpc(extensionId);
-      if (record === null) {
-        return null;
-      }
 
       if (!record.enabled) {
         logService.warn(`Attempted to load disabled extension: ${extensionId}`);

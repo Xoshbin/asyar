@@ -271,8 +271,8 @@ export class RunService {
       run,
       kind,
       cap: UNACK_FAILED_CAP,
-    });
-    return result ?? bucket;
+    }).catch(() => bucket);
+    return result;
   }
 
   /**
@@ -301,7 +301,7 @@ export class RunService {
    */
   dismissScriptResult(id: string): void {
     this.unacknowledgedScriptResults = this.unacknowledgedScriptResults.filter((r) => r.id !== id);
-    void invokeSafe('runs_dismiss', { id });
+    void invokeSafe('runs_dismiss', { id }).catch(() => undefined);
   }
 
   async startLocal(input: {

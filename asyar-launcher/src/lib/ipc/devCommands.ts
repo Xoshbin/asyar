@@ -28,13 +28,13 @@ export async function forceRemountWorker(
   );
 }
 
-export async function stateGetAll(extensionId: string): Promise<DevStateEntry[] | null> {
+export async function stateGetAll(extensionId: string): Promise<DevStateEntry[]> {
   return invokeSafe<DevStateEntry[]>('state_get_all', { extensionId }, { silent: true });
 }
 
 export async function stateGetSubscriptions(
   extensionId: string,
-): Promise<DevSubscriptionSummary[] | null> {
+): Promise<DevSubscriptionSummary[]> {
   return invokeSafe<DevSubscriptionSummary[]>(
     'state_get_subscriptions',
     { extensionId },

@@ -187,25 +187,21 @@ describe('mcpService.install runtime consent flow', () => {
     expect(cmds.mcpInstallServer).toHaveBeenCalledTimes(1);
   });
 
-  it('sets a distinct installError when the retry after a successful download still fails', async () => {
+  it('propagates failure when the retry after a successful download fails', async () => {
     // Simulates a real handshake failure (bad command/args) — the runtime
     // download itself succeeds, but the server can't actually be reached,
-    // so the retry `mcpInstallServer` call resolves null (invokeSafe's
-    // failure sentinel) rather than a summary or another needsRuntime.
+    // so the retry `mcpInstallServer` call rejects.
     (cmds.mcpInstallServer as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ kind: 'needsRuntime', name: 'bun', sizeBytes: 42_000_000 } as never)
-      .mockResolvedValueOnce(null as never);
+      .mockRejectedValueOnce(new Error('handshake failed'));
 
     const svc = new McpService();
     const installPromise = svc.install(makeInput());
     await Promise.resolve();
     await Promise.resolve();
     svc.handleRuntimeConsentDecision(true);
-    const result = await installPromise;
-
-    expect(result).toBeNull();
+    await expect(installPromise).rejects.toThrow('handshake failed');
     expect(cmds.mcpInstallServer).toHaveBeenCalledTimes(2);
-    expect(svc.installError).toMatch(/could not (be )?install/i);
   });
 
   it('prompts for runtime consent, downloads, and retries install on approval', async () => {
@@ -370,12 +366,12 @@ describe('mcpService.parseConfigJson', () => {
   });
 });
 
-describe('mcpService null handling', () => {
-  it('null returns from wrappers do NOT clobber state', async () => {
-    (cmds.mcpListServers as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+describe('mcpService failure handling', () => {
+  it('rejections do not clobber state', async () => {
+    (cmds.mcpListServers as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('list failed'));
     const svc = new McpService();
     svc.servers = [makeSummary()];
-    await svc.refreshServers();
+    await expect(svc.refreshServers()).rejects.toThrow('list failed');
     expect(svc.servers).toEqual([makeSummary()]);
   });
 });
@@ -456,14 +452,16 @@ describe('mcpService.refreshPermissions', () => {
     expect(svc.permissions).toEqual(rows);
   });
 
-  it('null return does not clobber existing permissions', async () => {
-    (cmds.mcpListPermissions as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+  it('rejection does not clobber existing permissions', async () => {
+    (cmds.mcpListPermissions as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('permissions failed'),
+    );
     const svc = new McpService();
     const existing: McpPermissionRow[] = [
       { serverId: 'srv-1', toolId: 'tool-a', agentId: 'agent-1', decision: 'never', setAt: 2000 },
     ];
     svc.permissions = existing;
-    await svc.refreshPermissions();
+    await expect(svc.refreshPermissions()).rejects.toThrow('permissions failed');
     expect(svc.permissions).toEqual(existing);
   });
 });

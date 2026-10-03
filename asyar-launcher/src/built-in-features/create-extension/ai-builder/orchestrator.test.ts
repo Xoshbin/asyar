@@ -223,8 +223,8 @@ describe('startBuild', () => {
     expect(buildJobStore.job).toBeNull();
   });
 
-  it('fails closed (not stuck working) when sidecarClient.start resolves null from an invoke error', async () => {
-    mockSidecarStart.mockResolvedValueOnce(null);
+  it('marks the job failed when sidecarClient.start rejects', async () => {
+    mockSidecarStart.mockRejectedValueOnce(new Error('spawn failed'));
 
     const res = await startBuild('build a notion ext', { anthropicKey: 'sk-ant-xxx' });
 

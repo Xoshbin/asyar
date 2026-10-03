@@ -59,11 +59,11 @@ export interface SyncStatusResponse {
   pendingTombstoneCount: number;
 }
 
-export async function syncRun(sources: LocalItemSourceWire[]): Promise<SyncRunReport | null> {
+export async function syncRun(sources: LocalItemSourceWire[]): Promise<SyncRunReport> {
   return invokeSafe<SyncRunReport>('sync_run', { sources });
 }
 
-export async function syncGetStatus(): Promise<SyncStatusResponse | null> {
+export async function syncGetStatus(): Promise<SyncStatusResponse> {
   return invokeSafe<SyncStatusResponse>('sync_get_status');
 }
 
@@ -106,7 +106,7 @@ export interface SyncE2eeEnrolmentResult {
  * Get the current E2EE state. Cheap — reads local mirror + keychain only.
  * No HTTP. Suitable for polling on dialog mount.
  */
-export async function syncE2eeGetStatus(): Promise<SyncE2eeStatusReport | null> {
+export async function syncE2eeGetStatus(): Promise<SyncE2eeStatusReport> {
   return invokeSafe<SyncE2eeStatusReport>('sync_e2ee_get_status');
 }
 
@@ -117,7 +117,7 @@ export async function syncE2eeGetStatus(): Promise<SyncE2eeStatusReport | null> 
  * 24-word recovery phrase. Throws on failure (network, validation,
  * already-enrolled).
  */
-export async function syncE2eeEnrol(passphrase: string): Promise<SyncE2eeEnrolmentResult | null> {
+export async function syncE2eeEnrol(passphrase: string): Promise<SyncE2eeEnrolmentResult> {
   return invokeSafe<SyncE2eeEnrolmentResult>('sync_e2ee_enrol', { passphrase });
 }
 
@@ -176,6 +176,6 @@ export async function syncE2eeDisable(): Promise<boolean> {
  * passphrase (verified by trial-decrypting the local wrapped seed)
  * to gate against shoulder-surfing on unlocked machines.
  */
-export async function syncE2eeShowRecoveryPhrase(passphrase: string): Promise<string | null> {
+export async function syncE2eeShowRecoveryPhrase(passphrase: string): Promise<string> {
   return invokeSafe<string>('sync_e2ee_show_recovery_phrase', { passphrase });
 }

@@ -48,8 +48,8 @@ describe('ExtensionMcpService', () => {
       ]);
     });
 
-    it('returns empty array when mcpListServers returns null', async () => {
-      vi.mocked(mcpListServers).mockResolvedValueOnce(null);
+    it('returns empty array when mcpListServers rejects', async () => {
+      vi.mocked(mcpListServers).mockRejectedValueOnce(new Error('list failed'));
 
       const result = await service.listServers();
       expect(result).toEqual([]);
@@ -101,8 +101,8 @@ describe('ExtensionMcpService', () => {
       ]);
     });
 
-    it('returns empty array when mcpListServerTools returns null', async () => {
-      vi.mocked(mcpListServerTools).mockResolvedValueOnce(null);
+    it('returns empty array when mcpListServerTools rejects', async () => {
+      vi.mocked(mcpListServerTools).mockRejectedValueOnce(new Error('list failed'));
 
       const result = await service.listTools('org.example.ext', 'missing-server');
       expect(result).toEqual([]);
@@ -154,8 +154,8 @@ describe('ExtensionMcpService', () => {
       ]);
     });
 
-    it('returns empty array if server listing returns null during aggregate listTools', async () => {
-      vi.mocked(mcpListServers).mockResolvedValueOnce(null);
+    it('returns empty array if server listing rejects during aggregate listTools', async () => {
+      vi.mocked(mcpListServers).mockRejectedValueOnce(new Error('list failed'));
 
       const result = await service.listTools();
       expect(result).toEqual([]);

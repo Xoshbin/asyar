@@ -207,9 +207,6 @@ class AuthService {
   async refreshEntitlements(): Promise<void> {
     if (!this.isLoggedIn) return;
     const fresh = await commands.authRefreshEntitlements();
-    if (fresh === null) {
-      throw new Error('Failed to refresh entitlements');
-    }
     this.entitlements = fresh;
   }
 
@@ -239,8 +236,8 @@ class AuthService {
   /** Poll backend until status = complete or expired. Used as fallback when deep link fires. */
   private _startFallbackPolling(sessionCode: string): void {
     this.pollTimer = setInterval(async () => {
-      const result = await commands.authPoll(sessionCode);
-      // null = transient poll failure (already diagnosed by invokeSafe) — try again next tick.
+      const result = await commands.authPoll(sessionCode).catch(() => null);
+      // A transient poll failure is already diagnosed centrally; retry next tick.
       if (result === null) return;
       if (result.status === 'complete' || result.status === 'expired') {
         this.cancelLoginPolling();
@@ -257,12 +254,12 @@ class AuthService {
   /** Complete login after deep link fires — do one final poll to get the full payload. */
   private async _completePoll(sessionCode: string): Promise<void> {
     // The deep link signals completion — do one direct poll for the payload
-    const result = await commands.authPoll(sessionCode);
+    const result = await commands.authPoll(sessionCode).catch(() => null);
     if (result === null || result.status !== 'complete') {
       // Try once more (network race)
       await new Promise((r) => setTimeout(r, 500));
       const retry = await commands.authPoll(sessionCode);
-      if (retry === null || retry.status !== 'complete') {
+      if (retry.status !== 'complete') {
         throw new Error('OAuth completed but session data not ready');
       }
       await this._applyPollResult(retry);
