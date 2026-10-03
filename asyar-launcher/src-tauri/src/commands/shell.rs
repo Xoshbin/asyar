@@ -82,7 +82,11 @@ pub fn shell_check_trust(
     binary_path: String,
 ) -> Result<bool, AppError> {
     let conn = db.conn()?;
-    shell_storage::is_trusted(&conn, &extension_id, &binary_path)
+    Ok(shell_storage::is_trusted(
+        &conn,
+        &extension_id,
+        &binary_path,
+    )?)
 }
 
 #[tauri::command]
@@ -92,7 +96,11 @@ pub fn shell_grant_trust(
     binary_path: String,
 ) -> Result<(), AppError> {
     let conn = db.conn()?;
-    shell_storage::grant_trust(&conn, &extension_id, &binary_path)
+    Ok(shell_storage::grant_trust(
+        &conn,
+        &extension_id,
+        &binary_path,
+    )?)
 }
 
 #[tauri::command]
@@ -102,7 +110,11 @@ pub fn shell_revoke_trust(
     binary_path: String,
 ) -> Result<(), AppError> {
     let conn = db.conn()?;
-    shell_storage::revoke_trust(&conn, &extension_id, &binary_path)
+    Ok(shell_storage::revoke_trust(
+        &conn,
+        &extension_id,
+        &binary_path,
+    )?)
 }
 
 #[tauri::command]
@@ -111,7 +123,7 @@ pub fn shell_list_trusted(
     extension_id: String,
 ) -> Result<Vec<TrustedBinary>, AppError> {
     let conn = db.conn()?;
-    shell_storage::list_trusted(&conn, &extension_id)
+    Ok(shell_storage::list_trusted(&conn, &extension_id)?)
 }
 
 #[tauri::command]

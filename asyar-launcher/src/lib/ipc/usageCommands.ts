@@ -14,22 +14,22 @@ export interface UsageStats {
   totalLaunches: number;
   top: UsageTopItem[];
 }
-export async function getUsageStats(): Promise<UsageStats | null> {
+export async function getUsageStats(): Promise<UsageStats> {
   return invokeSafe('get_usage_stats');
 }
 export async function recordActiveDay(): Promise<void> {
   await invokeSafe('record_active_day', undefined, { silent: true });
 }
-export async function getUsageAnonId(): Promise<string | null> {
+export async function getUsageAnonId(): Promise<string> {
   return invokeSafe('get_usage_anon_id');
 }
-export async function resetUsageAnonId(): Promise<string | null> {
+export async function resetUsageAnonId(): Promise<string> {
   return invokeSafe('reset_usage_anon_id');
 }
 export async function sendPendingUsage(day: string): Promise<void> {
   await invokeSafe('send_pending_usage', { day });
 }
 /** Explicit user action: send today's usage snapshot now. Returns the count of distinct launch entries sent. */
-export async function sendUsageNow(): Promise<number | null> {
+export async function sendUsageNow(): Promise<number> {
   return invokeSafe('send_usage_now');
 }

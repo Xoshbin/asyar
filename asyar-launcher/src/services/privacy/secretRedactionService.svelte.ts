@@ -80,8 +80,8 @@ export class SecretRedactionService {
       secretDetectionGetSessionStats(),
       this.loadPersistedSettings(),
     ]);
-    this.catalog = catalog ?? [];
-    this.sessionStats = stats ?? {};
+    this.catalog = catalog;
+    this.sessionStats = stats;
     this.settings = persisted;
   }
 

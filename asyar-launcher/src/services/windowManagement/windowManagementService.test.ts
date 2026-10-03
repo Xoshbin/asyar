@@ -135,13 +135,10 @@ describe('WindowManagementService', () => {
       expect(result).toEqual(windows);
     });
 
-    it('returns empty array if windowListWindows returns null', async () => {
-      vi.mocked(commands.windowListWindows).mockResolvedValueOnce(null);
+    it('rejects if windowListWindows fails', async () => {
+      vi.mocked(commands.windowListWindows).mockRejectedValueOnce(new Error('list failed'));
 
-      const result = await service.listWindows();
-
-      expect(commands.windowListWindows).toHaveBeenCalledOnce();
-      expect(result).toEqual([]);
+      await expect(service.listWindows()).rejects.toThrow('list failed');
     });
   });
 

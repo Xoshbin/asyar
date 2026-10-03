@@ -10,14 +10,12 @@ Audit the IPC layer across the SDK, permission gate, and host listener for corre
 
 ## Context: the worker/view bridge
 
-Every Tier 2 extension runs in **two iframes** — a worker (always-on,
-hidden, `worker.html`) and a view (on-demand, `view.html`). Each iframe
-imports from a different SDK entry (`asyar-sdk/worker` vs
-`asyar-sdk/view`) and owns its own `MessageBroker` and
-`ExtensionContext`. The IPC bridge audited here therefore covers
-**both** iframes' calls into the host. `ExtensionIpcRouter` maps
-`event.source` back to a role via `findIframeRoleForSource(...)` —
-services that branch on role read it off the dispatch context.
+Every Tier 2 extension operates across **two execution contexts** following the Separation of Headless Compute and Visual Canvas:
+
+- **Worker (`role: 'worker'`)**: Always-on headless compute running off-main-thread (Web Worker / worker host context, or fallback iframe).
+- **View (`role: 'view'`)**: On-demand visual canvas running in a sandboxed `<iframe>` (`view.html`).
+
+Each context imports from its dedicated SDK entry (`asyar-sdk/worker` vs `asyar-sdk/view`) and owns its own `MessageBroker` and `ExtensionContext`. The IPC bridge audited here therefore covers **both** contexts' calls into the host. `ExtensionIpcRouter` maps the caller back to its identity and role — services that branch on role read it off the dispatch context.
 
 For the runtime details (state machine, mailbox, RPC), see
 [`docs/explanation/extension-runtime.md`](../../../docs/explanation/extension-runtime.md);

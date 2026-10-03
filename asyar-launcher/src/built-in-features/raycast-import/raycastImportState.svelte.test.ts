@@ -66,7 +66,7 @@ describe('RaycastImportState', () => {
   });
 
   it('returns to pick when parsing fails outright', async () => {
-    vi.mocked(raycastImportParse).mockResolvedValue(null);
+    vi.mocked(raycastImportParse).mockRejectedValue(new Error('parse failed'));
 
     await state.chooseFile('/tmp/garbage.bin');
 

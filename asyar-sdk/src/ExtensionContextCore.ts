@@ -109,14 +109,16 @@ export class ExtensionContextCore {
 
   protected emitLoadedEvent(id: string): void {
     try {
+      const role = this.resolveRuntimeRole();
       if (
         typeof window !== 'undefined' &&
         window.parent &&
         window.parent !== window &&
         typeof window.parent.postMessage === 'function'
       ) {
-        const role = this.resolveRuntimeRole();
         window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId: id, role }, '*');
+      } else if (typeof self !== 'undefined' && typeof (self as any).postMessage === 'function') {
+        (self as any).postMessage({ type: 'asyar:extension:loaded', extensionId: id, role });
       }
     } catch {
       // best-effort — host will time out and strike if we can't signal.
@@ -124,10 +126,14 @@ export class ExtensionContextCore {
   }
 
   private resolveRuntimeRole(): ExtensionContextRole {
-    if (typeof window !== 'undefined') {
-      const injected = (window as any).__ASYAR_ROLE__;
-      if (injected === 'worker' || injected === 'view') return injected;
-    }
+    const scope =
+      typeof self !== 'undefined'
+        ? (self as any)
+        : typeof window !== 'undefined'
+          ? (window as any)
+          : globalThis;
+    const injected = scope?.__ASYAR_ROLE__;
+    if (injected === 'worker' || injected === 'view') return injected;
     return this.role;
   }
 

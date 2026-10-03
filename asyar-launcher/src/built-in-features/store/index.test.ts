@@ -7,6 +7,7 @@ vi.mock('../../services/envService', () => ({
 
 vi.mock('../../lib/ipc/commands', () => ({
   listInstalledExtensions: vi.fn().mockResolvedValue([]),
+  discoverExtensions: vi.fn().mockResolvedValue([]),
   installExtensionFromUrl: vi.fn().mockResolvedValue(undefined),
   uninstallExtension: vi.fn().mockResolvedValue(undefined),
   checkExtensionConsent: vi.fn().mockResolvedValue(undefined),
@@ -62,7 +63,9 @@ vi.mock('../../lib/ipc/runtimeCommands', () => ({
 
 vi.mock('./DefaultView.svelte', () => ({ default: {} }));
 vi.mock('./DetailView.svelte', () => ({ default: {} }));
+vi.mock('./LazyDetailView.svelte', () => ({ default: {} }));
 
+import * as commands from '../../lib/ipc/commands';
 import { actionService } from '../../services/action/actionService.svelte';
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
 import storeExtension from './index.svelte';
@@ -79,6 +82,7 @@ function makeContext(manager: object) {
   return {
     getService: <T>(name: string): T => {
       if (name === 'log') return mockLog as unknown as T;
+      if (name === 'feedback') return undefined as T;
       return manager as unknown as T;
     },
   };
@@ -137,6 +141,35 @@ describe('StoreExtension lifecycle and commands', () => {
   it('deactivate() is safe and idempotent when not in view', async () => {
     await storeExtension.deactivate();
     expect(actionService.unregisterAction).toHaveBeenCalledWith('app.asyar.store:install-detail');
+  });
+
+  it('discovers installed files before checking consent without an initialized manager', async () => {
+    await storeExtension.initialize(makeContext({}) as never);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        extensionId: 'org.asyar.emoji',
+        downloadUrl: 'https://store.example.com/emoji.zip',
+        version: '1.0.0',
+      }),
+    } as Response);
+    let discovered = false;
+    vi.mocked(commands.discoverExtensions).mockImplementationOnce(async () => {
+      discovered = true;
+      return [];
+    });
+    vi.mocked(commands.checkExtensionConsent).mockImplementationOnce(async () => {
+      if (!discovered) throw new Error('Extension not found: org.asyar.emoji');
+      return undefined as never;
+    });
+
+    await expect(
+      storeExtension.installExtension('emoji', 'org.asyar.emoji', 'Emoji'),
+    ).resolves.toBeUndefined();
+    expect(commands.discoverExtensions).toHaveBeenCalledOnce();
+    expect(vi.mocked(commands.installExtensionFromUrl).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(commands.discoverExtensions).mock.invocationCallOrder[0],
+    );
   });
 
   it('uses caller-supplied listing metadata for consent before downloading', async () => {

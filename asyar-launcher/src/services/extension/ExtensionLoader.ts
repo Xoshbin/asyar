@@ -14,7 +14,6 @@ import { extensionPreferencesService } from './extensionPreferencesService.svelt
 import { permissionConsentService } from './permissionConsentService.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { actionService } from '../action/actionService.svelte';
-import { searchOrchestrator } from '../search/searchOrchestrator.svelte';
 import { searchStores } from '../search/stores/search.svelte';
 
 /**
@@ -332,7 +331,9 @@ export class ExtensionLoader {
                   if (onboardingDecl?.command && !isOnboardingCmd) {
                     let onboarded = false;
                     try {
-                      onboarded = (await commands.isExtensionOnboarded(manifest.id)) ?? false;
+                      onboarded = await commands
+                        .isExtensionOnboarded(manifest.id)
+                        .catch(() => false);
                     } catch (err) {
                       logService.warn(
                         `[onboarding] is_extension_onboarded failed for ${manifest.id}: ${err}`,
@@ -436,9 +437,7 @@ export class ExtensionLoader {
               visible: () => {
                 if (settingsService.getSettings().search.allowExtensionActions === false)
                   return false;
-                const idx = searchStores.selectedIndex;
-                if (idx < 0) return false;
-                const item = searchOrchestrator.items[idx];
+                const item = actionService.getSelectedSearchItem();
                 return item?.type === 'command' && item.extensionId === extensionId;
               },
               // execute intentionally omitted — triggers sendToExtension fallback
@@ -465,9 +464,7 @@ export class ExtensionLoader {
             visible: () => {
               if (settingsService.getSettings().search.allowExtensionActions === false)
                 return false;
-              const idx = searchStores.selectedIndex;
-              if (idx < 0) return false;
-              const item = searchOrchestrator.items[idx];
+              const item = actionService.getSelectedSearchItem();
               return item?.objectId === cmdObjectId;
             },
           } as any);
@@ -519,9 +516,6 @@ export class ExtensionLoader {
         }));
 
       const result = await commands.syncCommandIndex(inputs);
-      if (result === null) {
-        throw new Error('sync_command_index failed');
-      }
       logService.info(
         `Command Sync complete: ${result.added} added, ${result.removed} removed, ${result.total} total commands indexed.`,
       );

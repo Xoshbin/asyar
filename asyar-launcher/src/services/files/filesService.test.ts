@@ -18,9 +18,9 @@ beforeEach(() => {
 });
 
 describe('filesService', () => {
-  it('search calls file_search with query and opts, returns [] on null', async () => {
-    invokeMock.mockResolvedValue(null);
-    const result = await filesService.search('ext.a', 'report', {
+  it('search preserves command failure', async () => {
+    invokeMock.mockRejectedValue(new Error('search failed'));
+    const promise = filesService.search('ext.a', 'report', {
       typeFilter: 'document',
       limit: 10,
     });
@@ -29,7 +29,7 @@ describe('filesService', () => {
       typeFilter: 'document',
       limit: 10,
     });
-    expect(result).toEqual([]);
+    await expect(promise).rejects.toThrow('search failed');
   });
 
   it('search returns the hits array when present', async () => {
@@ -46,7 +46,7 @@ describe('filesService', () => {
   });
 
   it('status returns a safe default when the command fails', async () => {
-    invokeMock.mockResolvedValue(null);
+    invokeMock.mockRejectedValue(new Error('status failed'));
     const result = await filesService.status(null);
     expect(invokeMock).toHaveBeenCalledWith('file_index_status', undefined);
     expect(result.state).toBe('disabled');

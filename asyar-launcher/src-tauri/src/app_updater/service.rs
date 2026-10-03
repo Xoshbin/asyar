@@ -1,5 +1,5 @@
 use log::{error, info};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
 const CHANNEL_HEADER: &str = "X-Update-Channel";
@@ -18,7 +18,7 @@ pub async fn check_and_maybe_download(
     channel: &str,
 ) -> Result<Option<String>, String> {
     // 1. Emit checking
-    let _ = app.emit("asyar:app-update:checking", ());
+    crate::event_bridge::bridge_emit(app, "asyar:app-update:checking", ());
 
     // 2. Build updater with channel header
     let updater = app
@@ -34,7 +34,7 @@ pub async fn check_and_maybe_download(
     match update {
         None => {
             info!("app_updater: no update available");
-            let _ = app.emit("asyar:app-update:idle", ());
+            crate::event_bridge::bridge_emit(app, "asyar:app-update:idle", ());
             Ok(None)
         }
         Some(u) => {
@@ -52,7 +52,8 @@ pub async fn check_and_maybe_download(
             }
 
             // Emit downloading
-            let _ = app.emit(
+            crate::event_bridge::bridge_emit(
+                app,
                 "asyar:app-update:downloading",
                 serde_json::json!({ "version": version }),
             );
@@ -70,7 +71,8 @@ pub async fn check_and_maybe_download(
             }
 
             // Emit ready
-            let _ = app.emit(
+            crate::event_bridge::bridge_emit(
+                app,
                 "asyar:app-update:ready",
                 serde_json::json!({ "version": version }),
             );

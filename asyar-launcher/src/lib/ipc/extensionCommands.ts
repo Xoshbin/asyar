@@ -7,11 +7,11 @@ import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 
 // ── Extensions ────────────────────────────────────────────────────────────────
 
-export async function getExtensionsDir(): Promise<string | null> {
+export async function getExtensionsDir(): Promise<string> {
   return invokeSafe<string>('get_extensions_dir');
 }
 
-export async function listInstalledExtensions(): Promise<string[] | null> {
+export async function listInstalledExtensions(): Promise<string[]> {
   return invokeSafe<string[]>('list_installed_extensions');
 }
 
@@ -36,7 +36,7 @@ export async function installExtensionFromUrl(params: {
   });
 }
 
-export async function getBuiltinFeaturesPath(): Promise<string | null> {
+export async function getBuiltinFeaturesPath(): Promise<string> {
   return invokeSafe<string>('get_builtin_features_path');
 }
 
@@ -46,7 +46,7 @@ export async function registerDevExtension(extensionId: string, path: string): P
   return invokeSafeVoid('register_dev_extension', { extensionId, path });
 }
 
-export async function getDevExtensionPaths(): Promise<Record<string, string> | null> {
+export async function getDevExtensionPaths(): Promise<Record<string, string>> {
   return invokeSafe<Record<string, string>>('get_dev_extension_paths');
 }
 
@@ -61,7 +61,7 @@ export async function killExtension(extensionId: string): Promise<void> {
   await invokeSafe('kill_extension', { id: extensionId });
 }
 
-export async function discoverExtensions(): Promise<ExtensionRecord[] | null> {
+export async function discoverExtensions(): Promise<ExtensionRecord[]> {
   return invokeSafe<ExtensionRecord[]>('discover_extensions');
 }
 
@@ -72,15 +72,13 @@ export async function setExtensionEnabled(extensionId: string, enabled: boolean)
   return invokeSafeVoid('set_extension_enabled', { extensionId, enabled });
 }
 
-export async function getExtension(extensionId: string): Promise<ExtensionRecord | null> {
+export async function getExtension(extensionId: string): Promise<ExtensionRecord> {
   return invokeSafe<ExtensionRecord>('get_extension', { extensionId });
 }
 
 // -- Extension Updates --
 
-export async function checkExtensionUpdates(
-  storeApiBaseUrl: string,
-): Promise<AvailableUpdate[] | null> {
+export async function checkExtensionUpdates(storeApiBaseUrl: string): Promise<AvailableUpdate[]> {
   return invokeSafe<AvailableUpdate[]>('check_extension_updates', { storeApiBaseUrl });
 }
 
@@ -90,7 +88,7 @@ export async function updateExtension(update: AvailableUpdate): Promise<void> {
 
 export async function updateAllExtensions(
   updates: AvailableUpdate[],
-): Promise<[string, { Ok?: null; Err?: string }][] | null> {
+): Promise<[string, { Ok?: null; Err?: string }][]> {
   return invokeSafe('update_all_extensions', { updates });
 }
 
@@ -109,9 +107,7 @@ export interface CommandSyncResult {
   total: number;
 }
 
-export async function syncCommandIndex(
-  commands: CommandSyncInput[],
-): Promise<CommandSyncResult | null> {
+export async function syncCommandIndex(commands: CommandSyncInput[]): Promise<CommandSyncResult> {
   return invokeSafe<CommandSyncResult>('sync_command_index', { commands });
 }
 
@@ -196,7 +192,7 @@ export interface ScheduledTaskInfo {
   active: boolean;
 }
 
-export async function getScheduledTasks(): Promise<ScheduledTaskInfo[] | null> {
+export async function getScheduledTasks(): Promise<ScheduledTaskInfo[]> {
   return invokeSafe<ScheduledTaskInfo[]>('get_scheduled_tasks');
 }
 
@@ -224,6 +220,6 @@ export async function showOpenExtensionDialog(): Promise<string | null> {
   return invokeSafe<string | null>('show_open_extension_dialog');
 }
 
-export async function getThemeDefinition(extensionId: string): Promise<ThemeDefinition | null> {
+export async function getThemeDefinition(extensionId: string): Promise<ThemeDefinition> {
   return invokeSafe<ThemeDefinition>('get_theme_definition', { extensionId });
 }

@@ -22,7 +22,7 @@ export async function noteUpsert(note: StoredNote): Promise<void> {
   await invokeRaw('note_upsert', { note });
 }
 
-export async function noteGetAll(): Promise<StoredNote[] | null> {
+export async function noteGetAll(): Promise<StoredNote[]> {
   return invokeSafe<StoredNote[]>('note_get_all');
 }
 
@@ -52,11 +52,11 @@ export async function noteRemove(id: string): Promise<void> {
   await invokeRaw('note_remove', { id });
 }
 
-export async function noteTogglePin(id: string): Promise<boolean | null> {
+export async function noteTogglePin(id: string): Promise<boolean> {
   return invokeSafe<boolean>('note_toggle_pin', { id });
 }
 
-export async function noteSearch(query: string, limit = 50): Promise<NoteSearchResult | null> {
+export async function noteSearch(query: string, limit = 50): Promise<NoteSearchResult> {
   return invokeSafe<NoteSearchResult>('note_search', { query, limit });
 }
 
@@ -72,7 +72,7 @@ export async function noteFindForService(idOrTitle: string): Promise<StoredNote 
   return invokeRaw<StoredNote | null>('note_find', { idOrTitle });
 }
 
-export async function noteBacklinks(idOrTitle: string): Promise<StoredNote[] | null> {
+export async function noteBacklinks(idOrTitle: string): Promise<StoredNote[]> {
   return invokeSafe<StoredNote[]>('note_backlinks', { idOrTitle });
 }
 
@@ -104,7 +104,7 @@ export async function stickyClose(noteId: string): Promise<void> {
 }
 
 /** Create a new empty note and stick it to the desktop. Returns its id. */
-export async function stickyNew(): Promise<string | null> {
+export async function stickyNew(): Promise<string> {
   return invokeSafe<string>('sticky_new');
 }
 
@@ -114,10 +114,10 @@ export function stickyWindowLabel(noteId: string): string {
   return `sticky-${noteId}`;
 }
 
-export async function stickyIsStuck(noteId: string): Promise<boolean | null> {
+export async function stickyIsStuck(noteId: string): Promise<boolean> {
   return invokeSafe<boolean>('sticky_is_stuck', { noteId });
 }
 
-export async function stickyList(): Promise<StickyNote[] | null> {
+export async function stickyList(): Promise<StickyNote[]> {
   return invokeSafe<StickyNote[]>('sticky_list');
 }

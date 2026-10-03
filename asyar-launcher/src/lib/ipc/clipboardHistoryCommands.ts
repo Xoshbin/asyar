@@ -72,21 +72,21 @@ export interface ClipboardClearResult {
   removedImagePaths: string[];
 }
 
-export async function clipboardListInitial(limit: number): Promise<ClipboardInitialPage | null> {
+export async function clipboardListInitial(limit: number): Promise<ClipboardInitialPage> {
   return invokeSafe<ClipboardInitialPage>('clipboard_list_initial', { limit });
 }
 
 export async function clipboardListOlder(
   cursor: ClipboardCursor,
   limit: number,
-): Promise<ClipboardOlderPage | null> {
+): Promise<ClipboardOlderPage> {
   return invokeSafe<ClipboardOlderPage>('clipboard_list_older', { cursor, limit });
 }
 
 export async function clipboardSearch(
   query: string,
   limit: number,
-): Promise<ClipboardSearchResult | null> {
+): Promise<ClipboardSearchResult> {
   return invokeSafe<ClipboardSearchResult>('clipboard_search', { query, limit });
 }
 
@@ -102,36 +102,36 @@ export interface MergedClipboardText {
 /** Fetch, decrypt, strip HTML/RTF, and join multiple items' text server-side
  *  (in the given order). Image/Files items are skipped and counted. Used by
  *  the clipboard-history multi-select merge-paste flow. */
-export async function clipboardGetMergedText(ids: string[]): Promise<MergedClipboardText | null> {
+export async function clipboardGetMergedText(ids: string[]): Promise<MergedClipboardText> {
   return invokeSafe<MergedClipboardText>('clipboard_get_merged_text', { ids });
 }
 
 export async function clipboardExportForSync(
   cursor: ClipboardCursor | undefined,
   limit: number,
-): Promise<ClipboardExportPage | null> {
+): Promise<ClipboardExportPage> {
   return invokeSafe<ClipboardExportPage>('clipboard_export_for_sync', { cursor, limit });
 }
 
-export async function clipboardCount(): Promise<ClipboardCount | null> {
+export async function clipboardCount(): Promise<ClipboardCount> {
   return invokeSafe<ClipboardCount>('clipboard_count');
 }
 
 export async function clipboardRecordCapture(
   item: StoredClipboardItem,
   retentionMs?: number,
-): Promise<ClipboardCaptureResult | null> {
+): Promise<ClipboardCaptureResult> {
   return invokeSafe<ClipboardCaptureResult>('clipboard_record_capture', { item, retentionMs });
 }
 
-export async function clipboardToggleFavorite(id: string): Promise<boolean | null> {
+export async function clipboardToggleFavorite(id: string): Promise<boolean> {
   return invokeSafe<boolean>('clipboard_toggle_favorite', { id });
 }
 
-export async function clipboardDeleteItem(id: string): Promise<ClipboardDeleteResult | null> {
+export async function clipboardDeleteItem(id: string): Promise<ClipboardDeleteResult> {
   return invokeSafe<ClipboardDeleteResult>('clipboard_delete_item', { id });
 }
 
-export async function clipboardClearNonFavorites(): Promise<ClipboardClearResult | null> {
+export async function clipboardClearNonFavorites(): Promise<ClipboardClearResult> {
   return invokeSafe<ClipboardClearResult>('clipboard_clear_non_favorites');
 }

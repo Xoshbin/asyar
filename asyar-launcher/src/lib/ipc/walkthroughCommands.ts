@@ -71,34 +71,30 @@ export const WALKTHROUGH_CHANGED_EVENT = 'asyar:walkthrough:changed';
 export async function syncWalkthroughTasks(
   contributions: WalkthroughContribution[],
   probes: Record<string, number>,
-): Promise<WalkthroughSnapshot | null> {
+): Promise<WalkthroughSnapshot> {
   return invokeSafe<WalkthroughSnapshot>('sync_walkthrough_tasks', { contributions, probes });
 }
 
-export async function getWalkthrough(): Promise<WalkthroughSnapshot | null> {
+export async function getWalkthrough(): Promise<WalkthroughSnapshot> {
   return invokeSafe<WalkthroughSnapshot>('get_walkthrough');
 }
 
-export async function completeWalkthroughTask(taskId: string): Promise<WalkthroughSnapshot | null> {
+export async function completeWalkthroughTask(taskId: string): Promise<WalkthroughSnapshot> {
   return invokeSafe<WalkthroughSnapshot>('complete_walkthrough_task', { taskId });
 }
 
-export async function uncompleteWalkthroughTask(
-  taskId: string,
-): Promise<WalkthroughSnapshot | null> {
+export async function uncompleteWalkthroughTask(taskId: string): Promise<WalkthroughSnapshot> {
   return invokeSafe<WalkthroughSnapshot>('uncomplete_walkthrough_task', { taskId });
 }
 
-export async function completeAllWalkthroughTasks(): Promise<WalkthroughSnapshot | null> {
+export async function completeAllWalkthroughTasks(): Promise<WalkthroughSnapshot> {
   return invokeSafe<WalkthroughSnapshot>('complete_all_walkthrough_tasks');
 }
 
-export async function setWalkthroughDismissed(
-  dismissed: boolean,
-): Promise<WalkthroughSnapshot | null> {
+export async function setWalkthroughDismissed(dismissed: boolean): Promise<WalkthroughSnapshot> {
   return invokeSafe<WalkthroughSnapshot>('set_walkthrough_dismissed', { dismissed });
 }
 
-export async function resetWalkthrough(): Promise<WalkthroughSnapshot | null> {
+export async function resetWalkthrough(): Promise<WalkthroughSnapshot> {
   return invokeSafe<WalkthroughSnapshot>('reset_walkthrough');
 }

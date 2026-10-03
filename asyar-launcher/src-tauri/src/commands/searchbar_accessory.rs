@@ -22,7 +22,7 @@ pub async fn searchbar_accessory_get(
         ));
     }
     let conn = data_store.conn()?;
-    store::get(&conn, &extension_id, &command_id)
+    Ok(store::get(&conn, &extension_id, &command_id)?)
 }
 
 /// Persist a searchbar accessory value for `(extension_id, command_id)`.
@@ -45,7 +45,7 @@ pub async fn searchbar_accessory_set(
         ));
     }
     let conn = data_store.conn()?;
-    store::set(&conn, &extension_id, &command_id, &value)
+    Ok(store::set(&conn, &extension_id, &command_id, &value)?)
 }
 
 #[cfg(test)]

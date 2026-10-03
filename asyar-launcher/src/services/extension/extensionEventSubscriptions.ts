@@ -1,4 +1,4 @@
-import { listen } from '@tauri-apps/api/event';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 import { logService } from '../log/logService';
 import { isBuiltInFeature } from './extensionDiscovery';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
@@ -19,7 +19,7 @@ export class ExtensionEventSubscriptions {
   private enabledChangeReloadQueued = false;
 
   async subscribe(deps: EventSubscriptionDeps): Promise<void> {
-    this.unlistenScheduler = await listen<{ extensionId: string; commandId: string }>(
+    this.unlistenScheduler = await appListen<{ extensionId: string; commandId: string }>(
       'asyar:scheduler:tick',
       async (event) => {
         await this.handleScheduledTick(
@@ -31,7 +31,7 @@ export class ExtensionEventSubscriptions {
       },
     );
 
-    this.unlistenPreferencesChanged = await listen<{ extensionId: string }>(
+    this.unlistenPreferencesChanged = await appListen<{ extensionId: string }>(
       'asyar:preferences-changed',
       async (event) => {
         const extensionId = event.payload?.extensionId;
@@ -59,7 +59,7 @@ export class ExtensionEventSubscriptions {
     // owns the extension host — Rust broadcasts the change so the host
     // reloads to match. Coalesced: a toggle burst runs one reload plus at
     // most one trailing reload.
-    this.unlistenEnabledChanged = await listen<{ extensionId: string; enabled: boolean }>(
+    this.unlistenEnabledChanged = await appListen<{ extensionId: string; enabled: boolean }>(
       'asyar:extension-enabled-changed',
       async () => {
         if (this.enabledChangeReloadInFlight) {

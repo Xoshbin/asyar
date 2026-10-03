@@ -6,7 +6,7 @@ use crate::feedback::channel::{
 };
 use crate::feedback::{build_report, CrashPayload, FeedbackInput, PendingCrash};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 fn now_ms() -> u64 {
     SystemTime::now()
@@ -17,8 +17,8 @@ fn now_ms() -> u64 {
 
 fn emit_current(app: &AppHandle, state: &FeedbackChannelState) -> Result<(), AppError> {
     let current = state.current().map_err(|_| AppError::Lock)?;
-    app.emit("feedback:changed", current)
-        .map_err(|error| AppError::Other(error.to_string()))
+    crate::event_bridge::bridge_emit(app, "feedback:changed", current);
+    Ok(())
 }
 
 fn schedule_expiry(app: AppHandle, id: String, severity: FeedbackSeverity) {
@@ -130,8 +130,7 @@ pub fn feedback_dismiss(
         .dismiss_owned(&feedback_id, expected_extension_id.as_deref())
         .map_err(|_| AppError::Lock)?;
     let current = state.current().map_err(|_| AppError::Lock)?;
-    app.emit("feedback:changed", current.clone())
-        .map_err(|error| AppError::Other(error.to_string()))?;
+    crate::event_bridge::bridge_emit(&app, "feedback:changed", current.clone());
     if was_current {
         if let Some(next) = current.as_ref() {
             schedule_expiry(app, next.id.clone(), next.severity);

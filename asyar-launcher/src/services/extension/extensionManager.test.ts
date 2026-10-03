@@ -38,6 +38,9 @@ if (typeof MessageEvent === 'undefined') {
 }
 
 // Mock all external dependencies
+vi.mock('../../lib/idle', () => ({
+  runWhenIdle: vi.fn((task: () => void) => task()),
+}));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), custom: vi.fn() },
 }));
@@ -105,6 +108,7 @@ vi.mock('./commandService.svelte', () => ({
 }));
 vi.mock('./extensionDispatcher.svelte', () => ({
   dispatch: vi.fn().mockResolvedValue(undefined),
+  registerExtensionNameResolver: vi.fn(),
 }));
 vi.mock('./viewManager.svelte', () => ({
   viewManager: {
@@ -303,6 +307,12 @@ describe('ExtensionManager Characterization Tests', () => {
       const spy = vi.spyOn(extensionManager as any, 'syncCommandIndex');
       await extensionManager.init();
       expect(spy).toHaveBeenCalled();
+    });
+
+    it('defers syncCommandIndex and syncWalkthroughTasks to runWhenIdle during cold boot init', async () => {
+      const { runWhenIdle } = await import('../../lib/idle');
+      await extensionManager.init();
+      expect(runWhenIdle).toHaveBeenCalledWith(expect.any(Function), { timeout: 1500 });
     });
 
     it('loadExtensions() processes loaded extensions from extensionLoaderService', async () => {
@@ -520,7 +530,7 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(results).toEqual([]);
     });
 
-    it('calls search() on loaded extension instances that have it', async () => {
+    it('keeps statically loaded built-ins out of extension search transport', async () => {
       const mockExt = { search: vi.fn().mockResolvedValue([{ title: 'Result' }]) };
       // @ts-ignore
       extensionManager.extensionModulesById.set('test-ext', mockExt);
@@ -529,9 +539,8 @@ describe('ExtensionManager Characterization Tests', () => {
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
 
       const results = await extensionManager.searchAll('query');
-      expect(mockExt.search).toHaveBeenCalledWith('query');
-      expect(results).toHaveLength(1);
-      expect(results[0].title).toBe('Result');
+      expect(mockExt.search).not.toHaveBeenCalled();
+      expect(results).toEqual([]);
     });
 
     it('skips extension instances that do not have search()', async () => {
@@ -569,11 +578,18 @@ describe('ExtensionManager Characterization Tests', () => {
           ),
       };
 
+      const { extensionIframeManager } = await import('./extensionIframeManager.svelte');
+      vi.mocked(settingsService.getSettings).mockReturnValue({
+        search: { enableExtensionSearch: true },
+      } as any);
       // @ts-ignore
-      extensionManager.extensionModulesById.set('fast-ext', fastExt);
+      extensionManager.manifestsById.set('fast-ext', { id: 'fast-ext', searchable: true });
       // @ts-ignore
-      extensionManager.extensionModulesById.set('slow-ext', slowExt);
+      extensionManager.manifestsById.set('slow-ext', { id: 'slow-ext', searchable: true });
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+      vi.mocked(extensionIframeManager.sendSearchRequestToExtension).mockImplementation(
+        async (id) => (id === 'fast-ext' ? fastExt.search() : slowExt.search()),
+      );
 
       const results = await extensionManager.searchAll('query');
 

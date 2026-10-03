@@ -58,7 +58,6 @@ export class ClipboardHistoryStoreClass {
 
   async loadInitial(limit = 100): Promise<void> {
     const page = await clipboardListInitial(limit);
-    if (page === null) return;
     this.favorites = page.favorites;
     this.recent = page.recent;
     this.nextOlderCursor = page.nextCursor;
@@ -76,7 +75,6 @@ export class ClipboardHistoryStoreClass {
     try {
       const cursor = this.nextOlderCursor;
       const page = await clipboardListOlder(cursor, limit);
-      if (page === null) return;
       this.recent = [...this.recent, ...page.items];
       this.nextOlderCursor = page.nextCursor;
     } finally {
@@ -96,7 +94,6 @@ export class ClipboardHistoryStoreClass {
   async search(query: string, limit = 200): Promise<void> {
     const mySeq = ++this.#searchSeq;
     const res = await clipboardSearch(query, limit);
-    if (res === null) return;
     // Drop response if a newer search has been issued in the meantime.
     if (mySeq !== this.#searchSeq) return;
     this.searchResults = res.items;
@@ -119,7 +116,6 @@ export class ClipboardHistoryStoreClass {
     const stored = item as unknown as StoredClipboardItem;
     const retentionMs = settingsService.currentSettings.clipboardHistory?.retentionMs;
     const res = await clipboardRecordCapture(stored, retentionMs);
-    if (res === null) return;
     if (res.evictedIds.length > 0) {
       const evicted = new Set(res.evictedIds);
       this.recent = this.recent.filter((i) => !evicted.has(i.id));
@@ -145,7 +141,6 @@ export class ClipboardHistoryStoreClass {
 
   async toggleFavorite(id: string): Promise<void> {
     const newFavorite = await clipboardToggleFavorite(id);
-    if (newFavorite === null) return;
 
     // Find the row anywhere in the loaded windows so we can move it.
     const source =
@@ -174,7 +169,6 @@ export class ClipboardHistoryStoreClass {
 
   async deleteHistoryItem(id: string): Promise<ClipboardDeleteResult> {
     const res = await clipboardDeleteItem(id);
-    if (res === null) return { imageContentPath: undefined };
     this.favorites = this.favorites.filter((i) => i.id !== id);
     this.recent = this.recent.filter((i) => i.id !== id);
     if (this.searchResults) {
@@ -186,7 +180,6 @@ export class ClipboardHistoryStoreClass {
 
   async clearHistory(): Promise<ClipboardClearResult> {
     const res = await clipboardClearNonFavorites();
-    if (res === null) return { removedIds: [], removedImagePaths: [] };
     const removed = new Set(res.removedIds);
     this.recent = this.recent.filter((i) => !removed.has(i.id));
     if (this.searchResults) {

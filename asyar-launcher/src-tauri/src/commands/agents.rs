@@ -177,15 +177,15 @@ pub fn agents_update_impl(
 }
 
 pub fn agents_delete_impl(conn: &Connection, id: String) -> Result<(), AppError> {
-    delete_agent(conn, &id)
+    Ok(delete_agent(conn, &id)?)
 }
 
 pub fn agents_list_impl(conn: &Connection) -> Result<Vec<AgentRow>, AppError> {
-    list_agents(conn)
+    Ok(list_agents(conn)?)
 }
 
 pub fn agents_get_impl(conn: &Connection, id: String) -> Result<Option<AgentRow>, AppError> {
-    get_agent(conn, &id)
+    Ok(get_agent(conn, &id)?)
 }
 
 pub fn agents_thread_create_impl(
@@ -217,7 +217,9 @@ pub fn agents_thread_set_pinned_impl(
     id: String,
     pinned: bool,
 ) -> Result<(), AppError> {
-    crate::storage::agents::set_thread_pinned(conn, &id, pinned)
+    Ok(crate::storage::agents::set_thread_pinned(
+        conn, &id, pinned,
+    )?)
 }
 
 pub fn agents_threads_prune_impl(
@@ -225,15 +227,15 @@ pub fn agents_threads_prune_impl(
     max_retained: usize,
     active_thread_id: Option<String>,
 ) -> Result<usize, AppError> {
-    crate::storage::agents::prune_sessions_with_active(
+    Ok(crate::storage::agents::prune_sessions_with_active(
         conn,
         max_retained,
         active_thread_id.as_deref(),
-    )
+    )?)
 }
 
 pub fn agents_thread_delete_impl(conn: &Connection, id: String) -> Result<(), AppError> {
-    delete_thread(conn, &id)
+    Ok(delete_thread(conn, &id)?)
 }
 
 pub fn agents_thread_update_title_impl(
@@ -247,25 +249,25 @@ pub fn agents_thread_update_title_impl(
             "thread title must not be empty".to_string(),
         ));
     }
-    update_thread_title(conn, &id, trimmed, now_ms())
+    Ok(update_thread_title(conn, &id, trimmed, now_ms())?)
 }
 
 pub fn agents_find_run_origin_impl(
     conn: &Connection,
     run_id: String,
 ) -> Result<Option<RunOrigin>, AppError> {
-    find_run_origin(conn, &run_id)
+    Ok(find_run_origin(conn, &run_id)?)
 }
 
 pub fn agents_backfill_thread_titles_impl(conn: &Connection) -> Result<usize, AppError> {
-    backfill_thread_titles(conn)
+    Ok(backfill_thread_titles(conn)?)
 }
 
 pub fn agents_threads_list_impl(
     conn: &Connection,
     agent_id: String,
 ) -> Result<Vec<ThreadRow>, AppError> {
-    list_threads_for_agent(conn, &agent_id)
+    Ok(list_threads_for_agent(conn, &agent_id)?)
 }
 
 pub fn agents_message_insert_impl(
@@ -290,7 +292,7 @@ pub fn agents_messages_list_impl(
     conn: &Connection,
     thread_id: String,
 ) -> Result<Vec<MessageRow>, AppError> {
-    list_messages_for_thread(conn, &thread_id)
+    Ok(list_messages_for_thread(conn, &thread_id)?)
 }
 
 // ── Tauri command wrappers ────────────────────────────────────────────────────
@@ -305,7 +307,7 @@ pub async fn agents_create(
         let conn = db.conn()?;
         agents_create_impl(&conn, input)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -319,7 +321,7 @@ pub async fn agents_update(
         let conn = db.conn()?;
         agents_update_impl(&conn, input)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -333,7 +335,7 @@ pub async fn agents_delete(
         let conn = db.conn()?;
         agents_delete_impl(&conn, id)?;
     }
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(())
 }
 
@@ -378,7 +380,7 @@ pub async fn agents_upsert_default(
             &model_id,
         )?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -393,7 +395,7 @@ pub async fn agents_seed_grammar_fix(
         let conn = db.conn()?;
         crate::agents::lifecycle::seed_grammar_fix_agent(&conn, &provider_id, &model_id)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -408,7 +410,7 @@ pub async fn agents_seed_emoji_fallback(
         let conn = db.conn()?;
         crate::agents::lifecycle::seed_emoji_fallback_agent(&conn, &provider_id, &model_id)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -422,7 +424,7 @@ pub async fn agents_thread_create(
         let conn = db.conn()?;
         agents_thread_create_impl(&conn, input)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 
@@ -437,7 +439,7 @@ pub async fn agents_thread_set_pinned(
         let conn = db.conn()?;
         agents_thread_set_pinned_impl(&conn, id, pinned)?;
     }
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(())
 }
 
@@ -453,7 +455,7 @@ pub async fn agents_threads_prune(
         agents_threads_prune_impl(&conn, max_retained, active_thread_id)?
     };
     if pruned > 0 {
-        let _ = app.emit("agents:changed", ());
+        crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     }
     Ok(pruned)
 }
@@ -570,7 +572,7 @@ pub async fn agents_run_thread(
     )
     .await;
     if matches!(&result, Ok(true)) {
-        let _ = app.emit("agents:changed", ());
+        crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     }
     let cleanup = runner_state.finish_run(&stream_id);
     result.map(|_healed| ()).and(cleanup)
@@ -600,7 +602,7 @@ pub async fn agents_run_silent(
             &config.configs,
         )?;
         if healed {
-            let _ = app.emit("agents:changed", ());
+            crate::event_bridge::bridge_emit(&app, "agents:changed", ());
         }
         agent
     };

@@ -24,7 +24,7 @@ class RuntimeService {
     return runtimeCommands.resolveRuntime(name);
   }
 
-  async ensure(name: string): Promise<EnsureRuntimeResult | null> {
+  async ensure(name: string): Promise<EnsureRuntimeResult> {
     return runtimeCommands.ensureRuntime(name);
   }
 
@@ -33,7 +33,7 @@ class RuntimeService {
   }
 
   async list(): Promise<InstalledRuntimeInfo[]> {
-    return (await runtimeCommands.listRuntimes()) ?? [];
+    return runtimeCommands.listRuntimes();
   }
 
   async remove(name: string): Promise<void> {

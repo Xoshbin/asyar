@@ -13,15 +13,17 @@ import { extensionStateManager } from './extensionStateManager.svelte';
  * itself) so callers don't have to fetch and thread that list through.
  */
 export async function downloadDeclaredRuntimes(extensionId: string): Promise<void> {
-  const status = await checkExtensionConsent(extensionId);
+  const status = await checkExtensionConsent(extensionId).catch(() => null);
   const declaredRuntimes = status?.declaredRuntimes ?? [];
   if (declaredRuntimes.length === 0) return;
 
   const missing = await getRuntimeDownloadSizes(declaredRuntimes);
   let anyFailed = false;
   for (const { name } of missing) {
-    const ok = await downloadRuntime(name, `ext:${extensionId}`);
-    if (!ok) {
+    try {
+      await downloadRuntime(name, `ext:${extensionId}`);
+    } catch {
+      // Downloads are recoverable: retain the installed extension and offer retry.
       anyFailed = true;
     }
   }

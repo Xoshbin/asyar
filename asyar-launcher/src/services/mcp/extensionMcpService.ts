@@ -7,8 +7,7 @@ import type { McpServerInfo, McpToolDescriptor } from 'asyar-sdk/contracts';
  */
 export class ExtensionMcpService {
   async listServers(_extensionId?: string): Promise<McpServerInfo[]> {
-    const servers = await mcpListServers();
-    if (!servers) return [];
+    const servers = await mcpListServers().catch(() => []);
     return servers.map((s) => ({
       id: s.id,
       name: s.displayName,
@@ -23,19 +22,16 @@ export class ExtensionMcpService {
   ): Promise<McpToolDescriptor[]> {
     const serverId = arguments.length >= 2 ? maybeServerId : extensionIdOrServerId;
     if (serverId) {
-      const tools = await mcpListServerTools(serverId);
-      if (!tools) return [];
+      const tools = await mcpListServerTools(serverId).catch(() => []);
       return tools.map((t) => ({ ...t, serverId }));
     }
 
-    const servers = await mcpListServers();
-    if (!servers) return [];
+    const servers = await mcpListServers().catch(() => []);
 
     const activeServers = servers.filter((s) => s.enabled);
     const results = await Promise.allSettled(
       activeServers.map(async (server) => {
         const tools = await mcpListServerTools(server.id);
-        if (!tools) return [];
         return tools.map((t) => ({ ...t, serverId: server.id }));
       }),
     );

@@ -4,8 +4,8 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), custom: vi.fn() },
 }));
 
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(),
+vi.mock('../../lib/ipc/bridgeEvents', () => ({
+  appListen: vi.fn(),
 }));
 
 vi.mock('./extensionPreferencesService.svelte', () => ({
@@ -28,7 +28,7 @@ vi.mock('./extensionIframeManager.svelte', () => ({
   },
 }));
 
-import { listen } from '@tauri-apps/api/event';
+import { appListen as listen } from '../../lib/ipc/bridgeEvents';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { isBuiltInFeature } from './extensionDiscovery';

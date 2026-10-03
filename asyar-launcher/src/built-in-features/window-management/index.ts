@@ -1,3 +1,7 @@
+import {
+  registerBuiltinSearchProvider,
+  type BuiltinSearchRow,
+} from '../../services/search/builtinSearchProviders';
 import { logService } from '../../services/log/logService';
 import { windowManagementService } from '../../services/windowManagement/windowManagementService';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -11,7 +15,6 @@ import SwitchWindowsView from './SwitchWindowsView.svelte';
 import {
   type Extension,
   type ExtensionContext,
-  type ExtensionResult,
   type IStorageService,
   type IExtensionManager,
   ActionContext,
@@ -163,7 +166,7 @@ class WindowManagementExtension implements Extension {
     }
   }
 
-  async search(query: string): Promise<ExtensionResult[]> {
+  async searchRows(query: string): Promise<BuiltinSearchRow[]> {
     const { customLayouts } = windowManagementState;
     if (!customLayouts.length) return [];
 
@@ -175,12 +178,15 @@ class WindowManagementExtension implements Extension {
       title: layout.name,
       subtitle: `${Math.round(layout.bounds.width)}x${Math.round(layout.bounds.height)} at (${Math.round(layout.bounds.x)}, ${Math.round(layout.bounds.y)})`,
       score: 0.7,
-      type: 'result' as const,
       icon: 'icon:store',
-      action: async () => {
-        await applyCustomLayout(layout, this.store);
-      },
+      actionPayload: { layoutId: layout.id },
     }));
+  }
+
+  async executeSearchResult(_id: string, payload?: unknown): Promise<void> {
+    const layoutId = (payload as { layoutId?: unknown } | undefined)?.layoutId;
+    const layout = windowManagementState.customLayouts.find((layout) => layout.id === layoutId);
+    if (layout) await applyCustomLayout(layout, this.store);
   }
 
   private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
@@ -288,5 +294,11 @@ class WindowManagementExtension implements Extension {
   }
 }
 
-export default new WindowManagementExtension();
+const extension = new WindowManagementExtension();
+registerBuiltinSearchProvider({
+  extensionId: 'window-management',
+  search: (query) => extension.searchRows(query),
+  execute: (id, payload) => extension.executeSearchResult(id, payload),
+});
+export default extension;
 export { ManageView, SwitchWindowsView };

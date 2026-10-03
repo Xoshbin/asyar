@@ -1,8 +1,8 @@
-import extensionManager from '../../services/extension/extensionManager.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { getCompactSyncService } from '../../services/launcher/compactSyncService.svelte';
 import { logService } from '../../services/log/logService';
+import { registerLauncherResetHook } from '../ipc/windowCommands';
 
 // Shared close-the-launcher reset (app launches, no-view commands,
 // hide-and-reset escape) so the next open starts clean regardless of how
@@ -11,7 +11,7 @@ import { logService } from '../../services/log/logService';
 export function resetLauncherState(): void {
   let prev = viewManager.getNavigationStackSize();
   while (prev > 0) {
-    extensionManager.goBack();
+    viewManager.goBack();
     const next = viewManager.getNavigationStackSize();
     if (next >= prev) {
       logService.warn(`[launcherReset] goBack did not shrink stack (${prev} -> ${next}), aborting`);
@@ -22,3 +22,6 @@ export function resetLauncherState(): void {
   searchStores.query = '';
   getCompactSyncService()?.resetToCompactIfConfigured();
 }
+
+// Invert dependency: register with windowCommands so low-level IPC does not import launcherReset
+registerLauncherResetHook(resetLauncherState);

@@ -23,12 +23,12 @@ impl QueryHistoryService {
 
     pub fn record(&self, conn: &Connection, query: &str) -> Result<(), AppError> {
         self.reset();
-        storage::record(conn, query)
+        Ok(storage::record(conn, query)?)
     }
 
     pub fn delete(&self, conn: &Connection, query: &str) -> Result<(), AppError> {
         self.reset();
-        storage::delete(conn, query)
+        Ok(storage::delete(conn, query)?)
     }
 
     pub fn reset(&self) {

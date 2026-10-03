@@ -26,6 +26,11 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('./workerHost.svelte', () => ({
+  workerHost: { getWorker: vi.fn(), hasWorker: vi.fn(() => false), post: vi.fn() },
+}));
+import { workerHost } from './workerHost.svelte';
+
 import { ExtensionIframeManager } from './extensionIframeManager.svelte';
 
 describe('ExtensionIframeManager', () => {
@@ -152,6 +157,24 @@ describe('ExtensionIframeManager', () => {
 
       expect(mockPostMessage).not.toHaveBeenCalled();
     });
+  });
+
+  it('routes root search to the real worker even when a view is mounted', async () => {
+    const postMessage = vi.fn();
+    vi.mocked(workerHost.getWorker).mockReturnValueOnce({ postMessage } as any);
+    const response = manager.sendSearchRequestToExtension('org.asyar.tauri-docs', 'query');
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'asyar:search:request',
+        payload: { query: 'query' },
+      }),
+    );
+    const messageId = postMessage.mock.calls[0][0].messageId;
+    manager.handleSearchResponse({
+      data: { type: 'asyar:search:response', messageId, result: [{ id: 'hit' }] },
+    } as MessageEvent);
+    expect(await response).toEqual([{ id: 'hit' }]);
+    expect(mockPostMessage).not.toHaveBeenCalled();
   });
 
   describe('sendSearchRequestToExtension', () => {

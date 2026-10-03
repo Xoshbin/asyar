@@ -54,13 +54,13 @@ export function initScanPathsSync(): () => void {
   }
 
   lastPaths = [...(settingsService.currentSettings.search.additionalScanPaths ?? [])];
-  pushPaths(lastPaths);
+  void pushPaths(lastPaths).catch(() => undefined);
 
   unsubscribe = settingsService.subscribe((s) => {
     const next = [...(s.search.additionalScanPaths ?? [])];
     if (pathsEqual(next, lastPaths)) return;
     lastPaths = next;
-    pushPaths(next);
+    void pushPaths(next).catch(() => undefined);
   });
 
   return () => {

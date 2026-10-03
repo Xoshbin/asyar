@@ -1,38 +1,58 @@
 import { logService } from '../log/logService';
 import type { ExtensionManifest } from 'asyar-sdk/contracts';
 
+/**
+ * Statically compiled registry of built-in platform features.
+ * Eliminates runtime manifest directory scanning and double-parsing.
+ */
+export const BUILT_IN_FEATURE_IDS = new Set<string>([
+  'agents',
+  'aliases',
+  'calculator',
+  'clipboard-history',
+  'create-extension',
+  'feedback',
+  'file-search',
+  'help',
+  'mcp',
+  'notes',
+  'portals',
+  'quit',
+  'raycast-import',
+  'runs',
+  'screen-ocr',
+  'scripts',
+  'settings',
+  'shortcuts',
+  'snippets',
+  'store',
+  'system',
+  'usage-stats',
+  'walkthrough',
+  'window-management',
+]);
+
+/**
+ * Platform infrastructure features that cannot be disabled.
+ */
+export const NON_DISABLEABLE_BUILT_IN_IDS = new Set<string>(['system', 'settings']);
+
 // Import both regular and built-in features
 export const extensionContext = import.meta.glob('../../extensions/*/manifest.json');
 export const builtInFeatureContext = import.meta.glob('../../built-in-features/*/manifest.json');
 
 export async function discoverExtensions(): Promise<string[]> {
   try {
-    // Get all extension paths from both directories
     const extensionPaths = Object.keys(extensionContext);
-    const builtInFeaturePaths = Object.keys(builtInFeatureContext);
-
-    // Log the discovered paths for debugging
-    logService.debug(
-      `Found ${extensionPaths.length} regular extensions and ${builtInFeaturePaths.length} built-in features`,
-    );
-
-    // Extract just the extension IDs (names) from the paths
     const regularExtensionIds = extensionPaths
       .map((path) => {
         const matches = path.match(/\/extensions\/([^\/]+)\/manifest\.json/);
         return matches ? matches[1] : null;
       })
-      .filter((id) => id !== null);
+      .filter((id): id is string => id !== null);
 
-    const builtInFeatureIds = builtInFeaturePaths
-      .map((path) => {
-        const matches = path.match(/\/built-in-features\/([^\/]+)\/manifest\.json/);
-        return matches ? matches[1] : null;
-      })
-      .filter((id) => id !== null);
-
-    // Combine and return just the ids
-    const allExtensionIds = [...regularExtensionIds, ...builtInFeatureIds] as string[];
+    const builtInFeatureIds = Array.from(BUILT_IN_FEATURE_IDS);
+    const allExtensionIds = [...regularExtensionIds, ...builtInFeatureIds];
 
     logService.info(
       `Discovered ${allExtensionIds.length} extensions (${builtInFeatureIds.length} built-in features)`,
@@ -45,11 +65,9 @@ export async function discoverExtensions(): Promise<string[]> {
   }
 }
 
-// Helper to determine if an ID is from built-in directory
+// Fast static check for built-in platform features (zero-cost Set lookup)
 export function isBuiltInFeature(extensionId: string): boolean {
-  const builtInPaths = Object.keys(builtInFeatureContext);
-  const matchingPath = builtInPaths.find((path) => path.includes(`/${extensionId}/`));
-  return !!matchingPath;
+  return BUILT_IN_FEATURE_IDS.has(extensionId);
 }
 
 export const builtInManifestContext = import.meta.glob<ExtensionManifest>(
@@ -65,8 +83,8 @@ export function getBuiltInManifest(extensionId: string): ExtensionManifest | und
 }
 
 export function isBuiltInDisableable(extensionId: string): boolean {
-  const manifest = getBuiltInManifest(extensionId);
-  return manifest?.lifecycle?.disableable === true;
+  if (!isBuiltInFeature(extensionId)) return true;
+  return !NON_DISABLEABLE_BUILT_IN_IDS.has(extensionId);
 }
 
 // Function to get the import path for an extension ID

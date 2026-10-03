@@ -64,6 +64,22 @@ pub enum AppError {
     Other(String),
 }
 
+impl From<asyar_storage::StorageError> for AppError {
+    fn from(err: asyar_storage::StorageError) -> Self {
+        match err {
+            asyar_storage::StorageError::Database(s) => AppError::Database(s),
+            asyar_storage::StorageError::Pool(s) => AppError::Database(s),
+            asyar_storage::StorageError::NotFound(s) => AppError::NotFound(s),
+            asyar_storage::StorageError::Validation(s) => AppError::Validation(s),
+            asyar_storage::StorageError::Lock => AppError::Lock,
+            asyar_storage::StorageError::Encryption(s) => AppError::Encryption(s),
+            asyar_storage::StorageError::Rusqlite(e) => AppError::Database(e.to_string()),
+            asyar_storage::StorageError::Io(e) => AppError::Io(e),
+            asyar_storage::StorageError::Serialization(e) => AppError::Json(e),
+        }
+    }
+}
+
 impl Serialize for AppError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

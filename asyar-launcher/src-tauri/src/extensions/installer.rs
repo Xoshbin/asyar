@@ -7,7 +7,7 @@ use futures_util::StreamExt;
 use log::{info, warn};
 use std::fs;
 use std::path::Path;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tempfile::NamedTempFile;
 use tokio::fs::File as TokioFile;
 use tokio::io::{AsyncWriteExt, BufReader};
@@ -256,9 +256,8 @@ pub(crate) fn validate_package_structure(
         "extension" => {
             // view.html is required when the extension exposes at least one
             // view command (mode == "view" or mode absent, which defaults to
-            // "view"). worker.html is required when background.main is
-            // declared. Either file may live at the extraction root OR under
-            // `dist/` — per-extension Vite configs emit into `dist/`, and the
+            // "view"). It may live at the extraction root OR under `dist/` —
+            // per-extension Vite configs emit into `dist/`, and the
             // `asyar-extension://` scheme handler already resolves both paths,
             // so the installer validator mirrors that contract.
             let has_view_commands = manifest
@@ -274,14 +273,31 @@ pub(crate) fn validate_package_structure(
                         .to_string(),
                 ));
             }
-            if manifest.background.is_some()
-                && !extracted_dir.join("worker.html").exists()
-                && !extracted_dir.join("dist/worker.html").exists()
-            {
-                return Err(AppError::Validation(
-                    "Extension package with background.main must include worker.html at the root or dist/ directory"
-                        .to_string()
-                ));
+            // Background workers boot from a blob script that `import()`s
+            // `background.main` directly (see workerHost.svelte.ts) — no
+            // static worker.html page is involved. Validate that the declared
+            // module path itself is present and safe instead.
+            if let Some(background) = &manifest.background {
+                let main = background.main.trim();
+                let is_safe_relative_path = !main.is_empty()
+                    && !main.starts_with('/')
+                    && !main.contains('\\')
+                    && !main.contains(':')
+                    && main
+                        .split('/')
+                        .all(|part| !part.is_empty() && part != "." && part != "..");
+                if !is_safe_relative_path {
+                    return Err(AppError::Validation(format!(
+                        "Extension background.main '{}' is not a valid relative path",
+                        background.main
+                    )));
+                }
+                if !extracted_dir.join(main).exists() {
+                    return Err(AppError::Validation(format!(
+                        "Extension package with background.main must include '{}' in the package",
+                        background.main
+                    )));
+                }
             }
         }
         other => {
@@ -439,9 +455,7 @@ pub(crate) async fn install_from_file(
         copy_dir_recursive(temp_dir.path(), &install_dir)?;
     }
 
-    if let Err(e) = app_handle.emit("extensions_updated", ()) {
-        warn!("Failed to emit extensions_updated event: {}", e);
-    }
+    crate::event_bridge::bridge_emit(app_handle, "extensions_updated", ());
 
     info!(
         "Extension '{}' v{} installed from file",
@@ -585,9 +599,7 @@ pub(crate) async fn install_from_url(
     }
 
     // --- 4. Emit event to frontend ---
-    if let Err(e) = app_handle.emit("extensions_updated", ()) {
-        warn!("Failed to emit extensions_updated event: {}", e);
-    }
+    crate::event_bridge::bridge_emit(app_handle, "extensions_updated", ());
 
     Ok(())
 }
@@ -838,9 +850,9 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("view.html"));
     }
 
-    /// extensions declaring `background.main` must include `worker.html`.
+    /// extensions declaring `background.main` must include the file it points to.
     #[tokio::test]
-    async fn validate_package_structure_with_background_main_requires_worker_html() {
+    async fn validate_package_structure_with_background_main_requires_main_file() {
         let manifest = r#"{
             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
             "background": {"main": "dist/worker.js"},
@@ -848,7 +860,7 @@ mod tests {
         }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
-            // worker.html deliberately absent.
+            // dist/worker.js deliberately absent.
         ])
         .await
         .unwrap();
@@ -857,18 +869,40 @@ mod tests {
         let result = validate_package_structure(dest.path(), &m);
         assert!(
             result.is_err(),
-            " installer must require worker.html when background.main is declared"
+            "installer must require the background.main file to be present"
         );
-        assert!(result.unwrap_err().to_string().contains("worker.html"));
+        assert!(result.unwrap_err().to_string().contains("dist/worker.js"));
     }
 
-    /// both view.html (for any extension) and worker.html (when
-    /// background.main is set) present → passes validation.
+    /// a background.main path that is not a safe relative path is rejected.
     #[tokio::test]
-    async fn validate_package_structure_with_background_main_and_worker_html_valid() {
+    async fn validate_package_structure_with_background_main_path_traversal_rejected() {
         let manifest = r#"{
             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
-            "background": {"main": "dist/worker.js"},
+            "background": {"main": "../../etc/passwd"},
+            "commands":[{"id":"tick","name":"Tick","mode":"background"}]
+        }"#;
+        let dest = make_zip_and_extract(&[("manifest.json", manifest.as_bytes())])
+            .await
+            .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
+        let result = validate_package_structure(dest.path(), &m);
+        assert!(
+            result.is_err(),
+            "path traversal in background.main must be rejected"
+        );
+    }
+
+    /// view.html (for any extension) present and the declared background.main
+    /// file present → passes validation. The background bundle may use any
+    /// filename — the blob Worker bootstrap imports it directly and does not
+    /// require a worker.html page.
+    #[tokio::test]
+    async fn validate_package_structure_with_background_main_valid() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "background": {"main": "dist/daemon/main.js"},
             "commands":[
                 {"id":"open","name":"Open","mode":"view","component":"MainView"},
                 {"id":"tick","name":"Tick","mode":"background"}
@@ -877,7 +911,7 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("view.html", b"<html/>"),
-            ("worker.html", b"<html/>"),
+            ("dist/daemon/main.js", b"self.postMessage(1);"),
         ])
         .await
         .unwrap();
@@ -910,14 +944,14 @@ mod tests {
         );
     }
 
-    /// hotfix: `worker.html` nested under `dist/` must satisfy the
-    /// validator when `background.main` is declared, with no presence at the
-    /// extraction root.
+    /// background.main nested under a subdirectory (the shape per-extension
+    /// Vite configs emit, e.g. `dist/daemon/main.js`) must satisfy the
+    /// validator — the declared path is checked directly, not a fixed filename.
     #[tokio::test]
-    async fn validate_package_structure_with_worker_html_in_dist_valid() {
+    async fn validate_package_structure_with_background_main_in_nested_dir_valid() {
         let manifest = r#"{
             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
-            "background": {"main": "dist/worker.js"},
+            "background": {"main": "dist/daemon/main.js"},
             "commands":[
                 {"id":"open","name":"Open","mode":"view","component":"MainView"},
                 {"id":"tick","name":"Tick","mode":"background"}
@@ -926,7 +960,7 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("dist/view.html", b"<html/>"),
-            ("dist/worker.html", b"<html/>"),
+            ("dist/daemon/main.js", b"self.postMessage(1);"),
         ])
         .await
         .unwrap();
@@ -934,7 +968,7 @@ mod tests {
             .unwrap();
         assert!(
             validate_package_structure(dest.path(), &m).is_ok(),
-            "worker.html at dist/worker.html must satisfy the validator"
+            "background.main at dist/daemon/main.js must satisfy the validator"
         );
     }
 
@@ -1101,7 +1135,7 @@ mod tests {
 
     /// End-to-end: the synthetic  fixture at
     /// `tests/fixtures/worker_view_fixture/` must pass `validate_package_structure`
-    /// with the  installer rules (view.html + worker.html both present).
+    /// with the  installer rules (view.html present, declared background.main present).
     #[test]
     fn worker_view_fixture_passes_validation() {
         let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1121,8 +1155,8 @@ mod tests {
             "fixture must include view.html"
         );
         assert!(
-            fixture.join("worker.html").exists(),
-            "fixture must include worker.html"
+            fixture.join("worker.js").exists(),
+            "fixture must include the declared background.main file"
         );
         // Confirm first_view_component is correctly derived.
         assert_eq!(m.first_view_component(), Some("MainView"));

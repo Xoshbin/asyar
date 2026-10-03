@@ -1,0 +1,36 @@
+
+ RUN  v4.1.10 /private/tmp/asyar-branch-benchmark/asyar-launcher
+
+ ❯ src/services/search/searchOrchestrator.test.ts (19 tests | 1 failed) 7ms
+     × prefers worker actionId over the aggregator navigation closure 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/services/search/searchOrchestrator.test.ts > review reproduction: real Tier 2 result shape > prefers worker actionId over the aggregator navigation closure
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array []
+
+
+Number of calls: 1
+
+ ❯ src/services/search/searchOrchestrator.test.ts:466:26
+    464|     await searchOrchestrator.handleSearch('toggle');
+    465|     expect(searchOrchestrator.tryExecuteResultAction('tier2-toggle')).…
+    466|     expect(navigate).not.toHaveBeenCalled();
+       |                          ^
+    467|     expect(actionService.executeExtensionAction).toHaveBeenCalledWith(…
+    468|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 passed (19)
+   Start at  14:51:39
+   Duration  331ms (transform 200ms, setup 0ms, import 245ms, tests 7ms, environment 0ms)
+

@@ -55,6 +55,7 @@ import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from './feedback/feedbackService.svelte';
 import { setInvokeFailureReporter } from '../lib/ipc/invokeSafe';
 import { startBridgeLoop } from '../lib/ipc/bridgeEvents';
+import { setAppInitialized, isAppInitialized } from './appInitState';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -83,6 +84,7 @@ export const appInitializer = {
       return true;
     }
     isInitialized = true; // Set early to prevent concurrent calls
+    setAppInitialized(true);
 
     try {
       // Start the eval-free event bridge loop first so early Rust events
@@ -233,22 +235,22 @@ export const appInitializer = {
 
       await extensionManager.init(); // Initialize ExtensionManager first
 
-      // Must run after the workerRegistry/viewRegistry listeners above are
-      // committed — EVENT_MOUNT is fire-and-forget and would otherwise be lost.
-      // Failure here means every always-on extension is dormant until the
-      // user re-enables it, so it surfaces through the diagnostics channel
-      // rather than a quiet log.
-      restoreWorkers().then((result) => {
-        if (result === null) {
-          void feedbackService.report({
-            source: 'frontend',
-            kind: 'extension-runtime/restore-workers-failed',
-            severity: 'error',
-            retryable: false,
-            developerDetail: 'restore_workers failed',
+      // Deferred to idle periods so cold-start presentation and initial query
+      // typing have zero contention from background worker restoration.
+      runWhenIdle(
+        () => {
+          restoreWorkers().catch((error) => {
+            void feedbackService.report({
+              source: 'frontend',
+              kind: 'extension-runtime/restore-workers-failed',
+              severity: 'error',
+              retryable: false,
+              developerDetail: `restore_workers failed: ${error instanceof Error ? error.message : String(error)}`,
+            });
           });
-        }
-      });
+        },
+        { timeout: 1500 },
+      );
 
       // Initialize extension update service for silent auto-updates
       const { viewManager } = await import('./extension/viewManager.svelte');
@@ -261,6 +263,12 @@ export const appInitializer = {
       );
       extensionUpdateService.checkAndAutoApply(); // non-blocking initial check + auto-apply
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
+      void import('./dev/inspectorStore.svelte').then(({ setInspectorManifestProvider }) => {
+        setInspectorManifestProvider(
+          (id) =>
+            extensionManager.getManifestById(id) as { background?: { main?: string } } | undefined,
+        );
+      });
 
       // Initialize app auto-update store (listens for Rust scheduler events)
       const { initAppUpdateStore } = await import('./update/appUpdateStore.svelte');
@@ -469,11 +477,12 @@ export const appInitializer = {
     } catch (error) {
       logService.error(`Failed to initialize application: ${error}`);
       isInitialized = false; // Reset flag on error
+      setAppInitialized(false);
       return false;
     }
   },
 
   isAppInitialized(): boolean {
-    return isInitialized;
+    return isAppInitialized();
   },
 };

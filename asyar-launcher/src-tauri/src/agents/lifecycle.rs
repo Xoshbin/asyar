@@ -61,7 +61,7 @@ pub fn resolve_default_agent(
     default_agent_id: Option<&str>,
 ) -> Result<Option<AgentRow>, AppError> {
     match default_agent_id.filter(|id| !id.trim().is_empty()) {
-        Some(id) => get_agent(conn, id),
+        Some(id) => Ok(get_agent(conn, id)?),
         None => Ok(None),
     }
 }

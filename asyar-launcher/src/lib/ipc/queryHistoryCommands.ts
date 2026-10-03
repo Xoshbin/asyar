@@ -5,7 +5,7 @@ export interface QueryHistoryCommands {
   record(query: string): Promise<boolean>;
   delete(query: string): Promise<boolean>;
   reset(): Promise<boolean>;
-  list(): Promise<string[] | null>;
+  list(): Promise<string[]>;
 }
 
 export const queryHistoryCommands: QueryHistoryCommands = {

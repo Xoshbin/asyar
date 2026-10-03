@@ -48,6 +48,10 @@ vi.mock('../action/actionService.svelte', () => ({
     setActionExecutor: vi.fn(),
     refreshFiltered: vi.fn(),
     filteredActions: [],
+    getSelectedSearchItem: vi.fn(() => {
+      const idx = mockSearchStores.selectedIndex;
+      return idx >= 0 ? mockSearchOrchestrator.items[idx] : undefined;
+    }),
   },
 }));
 

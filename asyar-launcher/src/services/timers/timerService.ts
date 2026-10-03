@@ -29,7 +29,7 @@ function parseArgs(json: string): Record<string, unknown> {
 export const timerService = {
   async schedule(extensionId: string | null, opts: ScheduleTimerOptions): Promise<string> {
     const argsJson = JSON.stringify(opts.args ?? {});
-    return (await timerSchedule(extensionId, opts.commandId, argsJson, opts.fireAt)) ?? '';
+    return timerSchedule(extensionId, opts.commandId, argsJson, opts.fireAt);
   },
 
   async cancel(extensionId: string | null, timerId: string): Promise<void> {
@@ -37,7 +37,7 @@ export const timerService = {
   },
 
   async list(extensionId: string | null): Promise<TimerDescriptor[]> {
-    const raw = (await timerList(extensionId)) ?? [];
+    const raw = await timerList(extensionId);
     return raw.map((r) => ({
       timerId: r.timerId,
       extensionId: r.extensionId,

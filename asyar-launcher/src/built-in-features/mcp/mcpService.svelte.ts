@@ -120,17 +120,11 @@ export class McpService {
   }
 
   async refreshServers(): Promise<void> {
-    const result = await mcpListServers();
-    if (result !== null) {
-      this.servers = result;
-    }
+    this.servers = await mcpListServers();
   }
 
   async refreshAudit(serverId: string | null = null, limit = 50): Promise<void> {
-    const result = await mcpListAudit(serverId, limit);
-    if (result !== null) {
-      this.audit = result;
-    }
+    this.audit = await mcpListAudit(serverId, limit);
   }
 
   async install(input: McpServerInstallInput): Promise<McpServerSummary | null> {
@@ -146,7 +140,7 @@ export class McpService {
       }
       result = await mcpInstallServer(input);
     }
-    if (result === null || isRuntimeConsentNeeded(result)) {
+    if (isRuntimeConsentNeeded(result)) {
       this.installError =
         'Could not install this MCP server — check its command/arguments and try again.';
       return null;
@@ -225,19 +219,16 @@ export class McpService {
     return this.detectedConfigs;
   }
 
-  async parseConfigJson(json: string): Promise<McpServerInstallInput[] | null> {
+  async parseConfigJson(json: string): Promise<McpServerInstallInput[]> {
     return mcpParseConfigJson(json);
   }
 
-  async listServerTools(serverId: string): Promise<McpToolDescriptor[] | null> {
+  async listServerTools(serverId: string): Promise<McpToolDescriptor[]> {
     return mcpListServerTools(serverId);
   }
 
   async refreshPermissions(serverId: string | null = null): Promise<void> {
-    const result = await mcpListPermissions(serverId);
-    if (result !== null) {
-      this.permissions = result;
-    }
+    this.permissions = await mcpListPermissions(serverId);
   }
 
   async deletePermission(serverId: string, toolId: string, agentId: string): Promise<void> {

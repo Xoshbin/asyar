@@ -26,13 +26,13 @@ export function initFileIndexConfigSync(): () => void {
   }
 
   lastConfig = { ...settingsService.currentSettings.fileSearch };
-  void pushConfig(lastConfig);
+  void pushConfig(lastConfig).catch(() => undefined);
 
   unsubscribe = settingsService.subscribe((s) => {
     const next = { ...s.fileSearch };
     if (lastConfig && configsEqual(next, lastConfig)) return;
     lastConfig = next;
-    void pushConfig(next);
+    void pushConfig(next).catch(() => undefined);
   });
 
   return () => {

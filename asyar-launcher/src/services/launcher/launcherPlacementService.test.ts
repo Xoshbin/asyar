@@ -34,8 +34,8 @@ describe('LauncherPlacementService', () => {
     expect(svc.loaded).toBe(true);
   });
 
-  it('falls back to the default when the command returns nothing', async () => {
-    vi.mocked(getLauncherPlacement).mockResolvedValueOnce(null);
+  it('falls back to the default when the command rejects', async () => {
+    vi.mocked(getLauncherPlacement).mockRejectedValueOnce(new Error('load failed'));
     const svc = new LauncherPlacementService();
     await svc.load();
 

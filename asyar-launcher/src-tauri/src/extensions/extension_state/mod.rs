@@ -39,15 +39,7 @@ pub struct Subscription {
     pub installed_at: u64,
 }
 
-/// One row returned by `list_all` — the SQLite shape plus `updated_at` so
-/// the dev inspector can render "last changed" timestamps.
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct StateEntry {
-    pub key: String,
-    pub value: Value,
-    pub updated_at: u64,
-}
+pub use asyar_storage::extension_state::StateEntry;
 
 /// Aggregated summary returned by `list_subscriptions` — one row per
 /// `(key, role)` with a count of subscribers and the earliest install
@@ -126,7 +118,7 @@ impl ExtensionStateService {
 
     pub fn get(&self, extension_id: &str, key: &str) -> Result<Option<Value>, AppError> {
         let conn = self.data_store.conn()?;
-        store::get(&conn, extension_id, key)
+        Ok(store::get(&conn, extension_id, key)?)
     }
 
     /// Persist `(extension_id, key) = value` and broadcast `state:changed`
@@ -209,7 +201,7 @@ impl ExtensionStateService {
     /// rows in arbitrary order; callers sort as needed.
     pub fn list_all(&self, extension_id: &str) -> Result<Vec<StateEntry>, AppError> {
         let conn = self.data_store.conn()?;
-        store::get_all(&conn, extension_id)
+        Ok(store::get_all(&conn, extension_id)?)
     }
 
     /// Group the in-memory subscription registry into one row per

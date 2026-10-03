@@ -46,9 +46,18 @@ export default defineConfig(({ mode }) => {
     // Never list the bare "asyar-sdk" specifier in either exclude or include —
     // the SDK's exports map has no "." entry, so probing it makes Vite's
     // dep-optimizer abort with "Missing '.' specifier in 'asyar-sdk' package".
-    optimizeDeps: useLocalSdk
-      ? { exclude: sdkSubpaths.map((sub) => `asyar-sdk/${sub}`) }
-      : { include: sdkSubpaths.map((sub) => `asyar-sdk/${sub}`) },
+    optimizeDeps: {
+      include: [
+        ...(useLocalSdk ? [] : sdkSubpaths.map((sub) => `asyar-sdk/${sub}`)),
+        'marked',
+        'prismjs',
+        'katex',
+        'mermaid',
+        'uuid',
+        'semver',
+      ],
+      exclude: useLocalSdk ? sdkSubpaths.map((sub) => `asyar-sdk/${sub}`) : [],
+    },
 
     clearScreen: false,
     server: {

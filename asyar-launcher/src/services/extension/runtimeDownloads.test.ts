@@ -42,7 +42,7 @@ describe('downloadDeclaredRuntimes', () => {
   });
 
   it('does nothing when the consent check itself fails', async () => {
-    checkExtensionConsent.mockResolvedValue(null);
+    checkExtensionConsent.mockRejectedValue(new Error('consent check failed'));
     await downloadDeclaredRuntimes('ext.a');
     expect(getRuntimeDownloadSizes).not.toHaveBeenCalled();
   });
@@ -69,7 +69,7 @@ describe('downloadDeclaredRuntimes', () => {
   it('marks the extension needsRuntime when a download fails, without throwing', async () => {
     checkExtensionConsent.mockResolvedValue(status(['bun']));
     getRuntimeDownloadSizes.mockResolvedValue([{ name: 'bun', sizeBytes: 100 }]);
-    downloadRuntime.mockResolvedValue(false);
+    downloadRuntime.mockRejectedValue(new Error('download failed'));
     await downloadDeclaredRuntimes('ext.a');
     expect(extensionStateManager.needsRuntime).toEqual(['ext.a']);
   });
@@ -80,7 +80,10 @@ describe('downloadDeclaredRuntimes', () => {
       { name: 'bun', sizeBytes: 100 },
       { name: 'uv', sizeBytes: 200 },
     ]);
-    downloadRuntime.mockImplementation(async (name) => name === 'bun');
+    downloadRuntime.mockImplementation(async (name) => {
+      if (name === 'uv') throw new Error('download failed');
+      return true;
+    });
     await downloadDeclaredRuntimes('ext.a');
     expect(downloadRuntime).toHaveBeenCalledTimes(2);
     expect(extensionStateManager.needsRuntime).toEqual(['ext.a']);

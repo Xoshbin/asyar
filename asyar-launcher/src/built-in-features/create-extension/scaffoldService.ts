@@ -17,7 +17,7 @@ async function mkdir(path: string) {
 }
 
 async function exists(path: string): Promise<boolean> {
-  return (await checkPathExists(path)) ?? false;
+  return checkPathExists(path);
 }
 
 const isWindows =

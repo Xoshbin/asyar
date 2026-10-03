@@ -1,7 +1,10 @@
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { logService } from '../log/logService';
 import { pickExtensionIframe } from './extensionIframeSelector';
-import type { viewManager } from './viewManager.svelte';
+import { workerHost } from './workerHost.svelte';
+export interface ActiveViewProvider {
+  getActiveView(): string | null;
+}
 
 // Track pending search requests
 const pendingSearchRequests = new Map<
@@ -21,9 +24,9 @@ function generateSearchMessageId(): string {
 
 export class ExtensionIframeManager {
   hasInputFocus = $state(false);
-  private viewManagerInstance: typeof viewManager | null = null;
+  private viewManagerInstance: ActiveViewProvider | null = null;
 
-  public init(viewManagerInstance: typeof viewManager) {
+  public init(viewManagerInstance: ActiveViewProvider) {
     this.viewManagerInstance = viewManagerInstance;
   }
 
@@ -60,6 +63,13 @@ export class ExtensionIframeManager {
     role?: 'view' | 'worker',
     payload?: unknown,
   ): void {
+    if (role === 'worker' && workerHost.hasWorker(extensionId)) {
+      workerHost.post(extensionId, {
+        type: 'asyar:action:execute',
+        payload: { actionId, actionPayload: payload },
+      });
+      return;
+    }
     const iframe = pickExtensionIframe(extensionId, role ?? 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
@@ -94,6 +104,23 @@ export class ExtensionIframeManager {
       commands: Record<string, Record<string, unknown>>;
     },
   ): void {
+    if (workerHost.hasWorker(extensionId)) {
+      workerHost.broadcastPreferences(extensionId, bundle);
+    } else {
+      const workerIframe = pickExtensionIframe(extensionId, 'worker');
+      if (workerIframe?.contentWindow) {
+        workerIframe.contentWindow.postMessage(
+          {
+            type: 'asyar:event:preferences:set-all',
+            payload: {
+              extension: bundle.extension,
+              commands: bundle.commands,
+            },
+          },
+          getExtensionFrameOrigin(extensionId),
+        );
+      }
+    }
     const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
       // Use the `asyar:event:*` namespace so MessageBroker inside the
@@ -157,9 +184,10 @@ export class ExtensionIframeManager {
    */
   public sendSearchRequestToExtension(extensionId: string, query: string): Promise<any[]> {
     return new Promise((resolve, reject) => {
-      const iframe = pickExtensionIframe(extensionId, 'view');
+      const worker = workerHost.getWorker(extensionId);
+      const iframe = worker ? null : pickExtensionIframe(extensionId, 'view');
 
-      if (!iframe?.contentWindow) {
+      if (!worker && !iframe?.contentWindow) {
         resolve([]); // No iframe loaded — return empty, don't error
         return;
       }
@@ -176,14 +204,13 @@ export class ExtensionIframeManager {
 
       pendingSearchRequests.set(messageId, { resolve, reject, timer });
 
-      iframe.contentWindow.postMessage(
-        {
-          type: 'asyar:search:request',
-          messageId,
-          payload: { query },
-        },
-        getExtensionFrameOrigin(extensionId),
-      );
+      const message = {
+        type: 'asyar:search:request',
+        messageId,
+        payload: { query },
+      };
+      if (worker) worker.postMessage(message);
+      else iframe!.contentWindow!.postMessage(message, getExtensionFrameOrigin(extensionId));
     });
   }
 

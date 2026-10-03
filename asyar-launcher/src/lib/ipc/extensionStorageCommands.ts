@@ -17,15 +17,15 @@ export async function extKvSet(extensionId: string, key: string, value: string):
   await invokeSafe('ext_kv_set', { extensionId, key, value });
 }
 
-export async function extKvDelete(extensionId: string, key: string): Promise<boolean | null> {
+export async function extKvDelete(extensionId: string, key: string): Promise<boolean> {
   return invokeSafe<boolean>('ext_kv_delete', { extensionId, key });
 }
 
-export async function extKvGetAll(extensionId: string): Promise<KvEntry[] | null> {
+export async function extKvGetAll(extensionId: string): Promise<KvEntry[]> {
   return invokeSafe<KvEntry[]>('ext_kv_get_all', { extensionId });
 }
 
-export async function extKvClear(extensionId: string): Promise<number | null> {
+export async function extKvClear(extensionId: string): Promise<number> {
   return invokeSafe<number>('ext_kv_clear', { extensionId });
 }
 
@@ -44,10 +44,10 @@ export async function extCacheSet(
   await invokeSafe('ext_cache_set', { extensionId, key, value, expiresAt });
 }
 
-export async function extCacheDelete(extensionId: string, key: string): Promise<boolean | null> {
+export async function extCacheDelete(extensionId: string, key: string): Promise<boolean> {
   return invokeSafe<boolean>('ext_cache_delete', { extensionId, key });
 }
 
-export async function extCacheClear(extensionId: string): Promise<number | null> {
+export async function extCacheClear(extensionId: string): Promise<number> {
   return invokeSafe<number>('ext_cache_clear', { extensionId });
 }

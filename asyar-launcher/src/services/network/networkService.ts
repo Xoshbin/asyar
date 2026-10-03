@@ -19,7 +19,7 @@ export class NetworkService {
     body: string;
     ok: boolean;
   }> {
-    const result = await fetchUrl({
+    return fetchUrl({
       url,
       method: options?.method ?? 'GET',
       headers: options?.headers,
@@ -27,8 +27,6 @@ export class NetworkService {
       timeoutMs: options?.timeout ?? 20000,
       callerExtensionId,
     });
-    if (result === null) throw new Error('fetch_url failed');
-    return result;
   }
 
   async wsConnect(

@@ -2,8 +2,7 @@ import { isFeedbackShape } from '../../../lib/ipc/invokeSafe';
 
 /**
  * Every EXTENSION_INVOKE_DISPATCH handler delegates to an invokeSafe-backed
- * commands.ts wrapper, which returns null on failure instead of throwing —
- * and has already reported a diagnostic for that failure itself. Thrown to
+ * commands.ts wrapper, which reports a diagnostic before rejecting. Thrown to
  * signal "build the asyar:response error envelope" without making the
  * replyEnvelope stage report a second, redundant diagnostic.
  */

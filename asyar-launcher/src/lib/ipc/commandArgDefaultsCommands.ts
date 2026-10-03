@@ -15,7 +15,7 @@ export async function commandArgDefaultsGet(
   extensionId: string,
   commandId: string,
   isDynamic: boolean,
-): Promise<Record<string, string> | null> {
+): Promise<Record<string, string>> {
   return invokeSafe<Record<string, string>>('command_arg_defaults_get', {
     extensionId,
     commandId,

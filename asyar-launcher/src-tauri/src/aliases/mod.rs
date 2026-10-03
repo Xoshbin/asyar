@@ -7,6 +7,7 @@ use crate::storage::DataStore;
 use rusqlite::{params, Connection};
 use std::sync::RwLock;
 
+#[allow(dead_code)]
 pub fn init_table(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS item_aliases (

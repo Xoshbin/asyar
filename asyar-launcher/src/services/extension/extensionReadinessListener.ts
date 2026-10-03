@@ -51,9 +51,11 @@ class ExtensionReadinessListener {
     }
     const role: 'view' | 'worker' = payloadRole;
 
-    const drained = await iframeReadyAck(extensionId, mountToken, role);
-    if (drained === null) {
-      logService.warn(`[readiness] ack failed for ${extensionId}`);
+    let drained;
+    try {
+      drained = await iframeReadyAck(extensionId, mountToken, role);
+    } catch (error) {
+      logService.warn(`[readiness] ack failed for ${extensionId}: ${String(error)}`);
       return;
     }
     for (const m of drained) post(iframe, m);

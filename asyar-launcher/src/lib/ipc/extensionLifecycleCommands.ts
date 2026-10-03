@@ -13,7 +13,7 @@ export async function stateSubscribe(
   extensionId: string,
   key: string,
   role: 'worker' | 'view',
-): Promise<number | null> {
+): Promise<number> {
   return invokeSafe<number>('state_subscribe', { extensionId, key, role });
 }
 
@@ -26,7 +26,7 @@ export async function stateRpcRequest(
   id: string,
   correlationId: string,
   payload: unknown,
-): Promise<IpcDispatchOutcome | null> {
+): Promise<IpcDispatchOutcome> {
   return invokeSafe<IpcDispatchOutcome>('state_rpc_request', {
     extensionId,
     id,
@@ -38,7 +38,7 @@ export async function stateRpcRequest(
 export async function stateRpcAbort(
   extensionId: string,
   correlationId: string,
-): Promise<IpcDispatchOutcome | null> {
+): Promise<IpcDispatchOutcome> {
   return invokeSafe<IpcDispatchOutcome>('state_rpc_abort', { extensionId, correlationId });
 }
 
@@ -59,13 +59,13 @@ export async function stateRpcReply(
 export async function classifyItemsCommand(
   query: string,
   items: { id: string; title: string; subtitle: string | null; keywords: string[] }[],
-): Promise<{ id: string; tier: number }[] | null> {
+): Promise<{ id: string; tier: number }[]> {
   return invokeSafe<{ id: string; tier: number }[]>('classify_items', { query, items });
 }
 
 export async function filterCompatibleExtensionsCommand(
   items: { id: string; platforms: string[] | null }[],
-): Promise<string[] | null> {
+): Promise<string[]> {
   return invokeSafe<string[]>('filter_compatible_extensions', { items });
 }
 

@@ -16,7 +16,7 @@ export type SystemActionId = SystemAction;
 
 /** Actions the current machine supports, in display order. */
 export async function systemActionsSupported(): Promise<SystemActionId[]> {
-  return (await invokeSafe<SystemActionId[]>('system_actions_supported')) ?? [];
+  return invokeSafe<SystemActionId[]>('system_actions_supported');
 }
 
 export async function systemActionRun(action: SystemActionId): Promise<boolean> {

@@ -7,7 +7,7 @@ import { invokeSafe } from './invokeSafe';
 export async function raycastImportParse(
   path: string,
   password?: string,
-): Promise<import('../../built-in-features/raycast-import/types').ParseOutcome | null> {
+): Promise<import('../../built-in-features/raycast-import/types').ParseOutcome> {
   return invokeSafe('raycast_import_parse', { path, password });
 }
 
@@ -36,7 +36,7 @@ export async function exportProfile(
   binaryAssets: ProfileAssetEntry[],
   password: string | null,
   destination: string,
-): Promise<string | null> {
+): Promise<string> {
   return invokeSafe<string>('export_profile', {
     manifestJson,
     categories,
@@ -49,7 +49,7 @@ export async function exportProfile(
 export async function importProfile(
   filePath: string,
   password: string | null,
-): Promise<ProfileArchiveContents | null> {
+): Promise<ProfileArchiveContents> {
   return invokeSafe<ProfileArchiveContents>('import_profile', {
     filePath,
     password,

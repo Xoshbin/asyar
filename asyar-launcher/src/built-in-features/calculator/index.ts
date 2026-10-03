@@ -1,7 +1,10 @@
+import {
+  registerBuiltinSearchProvider,
+  type BuiltinSearchRow,
+} from '../../services/search/builtinSearchProviders';
 import type {
   Extension,
   ExtensionContext,
-  ExtensionResult,
   ILogService,
   IFeedbackService,
 } from 'asyar-sdk/contracts';
@@ -76,37 +79,41 @@ class CalculatorExtension implements Extension {
     this.enabled = false;
   }
 
-  async search(query: string): Promise<ExtensionResult[]> {
+  async searchRows(query: string): Promise<BuiltinSearchRow[]> {
     if (!this.enabled) return [];
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const results = (await calculatorEvaluate(trimmed)) ?? [];
+    const results = await calculatorEvaluate(trimmed);
 
-    return results.map((r) => ({
+    return results.map((r, index) => ({
+      id: `calc_result_${index}`,
       score: 1.0,
       title: r.value,
       subtitle: r.detail || trimmed,
-      type: 'result',
       icon: KIND_ICONS[r.kind] ?? '🧮',
       style: 'large',
       priority: 'top',
-      action: async () => {
-        const copyValue = r.value.replace(/^≈ /, '');
-        try {
-          await writeText(copyValue);
-          this.feedbackService?.sendBackground({
-            title: 'Calculator',
-            body: `Copied: ${copyValue}`,
-          });
-        } catch (e) {
-          this.logService?.error('Copy failed: ' + e);
-        }
-      },
+      actionPayload: { copyValue: r.value.replace(/^≈ /, '') },
     }));
+  }
+  async executeSearchResult(_id: string, payload?: unknown): Promise<void> {
+    const copyValue = (payload as { copyValue?: unknown } | undefined)?.copyValue;
+    if (typeof copyValue !== 'string') return;
+    try {
+      await writeText(copyValue);
+      this.feedbackService?.sendBackground({ title: 'Calculator', body: `Copied: ${copyValue}` });
+    } catch (e) {
+      this.logService?.error('Copy failed: ' + e);
+    }
   }
 }
 
 // Export singleton instance
 const extension = new CalculatorExtension();
+registerBuiltinSearchProvider({
+  extensionId: 'calculator',
+  search: (query) => extension.searchRows(query),
+  execute: (id, payload) => extension.executeSearchResult(id, payload),
+});
 export default extension;

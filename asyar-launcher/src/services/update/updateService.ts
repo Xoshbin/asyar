@@ -25,18 +25,17 @@ export async function runUpdateCheck(): Promise<UpdateResult> {
   logService.info('updateService: checking for updates');
 
   try {
-    const result = await appUpdaterCheckNow();
-    if (!result.ok) {
-      const message = 'app_updater_check_now failed';
-      logService.error(`updateService: check failed — ${message}`);
-      return { kind: 'error', message };
-    }
-    if (!result.value) {
+    const version = await appUpdaterCheckNow();
+    if (!version) {
       logService.info('updateService: no update available');
       return { kind: 'up-to-date' };
     }
-    logService.info(`updateService: update ${result.value} downloaded`);
-    return { kind: 'installed', version: result.value };
+    logService.info(`updateService: update ${version} downloaded`);
+    return { kind: 'installed', version };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logService.error(`updateService: check failed — ${message}`);
+    return { kind: 'error', message };
   } finally {
     inFlight = false;
   }

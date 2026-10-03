@@ -12,7 +12,7 @@ use rusqlite::Connection;
 use std::time::Instant;
 
 fn key() -> [u8; 32] {
-    [0xAB; 32]
+    rand::random()
 }
 
 fn now_ms() -> f64 {
@@ -104,4 +104,9 @@ fn main() {
         res.items.len(),
         res.index_state
     );
+}
+
+#[test]
+fn fixture_keys_are_fresh() {
+    assert_ne!(key(), key());
 }

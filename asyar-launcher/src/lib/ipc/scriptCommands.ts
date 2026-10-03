@@ -13,7 +13,7 @@ export async function scriptsRemoveDirectory(path: string): Promise<void> {
   await invokeSafe('scripts_remove_directory', { path });
 }
 
-export async function scriptsListDirectories(): Promise<string[] | null> {
+export async function scriptsListDirectories(): Promise<string[]> {
   return invokeSafe<string[]>('scripts_list_directories');
 }
 
@@ -22,7 +22,7 @@ export async function scriptsPickDirectory(): Promise<string | null> {
 }
 
 export async function scriptsRescan(): Promise<
-  import('../../built-in-features/scripts/types').ScriptScanReport | null
+  import('../../built-in-features/scripts/types').ScriptScanReport
 > {
   return invokeSafe('scripts_rescan');
 }
@@ -72,7 +72,7 @@ export interface SetInlineScriptsOutcome {
  */
 export async function scriptsSetInlineScripts(
   specs: InlineScriptSpec[],
-): Promise<SetInlineScriptsOutcome | null> {
+): Promise<SetInlineScriptsOutcome> {
   return invokeSafe('scripts_set_inline_scripts', { specs });
 }
 

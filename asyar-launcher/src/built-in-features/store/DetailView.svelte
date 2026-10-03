@@ -134,7 +134,7 @@
       return;
     }
     try {
-      const installedPaths: string[] = (await commands.listInstalledExtensions()) ?? [];
+      const installedPaths = await commands.listInstalledExtensions().catch(() => []);
       isInstalled = installedPaths.some(
         (p) => p.endsWith(`/${extensionId}`) || p.endsWith(`\\${extensionId}`) || p === extensionId,
       );

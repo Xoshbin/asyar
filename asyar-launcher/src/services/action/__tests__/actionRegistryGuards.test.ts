@@ -63,6 +63,10 @@ describe('Action & Shortcut Registry Integrity Guard', () => {
     mockSearchStores.query = '';
     mockSearchOrchestrator.items = [];
     actionService = new ActionService();
+    actionService.setSelectedItemProvider(() => {
+      const idx = mockSearchStores.selectedIndex;
+      return idx >= 0 ? mockSearchOrchestrator.items[idx] : undefined;
+    });
   });
 
   it('all built-in action IDs are unique', () => {

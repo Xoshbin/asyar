@@ -11,7 +11,7 @@ import { invokeSafe, invokeSafeVoid } from './invokeSafe';
  * rename, or remove anywhere; widening it for one internal file move would
  * hand the webview a general write primitive in the app data directory.
  */
-export async function clipboardAdoptImage(id: string, sourcePath: string): Promise<string | null> {
+export async function clipboardAdoptImage(id: string, sourcePath: string): Promise<string> {
   return invokeSafe<string>('clipboard_adopt_image', { id, sourcePath });
 }
 

@@ -36,21 +36,17 @@ pub fn build_default_backend<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     registry: Arc<NotificationActionRegistry>,
 ) -> Arc<dyn NotificationBackend> {
-    use tauri::Emitter;
-
     let registry_for_sink = Arc::clone(&registry);
     let app_for_sink = app.clone();
     let click_sink: backend::ActionClickSink = Arc::new(
         move |notification_id: &str, action_id: &str| {
             match resolve_click(&registry_for_sink, notification_id, action_id) {
                 Some(event) => {
-                    if let Err(e) = app_for_sink.emit(NOTIFICATION_ACTION_EVENT, &event) {
-                        log::warn!(
-                            "[notifications] failed to emit {}: {}",
-                            NOTIFICATION_ACTION_EVENT,
-                            e
-                        );
-                    }
+                    crate::event_bridge::bridge_emit(
+                        &app_for_sink,
+                        NOTIFICATION_ACTION_EVENT,
+                        &event,
+                    );
                     // Each notification's actions are one-shot: the OS closes
                     // the notification on click, so drop the whole group.
                     registry_for_sink.remove(notification_id);

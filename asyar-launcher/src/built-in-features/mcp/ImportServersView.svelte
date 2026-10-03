@@ -39,13 +39,13 @@
 
   async function handleParse(): Promise<void> {
     parseError = null;
-    const result = await mcpService.parseConfigJson(pasteJson);
-    if (result === null) {
-      parseError = 'Failed to parse the JSON. Check the format and try again.';
-      parsedServers = [];
-    } else {
+    try {
+      const result = await mcpService.parseConfigJson(pasteJson);
       parsedServers = result;
       parsedSelected = {};
+    } catch {
+      parseError = 'Failed to parse the JSON. Check the format and try again.';
+      parsedServers = [];
     }
   }
 

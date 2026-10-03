@@ -1,4 +1,5 @@
-import { appInitializer } from '../appInitializer';
+import { searchBuiltinProviders, executeBuiltinSearchResult } from './builtinSearchProviders';
+import { isAppInitialized } from '../appInitState';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
 import { searchStores } from './stores/search.svelte';
@@ -10,8 +11,8 @@ import * as commands from '../../lib/ipc/commands';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
-import { actionService } from '../action/actionService.svelte';
 import { contextModeService } from '../context/contextModeService.svelte';
+import { actionService, setSelectedItemProvider } from '../action/actionService.svelte';
 
 export { invalidateTopItemsCache };
 
@@ -59,20 +60,27 @@ class SearchOrchestratorClass {
     string,
     { extensionId: string; actionId: string; actionPayload: unknown }
   >();
+  // Maps a search-result objectId to its direct action execution handler (e.g. Calculator's copy-to-clipboard).
+  // First-class platform primitives execute directly without temporary closure-stashing side-tables.
+  #directActions = new Map<string, () => void | Promise<void>>();
 
   async handleSearch(query: string): Promise<void> {
-    if (!appInitializer.isAppInitialized() || viewManager.activeView) return;
+    if (!isAppInitialized() || viewManager.activeView) return;
     const token = ++this.#searchToken;
-    this.#resultActions.clear();
-    // Local map for inline action closures (e.g. Calculator's copy-to-clipboard)
-    // that can't survive the Rust serialization round-trip. Scoped to this
-    // invocation to avoid race conditions between concurrent searches.
-    const inlineActions = new Map<string, () => void | Promise<void>>();
+    const resultActions = new Map<
+      string,
+      { extensionId: string; actionId: string; actionPayload: unknown }
+    >();
+    const directActions = new Map<string, () => void | Promise<void>>();
     searchStores.isLoading = true;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
       // Collect extension results (these run in JS, can't move to Rust)
-      const resultsFromExtensions = await extensionManager.searchAll(query);
+      const [resultsFromExtensions, builtinRows] = await Promise.all([
+        extensionManager.searchAll(query),
+        searchBuiltinProviders(query, (id) => extensionManager.isExtensionEnabled(id)),
+      ]);
+      const builtinById = new Map(builtinRows.map((row) => [row.id, row]));
 
       // Map extension results to serializable format for Rust
       const externalResults = resultsFromExtensions.map(
@@ -81,16 +89,15 @@ class SearchOrchestratorClass {
             extRes.id ||
             `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`;
           if (extRes.actionId && extRes.extensionId) {
-            this.#resultActions.set(objectId, {
+            resultActions.set(objectId, {
               extensionId: extRes.extensionId,
               actionId: extRes.actionId,
               actionPayload: extRes.actionPayload,
             });
           }
-          // Preserve inline action closures (e.g. Calculator's copy-to-clipboard)
-          // that can't survive Rust serialization. Re-attached after mergedSearch.
+          // Direct, typed action execution path for platform primitives / built-ins
           if (typeof extRes.action === 'function') {
-            inlineActions.set(objectId, extRes.action);
+            directActions.set(objectId, extRes.action);
           }
           return {
             objectId,
@@ -110,17 +117,38 @@ class SearchOrchestratorClass {
         },
       );
 
+      externalResults.push(
+        ...builtinRows.map((row) => ({
+          objectId: row.id,
+          name: row.title,
+          description: row.subtitle,
+          type: 'command',
+          score: row.score ?? 0.5,
+          icon: row.icon,
+          extensionId: row.extensionId,
+          category: 'builtin',
+          style: row.style,
+          priority: row.priority,
+        })),
+      );
       const resp = await commands.mergedSearch(query, externalResults, 10);
-      if (resp === null) {
-        throw new Error('merged_search failed');
-      }
       const combinedResults: SearchResult[] = resp.results as SearchResult[];
       const aliasMatch = resp.aliasMatch ?? null;
+      if (token !== this.#searchToken) return;
+      this.#resultActions = resultActions;
+      this.#directActions = directActions;
 
-      // Re-attach inline action closures that were stripped for the Rust
-      // round-trip (e.g. Calculator's copy-to-clipboard).
+      // Direct action execution path: attach direct action reference if present
       for (const r of combinedResults) {
-        const action = inlineActions.get(r.objectId);
+        const builtin = builtinById.get(r.objectId);
+        if (builtin) {
+          r.action = () =>
+            executeBuiltinSearchResult(builtin.extensionId, builtin.id, builtin.actionPayload).then(
+              () => {},
+            );
+          continue;
+        }
+        const action = directActions.get(r.objectId);
         if (action) {
           (r as any).action = action;
         }
@@ -169,6 +197,8 @@ class SearchOrchestratorClass {
     } catch (error) {
       logService.error(`Combined search failed: ${error}`);
       if (token !== this.#searchToken) return;
+      this.#resultActions.clear();
+      this.#directActions.clear();
       this.items = [];
       this.lastCompletedQuery = query;
     } finally {
@@ -177,17 +207,39 @@ class SearchOrchestratorClass {
   }
 
   /**
-   * If the highlighted search result carries a worker-side action (an
-   * ExtensionResult with actionId), dispatch it and return true. Returns
-   * false for any objectId that is not a result-action — the caller then
-   * falls through to the normal command activation path.
+   * If the highlighted search result carries a direct action (e.g. Calculator)
+   * or a worker-side action (an ExtensionResult with actionId), execute/dispatch it
+   * and return true. Returns false for any objectId that is not an action result —
+   * the caller then falls through to the normal command activation path.
    */
   tryExecuteResultAction(objectId: string): boolean {
     const info = this.#resultActions.get(objectId);
-    if (!info) return false;
-    actionService.executeExtensionAction(info.extensionId, info.actionId, info.actionPayload);
-    return true;
+    if (info) {
+      actionService.executeExtensionAction(info.extensionId, info.actionId, info.actionPayload);
+      return true;
+    }
+    const row = this.items.find((item) => item.objectId === objectId);
+    if (typeof row?.action === 'function') {
+      void row.action();
+      return true;
+    }
+    const directAction = this.#directActions.get(objectId);
+    if (directAction) {
+      try {
+        void directAction();
+      } catch (err) {
+        logService.error(`Direct result action failed for ${objectId}: ${err}`);
+      }
+      return true;
+    }
+    return false;
   }
 }
 
 export const searchOrchestrator = new SearchOrchestratorClass();
+
+// Wire provider so actionService doesn't import searchOrchestrator (breaks circular dependency)
+setSelectedItemProvider(() => {
+  const idx = searchStores.selectedIndex;
+  return idx >= 0 ? searchOrchestrator.items[idx] : undefined;
+});

@@ -13,7 +13,7 @@ use crate::error::AppError;
 use crate::storage::agents::{get_agent, AgentRow, SilentInputSource, SilentOutputAction};
 use crate::storage::DataStore;
 use rusqlite::Connection;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 /// Display metadata supplied by the frontend provider registry. Availability
 /// policy is evaluated in Rust against the stored provider configuration.
@@ -466,7 +466,7 @@ pub fn agents_editor_save(
         let conn = db.conn()?;
         agents_editor_save_impl(&conn, agent_id, form)?
     };
-    let _ = app.emit("agents:changed", ());
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(row)
 }
 

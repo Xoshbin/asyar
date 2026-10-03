@@ -1,7 +1,12 @@
 import { agentsManager } from './agentsManager.svelte';
 import { agentService } from './agentService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
-import agentsExtension from './index';
+type SubmitHandler = (query: string) => Promise<void>;
+let submitHandler: SubmitHandler | null = null;
+
+export function registerAgentSubmitHandler(handler: SubmitHandler): void {
+  submitHandler = handler;
+}
 
 export async function openAgentForTab(
   agentId: string | null,
@@ -24,7 +29,7 @@ export async function openAgentForTab(
 
   viewManager.navigateToView('agents/AgentChatView');
 
-  if (initialQuery) {
-    await agentsExtension.onViewSubmit(initialQuery);
+  if (initialQuery && submitHandler) {
+    await submitHandler(initialQuery);
   }
 }

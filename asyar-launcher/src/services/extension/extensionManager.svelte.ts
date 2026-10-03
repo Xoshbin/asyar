@@ -1,3 +1,4 @@
+import { setWorkerEntryProvider } from './workerRegistry.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import type {
@@ -26,11 +27,12 @@ import { applyTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from './ExtensionIpcRouter';
 import { ExtensionLoader } from './ExtensionLoader';
 import { resetLauncherState } from '../../lib/launcher/launcherReset';
+import { runWhenIdle } from '../../lib/idle';
 import type { ServiceRegistry } from './defineServiceRegistry';
 import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 import { TimerBridge } from '../timers/timerBridge.svelte';
-import { dispatch } from './extensionDispatcher.svelte';
+import { dispatch, registerExtensionNameResolver } from './extensionDispatcher.svelte';
 import { clipboardHistoryService } from '../clipboard/clipboardHistoryService';
 
 /**
@@ -140,7 +142,9 @@ export class ExtensionManager implements IExtensionManager {
       this.goBack.bind(this),
       () => searchService.saveIndex(),
     );
+    setWorkerEntryProvider((id) => this.getManifestById(id)?.background?.main);
     ipcRouter.setup();
+    registerExtensionNameResolver((id) => this.getManifestById(id)?.name);
   }
 
   async init(): Promise<boolean> {
@@ -195,22 +199,31 @@ export class ExtensionManager implements IExtensionManager {
           extensionSearchAggregator.resolveExtensionInstance(module as any),
       });
 
-      performanceService.startTiming('command-index-sync');
-      await this.syncCommandIndex();
-      const syncMetrics = performanceService.stopTiming('command-index-sync');
-      logService.custom(
-        `🔄 Commands index synced in ${syncMetrics.duration?.toFixed(2)}ms`,
-        'PERF',
-        'blue',
-      );
-
       this.updateExtensionRecords();
 
-      // Push manifest-declared walkthrough tasks to Rust. Same shape as the
-      // command-index sync above: the frontend transports declarations, Rust
-      // decides everything about them. Never fatal — a walkthrough failure
-      // must not stop extensions from loading.
-      await this.syncWalkthroughTasks();
+      // Push manifest-declared walkthrough tasks and sync command index to Rust.
+      // Non-blocking and deferred to idle periods so cold-start presentation latency is zero.
+      // Existing indexed commands in Rust's SQLite database remain immediately searchable.
+      runWhenIdle(
+        () => {
+          performanceService.startTiming('command-index-sync');
+          this.syncCommandIndex()
+            .then(() => {
+              const syncMetrics = performanceService.stopTiming('command-index-sync');
+              logService.custom(
+                `🔄 Commands index synced in ${syncMetrics.duration?.toFixed(2)}ms`,
+                'PERF',
+                'blue',
+              );
+            })
+            .catch((err) => {
+              logService.error(`Failed to sync command index: ${err}`);
+            });
+
+          void this.syncWalkthroughTasks();
+        },
+        { timeout: 1500 },
+      );
 
       // Start listening for scheduled command ticks and preference changes
       // from Rust. Both listeners are managed by ExtensionEventSubscriptions.
@@ -342,9 +355,11 @@ export class ExtensionManager implements IExtensionManager {
 
   private async syncWalkthroughTasks(): Promise<void> {
     try {
-      // `probeSources` imports this module for the extension count, so it
-      // stays a runtime import to keep the module graph acyclic.
-      const { walkthroughProbeSources } = await import('../walkthrough/probeSources');
+      const { walkthroughProbeSources, setInstalledExtensionCountProvider } =
+        await import('../walkthrough/probeSources');
+      setInstalledExtensionCountProvider(
+        () => this.extensionRecords.filter((r) => !r.isBuiltIn).length,
+      );
 
       await walkthroughService.sync(
         Array.from(this.manifestsById.values()),

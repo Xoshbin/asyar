@@ -93,6 +93,7 @@ vi.mock('./tabRouter', () => ({
 
 vi.mock('./threadOpener', () => ({
   openAgentForTab: vi.fn().mockResolvedValue(undefined),
+  registerAgentSubmitHandler: vi.fn(),
 }));
 
 vi.mock('../../services/settings/settingsService.svelte', () => ({

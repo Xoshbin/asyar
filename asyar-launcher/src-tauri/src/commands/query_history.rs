@@ -55,8 +55,8 @@ pub async fn query_history_reset(
 #[tauri::command]
 pub async fn query_history_list(store: State<'_, DataStore>) -> Result<Vec<String>, AppError> {
     let store = store.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::storage::query_history::list(&*store.conn()?)
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<String>, AppError> {
+        Ok(crate::storage::query_history::list(&*store.conn()?)?)
     })
     .await
     .map_err(|e| AppError::Database(e.to_string()))?

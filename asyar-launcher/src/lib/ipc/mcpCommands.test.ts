@@ -83,10 +83,9 @@ describe('mcpSetServerEnabled', () => {
     expect(result).toBe(true);
   });
 
-  it('returns false when invokeSafe returns null (failure)', async () => {
-    mockInvoke.mockResolvedValue(null);
-    const result = await mcpSetServerEnabled('my-server', true);
-    expect(result).toBe(false);
+  it('rejects when the command fails', async () => {
+    mockInvoke.mockRejectedValue(new Error('enable failed'));
+    await expect(mcpSetServerEnabled('my-server', true)).rejects.toThrow('enable failed');
   });
 
   it('returns the needsRuntime outcome unchanged when a bundled runtime is required', async () => {
@@ -149,11 +148,10 @@ describe('mcpInvokeTool', () => {
   });
 });
 
-describe('null returns from wrappers', () => {
-  it('return null when invokeSafe returns null', async () => {
-    mockInvoke.mockResolvedValue(null);
-    const result = await mcpListServers();
-    expect(result).toBeNull();
+describe('command failures', () => {
+  it('propagates list failure', async () => {
+    mockInvoke.mockRejectedValue(new Error('list failed'));
+    await expect(mcpListServers()).rejects.toThrow('list failed');
   });
 });
 

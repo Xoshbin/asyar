@@ -4,7 +4,7 @@ use super::DataStore;
 use crate::crypto::keystore::KeystoreState;
 use crate::error::AppError;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 // ── Clipboard ────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,11 @@ pub fn clipboard_list_initial(
     keystore: State<'_, KeystoreState>,
 ) -> Result<super::clipboard::InitialPage, AppError> {
     let conn = store.conn()?;
-    super::clipboard::list_initial(&conn, limit as usize, keystore.master_key())
+    Ok(super::clipboard::list_initial(
+        &conn,
+        limit as usize,
+        keystore.master_key(),
+    )?)
 }
 
 #[tauri::command]
@@ -26,7 +30,12 @@ pub fn clipboard_list_older(
     keystore: State<'_, KeystoreState>,
 ) -> Result<super::clipboard::OlderPage, AppError> {
     let conn = store.conn()?;
-    super::clipboard::list_older(&conn, &cursor, limit as usize, keystore.master_key())
+    Ok(super::clipboard::list_older(
+        &conn,
+        &cursor,
+        limit as usize,
+        keystore.master_key(),
+    )?)
 }
 
 #[tauri::command]
@@ -38,13 +47,13 @@ pub fn clipboard_search(
     fts: State<'_, Arc<ClipboardFts>>,
 ) -> Result<super::clipboard::SearchResult, AppError> {
     let conn = store.conn()?;
-    super::clipboard::search(
+    Ok(super::clipboard::search(
         &conn,
         fts.inner(),
         &query,
         limit as usize,
         keystore.master_key(),
-    )
+    )?)
 }
 
 #[tauri::command]
@@ -54,7 +63,11 @@ pub fn clipboard_get_item(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Option<super::clipboard::ClipboardItem>, AppError> {
     let conn = store.conn()?;
-    super::clipboard::get_item(&conn, &id, keystore.master_key())
+    Ok(super::clipboard::get_item(
+        &conn,
+        &id,
+        keystore.master_key(),
+    )?)
 }
 
 #[tauri::command]
@@ -64,7 +77,11 @@ pub fn clipboard_get_merged_text(
     keystore: State<'_, KeystoreState>,
 ) -> Result<super::clipboard::MergedText, AppError> {
     let conn = store.conn()?;
-    super::clipboard::get_merged_text(&conn, &ids, keystore.master_key())
+    Ok(super::clipboard::get_merged_text(
+        &conn,
+        &ids,
+        keystore.master_key(),
+    )?)
 }
 
 #[tauri::command]
@@ -75,12 +92,12 @@ pub fn clipboard_export_for_sync(
     keystore: State<'_, KeystoreState>,
 ) -> Result<super::clipboard::ExportPage, AppError> {
     let conn = store.conn()?;
-    super::clipboard::export_for_sync(
+    Ok(super::clipboard::export_for_sync(
         &conn,
         cursor.as_ref(),
         limit as usize,
         keystore.master_key(),
-    )
+    )?)
 }
 
 #[tauri::command]
@@ -88,7 +105,7 @@ pub fn clipboard_count(
     store: State<'_, DataStore>,
 ) -> Result<super::clipboard::ClipboardCount, AppError> {
     let conn = store.conn()?;
-    super::clipboard::count(&conn)
+    Ok(super::clipboard::count(&conn)?)
 }
 
 #[tauri::command]
@@ -106,14 +123,15 @@ pub fn clipboard_record_capture(
         .map(|p| p.join("icon_cache"))
         .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/asyar_icon_cache"));
     let conn = store.conn()?;
-    super::clipboard::record_capture_with_fts(
+    let res = super::clipboard::record_capture_with_fts(
         &conn,
         &item,
-        Some(&cache_dir),
+        Some((&cache_dir, &crate::application::service::extract_app_icon)),
         keystore.master_key(),
         fts.inner(),
         retention_ms,
-    )
+    )?;
+    Ok(res)
 }
 
 #[tauri::command]
@@ -122,7 +140,7 @@ pub fn clipboard_toggle_favorite(
     store: State<'_, DataStore>,
 ) -> Result<bool, AppError> {
     let conn = store.conn()?;
-    super::clipboard::toggle_favorite(&conn, &id)
+    Ok(super::clipboard::toggle_favorite(&conn, &id)?)
 }
 
 #[tauri::command]
@@ -133,7 +151,12 @@ pub fn clipboard_delete_item(
     fts: State<'_, Arc<ClipboardFts>>,
 ) -> Result<super::clipboard::DeleteResult, AppError> {
     let conn = store.conn()?;
-    super::clipboard::delete_item_with_fts(&conn, &id, keystore.master_key(), fts.inner())
+    Ok(super::clipboard::delete_item_with_fts(
+        &conn,
+        &id,
+        keystore.master_key(),
+        fts.inner(),
+    )?)
 }
 
 #[tauri::command]
@@ -143,7 +166,11 @@ pub fn clipboard_clear_non_favorites(
     fts: State<'_, Arc<ClipboardFts>>,
 ) -> Result<super::clipboard::ClearResult, AppError> {
     let conn = store.conn()?;
-    super::clipboard::clear_non_favorites_with_fts(&conn, keystore.master_key(), fts.inner())
+    Ok(super::clipboard::clear_non_favorites_with_fts(
+        &conn,
+        keystore.master_key(),
+        fts.inner(),
+    )?)
 }
 
 // ── Snippets ─────────────────────────────────────────────────────────────────
@@ -155,7 +182,11 @@ pub fn snippet_upsert(
     keystore: State<'_, KeystoreState>,
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
-    super::snippets::upsert(&conn, &snippet, keystore.master_key())
+    Ok(super::snippets::upsert(
+        &conn,
+        &snippet,
+        keystore.master_key(),
+    )?)
 }
 
 #[tauri::command]
@@ -164,25 +195,25 @@ pub fn snippet_get_all(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<super::snippets::Snippet>, AppError> {
     let conn = store.conn()?;
-    super::snippets::get_all(&conn, keystore.master_key())
+    Ok(super::snippets::get_all(&conn, keystore.master_key())?)
 }
 
 #[tauri::command]
 pub fn snippet_remove(id: String, store: State<'_, DataStore>) -> Result<(), AppError> {
     let conn = store.conn()?;
-    super::snippets::remove(&conn, &id)
+    Ok(super::snippets::remove(&conn, &id)?)
 }
 
 #[tauri::command]
 pub fn snippet_toggle_pin(id: String, store: State<'_, DataStore>) -> Result<bool, AppError> {
     let conn = store.conn()?;
-    super::snippets::toggle_pin(&conn, &id)
+    Ok(super::snippets::toggle_pin(&conn, &id)?)
 }
 
 #[tauri::command]
 pub fn snippet_toggle_private(id: String, store: State<'_, DataStore>) -> Result<bool, AppError> {
     let conn = store.conn()?;
-    super::snippets::toggle_private(&conn, &id)
+    Ok(super::snippets::toggle_private(&conn, &id)?)
 }
 
 #[tauri::command]
@@ -191,13 +222,16 @@ pub fn snippet_export_for_sync(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<super::snippets::Snippet>, AppError> {
     let conn = store.conn()?;
-    super::snippets::export_for_sync(&conn, keystore.master_key())
+    Ok(super::snippets::export_for_sync(
+        &conn,
+        keystore.master_key(),
+    )?)
 }
 
 #[tauri::command]
 pub fn snippet_clear_all(store: State<'_, DataStore>) -> Result<(), AppError> {
     let conn = store.conn()?;
-    super::snippets::clear_all(&conn)
+    Ok(super::snippets::clear_all(&conn)?)
 }
 
 // ── Notes ────────────────────────────────────────────────────────────────────
@@ -210,7 +244,7 @@ fn note_change_payload(id: &str, change_type: &str) -> serde_json::Value {
 }
 
 pub(crate) fn emit_note_changed(app: &AppHandle, id: &str, change_type: &str) {
-    let _ = app.emit("notes:changed", note_change_payload(id, change_type));
+    crate::event_bridge::bridge_emit(app, "notes:changed", note_change_payload(id, change_type));
 }
 
 #[tauri::command]
@@ -235,7 +269,7 @@ pub fn note_get_all(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<super::notes::Note>, AppError> {
     let conn = store.conn()?;
-    super::notes::get_all(&conn, keystore.master_key())
+    Ok(super::notes::get_all(&conn, keystore.master_key())?)
 }
 
 #[tauri::command]
@@ -245,7 +279,7 @@ pub fn note_get_by_id(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Option<super::notes::Note>, AppError> {
     let conn = store.conn()?;
-    super::notes::get_by_id(&conn, &id, keystore.master_key())
+    Ok(super::notes::get_by_id(&conn, &id, keystore.master_key())?)
 }
 
 #[tauri::command]
@@ -319,13 +353,13 @@ pub fn note_search(
     fts: State<'_, Arc<NotesFts>>,
 ) -> Result<super::notes::NoteSearchResult, AppError> {
     let conn = store.conn()?;
-    super::notes::search(
+    Ok(super::notes::search(
         &conn,
         fts.inner(),
         &query,
         limit as usize,
         keystore.master_key(),
-    )
+    )?)
 }
 
 #[cfg(test)]
@@ -354,7 +388,11 @@ pub fn note_find(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Option<super::notes::Note>, AppError> {
     let conn = store.conn()?;
-    super::notes::get_by_id_or_title(&conn, &id_or_title, keystore.master_key())
+    Ok(super::notes::get_by_id_or_title(
+        &conn,
+        &id_or_title,
+        keystore.master_key(),
+    )?)
 }
 
 /// Notes that link to the target (resolved by id or title) via `[[Title]]`.
@@ -365,7 +403,11 @@ pub fn note_backlinks(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<super::notes::Note>, AppError> {
     let conn = store.conn()?;
-    super::notes::backlinks(&conn, &id_or_title, keystore.master_key())
+    Ok(super::notes::backlinks(
+        &conn,
+        &id_or_title,
+        keystore.master_key(),
+    )?)
 }
 
 /// Export a note as a real `.md` file: prompt for a location (default name
@@ -419,7 +461,7 @@ pub fn ext_kv_get(
     store: State<'_, DataStore>,
 ) -> Result<Option<String>, AppError> {
     let conn = store.conn()?;
-    super::extension_kv::get(&conn, &extension_id, &key)
+    Ok(super::extension_kv::get(&conn, &extension_id, &key)?)
 }
 
 #[tauri::command]
@@ -430,7 +472,12 @@ pub fn ext_kv_set(
     store: State<'_, DataStore>,
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
-    super::extension_kv::set(&conn, &extension_id, &key, &value)
+    Ok(super::extension_kv::set(
+        &conn,
+        &extension_id,
+        &key,
+        &value,
+    )?)
 }
 
 #[tauri::command]
@@ -440,7 +487,7 @@ pub fn ext_kv_delete(
     store: State<'_, DataStore>,
 ) -> Result<bool, AppError> {
     let conn = store.conn()?;
-    super::extension_kv::delete(&conn, &extension_id, &key)
+    Ok(super::extension_kv::delete(&conn, &extension_id, &key)?)
 }
 
 #[tauri::command]
@@ -449,13 +496,13 @@ pub fn ext_kv_get_all(
     store: State<'_, DataStore>,
 ) -> Result<Vec<super::extension_kv::KvEntry>, AppError> {
     let conn = store.conn()?;
-    super::extension_kv::get_all(&conn, &extension_id)
+    Ok(super::extension_kv::get_all(&conn, &extension_id)?)
 }
 
 #[tauri::command]
 pub fn ext_kv_clear(extension_id: String, store: State<'_, DataStore>) -> Result<u64, AppError> {
     let conn = store.conn()?;
-    super::extension_kv::clear(&conn, &extension_id)
+    Ok(super::extension_kv::clear(&conn, &extension_id)?)
 }
 
 #[tauri::command]
@@ -465,7 +512,7 @@ pub async fn ext_cache_get(
     store: tauri::State<'_, super::DataStore>,
 ) -> Result<Option<String>, AppError> {
     let conn = store.conn()?;
-    super::extension_cache::get(&conn, &extension_id, &key)
+    Ok(super::extension_cache::get(&conn, &extension_id, &key)?)
 }
 
 #[tauri::command]
@@ -477,7 +524,13 @@ pub async fn ext_cache_set(
     store: tauri::State<'_, super::DataStore>,
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
-    super::extension_cache::set(&conn, &extension_id, &key, &value, expires_at)
+    Ok(super::extension_cache::set(
+        &conn,
+        &extension_id,
+        &key,
+        &value,
+        expires_at,
+    )?)
 }
 
 #[tauri::command]
@@ -487,7 +540,7 @@ pub async fn ext_cache_delete(
     store: tauri::State<'_, super::DataStore>,
 ) -> Result<bool, AppError> {
     let conn = store.conn()?;
-    super::extension_cache::delete(&conn, &extension_id, &key)
+    Ok(super::extension_cache::delete(&conn, &extension_id, &key)?)
 }
 
 #[tauri::command]
@@ -496,7 +549,7 @@ pub async fn ext_cache_clear(
     store: tauri::State<'_, super::DataStore>,
 ) -> Result<u64, AppError> {
     let conn = store.conn()?;
-    super::extension_cache::clear(&conn, &extension_id)
+    Ok(super::extension_cache::clear(&conn, &extension_id)?)
 }
 
 // ── Shortcuts ────────────────────────────────────────────────────────────────
@@ -514,7 +567,7 @@ pub fn shortcut_upsert(
     // main launcher's in-memory cache — `handleFiredShortcut` then logs
     // "Received shortcut for unknown objectId" because the lookup misses
     // even though Rust dispatched the event correctly.
-    let _ = app.emit("shortcuts:changed", ());
+    crate::event_bridge::bridge_emit(&app, "shortcuts:changed", ());
     Ok(())
 }
 
@@ -523,7 +576,7 @@ pub fn shortcut_get_all(
     store: State<'_, DataStore>,
 ) -> Result<Vec<super::shortcuts::ItemShortcut>, AppError> {
     let conn = store.conn()?;
-    super::shortcuts::get_all(&conn)
+    Ok(super::shortcuts::get_all(&conn)?)
 }
 
 #[tauri::command]
@@ -534,6 +587,6 @@ pub fn shortcut_remove(
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
     super::shortcuts::remove(&conn, &object_id)?;
-    let _ = app.emit("shortcuts:changed", ());
+    crate::event_bridge::bridge_emit(&app, "shortcuts:changed", ());
     Ok(())
 }

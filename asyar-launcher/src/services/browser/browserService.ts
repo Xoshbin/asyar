@@ -43,21 +43,21 @@ import type {
  */
 export class BrowserService {
   async listAvailableBrowsers(callerExtensionId: string | null): Promise<BrowserId[]> {
-    return (await browserListAvailableBrowsers()) ?? [];
+    return browserListAvailableBrowsers();
   }
 
   async isCompanionInstalled(
     callerExtensionId: string | null,
     family: BrowserFamily,
   ): Promise<boolean> {
-    return (await browserIsCompanionInstalled(family)) ?? false;
+    return browserIsCompanionInstalled(family);
   }
 
   async listBookmarks(
     callerExtensionId: string | null,
     filter?: ListBookmarksFilter,
   ): Promise<Bookmark[]> {
-    return (await browserListBookmarks(filter)) ?? [];
+    return browserListBookmarks(filter);
   }
 
   async searchHistory(
@@ -65,14 +65,14 @@ export class BrowserService {
     query: string,
     opts?: SearchHistoryOptions,
   ): Promise<HistoryEntry[]> {
-    return (await browserSearchHistory(query, opts)) ?? [];
+    return browserSearchHistory(query, opts);
   }
 
   async listTabs(
     callerExtensionId: string | null,
     filter?: { browser?: BrowserId; query?: string },
   ): Promise<Tab[]> {
-    return (await browserListTabs(filter)) ?? [];
+    return browserListTabs(filter);
   }
 
   async getActiveTab(callerExtensionId: string | null, browser?: BrowserId): Promise<Tab | null> {
@@ -96,7 +96,7 @@ export class BrowserService {
   }
 
   async listPairedBrowsers(callerExtensionId: string | null): Promise<BrowserKey[]> {
-    return (await browserListPairedBrowsers()) ?? [];
+    return browserListPairedBrowsers();
   }
 
   async getCurrentPage(
@@ -112,7 +112,7 @@ export class BrowserService {
     selector: string,
     attrs?: string[],
   ): Promise<PageMatch[]> {
-    return (await browserQueryPage(tabId, selector, attrs)) ?? [];
+    return browserQueryPage(tabId, selector, attrs);
   }
 
   async actOnPage(
@@ -141,7 +141,7 @@ export class BrowserService {
   // cannot side-channel a different kind. Per-kind permissions are enforced in
   // src-tauri/src/permissions.rs (get_required_permission).
   async subscribeTabsChanged(callerExtensionId: string | null): Promise<string> {
-    return (await browserSubscribeTabsChanged()) ?? '';
+    return browserSubscribeTabsChanged();
   }
 
   async unsubscribeTabsChanged(
@@ -152,7 +152,7 @@ export class BrowserService {
   }
 
   async subscribePageChanged(callerExtensionId: string | null): Promise<string> {
-    return (await browserSubscribePageChanged()) ?? '';
+    return browserSubscribePageChanged();
   }
 
   async unsubscribePageChanged(

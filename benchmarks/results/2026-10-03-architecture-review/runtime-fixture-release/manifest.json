@@ -1,0 +1,26 @@
+{
+  "id": "org.asyar.architecture-probe",
+  "name": "Architecture Worker Probe",
+  "version": "1.0.0",
+  "type": "extension",
+  "author": "Asyar",
+  "description": "Manual packaged-runtime verification fixture",
+  "icon": "🧪",
+  "asyarSdk": "^4.13.0",
+  "searchable": true,
+  "background": { "main": "dist/daemon/main.js" },
+  "permissions": ["storage:read", "storage:write"],
+  "commands": [
+    { "id": "ping", "name": "Probe Background Action", "mode": "background", "icon": "🧪" },
+    {
+      "id": "status",
+      "name": "Probe Worker Status",
+      "mode": "view",
+      "component": "DefaultView",
+      "icon": "🧪"
+    }
+  ],
+  "preferences": [
+    { "name": "label", "title": "Probe label", "type": "textfield", "default": "initial" }
+  ]
+}

@@ -43,11 +43,16 @@ export class MessageBroker {
   > = new Map();
   private eventListeners: Map<string, Set<(payload: unknown) => void>> = new Map();
   private isBrowser: boolean;
+  private isDedicatedWorker: boolean;
   private extensionId?: string;
   private hostDispatcher: HostDispatcher | null = null;
 
   constructor() {
     this.isBrowser = typeof window !== 'undefined' && typeof window.parent !== 'undefined';
+    this.isDedicatedWorker =
+      typeof self !== 'undefined' &&
+      typeof (self as any).postMessage === 'function' &&
+      (typeof window === 'undefined' || (window as any).parent === undefined);
     this.setupListeners();
   }
 
@@ -70,6 +75,8 @@ export class MessageBroker {
   private setupListeners() {
     if (this.isBrowser) {
       window.addEventListener('message', this.handleMessage.bind(this));
+    } else if (this.isDedicatedWorker) {
+      self.addEventListener('message', this.handleMessage.bind(this) as EventListener);
     } else if (typeof process !== 'undefined') {
       if (process.send) {
         process.on('message', this.handleMessage.bind(this));
@@ -90,7 +97,7 @@ export class MessageBroker {
   }
 
   private handleMessage(event: MessageEvent | Record<string, unknown>) {
-    const data = this.isBrowser ? (event as MessageEvent).data : event;
+    const data = this.isBrowser || this.isDedicatedWorker ? (event as MessageEvent).data : event;
     if (!data || typeof data !== 'object') return;
 
     if (data.type === 'asyar:response') {
@@ -227,6 +234,8 @@ export class MessageBroker {
   public send(message: IPCMessage | IPCResponse): void {
     if (this.isBrowser) {
       window.parent.postMessage(message, '*');
+    } else if (this.isDedicatedWorker) {
+      (self as any).postMessage(message);
     } else if (typeof process !== 'undefined') {
       if (process.send) {
         process.send(message);

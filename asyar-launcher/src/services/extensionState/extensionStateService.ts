@@ -9,6 +9,7 @@ import {
 } from '../../lib/ipc/extensionLifecycleCommands';
 import type { IpcDispatchOutcome } from '../../lib/ipc/iframeLifecycleCommands';
 import { post } from '../extension/extensionDelivery';
+import { workerHost } from '../extension/workerHost.svelte';
 import { logService } from '../log/logService';
 
 /**
@@ -24,13 +25,20 @@ import { logService } from '../log/logService';
 /**
  * When Rust's worker-enqueue paths (`state_rpc_request`, `state_rpc_abort`)
  * return `ReadyDeliverNow`, the RPC envelope isn't in the worker mailbox —
- * it comes back inline so the frontend can post it straight into the
- * worker iframe. `NeedsMount` fires EVENT_MOUNT which the WorkerIframes
- * harness listens for; the drain happens on the ready-ack path. This
- * helper centralises both sides of that contract.
+ * it comes back inline so the frontend can post it straight to the worker.
+ * Extensions running under the headless `workerHost` (the normal case) are
+ * delivered to directly; the iframe DOM query is a fallback for the legacy
+ * worker-iframe path only. `NeedsMount` fires EVENT_MOUNT which the mount
+ * listeners wait for; the drain happens on the ready-ack path. This helper
+ * centralises both sides of that contract — mirrors the dispatch logic in
+ * `extensionDispatcher.svelte.ts`.
  */
 function handleWorkerRpcOutcome(extensionId: string, outcome: IpcDispatchOutcome | null): void {
   if (outcome === null || outcome.kind !== 'readyDeliverNow') return;
+  if (workerHost.hasWorker(extensionId)) {
+    for (const m of outcome.messages) workerHost.deliver(extensionId, m);
+    return;
+  }
   const iframe = document.querySelector(
     `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
   ) as HTMLIFrameElement | null;
