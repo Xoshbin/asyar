@@ -153,8 +153,8 @@ describe('ScriptsManager', () => {
 
     await scriptsManager.start();
 
-    let resolveScan!: (value: ScriptScanReport | null) => void;
-    const pendingScan = new Promise<ScriptScanReport | null>((resolve) => {
+    let resolveScan!: (value: ScriptScanReport) => void;
+    const pendingScan = new Promise<ScriptScanReport>((resolve) => {
       resolveScan = resolve;
     });
     vi.mocked(commands.scriptsRescan).mockReturnValueOnce(pendingScan);

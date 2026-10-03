@@ -28,7 +28,7 @@ export async function fetchUrl(params: {
   headers: Record<string, string>;
   body: string;
   ok: boolean;
-} | null> {
+}> {
   return invokeSafe('fetch_url', {
     url: params.url,
     method: params.method ?? 'GET',

@@ -80,7 +80,7 @@ export class ApplicationService {
    * passing their `path` list to `uninstallApplication`. The scan is
    * advisory — Rust re-validates each path before trashing.
    */
-  async scanUninstallTargets(path: string): Promise<UninstallScanResult | null> {
+  async scanUninstallTargets(path: string): Promise<UninstallScanResult> {
     return scanUninstallTargets(path);
   }
 }

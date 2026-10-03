@@ -36,7 +36,7 @@ describe('rankItems (Zero-IPC Fast Path)', () => {
       id: (i) => i.id,
       title: (i) => i.name,
       subtitle: (i) => i.desc,
-      keywords: (i) => i.tags,
+      keywords: (i) => i.tags ?? [],
     });
     expect(invoke).not.toHaveBeenCalled();
   });
@@ -83,7 +83,7 @@ describe('rankItems (Zero-IPC Fast Path)', () => {
       id: (i) => i.id,
       title: (i) => i.name,
       subtitle: (i) => i.desc,
-      keywords: (i) => i.tags,
+      keywords: (i) => i.tags ?? [],
     });
     expect(result.map((i) => i.id)).toEqual(['3']); // Terminal has tag 'shell'
   });
@@ -93,7 +93,7 @@ describe('rankItems (Zero-IPC Fast Path)', () => {
       id: (i) => i.id,
       title: (i) => i.name,
       subtitle: (i) => i.desc,
-      keywords: (i) => i.tags,
+      keywords: (i) => i.tags ?? [],
     });
     expect(result).toEqual([]);
   });

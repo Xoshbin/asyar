@@ -18,7 +18,7 @@ function printHelp() {
 Usage: node scripts/check-ci.mjs [options]
 
 Options:
-  -f, --frontend    Run frontend checks (Prettier, Design System, Vitest)
+  -f, --frontend    Run frontend checks (Prettier, Design System, Svelte types, Vitest)
   -r, --rust        Run Rust checks (cargo fmt, clippy, cargo test)
   -c, --changed     Inspect git status & diff to run only touched domains
   -a, --all         Run full CI verification matrix (default)
@@ -170,6 +170,7 @@ if (runFrontend) {
   runStep('Prettier Format Check', 'pnpm format:check');
   runStep('Design System Compliance', 'pnpm check:design');
   runStep('Workspace CI Coverage', 'node --test scripts/workspace-ci.test.mjs');
+  runStep('Launcher Type Check', 'pnpm --dir asyar-launcher check');
   runStep('Workspace Frontend Tests', 'pnpm -r --if-present test:run');
 }
 

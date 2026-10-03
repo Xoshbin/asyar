@@ -63,6 +63,9 @@ jobs:
         run: pnpm svelte-kit sync
         working-directory: asyar-launcher
 
+      - name: Check launcher Svelte types
+        run: pnpm --dir asyar-launcher check
+
       - name: Run workspace tests (SDK + launcher frontend)
         run: pnpm -r --if-present test:run
 

@@ -22,7 +22,7 @@ export async function scriptsPickDirectory(): Promise<string | null> {
 }
 
 export async function scriptsRescan(): Promise<
-  import('../../built-in-features/scripts/types').ScriptScanReport | null
+  import('../../built-in-features/scripts/types').ScriptScanReport
 > {
   return invokeSafe('scripts_rescan');
 }
