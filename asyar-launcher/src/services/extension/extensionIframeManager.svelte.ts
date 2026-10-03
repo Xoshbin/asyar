@@ -184,9 +184,10 @@ export class ExtensionIframeManager {
    */
   public sendSearchRequestToExtension(extensionId: string, query: string): Promise<any[]> {
     return new Promise((resolve, reject) => {
-      const iframe = pickExtensionIframe(extensionId, 'view');
+      const worker = workerHost.getWorker(extensionId);
+      const iframe = worker ? null : pickExtensionIframe(extensionId, 'view');
 
-      if (!iframe?.contentWindow) {
+      if (!worker && !iframe?.contentWindow) {
         resolve([]); // No iframe loaded — return empty, don't error
         return;
       }
@@ -203,14 +204,13 @@ export class ExtensionIframeManager {
 
       pendingSearchRequests.set(messageId, { resolve, reject, timer });
 
-      iframe.contentWindow.postMessage(
-        {
-          type: 'asyar:search:request',
-          messageId,
-          payload: { query },
-        },
-        getExtensionFrameOrigin(extensionId),
-      );
+      const message = {
+        type: 'asyar:search:request',
+        messageId,
+        payload: { query },
+      };
+      if (worker) worker.postMessage(message);
+      else iframe!.contentWindow!.postMessage(message, getExtensionFrameOrigin(extensionId));
     });
   }
 

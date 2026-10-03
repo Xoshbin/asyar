@@ -168,28 +168,19 @@ export class WorkerHost {
     this._fallbackEntries.splice(0, this._fallbackEntries.length);
   }
 
-  private fallbackToIframe(extensionId: string, mountToken: number, reason?: unknown): void {
-    logService.info(
-      `[workerHost] Web Worker bootstrap failed for ${extensionId} (${reason ?? 'bootstrap error'}); falling back to iframe`,
-    );
-    const existing = this.activeWorkers.get(extensionId);
-    if (existing) {
-      try {
-        existing.terminate();
-      } catch (err) {
-        logService.warn(`[workerHost] error terminating worker ${extensionId}: ${err}`);
-      }
-      this.sourceMap.delete(existing);
-      if (existing.rawWorker) {
-        this.sourceMap.delete(existing.rawWorker);
-      }
-      this.activeWorkers.delete(extensionId);
-    }
-    this.readyWorkers.delete(extensionId);
-
-    if (!this._fallbackEntries.some((e) => e.extensionId === extensionId)) {
-      this._fallbackEntries.push({ extensionId, mountToken });
-    }
+  private failWorker(extensionId: string, mountToken: number, reason?: unknown): void {
+    const current = this.activeWorkers.get(extensionId);
+    if (current && current.mountToken !== mountToken) return;
+    this.unmount(extensionId, 'worker_failed');
+    void feedbackService.report({
+      source: 'extension',
+      kind: 'extension_crash',
+      severity: 'error',
+      retryable: true,
+      context: { extensionId, role: 'worker' },
+      extensionId,
+      developerDetail: String(reason ?? 'Worker startup failed'),
+    });
   }
 
   private createWorkerChannel(extensionId: string, mountToken: number): WorkerChannel | null {
@@ -247,9 +238,10 @@ export class WorkerHost {
         };
 
         rawWorker.onerror = (err) => {
+          if (this.activeWorkers.get(extensionId) !== channel) return;
           if (!this.readyWorkers.has(extensionId)) {
             const detail = (err as ErrorEvent)?.message ?? String(err);
-            this.fallbackToIframe(extensionId, mountToken, detail);
+            this.failWorker(extensionId, mountToken, detail);
             return;
           }
           feedbackService.report({
@@ -276,9 +268,9 @@ export class WorkerHost {
         return channel;
       } catch (err) {
         logService.warn(
-          `[workerHost] failed to instantiate Web Worker for ${extensionId} (${err}); falling back`,
+          `[workerHost] failed to instantiate Web Worker for ${extensionId} (${err})`,
         );
-        this.fallbackToIframe(extensionId, mountToken, err);
+        this.failWorker(extensionId, mountToken, err);
         return null;
       }
     }
@@ -294,6 +286,7 @@ export class WorkerHost {
     channel: WorkerChannel,
     data: any,
   ): void {
+    if (this.activeWorkers.get(extensionId) !== channel) return;
     if (!data || typeof data !== 'object') return;
 
     if (data.type === 'asyar:extension:loaded') {
@@ -304,7 +297,7 @@ export class WorkerHost {
 
     if (data.type === 'asyar:feedback:uncaught') {
       if (data.payload?.kind === 'worker_bootstrap_error') {
-        this.fallbackToIframe(extensionId, mountToken, data.payload?.developerDetail);
+        this.failWorker(extensionId, mountToken, data.payload?.developerDetail);
         return;
       }
       void feedbackService.report({
@@ -342,6 +335,7 @@ export class WorkerHost {
       logService.warn(`[workerHost] ack failed for ${extensionId}: ${String(error)}`);
       return;
     }
+    if (this.activeWorkers.get(extensionId) !== channel) return;
     for (const m of drained) {
       this.deliver(extensionId, m);
     }
@@ -350,7 +344,7 @@ export class WorkerHost {
     try {
       if (preferenceProvider) {
         const bundle = await preferenceProvider(extensionId);
-        if (bundle) {
+        if (bundle && this.activeWorkers.get(extensionId) === channel) {
           channel.postMessage({
             type: 'asyar:event:preferences:set-all',
             payload: { extension: bundle.extension, commands: bundle.commands },

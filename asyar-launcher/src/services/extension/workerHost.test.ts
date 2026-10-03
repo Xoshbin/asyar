@@ -159,7 +159,7 @@ describe('workerHost', () => {
     });
   });
 
-  it('falls back to iframe on worker_bootstrap_error without reporting crash', () => {
+  it('reports bootstrap failure without starting an iframe', () => {
     workerHost.mount('ext.test', 1);
     const channel = workerHost.getWorker('ext.test') as any;
 
@@ -171,9 +171,9 @@ describe('workerHost', () => {
       },
     });
 
-    expect(feedbackService.report).not.toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
     expect(workerHost.hasWorker('ext.test')).toBe(false);
-    expect(workerHost.fallbackEntries).toEqual([{ extensionId: 'ext.test', mountToken: 1 }]);
+    expect(workerHost.fallbackEntries).toEqual([]);
   });
 
   it('routes other uncaught feedback errors to feedbackService', () => {
@@ -207,13 +207,13 @@ describe('workerHost', () => {
         kind: 'worker_bootstrap_error',
       },
     });
-    expect(workerHost.fallbackEntries.length).toBe(1);
+    expect(workerHost.fallbackEntries.length).toBe(0);
 
     workerHost.unmount('ext.test', 'user_close');
     expect(workerHost.fallbackEntries.length).toBe(0);
   });
 
-  it('falls back to iframe if rawWorker onerror occurs before readiness', () => {
+  it('reports rawWorker startup errors without starting an iframe', () => {
     const mockPostMessage = vi.fn();
     const mockTerminate = vi.fn();
     let workerInstance: any = null;
@@ -241,9 +241,9 @@ describe('workerHost', () => {
 
       workerInstance.onerror(new Error('SyntaxError in worker'));
 
-      expect(feedbackService.report).not.toHaveBeenCalled();
+      expect(feedbackService.report).toHaveBeenCalled();
       expect(workerHost.hasWorker('ext.error')).toBe(false);
-      expect(workerHost.fallbackEntries).toEqual([{ extensionId: 'ext.error', mountToken: 1 }]);
+      expect(workerHost.fallbackEntries).toEqual([]);
     } finally {
       globalThis.Worker = originalWorker;
       URL.createObjectURL = originalCreateObjectURL;
@@ -327,5 +327,19 @@ describe('workerHost', () => {
       URL.createObjectURL = originalCreateObjectURL;
       URL.revokeObjectURL = originalRevokeObjectURL;
     }
+  });
+});
+
+describe('stale worker callbacks', () => {
+  it('ignores messages from a terminated mount after remount', () => {
+    workerHost.reset();
+    const handler = vi.fn();
+    workerHost.setIpcHandler(handler);
+    workerHost.mount('ext.stale', 1);
+    const old = workerHost.getWorker('ext.stale') as any;
+    workerHost.mount('ext.stale', 2);
+    old.onHostMessage({ type: 'asyar:api:clipboard:readText', messageId: 'stale' });
+    expect(handler).not.toHaveBeenCalled();
+    workerHost.reset();
   });
 });
