@@ -181,11 +181,6 @@ impl LauncherCoordinator {
             .lock()
             .expect("launcher coordinator state mutex poisoned")
     }
-
-    #[cfg(all(test, target_os = "linux"))]
-    pub(crate) fn pending_actions(&self) -> Vec<LauncherAction> {
-        self.lock_state().pending.iter().copied().collect()
-    }
 }
 
 #[cfg(test)]
