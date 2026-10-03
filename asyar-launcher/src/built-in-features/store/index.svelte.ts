@@ -181,6 +181,10 @@ class StoreExtension implements Extension {
         checksum: installInfo.checksum ?? null,
       });
 
+      // Onboarding can install before the store's extension manager is initialized.
+      // Populate the Rust registry from installed files before consent reconciliation.
+      await commands.discoverExtensions();
+
       this.logService?.info(
         `Installation command invoked successfully for ${displayName}. App might reload extensions.`,
       );
