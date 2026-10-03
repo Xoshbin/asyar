@@ -203,6 +203,7 @@ notify-rust = "4"
 rdev = "0.5"
 
 [dev-dependencies]
+asyar-platform = { path = "crates/asyar-platform", features = ["test-support"] }
 mockito = "1.4"
 proptest = "1"
 serial_test = "3"

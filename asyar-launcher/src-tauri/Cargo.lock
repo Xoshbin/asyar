@@ -341,6 +341,7 @@ dependencies = [
  "png 0.17.16",
  "raw-window-handle",
  "rdev",
+ "serial_test",
  "sys-locale",
  "tempfile",
  "thiserror 2.0.20",

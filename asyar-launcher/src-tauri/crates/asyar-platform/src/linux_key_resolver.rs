@@ -265,8 +265,8 @@ pub fn resolve_keypress(rdev_key: rdev::Key, shift_held: bool) -> Option<char> {
     utf8.chars().next().filter(|c| !c.is_control())
 }
 
-#[cfg(test)]
-pub(crate) fn reset_resolver_for_test() {
+#[cfg(any(test, feature = "test-support"))]
+pub fn reset_resolver_for_test() {
     // Force re-init using the current env vars. INIT_DONE can't be reset, so
     // we reach in and replace the cached resolver — subsequent calls' INIT_DONE
     // closures are no-ops, but the explicit re-init below rebuilds the keymap

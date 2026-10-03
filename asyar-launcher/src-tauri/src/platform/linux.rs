@@ -1,7 +1,7 @@
 pub mod desktop_entry;
 pub mod environment;
 #[cfg(target_os = "linux")]
-pub(crate) mod launcher_dbus;
+pub mod launcher_dbus;
 
 pub use asyar_platform::linux::*;
 

@@ -5,6 +5,7 @@
 //! tray icon setup, and window event listeners (focus/blur, resign, and launch-view-change resize).
 
 use std::sync::atomic::Ordering;
+#[cfg(target_os = "macos")]
 use std::sync::Mutex;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};

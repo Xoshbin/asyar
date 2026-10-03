@@ -6,6 +6,10 @@ authors = ["Khoshbin Ali <xoshbin@gmail.com>"]
 license = "GPL-3.0-only"
 edition = "2021"
 
+[features]
+# Enabled only by the launcher dev-dependency for cross-crate integration tests.
+test-support = []
+
 [dependencies]
 log = "0.4"
 raw-window-handle = "0.6"
@@ -52,3 +56,4 @@ rdev = "0.5"
 
 [dev-dependencies]
 tempfile = "3.10"
+serial_test = "3"
