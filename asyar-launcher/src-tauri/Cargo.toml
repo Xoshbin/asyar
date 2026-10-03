@@ -24,7 +24,7 @@ name = "asyar_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.7", features = [] }
+tauri-build = { version = "2.7.1", features = [] }
 semver = "1"
 serde_json = "1"
 
@@ -33,7 +33,7 @@ percent-encoding = "2.3"
 base64 = "0.22"
 dirs = "5.0"
 url = "2"
-tauri = { version = "2.12", features = ["macos-private-api", "tray-icon", "image-png", "image-ico", "test"] }
+tauri = { version = "2.12.1", features = ["macos-private-api", "tray-icon", "image-png", "image-ico", "test"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 semver = "1"
