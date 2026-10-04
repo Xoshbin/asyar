@@ -5,7 +5,7 @@
 - **Logic Lives Where Data Resides**:
   - **Rust Domain (System & Heavy Data)**: System applications, file system indexing, SQLite persistence, OS clipboard, native background watchers, and global fuzzy ranking belong in Rust. Filter, rank, score, and truncate in Rust before crossing the IPC bridge, returning only the top N results to the webview.
   - **Frontend Domain (UI-Resident Data)**: Data that already natively resides in frontend memory (UI-local lists, transient settings views, snippets, walkthrough tasks, in-view items) must be filtered, ranked, and scored directly in TypeScript using zero-IPC fast paths.
-  - **Zero-IPC Fast Path**: Never serialize frontend in-memory arrays over the IPC bridge for keystroke filtering. IPC round-trips for UI-local collections introduce unnecessary JSON serialization overhead and latency into active typing.
+  - **Zero-IPC Fast Path**: Never serialize frontend in-memory arrays over the IPC bridge for keystroke filtering. IPC round-trips for UI-local collections introduce unnecessary JSON serialization overhead and latency into active typing. Explicit exceptions: the published extension API `services.search.rank` remains backed by Rust, and `classifyItems` uses Rust for Run-row tiers so they agree with the indexed results they are interleaved with. These exceptions do not apply to ordinary UI-local list filtering.
   - **Presentation & Interaction**: Rendering, UI layout, animations, DOM event handling, and immediate visual interactions belong strictly in Svelte 5 / TypeScript.
 
 ## 2. Managed Lifecycle & Dependency Inversion (Evolved "No Singletons")

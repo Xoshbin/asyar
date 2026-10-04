@@ -213,6 +213,41 @@ mod tests {
     }
 
     #[test]
+    fn shared_ranker_parity_fixture() {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Case {
+            name: String,
+            query: String,
+            items: Vec<RankInput>,
+            expected_matching_ids: Vec<String>,
+            expected_tiers: std::collections::BTreeMap<String, Option<u8>>,
+        }
+        #[derive(serde::Deserialize)]
+        struct Fixture {
+            cases: Vec<Case>,
+        }
+        let fixture: Fixture =
+            serde_json::from_str(include_str!("../tests/parity-fixture.json")).unwrap();
+        for case in fixture.cases {
+            let mut actual = rank_ids(&case.query, &case.items);
+            actual.sort();
+            let mut expected = case.expected_matching_ids;
+            expected.sort();
+            assert_eq!(actual, expected, "{}: membership", case.name);
+            if !case.query.trim().is_empty() {
+                let tiers: std::collections::BTreeMap<_, _> =
+                    classify_many(&case.query, &case.items)
+                        .into_iter()
+                        .filter(|item| actual.contains(&item.id))
+                        .map(|item| (item.id, Some(item.tier)))
+                        .collect();
+                assert_eq!(tiers, case.expected_tiers, "{}: tiers", case.name);
+            }
+        }
+    }
+
+    #[test]
     fn rank_empty_query_returns_all_in_order() {
         let items = vec![
             input("a", "Banana", None, &[]),

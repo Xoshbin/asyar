@@ -116,6 +116,17 @@ export async function rankItems<T>(
   const trimmed = query.trim();
   if (!trimmed || items.length === 0) return items;
 
+  return classifyRankItems(trimmed, items, fields).map((match) => match.item);
+}
+
+/** Classify and sort non-empty queries; numeric scores remain engine-specific. */
+export function classifyRankItems<T>(
+  query: string,
+  items: T[],
+  fields: RankableFields<T>,
+): ClassifiedMatch<T>[] {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
   const qLower = trimmed.toLowerCase();
   const matches: ClassifiedMatch<T>[] = [];
 
@@ -165,18 +176,9 @@ export async function rankItems<T>(
     // Tier 4: Subtitle or Keyword Match
     const subtitle = fields.subtitle?.(item);
     const keywords = fields.keywords?.(item) ?? [];
-    let bestSecondaryScore: number | null = null;
-
-    if (subtitle) {
-      bestSecondaryScore = fuzzyMatchScore(subtitle, trimmed);
-    }
-
-    for (let k = 0; k < keywords.length; k++) {
-      const kwScore = fuzzyMatchScore(keywords[k], trimmed);
-      if (kwScore !== null && (bestSecondaryScore === null || kwScore > bestSecondaryScore)) {
-        bestSecondaryScore = kwScore;
-      }
-    }
+    // Shared fixture enforces Rust/TS membership and tiers, not numeric scores.
+    const haystack = [subtitle, ...keywords].filter(Boolean).join(' ');
+    const bestSecondaryScore = fuzzyMatchScore(haystack, trimmed);
 
     if (bestSecondaryScore !== null) {
       matches.push({
@@ -202,5 +204,5 @@ export async function rankItems<T>(
     return a.nameLower.localeCompare(b.nameLower);
   });
 
-  return matches.map((m) => m.item);
+  return matches;
 }

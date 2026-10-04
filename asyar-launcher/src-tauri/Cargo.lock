@@ -358,6 +358,7 @@ version = "0.1.0"
 dependencies = [
  "fuzzy-matcher",
  "serde",
+ "serde_json",
  "specta",
 ]
 

@@ -15,6 +15,8 @@ export interface ClassifiableFields<T> {
 /**
  * Classify every item against `query` using the shared Rust tiered fuzzy
  * ranker (`classify_items` command, backed by `search_engine::ranker::classify_many`).
+ * `rankItems` uses a separate local TypeScript engine with a shared membership/tier
+ * parity fixture; this function calls Rust so Run tiers agree with indexed results.
  * Unlike `rankItems`, this keeps every id (no filtering, no sorting) and
  * returns the raw tier ordinal per id — for interleaving data that isn't in
  * the Rust search index (e.g. Run rows) against results tiered elsewhere.

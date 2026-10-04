@@ -109,7 +109,8 @@ export function buildServiceRegistry(deps: {
         extensionPreferencesService.reset(extensionId, scope),
     },
     cache: extensionCacheService,
-    // Same Rust ranker the launcher's own search uses (search_engine::ranker).
+    // Rust engine; local TS ranking shares its membership/tier contract, enforced by
+    // src-tauri/crates/asyar-search/tests/parity-fixture.json (scores/order may differ).
     // Stateless passthrough — no permission required (see permissions.rs).
     search: {
       rank: (query: string, items: RankableItem[]) => rankItemsCommand(query, items),

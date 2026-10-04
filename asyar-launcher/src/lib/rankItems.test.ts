@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
-import { rankItems, fuzzyMatchScore, MatchTier } from './rankItems';
+import { rankItems, classifyRankItems, fuzzyMatchScore, MatchTier } from './rankItems';
 import { invoke } from '@tauri-apps/api/core';
 
 interface Item {
@@ -123,4 +123,40 @@ describe('fuzzyMatchScore', () => {
     const scoreScattered = fuzzyMatchScore('Safe and Fair', 'saf');
     expect(scoreConsecutive!).toBeGreaterThan(scoreScattered!);
   });
+});
+
+// Both suites consume this contract; JSON uses _comment because JSON has no comments.
+import parityFixture from '../../src-tauri/crates/asyar-search/tests/parity-fixture.json';
+
+interface ParityItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  keywords?: string[];
+}
+
+describe('shared ranker parity fixture', () => {
+  for (const testCase of parityFixture.cases) {
+    it(testCase.name, async () => {
+      const fields = {
+        id: (item: ParityItem) => item.id,
+        title: (item: ParityItem) => item.title,
+        subtitle: (item: ParityItem) => item.subtitle,
+        keywords: (item: ParityItem) => item.keywords ?? [],
+      };
+      const ranked = await rankItems(testCase.query, testCase.items, fields);
+      if (testCase.query.trim()) {
+        const tiers = Object.fromEntries(
+          classifyRankItems(testCase.query, testCase.items, fields).map(({ id, tier }) => [
+            id,
+            tier,
+          ]),
+        );
+        expect(tiers).toEqual(testCase.expectedTiers);
+      }
+      expect(ranked.map((item) => item.id).sort()).toEqual(
+        [...testCase.expectedMatchingIds].sort(),
+      );
+    });
+  }
 });
