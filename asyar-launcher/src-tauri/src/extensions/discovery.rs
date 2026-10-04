@@ -2057,7 +2057,15 @@ mod manifest_schema_tests {
         );
 
         for path in &manifest_paths {
-            let result = read_manifest(path);
+            // Match production loading: statically compiled built-ins are
+            // host primitives, not installed worker/view extensions.
+            let result = if path.starts_with(repo_root.join("asyar-launcher/src/built-in-features"))
+            {
+                serde_json::from_str::<ExtensionManifest>(&std::fs::read_to_string(path).unwrap())
+                    .map_err(|error| error.to_string())
+            } else {
+                read_manifest(path).map_err(|error| error.to_string())
+            };
             assert!(
                 result.is_ok(),
                 "manifest at {:?} failed parse/validate: {:?}",
@@ -2090,8 +2098,14 @@ mod manifest_schema_tests {
             if !path.exists() {
                 continue;
             }
-            let manifest = read_manifest(&path)
-                .unwrap_or_else(|error| panic!("manifest at {path:?} failed validation: {error}"));
+            let manifest: ExtensionManifest =
+                serde_json::from_str(&std::fs::read_to_string(&path).unwrap())
+                    .unwrap_or_else(|error| panic!("manifest at {path:?} failed parsing: {error}"));
+            assert!(
+                manifest.background.is_none(),
+                "built-in {} must not declare a worker bundle",
+                manifest.id
+            );
             let disableable = manifest
                 .lifecycle
                 .as_ref()

@@ -1,6 +1,7 @@
 import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { iframeUnmountAck } from '../../lib/ipc/iframeLifecycleCommands';
 import { logService } from '../log/logService';
+import { isBuiltInFeature } from './extensionDiscovery';
 import { workerHost } from './workerHost.svelte';
 
 export interface WorkerRegistryEntry {
@@ -50,7 +51,7 @@ class WorkerRegistry {
   }
 
   handleMount(p: { extensionId: string; mountToken: number; role?: string }): void {
-    if (p.role !== 'worker') return;
+    if (p.role !== 'worker' || isBuiltInFeature(p.extensionId)) return;
     logService.debug(`[workerRegistry] mount ${p.extensionId} token=${p.mountToken}`);
     const entry: WorkerRegistryEntry = { extensionId: p.extensionId, mountToken: p.mountToken };
     const existing = this._entries.findIndex((e) => e.extensionId === p.extensionId);

@@ -1,5 +1,13 @@
 use tauri::Manager;
 
+fn error_response(status: u16, body: Vec<u8>) -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(status)
+        .header("Access-Control-Allow-Origin", "*")
+        .body(body)
+        .unwrap()
+}
+
 // URI scheme handlers for `asyar-extension://` and `asyar-icon://`.
 // These are registered in `lib.rs` via `register_uri_scheme_protocol` and serve
 // extension bundle files and cached application icons respectively.
@@ -144,29 +152,20 @@ pub fn handle_extension_request(
             let canonical_path = match std::fs::canonicalize(&resolved_path) {
                 Ok(p) => p,
                 Err(_) => {
-                    return tauri::http::Response::builder()
-                        .status(404)
-                        .body(Vec::new())
-                        .unwrap();
+                    return error_response(404, Vec::new());
                 }
             };
 
             // Step 2: Validate the canonical path is in an allowed location
             if !is_path_allowed(&canonical_path, app) {
-                return tauri::http::Response::builder()
-                    .status(403)
-                    .body(b"Access denied".to_vec())
-                    .unwrap();
+                return error_response(403, b"Access denied".to_vec());
             }
 
             // Step 3: Read from the canonical (real) path
             let raw = match std::fs::read(&canonical_path) {
                 Ok(bytes) => bytes,
                 Err(_) => {
-                    return tauri::http::Response::builder()
-                        .status(404)
-                        .body(b"File not found".to_vec())
-                        .unwrap();
+                    return error_response(404, b"File not found".to_vec());
                 }
             };
 
@@ -205,10 +204,7 @@ pub fn handle_extension_request(
                 .body(content)
                 .unwrap()
         }
-        None => tauri::http::Response::builder()
-            .status(404)
-            .body(Vec::new())
-            .unwrap(),
+        None => error_response(404, Vec::new()),
     }
 }
 
@@ -377,10 +373,7 @@ pub fn handle_icon_request(
     // [SECURITY]: Prevent path traversal
     if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
         log::warn!("Icon security violation (traversal): {}", filename);
-        return tauri::http::Response::builder()
-            .status(403)
-            .body(Vec::new())
-            .unwrap();
+        return error_response(403, Vec::new());
     }
 
     let file_path = icon_cache_dir.join(filename);
@@ -402,10 +395,7 @@ pub fn handle_icon_request(
         }
         Err(e) => {
             log::debug!("Icon not found in cache: {:?} ({})", file_path, e);
-            tauri::http::Response::builder()
-                .status(404)
-                .body(Vec::new())
-                .unwrap()
+            error_response(404, Vec::new())
         }
     }
 }
@@ -454,10 +444,7 @@ pub fn handle_thumbnail_request(
     // [SECURITY]: Prevent path traversal
     if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
         log::warn!("Thumbnail security violation (traversal): {}", filename);
-        return tauri::http::Response::builder()
-            .status(403)
-            .body(Vec::new())
-            .unwrap();
+        return error_response(403, Vec::new());
     }
 
     let file_path = thumbnail_cache_dir.join(filename);
@@ -470,10 +457,7 @@ pub fn handle_thumbnail_request(
             .unwrap(),
         Err(e) => {
             log::debug!("Thumbnail not found in cache: {:?} ({})", file_path, e);
-            tauri::http::Response::builder()
-                .status(404)
-                .body(Vec::new())
-                .unwrap()
+            error_response(404, Vec::new())
         }
     }
 }
@@ -705,6 +689,31 @@ mod role_injection_tests {
             assert!(csp.contains("'unsafe-eval'"));
         } else {
             assert!(!csp.contains("'unsafe-eval'"));
+        }
+    }
+}
+
+#[cfg(test)]
+mod error_response_tests {
+    use super::*;
+
+    #[test]
+    fn protocol_errors_expose_status_and_body_with_cors() {
+        for (status, body) in [
+            (404, Vec::new()),
+            (403, b"Access denied".to_vec()),
+            (404, b"File not found".to_vec()),
+        ] {
+            let response = error_response(status, body.clone());
+            assert_eq!(response.status().as_u16(), status);
+            assert_eq!(response.body(), &body);
+            assert_eq!(
+                response
+                    .headers()
+                    .get("Access-Control-Allow-Origin")
+                    .map(|h| h.to_str().unwrap()),
+                Some("*")
+            );
         }
     }
 }

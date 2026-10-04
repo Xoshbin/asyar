@@ -3,7 +3,9 @@
   "name": "Settings",
   "icon": "icon:settings",
   "version": "1.0.0",
-  "lifecycle": { "disableable": false },
+  "lifecycle": {
+    "disableable": false
+  },
   "description": "Open application settings",
   "type": "extension",
   "searchable": true,
@@ -15,8 +17,5 @@
       "description": "Open application settings",
       "mode": "background"
     }
-  ],
-  "background": {
-    "main": "dist/worker.js"
-  }
+  ]
 }
