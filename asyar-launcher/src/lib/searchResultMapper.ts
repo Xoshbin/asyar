@@ -273,10 +273,15 @@ export function buildMappedItems({
         // host-generated view fallback. The action map is authoritative: the
         // fallback is only for results without an actionId. Running it first
         // would navigate into a view instead of executing the selected result.
+        const stackSizeBefore = viewManager.getNavigationStackSize();
         if (searchOrchestrator.tryExecuteResultAction(commandObjectId)) {
           // The companion may raise its own window. macOS has no hide-on-blur,
-          // so dismiss the launcher explicitly.
-          void windowService.hide();
+          // so dismiss the launcher explicitly — unless the action opened a
+          // view (e.g. the Walkthrough progress row), which must stay visible.
+          void searchOrchestrator.lastResultActionSettled.then(() => {
+            if (viewManager.getNavigationStackSize() > stackSizeBefore) return;
+            void windowService.hide();
+          });
           return;
         }
         if (typeof extensionAction === 'function') {
