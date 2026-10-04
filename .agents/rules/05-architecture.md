@@ -51,3 +51,25 @@
   - Background extensions are long-lived daemons managed by the runtime.
   - Hiding, unmapping, or resetting the search window must never destroy, suspend, or corrupt background worker state.
   - Workers, long-running background timers, WebSocket connections, and native background watchers must continue executing reliably even when the launcher window remains hidden for hours.
+
+## 7. Invariants Enforced by Guard Tests — Read Before Touching These Areas
+
+Each invariant below was violated in production at least once because it was enforced only by
+convention. Each now has a test that fails if you break it. If one of these tests fails, the test
+is right and your change is wrong — fix the change, not the test.
+
+| Invariant                                                                                                                                                                        | Guard                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Host→extension delivery goes through `postToExtension`; never query a `data-role="worker"` iframe outside `extensionIframeSelector.ts`. A worker is a Web Worker, not an iframe. | `services/extension/workerPushDelivery.test.ts`                                |
+| Subscribe to bridged events with `appListen`, never the raw `listen` from `@tauri-apps/api/event` — `bridge_emit` feeds only `appListen` subscribers once the poller connects.   | `lib/ipc/bridgeListenerGuard.test.ts`                                          |
+| Built-in features never declare `background.main` and are never mounted as workers; they are compiled into the launcher bundle.                                                  | `extensions/discovery.rs` manifest tests + `workerRegistry.svelte.ts`          |
+| Every Tauri command path appears exactly once in `commands/handlers.rs`.                                                                                                         | `command_paths_are_registered_once`                                            |
+| The TypeScript and Rust rankers must agree on which items match and their tier (scores and intra-tier order may differ).                                                         | `crates/asyar-search/tests/parity-fixture.json`, run from both suites          |
+| Extension builds must set `modulePreload: false` — Vite's polyfill touches `document` and kills a Web Worker on line one. Use `defineExtensionConfig` from `asyar-sdk/vite`.     | `asyar-sdk/src/vite.test.ts`, `create-extension/scaffoldService.build.test.ts` |
+| The iframe compatibility fallback for failed workers is temporary and must be removed before 0.2.0.                                                                              | `services/extension/workerFallbackDeadline.test.ts`                            |
+
+**The recurring failure mode behind all of these:** a check validated the _input_ while the runtime
+consumed the _output_, and nothing compared them. A manifest declared a worker bundle that
+packaging had moved; a lint read the author's source while the bundler injected the offending line
+afterwards; a selector was correct for iframes after workers stopped being iframes. When adding a
+guard, assert against the artifact that actually ships.
