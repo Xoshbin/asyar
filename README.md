@@ -36,8 +36,6 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 | CPU ms/s (powermetrics, deep idle)     |           1.02 |           13.92 |
 | Idle wakeups/s (deep idle)             |          11.82 |           46.33 |
 | Idle disk write ops (60s)              |              0 |              96 |
-| Idle network bytes in (60s)            |           3106 |               0 |
-| Idle network bytes out (60s)           |            948 |               0 |
 | App size on disk                       |          68 MB |          223 MB |
 
 <sub>Measured 2026-10-04 on a Apple M4 Max (36 GB RAM), macOS 27.0.1, each app
@@ -47,7 +45,7 @@ on screen. Reproduce with [`benchmarks/bench.sh`](benchmarks/README.md).</sub>
 
 <!-- benchmarks:end -->
 
-Don't take my word for it: [`benchmarks/bench.sh`](benchmarks/README.md) measures Asyar and Raycast (stable and beta) black-box on your own machine — hotkey-to-window latency, cold start, full-process-group memory, idle CPU, and disk size — and regenerates this table with `--update-readme`.
+Don't take my word for it: [`benchmarks/bench.sh`](benchmarks/README.md) measures Asyar against Raycast black-box on your own machine — hotkey-to-window latency, cold start, full-process-group memory, idle CPU and wakeups, idle disk writes, and app size — and regenerates this table with `--update-readme`. Raycast Beta is included automatically when it is installed; the run above was made on a machine without it. The three privileged rows (CPU ms/s, idle wakeups, idle disk writes) need passwordless `sudo` for `powermetrics` and `fs_usage` and report `n/a` without it — see [`benchmarks/README.md`](benchmarks/README.md#optional-passwordless-measurement-tools).
 
 ---
 

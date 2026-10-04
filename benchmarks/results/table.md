@@ -13,8 +13,6 @@
 | CPU ms/s (powermetrics, deep idle)     |           1.02 |           13.92 |
 | Idle wakeups/s (deep idle)             |          11.82 |           46.33 |
 | Idle disk write ops (60s)              |              0 |              96 |
-| Idle network bytes in (60s)            |           3106 |               0 |
-| Idle network bytes out (60s)           |            948 |               0 |
 | App size on disk                       |          68 MB |          223 MB |
 
 <sub>Measured 2026-10-04 on a Apple M4 Max (36 GB RAM), macOS 27.0.1, each app

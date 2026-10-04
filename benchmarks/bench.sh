@@ -504,8 +504,6 @@ TABLE_FILE="$RESULTS_DIR/table.md"
   row "CPU ms/s (powermetrics, deep idle)" pm_cpu_ms_s ""
   row "Idle wakeups/s (deep idle)" pm_wakeups_s ""
   row "Idle disk write ops (${DEEP_IDLE_SECONDS}s)" disk_write_ops ""
-  row "Idle network bytes in (${DEEP_IDLE_SECONDS}s)" net_bytes_in ""
-  row "Idle network bytes out (${DEEP_IDLE_SECONDS}s)" net_bytes_out ""
   row "App size on disk" size_mb "MB"
   echo
   echo "<sub>Measured $DATE_UTC on a $CHIP (${RAM_GB} GB RAM), macOS $MACOS_VER, each app"
