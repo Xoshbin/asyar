@@ -2,6 +2,22 @@
   "_comment": "Contract: identical matching id sets and per-id tiers for non-empty queries. Empty queries bypass classification (null tiers). Numeric scores, within-tier ordering, and locale/codepoint name tiebreaks are out of contract.",
   "cases": [
     {
+      "name": "empty subtitle with spaced keyword query",
+      "query": "foo bar",
+      "items": [
+        {
+          "id": "kw",
+          "title": "zzz",
+          "subtitle": "",
+          "keywords": ["foo bar"]
+        }
+      ],
+      "expectedMatchingIds": ["kw"],
+      "expectedTiers": {
+        "kw": 4
+      }
+    },
+    {
       "name": "title tiers",
       "query": "saf",
       "items": [

@@ -5,7 +5,6 @@ pub mod ranker;
 
 // Import necessary items
 use crate::storage::DataStore;
-use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use models::{Command, SearchResult, SearchableItem};
 use rusqlite::params;
@@ -598,7 +597,7 @@ impl SearchState {
                     SearchableItem::Application(_) => false,
                 });
 
-            let matcher = SkimMatcherV2::default();
+            let matcher = asyar_search::fuzzy_matcher();
 
             if has_extension_match && !subquery.is_empty() {
                 let matching_items: Vec<&SearchableItem> = guard
@@ -828,7 +827,7 @@ impl SearchState {
                 });
             }
         } else {
-            let matcher = SkimMatcherV2::default();
+            let matcher = asyar_search::fuzzy_matcher();
             let mut scored: Vec<(i64, f32, &SearchableItem)> = guard
                 .iter()
                 .filter_map(|item| {
@@ -1588,6 +1587,43 @@ mod service_tests {
             last_used_at: Some(ts),
             bundle_id: None,
         })
+    }
+
+    #[test]
+    fn main_search_case_policy_matches_lowercase() {
+        let state = make_state();
+        state.index_one(app("app_safari", "Safari", 0)).unwrap();
+        state
+            .index_one(cmd("cmd_test_safe", "Safe Mode", 0))
+            .unwrap();
+        for query in ["saf", "SAF", "SaF"] {
+            let mut ids: Vec<_> = state
+                .search(query)
+                .unwrap()
+                .into_iter()
+                .map(|r| r.object_id)
+                .collect();
+            ids.sort();
+            assert_eq!(ids, vec!["app_safari", "cmd_test_safe"], "query {query}");
+        }
+    }
+
+    #[test]
+    fn scoped_search_case_policy_matches_lowercase() {
+        let state = make_state();
+        state
+            .index_one(cmd("cmd_test_safe", "Safe Mode", 0))
+            .unwrap();
+        state.index_one(app("app_safari", "Safari", 0)).unwrap();
+        for query in ["@test saf", "@test SAF", "@test SaF"] {
+            let ids: Vec<_> = state
+                .search(query)
+                .unwrap()
+                .into_iter()
+                .map(|r| r.object_id)
+                .collect();
+            assert_eq!(ids, vec!["cmd_test_safe"], "query {query}");
+        }
     }
 
     #[test]

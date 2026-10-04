@@ -1,6 +1,14 @@
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 
+/// Construct the launcher's deliberately case-insensitive fuzzy matcher.
+/// Smart case (the library default) makes uppercase queries lose results,
+/// contradicting the exact and prefix tiers' lowercase comparisons.
+/// Reuse one instance across a batch to retain its thread-local scratch buffers.
+pub fn fuzzy_matcher() -> SkimMatcherV2 {
+    SkimMatcherV2::default().ignore_case()
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Tier {
     Pinned = 0,
@@ -70,7 +78,7 @@ pub fn classify(
         };
     }
 
-    let matcher = SkimMatcherV2::default();
+    let matcher = fuzzy_matcher();
     if let Some(score) = matcher.fuzzy_match(title, query) {
         return RankKey {
             tier: Tier::TitleFuzzy,
@@ -209,6 +217,25 @@ mod tests {
             title: title.to_string(),
             subtitle: subtitle.map(|s| s.to_string()),
             keywords: keywords.iter().map(|k| k.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn case_policy_is_consistent_across_tiers() {
+        for query in ["saf", "SAF", "SaF"] {
+            for (title, subtitle, keywords, tier) in [
+                ("saf", None, vec![], Tier::ExactTitle),
+                ("safari", None, vec![], Tier::TitlePrefix),
+                ("unsafe", None, vec![], Tier::TitleFuzzy),
+                ("zzz", Some("safe"), vec![], Tier::SubtitleOrKeyword),
+                ("zzz", None, vec!["safe"], Tier::SubtitleOrKeyword),
+            ] {
+                assert_eq!(
+                    classify(query, title, subtitle, &keywords, 0.0, false).tier,
+                    tier,
+                    "query {query}, title {title}, subtitle {subtitle:?}, keywords {keywords:?}"
+                );
+            }
         }
     }
 
