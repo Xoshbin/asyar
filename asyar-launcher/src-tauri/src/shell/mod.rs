@@ -472,7 +472,32 @@ pub fn kill(shell_registry: &ShellProcessRegistry, spawn_id: &str) -> Result<(),
     Ok(())
 }
 
+/// A program containing a path separator is an explicit location, not a name to
+/// search `PATH` for. Checks both separators on every platform so a Windows
+/// path is recognised the same way regardless of the host.
+fn is_explicit_path(program: &str) -> bool {
+    program.contains('/') || program.contains('\\')
+}
+
 pub async fn resolve_path(program: &str) -> Result<String, AppError> {
+    // `where.exe` rejects any argument with a drive path ("Invalid pattern is
+    // specified in path:pattern"), so explicit paths — e.g. every script the
+    // scanner hands us — are validated directly instead of via `which`/`where`.
+    // `dunce::simplified` drops the `\\?\` verbatim prefix `canonicalize()`
+    // leaves behind, which `cmd.exe` (used by `Command` for `.bat`/`.cmd`) does
+    // not understand. It is a no-op for any path that has no such prefix.
+    if is_explicit_path(program) {
+        let path = std::path::Path::new(program);
+        return if path.is_file() {
+            Ok(dunce::simplified(path).to_string_lossy().into_owned())
+        } else {
+            Err(AppError::NotFound(format!(
+                "Executable \"{}\" not found.",
+                program
+            )))
+        };
+    }
+
     let cmd = if cfg!(windows) { "where" } else { "which" };
     let mut command = Command::new(cmd);
 
@@ -775,6 +800,67 @@ mod tests {
 
         let status = child.wait().await.unwrap();
         assert!(status.success());
+    }
+
+    // Regression: #816. `resolve_path` used to hand every program to
+    // `which`/`where`, but `where.exe` rejects any argument containing a drive
+    // path ("Invalid pattern is specified in path:pattern"), so every script
+    // dispatched by absolute path failed on Windows. An explicit path is not a
+    // PATH lookup — it must be checked directly. A non-executable file stands in
+    // for the Windows case on Unix because `which` rejects it the same way
+    // `where` rejects a drive path: it never reaches the existence check.
+    #[tokio::test]
+    async fn resolve_path_accepts_explicit_path_without_path_lookup() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("test.bat");
+        std::fs::write(&script, "echo hi\n").unwrap();
+
+        let resolved = resolve_path(script.to_str().unwrap())
+            .await
+            .expect("an existing explicit path must resolve to itself");
+        assert_eq!(std::path::Path::new(&resolved), script.as_path());
+    }
+
+    #[tokio::test]
+    async fn resolve_path_rejects_missing_explicit_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("nope.bat");
+        let err = resolve_path(missing.to_str().unwrap()).await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "got {err:?}");
+    }
+
+    #[tokio::test]
+    async fn resolve_path_rejects_directory_as_explicit_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = resolve_path(dir.path().to_str().unwrap())
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "got {err:?}");
+    }
+
+    #[tokio::test]
+    async fn resolve_path_bare_name_still_uses_path_lookup() {
+        let err = resolve_path("asyar-definitely-not-a-real-binary-816")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "got {err:?}");
+    }
+
+    // Rust's `Command` runs `.bat`/`.cmd` through `cmd.exe`, which does not
+    // understand the `\\?\` verbatim prefix the scanner's `canonicalize()`
+    // produces — so the resolved path handed to `shell_spawn` must be the
+    // simplified form.
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn resolve_path_strips_verbatim_prefix_on_windows() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("test.bat");
+        std::fs::write(&script, "echo hi\r\n").unwrap();
+        let verbatim = script.canonicalize().unwrap();
+        assert!(verbatim.to_string_lossy().starts_with(r"\\?\"));
+
+        let resolved = resolve_path(verbatim.to_str().unwrap()).await.unwrap();
+        assert!(!resolved.starts_with(r"\\?\"), "got {resolved}");
     }
 
     #[test]
