@@ -76,3 +76,12 @@ pub async fn send_usage_now(
         .map_err(|e| UsageError::Db(e.to_string()))?;
     Ok(count)
 }
+
+/// Records locally only; cannot cause egress even when usage sharing is off.
+#[tauri::command]
+pub async fn record_worker_fallback(
+    extension_id: String,
+    state: tauri::State<'_, Arc<UsageState>>,
+) -> Result<(), UsageError> {
+    state.record_worker_fallback(&extension_id, &usage::local_day())
+}

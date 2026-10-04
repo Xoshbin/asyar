@@ -1,3 +1,4 @@
+import { recordWorkerFallback } from '../../lib/ipc/usageCommands';
 import { logService } from '../log/logService';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { iframeReadyAck, type IpcPendingMessage } from '../../lib/ipc/iframeLifecycleCommands';
@@ -199,6 +200,28 @@ export class WorkerHost {
     this._fallbackEntries.splice(0, this._fallbackEntries.length);
   }
 
+  // remove in 0.2.0 — compatibility for published HTML-built worker bundles.
+  private fallbackToIframe(extensionId: string, mountToken: number, reason?: unknown): void {
+    const current = this.activeWorkers.get(extensionId);
+    if (current && current.mountToken !== mountToken) return;
+    if (
+      this._fallbackEntries.some(
+        (entry) => entry.extensionId === extensionId && entry.mountToken === mountToken,
+      )
+    )
+      return;
+    this.unmount(extensionId, 'iframe_compatibility');
+    logService.warn(
+      `[workerHost] iframe fallback for ${extensionId}: ${String(reason ?? 'Worker startup failed')}; worker bundle may depend on document; rebuild with modulePreload: false`,
+    );
+    this._fallbackEntries.push({ extensionId, mountToken });
+    void recordWorkerFallback(extensionId).catch((error) => {
+      logService.warn(
+        `[workerHost] local fallback count failed for ${extensionId}: ${String(error)}`,
+      );
+    });
+  }
+
   private failWorker(extensionId: string, mountToken: number, reason?: unknown): void {
     const current = this.activeWorkers.get(extensionId);
     if (current && current.mountToken !== mountToken) return;
@@ -229,17 +252,22 @@ export class WorkerHost {
     if (typeof Worker !== 'undefined' && typeof window !== 'undefined') {
       try {
         const isWindows = navigator.userAgent.toLowerCase().includes('windows');
-        const bootstrapCode = createWorkerBootstrap(
-          extensionId,
-          mountToken,
-          entry ?? '',
-          isWindows,
-        );
+        let bootstrapCode: string;
+        try {
+          bootstrapCode = createWorkerBootstrap(extensionId, mountToken, entry ?? '', isWindows);
+        } catch (error) {
+          this.failWorker(extensionId, mountToken, error);
+          return null;
+        }
 
         const blob = new Blob([bootstrapCode], { type: 'application/javascript' });
         const blobUrl = URL.createObjectURL(blob);
-        const rawWorker = new Worker(blobUrl, { type: 'module' });
-        URL.revokeObjectURL(blobUrl);
+        let rawWorker: Worker;
+        try {
+          rawWorker = new Worker(blobUrl, { type: 'module' });
+        } finally {
+          URL.revokeObjectURL(blobUrl);
+        }
 
         rawWorker.onmessage = (event: MessageEvent) => {
           onHostMessage(event.data);
@@ -249,7 +277,7 @@ export class WorkerHost {
           if (this.activeWorkers.get(extensionId) !== channel) return;
           if (!this.readyWorkers.has(extensionId)) {
             const detail = (err as ErrorEvent)?.message ?? String(err);
-            this.failWorker(extensionId, mountToken, detail);
+            this.fallbackToIframe(extensionId, mountToken, detail);
             return;
           }
           feedbackService.report({
@@ -278,7 +306,7 @@ export class WorkerHost {
         logService.warn(
           `[workerHost] failed to instantiate Web Worker for ${extensionId} (${err})`,
         );
-        this.failWorker(extensionId, mountToken, err);
+        this.fallbackToIframe(extensionId, mountToken, err);
         return null;
       }
     }
@@ -309,7 +337,7 @@ export class WorkerHost {
 
     if (data.type === 'asyar:feedback:uncaught') {
       if (data.payload?.kind === 'worker_bootstrap_error') {
-        this.failWorker(extensionId, mountToken, data.payload?.developerDetail);
+        this.fallbackToIframe(extensionId, mountToken, data.payload?.developerDetail);
         return;
       }
       void feedbackService.report({

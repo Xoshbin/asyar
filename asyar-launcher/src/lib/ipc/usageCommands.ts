@@ -33,3 +33,8 @@ export async function sendPendingUsage(day: string): Promise<void> {
 export async function sendUsageNow(): Promise<number> {
   return invokeSafe('send_usage_now');
 }
+
+/** Local daily compatibility counts; never included in usage network payloads. */
+export async function recordWorkerFallback(extensionId: string): Promise<void> {
+  await invokeSafe('record_worker_fallback', { extensionId }, { silent: true });
+}

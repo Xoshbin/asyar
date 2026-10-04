@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+vi.mock('../../lib/ipc/usageCommands', () => ({ recordWorkerFallback: vi.fn(async () => {}) }));
+
 vi.mock('../../lib/ipc/iframeLifecycleCommands', () => ({
   iframeReadyAck: vi.fn(async () => []),
 }));
@@ -18,6 +20,8 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+import { recordWorkerFallback } from '../../lib/ipc/usageCommands';
+import { logService } from '../log/logService';
 import { iframeReadyAck } from '../../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { extensionPendingState } from './extensionPendingState.svelte';
@@ -163,7 +167,7 @@ describe('workerHost', () => {
     });
   });
 
-  it('reports bootstrap failure without starting an iframe', () => {
+  it('recovers bootstrap failure in a deduplicated iframe without crash feedback', () => {
     workerHost.mount('ext.test', 1, 'dist/worker.js');
     const channel = workerHost.getWorker('ext.test') as any;
 
@@ -175,9 +179,17 @@ describe('workerHost', () => {
       },
     });
 
-    expect(feedbackService.report).toHaveBeenCalled();
+    expect(feedbackService.report).not.toHaveBeenCalled();
     expect(workerHost.hasWorker('ext.test')).toBe(false);
-    expect(workerHost.fallbackEntries).toEqual([]);
+    expect(workerHost.hasSource(channel)).toBe(false);
+    expect(workerHost.fallbackEntries).toEqual([{ extensionId: 'ext.test', mountToken: 1 }]);
+    channel.onHostMessage({
+      type: 'asyar:feedback:uncaught',
+      payload: { kind: 'worker_bootstrap_error' },
+    });
+    expect(workerHost.fallbackEntries).toHaveLength(1);
+    expect(recordWorkerFallback).toHaveBeenCalledExactlyOnceWith('ext.test');
+    expect(logService.warn).toHaveBeenCalledWith(expect.stringContaining('modulePreload: false'));
   });
 
   it('routes other uncaught feedback errors to feedbackService', () => {
@@ -211,13 +223,13 @@ describe('workerHost', () => {
         kind: 'worker_bootstrap_error',
       },
     });
-    expect(workerHost.fallbackEntries.length).toBe(0);
+    expect(workerHost.fallbackEntries.length).toBe(1);
 
     workerHost.unmount('ext.test', 'user_close');
     expect(workerHost.fallbackEntries.length).toBe(0);
   });
 
-  it('reports rawWorker startup errors without starting an iframe', () => {
+  it('recovers rawWorker startup errors and removes its source mapping', () => {
     const mockPostMessage = vi.fn();
     const mockTerminate = vi.fn();
     let workerInstance: any = null;
@@ -245,9 +257,11 @@ describe('workerHost', () => {
 
       workerInstance.onerror(new Error('SyntaxError in worker'));
 
-      expect(feedbackService.report).toHaveBeenCalled();
+      expect(feedbackService.report).not.toHaveBeenCalled();
+      expect(mockTerminate).toHaveBeenCalledOnce();
+      expect(workerHost.hasSource(workerInstance)).toBe(false);
       expect(workerHost.hasWorker('ext.error')).toBe(false);
-      expect(workerHost.fallbackEntries).toEqual([]);
+      expect(workerHost.fallbackEntries).toEqual([{ extensionId: 'ext.error', mountToken: 1 }]);
     } finally {
       globalThis.Worker = originalWorker;
       URL.createObjectURL = originalCreateObjectURL;
@@ -380,4 +394,84 @@ it('reports unsupported Workers instead of simulating readiness in production', 
   );
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+it('recovers a constructor failure and revokes the bootstrap URL', () => {
+  vi.stubGlobal(
+    'Worker',
+    class {
+      constructor() {
+        throw new Error('unsupported module worker');
+      }
+    },
+  );
+  const revoke = vi.fn();
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:failed');
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(revoke);
+  try {
+    workerHost.reset();
+    vi.clearAllMocks();
+    workerHost.mount('ext.constructor', 9, 'dist/worker.js');
+    expect(workerHost.fallbackEntries).toEqual([{ extensionId: 'ext.constructor', mountToken: 9 }]);
+    expect(feedbackService.report).not.toHaveBeenCalled();
+    expect(revoke).toHaveBeenCalledWith('blob:failed');
+  } finally {
+    workerHost.reset();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  }
+});
+
+it('keeps runtime failures after readiness out of the compatibility fallback', async () => {
+  let raw: { onmessage?: (event: unknown) => void; onerror?: (event: unknown) => void };
+  vi.stubGlobal(
+    'Worker',
+    class {
+      constructor() {
+        raw = this;
+      }
+      postMessage() {}
+      terminate() {}
+      onmessage?: (event: unknown) => void;
+      onerror?: (event: unknown) => void;
+    },
+  );
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:ready');
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  try {
+    workerHost.reset();
+    vi.clearAllMocks();
+    workerHost.mount('ext.ready', 3, 'dist/worker.js');
+    raw!.onmessage!({ data: { type: 'asyar:extension:loaded' } });
+    await Promise.resolve();
+    raw!.onerror!({ message: 'runtime error' });
+    expect(workerHost.fallbackEntries).toEqual([]);
+    expect(recordWorkerFallback).not.toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'extension_crash', extensionId: 'ext.ready' }),
+    );
+  } finally {
+    workerHost.reset();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  }
+});
+
+it('does not bypass invalid worker paths through compatibility', () => {
+  const constructor = vi.fn();
+  vi.stubGlobal('Worker', constructor);
+  try {
+    workerHost.reset();
+    vi.clearAllMocks();
+    workerHost.mount('ext.invalid', 1, '../escape.js');
+    expect(constructor).not.toHaveBeenCalled();
+    expect(workerHost.fallbackEntries).toEqual([]);
+    expect(recordWorkerFallback).not.toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ extensionId: 'ext.invalid' }),
+    );
+  } finally {
+    workerHost.reset();
+    vi.unstubAllGlobals();
+  }
 });
