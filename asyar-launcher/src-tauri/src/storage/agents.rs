@@ -188,9 +188,6 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         CREATE INDEX IF NOT EXISTS idx_threads_agent_updated
             ON threads(agent_id, updated_at DESC);
 
-        CREATE INDEX IF NOT EXISTS idx_threads_pinned_updated
-            ON threads(is_pinned, updated_at DESC);
-
         CREATE TABLE IF NOT EXISTS messages (
             id          TEXT    PRIMARY KEY,
             thread_id   TEXT    NOT NULL,
@@ -265,6 +262,13 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
     }
+
+    // After the column guard: legacy `threads` tables have no `is_pinned` yet.
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_threads_pinned_updated
+            ON threads(is_pinned, updated_at DESC);",
+    )
+    .map_err(|e| AppError::Database(format!("Failed to init threads pinned index: {e}")))?;
     Ok(())
 }
 

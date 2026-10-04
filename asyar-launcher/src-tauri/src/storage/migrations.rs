@@ -40,6 +40,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "query_history",
         up: super::query_history::init_table,
     },
+    Migration {
+        version: 4,
+        name: "backfill_baseline_columns",
+        up: backfill_baseline_columns,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -132,6 +137,20 @@ fn baseline(conn: &Connection) -> Result<(), AppError> {
     crate::oauth::token_store::init_table(conn)?;
     crate::extensions::onboarding_state::init_table(conn)?;
 
+    Ok(())
+}
+
+/// Version 4 — repair databases stamped before baseline column guards grew.
+///
+/// `baseline` runs once, so columns added later inside a baseline
+/// `init_table` guard (`snippets.is_private`, `threads.is_pinned`, ...) never
+/// reached databases already at `user_version >= 1`, surfacing as
+/// "no such column" database errors. Re-running the guarded `init_table`s is
+/// idempotent and adds whatever is missing. New columns belong in their own
+/// ledger entry, not in a baseline guard.
+fn backfill_baseline_columns(conn: &Connection) -> Result<(), AppError> {
+    super::snippets::init_table(conn)?;
+    super::agents::init_table(conn)?;
     Ok(())
 }
 
@@ -419,5 +438,25 @@ mod tests {
             "create_test_store() and the production bootstrap must build the same schema"
         );
         assert_eq!(user_version(&guard), user_version(&production));
+    }
+
+    #[test]
+    fn db_stamped_at_v3_without_late_baseline_columns_is_repaired() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..3]).unwrap();
+        conn.execute_batch(
+            "DROP INDEX IF EXISTS idx_snippets_is_private;
+             ALTER TABLE snippets DROP COLUMN is_private;
+             DROP INDEX IF EXISTS idx_threads_pinned_updated;
+             ALTER TABLE threads DROP COLUMN is_pinned;",
+        )
+        .unwrap();
+        assert_eq!(user_version(&conn), 3);
+
+        run(&conn).unwrap();
+
+        assert!(column_names(&conn, "snippets").contains(&"is_private".to_string()));
+        assert!(column_names(&conn, "threads").contains(&"is_pinned".to_string()));
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
     }
 }
