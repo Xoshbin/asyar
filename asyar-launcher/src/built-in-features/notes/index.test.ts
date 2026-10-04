@@ -151,7 +151,7 @@ describe('NotesExtension lifecycle: viewActivated, viewDeactivated, activate, de
     await notesExtension.viewActivated('notes/DefaultView');
 
     expect(window.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
-    expect(listen).toHaveBeenCalledWith('notes:changed', expect.any(Function));
+    expect(listen).toHaveBeenCalledWith('notes:changed', expect.any(Function), undefined);
     expect(noteStore.reload).toHaveBeenCalled();
     expect(actionService.registerAction).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'notes:add' }),
