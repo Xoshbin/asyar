@@ -47,13 +47,29 @@ pub const DB_FILE_NAME: &str = "asyar_data.db";
 /// while the rest of the app is already live and writing.
 const BUSY_TIMEOUT_MS: i64 = 15_000;
 
+/// Per-connection page cache, as a SQLite `cache_size` value. Negative means
+/// KiB (positive would mean pages), so this is 512 KiB — a quarter of SQLite's
+/// own `-2000` default, which every pooled connection otherwise inherits
+/// without anyone having chosen it. Each connection can grow its cache up to
+/// this cap and SQLite does not hand it back while the connection lives, so
+/// the pool's worst case is `POOL_SIZE` caches, not one.
+///
+/// 512 KiB still holds ~128 pages of 4 KiB, ample for the point lookups and
+/// small index scans the UI issues on a keystroke. The full-table passes
+/// (the boot FTS rebuilds, the search-index load) are sequential, so a larger
+/// cache never helped them, and a miss is served from the OS page cache
+/// rather than the disk.
+const CACHE_SIZE_PRAGMA: i64 = -512;
+
 /// Applied to every physical connection the pool opens, before it is ever
 /// handed out. `journal_mode` is a property of the database file, but
-/// `busy_timeout` is per-connection state and has to be set on each one —
-/// which is exactly why it lives here and not in a one-time setup step.
+/// `busy_timeout` and `cache_size` are per-connection state and have to be set
+/// on each one — which is exactly why they live here and not in a one-time
+/// setup step.
 fn connection_pragmas() -> String {
     format!(
-        "PRAGMA journal_mode=WAL; PRAGMA busy_timeout={BUSY_TIMEOUT_MS}; PRAGMA foreign_keys = ON;"
+        "PRAGMA journal_mode=WAL; PRAGMA busy_timeout={BUSY_TIMEOUT_MS}; \
+         PRAGMA cache_size={CACHE_SIZE_PRAGMA}; PRAGMA foreign_keys = ON;"
     )
 }
 
@@ -407,6 +423,30 @@ mod tests {
             })
             .expect("a clone must see rows written through the original");
         assert_eq!(name, "Shared");
+    }
+
+    /// `cache_size` is per-connection state like `busy_timeout`, and SQLite's
+    /// own default (-2000, ~2 MB) is what every pooled connection would
+    /// silently fall back to if the pragma were dropped.
+    #[test]
+    fn every_pooled_connection_carries_the_configured_cache_size() {
+        let store = create_test_store();
+
+        run_with_timeout("cache size on every connection", move || {
+            let conns: Vec<_> = (0..POOL_SIZE)
+                .map(|_| store.conn().expect("connection"))
+                .collect();
+
+            for (i, conn) in conns.iter().enumerate() {
+                let cache: i64 = conn
+                    .query_row("PRAGMA cache_size", [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(
+                    cache, CACHE_SIZE_PRAGMA,
+                    "connection {i} was handed out without the configured cache size"
+                );
+            }
+        });
     }
 
     #[test]
