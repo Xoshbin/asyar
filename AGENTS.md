@@ -33,8 +33,14 @@ Or manually run the steps:
 2. **Design System Compliance**: `pnpm check:design` (in repo root)
 3. **Full Frontend & Workspace Tests**: `pnpm -r --if-present test:run` (in repo root)
 4. **Rust Formatting (if Rust touched)**: `cargo fmt --check` (in `asyar-launcher/src-tauri`)
-5. **Clippy with `-D warnings` (if Rust touched)**: `cargo clippy --all-targets -- -D warnings` (in `asyar-launcher/src-tauri`)
-6. **Rust Test Suite (if Rust touched)**: `cargo test` (in `asyar-launcher/src-tauri`)
+5. **Clippy with `-D warnings` (if Rust touched)**: `cargo clippy --workspace --all-targets -- -D warnings` (in `asyar-launcher/src-tauri`)
+6. **Rust Test Suite (if Rust touched)**: `cargo test --workspace` (in `asyar-launcher/src-tauri`)
+
+> **Always pass `--workspace` to `cargo test` and `cargo clippy`.** The Cargo workspace sets
+> `default-members = ["."]`, so the bare commands silently skip the ~610 tests in
+> `src-tauri/crates/*` (asyar-storage, asyar-search, asyar-platform, asyar-calculator) and
+> report ~3,190 instead of the full ~3,816. `scripts/check-ci.mjs` already does this.
+
 7. **Type & Bindings Check (if bindings/types touched)**: `cargo test export_bindings -- --ignored` and check `git diff --exit-code -- asyar-launcher/src/bindings.ts`
 
 ## 4. Formatting Enforcement
