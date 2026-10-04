@@ -1,3 +1,4 @@
+import { postToExtension } from './extensionDelivery';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { logService } from '../log/logService';
 import { pickExtensionIframe } from './extensionIframeSelector';
@@ -104,23 +105,15 @@ export class ExtensionIframeManager {
       commands: Record<string, Record<string, unknown>>;
     },
   ): void {
-    if (workerHost.hasWorker(extensionId)) {
-      workerHost.broadcastPreferences(extensionId, bundle);
-    } else {
-      const workerIframe = pickExtensionIframe(extensionId, 'worker');
-      if (workerIframe?.contentWindow) {
-        workerIframe.contentWindow.postMessage(
-          {
-            type: 'asyar:event:preferences:set-all',
-            payload: {
-              extension: bundle.extension,
-              commands: bundle.commands,
-            },
-          },
-          getExtensionFrameOrigin(extensionId),
-        );
-      }
-    }
+    postToExtension(
+      extensionId,
+      'worker',
+      {
+        type: 'asyar:event:preferences:set-all',
+        payload: { extension: bundle.extension, commands: bundle.commands },
+      },
+      { fallback: false },
+    );
     const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
       // Use the `asyar:event:*` namespace so MessageBroker inside the

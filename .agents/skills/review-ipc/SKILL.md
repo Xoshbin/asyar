@@ -63,16 +63,16 @@ Check every file in `asyar-launcher/src/built-in-features/*/index.ts`:
 Verify that for any new service method added to a proxy:
 
 - The host-side handler exists in `asyar-launcher/src/services/extension/ExtensionIpcRouter.ts` or a dedicated service file
-- Replies are posted with `event.source.postMessage({ type: 'asyar:response', messageId, result }, '*')` on success — using `event.source` ensures the reply lands in the same iframe (worker or view) that issued the request
+- Replies use `event.source` so they land in the requesting execution context. Post `{ type: 'asyar:response', messageId, result }` with a target origin for iframe windows; Web Worker sources take only the message (no window target-origin argument)
 - Error path sends `{ type: 'asyar:response', messageId, error: string }`
-- Host → iframe pushes that target a specific role go through `pickExtensionIframe(extensionId, prefer)` in `asyar-launcher/src/services/extension/extensionIframeSelector.ts` — never an unscoped `iframe[data-extension-id="..."]` selector
+- Host → extension messages go through `postToExtension(extensionId, role, message)` in `asyar-launcher/src/services/extension/extensionDelivery.ts`, which routes to Web Workers or compatibility iframes. Use `{ fallback: false }` for strictly role-scoped subscriptions. Reserve `pickExtensionIframe` for iframe-specific operations such as view focus and readiness scans; never assume a worker is an iframe
 
 ### 5. Role-aware dispatch checks (Phase 6+)
 
 When auditing services that branch on iframe role:
 
 - `actions.registerActionHandler` is role-neutral — registering from either role is supported and the launcher routes the matching `asyar:action:execute` envelope back to whichever role registered
-- `commands.onCommand` for a `mode: "background"` manifest command must register from the **worker**; the launcher dispatches background-mode commands to the worker iframe
+- `commands.onCommand` for a `mode: "background"` manifest command must register from the **worker**; the launcher dispatches background-mode commands to the worker execution context
 - `state:rpcRequest` / `state:rpcReply` envelopes carry the worker↔view RPC protocol; the worker-side interceptor in `asyar-sdk/src/worker.ts` is the only place that calls `extensionRpc.deliverActionPayload(...)`. View-side calls go through `context.request(...)` only.
 
 ## Files to read

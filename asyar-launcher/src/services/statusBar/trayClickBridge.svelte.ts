@@ -1,6 +1,6 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
-import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
+import { postToExtension } from '../extension/extensionDelivery';
 
 interface TrayClickEnvelope {
   extensionId: string;
@@ -9,12 +9,12 @@ interface TrayClickEnvelope {
 
 /**
  * Forwards Rust-emitted `asyar:tray-item-click` events to the owning
- * extension iframe so the SDK's `StatusBarServiceProxy` can fire the
+ * extension worker so the SDK's `StatusBarServiceProxy` can fire the
  * user-registered `onClick` handler.
  *
  * This is a bespoke version of the shared `createPushBridge` pattern — it
  * logs every stage of the dispatch so a missing click path (Rust emitted
- * but iframe silent, or vice-versa) is obvious in the launcher logs.
+ * but worker silent, or vice-versa) is obvious in the launcher logs.
  */
 export const trayClickBridge = {
   _unlisten: null as UnlistenFn | null,
@@ -26,27 +26,10 @@ export const trayClickBridge = {
       logService.debug(
         `[trayClickBridge] received click for ext='${extensionId}' path=${JSON.stringify(event?.itemPath ?? [])}`,
       );
-      // statusBar.registerItem is called from the worker, so tray click
-      // callbacks live in the worker's closure. Prefer the worker iframe;
-      // fall back to view for extensions without `background.main`.
-      const iframe =
-        (document.querySelector(
-          `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
-        ) as HTMLIFrameElement | null) ??
-        (document.querySelector(
-          `iframe[data-extension-id="${extensionId}"][data-role="view"]`,
-        ) as HTMLIFrameElement | null) ??
-        (document.querySelector(
-          `iframe[data-extension-id="${extensionId}"]`,
-        ) as HTMLIFrameElement | null);
-      if (!iframe?.contentWindow) {
-        logService.warn(`[trayClickBridge] no iframe found for ${extensionId}; click dropped`);
-        return;
-      }
-      iframe.contentWindow.postMessage(
-        { type: 'asyar:event:statusBar:click', payload: event },
-        getExtensionFrameOrigin(extensionId),
-      );
+      postToExtension(extensionId, 'worker', {
+        type: 'asyar:event:statusBar:click',
+        payload: event,
+      });
     });
     logService.debug('[trayClickBridge] listening for asyar:tray-item-click');
   },

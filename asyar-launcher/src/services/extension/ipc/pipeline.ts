@@ -1,3 +1,4 @@
+import { handleToolResponse } from '../extensionToolDispatch';
 import { logService } from '../../log/logService';
 import * as commands from '../../../lib/ipc/commands';
 import { IpcError } from '../../../lib/ipc/invokeSafe';
@@ -14,6 +15,7 @@ const tap: IpcStage = {
   name: 'tap',
   async run(ctx, next) {
     extensionIframeManager.handleSearchResponse(ctx.event);
+    handleToolResponse(ctx.event);
     await next();
   },
 };

@@ -2,7 +2,7 @@ import { recordWorkerFallback } from '../../lib/ipc/usageCommands';
 import { logService } from '../log/logService';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { iframeReadyAck, type IpcPendingMessage } from '../../lib/ipc/iframeLifecycleCommands';
-import { toWireMessage } from './extensionDelivery';
+import { toWireMessage } from './extensionWireMessage';
 import { extensionPendingState } from './extensionPendingState.svelte';
 
 export type PreferenceProvider = (extensionId: string) => Promise<{

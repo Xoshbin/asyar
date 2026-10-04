@@ -1,3 +1,8 @@
+vi.mock('../extension/workerHost.svelte', () => ({
+  workerHost: { hasWorker: vi.fn(() => false), post: vi.fn() },
+}));
+vi.mock('../../lib/ipc/extensionOrigin', () => ({ getExtensionFrameOrigin: () => '*' }));
+import { workerHost } from '../extension/workerHost.svelte';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
@@ -235,7 +240,7 @@ describe('onStateChanged', () => {
     const run = makeRun({ id: 'r1', status: 'cancelled', extensionId: 'ext.foo' });
     await runService['onStateChanged'](run);
 
-    expect(pickExtensionIframe).toHaveBeenCalledWith('ext.foo', 'worker');
+    expect(pickExtensionIframe).toHaveBeenCalledWith('ext.foo', 'worker', {});
     expect(postMessage).toHaveBeenCalledWith(
       { type: 'asyar:event:runs:cancel', payload: { id: 'r1' } },
       '*',
@@ -663,5 +668,14 @@ describe('keyboard selection (combined + moveSelection)', () => {
     runService.selectedRunId = null;
     runService.moveSelection('down');
     expect(runService.selectedRunId).toBeNull();
+  });
+});
+
+it('run cancellation reaches a mounted Web Worker', async () => {
+  vi.mocked(workerHost.hasWorker).mockReturnValue(true);
+  await runService['onStateChanged'](makeRun({ status: 'cancelled', extensionId: 'ext.foo' }));
+  expect(workerHost.post).toHaveBeenCalledWith('ext.foo', {
+    type: 'asyar:event:runs:cancel',
+    payload: { id: 'r1' },
   });
 });

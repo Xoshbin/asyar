@@ -4,10 +4,9 @@
  * selector hits whichever iframe comes first in DOM order (typically the
  * view) and a message meant for a worker-only handler vanishes silently.
  *
- * Canonical Tier 2 role-aware selector: every host-to-iframe push that
- * targets a specific role must go through this helper rather than building
- * its own `iframe[data-extension-id]` query inline. See the `review-ipc`
- * skill, section 4.
+ * Use only for iframe-specific operations (focus, readiness, visual views).
+ * Host-to-extension messages must use postToExtension in extensionDelivery,
+ * which also supports Web Workers. Worker iframe compatibility remains here.
  */
 export function pickExtensionIframe(
   extensionId: string,

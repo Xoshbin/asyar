@@ -312,3 +312,15 @@ describe('ExtensionIframeManager', () => {
     });
   });
 });
+
+it('preferences reach a mounted Web Worker', () => {
+  vi.mocked(workerHost.hasWorker).mockReturnValue(true);
+  new ExtensionIframeManager().sendPreferencesToExtension('org.worker', {
+    extension: { x: 1 },
+    commands: {},
+  });
+  expect(workerHost.post).toHaveBeenCalledWith('org.worker', {
+    type: 'asyar:event:preferences:set-all',
+    payload: { extension: { x: 1 }, commands: {} },
+  });
+});

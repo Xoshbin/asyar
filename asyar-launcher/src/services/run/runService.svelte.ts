@@ -3,7 +3,7 @@ import { invokeSafe } from '../../lib/ipc/invokeSafe';
 import type { Run, RunKind } from 'asyar-sdk/contracts';
 
 import { feedbackService } from '../feedback/feedbackService.svelte';
-import { pickExtensionIframe } from '../extension/extensionIframeSelector';
+import { postToExtension } from '../extension/extensionDelivery';
 import { shiftIndex } from '../../lib/listSelection.svelte';
 
 export interface LocalRunHandle {
@@ -223,11 +223,10 @@ export class RunService {
       }
 
       if (run.status === 'cancelled' && run.extensionId) {
-        const iframe = pickExtensionIframe(run.extensionId, 'worker');
-        iframe?.contentWindow?.postMessage(
-          { type: 'asyar:event:runs:cancel', payload: { id: run.id } },
-          '*',
-        );
+        postToExtension(run.extensionId, 'worker', {
+          type: 'asyar:event:runs:cancel',
+          payload: { id: run.id },
+        });
       }
 
       if (run.status === 'cancelled') {

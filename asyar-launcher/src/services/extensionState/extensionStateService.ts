@@ -1,3 +1,4 @@
+import { pickExtensionIframe } from '../extension/extensionIframeSelector';
 import {
   stateGet,
   stateSet,
@@ -39,9 +40,7 @@ function handleWorkerRpcOutcome(extensionId: string, outcome: IpcDispatchOutcome
     for (const m of outcome.messages) workerHost.deliver(extensionId, m);
     return;
   }
-  const iframe = document.querySelector(
-    `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
-  ) as HTMLIFrameElement | null;
+  const iframe = pickExtensionIframe(extensionId, 'worker', { fallback: false });
   if (!iframe) {
     logService.warn(
       `[extensionStateService] ReadyDeliverNow for ${extensionId} but worker iframe DOM node is missing; ${outcome.messages.length} message(s) dropped`,

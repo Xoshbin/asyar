@@ -1,6 +1,9 @@
 /** @vitest-environment jsdom */
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+vi.mock('../extensionToolDispatch', () => ({ handleToolResponse: vi.fn() }));
+import { handleToolResponse } from '../extensionToolDispatch';
+
 vi.mock('../../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -191,6 +194,7 @@ describe('IPC pipeline — §3 behavior matrix', () => {
     await makeRouter({ storage: { get: storageGet } }).handleMessage(frameEvent(row.data));
 
     expect(extensionIframeManager.handleSearchResponse).toHaveBeenCalledTimes(1);
+    expect(handleToolResponse).toHaveBeenCalledWith(expect.objectContaining({ data: row.data }));
   });
 
   it.each(MATRIX)('$label runs the Rust permission gate: $gate', async (row) => {

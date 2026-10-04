@@ -1,3 +1,4 @@
+import { pickExtensionIframe } from './extensionIframeSelector';
 import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { post } from './extensionDelivery';
 import { workerHost } from './workerHost.svelte';
@@ -21,9 +22,7 @@ export class IframeDeliveryListener {
         for (const m of messages) workerHost.deliver(extensionId, m);
         return;
       }
-      const iframe = document.querySelector<HTMLIFrameElement>(
-        `iframe[data-extension-id="${extensionId}"][data-role="${role}"]`,
-      );
+      const iframe = pickExtensionIframe(extensionId, role, { fallback: false });
       if (!iframe) {
         void feedbackService.report({
           source: 'frontend',

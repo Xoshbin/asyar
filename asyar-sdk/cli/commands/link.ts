@@ -64,6 +64,7 @@ export function registerLink(program: Command) {
     .command('link')
     .description('Link extension to Asyar extensions directory for local testing')
     .option('--watch', 'Watch src/ for changes and rebuild automatically')
+    .option('--no-build', 'Link existing build output without rebuilding')
     .option('--copy', 'Use file copy instead of symlink (fallback mode)')
     .option('--dev', 'Link to the dev flavor (org.asyar.dev) instead of production')
     .action(async (opts) => {
@@ -82,8 +83,8 @@ export function registerLink(program: Command) {
         return;
       }
 
-      // Build first
-      await runViteBuild(cwd);
+      // Existing output must still match the manifest when rebuilding is skipped.
+      if (opts.build !== false) await runViteBuild(cwd);
       verifyBuildOutput(cwd, manifest);
 
       if (opts.copy) {

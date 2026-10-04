@@ -1,3 +1,4 @@
+import { pickExtensionIframe } from './extensionIframeSelector';
 import { logService } from '../log/logService';
 import {
   dispatchToExtension,
@@ -53,9 +54,7 @@ export async function dispatch(req: DispatchRequest): Promise<void> {
         extensionPendingState.markReady(req.extensionId);
         return;
       }
-      const iframe = document.querySelector(
-        `iframe[data-extension-id="${req.extensionId}"][data-role="${role}"]`,
-      ) as HTMLIFrameElement | null;
+      const iframe = pickExtensionIframe(req.extensionId, role, { fallback: false });
       if (!iframe) {
         logService.warn(
           `[dispatcher] ReadyDeliverNow but iframe DOM node missing for ${req.extensionId}`,
