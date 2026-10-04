@@ -284,7 +284,11 @@ describe('agents:changed event sync', () => {
 
   it('constructor calls listen with agents:changed', () => {
     new AgentService();
-    expect(tauriEvent.listen).toHaveBeenCalledWith('agents:changed', expect.any(Function));
+    expect(tauriEvent.listen).toHaveBeenCalledWith(
+      'agents:changed',
+      expect.any(Function),
+      undefined,
+    );
   });
 
   it('refresh re-fetches agents list and updates this.agents', async () => {

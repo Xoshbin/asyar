@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 export interface BridgeEvent {
   event: string;
@@ -76,6 +77,23 @@ async function bridgeListenInternal<T>(
 }
 
 /**
+ * Tauri delivers every `emit_to(<any label>)` to a listener registered with
+ * the default `Any` target, so an unscoped listener also receives events the
+ * host addressed to other windows. `bridge_emit` fans out to every non-poller
+ * window with `emit_to`, which made the poller window see each event once per
+ * other open window on top of its queued copy. Scoping the native listener to
+ * this webview's own label keeps it to broadcast `emit` and events addressed
+ * to it.
+ */
+function ownWebviewTarget(): { target: { kind: 'WebviewWindow'; label: string } } | undefined {
+  try {
+    return { target: { kind: 'WebviewWindow', label: getCurrentWebviewWindow().label } };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Unified application event listener.
  *
  * Subscribes to the eval-free long-poll bridge queue and concurrently attaches
@@ -92,13 +110,17 @@ export async function appListen<T>(
 
   let unlistenTauri: UnlistenFn | null = null;
   try {
-    unlistenTauri = await tauriListen<T>(event, (e) => {
-      try {
-        cb({ payload: e.payload });
-      } catch {
-        // A throwing handler must not crash the native listener loop.
-      }
-    });
+    unlistenTauri = await tauriListen<T>(
+      event,
+      (e) => {
+        try {
+          cb({ payload: e.payload });
+        } catch {
+          // A throwing handler must not crash the native listener loop.
+        }
+      },
+      ownWebviewTarget(),
+    );
   } catch {
     // Tauri event system unavailable or mocked out (e.g. non-Tauri test environments).
   }

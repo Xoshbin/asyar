@@ -840,7 +840,7 @@ describe('ExtensionManager Characterization Tests', () => {
       extensionManager.initialized = false; // Force re-init
       await extensionManager.init();
 
-      expect(listen).toHaveBeenCalledWith('asyar:scheduler:tick', expect.any(Function));
+      expect(listen).toHaveBeenCalledWith('asyar:scheduler:tick', expect.any(Function), undefined);
     });
 
     it('calls scheduler unlisten during unloadExtensions', async () => {

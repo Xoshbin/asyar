@@ -24,6 +24,10 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: mockTauriListen,
 }));
 
+vi.mock('@tauri-apps/api/webviewWindow', () => ({
+  getCurrentWebviewWindow: () => ({ label: 'main' }),
+}));
+
 import { invoke } from '@tauri-apps/api/core';
 import {
   appListen,
@@ -39,6 +43,21 @@ describe('bridgeEvents transport', () => {
     vi.clearAllMocks();
     tauriListeners.clear();
     resetBridgeForTest?.();
+  });
+
+  describe('native subscription scope', () => {
+    // Tauri delivers every `emit_to(<any label>)` to a listener registered with
+    // the default `Any` target. `bridge_emit` fans out to non-poller windows via
+    // `emit_to`, so an unscoped native listener in the poller window received
+    // each event once per other open window on top of the queued delivery
+    // (a silent agent hotkey fired 4x and cancelled itself).
+    it("scopes the native listener to this webview so other windows' emit_to is not delivered", async () => {
+      await appListen('test:scoped', vi.fn());
+
+      expect(mockTauriListen).toHaveBeenCalledWith('test:scoped', expect.any(Function), {
+        target: { kind: 'WebviewWindow', label: 'main' },
+      });
+    });
   });
 
   describe('registration & dispatch', () => {
@@ -178,7 +197,11 @@ describe('bridgeEvents transport', () => {
       const handler = vi.fn();
       await appListen('native:event', handler);
 
-      expect(mockTauriListen).toHaveBeenCalledWith('native:event', expect.any(Function));
+      expect(mockTauriListen).toHaveBeenCalledWith(
+        'native:event',
+        expect.any(Function),
+        expect.anything(),
+      );
 
       // Simulate native Tauri event dispatch
       const tauriSet = tauriListeners.get('native:event');
