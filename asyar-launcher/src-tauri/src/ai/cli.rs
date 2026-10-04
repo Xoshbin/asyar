@@ -8,6 +8,17 @@ use std::process::Stdio;
 use tokio::process::Command;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
+/// Keep console-subsystem CLI children (and `.cmd` shims run via cmd.exe)
+/// from opening a visible console window when spawned from the GUI process.
+pub(crate) fn hide_console_window(cmd: &mut Command) -> &mut Command {
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 /// Resolves the home directory safely without panic.
 fn resolve_home_dir() -> Option<PathBuf> {
     // `HOME` is unset on Windows by default; fall back to the platform home dir (USERPROFILE).
@@ -118,10 +129,15 @@ pub fn resolve_cli_binary(engine: &str, custom_path: Option<&str>) -> Option<Pat
 
     let which_cmd = if cfg!(windows) { "where" } else { "which" };
 
-    if let Ok(output) = std::process::Command::new(which_cmd)
-        .arg(binary_name)
-        .output()
+    let mut which = std::process::Command::new(which_cmd);
+    which.arg(binary_name);
+    #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        which.creation_flags(CREATE_NO_WINDOW);
+    }
+    if let Ok(output) = which.output() {
         if output.status.success() {
             let stdout_str = String::from_utf8_lossy(&output.stdout);
             for line in stdout_str.lines() {
@@ -177,7 +193,10 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
     };
 
     // Query version with a short timeout
-    let version_cmd = Command::new(&bin_path).arg("--version").output();
+    let mut version_cmd = Command::new(&bin_path);
+    version_cmd.arg("--version");
+    hide_console_window(&mut version_cmd);
+    let version_cmd = version_cmd.output();
 
     match tokio::time::timeout(std::time::Duration::from_secs(4), version_cmd).await {
         Ok(Ok(output)) => {
@@ -827,6 +846,8 @@ where
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+
+    hide_console_window(&mut cmd);
 
     let mut child = cmd.spawn().map_err(|e| {
         let err_msg = format!("Failed to spawn CLI process '{bin_path:?}': {e}");
