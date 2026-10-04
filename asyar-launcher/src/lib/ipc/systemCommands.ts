@@ -24,7 +24,7 @@ export async function timerSchedule(
   commandId: string,
   argsJson: string,
   fireAt: number,
-): Promise<string | null> {
+): Promise<string> {
   return invokeSafe<string>('timer_schedule', { extensionId, commandId, argsJson, fireAt });
 }
 
@@ -32,14 +32,14 @@ export async function timerCancel(extensionId: string | null, timerId: string): 
   return invokeSafeVoid('timer_cancel', { extensionId, timerId });
 }
 
-export async function timerList(extensionId: string | null): Promise<RawTimerRow[] | null> {
+export async function timerList(extensionId: string | null): Promise<RawTimerRow[]> {
   return invokeSafe<RawTimerRow[]>('timer_list', { extensionId });
 }
 
 export async function powerKeepAwake(
   extensionId: string | null,
   options: KeepAwakeOptions,
-): Promise<string | null> {
+): Promise<string> {
   return invokeSafe<string>('power_keep_awake', { extensionId, options });
 }
 
@@ -47,7 +47,7 @@ export async function powerRelease(extensionId: string | null, token: string): P
   return invokeSafeVoid('power_release', { extensionId, token });
 }
 
-export async function powerList(extensionId: string | null): Promise<ActiveInhibitor[] | null> {
+export async function powerList(extensionId: string | null): Promise<ActiveInhibitor[]> {
   return invokeSafe<ActiveInhibitor[]>('power_list', { extensionId });
 }
 
@@ -58,7 +58,7 @@ export async function screenPickColor(extensionId: string | null): Promise<Picke
 export async function systemEventsSubscribe(
   extensionId: string | null,
   eventTypes: string[],
-): Promise<string | null> {
+): Promise<string> {
   return invokeSafe<string>('system_events_subscribe', { extensionId, eventTypes });
 }
 
@@ -73,7 +73,7 @@ export async function processListCommand(
   extensionId: string | null,
   query: string | undefined,
   sortBy: ProcessSortBy,
-): Promise<AppGroup[] | null> {
+): Promise<AppGroup[]> {
   return invokeSafe<AppGroup[]>('process_list', { extensionId, query, sortBy });
 }
 
@@ -82,7 +82,7 @@ export async function processKillCommand(
   pids: number[],
   force: boolean,
   confirmedProtected: boolean,
-): Promise<KillResult | null> {
+): Promise<KillResult> {
   return invokeSafe<KillResult>('process_kill', { extensionId, pids, force, confirmedProtected });
 }
 
@@ -90,7 +90,7 @@ export async function fsWatchCreate(
   extensionId: string | null,
   paths: string[],
   opts: { recursive?: boolean; debounceMs?: number } | null = null,
-): Promise<string | null> {
+): Promise<string> {
   return invokeSafe<string>('fs_watch_create', { extensionId, paths, opts });
 }
 
@@ -104,7 +104,7 @@ export async function fsWatchDispose(
 export async function appEventsSubscribe(
   extensionId: string | null,
   eventTypes: string[],
-): Promise<string | null> {
+): Promise<string> {
   return invokeSafe<string>('app_events_subscribe', { extensionId, eventTypes });
 }
 

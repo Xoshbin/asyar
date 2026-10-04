@@ -1,7 +1,7 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    App, Emitter, Manager,
+    App, Manager,
 };
 
 pub const TRAY_ID: &str = "asyar-tray";
@@ -70,7 +70,7 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(settings_window) = app.get_webview_window("settings") {
                     show_settings_window(&settings_window);
                 }
-                let _ = app.emit("check-for-updates", ());
+                crate::event_bridge::bridge_emit(app, "check-for-updates", ());
             }
             // No catch-all: extension items live on their own trays and are
             // handled by `crate::extension_tray::backend`. Unknown ids here

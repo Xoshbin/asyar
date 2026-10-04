@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { searchOrchestrator, invalidateTopItemsCache } from './searchOrchestrator.svelte';
-import { appInitializer } from '../appInitializer';
+import { isAppInitialized } from '../appInitState';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
 import { searchStores } from './stores/search.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
 import { actionService } from '../action/actionService.svelte';
+import { searchBuiltinProviders, executeBuiltinSearchResult } from './builtinSearchProviders';
 
 // Mocking dependencies
-vi.mock('../appInitializer', () => ({
-  appInitializer: {
-    isAppInitialized: vi.fn(),
-  },
+vi.mock('../appInitState', () => ({
+  isAppInitialized: vi.fn(),
+  setAppInitialized: vi.fn(),
 }));
 
 vi.mock('../extension/viewManager.svelte', () => ({
@@ -34,6 +34,8 @@ vi.mock('../extension/extensionManager.svelte', () => {
     __esModule: true,
     default: {
       searchAll: vi.fn(),
+      navigateToView: vi.fn(),
+      isExtensionEnabled: vi.fn(() => true),
     },
   };
 });
@@ -69,6 +71,12 @@ vi.mock('../action/actionService.svelte', () => ({
   actionService: {
     executeExtensionAction: vi.fn().mockReturnValue(true),
   },
+  setSelectedItemProvider: vi.fn(),
+}));
+
+vi.mock('./builtinSearchProviders', () => ({
+  searchBuiltinProviders: vi.fn(),
+  executeBuiltinSearchResult: vi.fn(),
 }));
 
 describe('searchOrchestrator characterization tests', () => {
@@ -80,13 +88,16 @@ describe('searchOrchestrator characterization tests', () => {
     invalidateTopItemsCache();
 
     // Default mock behaviors
-    vi.mocked(appInitializer.isAppInitialized).mockReturnValue(true);
+    vi.mocked(isAppInitialized).mockReturnValue(true);
     vi.mocked(extensionManager.searchAll).mockResolvedValue([]);
+    vi.mocked(searchBuiltinProviders).mockResolvedValue([]);
+    vi.mocked(executeBuiltinSearchResult).mockResolvedValue(true);
+    vi.mocked(extensionManager.isExtensionEnabled).mockReturnValue(true);
     vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
   });
 
   it('returns empty and DOES NOT set loading states when app not initialized', async () => {
-    vi.mocked(appInitializer.isAppInitialized).mockReturnValue(false);
+    vi.mocked(isAppInitialized).mockReturnValue(false);
 
     await searchOrchestrator.handleSearch('test');
 
@@ -255,17 +266,10 @@ describe('searchOrchestrator characterization tests', () => {
     expect(commands.mergedSearch).toHaveBeenCalledWith('x', [], 10);
   });
 
-  it('priority is preserved for built-in extension results', async () => {
+  it('priority is preserved for built-in provider rows', async () => {
     vi.mocked(isBuiltInFeature).mockReturnValue(true);
-    vi.mocked(extensionManager.searchAll).mockResolvedValue([
-      {
-        extensionId: 'calculator',
-        title: '42',
-        score: 1.0,
-        priority: 'top',
-        type: 'result',
-        action: () => {},
-      } as any,
+    vi.mocked(searchBuiltinProviders).mockResolvedValue([
+      { extensionId: 'calculator', id: 'calc:0', title: '42', score: 1.0, priority: 'top' },
     ]);
 
     await searchOrchestrator.handleSearch('6 * 7');
@@ -386,16 +390,15 @@ describe('searchOrchestrator characterization tests', () => {
     expect(searchOrchestrator.tryExecuteResultAction(objectId)).toBe(false);
   });
 
-  it('preserves extRes.id when provided by extension search results', async () => {
-    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+  it('preserves the provider row id as the result objectId', async () => {
+    vi.mocked(searchBuiltinProviders).mockResolvedValue([
       {
         id: 'cmd_window-management_layout_custom-123',
         title: 'Videocall',
         subtitle: 'Top-center layout',
         score: 0.8,
         extensionId: 'window-management',
-        action: vi.fn(),
-      } as any,
+      },
     ]);
 
     let passedExternalResults: any[] = [];
@@ -408,5 +411,86 @@ describe('searchOrchestrator characterization tests', () => {
 
     expect(passedExternalResults).toHaveLength(1);
     expect(passedExternalResults[0].objectId).toBe('cmd_window-management_layout_custom-123');
+  });
+
+  it('executes built-in rows through their provider with typed id and payload', async () => {
+    vi.mocked(searchBuiltinProviders).mockResolvedValue([
+      {
+        id: 'calc_result_1',
+        title: '42',
+        subtitle: '6 * 7',
+        score: 1.0,
+        extensionId: 'calculator',
+        actionPayload: { copyValue: '42' },
+      },
+    ]);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({
+      results: [
+        {
+          objectId: 'calc_result_1',
+          name: '42',
+          type: 'command',
+          score: 1.0,
+        } as any,
+      ],
+      aliasMatch: null,
+    });
+
+    await searchOrchestrator.handleSearch('6 * 7');
+
+    // Executed via tryExecuteResultAction
+    const handled = searchOrchestrator.tryExecuteResultAction('calc_result_1');
+    expect(handled).toBe(true);
+    expect(executeBuiltinSearchResult).toHaveBeenCalledWith('calculator', 'calc_result_1', {
+      copyValue: '42',
+    });
+
+    // Also attached to result for direct invocation
+    expect(searchOrchestrator.items[0].action).toBeDefined();
+    expect(typeof searchOrchestrator.items[0].action).toBe('function');
+  });
+  it('executes worker action before the aggregated navigation callback', async () => {
+    const navigate = vi.fn();
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      {
+        id: 'row',
+        title: 'Row',
+        extensionId: 'worker',
+        actionId: 'open',
+        actionPayload: 7,
+        action: navigate,
+      } as any,
+    ]);
+    await searchOrchestrator.handleSearch('row');
+    expect(searchOrchestrator.tryExecuteResultAction('row')).toBe(true);
+    expect(actionService.executeExtensionAction).toHaveBeenCalledWith('worker', 'open', 7);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('keeps published actions while pending and ignores stale search mappings', async () => {
+    const old = vi.fn();
+    const fresh = vi.fn();
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      { id: 'row', title: 'Row', action: old } as any,
+    ]);
+    await searchOrchestrator.handleSearch('initial');
+    let resolveStale!: (rows: any[]) => void;
+    vi.mocked(extensionManager.searchAll).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStale = resolve;
+      }),
+    );
+    const stale = searchOrchestrator.handleSearch('stale');
+    searchOrchestrator.tryExecuteResultAction('row');
+    expect(old).toHaveBeenCalledOnce();
+    vi.mocked(extensionManager.searchAll).mockResolvedValueOnce([
+      { id: 'row', title: 'Row', action: fresh } as any,
+    ]);
+    await searchOrchestrator.handleSearch('fresh');
+    resolveStale([{ id: 'row', title: 'Row', action: old }]);
+    await stale;
+    searchOrchestrator.tryExecuteResultAction('row');
+    expect(fresh).toHaveBeenCalledOnce();
+    expect(old).toHaveBeenCalledOnce();
   });
 });

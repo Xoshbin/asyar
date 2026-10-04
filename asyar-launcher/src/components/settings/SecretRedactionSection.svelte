@@ -7,20 +7,26 @@
     Object.values(secretRedactionService.sessionStats).reduce((a, b) => a + b, 0),
   );
 
-  async function toggleMaster(next: boolean) {
-    await secretRedactionService.setMasterEnabled(next);
+  // `Toggle` forwards the raw DOM change event (unlike `Checkbox`, which hands
+  // over a boolean), so the new value has to be read off the input itself.
+  function isChecked(e: Event): boolean {
+    return (e.currentTarget as HTMLInputElement).checked;
   }
 
-  async function toggleClipboard(next: boolean) {
-    await secretRedactionService.setCategoryEnabled('clipboard', next);
+  async function toggleMaster(e: Event) {
+    await secretRedactionService.setMasterEnabled(isChecked(e));
   }
 
-  async function toggleSnippets(next: boolean) {
-    await secretRedactionService.setCategoryEnabled('snippets', next);
+  async function toggleClipboard(e: Event) {
+    await secretRedactionService.setCategoryEnabled('clipboard', isChecked(e));
   }
 
-  async function toggleAi(next: boolean) {
-    await secretRedactionService.setCategoryEnabled('aiConversations', next);
+  async function toggleSnippets(e: Event) {
+    await secretRedactionService.setCategoryEnabled('snippets', isChecked(e));
+  }
+
+  async function toggleAi(e: Event) {
+    await secretRedactionService.setCategoryEnabled('aiConversations', isChecked(e));
   }
 </script>
 

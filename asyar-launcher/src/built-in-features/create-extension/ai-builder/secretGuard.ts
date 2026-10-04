@@ -7,10 +7,13 @@ export type SecretScanResult = { leaked: false } | { leaked: true; path: string 
 // $HOME/AsyarExtensions/<id>, which the frontend Tauri fs allowlist does not
 // cover. Fails closed: a non-empty secret found in any file returns `leaked`,
 // and a scan that errors outright is also treated as `leaked` rather than
-// silently passing — see `invokeSafeOption`'s `ok` flag.
+// silently passing.
 export async function scanForSecret(path: string, secret: string): Promise<SecretScanResult> {
   if (secret.trim().length === 0) return { leaked: false };
-  const result = await scanExtensionForSecret(path, secret);
-  if (!result.ok) return { leaked: true, path };
-  return result.value ? { leaked: true, path: result.value } : { leaked: false };
+  try {
+    const result = await scanExtensionForSecret(path, secret);
+    return result ? { leaked: true, path: result } : { leaked: false };
+  } catch {
+    return { leaked: true, path };
+  }
 }

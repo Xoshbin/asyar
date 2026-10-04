@@ -3,7 +3,7 @@ use crate::error::AppError;
 use crate::storage::extension_preferences as prefs_store;
 use crate::storage::DataStore;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 /// Event payload broadcast to all webview windows after a preference write.
 /// Listeners invalidate their in-memory cache and re-read from the DB.
@@ -20,13 +20,7 @@ fn emit_changed(app_handle: &AppHandle, extension_id: &str) {
     let payload = PreferencesChangedPayload {
         extension_id: extension_id.to_string(),
     };
-    if let Err(e) = app_handle.emit("asyar:preferences-changed", payload) {
-        log::warn!(
-            "Failed to emit asyar:preferences-changed for {}: {}",
-            extension_id,
-            e
-        );
-    }
+    crate::event_bridge::bridge_emit(app_handle, "asyar:preferences-changed", payload);
 }
 
 #[tauri::command]
@@ -36,7 +30,11 @@ pub async fn extension_preferences_get_all(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<prefs_store::PreferenceExportRow>, AppError> {
     let conn = data_store.conn()?;
-    prefs_store::get_all_for_extension(&conn, &extension_id, keystore.master_key())
+    Ok(prefs_store::get_all_for_extension(
+        &conn,
+        &extension_id,
+        keystore.master_key(),
+    )?)
 }
 
 #[tauri::command]
@@ -99,7 +97,7 @@ pub async fn extension_preferences_export_all(
     data_store: State<'_, DataStore>,
 ) -> Result<prefs_store::PreferencesExport, AppError> {
     let conn = data_store.conn()?;
-    prefs_store::export_all(&conn)
+    Ok(prefs_store::export_all(&conn)?)
 }
 
 #[tauri::command]
@@ -119,5 +117,10 @@ pub async fn extension_preferences_import_all(
         }
     };
     let conn = data_store.conn()?;
-    prefs_store::import_all(&conn, payload, strat, keystore.master_key())
+    Ok(prefs_store::import_all(
+        &conn,
+        payload,
+        strat,
+        keystore.master_key(),
+    )?)
 }

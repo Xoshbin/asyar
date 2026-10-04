@@ -48,7 +48,6 @@ vi.mock('../../services/action/actionService.svelte', () => ({
 vi.mock('./DefaultView.svelte', () => ({ default: {} }));
 
 import portalsExtension, { portalsUiState } from './index.svelte';
-import { portalLifecycle } from './portalLifecycle';
 import { syncPortalToIndex, removePortalFromIndex } from './portalLifecycle';
 import { actionService } from '../../services/action/actionService.svelte';
 import { openUrl } from '../../lib/ipc/commands';

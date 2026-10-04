@@ -15,7 +15,13 @@ The following rules are mandatory across all agent sessions, subagents, and task
 
 ## 3. Mandatory Verification & Local CI Matrix
 
-Before concluding any implementation, bug fix, or refactor, **ALWAYS** run the full local CI verification matrix:
+Asyar balances velocity and release-grade correctness using a **Two-Loop Verification Model**:
+
+- **Inner Loop (Iterative Development)**: Use fast, domain-specific checks that run in seconds:
+  - Frontend/UI changes: `pnpm check:ci:frontend` (or `node scripts/check-ci.mjs --frontend`)
+  - Rust changes: `pnpm check:ci:rust` (or `node scripts/check-ci.mjs --rust`)
+  - Auto-detected changes: `pnpm check:ci:changed` (or `node scripts/check-ci.mjs --changed`)
+- **Outer Loop (Task Conclusion / Hand-off / Pre-Push)**: Run the full verification matrix before concluding any task:
 
 ```bash
 pnpm check:ci
@@ -40,8 +46,24 @@ Or manually run the steps:
 
 ## 5. Architectural Invariants
 
-- **Rust-First**: Rust is the brain, frontend is the presenter. Move filtering, ranking, scoring, fuzzy search, parsing, caching, and state logic to Rust.
-- **No Singletons**: Never introduce `getInstance()` or static singleton state; use `ServiceRegistry`.
+- **Data-Affinity & Zero-IPC Fast Path (Evolved Rust-First)**: Logic lives where the data natively resides:
+  - **Rust Domain (System & Heavy Data)**: System applications, file system indexing, SQLite persistence, OS clipboard, native watchers, and global fuzzy ranking belong in Rust. Filter, rank, and truncate in Rust before crossing the IPC bridge, returning only top results.
+  - **Frontend Domain (UI-Resident Data)**: Data that already natively resides in frontend memory (UI-local lists, transient settings views, snippets, walkthrough tasks) must be filtered and ranked in TypeScript using zero-IPC fast paths. Never serialize frontend in-memory arrays over the IPC bridge for keystroke filtering.
+- **Managed Lifecycle & Explicit Composition (Evolved "No Singletons")**:
+  - In a single-window desktop launcher, long-lived domain services are naturally singletons, but unmanaged, cyclic module-level singletons that import each other at top-level are strictly forbidden.
+  - Ban direct cross-module singleton imports that form circular cycles. Invert dependencies: lower-level services (e.g. Auth, IPC wrappers) must never import higher-level services (e.g. CloudSync, UI reset). Use pub/sub listeners, callbacks, or provider hooks.
+  - All services participating in extension IPC must still be registered in and exposed through `ServiceRegistry` (`buildServiceRegistry`).
+- **Separation of Headless Compute and Visual Canvas (Evolved Extension Sandboxing)**:
+  - Background workers (`role: 'worker'`) must execute off-main-thread in dedicated headless compute environments (Web Workers / isolated worker contexts), with zero DOM/style overhead and zero main-thread event loop contention, keeping the launcher's search bar, input, and 120 FPS animations smooth.
+  - Browser `<iframe>` contexts are strictly reserved for visual canvases and on-demand UI presentation (`role: 'view'`).
+- **Strict Separation of Presentation Lifecycle and Daemon Compute**:
+  - **Zero-Cost Reveal Invariant**: Revealing, typing in, and dismissing the launcher UI must never await or be blocked by extension daemon lifecycle events (mounting, syncing, network reconnection, command indexing). Hotkey summon (`showWindow`), dismiss (`hideWindow`), and state reset (`resetLauncherState`) touch strictly UI presentation concerns.
+  - **Independent Daemon Lifespan**: Background extensions are long-lived daemons managed by the runtime; hiding, unmapping, or resetting the search window must never destroy, suspend, or corrupt background worker state. Workers, timers, and watchers persist across ephemeral window presentations.
+- **First-Class Platform Primitives & Service Exposure (Evolved Built-ins)**:
+  - Built-in features (Calculator, Clipboard History, Snippets, Notes, Aliases, Window Management, System, etc.) are statically compiled platform primitives, not pseudo-extensions.
+  - Built-ins must not incur dynamic manifest parsing or IPC closure-stripping side-tables (`inlineActions`). Built-in providers contribute directly to search results without closure stripping.
+  - Platform services (`files:search`, `screen:capture`, `calculator:evaluate`, `notes:read`) remain registered in `ServiceRegistry` (`buildServiceRegistry`) for Tier 2 extensions.
+  - Disabling optional built-ins is a direct reactive settings gate suppressing UI presentation without disrupting underlying platform services or requiring synthetic extension unregistration workflows.
 - **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
 
 ## 6. Tech Stack Standards

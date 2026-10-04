@@ -1,9 +1,8 @@
 //! Joining declared tasks with latched completion state, and summarizing it.
 
 use super::rules::{self, LaunchHistory, Probes};
-use super::{CompletionRecord, TaskView, WalkthroughTask};
+use super::{TaskView, WalkthroughTask};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Headline numbers for the root-search row and the list header.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -18,7 +17,7 @@ pub struct WalkthroughProgress {
 }
 
 /// Latched completions, keyed by task id.
-pub type Latched = HashMap<String, CompletionRecord>;
+pub use asyar_storage::walkthrough::Latched;
 
 /// Display order: declared `order` ascending, ties broken by id so the list
 /// never reshuffles between runs.
@@ -113,7 +112,7 @@ pub fn summarize(views: &[TaskView]) -> WalkthroughProgress {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::walkthrough::{CompletionRule, CompletionSource};
+    use crate::walkthrough::{CompletionRecord, CompletionRule, CompletionSource};
 
     fn task(id: &str, order: i32, completion: CompletionRule) -> WalkthroughTask {
         WalkthroughTask {

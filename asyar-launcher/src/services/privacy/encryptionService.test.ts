@@ -34,7 +34,7 @@ describe('encryptionService', () => {
   });
 
   it('init falls back to unknown when host call fails', async () => {
-    vi.mocked(cryptoGetStatus).mockResolvedValueOnce(null);
+    vi.mocked(cryptoGetStatus).mockRejectedValueOnce(new Error('status failed'));
     await encryptionService.init();
     expect(encryptionService.current).toEqual({ status: 'unknown' });
   });
@@ -64,10 +64,10 @@ describe('encryptionService', () => {
     expect(cryptoDecrypt).toHaveBeenCalledWith('enc:v1:abc');
   });
 
-  it('encrypt/decrypt return null on host failure', async () => {
-    vi.mocked(cryptoEncrypt).mockResolvedValueOnce(null);
-    vi.mocked(cryptoDecrypt).mockResolvedValueOnce(null);
-    expect(await encryptionService.encrypt('x')).toBeNull();
-    expect(await encryptionService.decrypt('y')).toBeNull();
+  it('encrypt/decrypt preserve host rejection', async () => {
+    vi.mocked(cryptoEncrypt).mockRejectedValueOnce(new Error('encrypt failed'));
+    vi.mocked(cryptoDecrypt).mockRejectedValueOnce(new Error('decrypt failed'));
+    await expect(encryptionService.encrypt('x')).rejects.toThrow('encrypt failed');
+    await expect(encryptionService.decrypt('y')).rejects.toThrow('decrypt failed');
   });
 });

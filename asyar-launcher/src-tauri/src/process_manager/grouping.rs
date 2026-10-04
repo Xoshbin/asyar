@@ -2,7 +2,6 @@
 
 use crate::process_manager::protected::{classify, Os};
 use crate::process_manager::types::{AppGroup, ProcessInfo, RawProcess, SortBy};
-use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 
 /// Friendly app name for grouping. macOS → the `.app` bundle display name;
@@ -62,7 +61,7 @@ pub fn filter_groups(groups: Vec<AppGroup>, query: &str) -> Vec<AppGroup> {
     if q.is_empty() {
         return groups;
     }
-    let matcher = SkimMatcherV2::default();
+    let matcher = asyar_search::fuzzy_matcher();
     groups
         .into_iter()
         .filter(|g| matcher.fuzzy_match(&g.app_name, q).is_some())
@@ -95,6 +94,18 @@ mod tests {
             memory_bytes: mem,
             exe_path: exe.into(),
             owner: "alice".into(),
+        }
+    }
+
+    #[test]
+    fn filter_groups_case_policy_matches_lowercase() {
+        for query in ["chrm", "CHRM", "ChRm"] {
+            let out = filter_groups(vec![mk("Google Chrome"), mk("Spotify")], query);
+            assert_eq!(
+                out.iter().map(|g| g.app_name.as_str()).collect::<Vec<_>>(),
+                vec!["Google Chrome"],
+                "query {query}"
+            );
         }
     }
 

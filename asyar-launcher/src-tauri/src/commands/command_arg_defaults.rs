@@ -32,7 +32,11 @@ pub async fn command_arg_defaults_get(
         ));
     }
     let conn = data_store.conn()?;
-    store::get(&conn, &extension_id, &storage_key(&command_id, is_dynamic))
+    Ok(store::get(
+        &conn,
+        &extension_id,
+        &storage_key(&command_id, is_dynamic),
+    )?)
 }
 
 #[tauri::command]
@@ -54,12 +58,12 @@ pub async fn command_arg_defaults_set(
         ));
     }
     let conn = data_store.conn()?;
-    store::set(
+    Ok(store::set(
         &conn,
         &extension_id,
         &storage_key(&command_id, is_dynamic),
         &values,
-    )
+    )?)
 }
 
 #[cfg(test)]

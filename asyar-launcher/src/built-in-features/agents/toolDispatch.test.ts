@@ -4,11 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../services/extension/extensionIframeSelector', () => ({
   pickExtensionIframe: vi.fn(),
 }));
+vi.mock('../../services/extension/workerHost.svelte', () => ({
+  workerHost: { hasWorker: vi.fn(() => false), getWorker: vi.fn(), post: vi.fn() },
+}));
+import { workerHost } from '../../services/extension/workerHost.svelte';
 vi.mock('../../lib/ipc/extensionOrigin', () => ({
   getExtensionFrameOrigin: vi.fn().mockReturnValue('*'),
 }));
 
-import { invokeExtensionTool } from './toolDispatch';
+import { invokeExtensionTool, handleToolResponse } from './toolDispatch';
 import { pickExtensionIframe } from '../../services/extension/extensionIframeSelector';
 
 function mountedWorker(): Window {
@@ -29,7 +33,7 @@ describe('invokeExtensionTool', () => {
     const promise = invokeExtensionTool('org.example.notes', 'lookup', { query: 'x' });
     const message = postedMessage(worker);
 
-    expect(pickExtensionIframe).toHaveBeenCalledWith('org.example.notes', 'worker');
+    expect(pickExtensionIframe).toHaveBeenCalledWith('org.example.notes', 'worker', {});
     expect(worker.postMessage).toHaveBeenCalledWith(
       {
         type: 'asyar:tools:invoke',
@@ -95,4 +99,25 @@ describe('invokeExtensionTool', () => {
     vi.mocked(pickExtensionIframe).mockReturnValue(null);
     await expect(invokeExtensionTool('org.missing', 'lookup', {})).rejects.toThrow(/not mounted/i);
   });
+});
+
+it('delivers to a Web Worker and accepts only its pipeline reply', async () => {
+  const rawWorker = {} as Worker;
+  vi.mocked(workerHost.hasWorker).mockReturnValue(true);
+  vi.mocked(workerHost.getWorker).mockReturnValue({ rawWorker } as any);
+  const promise = invokeExtensionTool('org.worker', 'lookup', {});
+  const message = vi.mocked(workerHost.post).mock.calls[0][1] as { messageId: string };
+  const data = { type: 'asyar:tools:invoke:response', messageId: message.messageId, result: 42 };
+  handleToolResponse({
+    data,
+    source: {},
+    origin: 'asyar-extension://org.worker',
+  } as unknown as MessageEvent);
+  handleToolResponse({ data, source: rawWorker, origin: 'wrong' } as unknown as MessageEvent);
+  handleToolResponse({
+    data,
+    source: rawWorker,
+    origin: 'asyar-extension://org.worker',
+  } as unknown as MessageEvent);
+  await expect(promise).resolves.toBe(42);
 });

@@ -168,7 +168,7 @@ describe('buildServiceRegistry search entry', () => {
     const { invoke } = await import('@tauri-apps/api/core');
     vi.mocked(invoke).mockResolvedValueOnce(['b']);
 
-    const registry = makeRegistry() as any;
+    const registry = makeRegistry();
     const items = [
       { id: 'a', title: 'Apple' },
       { id: 'b', title: 'Banana' },
@@ -183,7 +183,7 @@ describe('buildServiceRegistry search entry', () => {
 describe('buildServiceRegistry feedback entry', () => {
   it('returns only the clone-safe progress ID to Tier 2 callers', async () => {
     mockStartProgressForExtension.mockResolvedValueOnce('feedback-1');
-    const registry = makeRegistry() as any;
+    const registry = makeRegistry();
 
     const result = await registry.feedback.showProgress('ext.test', {
       title: 'Downloading',
@@ -199,7 +199,11 @@ describe('buildServiceRegistry feedback entry', () => {
 
 // ── Item 7: tools service entry in registry ───────────────────────────────────
 
-function makeRegistry() {
+// `buildServiceRegistry` returns `ServiceRegistry`, where every namespace is
+// `unknown`, so reaching a concrete service needs a cast. Done once here
+// rather than at each call site.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function makeRegistry(): any {
   return buildServiceRegistry({
     extensionManager: {} as any,
     getManifestById: vi.fn(),

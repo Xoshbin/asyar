@@ -45,7 +45,7 @@ Add `schedule` to any command that should run on a timer:
 ### Constraints
 
 - `intervalSeconds` must be an integer in the range **[10, 86400]** (inclusive). Values outside this range are stripped at load time with a warning — the extension still loads, but the schedule is ignored.
-- The command must have `mode: "background"`. Scheduled commands dispatch to the worker iframe and cannot open a panel — there is no user interaction to display to.
+- The command must have `mode: "background"`. Scheduled commands dispatch to the worker and cannot open a panel — there is no user interaction to display to.
 - If the scheduled task is purely an internal worker or background sync job that users should not trigger manually from search, add `"searchable": false` to the command declaration to exclude it from the launcher's root search suggestions.
 - There is no `runOnStartup` option. The first tick fires one full interval after the extension is loaded.
 - **Pick the largest interval that still meets your UX need.** A 10s poller wakes the CPU 6× per minute even when the user is idle. Use short intervals only when you have a concrete reason (e.g. Pomodoro minute-countdown, menu-bar status meter, sub-minute status poller). Prefer 60s+ for anything that could tolerate it.
@@ -55,7 +55,7 @@ Add `schedule` to any command that should run on a timer:
 The floor is a semantic guard-rail, not a technical one. A tokio interval can fire far faster — the question is what `schedule` is _for_.
 
 - **`schedule` is for recurring background work, not real-time streams.** If a command needs updates faster than every ~10s to feel correct (cursor tracking, live video, continuous telemetry), polling is the wrong primitive — it should be a subscription, an OS event source, or a push channel. The floor forces that architectural choice instead of letting it degrade into a busy loop labelled "schedule".
-- **Every tick has non-trivial pipeline cost.** One tick traverses Rust `tokio::interval` → `AppHandle::emit` → TS host listener → (for Tier 2) iframe `postMessage` → extension `executeCommand`. Each hop is cheap in isolation, but the cost scales with `extensions × 1/interval`. A 10s floor caps the per-extension contribution at 0.1 Hz, leaving comfortable headroom for dozens of concurrently-scheduled extensions before the tick channel starts competing with user input.
+- **Every tick has non-trivial pipeline cost.** One tick traverses Rust `tokio::interval` → `AppHandle::emit` → TS host listener → (for Tier 2) worker `postMessage` → extension `executeCommand`. Each hop is cheap in isolation, but the cost scales with `extensions × 1/interval`. A 10s floor caps the per-extension contribution at 0.1 Hz, leaving comfortable headroom for dozens of concurrently-scheduled extensions before the tick channel starts competing with user input.
 - **Below ~10s, OS timer coalescing stops helping.** macOS and Linux both bunch short-deadline timers into grouped wakeups so the CPU can stay in deep idle states between them. The coalescing window scales with interval length; once intervals fall below the coalescer's leeway, every timer becomes its own wakeup and the CPU can't re-enter low-power C-states. 10s sits comfortably above that threshold on current platforms.
 - **Sub-minute pollers still need to work.** Pomodoro minute-countdowns, menu-bar status meters, and "did the build go red?" notifiers all want updates inside a minute. The previous 60s floor forced those extensions to reinvent timers in JS — unsupervised, unrestartable, and invisible to Settings → Extensions. Lowering the floor pulls that work back into the platform's managed lifecycle.
 
@@ -189,7 +189,7 @@ Open **Settings → Extensions** and scroll to the **Scheduled Tasks** section. 
 ## How it works under the hood
 
 ```
-Rust (tokio)                          TS host                    Extension (iframe)
+Rust (tokio)                          TS host                    Extension (worker)
 ─────────────────────────────────────────────────────────────────────────────────
 Timer fires (tokio::time::interval)
 emit "asyar:scheduler:tick"
@@ -203,8 +203,8 @@ emit "asyar:scheduler:tick"
                                           { scheduledTick: true }
                                         )
                                         ─────────────────────────────────────►
-                                        for Tier 2 (iframe) extensions:
-                                          postMessage to iframe:
+                                        for Tier 2 extensions:
+                                          postMessage to the worker:
                                           { type: 'asyar:command:execute',
                                             payload: { commandId, args } }
                                                                              ExtensionBridge
@@ -218,9 +218,9 @@ The host uses `commandService.executeCommand()` directly — not `handleCommandA
 
 ---
 
-## Worker iframe for Tier 2 extensions
+## Worker for Tier 2 extensions
 
-Tier 2 extensions run their `mode: "background"` commands in the **worker iframe** — a hidden, always-on iframe Asyar mounts whenever the extension is enabled. Schedules dispatch to the worker; declaring `commands[].schedule` therefore requires `background.main` in the manifest. The worker is materialised on enable and torn down on disable / uninstall, so a tick that fires while the launcher is closed still reaches your handler. See [extension runtime](../explanation/extension-runtime.md) for the full lifecycle.
+Tier 2 extensions run their `mode: "background"` commands in the **worker** — a headless, always-on Web Worker Asyar mounts whenever the extension is enabled (published bundles that cannot start as a Web Worker temporarily fall back to a hidden iframe until 0.2.0). Schedules dispatch to the worker; declaring `commands[].schedule` therefore requires `background.main` in the manifest. The worker is materialised on enable and torn down on disable / uninstall, so a tick that fires while the launcher is closed still reaches your handler. See [extension runtime](../explanation/extension-runtime.md) for the full lifecycle.
 
 You do not need to configure mounting — the platform handles it as long as the manifest declares `background.main`.
 

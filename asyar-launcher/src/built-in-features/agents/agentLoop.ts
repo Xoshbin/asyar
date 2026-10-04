@@ -83,7 +83,16 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     defaultAgentId: settings.ai.defaultAgentId,
     temperature: providerConfig?.temperature ?? null,
     maxTokens: providerConfig?.maxTokens ?? settings.ai.maxTokens,
-    webSearch: settings.ai.webSearch,
+    // The settings type omits unset fields while the Rust wire type wants
+    // explicit nulls, so normalize when configured — and stay `undefined`
+    // when it is not, which is what the key meant before.
+    webSearch: settings.ai.webSearch
+      ? {
+          engine: settings.ai.webSearch.engine,
+          apiKey: settings.ai.webSearch.apiKey ?? null,
+          baseUrl: settings.ai.webSearch.baseUrl ?? null,
+        }
+      : undefined,
   };
 
   let runnerCancelled = false;

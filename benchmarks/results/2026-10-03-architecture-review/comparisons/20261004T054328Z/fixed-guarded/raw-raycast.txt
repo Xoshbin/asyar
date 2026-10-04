@@ -1,0 +1,65 @@
+coldstart_ms=1052
+run=1 ms=24.0
+run=2 ms=12.5
+run=3 ms=20.0
+run=4 ms=20.6
+run=5 ms=18.2
+run=6 ms=21.8
+run=7 ms=22.2
+run=8 ms=18.8
+run=9 ms=17.9
+run=10 ms=19.8
+run=11 ms=21.3
+run=12 ms=18.2
+run=13 ms=24.2
+run=14 ms=18.6
+run=15 ms=31.0
+median_ms=20.0
+p95_ms=24.2
+min_ms=12.5
+p99_ms=31.0
+samples_ms=24.0,12.5,20.0,20.6,18.2,21.8,22.2,18.8,17.9,19.8,21.3,18.2,24.2,18.6,31.0
+process pid=65585 mb=30.3 name=Raycast
+process pid=65590 mb=2.6 name=SetStoreUpdateService
+process pid=65591 mb=19.6 name=com.apple.WebKit.GPU
+process pid=65592 mb=117.4 name=com.apple.WebKit.WebContent
+process pid=65593 mb=7.5 name=com.apple.WebKit.Networking
+process pid=65594 mb=261.5 name=node
+process pid=65595 mb=5.5 name=com.apple.audio.SandboxHelper
+process pid=65603 mb=6.3 name=com.raycast.macos.Accessibility
+process pid=65604 mb=6.8 name=com.raycast.macos.Pasteboard
+process_count=9
+total_mb=457.4
+cpu_pct=1.52
+cpu_pct_deep=1.31
+net_bytes_in=0
+net_bytes_out=0
+pm_cpu_ms_s=n/a
+pm_wakeups_s=n/a
+disk_write_ops=n/a
+disk_files_touched=n/a
+run=1 ms=timeout
+run=2 ms=timeout
+run=3 ms=timeout
+run=4 ms=timeout
+run=5 ms=timeout
+run=6 ms=timeout
+run=7 ms=timeout
+run=8 ms=timeout
+run=9 ms=timeout
+run=10 ms=timeout
+type_p50_ms=n/a
+type_p95_ms=n/a
+type_p99_ms=n/a
+process pid=65585 mb=30.0 name=Raycast
+process pid=65590 mb=2.5 name=SetStoreUpdateService
+process pid=65591 mb=228.3 name=com.apple.WebKit.GPU
+process pid=65592 mb=158.2 name=com.apple.WebKit.WebContent
+process pid=65593 mb=7.4 name=com.apple.WebKit.Networking
+process pid=65594 mb=230.2 name=node
+process pid=65595 mb=5.5 name=com.apple.audio.SandboxHelper
+process pid=65603 mb=6.3 name=com.raycast.macos.Accessibility
+process pid=65604 mb=6.8 name=com.raycast.macos.Pasteboard
+process_count=9
+total_mb_deep=675.1
+size_mb=223

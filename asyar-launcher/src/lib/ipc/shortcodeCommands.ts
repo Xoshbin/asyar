@@ -1,8 +1,8 @@
 import { invokeSafeVoid } from './invokeSafe';
 
 // `contribute_shortcodes`/`revoke_shortcodes` are `Result<(), AppError>` on
-// the Rust side — Ok(()) and invokeSafe's failure sentinel both serialize to
-// `null`, so these use invokeSafeVoid's boolean signal instead.
+// the Rust side. `invokeSafeVoid` resolves `true` for Ok(()) and rejects with
+// `IpcError` for command or transport failures.
 
 export async function contributeShortcodes(
   extensionId: string | undefined,

@@ -9,9 +9,10 @@ export async function updateShortcut(modifier: string, key: string): Promise<boo
   logService.info(`Updating shortcut to: ${modifier ? `${modifier}+${key}` : key}`);
 
   // Update the system shortcut via Rust
-  const ok = await updateGlobalShortcut(modifier, key);
-  if (!ok) {
-    logService.error(`Failed to update shortcut: update_global_shortcut failed`);
+  try {
+    await updateGlobalShortcut(modifier, key);
+  } catch (error) {
+    logService.error(`Failed to update shortcut: ${error}`);
     return false;
   }
 

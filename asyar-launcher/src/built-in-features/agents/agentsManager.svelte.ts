@@ -1,10 +1,11 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import { agentsBackfillThreadTitles, replaceDynamicCommandsBuiltin } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
 import type { DynamicCommandRegistration } from 'asyar-sdk/contracts';
 import type { AgentService } from './agentService.svelte';
 import { agentService as defaultAgentService } from './agentService.svelte';
 import type { ChatStreamStatus } from '../../services/ai/IProviderPlugin';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 const AGENTS_EXTENSION_ID = 'agents';
 
@@ -81,7 +82,7 @@ export class AgentsManager {
     // — we awaited the same operation explicitly so we don't race against
     // it.
     try {
-      this.agentsChangedUnlisten = await listen('agents:changed', () => {
+      this.agentsChangedUnlisten = await appListen('agents:changed', () => {
         void (async () => {
           try {
             await this.service.refresh();

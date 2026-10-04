@@ -34,7 +34,7 @@ pub fn go_back_inner(cursor: &OnboardingCursor) -> Result<OnboardingState, AppEr
 
 // ── Tauri command wrappers ─────────────────────────────────────────────────
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 /// Emit cross-window settings events so the launcher webview's listeners
 /// (in `appInitializer.ts`) apply the user's onboarding choices to the
@@ -43,20 +43,18 @@ use tauri::{AppHandle, Emitter, State};
 /// the Settings window or onboarding.
 fn broadcast_onboarding_settings(app: &AppHandle) {
     let launch_view = crate::onboarding::persistence::read_launch_view(app);
-    if let Err(e) = app.emit(
+    crate::event_bridge::bridge_emit(
+        app,
         "asyar:launch-view-changed",
         serde_json::json!({ "launchView": launch_view }),
-    ) {
-        log::warn!("emit asyar:launch-view-changed: {e}");
-    }
+    );
 
     let theme_id = crate::onboarding::persistence::read_active_theme(app);
-    if let Err(e) = app.emit(
+    crate::event_bridge::bridge_emit(
+        app,
         "asyar:theme-changed",
         serde_json::json!({ "themeId": theme_id }),
-    ) {
-        log::warn!("emit asyar:theme-changed: {e}");
-    }
+    );
 }
 
 #[tauri::command]

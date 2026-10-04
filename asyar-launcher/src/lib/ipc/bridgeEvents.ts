@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 
 export interface BridgeEvent {
   event: string;
@@ -21,7 +22,29 @@ function bufferPayload(event: string, payload: unknown): void {
   if (queue.length > PENDING_CAP) queue.shift();
 }
 
-export async function bridgeListen<T>(
+/**
+ * Dispatches an event directly into the local bridge handler set.
+ * If no handlers are registered, buffers the payload for future listeners.
+ */
+export function dispatchBridgeEvent(event: string, payload: unknown): void {
+  const set = handlers.get(event);
+  if (set && set.size > 0) {
+    for (const handler of set) {
+      try {
+        handler({ payload });
+      } catch {
+        // A throwing handler must not kill the dispatch loop or skip other handlers.
+      }
+    }
+  } else {
+    bufferPayload(event, payload);
+  }
+}
+
+/**
+ * Low-level bridge queue listener without native Tauri subscription.
+ */
+async function bridgeListenInternal<T>(
   event: string,
   cb: (e: { payload: T }) => void,
 ): Promise<() => void> {
@@ -52,12 +75,54 @@ export async function bridgeListen<T>(
   };
 }
 
+/**
+ * Unified application event listener.
+ *
+ * Subscribes to the eval-free long-poll bridge queue and concurrently attaches
+ * to Tauri's native `listen` for pre-connection boot events or OS-level window events,
+ * ensuring no event is dropped regardless of backend emitter choice.
+ */
+export async function appListen<T>(
+  event: string,
+  cb: (e: { payload: T }) => void,
+): Promise<() => void> {
+  // Both subscriptions are issued in the same tick, before either is awaited,
+  // so the native listener is registered as early as the bridge handler is.
+  const bridgePromise = bridgeListenInternal<T>(event, cb);
+
+  let unlistenTauri: UnlistenFn | null = null;
+  try {
+    unlistenTauri = await tauriListen<T>(event, (e) => {
+      try {
+        cb({ payload: e.payload });
+      } catch {
+        // A throwing handler must not crash the native listener loop.
+      }
+    });
+  } catch {
+    // Tauri event system unavailable or mocked out (e.g. non-Tauri test environments).
+  }
+  const unlistenBridge = await bridgePromise;
+
+  return () => {
+    unlistenBridge();
+    if (unlistenTauri) {
+      unlistenTauri();
+    }
+  };
+}
+
+/**
+ * Backward-compatible alias for `appListen`.
+ */
+export const bridgeListen = appListen;
+
 export function startBridgeLoop(): void {
   if (started) return;
   started = true;
 
   void (async () => {
-    while (true) {
+    while (started) {
       let events: BridgeEvent[];
       try {
         events = await invoke<BridgeEvent[]>('bridge_poll');
@@ -65,20 +130,26 @@ export function startBridgeLoop(): void {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         continue;
       }
+      if (!Array.isArray(events)) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
       for (const { event, payload } of events) {
-        const set = handlers.get(event);
-        if (set && set.size > 0) {
-          for (const handler of set) {
-            try {
-              handler({ payload });
-            } catch {
-              // A throwing handler must not kill the loop or skip other handlers.
-            }
-          }
-        } else {
-          bufferPayload(event, payload);
-        }
+        dispatchBridgeEvent(event, payload);
       }
     }
   })();
+}
+
+export function stopBridgeLoop(): void {
+  started = false;
+}
+
+/**
+ * Test helper to reset internal maps and flags between tests.
+ */
+export function resetBridgeForTest(): void {
+  stopBridgeLoop();
+  handlers.clear();
+  pending.clear();
 }

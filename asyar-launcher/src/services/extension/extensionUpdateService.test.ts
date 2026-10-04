@@ -66,7 +66,7 @@ describe('extensionUpdateService', () => {
 
   it('destroy() calls the tick unlisten function', async () => {
     const mockUnlisten = vi.fn();
-    vi.mocked(listen).mockResolvedValue(mockUnlisten);
+    vi.mocked(bridgeListen).mockResolvedValue(mockUnlisten);
 
     await extensionUpdateService.init(
       () => null,
@@ -75,5 +75,18 @@ describe('extensionUpdateService', () => {
     extensionUpdateService.destroy();
 
     expect(mockUnlisten).toHaveBeenCalled();
+  });
+
+  it('keeps the pending update and skips reload after an update failure', async () => {
+    const update = { extensionId: 'ext.example', name: 'Example' };
+    extensionUpdateService.availableUpdates = [update];
+    commands.updateExtension.mockRejectedValueOnce(new Error('replacement failed'));
+    const reload = vi.fn();
+
+    await expect(extensionUpdateService.updateSingle(update, reload)).resolves.toBe(false);
+
+    expect(extensionUpdateService.availableUpdates).toEqual([update]);
+    expect(extensionUpdateService.updatingExtensionIds.size).toBe(0);
+    expect(reload).not.toHaveBeenCalled();
   });
 });

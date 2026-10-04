@@ -15,6 +15,15 @@ import { createPersistence } from '../../lib/persistence/extensionStore';
 // `launchView` here silently breaks that seed — the Rust-side test
 // `parse_launch_view` and the TS `rust read_launch_view contract` describe
 // block guard both ends.
+// `AppSettings['updates']` is optional, so spreading `DEFAULT_SETTINGS.updates`
+// directly would widen every field to optional and drop the required
+// `autoCheck`. Keeping the defaults in their own complete constant lets the
+// channel auto-detection below spread them safely.
+const DEFAULT_UPDATE_SETTINGS: NonNullable<AppSettings['updates']> = {
+  channel: 'stable',
+  autoCheck: true,
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
   general: {
     startAtLogin: false,
@@ -51,10 +60,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   feedback: {
     promptSeen: false,
   },
-  updates: {
-    channel: 'stable' as const,
-    autoCheck: true,
-  },
+  updates: DEFAULT_UPDATE_SETTINGS,
   ai: {
     providers: {
       openai: { enabled: false },
@@ -156,7 +162,7 @@ class SettingsService implements ISettingsService {
         try {
           const version = await getVersion();
           if (/-/.test(version)) {
-            this.currentSettings.updates = { ...DEFAULT_SETTINGS.updates, channel: 'beta' };
+            this.currentSettings.updates = { ...DEFAULT_UPDATE_SETTINGS, channel: 'beta' };
             await this.save();
           }
         } catch {

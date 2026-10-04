@@ -1,0 +1,596 @@
+//! Domain-segmented command handler registration.
+//!
+//! Exposes domain-specific macro sets and a composition macro `compose_handlers!`
+//! that combines them into Tauri's single `generate_handler!` invocation without
+//! macro bloat in `lib.rs`.
+
+#[macro_export]
+macro_rules! compose_handlers {
+    (@chain () ($($acc:path),* $(,)?)) => {
+        ::tauri::generate_handler![$($acc),*]
+    };
+    (@chain ($first:ident, $($rest:ident),+) ($($acc:path),* $(,)?)) => {
+        $crate::$first!(@chain ($($rest),+) ($($acc,)*))
+    };
+    (@chain ($last:ident) ($($acc:path),* $(,)?)) => {
+        $crate::$last!(@chain () ($($acc,)*))
+    };
+    ($($domain:ident),* $(,)?) => {
+        $crate::compose_handlers!(@chain ($($domain),*) ())
+    };
+}
+
+#[macro_export]
+macro_rules! app_commands {
+    (@chain ($($rest:tt)*) ($($acc:path),* $(,)?)) => {
+        $crate::compose_handlers!(
+            @chain ($($rest)*) (
+                $($acc,)*
+                $crate::deeplink::flush_pending_deeplinks,
+                $crate::scheduler::get_scheduler_snapshot,
+                $crate::event_bridge::bridge_poll,
+                $crate::commands::set_focus_lock,
+                $crate::commands::feedback_publish,
+                $crate::commands::feedback_get_current,
+                $crate::commands::feedback_update_progress,
+                $crate::commands::feedback_finish_progress,
+                $crate::commands::feedback_dismiss,
+                $crate::commands::feedback_accept_announcement,
+                $crate::commands::set_launcher_keep_expanded,
+                $crate::commands::set_launcher_height,
+                $crate::commands::confirm_launcher_paint,
+                $crate::commands::cancel_launcher_resize,
+                $crate::commands::set_panel_appearance,
+                $crate::commands::set_dock_icon_visible,
+                $crate::commands::set_tray_icon_visible,
+                $crate::commands::quit_app,
+                $crate::commands::factory_reset,
+                $crate::commands::get_system_locale,
+                $crate::commands::get_locale_candidates,
+                $crate::commands::get_pending_crash,
+                $crate::commands::send_pending_crash,
+                $crate::commands::dismiss_pending_crash,
+                $crate::commands::submit_feedback,
+                $crate::commands::app_updater_check_now,
+                $crate::commands::app_updater_get_pending,
+                $crate::commands::app_relaunch,
+                $crate::commands::app_updater_should_show_whats_new,
+                $crate::onboarding::commands::get_onboarding_state,
+                $crate::onboarding::commands::advance_onboarding_step,
+                $crate::onboarding::commands::go_back_onboarding_step,
+                $crate::onboarding::commands::complete_onboarding,
+                $crate::onboarding::commands::dismiss_onboarding,
+                $crate::onboarding::commands::reset_onboarding,
+                $crate::onboarding::ai_commands::complete_ai_onboarding,
+                $crate::onboarding::ai_commands::is_ai_onboarding_completed,
+                $crate::commands::walkthrough::sync_walkthrough_tasks,
+                $crate::commands::walkthrough::get_walkthrough,
+                $crate::commands::walkthrough::complete_walkthrough_task,
+                $crate::commands::walkthrough::uncomplete_walkthrough_task,
+                $crate::commands::walkthrough::complete_all_walkthrough_tasks,
+                $crate::commands::walkthrough::set_walkthrough_dismissed,
+                $crate::commands::walkthrough::reset_walkthrough,
+                $crate::commands::usage::record_active_day,
+                $crate::commands::usage::record_worker_fallback,
+                $crate::commands::usage::get_usage_stats,
+                $crate::commands::usage::get_usage_anon_id,
+                $crate::commands::usage::reset_usage_anon_id,
+                $crate::commands::usage::send_pending_usage,
+                $crate::commands::usage::send_usage_now,
+                $crate::commands::get_theme_definition,
+                $crate::commands::get_valid_shortcut_keys,
+            )
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! window_commands {
+    (@chain ($($rest:tt)*) ($($acc:path),* $(,)?)) => {
+        $crate::compose_handlers!(
+            @chain ($($rest)*) (
+                $($acc,)*
+                $crate::commands::show,
+                $crate::commands::prepare_show,
+                $crate::commands::commit_show,
+                $crate::commands::is_visible,
+                $crate::commands::hide,
+                $crate::commands::show_hud,
+                $crate::commands::hide_hud,
+                $crate::commands::get_hud_state,
+                $crate::commands::get_snap_guide_state,
+                $crate::commands::hud_mark_shown,
+                $crate::commands::simulate_paste,
+                $crate::commands::check_accessibility_permission,
+                $crate::commands::update_global_shortcut,
+                $crate::commands::get_persisted_shortcut,
+                $crate::commands::initialize_shortcut_from_settings,
+                $crate::commands::initialize_autostart_from_settings,
+                $crate::commands::get_autostart_status,
+                $crate::window_drag::window_drag_start,
+                $crate::window_drag::window_drag_move,
+                $crate::window_drag::window_drag_end,
+                $crate::launcher_placement::commands::get_launcher_placement,
+                $crate::launcher_placement::commands::set_launcher_placement,
+                $crate::sticky_window::sticky_open,
+                $crate::sticky_window::sticky_close,
+                $crate::sticky_window::sticky_new,
+                $crate::sticky_window::sticky_is_stuck,
+                $crate::sticky_window::sticky_list,
+                $crate::sticky_window::sticky_save_geometry,
+                $crate::commands::window_management_get_bounds,
+                $crate::commands::window_management_set_bounds,
+                $crate::commands::window_management_set_fullscreen,
+                $crate::commands::window_management_get_monitors,
+                $crate::commands::window_management_apply_preset,
+                $crate::commands::window_management_list_windows,
+                $crate::commands::window_management_focus_window,
+                $crate::commands::window_management_close_window,
+            )
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! storage_commands {
+    (@chain ($($rest:tt)*) ($($acc:path),* $(,)?)) => {
+        $crate::compose_handlers!(
+            @chain ($($rest)*) (
+                $($acc,)*
+                $crate::storage::commands::clipboard_list_initial,
+                $crate::storage::commands::clipboard_list_older,
+                $crate::storage::commands::clipboard_search,
+                $crate::storage::commands::clipboard_get_item,
+                $crate::storage::commands::clipboard_get_merged_text,
+                $crate::storage::commands::clipboard_export_for_sync,
+                $crate::storage::commands::clipboard_count,
+                $crate::storage::commands::clipboard_record_capture,
+                $crate::storage::commands::clipboard_toggle_favorite,
+                $crate::storage::commands::clipboard_delete_item,
+                $crate::storage::commands::clipboard_clear_non_favorites,
+                $crate::commands::clipboard_markup::clipboard_strip_html,
+                $crate::commands::clipboard_markup::clipboard_strip_rtf,
+                $crate::clipboard_cache::commands::clipboard_adopt_image,
+                $crate::clipboard_cache::commands::clipboard_forget_image,
+                $crate::commands::clipboard_capture::clipboard_capture_subscribe,
+                $crate::commands::clipboard_capture::clipboard_capture_unsubscribe,
+                $crate::commands::clipboard_capture::clipboard_capture_force_remove,
+                $crate::commands::clipboard_capture::clipboard_capture_get_consumers,
+                $crate::storage::commands::snippet_upsert,
+                $crate::storage::commands::snippet_get_all,
+                $crate::storage::commands::snippet_remove,
+                $crate::storage::commands::snippet_toggle_pin,
+                $crate::storage::commands::snippet_toggle_private,
+                $crate::storage::commands::snippet_export_for_sync,
+                $crate::storage::commands::snippet_clear_all,
+                $crate::storage::commands::note_upsert,
+                $crate::storage::commands::note_get_all,
+                $crate::storage::commands::note_get_by_id,
+                $crate::storage::commands::note_update,
+                $crate::storage::commands::note_remove,
+                $crate::storage::commands::note_toggle_pin,
+                $crate::storage::commands::note_search,
+                $crate::storage::commands::note_find,
+                $crate::storage::commands::note_backlinks,
+                $crate::storage::commands::note_export_markdown,
+                $crate::storage::commands::shortcut_upsert,
+                $crate::storage::commands::shortcut_get_all,
+                $crate::storage::commands::shortcut_remove,
+                $crate::storage::commands::ext_kv_get,
+                $crate::storage::commands::ext_kv_set,
+                $crate::storage::commands::ext_kv_delete,
+                $crate::storage::commands::ext_kv_get_all,
+                $crate::storage::commands::ext_kv_clear,
+                $crate::storage::commands::ext_cache_get,
+                $crate::storage::commands::ext_cache_set,
+                $crate::storage::commands::ext_cache_delete,
+                $crate::storage::commands::ext_cache_clear,
+                $crate::commands::crypto::crypto_get_status,
+                $crate::commands::crypto::crypto_encrypt,
+                $crate::commands::crypto::crypto_decrypt,
+                $crate::commands::clipboard_privacy::clipboard_privacy_classify,
+                $crate::commands::clipboard_privacy::clipboard_privacy_get_session_stats,
+                $crate::commands::clipboard_privacy::clipboard_privacy_set_user_denylist,
+                $crate::commands::clipboard_privacy::clipboard_privacy_get_user_denylist,
+                $crate::commands::clipboard_privacy::clipboard_privacy_get_default_denylist,
+                $crate::commands::secret_detection::secret_detection_redact,
+                $crate::commands::secret_detection::secret_detection_get_session_stats,
+                $crate::commands::secret_detection::secret_detection_get_catalog,
+            )
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! search_commands {
+    (@chain ($($rest:tt)*) ($($acc:path),* $(,)?)) => {
+        $crate::compose_handlers!(
+            @chain ($($rest)*) (
+                $($acc,)*
+                $crate::search_engine::commands::index_item,
+                $crate::search_engine::commands::batch_index_items,
+                $crate::search_engine::commands::save_search_index,
+                $crate::search_engine::commands::search_items,
+                $crate::search_engine::commands::merged_search,
+                $crate::search_engine::commands::rank_items,
+                $crate::search_engine::commands::classify_items,
+                $crate::search_engine::commands::sync_command_index,
+                $crate::search_engine::commands::get_indexed_object_ids,
+                $crate::search_engine::commands::delete_item,
+                $crate::search_engine::commands::reset_search_index,
+                $crate::search_engine::commands::record_item_usage,
+                $crate::search_engine::commands::set_item_favorite,
+                $crate::search_engine::commands::update_command_metadata,
+                $crate::commands::query_history_list,
+                $crate::commands::query_history_record,
+                $crate::commands::query_history_delete,
+                $crate::commands::query_history_navigate,
+                $crate::commands::query_history_reset,
+                $crate::aliases::commands::set_alias,
+                $crate::aliases::commands::unset_alias,
+                $crate::aliases::commands::list_aliases,
+                $crate::aliases::commands::find_alias_conflict,
+                $crate::aliases::commands::get_indexed_items,
+                $crate::file_index::commands::file_search,
+                $crate::file_index::commands::file_index_status,
+                $crate::file_index::commands::file_index_rebuild,
+                $crate::file_index::commands::file_index_set_config,
+                $crate::file_index::commands::file_search_record_selection,
+                $crate::file_index::commands::file_search_pin,
+                $crate::file_index::commands::file_search_unpin,
+                $crate::file_index::commands::file_search_list_pinned,
+                $crate::file_index::commands::file_search_clear_history,
+                $crate::file_index::commands::deep_search_availability,
+                $crate::file_index::commands::deep_search,
+                $crate::thumbnail::commands::get_file_thumbnail,
+            )
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! extension_commands {
+    (@chain ($($rest:tt)*) ($($acc:path),* $(,)?)) => {
+        $crate::compose_handlers!(
+            @chain ($($rest)*) (
+                $($acc,)*
+                $crate::commands::filter_compatible_extensions,
+                $crate::commands::uninstall_extension,
+                $crate::commands::install_extension_from_url,
+                $crate::commands::get_extensions_dir,
+                $crate::commands::list_installed_extensions,
+                $crate::commands::get_builtin_features_path,
+                $crate::commands::register_dev_extension,
+                $crate::commands::get_dev_extension_paths,
+                $crate::commands::discover_extensions,
+                $crate::commands::set_extension_enabled,
+                $crate::commands::get_extension,
+                $crate::commands::get_scheduled_tasks,
+                $crate::commands::install_extension_from_file,
+                $crate::commands::show_open_extension_dialog,
+                $crate::commands::check_extension_updates,
+                $crate::commands::update_extension,
+                $crate::commands::update_all_extensions,
+                $crate::commands::extension_preferences_get_all,
+                $crate::commands::extension_preferences_set,
+                $crate::commands::extension_preferences_reset,
+                $crate::commands::extension_preferences_export_all,
+                $crate::commands::extension_preferences_import_all,
+                $crate::commands::command_arg_defaults_get,
+                $crate::commands::command_arg_defaults_set,
+                $crate::commands::resolve_command_arguments,
+                $crate::commands::searchbar_accessory_get,
+                $crate::commands::searchbar_accessory_set,
+                $crate::commands::extension_onboarding::complete_extension_onboarding,
+                $crate::commands::extension_onboarding::reset_extension_onboarding,
+                $crate::commands::extension_onboarding::is_extension_onboarded,
+                $crate::commands::extension_runtime::dispatch_to_extension,
+                $crate::commands::extension_runtime::iframe_ready_ack,
+                $crate::commands::extension_runtime::iframe_unmount_ack,
+                $crate::commands::extension_runtime::iframe_mount_timeout_reported,
+                $crate::commands::extension_runtime::get_extension_runtime_snapshot,
+                $crate::commands::extension_runtime::force_remount_worker,
+                $crate::commands::extension_runtime::restore_workers,
+                $crate::commands::extension_state::state_get,
+                $crate::commands::extension_state::state_get_all,
+                $crate::commands::extension_state::state_get_subscriptions,
+                $crate::commands::extension_state::state_set,
+                $crate::commands::extension_state::state_subscribe,
+                $crate::commands::extension_state::state_unsubscribe,
+                $crate::commands::extension_state::state_clear,
+                $crate::commands::extension_state::state_rpc_request,
+                $crate::commands::extension_state::state_rpc_abort,
+                $crate::commands::extension_state::state_rpc_reply,
+                $crate::commands::dynamic_commands::replace_dynamic_commands,
+                $crate::commands::dynamic_commands::replace_dynamic_commands_builtin,
+                $crate::commands::dynamic_commands::get_dynamic_command_meta,
+                $crate::permissions::register_extension_permissions,
+                $crate::permissions::check_extension_permission,
+                $crate::extensions::consent::check_extension_consent,
+                $crate::extensions::consent::set_extension_consent,
+                $crate::extensions::consent::revoke_extension_consent,
+                $crate::extension_tray::commands::tray_register_item,
+                $crate::extension_tray::commands::tray_update_item,
+                $crate::extension_tray::commands::tray_unregister_item,
+                $crate::extension_tray::commands::tray_remove_all_for_extension,
+                $crate::commands::spawn_headless_extension,
+                $crate::commands::kill_extension,
+                $crate::commands::runtimes::resolve_runtime,
+                $crate::commands::runtimes::ensure_runtime,
+                $crate::commands::runtimes::download_runtime,
+                $crate::commands::runtimes::list_runtimes,
+                $crate::commands::runtimes::remove_runtime,
+                $crate::commands::runtimes::get_runtime_download_sizes,
+                $crate::commands::runtimes::get_runtime_consumers,
+            )
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! system_commands {
+    (@chain ($($rest:tt)*) ($($acc:path),* $(,)?)) => {
+        $crate::compose_handlers!(
+            @chain ($($rest)*) (
+                $($acc,)*
+                $crate::commands::list_applications,
+                $crate::commands::sync_application_index,
+                $crate::commands::get_frontmost_application,
+                $crate::commands::get_default_app_scan_paths,
+                $crate::commands::normalize_scan_path,
+                $crate::commands::check_path_exists,
+                $crate::commands::open_application_path,
+                $crate::commands::uninstall_application,
+                $crate::commands::scan_uninstall_targets,
+                $crate::commands::set_application_scan_paths,
+                $crate::commands::application_index_subscribe,
+                $crate::commands::application_index_unsubscribe,
+                $crate::commands::write_binary_file_recursive,
+                $crate::commands::write_text_file_absolute,
+                $crate::commands::read_text_file_absolute,
+                $crate::commands::read_text_preview,
+                $crate::commands::files_read_text,
+                $crate::commands::files_glob,
+                $crate::commands::files_thumbnail,
+                $crate::commands::mkdir_absolute,
+                $crate::commands::show_in_file_manager,
+                $crate::commands::trash_path,
+                $crate::commands::open_in_terminal,
+                $crate::commands::quick_look_path,
+                $crate::commands::opener_open_url,
+                $crate::commands::opener_open_path,
+                $crate::commands::opener_reveal,
+                $crate::commands::get_selected_text,
+                $crate::commands::get_selected_finder_items,
+                $crate::commands::shell_spawn,
+                $crate::commands::shell_kill,
+                $crate::commands::shell_list,
+                $crate::commands::shell_attach,
+                $crate::commands::shell_write_stdin,
+                $crate::commands::shell_close_stdin,
+                $crate::commands::shell_resolve_path,
+                $crate::commands::shell_check_trust,
+                $crate::commands::shell_grant_trust,
+                $crate::commands::shell_revoke_trust,
+                $crate::commands::shell_list_trusted,
+                $crate::commands::process::process_list,
+                $crate::commands::process::process_kill,
+                $crate::commands::power_keep_awake,
+                $crate::commands::power_release,
+                $crate::commands::power_list,
+                $crate::commands::system_actions_supported,
+                $crate::commands::system_action_run,
+                $crate::commands::system_events_subscribe,
+                $crate::commands::system_events_unsubscribe,
+                $crate::commands::app_events_subscribe,
+                $crate::commands::app_events_unsubscribe,
+                $crate::commands::app_is_running,
+                $crate::commands::fs_watcher::fs_watch_create,
+                $crate::commands::fs_watcher::fs_watch_dispose,
+                $crate::commands::screen_pick_color,
+                $crate::commands::ocr_capture_screen_text,
+                $crate::notifications::commands::send_notification,
+                $crate::notifications::commands::dismiss_notification,
+                $crate::commands::timer_schedule,
+                $crate::commands::timer_cancel,
+                $crate::commands::timer_list,
+                $crate::commands::register_item_shortcut,
+                $crate::commands::unregister_item_shortcut,
+                $crate::commands::pause_user_shortcuts,
+                $crate::commands::resume_user_shortcuts,
+                $crate::commands::pause_all_shortcuts,
+                $crate::commands::resume_all_shortcuts,
+                $crate::commands::expand_and_paste,
+                $crate::commands::sync_snippets_to_rust,
+                $crate::commands::set_snippets_enabled,
+                $crate::commands::check_snippet_permission,
+                $crate::commands::open_accessibility_preferences,
+                $crate::commands::contribute_shortcodes,
+                $crate::commands::revoke_shortcodes,
+                $crate::commands::scripts::scripts_add_directory,
+                $crate::commands::scripts::scripts_remove_directory,
+                $crate::commands::scripts::scripts_list_directories,
+                $crate::commands::scripts::scripts_pick_directory,
+                $crate::commands::scripts::scripts_rescan,
+                $crate::commands::scripts::scripts_make_executable,
+                $crate::commands::scripts::scripts_set_inline_scripts,
+                $crate::commands::calculator::calculator_evaluate,
+                $crate::commands::calculator::calculator_configure,
+                $crate::commands::calculator::calculator_refresh_rates,
+                $crate::commands::raycast_import::raycast_import_parse,
+                $crate::commands::templating::resolve_template,
+                $crate::commands::templating::get_available_placeholders,
+                $crate::commands::fetch_url,
+                $crate::commands::ws_connect,
+                $crate::commands::ws_send,
+                $crate::commands::ws_close,
+            )
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! ai_commands {
+    (@chain ($($rest:tt)*) ($($acc:path),* $(,)?)) => {
+        $crate::compose_handlers!(
+            @chain ($($rest)*) (
+                $($acc,)*
+                $crate::commands::runs::runs_start,
+                $crate::commands::runs::runs_write,
+                $crate::commands::runs::runs_done,
+                $crate::commands::runs::runs_fail,
+                $crate::commands::runs::runs_cancel,
+                $crate::commands::runs::runs_list,
+                $crate::commands::runs::runs_get,
+                $crate::commands::runs::runs_history_list,
+                $crate::commands::runs::runs_history_clear,
+                $crate::commands::runs::runs_get_output,
+                $crate::commands::runs::runs_dismiss,
+                $crate::commands::runs::runs_upsert_bucket,
+                $crate::commands::agents::agents_create,
+                $crate::commands::agents::agents_update,
+                $crate::commands::agents::agents_delete,
+                $crate::commands::agents::agents_list,
+                $crate::commands::agents::agents_get,
+                $crate::commands::agents::agents_resolve_default,
+                $crate::commands::agents::agents_upsert_default,
+                $crate::commands::agents::agents_seed_grammar_fix,
+                $crate::commands::agents::agents_seed_emoji_fallback,
+                $crate::commands::agents::agents_thread_create,
+                $crate::commands::agents::agents_thread_set_pinned,
+                $crate::commands::agents::agents_threads_prune,
+                $crate::commands::agents::agents_thread_delete,
+                $crate::commands::agents::agents_thread_update_title,
+                $crate::commands::agents::agents_threads_list,
+                $crate::commands::agents::agents_find_run_origin,
+                $crate::commands::agents::agents_backfill_thread_titles,
+                $crate::commands::agents::agents_message_insert,
+                $crate::commands::agents::agents_messages_list,
+                $crate::commands::agents::agents_run_thread,
+                $crate::commands::agents::agents_run_silent,
+                $crate::commands::agents::agents_report_tool_result,
+                $crate::commands::agents::agents_report_mcp_permission,
+                $crate::commands::agents::agents_cancel_run,
+                $crate::commands::agents::agents_list_cached,
+                $crate::commands::agents::agents_forget_cached,
+                $crate::commands::agents::agents_clear_cached,
+                $crate::commands::agents::agents_promote_cached,
+                $crate::ai::models::ai_list_models,
+                $crate::ai::commands::ai_check_cli_status,
+                $crate::agents::editor::agents_editor_load,
+                $crate::agents::editor::agents_editor_list_models,
+                $crate::agents::editor::agents_editor_save,
+                $crate::agents::editor::agents_provider_removal_blockers,
+                $crate::agents::tools::agents_tools_list,
+                $crate::agents::tools::agents_tools_register_tier2,
+                $crate::agents::tools::agents_tools_unregister_tier2,
+                $crate::agents::tools::agents_invoke_builtin_tool,
+                $crate::commands::mcp::mcp_list_servers,
+                $crate::commands::mcp::mcp_install_server,
+                $crate::commands::mcp::mcp_test_server,
+                $crate::commands::mcp::mcp_set_server_enabled,
+                $crate::commands::mcp::mcp_uninstall_server,
+                $crate::commands::mcp::mcp_list_audit,
+                $crate::commands::mcp::mcp_invoke_tool,
+                $crate::commands::mcp::mcp_detect_existing_configs,
+                $crate::commands::mcp::mcp_parse_config_json,
+                $crate::commands::mcp::mcp_set_permission,
+                $crate::commands::mcp::mcp_get_permission,
+                $crate::commands::mcp::mcp_list_server_tools,
+                $crate::commands::mcp::mcp_list_permissions,
+                $crate::commands::mcp::mcp_delete_permission,
+                $crate::commands::mcp::mcp_get_strict_mode,
+                $crate::commands::mcp::mcp_set_strict_mode,
+                $crate::ext_builder::commands::ext_builder_start,
+                $crate::ext_builder::commands::ext_builder_check_runtimes,
+                $crate::ext_builder::commands::ext_builder_answer,
+                $crate::ext_builder::commands::ext_builder_cancel,
+                $crate::ext_builder::created::list_created_extensions,
+                $crate::ext_builder::created::search_created_extensions,
+                $crate::ext_builder::secret_scan::scan_extension_for_secret,
+            )
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! browser_and_sync_commands {
+    (@chain ($($rest:tt)*) ($($acc:path),* $(,)?)) => {
+        $crate::compose_handlers!(
+            @chain ($($rest)*) (
+                $($acc,)*
+                $crate::commands::browser::browser_list_available_browsers,
+                $crate::commands::browser::browser_is_companion_installed,
+                $crate::commands::browser::browser_list_bookmarks,
+                $crate::commands::browser::browser_search_history,
+                $crate::commands::browser::browser_list_tabs,
+                $crate::commands::browser::browser_get_active_tab,
+                $crate::commands::browser::browser_activate_tab,
+                $crate::commands::browser::browser_close_tab,
+                $crate::commands::browser::browser_open_url,
+                $crate::commands::browser::browser_list_paired_browsers,
+                $crate::commands::browser::browser_list_pending_pairings,
+                $crate::commands::browser::browser_resolve_pairing,
+                $crate::commands::browser::browser_revoke_pairing,
+                $crate::commands::browser::browser_events_subscribe,
+                $crate::commands::browser::browser_events_unsubscribe,
+                $crate::commands::browser::browser_get_current_page,
+                $crate::commands::browser::browser_query_page,
+                $crate::commands::browser::browser_act_on_page,
+                $crate::commands::browser::browser_search_web,
+                $crate::commands::browser::browser_get_most_recent_active_browser,
+                $crate::commands::auth_initiate,
+                $crate::commands::auth_poll,
+                $crate::commands::auth_load_cached,
+                $crate::commands::auth_get_state,
+                $crate::commands::auth_refresh_entitlements,
+                $crate::commands::auth_logout,
+                $crate::commands::gate_check,
+                $crate::commands::sync::sync_run,
+                $crate::commands::sync::sync_get_status,
+                $crate::commands::sync::sync_mark_tombstone,
+                $crate::commands::sync::sync_reset,
+                $crate::commands::sync_e2ee::sync_e2ee_get_status,
+                $crate::commands::sync_e2ee::sync_e2ee_enrol,
+                $crate::commands::sync_e2ee::sync_e2ee_unlock,
+                $crate::commands::sync_e2ee::sync_e2ee_rotate,
+                $crate::commands::sync_e2ee::sync_e2ee_recover_with_mnemonic,
+                $crate::commands::sync_e2ee::sync_e2ee_disable,
+                $crate::commands::sync_e2ee::sync_e2ee_show_recovery_phrase,
+                $crate::commands::export_profile,
+                $crate::commands::import_profile,
+                $crate::commands::show_save_profile_dialog,
+                $crate::commands::show_open_profile_dialog,
+                $crate::commands::oauth_start_flow,
+                $crate::commands::oauth_exchange_code,
+                $crate::commands::oauth_get_stored_token,
+                $crate::commands::oauth_revoke_extension_token,
+            )
+        )
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn command_paths_are_registered_once() {
+        let source = include_str!("handlers.rs");
+        let mut counts = std::collections::BTreeMap::new();
+        for suffix in source.split(concat!("$", "crate::")).skip(1) {
+            let path: String = suffix
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == ':')
+                .collect();
+            if path.is_empty() || path == "compose_handlers" {
+                continue;
+            }
+            *counts.entry(path).or_insert(0usize) += 1;
+        }
+        assert!(!counts.is_empty(), "no command paths found");
+        let duplicates: Vec<_> = counts.iter().filter(|(_, count)| **count > 1).collect();
+        assert!(
+            duplicates.is_empty(),
+            "command paths registered multiple times: {duplicates:?}"
+        );
+    }
+}

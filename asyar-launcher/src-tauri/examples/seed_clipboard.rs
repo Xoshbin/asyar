@@ -52,9 +52,7 @@ fn load_master_key() -> [u8; 32] {
         "master key must be 32 bytes, got {}",
         bytes.len()
     );
-    let mut k = [0u8; 32];
-    k.copy_from_slice(&bytes);
-    k
+    bytes.try_into().expect("master key must be 32 bytes")
 }
 
 fn now_ms() -> f64 {

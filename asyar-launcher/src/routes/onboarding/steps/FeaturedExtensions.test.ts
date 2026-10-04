@@ -4,7 +4,9 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 
 const { invokeMock, listenMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
-  listenMock: vi.fn(() => Promise.resolve(() => {})),
+  // Declare the (event, handler) parameters Tauri's `listen` is called with,
+  // so per-test mockImplementation overrides can accept them.
+  listenMock: vi.fn((_event: string, _handler: unknown) => Promise.resolve(() => {})),
 }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));
@@ -148,7 +150,7 @@ describe('FeaturedExtensions step', () => {
   });
 
   it('updates installed status in real time when extensions_updated event fires', async () => {
-    let onExtensionsUpdated: (() => void) | undefined;
+    let onExtensionsUpdated: ((e: { payload: unknown }) => void) | undefined;
     listenMock.mockImplementation((event: string, handler: any) => {
       if (event === 'extensions_updated') {
         onExtensionsUpdated = handler;
@@ -175,7 +177,7 @@ describe('FeaturedExtensions step', () => {
     expect(screen.queryByText('Installed')).toBeNull();
 
     // Simulate backend emitting extensions_updated
-    onExtensionsUpdated?.();
+    onExtensionsUpdated?.({ payload: undefined });
 
     expect(await screen.findByText('Installed')).toBeTruthy();
     expect(

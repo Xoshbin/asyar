@@ -1,6 +1,7 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import { appUpdaterGetPending } from '../../lib/ipc/updateCommands';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 export type AppUpdatePhase = 'idle' | 'checking' | 'downloading' | 'ready' | 'error';
 
@@ -37,27 +38,27 @@ export async function initAppUpdateStore(): Promise<void> {
   await refreshPendingUpdate();
 
   // Listen to Rust-emitted events
-  const checking = await listen('asyar:app-update:checking', () => {
+  const checking = await appListen('asyar:app-update:checking', () => {
     appUpdateState.phase = 'checking';
     appUpdateState.errorMessage = null;
   });
 
-  const idle = await listen('asyar:app-update:idle', () => {
+  const idle = await appListen('asyar:app-update:idle', () => {
     appUpdateState.phase = 'idle';
   });
 
-  const downloading = await listen<{ version: string }>('asyar:app-update:downloading', (e) => {
+  const downloading = await appListen<{ version: string }>('asyar:app-update:downloading', (e) => {
     appUpdateState.phase = 'downloading';
     appUpdateState.pendingVersion = e.payload.version;
   });
 
-  const ready = await listen<{ version: string }>('asyar:app-update:ready', (e) => {
+  const ready = await appListen<{ version: string }>('asyar:app-update:ready', (e) => {
     appUpdateState.phase = 'ready';
     appUpdateState.pendingVersion = e.payload.version;
     logService.info(`appUpdateStore: update ${e.payload.version} ready, will apply on next launch`);
   });
 
-  const error = await listen<{ message: string }>('asyar:app-update:error', (e) => {
+  const error = await appListen<{ message: string }>('asyar:app-update:error', (e) => {
     appUpdateState.phase = 'error';
     appUpdateState.errorMessage = e.payload.message;
     logService.warn(`appUpdateStore: auto-check error — ${e.payload.message}`);

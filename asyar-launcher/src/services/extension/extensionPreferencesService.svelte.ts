@@ -5,6 +5,7 @@ import {
 } from '../../lib/ipc/commands';
 import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
+import { setWorkerPreferenceProvider } from './workerHost.svelte';
 
 export interface PreferenceBundle {
   extension: Record<string, any>;
@@ -52,7 +53,7 @@ class ExtensionPreferencesService {
       return { extension: {}, commands: {} };
     }
 
-    const stored = (await extensionPreferencesGetAll(extensionId)) ?? [];
+    const stored = await extensionPreferencesGetAll(extensionId);
 
     const bundle: PreferenceBundle = {
       extension: {},
@@ -206,3 +207,4 @@ class ExtensionPreferencesService {
 }
 
 export const extensionPreferencesService = new ExtensionPreferencesService();
+setWorkerPreferenceProvider((id) => extensionPreferencesService.getEffectivePreferences(id));

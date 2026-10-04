@@ -11,7 +11,7 @@ export async function snippetUpsert(snippet: StoredSnippet): Promise<void> {
   await invokeSafe('snippet_upsert', { snippet });
 }
 
-export async function snippetGetAll(): Promise<StoredSnippet[] | null> {
+export async function snippetGetAll(): Promise<StoredSnippet[]> {
   return invokeSafe<StoredSnippet[]>('snippet_get_all');
 }
 
@@ -19,15 +19,15 @@ export async function snippetRemove(id: string): Promise<void> {
   await invokeSafe('snippet_remove', { id });
 }
 
-export async function snippetTogglePin(id: string): Promise<boolean | null> {
+export async function snippetTogglePin(id: string): Promise<boolean> {
   return invokeSafe<boolean>('snippet_toggle_pin', { id });
 }
 
-export async function snippetTogglePrivate(id: string): Promise<boolean | null> {
+export async function snippetTogglePrivate(id: string): Promise<boolean> {
   return invokeSafe<boolean>('snippet_toggle_private', { id });
 }
 
-export async function snippetExportForSync(): Promise<StoredSnippet[] | null> {
+export async function snippetExportForSync(): Promise<StoredSnippet[]> {
   return invokeSafe<StoredSnippet[]>('snippet_export_for_sync');
 }
 
@@ -47,6 +47,6 @@ export async function setSnippetsEnabled(enabled: boolean): Promise<boolean> {
   return invokeSafeVoid('set_snippets_enabled', { enabled }, { silent: true });
 }
 
-export async function checkSnippetPermission(): Promise<boolean | null> {
+export async function checkSnippetPermission(): Promise<boolean> {
   return invokeSafe<boolean>('check_snippet_permission');
 }

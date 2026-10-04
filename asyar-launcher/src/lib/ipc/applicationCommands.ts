@@ -18,7 +18,7 @@ export async function getFrontmostApplication(): Promise<FrontmostApplication | 
   return invokeSafe<FrontmostApplication>('get_frontmost_application', undefined, { silent: true });
 }
 
-export async function appIsRunning(bundleId: string): Promise<boolean | null> {
+export async function appIsRunning(bundleId: string): Promise<boolean> {
   return invokeSafe<boolean>('app_is_running', { bundleId });
 }
 
@@ -32,14 +32,14 @@ export async function uninstallApplication(
   return invokeSafeVoid('uninstall_application', { path, dataPaths });
 }
 
-export async function scanUninstallTargets(path: string): Promise<UninstallScanResult | null> {
+export async function scanUninstallTargets(path: string): Promise<UninstallScanResult> {
   return invokeSafe<UninstallScanResult>('scan_uninstall_targets', { path });
 }
 
 export async function applicationIndexSubscribe(
   extensionId: string | null,
   eventTypes: string[],
-): Promise<string | null> {
+): Promise<string> {
   return invokeSafe<string>('application_index_subscribe', { extensionId, eventTypes });
 }
 
@@ -57,7 +57,7 @@ export async function setApplicationScanPaths(paths: string[]): Promise<boolean>
 export async function appUpdaterShouldShowWhatsNew(
   lastSeenVersion: string | undefined,
   currentVersion: string,
-): Promise<boolean | null> {
+): Promise<boolean> {
   return invokeSafe<boolean>('app_updater_should_show_whats_new', {
     lastSeenVersion,
     currentVersion,

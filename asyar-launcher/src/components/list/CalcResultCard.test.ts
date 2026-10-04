@@ -16,11 +16,13 @@ describe('CalcResultCard', () => {
 
   it('renders normal expression and result labels', () => {
     const item: MappedSearchItem = {
-      id: 'calc-1',
+      object_id: 'calc-1',
       title: '6',
       subtitle: '3+3',
       type: 'result',
       icon: '🧮',
+      score: 0,
+      action: () => {},
     };
 
     render(CalcResultCard, { item, index: 0 });
@@ -33,11 +35,13 @@ describe('CalcResultCard', () => {
 
   it('renders humor Easter egg label for 2+2 evaluated to 1', () => {
     const item: MappedSearchItem = {
-      id: 'calc-easter-egg',
+      object_id: 'calc-easter-egg',
       title: '1',
       subtitle: '2+2',
       type: 'result',
       icon: '🧮',
+      score: 0,
+      action: () => {},
     };
 
     render(CalcResultCard, { item, index: 0 });
@@ -48,11 +52,13 @@ describe('CalcResultCard', () => {
 
   it('handles spaces in 2 + 2 expression for Easter egg label', () => {
     const item: MappedSearchItem = {
-      id: 'calc-easter-egg-spaces',
+      object_id: 'calc-easter-egg-spaces',
       title: '1',
       subtitle: '2   +   2',
       type: 'result',
       icon: '🧮',
+      score: 0,
+      action: () => {},
     };
 
     render(CalcResultCard, { item, index: 0 });
@@ -62,11 +68,13 @@ describe('CalcResultCard', () => {
 
   it('does not trigger Easter egg label when title is not 1', () => {
     const item: MappedSearchItem = {
-      id: 'calc-regular',
+      object_id: 'calc-regular',
       title: '4',
       subtitle: '2+2',
       type: 'result',
       icon: '🧮',
+      score: 0,
+      action: () => {},
     };
 
     render(CalcResultCard, { item, index: 0 });
@@ -77,10 +85,12 @@ describe('CalcResultCard', () => {
 
   it('safely handles undefined subtitle without crashing', () => {
     const item: MappedSearchItem = {
-      id: 'calc-no-subtitle',
+      object_id: 'calc-no-subtitle',
       title: '42',
       type: 'result',
       icon: '🧮',
+      score: 0,
+      action: () => {},
     };
 
     expect(() => {

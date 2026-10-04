@@ -1,6 +1,6 @@
 use log::{error, info};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 const STARTUP_DELAY_SECS: u64 = 60;
 const CHECK_INTERVAL_SECS: u64 = 6 * 3600; // 6 hours
@@ -62,7 +62,8 @@ async fn run_check(app: &AppHandle) {
             crate::app_updater::service::check_and_maybe_download(app, &settings.channel).await
         {
             error!("app_updater: scheduled check failed: {}", e);
-            let _ = app.emit(
+            crate::event_bridge::bridge_emit(
+                app,
                 "asyar:app-update:error",
                 serde_json::json!({ "message": e }),
             );

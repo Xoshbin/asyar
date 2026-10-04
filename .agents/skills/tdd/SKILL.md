@@ -31,6 +31,20 @@ REFACTOR → Clean up → run → still passes
 
 Never skip RED. A test that passes without you writing any implementation is not a TDD test.
 
+## Verification Loops: Inner Loop vs. Outer Loop
+
+To maintain maximum velocity during TDD without context bloat or verification taxes:
+
+- **Inner Loop (Iterative Red-Green-Refactor)**:
+  - Run targeted single-test or single-file test runners (`cargo test <test_name>` or `pnpm test`).
+  - Or run domain-scoped checks:
+    - Frontend changes: `pnpm check:ci:frontend`
+    - Rust changes: `pnpm check:ci:rust`
+    - Changed files only: `pnpm check:ci:changed`
+  - Never run the monolithic verification matrix on every minor edit.
+- **Outer Loop (Task Conclusion / Hand-off / Pre-Push)**:
+  - Run the full verification matrix (`pnpm check:ci`) only after tests pass and implementation is complete, or when modifying cross-domain bindings, IPC contracts, or migrations.
+
 ## Rust (src-tauri)
 
 **Test location:** inline `#[cfg(test)]` module at the bottom of the same `.rs` file.
@@ -150,6 +164,10 @@ When a feature interacts across registration boundaries:
 | Run SDK tests (once)          | `pnpm test:run` (in asyar-sdk/)        | `src/**/*.test.ts`                |
 | Mock Tauri invoke             | `vi.mock('@tauri-apps/api/core', ...)` | top of test file                  |
 | Mock globals/env              | `vi.stubGlobal()` / `vi.stubEnv()`     | inside test, restore in afterEach |
+| Inner loop frontend checks    | `pnpm check:ci:frontend`               | repo root                         |
+| Inner loop Rust checks        | `pnpm check:ci:rust`                   | repo root                         |
+| Inner loop git-changed checks | `pnpm check:ci:changed`                | repo root                         |
+| Outer loop full verification  | `pnpm check:ci`                        | repo root                         |
 
 ## Common Mistakes
 

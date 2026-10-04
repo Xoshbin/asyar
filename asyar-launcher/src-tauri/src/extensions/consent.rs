@@ -15,7 +15,7 @@ use crate::permissions::ExtensionPermissionRegistry;
 use crate::storage::{shell as shell_storage, DataStore};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 
 /// Flag under `settings.extensions` marking that the one-shot grandfather
@@ -40,12 +40,7 @@ fn emit_consent_changed<R: tauri::Runtime>(app_handle: &AppHandle<R>, extension_
     let payload = ConsentChangedPayload {
         extension_id: extension_id.to_string(),
     };
-    if let Err(e) = app_handle.emit("asyar:consent-changed", payload) {
-        warn!(
-            "Failed to emit asyar:consent-changed for {}: {}",
-            extension_id, e
-        );
-    }
+    crate::event_bridge::bridge_emit(app_handle, "asyar:consent-changed", payload);
 }
 
 /// A user-approved permission set for one extension.
@@ -524,7 +519,8 @@ pub fn revoke_extension_consent(
     {
         let res = manager.force_remove(&extension_id)?;
         if res.transition != crate::clipboard_capture::CaptureTransition::NoChange {
-            let _ = app_handle.emit(
+            crate::event_bridge::bridge_emit(
+                &app_handle,
                 crate::commands::clipboard_capture::CAPTURE_STATE_CHANGED_EVENT,
                 &res,
             );

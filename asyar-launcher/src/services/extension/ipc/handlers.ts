@@ -91,13 +91,20 @@ const extensionLoaded: IpcHandler = {
     logService.info(`Extension ready: ${ctx.extensionId}`);
     if (!ctx.extensionId) return;
     const bundle = await extensionPreferencesService.getEffectivePreferences(ctx.extensionId);
-    (ctx.source as WindowProxy | null)?.postMessage(
-      {
-        type: 'asyar:event:preferences:set-all',
-        payload: { extension: bundle.extension, commands: bundle.commands },
-      },
-      '*',
-    );
+    const prefMsg = {
+      type: 'asyar:event:preferences:set-all',
+      payload: { extension: bundle.extension, commands: bundle.commands },
+    };
+    if (
+      ctx.role === 'worker' &&
+      ctx.source &&
+      typeof (ctx.source as any).postMessage === 'function' &&
+      !(ctx.source as any).window
+    ) {
+      (ctx.source as any).postMessage(prefMsg);
+    } else {
+      (ctx.source as WindowProxy | null)?.postMessage(prefMsg, '*');
+    }
   },
 };
 

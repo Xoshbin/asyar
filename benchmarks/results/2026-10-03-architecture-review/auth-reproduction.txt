@@ -1,0 +1,33 @@
+
+ RUN  v4.1.10 /private/tmp/asyar-branch-benchmark/asyar-launcher
+
+ ❯ src/services/sync/cloudSyncService.test.ts (44 tests | 1 failed) 332ms
+       × review reproduction: keeps auth subscription across logout for next login 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/services/sync/cloudSyncService.test.ts > CloudSyncService (Task 4B delta-sync rewrite) > init() > review reproduction: keeps auth subscription across logout for next login
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ src/services/sync/cloudSyncService.test.ts:195:30
+    193|       expect(listeners.size).toBe(1);
+    194|       for (const listener of [...listeners]) await listener(false);
+    195|       expect(listeners.size).toBe(1);
+       |                              ^
+    196|     });
+    197|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 43 passed (44)
+   Start at  14:53:33
+   Duration  781ms (transform 235ms, setup 0ms, import 293ms, tests 332ms, environment 0ms)
+

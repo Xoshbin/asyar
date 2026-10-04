@@ -9,11 +9,7 @@ use serde_json::json;
 use std::sync::Arc;
 
 fn test_key() -> [u8; 32] {
-    let mut k = [0u8; 32];
-    for (i, b) in k.iter_mut().enumerate() {
-        *b = (i * 29) as u8;
-    }
-    k
+    rand::random()
 }
 
 fn test_store() -> (DataStore, [u8; 32], Arc<NotesFts>) {
@@ -215,4 +211,9 @@ async fn notes_append_keeps_the_fts_index_current() {
 
     assert_eq!(fts.search("fresh", 10).unwrap(), vec!["1".to_string()]);
     crate::storage::notes_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
+}
+
+#[test]
+fn fixture_keys_are_fresh() {
+    assert_ne!(test_key(), test_key());
 }

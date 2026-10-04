@@ -6,7 +6,7 @@ export async function fileSearch(
   query: string,
   typeFilter?: string,
   limit?: number,
-): Promise<FileSearchResponse | null> {
+): Promise<FileSearchResponse> {
   return invokeSafe<FileSearchResponse>('file_search', {
     query,
     typeFilter: typeFilter ?? null,
@@ -14,7 +14,7 @@ export async function fileSearch(
   });
 }
 
-export async function fileIndexStatus(): Promise<IndexStatus | null> {
+export async function fileIndexStatus(): Promise<IndexStatus> {
   return invokeSafe<IndexStatus>('file_index_status');
 }
 
@@ -38,7 +38,7 @@ export async function fileSearchUnpin(fileId: string): Promise<boolean> {
   return invokeSafeVoid('file_search_unpin', { fileId });
 }
 
-export async function fileSearchListPinned(): Promise<FileHit[] | null> {
+export async function fileSearchListPinned(): Promise<FileHit[]> {
   return invokeSafe<FileHit[]>('file_search_list_pinned');
 }
 
@@ -50,7 +50,7 @@ export async function deepSearchAvailability(): Promise<string | null> {
   return invokeSafe<string | null>('deep_search_availability');
 }
 
-export async function deepSearch(query: string, limit?: number): Promise<FileHit[] | null> {
+export async function deepSearch(query: string, limit?: number): Promise<FileHit[]> {
   return invokeSafe<FileHit[]>('deep_search', { query, limit });
 }
 
@@ -70,17 +70,14 @@ export async function quickLookPath(pathStr: string): Promise<boolean> {
  *
  * Resolves to `null` when the host classified the file as binary (PDF
  * magic / NUL byte in the first 8 KiB) — the preview pane must never
- * render raw bytes as text. `null` is also what an IPC failure collapses
- * to via `invokeSafe`. */
+ * render raw bytes as text. IPC failures reject with `IpcError`. */
 export async function readTextPreview(pathStr: string, maxBytes?: number): Promise<string | null> {
   return invokeSafe<string | null>('read_text_preview', { pathStr, maxBytes });
 }
 
 /** Extension-scoped bounded content read (`asyar:api:files:read` →
- * `files_read_text`). Raw `invoke` rather than `invokeSafe` deliberately:
- * a permission/scope denial must propagate to the calling extension as an
- * error, not collapse into a null that's indistinguishable from an empty
- * file. */
+ * `files_read_text`). Raw invocation retains the scope-denial diagnostic
+ * for the extension reply boundary, which owns reporting for this service. */
 export async function filesReadText(
   extensionId: string | null,
   pathStr: string,

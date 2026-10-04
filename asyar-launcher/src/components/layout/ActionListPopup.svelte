@@ -22,7 +22,7 @@
     inExtensionView = false,
     onclose,
   }: {
-    availableActions?: ApplicationAction[];
+    availableActions?: ActionForDisplay[];
     selectedItemName?: string | null;
     inExtensionView?: boolean;
     onclose?: () => void;

@@ -62,6 +62,8 @@ function makeAgent(over: Partial<AgentDef> = {}): AgentDef {
     silent: false,
     inputSource: 'argument',
     outputAction: 'replaceSelection',
+    cacheResponses: false,
+    shortcodeTrigger: ':',
     createdAt: 1000,
     updatedAt: 1000,
     ...over,

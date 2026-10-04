@@ -43,6 +43,8 @@ const form = {
   silent: false,
   inputSource: 'argument' as const,
   outputAction: 'replaceSelection' as const,
+  cacheResponses: false,
+  shortcodeTrigger: ':',
 };
 
 describe('AgentEditView', () => {

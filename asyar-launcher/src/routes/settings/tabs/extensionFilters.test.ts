@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { filterExtensions } from './extensionFilters';
 import type { ExtensionItem } from '../settingsHandlers.svelte';
 

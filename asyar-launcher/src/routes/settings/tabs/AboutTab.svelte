@@ -8,12 +8,13 @@
     initAppUpdateStore,
     refreshPendingUpdate,
   } from '../../../services/update/appUpdateStore.svelte';
-  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { type UnlistenFn } from '@tauri-apps/api/event';
   import { appRelaunch } from '../../../lib/ipc/commands';
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import logoUrl from '../../../resources/images/Square142x142Logo.png';
   import { t } from '../../../services/i18n';
+  import { appListen } from '../../../lib/ipc/bridgeEvents';
 
   let {
     handler,
@@ -54,7 +55,7 @@
       });
 
     let unlisten: UnlistenFn | undefined;
-    listen('check-for-updates', () => {
+    appListen('check-for-updates', () => {
       handler.activeTab = 'about';
       checkForUpdates();
     }).then((fn) => {

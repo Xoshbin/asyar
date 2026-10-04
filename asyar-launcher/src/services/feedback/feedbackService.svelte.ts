@@ -1,4 +1,4 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   ConfirmAlertOptions,
   FeedbackAnnouncement,
@@ -12,6 +12,11 @@ import * as feedbackCommands from './internal/feedbackCommands';
 import type { NotificationOptions } from 'asyar-sdk/contracts';
 import { notificationService } from '../notification/notificationService';
 import { openerService } from '../opener/openerService';
+import { appListen } from '../../lib/ipc/bridgeEvents';
+
+// Re-exported so presenters can type feedback payloads without reaching into
+// ./internal (see feedbackBoundary.test.ts).
+export type { FeedbackItem } from './internal/feedbackCommands';
 
 interface ActiveAnnouncement {
   id: string;
@@ -97,7 +102,7 @@ class FeedbackService implements IFeedbackService {
     if (this.unlisten) return;
     try {
       this.current = await feedbackCommands.getCurrent();
-      this.unlisten = await listen<feedbackCommands.FeedbackItem | null>(
+      this.unlisten = await appListen<feedbackCommands.FeedbackItem | null>(
         'feedback:changed',
         ({ payload }) => {
           this.current = payload;

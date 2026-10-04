@@ -33,8 +33,8 @@ describe('verifyBuildOutput', () => {
     expect(() => verifyBuildOutput(cwd, manifest)).not.toThrow();
   });
 
-  it('accepts a worker-only extension with dist/worker.html and no view.html', () => {
-    writeDist('worker.html');
+  it('accepts a worker-only extension with dist/worker module and no view.html', () => {
+    writeDist('worker.js');
     const manifest = {
       background: { main: 'dist/worker.js' },
       commands: [{ mode: 'background' }],
@@ -43,7 +43,7 @@ describe('verifyBuildOutput', () => {
   });
 
   it('accepts a view+worker extension with both entries', () => {
-    writeDist('view.html', 'worker.html');
+    writeDist('view.html', 'worker.js');
     const manifest = {
       background: { main: 'dist/worker.js' },
       commands: [{ mode: 'view' }, { mode: 'background' }],
@@ -51,7 +51,7 @@ describe('verifyBuildOutput', () => {
     expect(() => verifyBuildOutput(cwd, manifest)).not.toThrow();
   });
 
-  it('rejects a worker-only extension whose worker.html is missing', () => {
+  it('rejects a worker-only extension whose worker module is missing', () => {
     const manifest = {
       background: { main: 'dist/worker.js' },
       commands: [{ mode: 'background' }],
@@ -59,7 +59,7 @@ describe('verifyBuildOutput', () => {
     expect(() => verifyBuildOutput(cwd, manifest)).toThrow('process.exit(1)');
   });
 
-  it('rejects a view+worker extension whose worker.html is missing', () => {
+  it('rejects a view+worker extension whose worker module is missing', () => {
     writeDist('view.html');
     const manifest = {
       background: { main: 'dist/worker.js' },
@@ -69,7 +69,7 @@ describe('verifyBuildOutput', () => {
   });
 
   it('rejects an extension with a view command but no view.html', () => {
-    writeDist('worker.html');
+    writeDist('worker.js');
     const manifest = {
       background: { main: 'dist/worker.js' },
       commands: [{ mode: 'view' }, { mode: 'background' }],
@@ -78,10 +78,41 @@ describe('verifyBuildOutput', () => {
   });
 
   it('requires view.html when no manifest is provided (legacy call)', () => {
-    writeDist('worker.html');
+    writeDist('worker.js');
     expect(() => verifyBuildOutput(cwd)).toThrow('process.exit(1)');
     writeDist('view.html');
     expect(() => verifyBuildOutput(cwd)).not.toThrow();
+  });
+
+  it('accepts the actual custom manifest module without worker.html', () => {
+    fs.mkdirSync(path.join(cwd, 'dist', 'daemon'));
+    fs.writeFileSync(path.join(cwd, 'dist', 'daemon', 'main.js'), 'export {};');
+    expect(() =>
+      verifyBuildOutput(cwd, {
+        background: { main: 'dist/daemon/main.js' },
+        commands: [{ mode: 'background' }],
+      }),
+    ).not.toThrow();
+  });
+
+  it('does not let legacy output hide a missing declared worker module', () => {
+    writeDist('index.js');
+    expect(() =>
+      verifyBuildOutput(cwd, {
+        background: { main: 'dist/missing.js' },
+        commands: [{ mode: 'background' }],
+      }),
+    ).toThrow('process.exit(1)');
+  });
+
+  it('validates a root-relative manifest entry against the post-package layout', () => {
+    writeDist('worker.js');
+    expect(() =>
+      verifyBuildOutput(cwd, {
+        background: { main: 'worker.js' },
+        commands: [{ mode: 'background' }],
+      }),
+    ).not.toThrow();
   });
 
   it('accepts legacy single-entry layouts without a manifest', () => {

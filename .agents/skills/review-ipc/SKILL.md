@@ -10,14 +10,12 @@ Audit the IPC layer across the SDK, permission gate, and host listener for corre
 
 ## Context: the worker/view bridge
 
-Every Tier 2 extension runs in **two iframes** — a worker (always-on,
-hidden, `worker.html`) and a view (on-demand, `view.html`). Each iframe
-imports from a different SDK entry (`asyar-sdk/worker` vs
-`asyar-sdk/view`) and owns its own `MessageBroker` and
-`ExtensionContext`. The IPC bridge audited here therefore covers
-**both** iframes' calls into the host. `ExtensionIpcRouter` maps
-`event.source` back to a role via `findIframeRoleForSource(...)` —
-services that branch on role read it off the dispatch context.
+Every Tier 2 extension operates across **two execution contexts** following the Separation of Headless Compute and Visual Canvas:
+
+- **Worker (`role: 'worker'`)**: Always-on headless compute running off-main-thread (Web Worker / worker host context, or fallback iframe).
+- **View (`role: 'view'`)**: On-demand visual canvas running in a sandboxed `<iframe>` (`view.html`).
+
+Each context imports from its dedicated SDK entry (`asyar-sdk/worker` vs `asyar-sdk/view`) and owns its own `MessageBroker` and `ExtensionContext`. The IPC bridge audited here therefore covers **both** contexts' calls into the host. `ExtensionIpcRouter` maps the caller back to its identity and role — services that branch on role read it off the dispatch context.
 
 For the runtime details (state machine, mailbox, RPC), see
 [`docs/explanation/extension-runtime.md`](../../../docs/explanation/extension-runtime.md);
@@ -65,16 +63,16 @@ Check every file in `asyar-launcher/src/built-in-features/*/index.ts`:
 Verify that for any new service method added to a proxy:
 
 - The host-side handler exists in `asyar-launcher/src/services/extension/ExtensionIpcRouter.ts` or a dedicated service file
-- Replies are posted with `event.source.postMessage({ type: 'asyar:response', messageId, result }, '*')` on success — using `event.source` ensures the reply lands in the same iframe (worker or view) that issued the request
+- Replies use `event.source` so they land in the requesting execution context. Post `{ type: 'asyar:response', messageId, result }` with a target origin for iframe windows; Web Worker sources take only the message (no window target-origin argument)
 - Error path sends `{ type: 'asyar:response', messageId, error: string }`
-- Host → iframe pushes that target a specific role go through `pickExtensionIframe(extensionId, prefer)` in `asyar-launcher/src/services/extension/extensionIframeSelector.ts` — never an unscoped `iframe[data-extension-id="..."]` selector
+- Host → extension messages go through `postToExtension(extensionId, role, message)` in `asyar-launcher/src/services/extension/extensionDelivery.ts`, which routes to Web Workers or compatibility iframes. Use `{ fallback: false }` for strictly role-scoped subscriptions. Reserve `pickExtensionIframe` for iframe-specific operations such as view focus and readiness scans; never assume a worker is an iframe
 
 ### 5. Role-aware dispatch checks (Phase 6+)
 
 When auditing services that branch on iframe role:
 
 - `actions.registerActionHandler` is role-neutral — registering from either role is supported and the launcher routes the matching `asyar:action:execute` envelope back to whichever role registered
-- `commands.onCommand` for a `mode: "background"` manifest command must register from the **worker**; the launcher dispatches background-mode commands to the worker iframe
+- `commands.onCommand` for a `mode: "background"` manifest command must register from the **worker**; the launcher dispatches background-mode commands to the worker execution context
 - `state:rpcRequest` / `state:rpcReply` envelopes carry the worker↔view RPC protocol; the worker-side interceptor in `asyar-sdk/src/worker.ts` is the only place that calls `extensionRpc.deliverActionPayload(...)`. View-side calls go through `context.request(...)` only.
 
 ## Files to read

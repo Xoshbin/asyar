@@ -1,6 +1,6 @@
 <script lang="ts">
   import Spinner from '../base/Spinner.svelte';
-  import type { FeedbackItem } from '../../lib/ipc/commands';
+  import type { FeedbackItem } from '../../services/feedback/feedbackService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { DIAGNOSTIC_MESSAGES } from '../../services/diagnostics/messages';
   import type { DiagnosticKind } from '../../services/diagnostics/kinds';

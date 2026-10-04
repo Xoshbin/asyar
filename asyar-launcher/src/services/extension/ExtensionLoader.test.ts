@@ -48,6 +48,10 @@ vi.mock('../action/actionService.svelte', () => ({
     setActionExecutor: vi.fn(),
     refreshFiltered: vi.fn(),
     filteredActions: [],
+    getSelectedSearchItem: vi.fn(() => {
+      const idx = mockSearchStores.selectedIndex;
+      return idx >= 0 ? mockSearchOrchestrator.items[idx] : undefined;
+    }),
   },
 }));
 
@@ -108,7 +112,7 @@ function makeManifest(extensionId: string, actions: any[] = [], commands: any[] 
     name: extensionId,
     version: '1.0.0',
     description: '',
-    type: 'view' as const,
+    type: 'extension' as const,
     permissions: [],
     actions,
     commands,
@@ -120,7 +124,12 @@ function makeCommand(cmdId: string, actions: any[] = []) {
 }
 
 function makeLoader(loadedCommands: { cmd: any; manifest: any; isBuiltIn: boolean }[]) {
-  const loader = new ExtensionLoader({} as any, {} as any);
+  const loader = new ExtensionLoader(
+    {} as any,
+    () => {},
+    () => {},
+    () => {},
+  );
   (loader as any).allLoadedCommands = loadedCommands;
   return loader;
 }

@@ -1,3 +1,4 @@
+import type { ExtensionContextCore } from './ExtensionContextCore';
 import type { ExtensionContext } from './ExtensionContext';
 import type { Extension, ExtensionManifest, ExtensionResult } from './types/ExtensionType';
 import type { ExtensionAction } from './types/ActionType';
@@ -36,7 +37,7 @@ export class ExtensionBridge {
     string,
     { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
   > = new Map();
-  private activeContexts: Map<string, ExtensionContext> = new Map();
+  private activeContexts: Map<string, ExtensionContextCore> = new Map();
   private broker: MessageBroker;
 
   constructor() {
@@ -155,9 +156,15 @@ export class ExtensionBridge {
     });
 
     // Listen for search requests from the host
-    if (typeof window !== 'undefined') {
-      window.addEventListener('message', async (event) => {
-        if (event.source !== window.parent) return;
+    const scope =
+      typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : null;
+    if (scope) {
+      const postToHost = (message: unknown) => {
+        if (typeof window !== 'undefined') window.parent.postMessage(message, '*');
+        else (self as unknown as { postMessage(message: unknown): void }).postMessage(message);
+      };
+      scope.addEventListener('message', async (event: MessageEvent) => {
+        if (typeof window !== 'undefined' && event.source !== window.parent) return;
         const data = event.data;
         if (!data || typeof data !== 'object') return;
 
@@ -205,6 +212,7 @@ export class ExtensionBridge {
               results = [
                 ...results,
                 ...extResults.map((r) => ({
+                  id: r.id,
                   title: r.title,
                   subtitle: r.subtitle,
                   score: r.score ?? 0.5,
@@ -221,23 +229,17 @@ export class ExtensionBridge {
           }
 
           // Send results back to host
-          window.parent.postMessage(
-            {
-              type: 'asyar:search:response',
-              messageId,
-              result: results,
-            },
-            '*',
-          );
+          postToHost({
+            type: 'asyar:search:response',
+            messageId,
+            result: results,
+          });
         } catch (error: unknown) {
-          window.parent.postMessage(
-            {
-              type: 'asyar:search:response',
-              messageId,
-              error: error instanceof Error ? error.message : String(error),
-            },
-            '*',
-          );
+          postToHost({
+            type: 'asyar:search:response',
+            messageId,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       });
     }
@@ -312,7 +314,7 @@ export class ExtensionBridge {
    * Called from `ExtensionContext.setExtensionId`, so Tier 2 iframes get
    * this for free as long as they call `setExtensionId(id)` during boot.
    */
-  registerActiveContext(extensionId: string, context: ExtensionContext): void {
+  registerActiveContext(extensionId: string, context: ExtensionContextCore): void {
     this.activeContexts.set(extensionId, context);
     // If we've already received a preferences bundle for this extension
     // (e.g. boot reply arrived before the context was registered, or a
@@ -379,7 +381,10 @@ export class ExtensionBridge {
       // pulls in) off the worker entry's static import graph. Worker
       // extensions that never call initializeExtensions() do not load
       // this module at runtime — preserves the worker bundle-size budget.
-      const { ExtensionContext } = await import('./ExtensionContext');
+      const { ExtensionContext } =
+        typeof window === 'undefined'
+          ? await import('./worker')
+          : await import('./ExtensionContext');
       const context = new ExtensionContext();
       // `setExtensionId` self-registers the context with the bridge and
       // drains any stashed preferences bundle (either under `manifest.id`
@@ -387,7 +392,7 @@ export class ExtensionBridge {
       // or call `setPreferences` directly here — it already happened.
       context.setExtensionId(manifest.id);
       try {
-        await extension.initialize(context);
+        await extension.initialize(context as unknown as ExtensionContext);
       } catch (error) {
         console.error(`[asyar-sdk] Failed to initialize extension ${manifest.id}: ${error}`);
       }

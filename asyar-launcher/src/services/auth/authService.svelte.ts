@@ -1,8 +1,8 @@
-import { listen } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { logService } from '../log/logService';
 import * as commands from '../../lib/ipc/commands';
 import type { AuthUser } from '../../lib/ipc/commands';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 /** How long (seconds) cached entitlements are considered fresh without a network refresh. */
 const ENTITLEMENT_GRACE_PERIOD_SECONDS = 7 * 24 * 60 * 60; // 7 days
@@ -42,10 +42,28 @@ class AuthService {
    * Loads cached auth from Rust, registers cross-window event listeners,
    * then attempts a background entitlement refresh if logged in.
    */
+  private authListeners = new Set<(isLoggedIn: boolean) => void | Promise<void>>();
+
+  /** Subscribe to authentication state changes (login, logout, token refresh). */
+  onAuthChange(listener: (isLoggedIn: boolean) => void | Promise<void>): () => void {
+    this.authListeners.add(listener);
+    return () => this.authListeners.delete(listener);
+  }
+
+  private async notifyAuthChange(isLoggedIn: boolean): Promise<void> {
+    for (const listener of this.authListeners) {
+      try {
+        await listener(isLoggedIn);
+      } catch (err) {
+        logService.warn(`Auth: listener threw on auth change: ${err}`);
+      }
+    }
+  }
+
   async init(): Promise<void> {
     if (!this.authChangedUnlisten) {
       try {
-        this.authChangedUnlisten = await listen<commands.AuthStateResponse>(
+        this.authChangedUnlisten = await appListen<commands.AuthStateResponse>(
           'asyar:auth-changed',
           async (event) => {
             const payload = event.payload;
@@ -54,19 +72,9 @@ class AuthService {
               this.isLoggedIn = true;
               this.user = payload.user ?? null;
               this.entitlements = payload.entitlements ?? [];
-              try {
-                const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
-                await cloudSyncService.init();
-              } catch (err) {
-                logService.warn(`Auth: cloud sync init failed on auth change: ${err}`);
-              }
+              await this.notifyAuthChange(true);
             } else {
-              try {
-                const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
-                cloudSyncService.dispose();
-              } catch (err) {
-                logService.warn(`Auth: cloud sync dispose failed on auth change: ${err}`);
-              }
+              await this.notifyAuthChange(false);
               this.isLoggedIn = false;
               this.user = null;
               this.entitlements = [];
@@ -143,7 +151,7 @@ class AuthService {
       this.isLoading = false;
 
       // Listen for deep link: Rust emits "asyar:deep-link" with the full URL
-      this.deepLinkUnlisten = await listen<string>('asyar:deep-link', async (event) => {
+      this.deepLinkUnlisten = await appListen<string>('asyar:deep-link', async (event) => {
         const url = event.payload;
         if (!url.startsWith('asyar://auth/callback')) return;
 
@@ -199,9 +207,6 @@ class AuthService {
   async refreshEntitlements(): Promise<void> {
     if (!this.isLoggedIn) return;
     const fresh = await commands.authRefreshEntitlements();
-    if (fresh === null) {
-      throw new Error('Failed to refresh entitlements');
-    }
     this.entitlements = fresh;
   }
 
@@ -218,13 +223,7 @@ class AuthService {
       // before clearing auth state, so an in-flight syncNow() can't fire
       // again post-logout (the entitlement gate inside syncNow would reject
       // it, but that surfaces a misleading `lastError`).
-      // Dynamic import to avoid the cycle authService → cloudSyncService → gateService → authService
-      try {
-        const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
-        cloudSyncService.dispose();
-      } catch (err) {
-        logService.warn(`Auth: cloud sync dispose failed during logout: ${err}`);
-      }
+      await this.notifyAuthChange(false);
 
       this.isLoggedIn = false;
       this.user = null;
@@ -237,8 +236,8 @@ class AuthService {
   /** Poll backend until status = complete or expired. Used as fallback when deep link fires. */
   private _startFallbackPolling(sessionCode: string): void {
     this.pollTimer = setInterval(async () => {
-      const result = await commands.authPoll(sessionCode);
-      // null = transient poll failure (already diagnosed by invokeSafe) — try again next tick.
+      const result = await commands.authPoll(sessionCode).catch(() => null);
+      // A transient poll failure is already diagnosed centrally; retry next tick.
       if (result === null) return;
       if (result.status === 'complete' || result.status === 'expired') {
         this.cancelLoginPolling();
@@ -255,12 +254,12 @@ class AuthService {
   /** Complete login after deep link fires — do one final poll to get the full payload. */
   private async _completePoll(sessionCode: string): Promise<void> {
     // The deep link signals completion — do one direct poll for the payload
-    const result = await commands.authPoll(sessionCode);
+    const result = await commands.authPoll(sessionCode).catch(() => null);
     if (result === null || result.status !== 'complete') {
       // Try once more (network race)
       await new Promise((r) => setTimeout(r, 500));
       const retry = await commands.authPoll(sessionCode);
-      if (retry === null || retry.status !== 'complete') {
+      if (retry.status !== 'complete') {
         throw new Error('OAuth completed but session data not ready');
       }
       await this._applyPollResult(retry);
@@ -276,16 +275,7 @@ class AuthService {
     this.isLoggedIn = true;
     logService.info(`Auth: logged in as ${result.user?.email ?? 'unknown'}`);
 
-    // Start cloud sync for this fresh session — appInitializer only calls
-    // cloudSyncService.init() at startup, where it no-ops if the launcher
-    // came up signed-out. Mirror of the dispose() in logout(); same dynamic
-    // import to break the module cycle.
-    try {
-      const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
-      await cloudSyncService.init();
-    } catch (err) {
-      logService.warn(`Auth: cloud sync init failed after login: ${err}`);
-    }
+    await this.notifyAuthChange(true);
   }
 }
 

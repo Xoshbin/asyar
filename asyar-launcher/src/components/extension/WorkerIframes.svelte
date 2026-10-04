@@ -4,8 +4,14 @@
   import { computeBackgroundIframeSet } from './backgroundIframeSet';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
+  // Under the Separation of Headless Compute and Visual Canvas architecture,
+  // workers run off-main-thread in workerHost. Only fallback/legacy entries are rendered as iframes.
   let toMount = $derived(
-    computeBackgroundIframeSet(workerRegistry.entries, extensionManager.extensionRecords, null),
+    computeBackgroundIframeSet(
+      workerRegistry.fallbackEntries,
+      extensionManager.extensionRecords,
+      null,
+    ),
   );
 
   const isWindows =

@@ -24,14 +24,12 @@ export class NotificationService {
 
   async send(callerExtensionId: string | null, options: NotificationOptions): Promise<string> {
     const normalisedActions = options.actions?.map(normaliseAction);
-    const result = await commands.sendNotification({
+    return commands.sendNotification({
       title: options.title,
       body: options.body,
       actions: normalisedActions,
       callerExtensionId: callerExtensionId === 'asyar' ? null : callerExtensionId,
     });
-    if (result === null) throw new Error('send_notification failed');
-    return result;
   }
 
   async dismiss(callerExtensionId: string | null, notificationId: string): Promise<void> {

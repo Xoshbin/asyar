@@ -65,12 +65,26 @@ async function assertTextSendable(actionTitle: string): Promise<string | null> {
   return text;
 }
 
+/**
+ * Built-in features run in-process and receive the host clipboard service,
+ * whose capture methods take the caller id Rust tracks consumers by. The SDK
+ * interface models the iframe-proxy side, where `ExtensionIpcRouter` injects a
+ * host-authenticated caller id instead, so it declares no parameter.
+ */
+type HostClipboardService = Omit<
+  IClipboardHistoryService,
+  'subscribeCapture' | 'unsubscribeCapture'
+> & {
+  subscribeCapture(callerId: string): Promise<void>;
+  unsubscribeCapture(callerId: string): Promise<void>;
+};
+
 class ClipboardHistoryExtension implements Extension {
   onUnload: any;
 
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
-  private clipboardService?: IClipboardHistoryService;
+  private clipboardService?: HostClipboardService;
   private inView: boolean = false;
   private context?: ExtensionContext;
 
@@ -79,7 +93,7 @@ class ClipboardHistoryExtension implements Extension {
       this.context = context;
       this.logService = context.getService<ILogService>('log');
       this.extensionManager = context.getService<IExtensionManager>('extensions');
-      this.clipboardService = context.getService<IClipboardHistoryService>('clipboard');
+      this.clipboardService = context.getService<HostClipboardService>('clipboard');
 
       if (!this.logService || !this.extensionManager || !this.clipboardService) {
         logService.error('Failed to initialize required services for Clipboard History');

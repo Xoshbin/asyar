@@ -9,11 +9,17 @@
 // runtime snapshot (per `extensionId:role` key), and — added in later
 // steps — state values, subscriptions, event/RPC/IPC ring buffers.
 
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
-import extensionManager from '../extension/extensionManager.svelte';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
-import { bridgeListen } from '../../lib/ipc/bridgeEvents';
+
+type ManifestProvider = (extensionId: string) => { background?: { main?: string } } | undefined;
+let manifestProvider: ManifestProvider | null = null;
+
+export function setInspectorManifestProvider(provider: ManifestProvider): void {
+  manifestProvider = provider;
+}
+import { appListen } from '../../lib/ipc/bridgeEvents';
 import { getExtensionRuntimeSnapshot } from '../../lib/ipc/iframeLifecycleCommands';
 import {
   forceRemountWorker as forceRemountWorkerCommand,
@@ -201,7 +207,7 @@ class InspectorStore {
       void this.refreshSubscriptions(id);
     }, SUBS_POLL_MS);
 
-    const unsubMount = await bridgeListen<{
+    const unsubMount = await appListen<{
       extensionId: string;
       mountToken?: number;
       role?: ContextRoleWire;
@@ -214,7 +220,7 @@ class InspectorStore {
       });
     });
 
-    const unsubUnmount = await bridgeListen<{
+    const unsubUnmount = await appListen<{
       extensionId: string;
       role?: ContextRoleWire;
       reason?: string;
@@ -227,7 +233,7 @@ class InspectorStore {
       }
     });
 
-    const unsubDegraded = await bridgeListen<{
+    const unsubDegraded = await appListen<{
       extensionId: string;
       strikes?: number;
       role?: ContextRoleWire;
@@ -240,7 +246,7 @@ class InspectorStore {
       });
     });
 
-    const unsubStateChanged = await bridgeListen<{
+    const unsubStateChanged = await appListen<{
       extensionId: string;
       key: string;
       value: unknown;
@@ -253,19 +259,8 @@ class InspectorStore {
 
     this.#unlisteners.push(unsubMount, unsubUnmount, unsubDegraded, unsubStateChanged);
 
-    const BRIDGED_EVENTS = new Set([
-      'asyar:iframe:mount',
-      'asyar:iframe:unmount',
-      'asyar:iframe:degraded',
-      'asyar:state-changed',
-      'asyar:state-rpc-reply',
-      'asyar:system-event',
-      'asyar:app-event',
-    ]);
-
     for (const channel of TAPPED_EVENTS) {
-      const subscribe = BRIDGED_EVENTS.has(channel) ? bridgeListen<unknown> : listen<unknown>;
-      const un = await subscribe(channel, (event) => {
+      const un = await appListen<unknown>(channel, (event) => {
         this.recordEvent(channel, event.payload);
       });
       this.#unlisteners.push(un);
@@ -295,7 +290,7 @@ class InspectorStore {
 
   async refreshRuntimeSnapshot(): Promise<void> {
     if (!isDevActive()) return;
-    const rows = await getExtensionRuntimeSnapshot();
+    const rows = await getExtensionRuntimeSnapshot().catch(() => null);
     if (rows === null) {
       logService.debug('[dev-inspector] snapshot invoke failed');
       return;
@@ -320,8 +315,7 @@ class InspectorStore {
 
   async forceRemountWorker(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
-    const manifest = extensionManager.getManifestById(extensionId) as
-      { background?: { main?: string } } | undefined;
+    const manifest = manifestProvider?.(extensionId);
     const hasBackgroundMain = !!manifest?.background?.main;
     const ok = await forceRemountWorkerCommand(extensionId, hasBackgroundMain);
     if (!ok) logService.debug('[dev-inspector] force_remount_worker failed');
@@ -329,7 +323,7 @@ class InspectorStore {
 
   async refreshState(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
-    const rows = await stateGetAll(extensionId);
+    const rows = await stateGetAll(extensionId).catch(() => null);
     if (rows === null) {
       logService.debug('[dev-inspector] state_get_all failed');
       return;
@@ -346,7 +340,7 @@ class InspectorStore {
 
   async refreshSubscriptions(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
-    const rows = await stateGetSubscriptions(extensionId);
+    const rows = await stateGetSubscriptions(extensionId).catch(() => null);
     if (rows === null) {
       logService.debug('[dev-inspector] state_get_subscriptions failed');
       return;

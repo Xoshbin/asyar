@@ -42,6 +42,7 @@ function mockSettings(partial: Partial<AppSettings>): void {
       maxTokens: 2048,
       defaultAgentId: null,
       tabContinuesLastThread: false,
+      historyRetentionCap: 100,
     },
     fileSearch: { enabled: true, includeRoots: [], excludePatterns: [], indexHidden: false },
   };
@@ -127,7 +128,7 @@ describe('GateService (Centralized Policy Engine)', () => {
       mockSettings({ privacy: { crashReportMode: 'off', usageShareMode: 'off' } });
       expect(gate.allows('telemetry.usage-metrics')).toBe(false);
 
-      mockSettings({ privacy: { crashReportMode: 'off', usageShareMode: 'anonymous' } });
+      mockSettings({ privacy: { crashReportMode: 'off', usageShareMode: 'auto' } });
       expect(gate.allows('telemetry.usage-metrics')).toBe(true);
     });
   });

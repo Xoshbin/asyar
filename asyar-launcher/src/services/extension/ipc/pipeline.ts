@@ -1,5 +1,7 @@
+import { handleToolResponse } from '../extensionToolDispatch';
 import { logService } from '../../log/logService';
 import * as commands from '../../../lib/ipc/commands';
+import { IpcError } from '../../../lib/ipc/invokeSafe';
 import { feedbackService } from '../../feedback/feedbackService.svelte';
 import { extensionIframeManager } from '../extensionIframeManager.svelte';
 import { isExternallyConsumedExtensionResponse } from '../../../lib/ipc/extensionMessageProtocol';
@@ -13,6 +15,7 @@ const tap: IpcStage = {
   name: 'tap',
   async run(ctx, next) {
     extensionIframeManager.handleSearchResponse(ctx.event);
+    handleToolResponse(ctx.event);
     await next();
   },
 };
@@ -149,9 +152,11 @@ const replyEnvelope: IpcStage = {
     } catch (error) {
       const catchError = extractErrorMessage(error);
       logService.error(`[Main] IPC handling error for ${ctx.extensionId}: ${catchError}`);
-      ctx.replyError(catchError);
+      // Forward a typed `code` (e.g. SelectionError) so extensions can branch on it.
+      const thrownCode = (error as { code?: unknown } | null)?.code;
+      ctx.replyError(catchError, typeof thrownCode === 'string' ? thrownCode : undefined);
       // invokeSafe wrappers already reported their own diagnostic.
-      if (!(error instanceof HandledDispatchError)) {
+      if (!(error instanceof HandledDispatchError) && !(error instanceof IpcError)) {
         void feedbackService.report({
           source: 'extension',
           kind: classifyProxyError(ctx.type, catchError),

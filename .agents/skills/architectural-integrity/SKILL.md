@@ -28,9 +28,13 @@ All features might eventually be extended by third parties. Design every capabil
 Asyar already implements this with its **Two-Tier Extension Model**:
 
 - **Tier 1 (Built-in features)** run in the privileged host context at `src/built-in-features/*/`. They share the main JS execution context with full Tauri API access.
-- **Tier 2 (Installed extensions)** run in **two sandboxed `<iframe>` elements per extension** (worker + view) at the `asyar-extension://` custom protocol. They communicate exclusively via `postMessage` IPC. A misbehaving Tier 2 extension cannot crash the host. The worker is always-on (push subscriptions, schedules, timers, tray, RPC handlers); the view is on-demand UI. See [`docs/explanation/extension-runtime.md`](../../../docs/explanation/extension-runtime.md).
+- **Tier 2 (Installed extensions)** follow the **Separation of Headless Compute and Visual Canvas**:
+  - **Headless Worker (`role: 'worker'`)**: Executes in an **off-main-thread compute environment** (e.g. Web Worker / dedicated worker host) completely decoupled from the launcher window's DOM and main renderer thread. Always-on (push subscriptions, schedules, timers, tray, RPC handlers). Heavy compute or interval polling in background workers can never drop launcher UI frames, micro-stutter the search bar, or block input handling.
+  - **Visual View (`role: 'view'`)**: Executes in a **sandboxed visual `<iframe>`** at the `asyar-extension://` custom protocol, mounted on-demand strictly when the user navigates to an extension view and unmounted when dismissed.
+  - **Multi-Engine Horizon**: Web Workers off the main thread today $\rightarrow$ pluggable isolated native runtimes (QuickJS / Wasm component hosts with direct Rust IPC) for high-throughput extensions tomorrow.
+  - They communicate exclusively via typed IPC envelopes. A misbehaving Tier 2 extension cannot crash the host or degrade the UI event loop. See [`docs/explanation/extension-runtime.md`](../../../docs/explanation/extension-runtime.md).
 
-This was a hard-learned lesson. The early implementation tried `import()` to load Tier 2 extensions directly into the host window. It failed in three ways: duplicate MessageBroker singletons, `window.parent === window` breaking postMessage routing, and lost extensionId context. The iframe model solved all three by giving each extension a genuinely separate JS execution context. Phase 6 split the single iframe into worker + view to fix the silent-push-drop class of bugs that the dispatch-evicted single iframe caused.
+This was a hard-learned lesson. The early implementation tried `import()` to load Tier 2 extensions directly into the host window. It failed in three ways: duplicate MessageBroker singletons, `window.parent === window` breaking postMessage routing, and lost extensionId context. The initial iframe model solved all three by isolating execution, but hit the "Everything is an Iframe" ceiling when headless workers competed with the Svelte 5 main thread. The evolved architecture enforces a strict boundary: `<iframe>` is exclusively for visual canvases, while headless compute lives off-main-thread in dedicated worker environments.
 
 ### How to Apply This
 
@@ -171,7 +175,7 @@ VS Code's architecture has a strict process boundary: the renderer process (UI),
 
 Early extensible platforms tried passing DOM access or UI framework components directly to extensions. This tightly couples extensions to the host's internal framework and breaks constantly when the host upgrades.
 
-**Asyar's correct approach:** Tier 2 extensions get sandboxed iframes and communicate through `postMessage` IPC. They cannot touch the host's DOM or internal Svelte components. This is exactly how VS Code's Webview API works — extensions provide HTML content rendered in a sandboxed frame, but never access the host's Electron renderer DOM.
+**Asyar's correct approach:** Tier 2 extensions get sandboxed iframes for visual presentation (`role: 'view'`) and off-main-thread worker contexts for headless compute (`role: 'worker'`), communicating through typed IPC. They cannot touch the host's DOM or internal Svelte components. This is exactly how VS Code's Webview and Extension Host APIs work — extension views provide HTML content rendered in a sandboxed frame, while extension logic runs off the UI thread without accessing the host renderer DOM.
 
 **For data-driven UI (like lists and trees):** Use declarative data structures. The extension provides data (title, icon, description, actions); the host renders it in the standard UI. This is the pattern behind `ExtensionResult[]` returned from `search()` — the extension describes results, the host renders them in `ResultsList`.
 
@@ -270,23 +274,44 @@ Privacy and data security in Asyar are **fail-closed** by default. No private us
 
 ---
 
-## Principle 6: Built-in Feature Lifecycle & Service/UI Separation
+## Principle 6: First-Class Platform Primitives & Service Exposure
 
 ### The Pattern
 
-Built-in features in Asyar (Tier 1) are not monoliths. They consist of two distinct layers:
+Built-in features in Asyar (such as Calculator, Clipboard History, Snippets, Notes, Aliases, Window Management, and System) are first-class platform primitives, not pseudo-extensions. They do not incur dynamic manifest parsing or IPC closure-stripping side-tables (`inlineActions`). They consist of two distinct layers:
 
 1. **Platform Service Layer**: Rust engine, background SQLite store, system event watchers, and IPC service handlers registered in `buildServiceRegistry.ts`.
-2. **Bundled UI Layer**: Svelte views, command palette entries (`cmd_{extensionId}_{commandId}`), search bar interceptors/accessories, ⌘K actions, and deeplink routes.
+2. **Bundled UI Layer**: Svelte views, command palette entries, search bar interceptors/accessories, ⌘K actions, and deeplink routes.
 
 ### Invariants for Built-in Features
 
-- **Optional Built-ins are Disableable**: Every optional built-in feature declares `"lifecycle": { "disableable": true }` in its `manifest.json`.
-- **Core Infrastructure is Locked**: Only essential recovery infrastructure (`system` and `settings`) declares `"lifecycle": { "disableable": false }`. The Rust lifecycle strictly rejects any request to disable them, and Settings renders a locked toggle with an explanatory tooltip.
-- **Resilient Platform Services**: When an optional built-in is disabled, its UI contributions are unregistered idempotently and its views are closed. However, the underlying platform service **must keep running**. Disabling the bundled UI must never stop background watchers, drop SQLite tables, or revoke IPC access for permission-authorized Tier 2 extensions.
+- **Statically Compiled Primitives**: Built-ins are hardwired into the platform with zero runtime manifest parsing overhead or cold-boot disk crawling. Third-party extensions remain the sole consumers of dynamic manifests.
+- **Direct, Typed Search Contributions**: Built-in providers (e.g. Calculator) contribute directly to search results without closure stripping.
+- **Direct Reactive Settings Gate**: Disabling an optional built-in feature via Settings uses a direct reactive gate (`if (!settings.features[id].enabled)` or settings toggle), cleanly suppressing its UI commands, accessories, and search suggestions without unregistering, killing, or clearing the underlying platform service.
+- **Core Infrastructure is Locked**: Only essential recovery infrastructure (`system` and `settings`) is non-disableable.
+- **Resilient Platform Services**: Platform services (`files:search`, `screen:capture`, `calculator:evaluate`, `notes:read`) must remain registered in `ServiceRegistry` (`buildServiceRegistry`) so permission-authorized Tier 2 extensions can consume them uninterrupted regardless of whether the bundled UI is enabled or disabled.
 - **Ambient Search Interceptors vs Command/View Features**:
   - Destination features (Notes, Snippets, Runs, File Search) expose commands or views that Tier 2 extensions can replace 1:1.
   - Ambient search interceptors (Calculator) evaluate queries directly in the root search bar. Built-in interceptors have access to `priority: 'top'` (which is intentionally stripped for third-party extensions in `searchOrchestrator` to prevent search hijacking) and specialized hero cards (`CalcResultCard.svelte`). Disabling Calculator is primarily designed for users who want to disable inline math evaluation and keep the search bar clean; third-party extensions contribute calculation results via standard fuzzy ranking (`type: 'result'`).
+
+---
+
+## Principle 7: Strict Separation of Presentation Lifecycle and Daemon Compute
+
+### The Pattern
+
+A desktop launcher operates on two fundamentally divergent timescales:
+
+1. **The Ephemeral Window Presentation Lifecycle (Milliseconds)**:
+   - Triggered by hotkey (`Cmd+Space` / `Option+Space`).
+   - Must achieve sub-16ms first-frame render (60/120 FPS), instantaneous query typing, zero-IPC instant filtering, and sub-10ms dismissal (`hideWindow()`).
+2. **The Durable Extension Daemon Lifecycle (Minutes to Days)**:
+   - Background extensions manage long-lived states: WebSocket connections, filesystem watchers, background timers, clipboard history collectors, and sync engines.
+
+### Invariants
+
+- **Zero-Cost Reveal Invariant**: Revealing, typing in, and dismissing the launcher UI must never await or be blocked by extension daemon lifecycle events (mounting, syncing, network reconnection, command indexing). Hotkey invocation, window dismissal, and state reset touch only UI presentation concerns (query reset, navigation stack shrink, focus). Extension command indexing and worker restoration are non-blocking, deferred to idle periods (`runWhenIdle`), ensuring the launcher window is immediately interactive on cold boot.
+- **Independent Daemon Lifespan**: Background extensions are long-lived daemons managed by the runtime. Hiding or resetting the search window must never destroy, suspend, or corrupt background worker state. Workers, long-running background timers, WebSocket connections, and native background watchers continue executing reliably even when the launcher window remains hidden for hours.
 
 ---
 

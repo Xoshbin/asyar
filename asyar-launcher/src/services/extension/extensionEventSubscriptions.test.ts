@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Mock } from 'vitest';
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), custom: vi.fn() },
 }));
 
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(),
+vi.mock('../../lib/ipc/bridgeEvents', () => ({
+  appListen: vi.fn(),
 }));
 
 vi.mock('./extensionPreferencesService.svelte', () => ({
@@ -28,7 +30,7 @@ vi.mock('./extensionIframeManager.svelte', () => ({
   },
 }));
 
-import { listen } from '@tauri-apps/api/event';
+import { appListen as listen } from '../../lib/ipc/bridgeEvents';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { isBuiltInFeature } from './extensionDiscovery';
@@ -37,10 +39,10 @@ import { extensionIframeManager } from './extensionIframeManager.svelte';
 describe('ExtensionEventSubscriptions', () => {
   let subs: ExtensionEventSubscriptions;
   let deps: {
-    isExtensionEnabled: ReturnType<typeof vi.fn>;
-    executeCommand: ReturnType<typeof vi.fn>;
-    reloadExtensions: ReturnType<typeof vi.fn>;
-    getManifestById: ReturnType<typeof vi.fn>;
+    isExtensionEnabled: Mock<(id: string) => boolean>;
+    executeCommand: Mock<(objectId: string, args?: Record<string, unknown>) => Promise<unknown>>;
+    reloadExtensions: Mock<() => Promise<void>>;
+    getManifestById: Mock<(id: string) => ExtendedManifest | undefined>;
   };
 
   beforeEach(() => {
@@ -93,7 +95,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => void) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:scheduler:tick') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
 
       await subs.subscribe(deps);
@@ -110,7 +112,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => void) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:scheduler:tick') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
       deps.isExtensionEnabled.mockReturnValue(false);
 
@@ -124,7 +126,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => void) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:scheduler:tick') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
       deps.executeCommand.mockRejectedValueOnce(new Error('fail'));
 
@@ -140,7 +142,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => void) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:preferences-changed') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
       vi.mocked(isBuiltInFeature).mockReturnValue(true);
 
@@ -155,7 +157,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => void) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:preferences-changed') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
       vi.mocked(isBuiltInFeature).mockReturnValue(false);
 
@@ -174,7 +176,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => void) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:preferences-changed') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
 
       await subs.subscribe(deps);
@@ -187,7 +189,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => void) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:extension-enabled-changed') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
 
       await subs.subscribe(deps);
@@ -200,7 +202,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => Promise<void>) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:extension-enabled-changed') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
 
       let releaseFirstReload!: () => void;
@@ -227,7 +229,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => Promise<void>) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:extension-enabled-changed') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
       deps.reloadExtensions.mockRejectedValueOnce(new Error('boom'));
 
@@ -244,7 +246,7 @@ describe('ExtensionEventSubscriptions', () => {
       let capturedHandler: ((event: any) => void) | undefined;
       vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
         if (eventName === 'asyar:preferences-changed') capturedHandler = handler;
-        return vi.fn();
+        return vi.fn<() => void>();
       });
       deps.getManifestById.mockReturnValue(undefined);
 

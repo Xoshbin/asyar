@@ -16,7 +16,7 @@ import { systemEventsSubscribe, systemEventsUnsubscribe } from '../../lib/ipc/sy
  */
 export const systemEventsService = {
   async subscribe(extensionId: string | null, eventTypes: string[]): Promise<string> {
-    return (await systemEventsSubscribe(extensionId, eventTypes)) ?? '';
+    return systemEventsSubscribe(extensionId, eventTypes);
   },
 
   async unsubscribe(extensionId: string | null, subscriptionId: string): Promise<void> {

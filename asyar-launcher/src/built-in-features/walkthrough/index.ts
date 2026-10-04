@@ -1,10 +1,13 @@
+import {
+  registerBuiltinSearchProvider,
+  type BuiltinSearchRow,
+} from '../../services/search/builtinSearchProviders';
 import type {
   Extension,
   ExtensionContext,
   IExtensionManager,
   ILogService,
   ExtensionAction,
-  ExtensionResult,
 } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
 import { walkthroughService } from '../../services/walkthrough/walkthroughService.svelte';
@@ -48,7 +51,7 @@ class WalkthroughExtension implements Extension {
    * types, the ordinary `Walkthrough` command result covers it and a second
    * row would just be noise. Disappears for good at 100% or on dismiss.
    */
-  async search(query: string): Promise<ExtensionResult[]> {
+  async searchRows(query: string): Promise<BuiltinSearchRow[]> {
     if (query.trim() !== '') return [];
     if (!walkthroughService.shouldShowInRoot) return [];
 
@@ -58,12 +61,9 @@ class WalkthroughExtension implements Extension {
         score: 1.0,
         title: 'Beyond the basics',
         subtitle: `${completed} of ${total} tasks — learn what Asyar can really do`,
-        type: 'result',
+        id: 'walkthrough_progress',
         icon: 'icon:star',
         priority: 'top',
-        action: async () => {
-          await this.openWalkthrough();
-        },
       },
     ];
   }
@@ -73,7 +73,7 @@ class WalkthroughExtension implements Extension {
    * row records a launch like any other — which is what ticks the "start"
    * task off. Imported lazily to keep the module graph acyclic.
    */
-  private async openWalkthrough(): Promise<void> {
+  async openWalkthrough(): Promise<void> {
     try {
       const { extensionManager } = await import('../../services/extension/extensionManager.svelte');
       await extensionManager.handleCommandAction('cmd_walkthrough_show-walkthrough');
@@ -236,5 +236,11 @@ class WalkthroughExtension implements Extension {
   }
 }
 
-export default new WalkthroughExtension();
+const extension = new WalkthroughExtension();
+registerBuiltinSearchProvider({
+  extensionId: 'walkthrough',
+  search: (query) => extension.searchRows(query),
+  execute: () => extension.openWalkthrough(),
+});
+export default extension;
 export { DefaultView };

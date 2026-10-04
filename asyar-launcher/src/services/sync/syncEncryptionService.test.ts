@@ -80,7 +80,7 @@ describe('syncEncryptionService', () => {
     });
 
     it('emits e2ee_enrollment_failed on backend error and re-throws', async () => {
-      vi.mocked(cmd.syncE2eeEnrol).mockResolvedValueOnce(null);
+      vi.mocked(cmd.syncE2eeEnrol).mockRejectedValueOnce(new Error('enrol failed'));
       await expect(syncEncryptionService.enrol('correct horse battery staple')).rejects.toThrow();
       expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({

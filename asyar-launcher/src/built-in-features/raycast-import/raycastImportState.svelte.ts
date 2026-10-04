@@ -57,12 +57,6 @@ export class RaycastImportState {
     this.parsing = true;
     try {
       const outcome = await raycastImportParse(this.filePath, password);
-      if (!outcome) {
-        // invokeSafe already reported the diagnostic (unreadable/invalid file)
-        this.phase = 'pick';
-        this.bundle = null;
-        return;
-      }
       switch (outcome.status) {
         case 'ok':
           this.bundle = outcome.bundle;
@@ -77,6 +71,10 @@ export class RaycastImportState {
           this.passwordError = true;
           break;
       }
+    } catch {
+      // The transport already reported the diagnostic; keep the wizard usable.
+      this.phase = 'pick';
+      this.bundle = null;
     } finally {
       this.parsing = false;
     }

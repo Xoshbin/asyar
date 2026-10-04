@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PortalsSyncProvider } from '../../services/profile/providers/portalsSyncProvider';
 import type { SyncProviderData } from '../../services/profile/types';
 
-const mockLoad = vi.hoisted(() => vi.fn(async () => []));
+const mockLoad = vi.hoisted(() => vi.fn(async (): Promise<Portal[]> => []));
 const mockLoadSync = vi.hoisted(() => vi.fn(() => []));
 const mockSave = vi.hoisted(() => vi.fn(async () => {}));
 

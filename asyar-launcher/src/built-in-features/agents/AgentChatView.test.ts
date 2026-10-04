@@ -50,6 +50,8 @@ const agent = {
   silent: false,
   inputSource: 'argument' as const,
   outputAction: 'replaceSelection' as const,
+  cacheResponses: false,
+  shortcodeTrigger: ':',
   createdAt: 1,
   updatedAt: 1,
 };

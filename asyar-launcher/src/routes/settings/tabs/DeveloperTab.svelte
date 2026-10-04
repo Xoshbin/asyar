@@ -11,6 +11,8 @@
   import extensionManager from '../../../services/extension/extensionManager.svelte';
   import { getDevExtensionPaths } from '../../../lib/ipc/commands';
   import { forceRemountWorker } from '../../../lib/ipc/devCommands';
+  import { logService } from '../../../services/log/logService';
+  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { t } from '../../../services/i18n';
 
   let { handler }: { handler: SettingsHandler } = $props();

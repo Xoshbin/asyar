@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { type UnlistenFn } from '@tauri-apps/api/event';
   import {
     noteFind,
     noteUpdate,
@@ -11,6 +11,7 @@
   import { createWindowDragController } from '../../services/launcher/windowDragController';
   import '../../resources/styles/style.css';
   import { t } from '../../services/i18n';
+  import { appListen } from '../../lib/ipc/bridgeEvents';
 
   let noteId = $state<string | null>(null);
   let title = $state('');
@@ -68,7 +69,7 @@
 
     // Another window (launcher, AI tool, sync) changed this note — pick it up,
     // unless the user is actively typing here.
-    unlisten = await listen<{ id: string }>('notes:changed', (event) => {
+    unlisten = await appListen<{ id: string }>('notes:changed', (event) => {
       if (event.payload?.id !== noteId || isEditing) return;
       void load(noteId);
     });

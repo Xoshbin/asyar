@@ -10,12 +10,15 @@ vi.mock('../../lib/ipc/bridgeEvents', () => ({
 }));
 vi.mock('../../lib/ipc/iframeLifecycleCommands', () => ({
   iframeUnmountAck: vi.fn(),
+  iframeReadyAck: vi.fn(async () => []),
 }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 import { iframeUnmountAck } from '../../lib/ipc/iframeLifecycleCommands';
+import { BUILT_IN_FEATURE_IDS, builtInManifestContext } from './extensionDiscovery';
+import { workerHost } from './workerHost.svelte';
 import { workerRegistry } from './workerRegistry.svelte';
 
 describe('workerRegistry', () => {
@@ -88,5 +91,24 @@ describe('workerRegistry', () => {
       payload: { extensionId: 'ext.b', mountToken: 3, role: 'view' },
     });
     expect(workerRegistry.entries).toHaveLength(0);
+  });
+});
+
+describe('built-in worker boundary', () => {
+  it('never mounts built-in features, even when a worker event requests one', async () => {
+    await workerRegistry.reset();
+    const mount = vi.spyOn(workerHost, 'mount');
+    for (const extensionId of BUILT_IN_FEATURE_IDS) {
+      workerRegistry.handleMount({ extensionId, mountToken: 1, role: 'worker' });
+    }
+    expect(mount).not.toHaveBeenCalled();
+    expect(workerRegistry.entries).toEqual([]);
+    mount.mockRestore();
+  });
+
+  it('built-in manifests never advertise worker bundles', () => {
+    for (const [path, manifest] of Object.entries(builtInManifestContext)) {
+      expect(manifest.background?.main, path).toBeUndefined();
+    }
   });
 });

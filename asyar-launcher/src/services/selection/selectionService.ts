@@ -41,6 +41,8 @@ export class SelectionService implements ISelectionService {
       code = 'ACCESSIBILITY_PERMISSION_REQUIRED';
     } else if (errorString.includes('ACCESSIBILITY_UNAVAILABLE')) {
       code = 'ACCESSIBILITY_UNAVAILABLE';
+    } else if (errorString.includes('LAUNCHER_FOCUSED')) {
+      code = 'LAUNCHER_FOCUSED';
     } else if (errorString.includes('CLIPBOARD_RESTORE_FAILED')) {
       code = 'CLIPBOARD_RESTORE_FAILED';
     } else if (errorString.includes('OPERATION_FAILED')) {

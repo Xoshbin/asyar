@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::storage::{file_search_pinned, file_search_selections, DataStore};
 
@@ -120,7 +120,7 @@ fn spawn_rebuild(app: AppHandle, state: Arc<FileIndexState>) {
             handle.rearm(roots, exclusions, state.clone(), on_rescan);
         }
 
-        let _ = app.emit("asyar:file-index-status", state.status());
+        crate::event_bridge::bridge_emit(&app, "asyar:file-index-status", state.status());
     });
 }
 
@@ -133,7 +133,7 @@ fn spawn_rescan(app: AppHandle, state: Arc<FileIndexState>) {
             return;
         }
         run_scan_and_snapshot(&app, &state).await;
-        let _ = app.emit("asyar:file-index-status", state.status());
+        crate::event_bridge::bridge_emit(&app, "asyar:file-index-status", state.status());
     });
 }
 
@@ -157,7 +157,7 @@ pub(crate) fn make_on_rescan(
             return;
         }
         state.mark_rescanning();
-        let _ = app.emit("asyar:file-index-status", state.status());
+        crate::event_bridge::bridge_emit(&app, "asyar:file-index-status", state.status());
         spawn_rescan(app.clone(), state.clone());
     }
 }
@@ -168,7 +168,7 @@ pub async fn file_index_rebuild(
     state: State<'_, Arc<FileIndexState>>,
 ) -> Result<(), String> {
     state.mark_rescanning();
-    let _ = app.emit("asyar:file-index-status", state.status());
+    crate::event_bridge::bridge_emit(&app, "asyar:file-index-status", state.status());
     spawn_rebuild(app, state.inner().clone());
     Ok(())
 }
@@ -191,7 +191,7 @@ pub async fn file_index_set_config(
 
     if config.enabled && (roots_changed || !was_enabled) {
         state.mark_rescanning();
-        let _ = app.emit("asyar:file-index-status", state.status());
+        crate::event_bridge::bridge_emit(&app, "asyar:file-index-status", state.status());
         spawn_rebuild(app, state.inner().clone());
     } else if !config.enabled {
         if let Some(handle) = app.try_state::<Arc<FileIndexWatcherHandle>>() {

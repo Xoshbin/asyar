@@ -44,7 +44,7 @@ vi.mock('@tauri-apps/plugin-os', () => ({
 }));
 
 // Import AFTER mocks so module-level HOST_PLATFORM resolves to 'windows'.
-import { ActionService } from './actionService.svelte';
+import { ActionService, setSelectedItemProvider } from './actionService.svelte';
 
 function makeLnkResult(overrides: Partial<{ path: string; name: string }> = {}) {
   return {
@@ -69,6 +69,10 @@ describe('uninstall_application on Windows', () => {
       );
     mockFeedbackService.showHUD.mockReset().mockResolvedValue(undefined);
     mockFeedbackService.confirmAlert.mockReset().mockResolvedValue(true);
+    setSelectedItemProvider(() => {
+      const idx = mockSearchStores.selectedIndex;
+      return idx >= 0 ? mockSearchOrchestrator.items[idx] : undefined;
+    });
   });
 
   it('is registered as a built-in action in CORE context', () => {

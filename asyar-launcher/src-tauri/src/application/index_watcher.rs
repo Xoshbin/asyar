@@ -526,7 +526,8 @@ mod tests {
     fn on_debounced_batch_does_not_panic_under_arc_managed_state() {
         use tauri::Manager;
         let app = tauri::test::mock_app();
-        let state = crate::search_engine::initialize_search_state(app.handle())
+        let data_store = std::sync::Arc::new(crate::storage::create_test_store());
+        let state = crate::search_engine::initialize_search_state(app.handle(), data_store)
             .expect("initialize_search_state must succeed under mock_app");
         app.manage(std::sync::Arc::new(state));
 

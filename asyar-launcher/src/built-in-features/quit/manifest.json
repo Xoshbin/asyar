@@ -3,7 +3,9 @@
   "name": "Asyar",
   "icon": "icon:power",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "description": "Quit the Asyar application",
   "type": "extension",
   "searchable": true,
@@ -15,8 +17,5 @@
       "description": "Quit the Asyar application",
       "mode": "background"
     }
-  ],
-  "background": {
-    "main": "dist/worker.js"
-  }
+  ]
 }

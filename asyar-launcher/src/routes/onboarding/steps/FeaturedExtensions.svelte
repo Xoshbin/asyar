@@ -5,12 +5,12 @@
   import type { ApiExtension } from '../../../built-in-features/store/state.svelte';
   import storeExtension from '../../../built-in-features/store/index.svelte';
   import { platform } from '@tauri-apps/plugin-os';
-  import { listen } from '@tauri-apps/api/event';
   import { onboardingNav } from '../onboardingNav.svelte';
   import { t } from '../../../services/i18n';
   import { listInstalledExtensions } from '../../../lib/ipc/commands';
   import { EMOJI_ID } from './emojiSetup';
   import { isExtensionInstalled, isEmojiInstalled } from '../../../lib/installedExtensions';
+  import { appListen } from '../../../lib/ipc/bridgeEvents';
 
   let extensions = $state<ApiExtension[]>([]);
   let selected = $state<Set<number | string>>(new Set());
@@ -109,7 +109,7 @@
     window.addEventListener('store-extension-updated', handleUpdate);
 
     try {
-      void listen('extensions_updated', handleUpdate).then((fn) => {
+      void appListen('extensions_updated', handleUpdate).then((fn) => {
         unlisten = fn;
       });
     } catch {

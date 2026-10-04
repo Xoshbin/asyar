@@ -1,3 +1,4 @@
+import { pickExtensionIframe } from './extensionIframeSelector';
 import { logService } from '../log/logService';
 import {
   dispatchToExtension,
@@ -8,7 +9,15 @@ import {
 import { post } from './extensionDelivery';
 import { extensionPendingState } from './extensionPendingState.svelte';
 import { extensionDegradedState } from './extensionDegradedState.svelte';
-import { extensionManager } from './extensionManager.svelte';
+
+import { workerHost } from './workerHost.svelte';
+
+type ExtensionNameResolver = (extensionId: string) => string | undefined;
+let extensionNameResolver: ExtensionNameResolver | null = null;
+
+export function registerExtensionNameResolver(resolver: ExtensionNameResolver): void {
+  extensionNameResolver = resolver;
+}
 
 export interface DispatchRequest {
   extensionId: string;
@@ -36,17 +45,16 @@ export async function dispatch(req: DispatchRequest): Promise<void> {
   );
   const role: 'view' | 'worker' = req.commandMode === 'background' ? 'worker' : 'view';
   const outcome = await dispatchToExtension(req.extensionId, message, role);
-  if (outcome === null) {
-    logService.error(`[dispatcher] ${req.extensionId}/${req.kind} (${req.source}) dispatch failed`);
-    return;
-  }
   logService.debug(`[dispatcher] ← ${req.extensionId} outcome=${outcome.kind}`);
 
   switch (outcome.kind) {
     case 'readyDeliverNow': {
-      const iframe = document.querySelector(
-        `iframe[data-extension-id="${req.extensionId}"][data-role="${role}"]`,
-      ) as HTMLIFrameElement | null;
+      if (role === 'worker' && workerHost.hasWorker(req.extensionId)) {
+        for (const m of outcome.messages) workerHost.deliver(req.extensionId, m);
+        extensionPendingState.markReady(req.extensionId);
+        return;
+      }
+      const iframe = pickExtensionIframe(req.extensionId, role, { fallback: false });
       if (!iframe) {
         logService.warn(
           `[dispatcher] ReadyDeliverNow but iframe DOM node missing for ${req.extensionId}`,
@@ -66,12 +74,8 @@ export async function dispatch(req: DispatchRequest): Promise<void> {
         `[dispatcher] extension ${req.extensionId} is degraded (${outcome.strikes} strikes); dropping ${req.source}`,
       );
       if (USER_FACING.has(req.source)) {
-        const manifest = extensionManager.getManifestById?.(req.extensionId);
-        extensionDegradedState.noticeForUser(
-          req.extensionId,
-          (manifest as { name?: string } | undefined)?.name ?? req.extensionId,
-          outcome.strikes,
-        );
+        const name = extensionNameResolver?.(req.extensionId) ?? req.extensionId;
+        extensionDegradedState.noticeForUser(req.extensionId, name, outcome.strikes);
       }
       return;
   }

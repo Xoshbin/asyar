@@ -26,9 +26,6 @@ async function collectAllItems(): Promise<StoredClipboardItem[]> {
   let cursor: ClipboardCursor | undefined;
   do {
     const page = await clipboardExportForSync(cursor, SYNC_PAGE_SIZE);
-    if (page === null) {
-      throw new Error('clipboard_export_for_sync failed');
-    }
     all.push(...page.items);
     cursor = page.nextCursor;
     if (cursor) {
@@ -89,9 +86,6 @@ export class ClipboardSyncProvider implements ISyncProvider {
 
   async preview(incoming: SyncProviderData): Promise<ImportPreview> {
     const summary = await clipboardCount();
-    if (summary === null) {
-      throw new Error('clipboard_count failed');
-    }
     const localCount = summary.total;
     const incomingItems = incoming.data as ClipboardHistoryItem[];
     const incomingIds = new Set(incomingItems.map((i) => i.id));
@@ -146,9 +140,6 @@ export class ClipboardSyncProvider implements ISyncProvider {
 
   async getLocalSummary(): Promise<DataSummary> {
     const c = await clipboardCount();
-    if (c === null) {
-      throw new Error('clipboard_count failed');
-    }
     return { itemCount: c.total, label: `${c.total} clipboard item(s)` };
   }
 

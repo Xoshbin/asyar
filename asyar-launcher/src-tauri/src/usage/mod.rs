@@ -32,7 +32,7 @@ pub fn init_schema(conn: &rusqlite::Connection) -> Result<(), UsageError> {
     conn.execute_batch(
         "PRAGMA journal_mode=WAL;
          CREATE TABLE IF NOT EXISTS usage_events (
-            event_type TEXT NOT NULL,        -- 'launch' | 'heartbeat'
+            event_type TEXT NOT NULL,        -- 'launch' | 'heartbeat' | 'worker_fallback' (local-only)
             target     TEXT NOT NULL,        -- item id, '' for heartbeat
             day        TEXT NOT NULL,        -- 'YYYY-MM-DD' local date
             count      INTEGER NOT NULL DEFAULT 0,
@@ -90,6 +90,21 @@ impl UsageState {
         conn.execute(
             "INSERT INTO usage_events (event_type, target, day, count, sent)
              VALUES ('launch', ?1, ?2, 1, 0)
+             ON CONFLICT(event_type, target, day)
+             DO UPDATE SET count = count + 1",
+            rusqlite::params![target, day],
+        )
+        .map_err(|e| UsageError::Db(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Local-only compatibility measurement. The usage API has no fallback field.
+    /// Mark excluded rows sent so they never schedule a network ping themselves.
+    pub fn record_worker_fallback(&self, target: &str, day: &str) -> Result<(), UsageError> {
+        let conn = self.db.lock().map_err(|_| UsageError::Lock)?;
+        conn.execute(
+            "INSERT INTO usage_events (event_type, target, day, count, sent)
+             VALUES ('worker_fallback', ?1, ?2, 1, 1)
              ON CONFLICT(event_type, target, day)
              DO UPDATE SET count = count + 1",
             rusqlite::params![target, day],
@@ -319,6 +334,33 @@ mod tests {
         UsageState {
             db: std::sync::Mutex::new(conn),
         }
+    }
+
+    #[test]
+    fn worker_fallback_is_daily_local_only_and_not_a_launch() {
+        let state = mem_state();
+        state
+            .record_worker_fallback("org.test", "2026-10-04")
+            .unwrap();
+        state
+            .record_worker_fallback("org.test", "2026-10-04")
+            .unwrap();
+        state
+            .record_worker_fallback("org.test", "2026-10-05")
+            .unwrap();
+        let conn = state.db.lock().unwrap();
+        let (count, sent): (i64, i64) = conn.query_row(
+            "SELECT count, sent FROM usage_events WHERE event_type='worker_fallback' AND target='org.test' AND day='2026-10-04'", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        assert_eq!((count, sent), (2, 1));
+        drop(conn);
+        assert_eq!(state.stats().unwrap().total_launches, 0);
+        assert!(state.all_launches().unwrap().is_empty());
+        let payload = sender::build_payload(&state, "2026-10-04", "0.1.1", "test").unwrap();
+        assert!(payload.launches.is_empty());
+        assert_eq!(
+            sender::earliest_unsent_day_before(&state, "2026-10-06").unwrap(),
+            None
+        );
     }
 
     #[test]

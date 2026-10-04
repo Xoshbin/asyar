@@ -2,29 +2,52 @@
 order: 4
 ---
 
-# Extension Runtime — How Worker and View Iframes Are Mounted, Driven, and Talked Between
+# Extension Runtime — How Worker and View Contexts Are Mounted, Driven, and Talked Between
 
 This page documents the **`extension_runtime`** Rust module
 ([`asyar-launcher/src-tauri/src/extensions/extension_runtime/`](../../asyar-launcher/src-tauri/src/extensions/extension_runtime/))
-and the launcher-side machinery that drives the two iframes Asyar
-materialises for every Tier 2 extension. Read [the IPC bridge](./ipc-bridge.md)
+and the launcher-side machinery that drives the two execution contexts Asyar
+materialises for every Tier 2 extension: a headless Web Worker and an on-demand
+view iframe. Read [the IPC bridge](./ipc-bridge.md)
 first if you haven't — this doc assumes you know how individual service
 calls travel.
 
 ## Two contexts per extension
 
-Every enabled Tier 2 extension is mounted as **two independent iframes**:
+Every enabled Tier 2 extension is mounted as **two independent contexts**, and
+they are different kinds of thing:
 
-| Role       | HTML          | Lifecycle                                                                                      | Hosts                                                                                                                              |
-| ---------- | ------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Worker** | `worker.html` | Always-on (mounted when the extension is enabled, unmounted only on disable / uninstall)       | Push subscriptions, scheduled ticks, `timers:*`, tray writes (`statusBar`), notification-action handlers, RPC handlers, `search()` |
-| **View**   | `view.html`   | On-demand (mounted when a `mode: "view"` command opens, evicted ~120 s after last interaction) | UI only — Svelte components, DOM helpers, theme injection, view-search input                                                       |
+| Role       | Entry                                     | Execution context                                         | Lifecycle                                                                                      | Hosts                                                                                                                              |
+| ---------- | ----------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Worker** | `background.main` (e.g. `dist/worker.js`) | **Web Worker** — off the main thread, no DOM, no `window` | Always-on (mounted when the extension is enabled, unmounted only on disable / uninstall)       | Push subscriptions, scheduled ticks, `timers:*`, tray writes (`statusBar`), notification-action handlers, RPC handlers, `search()` |
+| **View**   | `view.html`                               | **Sandboxed `<iframe>`** — a real document                | On-demand (mounted when a `mode: "view"` command opens, evicted ~120 s after last interaction) | UI only — Svelte components, DOM helpers, theme injection, view-search input                                                       |
 
-Both iframes are sandboxed at the same origin
-(`asyar-extension://<id>/` on macOS/Linux, `http://asyar-extension.localhost/<id>/`
-on Windows) but they are otherwise independent JS contexts: their own
-`MessageBroker`, their own `ExtensionContext`, their own listeners. The two
-roles never share JS state. They cooperate through the launcher.
+The split is deliberate: the worker is headless compute and must never contend
+with the launcher's search input or animations, so it runs in a dedicated Web
+Worker; iframes are reserved for visual canvases (see the architecture rules in
+[`.agents/rules/05-architecture.md`](../../.agents/rules/05-architecture.md)).
+
+**How the worker starts.** The launcher creates a module `Worker` from a small
+Blob bootstrap that sets `self.__ASYAR_ROLE__ = 'worker'`, the extension id and
+the mount token, then `import()`s the extension's `background.main` module from
+`asyar-extension://<id>/` (`http://asyar-extension.localhost/<id>/` on Windows).
+See [`workerHost.svelte.ts`](../../asyar-launcher/src/services/extension/workerHost.svelte.ts).
+Because there is no `document` in that context, the worker's whole module graph
+must evaluate without it — which is why extension builds must set
+`modulePreload: false` (see [Extension build config](../how-to/extension-build-config.md)).
+
+**Compatibility fallback (until 0.2.0).** If the Web Worker fails to start
+before its `asyar:extension:loaded` ready-ack — typically a published bundle
+built from `worker.html` with Vite's DOM-dependent modulepreload polyfill — the
+host falls back to mounting `worker.html` in a hidden iframe and logs a warning.
+So a worker **may legitimately be an iframe** for such bundles. Host → worker
+delivery therefore goes through `postToExtension`, which prefers a mounted Web
+Worker and only then looks for a worker iframe. The fallback is marked
+`remove in 0.2.0` in the source; do not write new code that depends on it.
+
+The two contexts are otherwise independent JS contexts: their own
+`MessageBroker`, their own `ExtensionContext`, their own listeners. They never
+share JS state. They cooperate through the launcher.
 
 ## Lifecycle state machine
 
@@ -44,7 +67,7 @@ digraph extension_runtime {
   Mounting -> Ready    [label="ready_ack(token)\ndrain mailbox"];
   Mounting -> Degraded [label="mount_timeout (3 s)\nstrike++"];
   Ready    -> Dormant  [label="idle keep_alive elapsed\n(view: 120 s; worker: never)"];
-  Ready    -> Mounting [label="iframe crash / unmount_ack"];
+  Ready    -> Mounting [label="context crash / unmount_ack"];
   Degraded -> Mounting [label="strike_window resets\n+ next dispatch"];
   Degraded -> Dormant  [label="degraded_cooldown (1 h)"];
 }
@@ -52,15 +75,15 @@ digraph extension_runtime {
 
 State alphabet:
 
-- **`Dormant`** — no iframe in the DOM. The default state. Dispatching to
+- **`Dormant`** — nothing mounted (no Web Worker running, no iframe in the DOM). The default state. Dispatching to
   a Dormant context returns `NeedsMount { mount_token }`; the launcher
   emits a `EVENT_MOUNT` event with that token, and the dispatcher enqueues
   the message in the per-context mailbox.
-- **`Mounting { since, mount_token }`** — the iframe element exists and
-  its `src` is loading. The mailbox is accumulating messages. After
+- **`Mounting { since, mount_token }`** — the context exists and its entry
+  (the worker module, or the view iframe's `src`) is loading. The mailbox is accumulating messages. After
   `mount_timeout` (default 3 s) without a `ready_ack`, the launcher fires
   `on_mount_timeout` which raises a strike and may transition to Degraded.
-- **`Ready { last_activity, mount_token }`** — the iframe has posted
+- **`Ready { last_activity, mount_token }`** — the context has posted
   `asyar:extension:loaded` carrying its `mount_token`, the host called
   `on_ready_ack(...)`, and the launcher inline-delivered every message
   that had accumulated in the mailbox during Mounting.
@@ -98,16 +121,16 @@ pub enum DispatchOutcome {
 ```
 
 **Mount tokens** are monotonically increasing 64-bit ids the launcher
-generates per mount attempt. The token is sent to the iframe via the
-mount event, the iframe echoes it back in `asyar:extension:loaded`, and the
+generates per mount attempt. The token is sent to the context via the
+mount event, the context echoes it back in `asyar:extension:loaded`, and the
 launcher's `on_ready_ack(extension_id, mount_token, role, now)` only
 drains the mailbox if the token matches the current `Mounting` state. Tokens
-solve a TOCTOU class of bugs: an iframe that crashes mid-mount and its
+solve a TOCTOU class of bugs: a context that crashes mid-mount and its
 late `loaded` event cannot promote a _new_ mount attempt to Ready.
 
 When `on_ready_ack` runs successfully, the state machine transitions to
 `Ready` and returns `Vec<PendingMessage>` to the launcher, which inline-delivers
-each message to the iframe via `asyar:action:execute` /
+each message to the context via `asyar:action:execute` /
 `asyar:invoke:command` envelopes. This is the **ready-ack drain**.
 
 ## Mount / unmount events
@@ -115,20 +138,21 @@ each message to the iframe via `asyar:action:execute` /
 The launcher's frontend listens for two Rust-side events that drive the
 state machines:
 
-- **`extension_runtime:mount`** — payload `{ extensionId, role, mountToken }`. The
-  frontend's iframe registry materialises a new `<iframe data-extension-id="..." data-role="...">`,
-  appended to the `WorkerIframes` host (for `role: 'worker'`) or to the
-  view container.
-- **`extension_runtime:unmount`** — payload `{ extensionId, role }`. The
-  frontend removes the iframe from the DOM and posts an `unmount_ack` so
-  the state machine resets to Dormant cleanly.
+- **`asyar:iframe:mount`** — payload `{ extensionId, role, mountToken }`. (The
+  event name predates the Web Worker move and kept its `iframe` prefix.) For
+  `role: 'worker'`, `workerRegistry` calls `workerHost.mount(...)`, which spawns
+  the Web Worker; a view mount materialises a
+  `<iframe data-extension-id="..." data-role="view">` in the view container.
+- **`asyar:iframe:unmount`** — payload `{ extensionId, role }`. The frontend
+  terminates the Web Worker (or removes the iframe from the DOM) and posts an
+  `unmount_ack` so the state machine resets to Dormant cleanly.
 
-The `WorkerIframes` host is registry-driven: it iterates over the set of
-extensions that need a worker mount and renders one hidden iframe per
-entry. Unmounts are a DOM-level removal — there is no graceful destroy
-hook in the iframe itself; teardown rules out anything that needs an
-ordered shutdown (in practice, that is everything timer-related, which is
-why `timers:*` is launcher-persisted, not iframe-persisted).
+Workers are tracked by `workerRegistry` / `workerHost`, not by the DOM. Only the
+compatibility-fallback worker iframes are rendered by the `WorkerIframes` host,
+one hidden iframe per fallback entry. Unmounting is an abrupt `terminate()` or
+DOM removal — there is no graceful destroy hook; teardown rules out anything
+that needs an ordered shutdown (in practice, that is everything timer-related,
+which is why `timers:*` is launcher-persisted, not context-persisted).
 
 ## State broker — `state:*` namespace
 
@@ -142,7 +166,7 @@ the state broker is the launcher's view↔worker shared bus.
   own permissions are loose. The proxy lives in
   [`asyar-sdk/src/services/ExtensionStateProxy.ts`](../../asyar-sdk/src/services/ExtensionStateProxy.ts).
 - **Push fan-out via subscriptions.** When a write hits the broker, the
-  launcher fans the new value out to **every iframe of that extension that
+  launcher fans the new value out to **every context of that extension that
   has a live subscription**. The view subscribes from a Svelte component
   (`$effect` watching `state.subscribe('phase', handler)`) and stays
   subscribed for the iframe's lifetime; the worker can also subscribe if
@@ -274,7 +298,7 @@ hit Escape), it must live in the worker. The view iframe is gone within
 ## See also
 
 - [IPC bridge](./ipc-bridge.md) — the per-message protocol, permission
-  gate, role-aware iframe selection.
+  gate, role-aware message delivery.
 - [Extension type reference](../reference/extension-types/extension.md) —
   the manifest fields that drive which contexts an extension materialises.
 - [Background scheduling](../reference/background-scheduling.md) — how

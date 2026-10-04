@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { readManifest, lintManifest } from '../lib/manifest';
+import { toPackagedPath } from '../lib/zip';
 
 export function registerBuild(program: Command) {
   program
@@ -78,13 +79,21 @@ export function verifyBuildOutput(
   const distDir = path.join(cwd, 'dist');
 
   // Dual-entry layout (Tier 2 worker/view split): dist/view.html is the
-  // user-facing iframe; dist/worker.html is additionally required when
+  // user-facing iframe; the declared JavaScript module is required when
   // the manifest declares background.main (always-on headless worker).
   // Worker-only extensions (background.main with no mode:"view" commands)
   // legitimately build no view.html, so view.html is only required when a
   // view command is declared — or when no manifest is available to tell.
   const hasView = fs.existsSync(path.join(distDir, 'view.html'));
-  const hasWorker = fs.existsSync(path.join(distDir, 'worker.html'));
+  const workerEntry = manifest?.background?.main;
+  const packagedWorkerEntry = workerEntry ? toPackagedPath(workerEntry) : null;
+  const resolvedWorkerEntry = packagedWorkerEntry
+    ? path.resolve(distDir, packagedWorkerEntry)
+    : null;
+  const hasWorker =
+    !!resolvedWorkerEntry &&
+    resolvedWorkerEntry.startsWith(path.resolve(distDir) + path.sep) &&
+    fs.existsSync(resolvedWorkerEntry);
   const requiresWorker = !!manifest?.background?.main;
   const requiresView = manifest?.commands ? manifest.commands.some((c) => c.mode === 'view') : true;
 
@@ -94,14 +103,14 @@ export function verifyBuildOutput(
 
   const hasDualEntry =
     (hasView || hasWorker) && (!requiresView || hasView) && (!requiresWorker || hasWorker);
-  const hasLegacy = hasWebApp || hasLibrary;
+  const hasLegacy = !requiresWorker && (hasWebApp || hasLibrary);
 
   if (!hasDualEntry && !hasLegacy) {
     if (requiresWorker && !hasWorker) {
       console.log(
         chalk.red(
-          '✗ Build output incomplete: manifest declares background.main but dist/worker.html is missing. ' +
-            'Ensure vite.config.ts rollupOptions.input includes worker.html.',
+          '✗ Build output incomplete: manifest declares background.main but its JavaScript module is missing. ' +
+            'Ensure the declared module is emitted by your build.',
         ),
       );
     } else {
@@ -118,7 +127,7 @@ export function verifyBuildOutput(
   console.log('\nOutput:');
   if (hasDualEntry) {
     printFileSize(cwd, path.join(distDir, 'view.html'));
-    if (hasWorker) printFileSize(cwd, path.join(distDir, 'worker.html'));
+    if (hasWorker) printFileSize(cwd, resolvedWorkerEntry!);
     for (const file of fs.readdirSync(distDir)) {
       if (file === 'view.html' || file === 'worker.html') continue;
       const full = path.join(distDir, file);

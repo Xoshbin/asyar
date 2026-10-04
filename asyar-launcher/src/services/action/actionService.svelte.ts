@@ -4,9 +4,16 @@ import type { ExtensionAction, IActionService } from 'asyar-sdk/contracts';
 import { ActionContext } from 'asyar-sdk/contracts';
 import * as commands from '../../lib/ipc/commands';
 import { searchService } from '../search/SearchService';
-import { searchOrchestrator } from '../search/searchOrchestrator.svelte';
+import type { SearchResult } from '../search/interfaces/SearchResult';
 import { searchStores } from '../search/stores/search.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
+
+type SelectedItemProvider = () => SearchResult | undefined;
+let globalSelectedItemProvider: SelectedItemProvider = () => undefined;
+
+export function setSelectedItemProvider(provider: SelectedItemProvider): void {
+  globalSelectedItemProvider = provider;
+}
 import { commandService } from '../extension/commandService.svelte';
 import { applicationService } from '../application/applicationService';
 import type { UninstallScanResult } from '../application/applicationService';
@@ -121,6 +128,19 @@ export class ActionService implements IActionService {
     ) => void,
   ): void {
     this.sendToExtension = fn;
+  }
+
+  private instanceSelectedItemProvider: SelectedItemProvider | null = null;
+
+  setSelectedItemProvider(provider: SelectedItemProvider): void {
+    this.instanceSelectedItemProvider = provider;
+  }
+
+  getSelectedSearchItem(): SearchResult | undefined {
+    if (this.instanceSelectedItemProvider) {
+      return this.instanceSelectedItemProvider();
+    }
+    return globalSelectedItemProvider();
   }
 
   /**
@@ -473,9 +493,7 @@ export class ActionService implements IActionService {
       destructive: true,
       visible: () => {
         if (!UNINSTALL_SUPPORTED) return false;
-        const idx = searchStores.selectedIndex;
-        if (idx < 0) return false;
-        const item = searchOrchestrator.items[idx];
+        const item = this.getSelectedSearchItem();
         if (!item || item.type !== 'application') return false;
         if (!item.path) return false;
         // macOS-only: hard block system-protected apps from even showing the
@@ -487,9 +505,7 @@ export class ActionService implements IActionService {
         return true;
       },
       execute: async () => {
-        const idx = searchStores.selectedIndex;
-        if (idx < 0) return;
-        const item = searchOrchestrator.items[idx];
+        const item = this.getSelectedSearchItem();
         if (!item || item.type !== 'application' || !item.path) return;
 
         const appName = item.name;
@@ -504,15 +520,15 @@ export class ActionService implements IActionService {
         let confirmMessage: string;
 
         if (IS_MACOS) {
-          const scan = await applicationService.scanUninstallTargets(appPath);
-          if (scan === null) {
-            logService.warn(
-              `Uninstall scan failed for '${appPath}'. Falling back to app-only confirm.`,
-            );
-            confirmMessage = `This will move ${appName} to the Trash. You can restore it from there later.`;
-          } else {
+          try {
+            const scan = await applicationService.scanUninstallTargets(appPath);
             dataPaths = scan.dataPaths.map((p) => p.path);
             confirmMessage = buildMacosConfirmMessage(appName, scan);
+          } catch (error) {
+            logService.warn(
+              `Uninstall scan failed for '${appPath}'. Falling back to app-only confirm: ${String(error)}`,
+            );
+            confirmMessage = `This will move ${appName} to the Trash. You can restore it from there later.`;
           }
         } else {
           // Windows
@@ -550,15 +566,11 @@ export class ActionService implements IActionService {
       context: ActionContext.CORE,
       shortcut: 'Super+Shift+C',
       visible: () => {
-        const idx = searchStores.selectedIndex;
-        if (idx < 0) return false;
-        const item = searchOrchestrator.items[idx];
+        const item = this.getSelectedSearchItem();
         return item?.type === 'command';
       },
       execute: async () => {
-        const idx = searchStores.selectedIndex;
-        if (idx < 0) return;
-        const item = searchOrchestrator.items[idx];
+        const item = this.getSelectedSearchItem();
         if (!item || item.type !== 'command' || !item.extensionId) return;
 
         const extensionId = item.extensionId;
@@ -579,15 +591,11 @@ export class ActionService implements IActionService {
       context: ActionContext.CORE,
       shortcut: 'Super+Shift+E',
       visible: () => {
-        const idx = searchStores.selectedIndex;
-        if (idx < 0) return false;
-        const item = searchOrchestrator.items[idx];
+        const item = this.getSelectedSearchItem();
         return !!(item && item.type === 'command' && item.extensionId);
       },
       execute: async () => {
-        const idx = searchStores.selectedIndex;
-        if (idx < 0) return;
-        const item = searchOrchestrator.items[idx];
+        const item = this.getSelectedSearchItem();
         if (!item || item.type !== 'command' || !item.extensionId) return;
 
         const extensionId = item.extensionId;
@@ -605,15 +613,11 @@ export class ActionService implements IActionService {
       context: ActionContext.CORE,
       shortcut: 'Super+Shift+,',
       visible: () => {
-        const idx = searchStores.selectedIndex;
-        if (idx < 0) return false;
-        const item = searchOrchestrator.items[idx];
+        const item = this.getSelectedSearchItem();
         return !!(item && item.type === 'command' && item.extensionId);
       },
       execute: async () => {
-        const idx = searchStores.selectedIndex;
-        if (idx < 0) return;
-        const item = searchOrchestrator.items[idx];
+        const item = this.getSelectedSearchItem();
         if (!item || item.type !== 'command' || !item.extensionId) return;
 
         await commands.showSettingsWindow('extensions', item.extensionId);

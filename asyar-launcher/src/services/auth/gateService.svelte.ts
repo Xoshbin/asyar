@@ -16,6 +16,14 @@ export type AbilityName =
   | 'telemetry.usage-metrics';
 
 /**
+ * A direct entitlement check such as `sync:settings` or `ai:chat`, handled by
+ * `gate()`'s default branch. Kept distinct from `AbilityName` so the switch
+ * above stays exhaustive over the named abilities without narrowing the
+ * default branch to `never`.
+ */
+export type EntitlementName = `${string}:${string}`;
+
+/**
  * Centralized, reactive Gate & Policy Service.
  *
  * Implements a strict fail-closed authorization engine across all privileged
@@ -26,7 +34,7 @@ class GateService {
    * Evaluate whether an ability is authorized under current auth and settings.
    * Returns a structured `{ allowed: boolean, reason?: string }` object.
    */
-  gate(ability: AbilityName): GateResult {
+  gate(ability: AbilityName | EntitlementName): GateResult {
     switch (ability) {
       case 'cloud-sync-egress':
       case 'sync.egress': {

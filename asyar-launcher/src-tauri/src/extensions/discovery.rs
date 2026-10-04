@@ -288,6 +288,142 @@ pub fn validate_actions_cross_scope(
 
 const SUPPORTED_SDK_VERSION: &str = env!("ASYAR_SDK_VERSION");
 
+static BUILTIN_RECORDS: std::sync::OnceLock<Vec<ExtensionRecord>> = std::sync::OnceLock::new();
+
+/// Returns statically compiled ExtensionRecord descriptors for all built-in platform features.
+/// This completely eliminates cold-boot disk crawling and runtime manifest deserialization
+/// for core built-in features.
+pub fn get_builtin_records() -> Vec<ExtensionRecord> {
+    BUILTIN_RECORDS
+        .get_or_init(|| {
+            let raw_manifests: &[(&str, &str)] = &[
+                (
+                    "agents",
+                    include_str!("../../../src/built-in-features/agents/manifest.json"),
+                ),
+                (
+                    "calculator",
+                    include_str!("../../../src/built-in-features/calculator/manifest.json"),
+                ),
+                (
+                    "clipboard-history",
+                    include_str!("../../../src/built-in-features/clipboard-history/manifest.json"),
+                ),
+                (
+                    "create-extension",
+                    include_str!("../../../src/built-in-features/create-extension/manifest.json"),
+                ),
+                (
+                    "feedback",
+                    include_str!("../../../src/built-in-features/feedback/manifest.json"),
+                ),
+                (
+                    "file-search",
+                    include_str!("../../../src/built-in-features/file-search/manifest.json"),
+                ),
+                (
+                    "help",
+                    include_str!("../../../src/built-in-features/help/manifest.json"),
+                ),
+                (
+                    "mcp",
+                    include_str!("../../../src/built-in-features/mcp/manifest.json"),
+                ),
+                (
+                    "notes",
+                    include_str!("../../../src/built-in-features/notes/manifest.json"),
+                ),
+                (
+                    "portals",
+                    include_str!("../../../src/built-in-features/portals/manifest.json"),
+                ),
+                (
+                    "quit",
+                    include_str!("../../../src/built-in-features/quit/manifest.json"),
+                ),
+                (
+                    "raycast-import",
+                    include_str!("../../../src/built-in-features/raycast-import/manifest.json"),
+                ),
+                (
+                    "runs",
+                    include_str!("../../../src/built-in-features/runs/manifest.json"),
+                ),
+                (
+                    "screen-ocr",
+                    include_str!("../../../src/built-in-features/screen-ocr/manifest.json"),
+                ),
+                (
+                    "scripts",
+                    include_str!("../../../src/built-in-features/scripts/manifest.json"),
+                ),
+                (
+                    "settings",
+                    include_str!("../../../src/built-in-features/settings/manifest.json"),
+                ),
+                (
+                    "shortcuts",
+                    include_str!("../../../src/built-in-features/shortcuts/manifest.json"),
+                ),
+                (
+                    "snippets",
+                    include_str!("../../../src/built-in-features/snippets/manifest.json"),
+                ),
+                (
+                    "store",
+                    include_str!("../../../src/built-in-features/store/manifest.json"),
+                ),
+                (
+                    "system",
+                    include_str!("../../../src/built-in-features/system/manifest.json"),
+                ),
+                (
+                    "usage-stats",
+                    include_str!("../../../src/built-in-features/usage-stats/manifest.json"),
+                ),
+                (
+                    "walkthrough",
+                    include_str!("../../../src/built-in-features/walkthrough/manifest.json"),
+                ),
+                (
+                    "window-management",
+                    include_str!("../../../src/built-in-features/window-management/manifest.json"),
+                ),
+            ];
+
+            let mut records = Vec::with_capacity(raw_manifests.len());
+            for (id, raw) in raw_manifests {
+                match serde_json::from_str::<ExtensionManifest>(raw) {
+                    Ok(manifest) => {
+                        let disableable = manifest
+                            .lifecycle
+                            .as_ref()
+                            .and_then(|l| l.disableable)
+                            .unwrap_or(false);
+                        records.push(ExtensionRecord {
+                            first_view_component: manifest.first_view_component().map(String::from),
+                            manifest,
+                            enabled: true,
+                            is_built_in: true,
+                            disableable,
+                            path: format!("builtin://{}", id),
+                            compatibility: CompatibilityStatus::Compatible,
+                        });
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "Failed to parse statically compiled built-in manifest for '{}': {}",
+                            id,
+                            e
+                        );
+                    }
+                }
+            }
+            records
+        })
+        .clone()
+}
+
 /// Scan a directory for extension subdirectories containing manifest.json.
 /// Returns a Vec of (extension_id, manifest, directory_path).
 pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord> {
@@ -315,6 +451,8 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
         match read_manifest(&manifest_path) {
             Ok(mut manifest) => {
                 let id = manifest.id.clone();
+
+                resolve_background_entry_for_layout(&mut manifest, &path);
 
                 // Validate schedule declarations — strip invalid ones gracefully
                 for cmd in &mut manifest.commands {
@@ -439,6 +577,87 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
     }
 
     records
+}
+
+/// Resolve the manifest's worker entry against the extension layout once, at
+/// discovery time. Linked extensions retain their source-relative `dist/`
+/// entry, while packages produced by older SDKs can use the flattened entry.
+fn resolve_background_entry_for_layout(manifest: &mut ExtensionManifest, root: &Path) {
+    let Some(background) = manifest.background.as_mut() else {
+        return;
+    };
+    if let Some(resolved) = resolve_entry_for_layout(root, &background.main) {
+        background.main = resolved;
+    }
+}
+
+/// Find the on-disk spelling of a manifest-declared entry path under `root`.
+/// Returns the declared path when it exists, the `dist/`-stripped path when
+/// only the flattened (packaged) layout is present, and `None` otherwise.
+pub(crate) fn resolve_entry_for_layout(root: &Path, declared: &str) -> Option<String> {
+    if root.join(declared).is_file() {
+        return Some(declared.to_string());
+    }
+    let flat = declared.strip_prefix("dist/")?;
+    root.join(flat).is_file().then(|| flat.to_string())
+}
+
+#[cfg(test)]
+mod background_entry_resolution_tests {
+    use super::*;
+    use crate::extensions::BackgroundSpec;
+    use tempfile::TempDir;
+
+    fn manifest_with_worker(main: &str) -> ExtensionManifest {
+        ExtensionManifest {
+            id: "test.worker".into(),
+            name: "Worker".into(),
+            version: "1.0.0".into(),
+            description: String::new(),
+            author: None,
+            extension_type: Some("extension".into()),
+            lifecycle: None,
+            background: Some(BackgroundSpec { main: main.into() }),
+            searchable: None,
+            icon: None,
+            commands: Vec::new(),
+            permissions: None,
+            permission_args: None,
+            min_app_version: None,
+            asyar_sdk: None,
+            platforms: None,
+            preferences: None,
+            actions: None,
+            onboarding: None,
+            runtimes: None,
+            walkthrough: None,
+            tools: None,
+        }
+    }
+
+    #[test]
+    fn keeps_declared_worker_entry_for_dev_linked_layout() {
+        let tmp = TempDir::new().unwrap();
+        let worker = tmp.path().join("dist/worker.js");
+        std::fs::create_dir_all(worker.parent().unwrap()).unwrap();
+        std::fs::write(worker, "export {};").unwrap();
+        let mut manifest = manifest_with_worker("dist/worker.js");
+
+        resolve_background_entry_for_layout(&mut manifest, tmp.path());
+
+        assert_eq!(manifest.background.unwrap().main, "dist/worker.js");
+    }
+
+    #[test]
+    fn falls_back_to_flat_worker_entry_for_installed_layout() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("worker.js"), "export {};").unwrap();
+        let mut manifest = manifest_with_worker("dist/worker.js");
+
+        resolve_background_entry_for_layout(&mut manifest, tmp.path());
+
+        assert_eq!(manifest.background.unwrap().main, "worker.js");
+    }
 }
 
 /// Read and parse a single manifest.json file
@@ -1921,7 +2140,15 @@ mod manifest_schema_tests {
         );
 
         for path in &manifest_paths {
-            let result = read_manifest(path);
+            // Match production loading: statically compiled built-ins are
+            // host primitives, not installed worker/view extensions.
+            let result = if path.starts_with(repo_root.join("asyar-launcher/src/built-in-features"))
+            {
+                serde_json::from_str::<ExtensionManifest>(&std::fs::read_to_string(path).unwrap())
+                    .map_err(|error| error.to_string())
+            } else {
+                read_manifest(path).map_err(|error| error.to_string())
+            };
             assert!(
                 result.is_ok(),
                 "manifest at {:?} failed parse/validate: {:?}",
@@ -1954,8 +2181,14 @@ mod manifest_schema_tests {
             if !path.exists() {
                 continue;
             }
-            let manifest = read_manifest(&path)
-                .unwrap_or_else(|error| panic!("manifest at {path:?} failed validation: {error}"));
+            let manifest: ExtensionManifest =
+                serde_json::from_str(&std::fs::read_to_string(&path).unwrap())
+                    .unwrap_or_else(|error| panic!("manifest at {path:?} failed parsing: {error}"));
+            assert!(
+                manifest.background.is_none(),
+                "built-in {} must not declare a worker bundle",
+                manifest.id
+            );
             let disableable = manifest
                 .lifecycle
                 .as_ref()
@@ -1974,6 +2207,32 @@ mod manifest_schema_tests {
                     Some(true),
                     "optional built-in '{}' must explicitly declare lifecycle.disableable=true",
                     manifest.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_builtin_records_statically_compiled() {
+        let records = get_builtin_records();
+        assert_eq!(records.len(), 23, "expected 23 built-in feature records");
+        for record in &records {
+            assert!(
+                record.is_built_in,
+                "record {} should be built-in",
+                record.manifest.id
+            );
+            if record.manifest.id == "system" || record.manifest.id == "settings" {
+                assert!(
+                    !record.disableable,
+                    "built-in {} must not be disableable",
+                    record.manifest.id
+                );
+            } else {
+                assert!(
+                    record.disableable,
+                    "built-in {} must be disableable",
+                    record.manifest.id
                 );
             }
         }

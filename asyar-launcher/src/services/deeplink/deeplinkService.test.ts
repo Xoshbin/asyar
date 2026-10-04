@@ -34,16 +34,23 @@ function makeManifest(overrides?: {
   commandId?: string;
   mode?: 'view' | 'background';
   component?: string;
+  id?: string;
+  // Built-in optional features carry a lifecycle block; shape is irrelevant here.
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  lifecycle?: any;
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  commands?: any[];
 }) {
   const commandId = overrides?.commandId ?? 'run';
   const mode = overrides?.mode ?? 'background';
   return {
-    id: 'com.example.ext',
+    id: overrides?.id ?? 'com.example.ext',
     name: 'Test Extension',
     version: '1.0.0',
     description: '',
     type: 'extension' as const,
-    commands: [
+    ...(overrides?.lifecycle === undefined ? {} : { lifecycle: overrides.lifecycle }),
+    commands: overrides?.commands ?? [
       {
         id: commandId,
         name: 'Run',

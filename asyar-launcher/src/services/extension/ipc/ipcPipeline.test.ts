@@ -1,6 +1,9 @@
 /** @vitest-environment jsdom */
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+vi.mock('../extensionToolDispatch', () => ({ handleToolResponse: vi.fn() }));
+import { handleToolResponse } from '../extensionToolDispatch';
+
 vi.mock('../../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -191,6 +194,7 @@ describe('IPC pipeline — §3 behavior matrix', () => {
     await makeRouter({ storage: { get: storageGet } }).handleMessage(frameEvent(row.data));
 
     expect(extensionIframeManager.handleSearchResponse).toHaveBeenCalledTimes(1);
+    expect(handleToolResponse).toHaveBeenCalledWith(expect.objectContaining({ data: row.data }));
   });
 
   it.each(MATRIX)('$label runs the Rust permission gate: $gate', async (row) => {
@@ -473,7 +477,8 @@ describe('IPC pipeline — trust boundary', () => {
     );
 
     expect(commands.checkExtensionPermission).toHaveBeenCalledWith(EXT_ID, 'asyar:api:storage:get');
-    expect(storageGet).toHaveBeenCalledWith(EXT_ID, 'org.asyar.malicious', 'secret');
+    expect(storageGet).toHaveBeenCalledWith(EXT_ID, 'secret');
+    expect(storageGet).not.toHaveBeenCalledWith('org.asyar.malicious', expect.anything());
   });
 
   it('reads the payload-supplied extensionId only for the privileged host context', async () => {
@@ -619,6 +624,25 @@ describe('IPC pipeline — denial and error envelopes', () => {
     expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'extension_proxy_error' }),
     );
+  });
+
+  it('forwards a thrown error code as the response errorCode', async () => {
+    const get = vi.fn(async () => {
+      throw Object.assign(new Error('LAUNCHER_FOCUSED'), { code: 'LAUNCHER_FOCUSED' });
+    });
+
+    await makeRouter({ storage: { get } }).handleMessage(
+      frameEvent({ type: 'asyar:api:storage:get', payload: { key: 'k' }, messageId: 'm-code' }),
+    );
+
+    expect(responsesTo(viewPost)).toEqual([
+      {
+        type: 'asyar:response',
+        messageId: 'm-code',
+        error: 'LAUNCHER_FOCUSED',
+        errorCode: 'LAUNCHER_FOCUSED',
+      },
+    ]);
   });
 
   it('suppresses the second diagnostic for an already-reported HandledDispatchError', async () => {

@@ -19,7 +19,7 @@ export const processService = {
     query: string | undefined,
     sortBy: ProcessSortBy,
   ): Promise<AppGroup[]> {
-    return (await processListCommand(extensionId, query, sortBy)) ?? [];
+    return processListCommand(extensionId, query, sortBy);
   },
   async kill(
     extensionId: string | null,
@@ -27,11 +27,6 @@ export const processService = {
     force: boolean,
     confirmedProtected: boolean,
   ): Promise<KillResult> {
-    const result = await processKillCommand(extensionId, pids, force, confirmedProtected);
-    if (result !== null) return result;
-    return {
-      killed: [],
-      failed: pids.map((pid) => ({ pid, error: 'process_kill failed' })),
-    };
+    return processKillCommand(extensionId, pids, force, confirmedProtected);
   },
 };

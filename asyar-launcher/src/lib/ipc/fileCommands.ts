@@ -4,11 +4,11 @@ import { invokeSafe } from './invokeSafe';
 
 // ── File I/O ──────────────────────────────────────────────────────────────────
 
-export async function checkPathExists(path: string): Promise<boolean | null> {
+export async function checkPathExists(path: string): Promise<boolean> {
   return invokeSafe<boolean>('check_path_exists', { path });
 }
 
-export async function readTextFileAbsolute(pathStr: string): Promise<string | null> {
+export async function readTextFileAbsolute(pathStr: string): Promise<string> {
   return invokeSafe<string>('read_text_file_absolute', { pathStr });
 }
 

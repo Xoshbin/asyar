@@ -12,7 +12,7 @@ import { logService } from '../../services/log/logService';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { decideTabDestination } from './tabRouter';
-import { openAgentForTab } from './threadOpener';
+import { openAgentForTab, registerAgentSubmitHandler } from './threadOpener';
 import AgentListView from './AgentListView.svelte';
 import AgentEditView from './AgentEditView.svelte';
 import AgentChatView from './AgentChatView.svelte';
@@ -361,4 +361,5 @@ class AgentsExtension implements Extension {
 }
 
 const extension = new AgentsExtension();
+registerAgentSubmitHandler((query) => extension.onViewSubmit(query));
 export default extension;

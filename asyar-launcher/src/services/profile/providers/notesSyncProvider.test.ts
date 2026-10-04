@@ -267,7 +267,7 @@ describe('NotesSyncProvider', () => {
         { type: 'delete', itemId: '2', categoryId: 'notes' },
       ]);
       unsub();
-      expect(mockUnlisten).toHaveBeenCalledOnce();
+      await vi.waitFor(() => expect(mockUnlisten).toHaveBeenCalledOnce());
     });
   });
 });

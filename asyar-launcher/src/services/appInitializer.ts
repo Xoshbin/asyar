@@ -14,7 +14,7 @@ import { commandService } from './extension/commandService.svelte'; // Import co
 import { onboardingViewInterception } from './extension/onboardingViewInterception';
 import { searchStores } from './search/stores/search.svelte'; // Import searchStores
 import { settingsService } from './settings/settingsService.svelte';
-import { type Event, listen } from '@tauri-apps/api/event';
+import { type Event } from '@tauri-apps/api/event';
 import * as commands from '../lib/ipc/commands';
 import { runWhenIdle } from '../lib/idle';
 import { shortcutService } from '../built-in-features/shortcuts/shortcutService';
@@ -54,7 +54,8 @@ import { iframeDeliveryListener } from './extension/iframeDeliveryListener.svelt
 import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from './feedback/feedbackService.svelte';
 import { setInvokeFailureReporter } from '../lib/ipc/invokeSafe';
-import { startBridgeLoop } from '../lib/ipc/bridgeEvents';
+import { appListen, startBridgeLoop } from '../lib/ipc/bridgeEvents';
+import { setAppInitialized, isAppInitialized } from './appInitState';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -83,6 +84,7 @@ export const appInitializer = {
       return true;
     }
     isInitialized = true; // Set early to prevent concurrent calls
+    setAppInitialized(true);
 
     try {
       // Start the eval-free event bridge loop first so early Rust events
@@ -174,7 +176,7 @@ export const appInitializer = {
 
       // After a cloud restore from the settings window, reload stores so the main window
       // picks up the newly written data without requiring a full restart.
-      listen<void>('asyar:stores-restored', async () => {
+      appListen<void>('asyar:stores-restored', async () => {
         await shortcutStore.reload();
         await snippetStore.reload();
         await portalStore.reload();
@@ -233,22 +235,22 @@ export const appInitializer = {
 
       await extensionManager.init(); // Initialize ExtensionManager first
 
-      // Must run after the workerRegistry/viewRegistry listeners above are
-      // committed — EVENT_MOUNT is fire-and-forget and would otherwise be lost.
-      // Failure here means every always-on extension is dormant until the
-      // user re-enables it, so it surfaces through the diagnostics channel
-      // rather than a quiet log.
-      restoreWorkers().then((result) => {
-        if (result === null) {
-          void feedbackService.report({
-            source: 'frontend',
-            kind: 'extension-runtime/restore-workers-failed',
-            severity: 'error',
-            retryable: false,
-            developerDetail: 'restore_workers failed',
+      // Deferred to idle periods so cold-start presentation and initial query
+      // typing have zero contention from background worker restoration.
+      runWhenIdle(
+        () => {
+          restoreWorkers().catch((error) => {
+            void feedbackService.report({
+              source: 'frontend',
+              kind: 'extension-runtime/restore-workers-failed',
+              severity: 'error',
+              retryable: false,
+              developerDetail: `restore_workers failed: ${error instanceof Error ? error.message : String(error)}`,
+            });
           });
-        }
-      });
+        },
+        { timeout: 1500 },
+      );
 
       // Initialize extension update service for silent auto-updates
       const { viewManager } = await import('./extension/viewManager.svelte');
@@ -261,6 +263,12 @@ export const appInitializer = {
       );
       extensionUpdateService.checkAndAutoApply(); // non-blocking initial check + auto-apply
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
+      void import('./dev/inspectorStore.svelte').then(({ setInspectorManifestProvider }) => {
+        setInspectorManifestProvider(
+          (id) =>
+            extensionManager.getManifestById(id) as { background?: { main?: string } } | undefined,
+        );
+      });
 
       // Initialize app auto-update store (listens for Rust scheduler events)
       const { initAppUpdateStore } = await import('./update/appUpdateStore.svelte');
@@ -323,7 +331,7 @@ export const appInitializer = {
 
       await shortcutService.init();
       await snippetService.init();
-      listen('user-shortcut-fired', (event) => {
+      appListen('user-shortcut-fired', (event) => {
         // Suppress shortcut firing while the ShortcutCapture modal is open.
         // OS shortcuts fire at kernel level before the browser sees the keydown,
         // so preventDefault() in ShortcutCapture cannot stop them. This guard does.
@@ -331,12 +339,12 @@ export const appInitializer = {
         shortcutService.handleFiredShortcut(event.payload as string);
       });
 
-      listen<{ keywordLen: number; expansion: string }>('expand-snippet', async (event) => {
+      appListen<{ keywordLen: number; expansion: string }>('expand-snippet', async (event) => {
         const { keywordLen, expansion } = event.payload;
         await snippetService.expandSnippet(keywordLen, expansion);
       });
 
-      listen<{ keyword: string; expansion: string }>(
+      appListen<{ keyword: string; expansion: string }>(
         'snippet:promote-from-cache',
         async (event) => {
           const { keyword, expansion } = event.payload;
@@ -350,7 +358,7 @@ export const appInitializer = {
         },
       );
 
-      listen<{ shortcode: string }>('shortcode-miss', async (event) => {
+      appListen<{ shortcode: string }>('shortcode-miss', async (event) => {
         const { agentService } = await import('../built-in-features/agents/agentService.svelte');
         const agent = agentService.agents.find((a) => a.inputSource === 'shortcodeMiss');
         if (agent) {
@@ -375,7 +383,7 @@ export const appInitializer = {
       });
 
       // Apply theme changes triggered from the Settings window
-      listen<{ themeId: string | null }>('asyar:theme-changed', async ({ payload }) => {
+      appListen<{ themeId: string | null }>('asyar:theme-changed', async ({ payload }) => {
         const { applyTheme, removeTheme } = await import('./theme/themeService');
         if (payload.themeId) {
           applyTheme(payload.themeId).catch((err) => {
@@ -387,16 +395,19 @@ export const appInitializer = {
       });
 
       // Apply launch-view changes triggered from the Settings window
-      listen<{ launchView: 'default' | 'compact' }>('asyar:launch-view-changed', ({ payload }) => {
-        settingsService.currentSettings.appearance.launchView = payload.launchView;
-      });
+      appListen<{ launchView: 'default' | 'compact' }>(
+        'asyar:launch-view-changed',
+        ({ payload }) => {
+          settingsService.currentSettings.appearance.launchView = payload.launchView;
+        },
+      );
 
       // Generic "run this command in the launcher" signal, used by buttons
       // in the Settings window (a separate webview with no extensionManager
       // of its own) that deep-link into a Tier 1 view — e.g. Backup tab's
       // "Import from Raycast" button. `commandId` is the full
       // `cmd_<extensionId>_<commandId>` object id.
-      listen<{ commandId: string }>('asyar:run-command', async ({ payload }) => {
+      appListen<{ commandId: string }>('asyar:run-command', async ({ payload }) => {
         await commands.showWindow();
         try {
           await commandService.executeCommand(payload.commandId);
@@ -415,7 +426,7 @@ export const appInitializer = {
       // that stash and navigates back so the user lands where they
       // originally asked. (Tier 2 view-mode commands bypass the Rust
       // dispatch path, so Plan B's Rust re-dispatch doesn't cover them.)
-      listen<{ extensionId: string }>('asyar:extension-onboarded', ({ payload }) => {
+      appListen<{ extensionId: string }>('asyar:extension-onboarded', ({ payload }) => {
         const entry = onboardingViewInterception.take(payload.extensionId);
         if (entry) {
           logService.debug(
@@ -430,7 +441,7 @@ export const appInitializer = {
       // Pass the payload straight into resync() as an override — the
       // settings-store bridge arrives on a separate IPC channel with no
       // ordering guarantee against this emit.
-      listen<{ additionalScanPaths?: string[] }>(
+      appListen<{ additionalScanPaths?: string[] }>(
         'asyar:app-scan-paths-changed',
         async ({ payload }) => {
           await applicationService.resync(payload ?? undefined);
@@ -469,11 +480,12 @@ export const appInitializer = {
     } catch (error) {
       logService.error(`Failed to initialize application: ${error}`);
       isInitialized = false; // Reset flag on error
+      setAppInitialized(false);
       return false;
     }
   },
 
   isAppInitialized(): boolean {
-    return isInitialized;
+    return isAppInitialized();
   },
 };

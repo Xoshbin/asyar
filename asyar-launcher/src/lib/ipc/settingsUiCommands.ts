@@ -6,7 +6,7 @@ export interface PendingPairing {
   variant: string;
 }
 
-export async function browserListPendingPairings(): Promise<PendingPairing[] | null> {
+export async function browserListPendingPairings(): Promise<PendingPairing[]> {
   return invokeSafe<PendingPairing[]>('browser_list_pending_pairings');
 }
 

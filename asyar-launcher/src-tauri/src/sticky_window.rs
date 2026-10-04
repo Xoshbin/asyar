@@ -266,7 +266,7 @@ pub fn close(app: &AppHandle, note_id: &str) -> Result<(), AppError> {
     }
     let store = app.state::<DataStore>();
     let conn = store.conn()?;
-    sticky_notes::remove(&conn, note_id)
+    Ok(sticky_notes::remove(&conn, note_id)?)
 }
 
 /// Re-open every pinned note's window. Called once during `setup_app`.
@@ -343,13 +343,13 @@ pub fn sticky_is_stuck(
     store: tauri::State<'_, DataStore>,
 ) -> Result<bool, AppError> {
     let conn = store.conn()?;
-    sticky_notes::is_stuck(&conn, &note_id)
+    Ok(sticky_notes::is_stuck(&conn, &note_id)?)
 }
 
 #[tauri::command]
 pub fn sticky_list(store: tauri::State<'_, DataStore>) -> Result<Vec<StickyNote>, AppError> {
     let conn = store.conn()?;
-    sticky_notes::list(&conn)
+    Ok(sticky_notes::list(&conn)?)
 }
 
 #[tauri::command]
@@ -362,7 +362,9 @@ pub fn sticky_save_geometry(
     store: tauri::State<'_, DataStore>,
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
-    sticky_notes::save_geometry(&conn, &note_id, x, y, width, height)
+    Ok(sticky_notes::save_geometry(
+        &conn, &note_id, x, y, width, height,
+    )?)
 }
 
 #[cfg(test)]

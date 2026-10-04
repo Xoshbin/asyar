@@ -67,7 +67,7 @@ class SnippetViewStateClass {
     });
 
     // Guard against out-of-order responses: a newer keystroke may have
-    // superseded this query while Rust was ranking.
+    // superseded this query before the local ranking promise resumed.
     if (this.searchQuery.trim() !== q) return;
     this.rankedIds = ranked.map((s) => s.id);
     this.selection.setIndex(0);

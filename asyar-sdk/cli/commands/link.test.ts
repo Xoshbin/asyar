@@ -76,6 +76,16 @@ describe('link command', () => {
     expect(verifyBuildOutput).toHaveBeenCalledWith(process.cwd(), workerOnlyManifest);
   });
 
+  it('links existing build output to the dev flavor without rebuilding', async () => {
+    const program = new Command().exitOverride();
+    registerLink(program);
+    await program.parseAsync(['link', '--dev', '--no-build'], { from: 'user' });
+    expect(runViteBuild).not.toHaveBeenCalled();
+    expect(verifyBuildOutput).toHaveBeenCalledWith(process.cwd(), workerOnlyManifest);
+    expect(getExtensionsDir).toHaveBeenCalledWith(true);
+    expect(getDevExtensionsFile).toHaveBeenCalledWith(true);
+  });
+
   it('passes the manifest to verifyBuildOutput on watch-mode rebuilds too', async () => {
     let changeHandler: ((filePath: string) => Promise<void>) | undefined;
     vi.mocked(chokidar.watch).mockReturnValue({

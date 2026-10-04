@@ -4,7 +4,8 @@ import type {
   EnsureRuntimeResult,
   InstalledRuntimeInfo,
 } from '../../lib/ipc/runtimeCommands';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 class RuntimeService {
   downloadProgress = $state<RuntimeDownloadProgress | null>(null);
@@ -12,7 +13,7 @@ class RuntimeService {
   private unlistenProgress: UnlistenFn | null = null;
 
   async init(): Promise<void> {
-    this.unlistenProgress = await listen<RuntimeDownloadProgress>(
+    this.unlistenProgress = await appListen<RuntimeDownloadProgress>(
       'runtime_download_progress',
       (event) => {
         this.downloadProgress = event.payload;
@@ -24,7 +25,7 @@ class RuntimeService {
     return runtimeCommands.resolveRuntime(name);
   }
 
-  async ensure(name: string): Promise<EnsureRuntimeResult | null> {
+  async ensure(name: string): Promise<EnsureRuntimeResult> {
     return runtimeCommands.ensureRuntime(name);
   }
 
@@ -33,7 +34,7 @@ class RuntimeService {
   }
 
   async list(): Promise<InstalledRuntimeInfo[]> {
-    return (await runtimeCommands.listRuntimes()) ?? [];
+    return runtimeCommands.listRuntimes();
   }
 
   async remove(name: string): Promise<void> {

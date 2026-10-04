@@ -50,6 +50,7 @@ const DEFAULT: AppSettings = {
   },
   updates: {
     channel: 'stable',
+    autoCheck: true,
   },
   ai: {
     providers: {
@@ -64,10 +65,17 @@ const DEFAULT: AppSettings = {
     maxTokens: 2048,
     defaultAgentId: null,
     tabContinuesLastThread: false,
+    historyRetentionCap: 100,
   },
   privacy: {
     crashReportMode: 'off' as const,
     usageShareMode: 'off' as const,
+  },
+  fileSearch: {
+    enabled: true,
+    includeRoots: [],
+    excludePatterns: [],
+    indexHidden: false,
   },
 };
 

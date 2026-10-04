@@ -12,7 +12,7 @@ use crate::scripts::{
 use crate::storage::DataStore;
 use rusqlite::Connection;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 /// App-state wrapper around a live `ScriptsWatcher`. Registered during
 /// `setup_app` and resolved by the Tauri command wrappers.
@@ -48,7 +48,7 @@ pub(crate) fn scripts_remove_directory_impl(
 
 /// Return all configured script directories in insertion order.
 pub(crate) fn scripts_list_directories_impl(conn: &Connection) -> Result<Vec<String>, AppError> {
-    crate::storage::script_directories::list(conn)
+    Ok(crate::storage::script_directories::list(conn)?)
 }
 
 /// Read configured directories from SQLite and scan them for scripts.
@@ -108,7 +108,7 @@ pub async fn scripts_add_directory(
 ) -> Result<(), AppError> {
     let conn = db.conn()?;
     scripts_add_directory_impl(&conn, &watcher.0, path)?;
-    let _ = app.emit("scripts:changed", ());
+    crate::event_bridge::bridge_emit(&app, "scripts:changed", ());
     Ok(())
 }
 
@@ -124,7 +124,7 @@ pub async fn scripts_remove_directory(
 ) -> Result<(), AppError> {
     let conn = db.conn()?;
     scripts_remove_directory_impl(&conn, &watcher.0, path)?;
-    let _ = app.emit("scripts:changed", ());
+    crate::event_bridge::bridge_emit(&app, "scripts:changed", ());
     Ok(())
 }
 
@@ -164,7 +164,7 @@ pub async fn scripts_make_executable(
 ) -> Result<(), AppError> {
     let conn = db.conn()?;
     scripts_make_executable_impl(&conn, path)?;
-    let _ = app.emit("scripts:changed", ());
+    crate::event_bridge::bridge_emit(&app, "scripts:changed", ());
     Ok(())
 }
 

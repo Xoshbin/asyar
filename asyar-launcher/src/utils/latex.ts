@@ -37,7 +37,7 @@ function injectKatexCss(): void {
   link.href = '/node_modules/katex/dist/katex.min.css';
 
   try {
-    // @ts-expect-error – Vite handles `?url` imports at build time
+    // Vite handles `?url` imports at build time
     import('katex/dist/katex.min.css?url')
       .then((mod) => {
         link.href = mod.default;

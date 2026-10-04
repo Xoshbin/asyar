@@ -132,25 +132,7 @@ impl WalkthroughTaskDecl {
 }
 
 /// Why a task is marked done. Surfaced so the UI can distinguish "you did
-/// this" from "you ticked this off".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum CompletionSource {
-    /// A rule matched real usage.
-    Auto,
-    /// The user ticked it by hand.
-    Manual,
-}
-
-/// A latched completion record, as persisted in `walkthrough_state`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CompletionRecord {
-    pub task_id: String,
-    /// Unix seconds.
-    pub completed_at: i64,
-    pub source: CompletionSource,
-}
+pub use asyar_storage::walkthrough::{CompletionRecord, CompletionSource};
 
 /// A task joined with its completion state — the shape the UI renders.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

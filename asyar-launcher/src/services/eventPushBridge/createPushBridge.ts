@@ -1,6 +1,5 @@
 import { type UnlistenFn } from '@tauri-apps/api/event';
-import { logService } from '../log/logService';
-import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
+import { postToExtension } from '../extension/extensionDelivery';
 import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 
 interface EventEnvelope {
@@ -13,22 +12,7 @@ export interface PushBridge {
   dispose(): void;
 }
 
-/**
- * Factory for a bridge that forwards Rust-emitted Tauri events to
- * extension iframes via postMessage.
- *
- * Rust emits one Tauri event per unique subscribed extension (dispatch is
- * deduped in `EventHub`). The bridge looks up the target iframe by
- * `data-extension-id` and posts the inner event payload with the supplied
- * `iframeMessageType`. If the iframe is gone (extension uninstalled /
- * disabled mid-flight), the event is dropped silently.
- *
- * Used by both `systemEventsBridge` (`asyar:system-event` →
- * `asyar:event:system-event:push`) and `appEventsBridge`
- * (`asyar:app-event` → `asyar:event:app-event:push`). The two bridges are
- * identical in shape; only the Tauri event name and the iframe message
- * type differ.
- */
+/** Forwards Rust subscription events to the worker, falling back to a view-only extension. */
 export function createPushBridge(
   tauriEventName: string,
   iframeMessageType: string,
@@ -41,31 +25,11 @@ export function createPushBridge(
       if (unlisten) return;
       unlisten = await bridgeListen<EventEnvelope>(tauriEventName, (msg) => {
         const { extensionId, event } = msg.payload;
-        // Prefer the worker iframe. Push-event subscribers (systemEvents,
-        // appEvents, etc.) are installed from the worker so their callbacks
-        // survive view Dormant. Fall back to the view iframe for extensions
-        // without a `background.main` in their manifest (no worker iframe).
-        // Unqualified `iframe[data-extension-id]` would hit whichever iframe
-        // comes first in DOM order — typically the view — and the
-        // push would silently vanish because the view has no callback
-        // registered.
-        const iframe =
-          (document.querySelector(
-            `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
-          ) as HTMLIFrameElement | null) ??
-          (document.querySelector(
-            `iframe[data-extension-id="${extensionId}"][data-role="view"]`,
-          ) as HTMLIFrameElement | null) ??
-          (document.querySelector(
-            `iframe[data-extension-id="${extensionId}"]`,
-          ) as HTMLIFrameElement | null);
-        if (!iframe?.contentWindow) {
-          logService.debug(`[${logTag}] no iframe for ${extensionId}; event dropped`);
-          return;
-        }
-        iframe.contentWindow.postMessage(
+        postToExtension(
+          extensionId,
+          'worker',
           { type: iframeMessageType, payload: event },
-          getExtensionFrameOrigin(extensionId),
+          { logTag },
         );
       });
     },

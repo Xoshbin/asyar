@@ -1,0 +1,208 @@
+{
+  "_comment": "Contract: identical matching id sets and per-id tiers for non-empty queries. Empty queries bypass classification (null tiers). Numeric scores, within-tier ordering, and locale/codepoint name tiebreaks are out of contract.",
+  "cases": [
+    {
+      "name": "empty subtitle with spaced keyword query",
+      "query": "foo bar",
+      "items": [
+        {
+          "id": "kw",
+          "title": "zzz",
+          "subtitle": "",
+          "keywords": ["foo bar"]
+        }
+      ],
+      "expectedMatchingIds": ["kw"],
+      "expectedTiers": {
+        "kw": 4
+      }
+    },
+    {
+      "name": "title tiers",
+      "query": "saf",
+      "items": [
+        {
+          "id": "exact",
+          "title": "Saf"
+        },
+        {
+          "id": "prefix",
+          "title": "Safari"
+        },
+        {
+          "id": "fuzzy",
+          "title": "Snow and fog"
+        },
+        {
+          "id": "miss",
+          "title": "Notes"
+        }
+      ],
+      "expectedMatchingIds": ["exact", "prefix", "fuzzy"],
+      "expectedTiers": {
+        "exact": 1,
+        "prefix": 2,
+        "fuzzy": 3
+      }
+    },
+    {
+      "name": "subtitle only",
+      "query": "team",
+      "items": [
+        {
+          "id": "sub",
+          "title": "zzz",
+          "subtitle": "Team chat"
+        }
+      ],
+      "expectedMatchingIds": ["sub"],
+      "expectedTiers": {
+        "sub": 4
+      }
+    },
+    {
+      "name": "keyword only",
+      "query": "apple",
+      "items": [
+        {
+          "id": "kw",
+          "title": "zzz",
+          "keywords": ["apple"]
+        }
+      ],
+      "expectedMatchingIds": ["kw"],
+      "expectedTiers": {
+        "kw": 4
+      }
+    },
+    {
+      "name": "subtitle to keyword",
+      "query": "oba",
+      "items": [
+        {
+          "id": "span",
+          "title": "zzz",
+          "subtitle": "foo",
+          "keywords": ["bar"]
+        }
+      ],
+      "expectedMatchingIds": ["span"],
+      "expectedTiers": {
+        "span": 4
+      }
+    },
+    {
+      "name": "keyword to keyword",
+      "query": "oba",
+      "items": [
+        {
+          "id": "span",
+          "title": "zzz",
+          "keywords": ["foo", "bar"]
+        }
+      ],
+      "expectedMatchingIds": ["span"],
+      "expectedTiers": {
+        "span": 4
+      }
+    },
+    {
+      "name": "no match",
+      "query": "xyz",
+      "items": [
+        {
+          "id": "miss",
+          "title": "Notes",
+          "subtitle": "writing",
+          "keywords": ["memo"]
+        }
+      ],
+      "expectedMatchingIds": [],
+      "expectedTiers": {}
+    },
+    {
+      "name": "empty query",
+      "query": "",
+      "items": [
+        {
+          "id": "b",
+          "title": "Banana"
+        },
+        {
+          "id": "a",
+          "title": "Apple"
+        }
+      ],
+      "expectedMatchingIds": ["b", "a"],
+      "expectedTiers": {
+        "b": null,
+        "a": null
+      }
+    },
+    {
+      "name": "whitespace query",
+      "query": "   ",
+      "items": [
+        {
+          "id": "a",
+          "title": "Apple"
+        }
+      ],
+      "expectedMatchingIds": ["a"],
+      "expectedTiers": {
+        "a": null
+      }
+    },
+    {
+      "name": "empty items",
+      "query": "saf",
+      "items": [],
+      "expectedMatchingIds": [],
+      "expectedTiers": {}
+    },
+    {
+      "name": "case insensitive",
+      "query": "SAF",
+      "items": [
+        {
+          "id": "exact",
+          "title": "Saf"
+        },
+        {
+          "id": "prefix",
+          "title": "Safari"
+        },
+        {
+          "id": "sub",
+          "title": "zzz",
+          "subtitle": "safe"
+        }
+      ],
+      "expectedMatchingIds": ["exact", "prefix", "sub"],
+      "expectedTiers": {
+        "exact": 1,
+        "prefix": 2,
+        "sub": 4
+      }
+    },
+    {
+      "name": "non ASCII title",
+      "query": "caf\u00e9",
+      "items": [
+        {
+          "id": "exact",
+          "title": "Caf\u00e9"
+        },
+        {
+          "id": "prefix",
+          "title": "Caf\u00e9 menu"
+        }
+      ],
+      "expectedMatchingIds": ["exact", "prefix"],
+      "expectedTiers": {
+        "exact": 1,
+        "prefix": 2
+      }
+    }
+  ]
+}

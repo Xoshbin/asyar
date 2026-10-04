@@ -63,89 +63,120 @@ class ExtensionLoaderService {
   }
 
   /**
-   * Load all extensions (both built-in and installed)
+   * Initializes built-in platform features from static descriptors and Vite-loaded modules.
+   * Completely decoupled from dynamic third-party extension discovery.
+   */
+  loadBuiltInFeatures(records: any[]): Map<string, LoadedExtensionModule> {
+    const builtInsMap = new Map<string, LoadedExtensionModule>();
+    const builtInFeatureModules = import.meta.glob(
+      ['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'],
+      { eager: true },
+    ) as Record<string, any>;
+
+    for (const record of records) {
+      if (!record.enabled) {
+        logService.debug(`Skipping disabled built-in feature: ${record.manifest.id}`);
+        continue;
+      }
+
+      const modulePath = Object.keys(builtInFeatureModules).find((p) =>
+        p.includes(`/${record.manifest.id}/`),
+      );
+
+      builtInsMap.set(record.manifest.id, {
+        module: modulePath ? builtInFeatureModules[modulePath] : null,
+        manifest: record.manifest,
+        isBuiltIn: true,
+      });
+
+      if (!modulePath) {
+        logService.warn(`Vite module not found for built-in feature ${record.manifest.id}`);
+      } else {
+        logService.debug(`Loaded built-in feature: ${record.manifest.id}`);
+      }
+    }
+    return builtInsMap;
+  }
+
+  /**
+   * Discovers and registers installed and dev third-party extensions.
+   * Validates SDK compatibility, declared runtimes, and theme-only extensions.
+   */
+  async loadInstalledExtensions(records: any[]): Promise<Map<string, LoadedExtensionModule>> {
+    const installedMap = new Map<string, LoadedExtensionModule>();
+
+    for (const record of records) {
+      if (!record.enabled) {
+        logService.debug(`Skipping disabled extension: ${record.manifest.id}`);
+        continue;
+      }
+
+      // Check compatibility
+      if (record.compatibility?.status === 'sdkMismatch') {
+        logService.warn(
+          `Skipping extension ${record.manifest.id}: requires SDK ${record.compatibility.required}, ` +
+            `app supports ${record.compatibility.supported}`,
+        );
+        continue;
+      }
+      if (record.compatibility?.status === 'appVersionTooOld') {
+        logService.warn(
+          `Skipping extension ${record.manifest.id}: requires app version ${record.compatibility.required}, ` +
+            `current is ${record.compatibility.current}`,
+        );
+        continue;
+      }
+
+      // Skip theme extensions — they have no JS module to load
+      if (record.manifest.type === 'theme') {
+        continue;
+      }
+
+      if (await this.isBlockedByMissingRuntime(record)) {
+        continue;
+      }
+
+      // Installed/dev extensions execute securely inside their own sandboxed iframes
+      installedMap.set(record.manifest.id, {
+        module: null,
+        manifest: record.manifest,
+        isBuiltIn: false,
+      });
+      logService.debug(`Registered installed extension: ${record.manifest.id} from ${record.path}`);
+    }
+    return installedMap;
+  }
+
+  /**
+   * Load all extensions (both built-in platform features and installed third-party extensions).
    */
   async loadAllExtensions(): Promise<Map<string, LoadedExtensionModule>> {
     const extensionsMap = new Map<string, LoadedExtensionModule>();
 
     try {
-      // 1. Get all extension records from Rust (manifests + state + paths)
+      // 1. Get all extension records from Rust
       const records = await discoverExtensionsIpc();
-      if (records === null) {
-        return extensionsMap;
+
+      // 2. Separate built-in features from installed third-party extensions
+      const builtInRecords = records.filter((r) => r.isBuiltIn);
+      const installedRecords = records.filter((r) => !r.isBuiltIn);
+
+      // 3. Load built-ins directly
+      const builtIns = this.loadBuiltInFeatures(builtInRecords);
+      for (const [id, ext] of builtIns) {
+        extensionsMap.set(id, ext);
       }
 
-      // 2. Load built-in JS modules (Vite globs — must stay in TypeScript)
-      const builtInFeatureModules = import.meta.glob(
-        ['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'],
-        { eager: true },
-      ) as Record<string, any>;
-
-      for (const record of records) {
-        if (!record.enabled) {
-          logService.debug(`Skipping disabled extension: ${record.manifest.id}`);
-          continue;
-        }
-
-        // NEW: Check compatibility
-        if (record.compatibility?.status === 'sdkMismatch') {
-          logService.warn(
-            `Skipping extension ${record.manifest.id}: requires SDK ${record.compatibility.required}, ` +
-              `app supports ${record.compatibility.supported}`,
-          );
-          continue;
-        }
-        if (record.compatibility?.status === 'appVersionTooOld') {
-          logService.warn(
-            `Skipping extension ${record.manifest.id}: requires app version ${record.compatibility.required}, ` +
-              `current is ${record.compatibility.current}`,
-          );
-          continue;
-        }
-
-        // Skip theme extensions — they have no JS module to load
-        if (record.manifest.type === 'theme') {
-          continue;
-        }
-
-        if (await this.isBlockedByMissingRuntime(record)) {
-          continue;
-        }
-
-        if (record.isBuiltIn) {
-          // Match to Vite-loaded module by ID
-          const modulePath = Object.keys(builtInFeatureModules).find((p) =>
-            p.includes(`/${record.manifest.id}/`),
-          );
-
-          extensionsMap.set(record.manifest.id, {
-            module: modulePath ? builtInFeatureModules[modulePath] : null,
-            manifest: record.manifest,
-            isBuiltIn: true,
-          });
-
-          if (!modulePath) {
-            logService.warn(`Vite module not found for built-in feature ${record.manifest.id}`);
-          } else {
-            logService.debug(`Loaded built-in feature: ${record.manifest.id}`);
-          }
-        } else {
-          // Installed/dev extensions: manifest from Rust, no module (iframe)
-          extensionsMap.set(record.manifest.id, {
-            module: null,
-            manifest: record.manifest,
-            isBuiltIn: false,
-          });
-          logService.debug(
-            `Registered installed extension: ${record.manifest.id} from ${record.path}`,
-          );
-        }
+      // 4. Load third-party extensions asynchronously
+      const installed = await this.loadInstalledExtensions(installedRecords);
+      for (const [id, ext] of installed) {
+        extensionsMap.set(id, ext);
       }
 
       return extensionsMap;
     } catch (error) {
       logService.error(`Error loading extensions: ${error}`);
-      return extensionsMap; // Return whatever was loaded successfully
+      return extensionsMap;
     }
   }
 
@@ -156,16 +187,18 @@ class ExtensionLoaderService {
     try {
       // 1. Get extension from Rust (checks all sources)
       const record = await getExtensionIpc(extensionId);
-      if (record === null) {
-        return null;
-      }
 
       if (!record.enabled) {
         logService.warn(`Attempted to load disabled extension: ${extensionId}`);
         return null;
       }
 
-      // NEW: Check compatibility
+      if (record.isBuiltIn) {
+        const builtIns = this.loadBuiltInFeatures([record]);
+        return builtIns.get(extensionId) ?? null;
+      }
+
+      // Check compatibility for third-party extensions
       if (record.compatibility?.status === 'sdkMismatch') {
         logService.warn(
           `Skipping extension ${record.manifest.id}: requires SDK ${record.compatibility.required}, ` +
@@ -190,40 +223,11 @@ class ExtensionLoaderService {
         return null;
       }
 
-      if (record.isBuiltIn) {
-        // Find Vite module
-        const builtInFeatureModules = import.meta.glob(
-          ['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'],
-          { eager: true },
-        ) as Record<string, any>;
-        const modulePath = Object.keys(builtInFeatureModules).find((p) =>
-          p.includes(`/${extensionId}/`),
-        );
-
-        if (!modulePath) {
-          logService.error(`Module not found for built-in feature ${extensionId}`);
-          return null;
-        }
-
-        return {
-          module: builtInFeatureModules[modulePath],
-          manifest: record.manifest,
-          isBuiltIn: true,
-        };
-      } else {
-        // [ARCHITECTURE SAFEGUARD]: CODE LOADING SEPARATION
-        // Tier 1 (Built-in) extensions have their JS modules dynamically imported
-        // into the privileged Host window context to execute.
-        // Tier 2 (Installed) extensions MUST NEVER be imported into the Host window.
-        // They execute securely inside their own sandboxed iframes. By returning
-        // `module: null` here, we guarantee their code cannot execute in the Host.
-        // The iframe handles fetching and executing their `index.html` and scripts.
-        return {
-          module: null,
-          manifest: record.manifest,
-          isBuiltIn: false,
-        };
-      }
+      return {
+        module: null,
+        manifest: record.manifest,
+        isBuiltIn: false,
+      };
     } catch (error) {
       logService.error(`Error in loadSingleExtension for ${extensionId}: ${error}`);
       return null;

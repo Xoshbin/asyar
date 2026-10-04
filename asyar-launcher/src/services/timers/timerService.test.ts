@@ -40,13 +40,13 @@ describe('timerService.schedule', () => {
     });
   });
 
-  it('resolves to an empty string when the Rust call fails (e.g. validation error)', async () => {
+  it('rejects when the Rust call fails (e.g. validation error)', async () => {
     vi.mocked(invoke).mockRejectedValueOnce(
       new Error('Validation error: fire_at (100) must be strictly greater than now (2000)'),
     );
-    await expect(timerService.schedule('my.ext', { commandId: 'bell', fireAt: 100 })).resolves.toBe(
-      '',
-    );
+    await expect(
+      timerService.schedule('my.ext', { commandId: 'bell', fireAt: 100 }),
+    ).rejects.toMatchObject({ name: 'IpcError', command: 'timer_schedule' });
   });
 });
 

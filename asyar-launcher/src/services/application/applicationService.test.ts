@@ -86,14 +86,14 @@ describe('ApplicationService', () => {
       });
     });
 
-    it('resolves without throwing when the Rust call fails', async () => {
+    it('rejects when the Rust uninstall fails', async () => {
       vi.mocked(invoke).mockRejectedValueOnce(
         'Permission denied: cannot uninstall system-protected application',
       );
 
       await expect(
         service.uninstallApplication('/System/Applications/Calendar.app'),
-      ).resolves.toBeUndefined();
+      ).rejects.toMatchObject({ name: 'IpcError', command: 'uninstall_application' });
     });
   });
 
@@ -121,12 +121,15 @@ describe('ApplicationService', () => {
       expect(result).toEqual(scan);
     });
 
-    it('resolves to null when the Rust call fails (e.g. platform unsupported)', async () => {
+    it('rejects when the Rust scan fails (e.g. platform unsupported)', async () => {
       vi.mocked(invoke).mockRejectedValueOnce(
         'Platform error: scan_uninstall_targets is only supported on macOS',
       );
 
-      await expect(service.scanUninstallTargets('/Applications/Foo.app')).resolves.toBeNull();
+      await expect(service.scanUninstallTargets('/Applications/Foo.app')).rejects.toMatchObject({
+        name: 'IpcError',
+        command: 'scan_uninstall_targets',
+      });
     });
   });
 

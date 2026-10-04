@@ -1,0 +1,15 @@
+[package]
+name = "asyar-search"
+version = "0.1.0"
+description = "Pure fuzzy ranking, classification, and scoring engine for Asyar."
+authors = ["Khoshbin Ali <xoshbin@gmail.com>"]
+license = "GPL-3.0-only"
+edition = "2021"
+
+[dependencies]
+fuzzy-matcher = "0.3.7"
+serde = { version = "1", features = ["derive"] }
+specta = { version = "2.0.0-rc.23", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"

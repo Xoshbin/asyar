@@ -31,12 +31,16 @@ export class FilesService {
   ): Promise<FileHit[]> {
     void callerExtensionId;
     const response = await fileSearch(query, opts?.typeFilter, opts?.limit);
-    return response?.hits ?? [];
+    return response.hits;
   }
 
   async status(callerExtensionId: string | null): Promise<IndexStatus> {
     void callerExtensionId;
-    return (await fileIndexStatus()) ?? DISABLED_STATUS;
+    try {
+      return await fileIndexStatus();
+    } catch {
+      return DISABLED_STATUS;
+    }
   }
 
   async read(

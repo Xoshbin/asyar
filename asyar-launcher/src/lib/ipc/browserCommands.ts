@@ -15,17 +15,15 @@ import type {
   PageAction,
 } from 'asyar-sdk/contracts';
 
-export async function browserListAvailableBrowsers(): Promise<BrowserId[] | null> {
+export async function browserListAvailableBrowsers(): Promise<BrowserId[]> {
   return invokeSafe<BrowserId[]>('browser_list_available_browsers');
 }
 
-export async function browserIsCompanionInstalled(family: BrowserFamily): Promise<boolean | null> {
+export async function browserIsCompanionInstalled(family: BrowserFamily): Promise<boolean> {
   return invokeSafe<boolean>('browser_is_companion_installed', { family });
 }
 
-export async function browserListBookmarks(
-  filter?: ListBookmarksFilter,
-): Promise<Bookmark[] | null> {
+export async function browserListBookmarks(filter?: ListBookmarksFilter): Promise<Bookmark[]> {
   return invokeSafe<Bookmark[]>('browser_list_bookmarks', {
     browser: filter?.browser,
     query: filter?.query,
@@ -35,7 +33,7 @@ export async function browserListBookmarks(
 export async function browserSearchHistory(
   query: string,
   opts?: SearchHistoryOptions,
-): Promise<HistoryEntry[] | null> {
+): Promise<HistoryEntry[]> {
   return invokeSafe<HistoryEntry[]>('browser_search_history', {
     query,
     limit: opts?.limit,
@@ -46,7 +44,7 @@ export async function browserSearchHistory(
 export async function browserListTabs(filter?: {
   browser?: BrowserId;
   query?: string;
-}): Promise<Tab[] | null> {
+}): Promise<Tab[]> {
   return invokeSafe<Tab[]>('browser_list_tabs', {
     browser: filter?.browser,
     query: filter?.query,
@@ -76,7 +74,7 @@ export async function browserOpenUrl(
   await invoke('browser_open_url', { extensionId, url, target });
 }
 
-export async function browserListPairedBrowsers(): Promise<BrowserKey[] | null> {
+export async function browserListPairedBrowsers(): Promise<BrowserKey[]> {
   return invokeSafe<BrowserKey[]>('browser_list_paired_browsers');
 }
 
@@ -88,7 +86,7 @@ export async function browserQueryPage(
   tabId: string,
   selector: string,
   attrs?: string[],
-): Promise<PageMatch[] | null> {
+): Promise<PageMatch[]> {
   return invokeSafe<PageMatch[]>('browser_query_page', { tabId, selector, attrs });
 }
 
@@ -104,7 +102,7 @@ export async function browserGetMostRecentActiveBrowser(): Promise<BrowserKey | 
   return invokeSafe<BrowserKey | null>('browser_get_most_recent_active_browser');
 }
 
-export async function browserSubscribeTabsChanged(): Promise<string | null> {
+export async function browserSubscribeTabsChanged(): Promise<string> {
   return invokeSafe<string>('browser_events_subscribe', { eventTypes: ['tabs.changed'] });
 }
 
@@ -112,6 +110,6 @@ export async function browserUnsubscribeEvents(subscriptionId: string): Promise<
   await invokeSafe('browser_events_unsubscribe', { subscriptionId });
 }
 
-export async function browserSubscribePageChanged(): Promise<string | null> {
+export async function browserSubscribePageChanged(): Promise<string> {
   return invokeSafe<string>('browser_events_subscribe', { eventTypes: ['page.changed'] });
 }

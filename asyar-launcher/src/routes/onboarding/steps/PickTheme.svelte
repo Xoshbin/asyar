@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { emit, listen } from '@tauri-apps/api/event';
+  import { emit } from '@tauri-apps/api/event';
   import { Card, Button, LoadingState } from '../../../components';
   import { advanceStep, fetchTopThemes } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
@@ -13,6 +13,7 @@
   import { t } from '../../../services/i18n';
   import { applyInstalledTheme, installThemeExtension } from './themeSetup';
   import { isExtensionInstalled } from '../../../lib/installedExtensions';
+  import { appListen } from '../../../lib/ipc/bridgeEvents';
 
   let themes = $state<ApiExtension[]>([]);
   let loading = $state(true);
@@ -165,12 +166,12 @@
     void load();
 
     try {
-      void listen('extensions_updated', () => {
+      void appListen('extensions_updated', () => {
         void refreshDiscovery();
       }).then((fn) => {
         unlistenUpdated = fn;
       });
-      void listen('asyar:theme-changed', () => {
+      void appListen('asyar:theme-changed', () => {
         void refreshDiscovery();
       }).then((fn) => {
         unlistenThemeChanged = fn;

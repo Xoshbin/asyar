@@ -4,7 +4,9 @@
   "icon": "icon:type",
   "description": "Write and organize Markdown notes without leaving your keyboard",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "author": "Asyar",
   "type": "extension",
   "searchable": true,
@@ -71,9 +73,6 @@
       ]
     }
   ],
-  "background": {
-    "main": "dist/worker.js"
-  },
   "walkthrough": [
     {
       "id": "first-note",

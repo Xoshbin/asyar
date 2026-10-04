@@ -202,7 +202,7 @@ describe('permissionConsentService', () => {
   it('ensureConsent proceeds without prompting when the consent check fails', async () => {
     // Rust's load-time backstop still withholds unconsented permissions, so
     // failing open here only affects UX, never enforcement.
-    checkExtensionConsent.mockResolvedValue(null);
+    checkExtensionConsent.mockRejectedValue(new Error('consent check failed'));
     const result = await permissionConsentService.ensureConsent('ext.a', 'Ext A', 'enable');
     expect(result).toBe(true);
     expect(permissionConsentService.activeRequest).toBeNull();

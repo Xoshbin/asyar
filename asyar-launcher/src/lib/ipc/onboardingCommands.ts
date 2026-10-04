@@ -39,7 +39,7 @@ export async function completeAiOnboarding(): Promise<void> {
 }
 
 // Silent: onboardingService.svelte.ts is the sole caller and reports its own diagnostic.
-export async function isAiOnboardingCompleted(): Promise<boolean | null> {
+export async function isAiOnboardingCompleted(): Promise<boolean> {
   return invokeSafe<boolean>('is_ai_onboarding_completed', undefined, { silent: true });
 }
 
@@ -51,6 +51,6 @@ export async function resetExtensionOnboarding(extensionId: string): Promise<voi
  *  the launcher's frontend interception for Tier 2 view-mode commands
  *  (which bypass the Rust dispatch path and therefore Plan B's Rust
  *  interception). */
-export function isExtensionOnboarded(extensionId: string): Promise<boolean | null> {
+export function isExtensionOnboarded(extensionId: string): Promise<boolean> {
   return invokeSafe<boolean>('is_extension_onboarded', { extensionId });
 }

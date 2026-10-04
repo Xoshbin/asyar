@@ -8,7 +8,7 @@ use crate::extensions::{get_app_data_dir, ExtensionRegistryState};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 /// Progress events emitted to the frontend via Tauri events.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -286,9 +286,7 @@ pub async fn update_extension(
         update.extension_id, update.current_version, update.latest_version
     );
 
-    if let Err(e) = app_handle.emit("extensions_updated", ()) {
-        warn!("Failed to emit extensions_updated event: {}", e);
-    }
+    crate::event_bridge::bridge_emit(app_handle, "extensions_updated", ());
 
     Ok(())
 }
@@ -317,9 +315,7 @@ pub async fn update_all(
 }
 
 fn emit_progress(app_handle: &AppHandle, progress: UpdateProgress) {
-    if let Err(e) = app_handle.emit("extension_update_progress", &progress) {
-        warn!("Failed to emit update progress event: {}", e);
-    }
+    crate::event_bridge::bridge_emit(app_handle, "extension_update_progress", &progress);
 }
 
 #[cfg(test)]

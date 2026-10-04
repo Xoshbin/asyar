@@ -21,7 +21,7 @@ pub(crate) use progress::RuntimeDownloadProgress;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 const CATALOG_CACHE_TTL_SECS: u64 = 3600;
 
@@ -690,9 +690,7 @@ fn dir_size(path: &Path) -> u64 {
 }
 
 fn emit_progress(app_handle: &AppHandle, progress: RuntimeDownloadProgress) {
-    if let Err(e) = app_handle.emit("runtime_download_progress", &progress) {
-        log::warn!("Failed to emit runtime download progress event: {e}");
-    }
+    crate::event_bridge::bridge_emit(app_handle, "runtime_download_progress", &progress);
 }
 
 #[cfg(test)]

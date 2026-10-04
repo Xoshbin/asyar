@@ -9,7 +9,6 @@
     visibleItems,
   } from './state.svelte';
   import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
-  import { listen } from '@tauri-apps/api/event';
   import { fetchRawHtml } from './urlFetcher';
   import { parseFilePaths, fileNameOf, loadFileThumbnails, FILE_THUMB_DIM } from './filePreview';
   import { stripRtf, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
@@ -30,6 +29,7 @@
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
   import { t } from '../../services/i18n';
+  import { appListen } from '../../lib/ipc/bridgeEvents';
 
   const detailDateFormat = new Intl.DateTimeFormat(undefined, {
     month: 'long',
@@ -182,7 +182,7 @@
     let unlisten: (() => void) | null = null;
     (async () => {
       try {
-        unlisten = await listen('clipboard:fts-ready', () => {
+        unlisten = await appListen('clipboard:fts-ready', () => {
           clipboardHistoryStore.indexState = 'ready';
           const q = clipboardViewState.searchQuery.trim();
           if (q) void onSearchChanged(q);

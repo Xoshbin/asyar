@@ -27,7 +27,7 @@ export class FsWatcherService implements IFsWatcherIpc {
     paths: string[],
     opts?: { recursive?: boolean; debounceMs?: number } | null,
   ): Promise<string> {
-    return (await fsWatchCreate(extensionId, paths, opts ?? null)) ?? '';
+    return fsWatchCreate(extensionId, paths, opts ?? null);
   }
 
   async dispose(extensionId: string | null, handleId: string): Promise<void> {

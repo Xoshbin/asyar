@@ -1,5 +1,7 @@
+import { pickExtensionIframe } from './extensionIframeSelector';
 import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { post } from './extensionDelivery';
+import { workerHost } from './workerHost.svelte';
 import type { IpcPendingMessage } from '../../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 
@@ -16,9 +18,11 @@ export class IframeDeliveryListener {
     if (this.unlisten) return;
     this.unlisten = await bridgeListen<DeliverPayload>('asyar:iframe:deliver', (e) => {
       const { extensionId, role, messages } = e.payload;
-      const iframe = document.querySelector<HTMLIFrameElement>(
-        `iframe[data-extension-id="${extensionId}"][data-role="${role}"]`,
-      );
+      if (role === 'worker' && workerHost.hasWorker(extensionId)) {
+        for (const m of messages) workerHost.deliver(extensionId, m);
+        return;
+      }
+      const iframe = pickExtensionIframe(extensionId, role, { fallback: false });
       if (!iframe) {
         void feedbackService.report({
           source: 'frontend',

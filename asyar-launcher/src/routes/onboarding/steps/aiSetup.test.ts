@@ -28,7 +28,7 @@ describe('connectCliProvider', () => {
   it('persists the CLI provider and makes its model the default agent', async () => {
     await connectCliProvider(
       { id: 'openai', defaultModel: 'gpt-5-codex' },
-      { installed: true, path: '/usr/local/bin/codex' },
+      { path: '/usr/local/bin/codex' },
     );
 
     expect(updateSettings).toHaveBeenCalledWith('ai', {

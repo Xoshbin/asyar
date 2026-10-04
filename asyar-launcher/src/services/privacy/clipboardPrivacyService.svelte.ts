@@ -78,20 +78,20 @@ export class ClipboardPrivacyService {
     }
 
     const [defaults, user, stats] = await Promise.all([
-      clipboardPrivacyGetDefaultDenylist(),
-      clipboardPrivacyGetUserDenylist(),
-      clipboardPrivacyGetSessionStats(),
+      clipboardPrivacyGetDefaultDenylist().catch(() => []),
+      clipboardPrivacyGetUserDenylist().catch(() => []),
+      clipboardPrivacyGetSessionStats().catch(() => ({})),
     ]);
-    this.defaultDenylist = defaults ?? [];
-    this.userDenylist = user ?? [];
-    this.sessionStats = stats ?? {};
+    this.defaultDenylist = defaults;
+    this.userDenylist = user;
+    this.sessionStats = stats;
   }
 
   async classify(sourceBundleId: string | null): Promise<ClipboardPrivacyClassification | null> {
-    const r = await clipboardPrivacyClassify(sourceBundleId);
+    const r = await clipboardPrivacyClassify(sourceBundleId).catch(() => null);
     if (r?.skip) {
-      const stats = await clipboardPrivacyGetSessionStats();
-      if (stats) this.sessionStats = stats;
+      const stats = await clipboardPrivacyGetSessionStats().catch(() => null);
+      if (stats !== null) this.sessionStats = stats;
     }
     return r;
   }
@@ -115,8 +115,8 @@ export class ClipboardPrivacyService {
   }
 
   async refreshStats(): Promise<void> {
-    const stats = await clipboardPrivacyGetSessionStats();
-    if (stats) this.sessionStats = stats;
+    const stats = await clipboardPrivacyGetSessionStats().catch(() => null);
+    if (stats !== null) this.sessionStats = stats;
   }
 
   reset(): void {

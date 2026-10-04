@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../appInitializer', () => ({
-  appInitializer: { isAppInitialized: vi.fn(() => true) },
+vi.mock('../appInitState', () => ({
+  isAppInitialized: vi.fn(() => true),
+  setAppInitialized: vi.fn(),
 }));
 
 vi.mock('../extension/viewManager.svelte', () => ({

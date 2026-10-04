@@ -34,7 +34,7 @@
   import { argumentHintVersion } from '../lib/launcher/argumentHintVersion.svelte';
   import type { CommandArgument } from 'asyar-sdk/contracts';
   import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
-  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { type UnlistenFn } from '@tauri-apps/api/event';
   import CrashReportPrompt from '../components/feedback/CrashReportPrompt.svelte';
   import { crashPromptState } from '../services/feedback/crashPromptState.svelte';
   import UsageSharePrompt from '../components/feedback/UsageSharePrompt.svelte';
@@ -46,6 +46,7 @@
   import { prewarmEmojiFont } from '../lib/emojiPrewarm';
   import { i18nService } from '../services/i18n';
   import '../resources/styles/style.css';
+  import { appListen } from '../lib/ipc/bridgeEvents';
 
   // Instantiate the controller
   const controller = new LauncherController();
@@ -172,7 +173,7 @@
     // and Enter on the next launcher invocation.
     let unlistenResignKey: UnlistenFn | null = null;
     let unlistenBecomeKey: UnlistenFn | null = null;
-    listen('main_panel_did_resign_key', () => {
+    appListen('main_panel_did_resign_key', () => {
       if (isActionPanelOpen) {
         isActionPanelOpen = false;
         keyboard.restoreSearchFocus();
@@ -185,7 +186,7 @@
 
     // When the panel becomes key (e.g. after shortcut execution or window summon),
     // restore and select search focus if no modal is open.
-    listen('main_panel_did_become_key', () => {
+    appListen('main_panel_did_become_key', () => {
       if (!isAnyModalOpen(document) && !isActionPanelOpen) {
         keyboard.restoreSearchFocus({ select: true });
       }
@@ -236,7 +237,7 @@
     // launch triggers a new detection while the app is already running).
     // Hold the promise (not the resolved fn) so cleanup still unlistens even
     // if the component unmounts before `listen` resolves.
-    const unlistenCrash = listen('crash-report-pending', () => {
+    const unlistenCrash = appListen('crash-report-pending', () => {
       void crashPromptState.load(authService.user?.email ?? undefined);
     });
     unlistenCrash.catch((e) =>
@@ -251,7 +252,7 @@
   // Ask-mode usage share: Rust emits 'usage:pending-share' with the day to
   // confirm. Show the banner; the user decides whether to send.
   $effect(() => {
-    const unlisten = listen<string>('usage:pending-share', (e) => {
+    const unlisten = appListen<string>('usage:pending-share', (e) => {
       usageSharePromptState.show(e.payload);
     });
     unlisten.catch((e) => logService.debug(`[+page] listen usage:pending-share failed: ${e}`));

@@ -10,35 +10,32 @@ import type {
   McpRuntimeConsentNeeded,
 } from '../../built-in-features/mcp/types';
 
-export async function mcpListServers(): Promise<McpServerSummary[] | null> {
+export async function mcpListServers(): Promise<McpServerSummary[]> {
   return invokeSafe<McpServerSummary[]>('mcp_list_servers');
 }
 
 export async function mcpInstallServer(
   input: McpServerInstallInput,
-): Promise<McpServerSummary | McpRuntimeConsentNeeded | null> {
+): Promise<McpServerSummary | McpRuntimeConsentNeeded> {
   return invokeSafe<McpServerSummary | McpRuntimeConsentNeeded>('mcp_install_server', { input });
 }
 
-export async function mcpTestServer(input: McpServerInstallInput): Promise<McpTestResult | null> {
+export async function mcpTestServer(input: McpServerInstallInput): Promise<McpTestResult> {
   return invokeSafe<McpTestResult>('mcp_test_server', { input });
 }
 
 /**
- * The Rust command returns `true` on success (never `false`) and a
- * `needsRuntime` shape when a bundled runtime is missing, so `invokeSafe`'s
- * null-on-failure sentinel can't collide with a real success value — no
- * need for `invokeSafeVoid`'s separate ambiguity workaround here.
+ * The Rust command returns `true` on success or a `needsRuntime` shape when a
+ * bundled runtime is missing. Transport/backend failures reject.
  */
 export async function mcpSetServerEnabled(
   serverId: string,
   enabled: boolean,
 ): Promise<boolean | McpRuntimeConsentNeeded> {
-  const result = await invokeSafe<McpRuntimeConsentNeeded | true>('mcp_set_server_enabled', {
+  return invokeSafe<McpRuntimeConsentNeeded | true>('mcp_set_server_enabled', {
     serverId,
     enabled,
   });
-  return result ?? false;
 }
 
 export async function mcpUninstallServer(serverId: string): Promise<boolean> {
@@ -48,15 +45,15 @@ export async function mcpUninstallServer(serverId: string): Promise<boolean> {
 export async function mcpListAudit(
   serverId: string | null = null,
   limit = 50,
-): Promise<McpAuditRow[] | null> {
+): Promise<McpAuditRow[]> {
   return invokeSafe<McpAuditRow[]>('mcp_list_audit', { serverId, limit });
 }
 
-export async function mcpDetectExistingConfigs(): Promise<DetectedConfig[] | null> {
+export async function mcpDetectExistingConfigs(): Promise<DetectedConfig[]> {
   return invokeSafe<DetectedConfig[]>('mcp_detect_existing_configs');
 }
 
-export async function mcpParseConfigJson(json: string): Promise<McpServerInstallInput[] | null> {
+export async function mcpParseConfigJson(json: string): Promise<McpServerInstallInput[]> {
   return invokeSafe<McpServerInstallInput[]>('mcp_parse_config_json', { json });
 }
 
@@ -99,13 +96,13 @@ export async function mcpGetPermission(
   });
 }
 
-export async function mcpListServerTools(serverId: string): Promise<McpToolDescriptor[] | null> {
+export async function mcpListServerTools(serverId: string): Promise<McpToolDescriptor[]> {
   return invokeSafe<McpToolDescriptor[]>('mcp_list_server_tools', { serverId });
 }
 
 export async function mcpListPermissions(
   serverId: string | null = null,
-): Promise<McpPermissionRow[] | null> {
+): Promise<McpPermissionRow[]> {
   return invokeSafe<McpPermissionRow[]>('mcp_list_permissions', { serverId });
 }
 
@@ -118,7 +115,7 @@ export async function mcpDeletePermission(
 }
 
 export async function mcpGetStrictMode(): Promise<boolean> {
-  return (await invokeSafe<boolean>('mcp_get_strict_mode')) ?? false;
+  return invokeSafe<boolean>('mcp_get_strict_mode');
 }
 
 export async function mcpSetStrictMode(enabled: boolean): Promise<boolean> {

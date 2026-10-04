@@ -24,6 +24,7 @@ pub mod feedback;
 pub mod file_manager;
 pub mod files;
 pub mod fs_watcher;
+pub mod handlers;
 pub mod hud;
 pub mod input;
 pub mod locale;

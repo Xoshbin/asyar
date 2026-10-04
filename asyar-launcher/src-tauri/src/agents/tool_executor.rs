@@ -283,7 +283,7 @@ impl AgentToolRuntime for TauriAgentToolRuntime {
             }
         };
         let conn = self.store.conn()?;
-        crate::storage::mcp_permissions::set_permission(
+        Ok(crate::storage::mcp_permissions::set_permission(
             &conn,
             &McpPermissionRow {
                 server_id: server_id.to_string(),
@@ -292,7 +292,7 @@ impl AgentToolRuntime for TauriAgentToolRuntime {
                 decision,
                 set_at: chrono::Utc::now().timestamp_millis(),
             },
-        )
+        )?)
     }
 }
 

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listen } from '@tauri-apps/api/event';
   import { Card, Button, ExpansionDemo } from '../../../components';
   import { advanceStep } from '../stepLogic';
   import AccessibilityGate from './AccessibilityGate.svelte';
@@ -8,6 +7,7 @@
   import { onboardingNav } from '../onboardingNav.svelte';
   import { listInstalledExtensions } from '../../../lib/ipc/commands';
   import { isEmojiInstalled } from '../../../lib/installedExtensions';
+  import { appListen } from '../../../lib/ipc/bridgeEvents';
 
   let installed = $state(false);
   let installing = $state(false);
@@ -47,7 +47,7 @@
     window.addEventListener('store-extension-uninstalled', checkInstalled);
 
     try {
-      void listen('extensions_updated', checkInstalled).then((fn) => {
+      void appListen('extensions_updated', checkInstalled).then((fn) => {
         unlisten = fn;
       });
     } catch {}

@@ -17,17 +17,17 @@ import type {
 // ── Agents ────────────────────────────────────────────────────────────────────
 
 // agentsCreate/agentsUpdate/agentsList are silent: agentService.svelte.ts is
-// their sole caller and already reports its own (more specific) diagnostic
-// on a null result — letting invokeSafe also report would double-report.
+// their sole caller and reports its own operation-specific diagnostic before
+// propagating (or deliberately recovering from) the typed IPC rejection.
 export async function agentsCreate(
   input: import('../../built-in-features/agents/types').AgentCreateInput,
-): Promise<import('../../built-in-features/agents/types').AgentDef | null> {
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
   return invokeSafe('agents_create', { input }, { silent: true });
 }
 
 export async function agentsUpdate(
   input: import('../../built-in-features/agents/types').AgentUpdateInput,
-): Promise<import('../../built-in-features/agents/types').AgentDef | null> {
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
   return invokeSafe('agents_update', { input }, { silent: true });
 }
 
@@ -38,7 +38,7 @@ export async function agentsDelete(id: string): Promise<boolean> {
 }
 
 export async function agentsList(): Promise<
-  import('../../built-in-features/agents/types').AgentDef[] | null
+  import('../../built-in-features/agents/types').AgentDef[]
 > {
   return invokeSafe('agents_list', undefined, { silent: true });
 }
@@ -54,7 +54,7 @@ export async function agentsThreadCreate(
   title?: string | null,
   isPinned?: boolean,
   retentionCap?: number,
-): Promise<import('../../built-in-features/agents/types').ThreadDef | null> {
+): Promise<import('../../built-in-features/agents/types').ThreadDef> {
   return invokeSafe('agents_thread_create', {
     input: {
       agentId,
@@ -72,7 +72,7 @@ export async function agentsThreadSetPinned(id: string, pinned: boolean): Promis
 export async function agentsThreadsPrune(
   maxRetained: number,
   activeThreadId?: string | null,
-): Promise<number | null> {
+): Promise<number> {
   return invokeSafe('agents_threads_prune', {
     maxRetained,
     activeThreadId: activeThreadId ?? null,
@@ -96,25 +96,25 @@ export async function agentsFindRunOrigin(runId: string): Promise<AgentRunOrigin
   return invokeSafe('agents_find_run_origin', { runId });
 }
 
-export async function agentsBackfillThreadTitles(): Promise<number | null> {
+export async function agentsBackfillThreadTitles(): Promise<number> {
   return invokeSafe('agents_backfill_thread_titles');
 }
 
 export async function agentsThreadsList(
   agentId: string,
-): Promise<import('../../built-in-features/agents/types').ThreadDef[] | null> {
+): Promise<import('../../built-in-features/agents/types').ThreadDef[]> {
   return invokeSafe('agents_threads_list', { agentId });
 }
 
 export async function agentsMessageInsert(
   input: import('../../built-in-features/agents/types').MessageInsertInput,
-): Promise<import('../../built-in-features/agents/types').MessageDef | null> {
+): Promise<import('../../built-in-features/agents/types').MessageDef> {
   return invokeSafe('agents_message_insert', { input });
 }
 
 export async function agentsMessagesList(
   threadId: string,
-): Promise<import('../../built-in-features/agents/types').MessageDef[] | null> {
+): Promise<import('../../built-in-features/agents/types').MessageDef[]> {
   return invokeSafe('agents_messages_list', { threadId });
 }
 
@@ -129,9 +129,7 @@ export async function agentsToolsUnregisterTier2(extensionId: string): Promise<v
   await invokeSafe('agents_tools_unregister_tier2', { extensionId });
 }
 
-export async function agentsToolsList(): Promise<
-  import('asyar-sdk/contracts').ToolDescriptor[] | null
-> {
+export async function agentsToolsList(): Promise<import('asyar-sdk/contracts').ToolDescriptor[]> {
   return invokeSafe('agents_tools_list');
 }
 
@@ -163,6 +161,8 @@ export interface AgentEditorForm {
   silent: boolean;
   inputSource: import('../../built-in-features/agents/types').SilentInputSource;
   outputAction: import('../../built-in-features/agents/types').SilentOutputAction;
+  cacheResponses: boolean;
+  shortcodeTrigger: string;
 }
 
 export interface AgentEditorViewModel {
@@ -245,7 +245,7 @@ export async function agentsEditorListModels(
   };
 }
 
-export async function agentsInvokeBuiltinTool(id: string, args: unknown): Promise<unknown | null> {
+export async function agentsInvokeBuiltinTool(id: string, args: unknown): Promise<unknown> {
   return invokeSafe('agents_invoke_builtin_tool', { id, args });
 }
 

@@ -1,10 +1,17 @@
 import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { iframeUnmountAck } from '../../lib/ipc/iframeLifecycleCommands';
 import { logService } from '../log/logService';
+import { isBuiltInFeature } from './extensionDiscovery';
+import { workerHost } from './workerHost.svelte';
 
 export interface WorkerRegistryEntry {
   extensionId: string;
   mountToken: number;
+}
+
+let workerEntryProvider: (extensionId: string) => string | undefined = () => undefined;
+export function setWorkerEntryProvider(provider: typeof workerEntryProvider): void {
+  workerEntryProvider = provider;
 }
 
 class WorkerRegistry {
@@ -14,6 +21,10 @@ class WorkerRegistry {
 
   get entries(): ReadonlyArray<WorkerRegistryEntry> {
     return this._entries;
+  }
+
+  get fallbackEntries(): ReadonlyArray<{ extensionId: string; mountToken: number }> {
+    return workerHost.fallbackEntries;
   }
 
   async init(): Promise<void> {
@@ -36,10 +47,11 @@ class WorkerRegistry {
     this.unlistenMount = null;
     this.unlistenUnmount = null;
     this._entries.splice(0, this._entries.length);
+    workerHost.reset();
   }
 
   handleMount(p: { extensionId: string; mountToken: number; role?: string }): void {
-    if (p.role !== 'worker') return;
+    if (p.role !== 'worker' || isBuiltInFeature(p.extensionId)) return;
     logService.debug(`[workerRegistry] mount ${p.extensionId} token=${p.mountToken}`);
     const entry: WorkerRegistryEntry = { extensionId: p.extensionId, mountToken: p.mountToken };
     const existing = this._entries.findIndex((e) => e.extensionId === p.extensionId);
@@ -48,6 +60,7 @@ class WorkerRegistry {
     } else {
       this._entries.push(entry);
     }
+    workerHost.mount(p.extensionId, p.mountToken, workerEntryProvider(p.extensionId));
   }
 
   async handleUnmount(p: { extensionId: string; reason: string; role?: string }): Promise<void> {
@@ -55,6 +68,7 @@ class WorkerRegistry {
     logService.debug(`[workerRegistry] unmount ${p.extensionId} reason=${p.reason}`);
     const idx = this._entries.findIndex((e) => e.extensionId === p.extensionId);
     if (idx >= 0) this._entries.splice(idx, 1);
+    workerHost.unmount(p.extensionId, p.reason);
     try {
       await iframeUnmountAck(p.extensionId, 'worker');
     } catch (err) {

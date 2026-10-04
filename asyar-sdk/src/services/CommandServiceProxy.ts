@@ -63,10 +63,13 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
    * mis-imports the proxy.
    */
   replaceDynamicCommands(regs: DynamicCommandRegistration[]): Promise<void> {
-    if (
-      typeof window === 'undefined' ||
-      (window as { __ASYAR_ROLE__?: unknown }).__ASYAR_ROLE__ !== 'worker'
-    ) {
+    const scope =
+      typeof self !== 'undefined'
+        ? (self as any)
+        : typeof window !== 'undefined'
+          ? (window as any)
+          : globalThis;
+    if (scope?.__ASYAR_ROLE__ !== 'worker') {
       return Promise.reject(
         new Error(
           '[CommandServiceProxy] replaceDynamicCommands is worker-only. ' +

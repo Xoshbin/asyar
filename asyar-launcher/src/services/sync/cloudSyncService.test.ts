@@ -29,6 +29,7 @@ vi.mock('../auth/authService.svelte', () => ({
     isLoggedIn: true,
     entitlements: ['sync:settings', 'sync:ai-conversations'],
     logout: vi.fn().mockResolvedValue(undefined),
+    onAuthChange: vi.fn(() => () => {}),
   },
 }));
 
@@ -103,13 +104,15 @@ function makeProvider(opts: {
   syncTier?: 'core' | 'extended';
   sensitiveFields?: string[];
   items?: Array<{ id: string; categoryId: string; content: unknown }>;
+  /** Override to observe or react to pull application. */
+  applyItemUpsert?: FakeProvider['applyItemUpsert'];
 }): FakeProvider {
   const fp: FakeProvider = {
     id: opts.id,
     syncTier: opts.syncTier ?? 'core',
     sensitiveFields: opts.sensitiveFields ?? [],
     exportItems: vi.fn().mockResolvedValue(opts.items ?? []),
-    applyItemUpsert: vi.fn().mockResolvedValue(undefined),
+    applyItemUpsert: opts.applyItemUpsert ?? vi.fn().mockResolvedValue(undefined),
     applyItemDelete: vi.fn().mockResolvedValue(undefined),
     subscribeToChanges: vi.fn((cb: (ev: SyncChangeEvent) => void): Unsubscribe => {
       fp.__emit = cb;
@@ -179,6 +182,34 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
     cloudSyncService.stopPeriodicSync();
   });
 
+  it('retains lifetime subscriptions across login logout login', async () => {
+    const listeners = new Set<(loggedIn: boolean) => void | Promise<void>>();
+    vi.mocked(authService.onAuthChange).mockImplementation((cb) => {
+      listeners.add(cb);
+      return () => {
+        listeners.delete(cb);
+      };
+    });
+    const provider = makeProvider({ id: 'settings' });
+    vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+    await cloudSyncService.init();
+    await settleInFlightRun();
+    authService.isLoggedIn = false;
+    for (const cb of [...listeners]) await cb(false);
+    expect(provider.__emit).toBeUndefined();
+    expect(listeners.size).toBe(1);
+    authService.isLoggedIn = true;
+    for (const cb of [...listeners]) await cb(true);
+    await settleInFlightRun();
+    expect(provider.__emit).toBeTypeOf('function');
+    expect(commands.syncRun).toHaveBeenCalledTimes(2);
+    await cloudSyncService.init();
+    expect(listeners.size).toBe(1);
+    expect(settingsService.subscribe).toHaveBeenCalledOnce();
+    cloudSyncService.dispose();
+    expect(listeners.size).toBe(0);
+    expect(provider.__emit).toBeUndefined();
+  });
   // ── init() ────────────────────────────────────────────────────────────────
 
   describe('init()', () => {
@@ -367,7 +398,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
     });
 
     it('sync_run_failure_surfaces_diagnostic_warning', async () => {
-      vi.mocked(commands.syncRun).mockResolvedValue(null);
+      vi.mocked(commands.syncRun).mockRejectedValue(new Error('sync failed'));
 
       await cloudSyncService.syncNow();
 
@@ -477,10 +508,10 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
 
   describe('concurrency', () => {
     it('concurrent_sync_now_calls_collapse_to_one_in_flight_run', async () => {
-      let resolveSync: ((value: commands.SyncRunReport | null) => void) | null = null;
+      let resolveSync: ((value: commands.SyncRunReport) => void) | null = null;
       vi.mocked(commands.syncRun).mockImplementation(
         () =>
-          new Promise<commands.SyncRunReport | null>((resolve) => {
+          new Promise<commands.SyncRunReport>((resolve) => {
             resolveSync = resolve;
           }),
       );
@@ -695,7 +726,6 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
             itemId: 's-pulled',
             categoryId: 'snippets',
             content: '{"expansion":"text"}',
-            version: 2,
             deleted: false,
           },
         ],
@@ -723,7 +753,6 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
             itemId: 's-pulled',
             categoryId: 'snippets',
             content: '{"expansion":"text"}',
-            version: 2,
             deleted: false,
           },
         ],
@@ -871,8 +900,8 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       expect(cloudSyncService.lastSyncedAt).toEqual(new Date(now));
     });
 
-    it('handles host failure (null response)', async () => {
-      vi.mocked(commands.syncGetStatus).mockResolvedValue(null);
+    it('handles host rejection', async () => {
+      vi.mocked(commands.syncGetStatus).mockRejectedValue(new Error('status failed'));
 
       await cloudSyncService.checkStatus();
 

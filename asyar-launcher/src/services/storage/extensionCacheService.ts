@@ -17,14 +17,10 @@ export const extensionCacheService = {
   },
 
   async delete(extensionId: string, key: string): Promise<boolean> {
-    const result = await extCacheDelete(extensionId, key);
-    if (result === null) throw new Error('ext_cache_delete failed');
-    return result;
+    return extCacheDelete(extensionId, key);
   },
 
   async clear(extensionId: string): Promise<number> {
-    const result = await extCacheClear(extensionId);
-    if (result === null) throw new Error('ext_cache_clear failed');
-    return result;
+    return extCacheClear(extensionId);
   },
 };

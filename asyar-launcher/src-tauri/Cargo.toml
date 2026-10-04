@@ -7,7 +7,7 @@ license = "GPL-3.0-only"
 edition = "2021"
 
 [workspace]
-members = [".", "asyar-summon"]
+members = [".", "asyar-summon", "crates/*"]
 default-members = ["."]
 resolver = "2"
 
@@ -24,7 +24,7 @@ name = "asyar_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.7", features = [] }
+tauri-build = { version = "2.7.1", features = [] }
 semver = "1"
 serde_json = "1"
 
@@ -33,7 +33,7 @@ percent-encoding = "2.3"
 base64 = "0.22"
 dirs = "5.0"
 url = "2"
-tauri = { version = "2.12", features = ["macos-private-api", "tray-icon", "image-png", "image-ico", "test"] }
+tauri = { version = "2.12.1", features = ["macos-private-api", "tray-icon", "image-png", "image-ico", "test"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 semver = "1"
@@ -60,6 +60,10 @@ tokio = { version = "1.0", features = ["full"] }
 tauri-plugin-clipboard-x = "2"
 window-vibrancy = "0.6"
 fuzzy-matcher = "0.3.7" # Added for better fuzzy search
+asyar-search = { path = "crates/asyar-search" }
+asyar-calculator = { path = "crates/asyar-calculator" }
+asyar-storage = { path = "crates/asyar-storage" }
+asyar-platform = { path = "crates/asyar-platform" }
 sysinfo = "0.31" # cross-platform process enumeration + kill
 sha2 = "0.10"
 hmac = "0.12"
@@ -199,6 +203,7 @@ notify-rust = "4"
 rdev = "0.5"
 
 [dev-dependencies]
+asyar-platform = { path = "crates/asyar-platform", features = ["test-support"] }
 mockito = "1.4"
 proptest = "1"
 serial_test = "3"

@@ -37,10 +37,6 @@ export const snippetService = {
   async init(): Promise<void> {
     try {
       const permitted = await commands.checkSnippetPermission();
-      if (permitted === null) {
-        logService.warn('Snippet expansion init: check_snippet_permission failed');
-        return;
-      }
       if (!permitted) return;
 
       await this.syncToRust();
@@ -55,7 +51,7 @@ export const snippetService = {
   },
 
   async onViewOpen(): Promise<{ permissionGranted: boolean }> {
-    const granted = (await commands.checkSnippetPermission()) ?? false;
+    const granted = await commands.checkSnippetPermission().catch(() => false);
     if (granted) await this.syncToRust();
     return { permissionGranted: granted };
   },
@@ -69,8 +65,12 @@ export const snippetService = {
   },
 
   async setEnabled(enabled: boolean): Promise<{ ok: boolean; error?: string }> {
-    const ok = await commands.setSnippetsEnabled(enabled);
-    return ok ? { ok: true } : { ok: false, error: 'set_snippets_enabled failed' };
+    try {
+      await commands.setSnippetsEnabled(enabled);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: String(error) };
+    }
   },
 
   async openAccessibilityPreferences(): Promise<void> {

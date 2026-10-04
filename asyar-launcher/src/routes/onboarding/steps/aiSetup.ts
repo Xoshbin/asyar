@@ -1,5 +1,5 @@
 import { agentService } from '../../../built-in-features/agents/agentService.svelte';
-import type { CliStatus } from '../../../lib/ipc/commands';
+import type { CliStatus } from '../../../bindings';
 import { settingsService } from '../../../services/settings/settingsService.svelte';
 
 interface CliProviderSelection {
