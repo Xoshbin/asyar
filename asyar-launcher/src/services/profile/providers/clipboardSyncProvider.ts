@@ -1,10 +1,12 @@
 import {
   clipboardExportForSync,
   clipboardCount,
+  clipboardApplySynced,
   type StoredClipboardItem,
   type ClipboardCursor,
 } from '../../../lib/ipc/commands';
 import { clipboardHistoryStore } from '../../clipboard/stores/clipboardHistoryStore.svelte';
+import { settingsService } from '../../settings/settingsService.svelte';
 import { stripHtml, stripRtf, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
 import type {
   ISyncProvider,
@@ -168,7 +170,13 @@ export class ClipboardSyncProvider implements ISyncProvider {
     ) {
       return;
     }
-    await clipboardHistoryStore.addHistoryItem(incoming);
+    // Not addHistoryItem: that is the local-capture path (content dedupe +
+    // retention cleanup, both of which tombstone rows and delete them from the
+    // cloud). The store reloads via `asyar:stores-restored` after the pull.
+    await clipboardApplySynced(
+      incoming as unknown as StoredClipboardItem,
+      settingsService.currentSettings.clipboardHistory?.retentionMs,
+    );
   }
 
   async applyItemDelete(itemId: string): Promise<void> {

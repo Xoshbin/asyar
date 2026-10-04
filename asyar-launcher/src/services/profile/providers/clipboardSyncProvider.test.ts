@@ -3,6 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../../lib/ipc/commands', () => ({
   clipboardExportForSync: vi.fn(),
   clipboardCount: vi.fn(),
+  clipboardApplySynced: vi.fn(async () => true),
+}));
+
+vi.mock('../../settings/settingsService.svelte', () => ({
+  settingsService: { currentSettings: { clipboardHistory: { retentionMs: 1234 } } },
 }));
 
 vi.mock('../../clipboard/stores/clipboardHistoryStore.svelte', () => ({
@@ -18,6 +23,7 @@ import { ClipboardSyncProvider } from './clipboardSyncProvider';
 import {
   clipboardExportForSync,
   clipboardCount,
+  clipboardApplySynced,
   type StoredClipboardItem,
 } from '../../../lib/ipc/commands';
 import type { SyncProviderData } from '../types';
@@ -359,13 +365,16 @@ describe('ClipboardSyncProvider — delta sync surface', () => {
     expect(items[0].categoryId).toBe('clipboard');
   });
 
-  it('applyItemUpsert routes to addHistoryItem with the content', async () => {
+  it('applyItemUpsert stores the pulled item without the local-capture path', async () => {
     const { clipboardHistoryStore } =
       await import('../../clipboard/stores/clipboardHistoryStore.svelte');
     const content = { id: 'c10', type: 'text', content: 'Hello', createdAt: 5000, favorite: false };
     const provider = new ClipboardSyncProvider();
     await provider.applyItemUpsert({ id: 'c10', categoryId: 'clipboard', content });
-    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(content);
+    // addHistoryItem -> clipboard_record_capture dedupes by content and runs
+    // retention cleanup, tombstoning rows and deleting them from the cloud.
+    expect(clipboardHistoryStore.addHistoryItem).not.toHaveBeenCalled();
+    expect(clipboardApplySynced).toHaveBeenCalledWith(content, 1234);
   });
 
   it('applyItemDelete routes to deleteHistoryItem with the id', async () => {
