@@ -3,7 +3,7 @@ import { envService } from '../envService';
 import { logService } from '../log/logService';
 import { permissionConsentService } from './permissionConsentService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import type { AvailableUpdate, UpdateProgressStatus } from '../../types/ExtensionUpdate';
 
@@ -35,7 +35,7 @@ class ExtensionUpdateService {
     this.getActiveExtensionId = getActiveExtensionId;
     this.reloadExtensions = reloadExtensions;
 
-    this.unlistenProgress = await listen<UpdateProgressStatus>(
+    this.unlistenProgress = await bridgeListen<UpdateProgressStatus>(
       'extension_update_progress',
       (event) => {
         this.updateProgress = event.payload;

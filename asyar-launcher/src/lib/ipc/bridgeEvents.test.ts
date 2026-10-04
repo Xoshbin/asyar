@@ -225,4 +225,21 @@ describe('bridgeEvents transport', () => {
       expect(handler).toHaveBeenCalledWith({ payload: { polled: true } });
     });
   });
+
+  describe('non-poller window (settings, sticky, onboarding)', () => {
+    it('receives a bridged event delivered natively via emit_to, without a bridge loop', async () => {
+      // These windows never call startBridgeLoop(); the Rust bridge reaches
+      // them with a targeted emit_to, which surfaces through Tauri's listen.
+      const handler = vi.fn();
+      await appListen('notes:changed', handler);
+
+      for (const cb of tauriListeners.get('notes:changed') ?? []) {
+        cb({ payload: { type: 'upsert', id: '1' } });
+      }
+
+      expect(invoke).not.toHaveBeenCalledWith('bridge_poll');
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalledWith({ payload: { type: 'upsert', id: '1' } });
+    });
+  });
 });

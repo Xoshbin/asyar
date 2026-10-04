@@ -1,6 +1,6 @@
-import { listen } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import type { ExtensionManifest, ExtensionCommand } from 'asyar-sdk/contracts';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 export interface DeeplinkDeps {
   getManifestById: (id: string) => ExtensionManifest | undefined;
@@ -23,7 +23,7 @@ export class DeeplinkService {
 
   /** Register the permanent Tauri event listener. Call once at app init. */
   async init(): Promise<void> {
-    await listen<ExtensionDeeplinkPayload>('asyar:deeplink:extension', (event) => {
+    await appListen<ExtensionDeeplinkPayload>('asyar:deeplink:extension', (event) => {
       this.handleExtensionDeeplink(event.payload);
     });
   }

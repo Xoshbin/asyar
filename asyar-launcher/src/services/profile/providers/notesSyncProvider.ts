@@ -1,4 +1,4 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import {
   noteGetAllForService,
   noteRemove,
@@ -17,6 +17,7 @@ import type {
   SyncChangeEvent,
   Unsubscribe,
 } from '../types';
+import { appListen } from '../../../lib/ipc/bridgeEvents';
 
 export class NotesSyncProvider implements ISyncProvider {
   readonly id = 'notes';
@@ -143,7 +144,7 @@ export class NotesSyncProvider implements ISyncProvider {
     let disposed = false;
     let unlisten: UnlistenFn | null = null;
 
-    void listen<{ id: string; type: 'upsert' | 'delete' }>('notes:changed', (event) => {
+    void appListen<{ id: string; type: 'upsert' | 'delete' }>('notes:changed', (event) => {
       if (disposed) return;
       callback({ type: event.payload.type, itemId: event.payload.id, categoryId: this.id });
     }).then((stopListening) => {

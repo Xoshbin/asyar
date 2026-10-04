@@ -20,7 +20,8 @@ import { ActionContext } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 function noteAsMarkdown(title: string, body: string): string {
   return title.trim() ? `# ${title}\n\n${body}` : body;
@@ -256,7 +257,7 @@ class NotesExtension implements Extension {
     // Sticky windows are separate webviews with their own noteStore, so their
     // edits only reach this view through the Rust-emitted event.
     this.unlistenNotesChanged?.();
-    this.unlistenNotesChanged = await listen('notes:changed', () => {
+    this.unlistenNotesChanged = await appListen('notes:changed', () => {
       void noteStore.reload();
     });
 

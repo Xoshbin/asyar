@@ -14,8 +14,8 @@ import {
   extensionPreferencesImportAll,
   type PreferencesExport,
 } from '../../../lib/ipc/extensionPreferencesCommands';
-import { listen } from '@tauri-apps/api/event';
 import { logService } from '../../log/logService';
+import { appListen } from '../../../lib/ipc/bridgeEvents';
 
 /**
  * Sync provider for extension preferences. Password-type values are
@@ -131,7 +131,7 @@ export class ExtensionPreferencesSyncProvider implements ISyncProvider {
     // set or reset. Fold every event into a single upsert for the singleton.
     let stop: (() => void) | null = null;
     let cancelled = false;
-    listen('asyar:preferences-changed', () => {
+    appListen('asyar:preferences-changed', () => {
       callback({ type: 'upsert', itemId: this.id, categoryId: this.id });
     })
       .then((unlisten) => {

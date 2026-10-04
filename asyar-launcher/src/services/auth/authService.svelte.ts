@@ -1,8 +1,8 @@
-import { listen } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { logService } from '../log/logService';
 import * as commands from '../../lib/ipc/commands';
 import type { AuthUser } from '../../lib/ipc/commands';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 /** How long (seconds) cached entitlements are considered fresh without a network refresh. */
 const ENTITLEMENT_GRACE_PERIOD_SECONDS = 7 * 24 * 60 * 60; // 7 days
@@ -63,7 +63,7 @@ class AuthService {
   async init(): Promise<void> {
     if (!this.authChangedUnlisten) {
       try {
-        this.authChangedUnlisten = await listen<commands.AuthStateResponse>(
+        this.authChangedUnlisten = await appListen<commands.AuthStateResponse>(
           'asyar:auth-changed',
           async (event) => {
             const payload = event.payload;
@@ -151,7 +151,7 @@ class AuthService {
       this.isLoading = false;
 
       // Listen for deep link: Rust emits "asyar:deep-link" with the full URL
-      this.deepLinkUnlisten = await listen<string>('asyar:deep-link', async (event) => {
+      this.deepLinkUnlisten = await appListen<string>('asyar:deep-link', async (event) => {
         const url = event.payload;
         if (!url.startsWith('asyar://auth/callback')) return;
 

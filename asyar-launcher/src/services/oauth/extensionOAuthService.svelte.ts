@@ -1,9 +1,9 @@
-import { listen } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { logService } from '../log/logService';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import * as commands from '../../lib/ipc/commands';
 import type { OAuthTokenPayload } from '../../lib/ipc/commands';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 export class ExtensionOAuthService {
   /**
@@ -15,7 +15,7 @@ export class ExtensionOAuthService {
 
   /** Set up the deep-link listener for asyar://oauth/callback. Call once at app init. */
   async init(): Promise<void> {
-    await listen<string>('asyar:deep-link', async (event) => {
+    await appListen<string>('asyar:deep-link', async (event) => {
       const url = event.payload;
       if (!url.startsWith('asyar://oauth/callback')) return;
       await this._handleCallback(url);

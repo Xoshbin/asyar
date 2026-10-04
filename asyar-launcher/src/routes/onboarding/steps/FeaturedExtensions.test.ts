@@ -150,7 +150,7 @@ describe('FeaturedExtensions step', () => {
   });
 
   it('updates installed status in real time when extensions_updated event fires', async () => {
-    let onExtensionsUpdated: (() => void) | undefined;
+    let onExtensionsUpdated: ((e: { payload: unknown }) => void) | undefined;
     listenMock.mockImplementation((event: string, handler: any) => {
       if (event === 'extensions_updated') {
         onExtensionsUpdated = handler;
@@ -177,7 +177,7 @@ describe('FeaturedExtensions step', () => {
     expect(screen.queryByText('Installed')).toBeNull();
 
     // Simulate backend emitting extensions_updated
-    onExtensionsUpdated?.();
+    onExtensionsUpdated?.({ payload: undefined });
 
     expect(await screen.findByText('Installed')).toBeTruthy();
     expect(

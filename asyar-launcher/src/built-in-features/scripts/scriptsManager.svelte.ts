@@ -1,4 +1,4 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import {
   scriptsRescan,
   scriptsMakeExecutable,
@@ -38,7 +38,7 @@ export class ScriptsManager {
   async start(): Promise<void> {
     if (this.unlistenScriptsChanged) return;
 
-    this.unlistenScriptsChanged = await listen('scripts:changed', () => {
+    this.unlistenScriptsChanged = await bridgeListen('scripts:changed', () => {
       void this.refresh().catch((err) => {
         logService.warn(`[scripts] refresh on event failed: ${err}`);
       });

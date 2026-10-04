@@ -299,13 +299,9 @@ describe('agents:changed event sync', () => {
     expect(service.agents).toHaveLength(1);
 
     // Fire the event listener captured during construction
-    const capturedListener = vi.mocked(tauriEvent.listen).mock.calls[0][1] as () => void;
-    capturedListener();
-    // Allow the async refresh to settle
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(service.agents).toHaveLength(2);
+    const capturedListener = vi.mocked(tauriEvent.listen).mock.calls[0][1] as (e: unknown) => void;
+    capturedListener({ payload: undefined });
+    await vi.waitFor(() => expect(service.agents).toHaveLength(2));
   });
 });
 

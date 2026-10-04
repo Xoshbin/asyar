@@ -1,7 +1,8 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import { shortcutUpsert, shortcutGetAll, shortcutRemove } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 function reportPersistenceFailure(action: string, err: unknown): void {
   logService.error(`[ShortcutStore] ${action}: ${err}`);
@@ -76,7 +77,7 @@ class ShortcutStoreClass {
     // pressing the hotkey logs "Received shortcut for unknown objectId"
     // because handleFiredShortcut sees a stale empty list.
     try {
-      this.#changedUnlisten = await listen('shortcuts:changed', () => {
+      this.#changedUnlisten = await appListen('shortcuts:changed', () => {
         void this.reload();
       });
     } catch (err) {

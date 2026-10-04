@@ -66,7 +66,7 @@ describe('extensionUpdateService', () => {
 
   it('destroy() calls the tick unlisten function', async () => {
     const mockUnlisten = vi.fn();
-    vi.mocked(listen).mockResolvedValue(mockUnlisten);
+    vi.mocked(bridgeListen).mockResolvedValue(mockUnlisten);
 
     await extensionUpdateService.init(
       () => null,

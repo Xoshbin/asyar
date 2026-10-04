@@ -16,7 +16,6 @@ import {
   agentsSeedGrammarFix,
   agentsSeedEmojiFallback,
 } from '../../lib/ipc/commands';
-import { listen } from '@tauri-apps/api/event';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import type {
@@ -27,6 +26,7 @@ import type {
   MessageDef,
   MessageInsertInput,
 } from './types';
+import { appListen } from '../../lib/ipc/bridgeEvents';
 
 function reportAgentFailure(kind: string, operation: string, error: unknown): void {
   feedbackService.report({
@@ -56,7 +56,7 @@ export class AgentService {
 
   constructor() {
     _currentInstance = this;
-    void listen('agents:changed', () => {
+    void appListen('agents:changed', () => {
       void this.refresh();
     })?.catch(() => {
       // No-op outside Tauri runtime (e.g. unit-test environments).

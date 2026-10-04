@@ -26,3 +26,5 @@ asyar-sdk/cli/lib/knownRuntimes.ts
 asyar-sdk/cli/lib/gatedPermissions.ts
 asyar-launcher/src-tauri/resources/ext-builder/sidecar.js
 asyar-launcher/src-tauri/gen/
+
+.remember/

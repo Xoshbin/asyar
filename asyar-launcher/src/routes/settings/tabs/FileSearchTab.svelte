@@ -8,7 +8,7 @@
     SettingsCard,
     SettingsRow,
   } from '../../../components';
-  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { type UnlistenFn } from '@tauri-apps/api/event';
   import { open } from '@tauri-apps/plugin-dialog';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { setFocusLock } from '../../../lib/ipc/commands';
@@ -17,6 +17,7 @@
   import type { IndexStatus } from '../../../bindings';
   import { canAddRoot, canAddExcludePattern } from './fileSearchTab.helpers';
   import { t } from '../../../services/i18n';
+  import { appListen } from '../../../lib/ipc/bridgeEvents';
 
   let roots = $derived(settingsService.currentSettings.fileSearch.includeRoots ?? []);
   let excludePatterns = $derived(settingsService.currentSettings.fileSearch.excludePatterns ?? []);
@@ -43,7 +44,7 @@
   $effect(() => {
     void refreshStatus();
     let unlisten: UnlistenFn | undefined;
-    listen<IndexStatus>('asyar:file-index-status', (e) => {
+    appListen<IndexStatus>('asyar:file-index-status', (e) => {
       status = e.payload;
     }).then((fn) => {
       unlisten = fn;

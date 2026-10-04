@@ -86,7 +86,9 @@ export async function appListen<T>(
   event: string,
   cb: (e: { payload: T }) => void,
 ): Promise<() => void> {
-  const unlistenBridge = await bridgeListenInternal<T>(event, cb);
+  // Both subscriptions are issued in the same tick, before either is awaited,
+  // so the native listener is registered as early as the bridge handler is.
+  const bridgePromise = bridgeListenInternal<T>(event, cb);
 
   let unlistenTauri: UnlistenFn | null = null;
   try {
@@ -100,6 +102,7 @@ export async function appListen<T>(
   } catch {
     // Tauri event system unavailable or mocked out (e.g. non-Tauri test environments).
   }
+  const unlistenBridge = await bridgePromise;
 
   return () => {
     unlistenBridge();
