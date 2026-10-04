@@ -26,6 +26,8 @@ async fn spawn_codex_app_server(
         .stderr(Stdio::null())
         .kill_on_drop(true);
 
+    crate::ai::cli::hide_console_window(&mut cmd);
+
     let mut child = cmd.spawn().map_err(|e| {
         AppError::Other(format!(
             "Failed to spawn codex app-server '{binary_path:?}': {e}"

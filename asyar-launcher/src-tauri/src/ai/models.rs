@@ -539,11 +539,10 @@ pub async fn list_models_impl(
             if let Some(bin) =
                 crate::ai::cli::resolve_cli_binary(engine_type, config.cli_binary_path.as_deref())
             {
-                if let Ok(output) = tokio::process::Command::new(&bin)
-                    .arg("models")
-                    .output()
-                    .await
-                {
+                let mut models_cmd = tokio::process::Command::new(&bin);
+                models_cmd.arg("models");
+                crate::ai::cli::hide_console_window(&mut models_cmd);
+                if let Ok(output) = models_cmd.output().await {
                     if output.status.success() {
                         let text = String::from_utf8_lossy(&output.stdout);
                         let models: Vec<ModelInfo> = text
