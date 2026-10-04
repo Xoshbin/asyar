@@ -511,7 +511,9 @@ export class ExtensionLoader {
           // Rust search index reads this as the command's execution style.
           // After the schema change, `cmd.mode` is the authoritative field;
           // fall back to manifest.type (which is `"extension"` or `"theme"`).
-          type: cmd.mode || manifest.type,
+          // Both are optional, and Rust requires a string, so an undeclared
+          // command indexes as a plain extension command.
+          type: cmd.mode || manifest.type || 'extension',
           icon: cmd.icon ?? manifest.icon ?? null,
         }));
 

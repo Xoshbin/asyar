@@ -208,6 +208,7 @@
       "password_optional": "密碼（選填）",
       "password_optional_description": "加密匯出檔案中的敏感欄位。",
       "password_optional_placeholder": "留空則剔除敏感欄位",
+      "sensitive_stripped_warning": "敏感欄位將從此次匯出中剔除。設定密碼可改為加密保留。",
       "export_backup": "匯出備份",
       "exporting": "匯出中……",
       "export_button": "匯出……",

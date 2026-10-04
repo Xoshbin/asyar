@@ -18,7 +18,7 @@
   // told to follow it. rAF waits for the row to exist after a re-render.
   $effect(() => {
     const index = walkthroughViewState.selectedIndex;
-    const _tasks = walkthroughViewState.tasks;
+    const _tasks = walkthroughService.tasks;
     if (walkthroughViewState.mode !== 'list' || !listEl) return;
     requestAnimationFrame(() => {
       if (listEl) {

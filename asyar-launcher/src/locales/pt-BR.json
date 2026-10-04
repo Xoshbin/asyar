@@ -208,6 +208,7 @@
       "password_optional": "Senha (opcional)",
       "password_optional_description": "Criptografar campos confidenciais na exportação.",
       "password_optional_placeholder": "Deixe em branco para remover campos confidenciais",
+      "sensitive_stripped_warning": "Os campos confidenciais serão removidos desta exportação. Defina uma senha para mantê-los criptografados.",
       "export_backup": "Exportar backup",
       "exporting": "Exportando…",
       "export_button": "Exportar…",

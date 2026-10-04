@@ -13,6 +13,10 @@ import type { NotificationOptions } from 'asyar-sdk/contracts';
 import { notificationService } from '../notification/notificationService';
 import { openerService } from '../opener/openerService';
 
+// Re-exported so presenters can type feedback payloads without reaching into
+// ./internal (see feedbackBoundary.test.ts).
+export type { FeedbackItem } from './internal/feedbackCommands';
+
 interface ActiveAnnouncement {
   id: string;
   title: string;

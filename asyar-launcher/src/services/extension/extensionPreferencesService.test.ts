@@ -53,13 +53,13 @@ import { extensionIframeManager } from './extensionIframeManager.svelte';
 function registerDeclarations() {
   extensionPreferencesService.registerManifest('ext.test', {
     extension: [
-      { name: 'A', type: 'string', default: 'A-default', title: 'A' },
-      { name: 'theme', type: 'string', default: 'light', title: 'Theme' },
+      { name: 'A', type: 'textfield', default: 'A-default', title: 'A' },
+      { name: 'theme', type: 'textfield', default: 'light', title: 'Theme' },
     ],
     commands: {
       'cmd-1': [
-        { name: 'B', type: 'string', default: 'B-default', title: 'B' },
-        { name: 'otherKey', type: 'string', default: 'other-default', title: 'Other' },
+        { name: 'B', type: 'textfield', default: 'B-default', title: 'B' },
+        { name: 'otherKey', type: 'textfield', default: 'other-default', title: 'Other' },
       ],
     },
   });

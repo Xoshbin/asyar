@@ -105,7 +105,6 @@ describe('nextContextHint', () => {
   it('returns the AI hint for an empty box in normal mode when stream provider registered', () => {
     const result = nextContextHint({
       activeViewActive: false,
-      queryHistory: { reset: vi.fn() },
       localSearchValue: '',
       activeContext: null,
       computeHint: () => aiHint,

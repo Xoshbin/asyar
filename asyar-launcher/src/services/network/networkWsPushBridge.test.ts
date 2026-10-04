@@ -31,7 +31,7 @@ describe('networkWsPushBridge', () => {
     let handler: ((event: { payload: unknown }) => void) | undefined;
     vi.mocked(listen).mockImplementationOnce(async (_event, callback) => {
       handler = callback as typeof handler;
-      return vi.fn();
+      return vi.fn<() => void>();
     });
 
     await networkWsPushBridge.init();

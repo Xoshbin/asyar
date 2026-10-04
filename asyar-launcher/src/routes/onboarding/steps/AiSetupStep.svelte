@@ -5,7 +5,8 @@
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
-  import { aiCheckCliStatus, type CliStatus } from '../../../lib/ipc/commands';
+  import { aiCheckCliStatus } from '../../../lib/ipc/commands';
+  import type { CliStatus } from '../../../bindings';
   import { Button, Card, Badge } from '../../../components';
   import { t } from '../../../services/i18n';
   import { connectCliProvider } from './aiSetup';
@@ -14,6 +15,16 @@
   let cliResults = $state<Record<string, CliStatus>>({});
   let connecting = $state<string | null>(null);
   let showManual = $state(false);
+
+  // A failed probe is reported as "not installed" rather than surfaced:
+  // onboarding offers manual setup below when nothing is detected.
+  const CLI_STATUS_UNAVAILABLE: CliStatus = {
+    installed: false,
+    path: null,
+    version: null,
+    error: null,
+    account: null,
+  };
 
   const CLI_SPECS = [
     {
@@ -57,9 +68,9 @@
     scanning = true;
     try {
       const [openaiStatus, googleStatus, anthropicStatus] = await Promise.all([
-        aiCheckCliStatus('openai').catch(() => ({ installed: false })),
-        aiCheckCliStatus('google').catch(() => ({ installed: false })),
-        aiCheckCliStatus('anthropic').catch(() => ({ installed: false })),
+        aiCheckCliStatus('openai').catch(() => CLI_STATUS_UNAVAILABLE),
+        aiCheckCliStatus('google').catch(() => CLI_STATUS_UNAVAILABLE),
+        aiCheckCliStatus('anthropic').catch(() => CLI_STATUS_UNAVAILABLE),
       ]);
       cliResults = {
         openai: openaiStatus,

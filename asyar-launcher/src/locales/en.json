@@ -208,6 +208,7 @@
       "password_optional": "Password (optional)",
       "password_optional_description": "Encrypt sensitive fields in the export.",
       "password_optional_placeholder": "Leave blank to strip sensitive fields",
+      "sensitive_stripped_warning": "Sensitive fields will be removed from this export. Set a password to keep them encrypted instead.",
       "export_backup": "Export backup",
       "exporting": "Exporting…",
       "export_button": "Export…",

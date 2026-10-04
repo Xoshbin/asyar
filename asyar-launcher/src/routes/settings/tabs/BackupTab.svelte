@@ -36,20 +36,21 @@
     <div class="category-list">
       {#each backup.exportCategories as cat (cat.id)}
         <div class="category-row">
-          <Checkbox
-            checked={backup.enabledCategories.has(cat.id)}
-            onchange={() => backup.toggleCategory(cat.id)}
-            disabled={backup.exportStatus === 'exporting'}
-          >
-            {cat.label}
-          </Checkbox>
+          <label class="category-label">
+            <Checkbox
+              checked={backup.enabledCategories.has(cat.id)}
+              onchange={() => backup.toggleCategory(cat.id)}
+              disabled={backup.exportStatus === 'exporting'}
+            />
+            <span>{cat.label}</span>
+          </label>
         </div>
       {/each}
     </div>
 
-    {#if backup.exportWarning}
+    {#if backup.exportWillStripSensitive}
       <div class="warning-row">
-        <WarningBanner message={backup.exportWarning} />
+        <WarningBanner>{t('settings.backup.sensitive_stripped_warning')}</WarningBanner>
       </div>
     {/if}
 
@@ -245,6 +246,13 @@
 <style>
   .anchor-group {
     scroll-margin-top: var(--space-6);
+  }
+
+  .category-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
   }
 
   .warning-row {

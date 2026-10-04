@@ -34,6 +34,7 @@ vi.mock('./ipc/commands', () => ({
 
 import { buildMappedItems } from './searchResultMapper';
 import { buildSectionedView, categorizeItem } from '../components/list/sectionedListLogic';
+import type { SectionKey } from '../components/list/sectionedListLogic';
 import type { SearchResult } from '../services/search/interfaces/SearchResult';
 import type { Run } from 'asyar-sdk/contracts';
 
@@ -337,7 +338,7 @@ describe('contract: Scripts and Agents sections are status-only', () => {
 
     const scriptsIds: string[] = [];
     const commandsIds: string[] = [];
-    let bucket: 'scripts' | 'commands' | 'agents' | null = null;
+    let bucket: SectionKey | null = null;
     for (const r of rows) {
       if (r.kind === 'header') {
         bucket = r.section;

@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MockInstance } from 'vitest';
+import type { IframeRole } from './ipc/types';
 import { messageBroker } from 'asyar-sdk/contracts';
 
 vi.mock('../log/logService', () => ({
@@ -1233,6 +1235,7 @@ describe('ExtensionIpcRouter — runs platform service dispatch with injected ca
     payload: unknown,
     extensionId: string | undefined,
     isPrivileged: boolean,
+    originRole?: IframeRole,
   ) => Promise<unknown>;
 
   function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
@@ -1389,7 +1392,7 @@ describe('ExtensionIpcRouter — runs platform service dispatch with injected ca
 
 describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR, Notes)', () => {
   let iframeEl: HTMLIFrameElement;
-  let postMessageSpy: ReturnType<typeof vi.spyOn>;
+  let postMessageSpy: MockInstance<Window['postMessage']>;
   let declaredPermissions: Set<string>;
   let knownManifests: Map<string, any>;
 

@@ -4,7 +4,9 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 
 const { invokeMock, listenMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
-  listenMock: vi.fn(() => Promise.resolve(() => {})),
+  // Declare the (event, handler) parameters Tauri's `listen` is called with,
+  // so per-test mockImplementation overrides can accept them.
+  listenMock: vi.fn((_event: string, _handler: unknown) => Promise.resolve(() => {})),
 }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));

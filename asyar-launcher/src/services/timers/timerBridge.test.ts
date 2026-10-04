@@ -31,7 +31,7 @@ async function captureFireHandler(
   let captured: FireHandler | undefined;
   vi.mocked(bridgeListen).mockImplementationOnce(async (_event, handler) => {
     captured = handler as unknown as FireHandler;
-    return vi.fn();
+    return vi.fn<() => void>();
   });
   await bridge.subscribe(deps);
   if (!captured) throw new Error('handler not captured');

@@ -104,13 +104,15 @@ function makeProvider(opts: {
   syncTier?: 'core' | 'extended';
   sensitiveFields?: string[];
   items?: Array<{ id: string; categoryId: string; content: unknown }>;
+  /** Override to observe or react to pull application. */
+  applyItemUpsert?: FakeProvider['applyItemUpsert'];
 }): FakeProvider {
   const fp: FakeProvider = {
     id: opts.id,
     syncTier: opts.syncTier ?? 'core',
     sensitiveFields: opts.sensitiveFields ?? [],
     exportItems: vi.fn().mockResolvedValue(opts.items ?? []),
-    applyItemUpsert: vi.fn().mockResolvedValue(undefined),
+    applyItemUpsert: opts.applyItemUpsert ?? vi.fn().mockResolvedValue(undefined),
     applyItemDelete: vi.fn().mockResolvedValue(undefined),
     subscribeToChanges: vi.fn((cb: (ev: SyncChangeEvent) => void): Unsubscribe => {
       fp.__emit = cb;
@@ -724,7 +726,6 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
             itemId: 's-pulled',
             categoryId: 'snippets',
             content: '{"expansion":"text"}',
-            version: 2,
             deleted: false,
           },
         ],
@@ -752,7 +753,6 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
             itemId: 's-pulled',
             categoryId: 'snippets',
             content: '{"expansion":"text"}',
-            version: 2,
             deleted: false,
           },
         ],

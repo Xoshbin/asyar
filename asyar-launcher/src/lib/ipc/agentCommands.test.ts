@@ -29,7 +29,9 @@ import type { Channel } from '@tauri-apps/api/core';
 import type { AgentStreamEvent } from '../../bindings';
 
 const config: AgentRunConfig = {
-  provider: { enabled: true, apiKey: 'test-key' },
+  providers: [],
+  configs: { openai: { enabled: true, apiKey: 'test-key' } },
+  defaultAgentId: null,
   temperature: 0.25,
   maxTokens: 123,
 };
@@ -45,6 +47,8 @@ const agent: AgentDef = {
   silent: true,
   inputSource: 'argument',
   outputAction: 'copy',
+  cacheResponses: false,
+  shortcodeTrigger: ':',
   createdAt: null,
   updatedAt: null,
 };
@@ -180,6 +184,8 @@ describe('agent runner commands', () => {
       silent: false,
       inputSource: 'argument' as const,
       outputAction: 'replaceSelection' as const,
+      cacheResponses: false,
+      shortcodeTrigger: ':',
     };
     vi.mocked(invokeRaw).mockResolvedValueOnce(agent);
 

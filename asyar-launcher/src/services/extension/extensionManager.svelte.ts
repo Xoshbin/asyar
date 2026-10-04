@@ -78,23 +78,16 @@ export class ExtensionManager implements IExtensionManager {
   private readonly serviceRegistry: ServiceRegistry;
   private loader: ExtensionLoader;
 
-  // Getter to satisfy IExtensionManager interface based on viewManager state
-  get currentExtension(): Extension | null {
+  /**
+   * Manifest of the extension owning the active view, per `IExtensionManager`.
+   * Returns the manifest rather than the runtime instance so the host matches
+   * what `ExtensionManagerProxy` exposes to extension authors.
+   */
+  get currentExtension(): ExtensionManifest | null {
     const currentView = viewManager.getActiveView();
     if (!currentView) return null;
     const extensionId = currentView.split('/')[0];
-    const module = this.extensionModulesById.get(extensionId);
-    if (!module) return null;
-    // Return the default export (the class instance) or the module itself if no default
-    return this.resolveExtensionInstance(module);
-  }
-
-  /**
-   * Resolve an extension instance from a loaded module. Handles both direct
-   * Extension instances and ES modules where the extension is the default export.
-   */
-  private resolveExtensionInstance(module: LoadedExtensionModule): Extension {
-    return extensionSearchAggregator.resolveExtensionInstance(module);
+    return this.getManifestById(extensionId) ?? null;
   }
 
   // Public getter for the full module, needed by +page.svelte

@@ -46,10 +46,24 @@ export class BackupHandler {
   // Internal — not reactive, only needed at apply-import time
   private _importContents: ProfileArchiveContents | null = null;
 
+  /** Export checklist rows — `displayName` is the provider's UI label. */
+  get exportCategories(): { id: string; label: string }[] {
+    return this.providers.map((p) => ({ id: p.id, label: p.displayName }));
+  }
+
   get hasSensitiveData(): boolean {
     return this.providers
       .filter((p) => this.enabledCategories.has(p.id))
       .some((p) => p.sensitiveFields.length > 0);
+  }
+
+  /**
+   * Sensitive fields are stripped unless a password is supplied, so warn once
+   * a selected category actually carries them. The copy lives in the template
+   * because translation stays in the Svelte layer.
+   */
+  get exportWillStripSensitive(): boolean {
+    return this.hasSensitiveData && this.exportPassword.trim() === '';
   }
 
   async init(): Promise<void> {

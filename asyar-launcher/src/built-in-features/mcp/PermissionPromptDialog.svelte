@@ -26,9 +26,27 @@
   // Pull a tool description from the registered tool descriptor, falling
   // back to a generic notice. Avoids the previous hardcoded "may modify
   // data or execute commands" being shown even for harmless tools.
-  const toolDescription = $derived.by(() => {
-    const tool = server?.tools?.find((t) => t.id === toolId);
-    return tool?.description ?? '';
+  //
+  // `McpServerSummary` only carries `toolsCount`, so the descriptors have to be
+  // fetched. They are keyed by tool name, which is what `toolId` holds.
+  let toolDescription = $state('');
+
+  $effect(() => {
+    const requestedServer = serverId;
+    const requestedTool = toolId;
+    let cancelled = false;
+    void mcpService
+      .listServerTools(requestedServer)
+      .then((tools) => {
+        if (cancelled) return;
+        toolDescription = tools?.find((tool) => tool.name === requestedTool)?.description ?? '';
+      })
+      .catch(() => {
+        if (!cancelled) toolDescription = '';
+      });
+    return () => {
+      cancelled = true;
+    };
   });
 </script>
 

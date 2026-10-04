@@ -61,6 +61,7 @@
     "@types/katex": "^0.16.8",
     "@types/node": "^22.14.1",
     "@types/prismjs": "^1.26.6",
+    "@types/semver": "^7.7.1",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
     "eslint": "^9.23.0",

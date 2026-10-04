@@ -41,7 +41,7 @@ vi.mock('../search/searchOrchestrator.svelte', () => ({
   searchOrchestrator: mockSearchOrchestrator,
 }));
 
-const mockSearchStores = vi.hoisted(() => ({ selectedIndex: -1 }));
+const mockSearchStores = vi.hoisted(() => ({ selectedIndex: -1, query: '' }));
 vi.mock('../search/stores/search.svelte', () => ({
   searchStores: mockSearchStores,
 }));

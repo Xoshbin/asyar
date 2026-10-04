@@ -1,8 +1,4 @@
-import type {
-  CommandHandler,
-  DynamicCommandRegistration,
-  ICommandService,
-} from 'asyar-sdk/contracts';
+import type { CommandHandler, DynamicCommandRegistration } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { preferencesPromptStore } from './preferencesPromptStore.svelte';
@@ -16,7 +12,15 @@ interface RegisteredCommand {
 /**
  * Service for managing commands registered by extensions
  */
-export class CommandService implements ICommandService {
+/**
+ * Host-side command service. Deliberately NOT declared as implementing
+ * `ICommandService`: the IPC router passes `extensionId` as a positional
+ * argument to `updateCommandMetadata`/`replaceDynamicCommands`, whereas the
+ * SDK proxy injects it from the wire envelope. That divergence is intentional
+ * and documented on `ICommandService` itself — extension authors only ever see
+ * the proxy-side signatures.
+ */
+export class CommandService {
   public commands = $state<Map<string, RegisteredCommand>>(new Map());
   /**
    * Live subtitle overrides keyed by commandObjectId.

@@ -208,6 +208,7 @@
       "password_optional": "密码（选填）",
       "password_optional_description": "加密导出文件中的敏感字段。",
       "password_optional_placeholder": "留空则剔除敏感字段",
+      "sensitive_stripped_warning": "敏感字段将从此次导出中剔除。设置密码可改为加密保留。",
       "export_backup": "导出备份",
       "exporting": "导出中……",
       "export_button": "导出……",

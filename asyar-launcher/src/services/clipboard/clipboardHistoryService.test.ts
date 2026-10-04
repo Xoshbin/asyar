@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -1223,7 +1223,7 @@ describe('monitoring lifecycle and fail-closed gate', () => {
     const { onClipboardChange } = await import('tauri-plugin-clipboard-x-api');
     vi.mocked(onClipboardChange).mockImplementationOnce(async (cb: any) => {
       capturedCallback = cb;
-      return vi.fn();
+      return vi.fn<() => void>();
     });
 
     const svc = getInstance(false);

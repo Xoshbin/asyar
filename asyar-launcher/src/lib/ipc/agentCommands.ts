@@ -161,6 +161,8 @@ export interface AgentEditorForm {
   silent: boolean;
   inputSource: import('../../built-in-features/agents/types').SilentInputSource;
   outputAction: import('../../built-in-features/agents/types').SilentOutputAction;
+  cacheResponses: boolean;
+  shortcodeTrigger: string;
 }
 
 export interface AgentEditorViewModel {
