@@ -31,12 +31,13 @@ vi.mock('../services/run/runService.svelte', () => ({
 }));
 
 vi.mock('../services/extension/viewManager.svelte', () => ({
-  viewManager: { navigateToView: vi.fn() },
+  viewManager: { navigateToView: vi.fn(), getNavigationStackSize: vi.fn().mockReturnValue(0) },
 }));
 
 vi.mock('../services/search/searchOrchestrator.svelte', () => ({
   searchOrchestrator: {
     tryExecuteResultAction: vi.fn().mockReturnValue(false),
+    lastResultActionSettled: Promise.resolve(),
   },
 }));
 
@@ -46,6 +47,7 @@ vi.mock('../services/window/windowService', () => ({
 
 import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
 import { windowService } from '../services/window/windowService';
+import { viewManager } from '../services/extension/viewManager.svelte';
 
 import { resolveItemMeta, buildMappedItems } from './searchResultMapper';
 import type { SearchResult } from '../services/search/interfaces/SearchResult';
@@ -309,6 +311,25 @@ describe('buildMappedItems command action consults the orchestrator result-actio
     expect(vi.mocked(extensionManager.handleCommandAction)).not.toHaveBeenCalled();
     // The launcher dismisses itself so the app the companion raised is unobstructed.
     expect(vi.mocked(windowService.hide)).toHaveBeenCalled();
+  });
+
+  it('keeps the launcher open when the result action navigated into a view', async () => {
+    vi.mocked(searchOrchestrator.tryExecuteResultAction).mockReturnValue(true);
+    vi.mocked(viewManager.getNavigationStackSize).mockReturnValueOnce(0).mockReturnValue(1);
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [makeResult({ objectId: 'walkthrough_progress', type: 'command' })],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    });
+
+    await mappedItems[0].action();
+    await Promise.resolve();
+
+    expect(vi.mocked(windowService.hide)).not.toHaveBeenCalled();
   });
 
   it('prefers a worker-side result action over the Tier 2 view fallback', async () => {

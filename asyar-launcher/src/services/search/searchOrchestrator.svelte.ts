@@ -206,6 +206,9 @@ class SearchOrchestratorClass {
     }
   }
 
+  /** Settles when the action started by the last `tryExecuteResultAction` call finishes. */
+  lastResultActionSettled: Promise<void> = Promise.resolve();
+
   /**
    * If the highlighted search result carries a direct action (e.g. Calculator)
    * or a worker-side action (an ExtensionResult with actionId), execute/dispatch it
@@ -213,6 +216,7 @@ class SearchOrchestratorClass {
    * the caller then falls through to the normal command activation path.
    */
   tryExecuteResultAction(objectId: string): boolean {
+    this.lastResultActionSettled = Promise.resolve();
     const info = this.#resultActions.get(objectId);
     if (info) {
       actionService.executeExtensionAction(info.extensionId, info.actionId, info.actionPayload);
@@ -220,7 +224,12 @@ class SearchOrchestratorClass {
     }
     const row = this.items.find((item) => item.objectId === objectId);
     if (typeof row?.action === 'function') {
-      void row.action();
+      // Callers decide what to do afterwards (e.g. hide the launcher) only once
+      // the action has finished — it may have navigated into a view.
+      this.lastResultActionSettled = Promise.resolve(row.action()).then(
+        () => {},
+        () => {},
+      );
       return true;
     }
     const directAction = this.#directActions.get(objectId);
