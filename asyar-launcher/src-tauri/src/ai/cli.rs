@@ -308,12 +308,17 @@ pub fn parse_cli_stream_line_stateful(
 
     let mut events = Vec::new();
 
+    // Claude Code tags its synthetic failure message with a bare machine code in a top-level
+    // `error` key (e.g. "authentication_failed"); the readable text arrives on the `result` line.
+    let is_claude_assistant_line = normalize_engine(engine) == "claude"
+        && val.get("type").and_then(|t| t.as_str()) == Some("assistant");
+
     // Check error payloads first (support top-level error and agy result.error)
     if let Some(err) = val
         .get("error")
         .or_else(|| val.get("result").and_then(|r| r.get("error")))
         .and_then(|e| e.as_str())
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty() && !is_claude_assistant_line)
     {
         events.push(ChatStreamEventPayload::Error {
             error: err.to_string(),
@@ -444,7 +449,8 @@ pub fn parse_cli_stream_line_stateful(
                 }
                 Some("assistant") => {
                     // Only fall back to the completed message when no deltas were streamed for it.
-                    if !state.claude_message_streamed {
+                    // A line tagged with `error` is a synthetic failure notice, not reply text.
+                    if !state.claude_message_streamed && val.get("error").is_none() {
                         if let Some(content) = val
                             .get("message")
                             .and_then(|m| m.get("content"))
@@ -745,6 +751,19 @@ pub fn claude_cli_args(prompt: &str, model: &str, effort: Option<&str>) -> Vec<S
     args
 }
 
+/// Picks the message reported when a CLI process exits non-zero. Claude Code writes its
+/// failures (e.g. an expired login) to stdout as JSON and leaves stderr empty, so the error
+/// already seen on the stream beats a bare exit code.
+fn cli_failure_message(stderr: &str, stream_error: Option<&str>, status: &str) -> String {
+    if !stderr.trim().is_empty() {
+        stderr.to_string()
+    } else if let Some(err) = stream_error.filter(|e| !e.trim().is_empty()) {
+        err.to_string()
+    } else {
+        format!("CLI process exited with code {status}")
+    }
+}
+
 /// Executes a prompt using a local CLI runtime process and streams tokens back to `on_event`.
 pub async fn cli_stream_chat_impl<F>(
     provider_id: &str,
@@ -880,6 +899,7 @@ where
 
     let mut out_lines = FramedRead::new(tokio::io::BufReader::new(stdout), LinesCodec::new());
     let mut stream_state = CliStreamState::default();
+    let mut stream_error: Option<String> = None;
 
     while let Some(line_res) = out_lines.next().await {
         match line_res {
@@ -887,6 +907,9 @@ where
                 let payloads =
                     parse_cli_stream_line_stateful(engine_type, &line, &mut stream_state);
                 for payload in payloads {
+                    if let ChatStreamEventPayload::Error { error } = &payload {
+                        stream_error = Some(error.clone());
+                    }
                     on_event(payload);
                 }
             }
@@ -903,14 +926,17 @@ where
     let captured_stderr = stderr_task.await.unwrap_or_default();
 
     if !status.success() {
-        let err_msg = if !captured_stderr.trim().is_empty() {
-            captured_stderr
-        } else {
-            format!("CLI process exited with code {}", status)
-        };
-        on_event(ChatStreamEventPayload::Error {
-            error: err_msg.clone(),
-        });
+        let err_msg = cli_failure_message(
+            &captured_stderr,
+            stream_error.as_deref(),
+            &status.to_string(),
+        );
+        // The stream already reported this; re-emitting would only repeat it.
+        if stream_error.as_deref() != Some(err_msg.as_str()) {
+            on_event(ChatStreamEventPayload::Error {
+                error: err_msg.clone(),
+            });
+        }
         return Err(AppError::Other(err_msg));
     }
 
@@ -1081,6 +1107,38 @@ mod tests {
             events.as_slice(),
             [ChatStreamEventPayload::Error { error }] if error.contains("Not logged in")
         ));
+    }
+
+    #[test]
+    fn test_parse_claude_auth_failure_yields_only_the_readable_message() {
+        // Captured from `claude -p --output-format stream-json` with an expired login: the
+        // synthetic assistant line carries a machine code in a top-level `error` key and the
+        // human-readable text only in the `result` line.
+        let events = run_claude_stream(&[
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Failed to authenticate: OAuth session expired and could not be refreshed"}]},"error":"authentication_failed"}"#,
+            r#"{"type":"result","subtype":"success","is_error":true,"result":"Failed to authenticate: OAuth session expired and could not be refreshed"}"#,
+        ]);
+        assert!(token_text(&events).is_empty());
+        assert!(matches!(
+            events.as_slice(),
+            [ChatStreamEventPayload::Error { error }] if error.contains("OAuth session expired")
+        ));
+    }
+
+    #[test]
+    fn test_cli_failure_message_prefers_stderr_then_stream_error_then_exit_code() {
+        assert_eq!(
+            cli_failure_message("boom\n", Some("stream"), "exit status: 1"),
+            "boom\n"
+        );
+        assert_eq!(
+            cli_failure_message("  ", Some("Not logged in"), "exit status: 1"),
+            "Not logged in"
+        );
+        assert_eq!(
+            cli_failure_message("", None, "exit status: 1"),
+            "CLI process exited with code exit status: 1"
+        );
     }
 
     #[test]
