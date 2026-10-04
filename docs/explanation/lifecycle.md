@@ -31,7 +31,7 @@ order: 6
           │  to Rust registry.  │
           │                     │
           │  For searchable:    │
-          │  background iframe  │
+          │  background worker  │
           │  spawned silently.  │
           └──────────┬──────────┘
                      │ user invokes command

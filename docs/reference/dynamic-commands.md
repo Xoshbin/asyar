@@ -41,8 +41,8 @@ schemas.
 
 ## Worker-only
 
-Dynamic commands must be registered from the extension's **worker
-iframe**, never the view. The worker is always-on and survives the
+Dynamic commands must be registered from the extension's **worker**
+(not the view). The worker is always-on and survives the
 panel closing; the view is on-demand and evicted (`Dormant`) within
 roughly two minutes of the user dismissing the launcher. Registering
 from the view would silently drop commands the moment the view is

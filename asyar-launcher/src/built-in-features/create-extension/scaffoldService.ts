@@ -41,9 +41,24 @@ async function getLatestSdkVersion(): Promise<string> {
   return '^4.13.0'; // Offline fallback
 }
 
+/**
+ * Whether the published SDK exposes the `./vite` build helper. The scaffold
+ * pins the npm version, which can lag the workspace; importing a missing
+ * subpath would break the first install of every new extension.
+ */
+async function sdkExposesViteHelper(): Promise<boolean> {
+  try {
+    const cmd = Command.create(npmCommand, ['view', 'asyar-sdk', 'exports', '--json']);
+    const output = await cmd.execute();
+    if (output.code === 0) return './vite' in JSON.parse(output.stdout);
+  } catch {}
+  return false;
+}
+
 // ── Shared templates (all non-theme types) ──────────────────────────────────
 import packageJsonTmpl from './template/package.json.tmpl?raw';
 import viteConfigTmpl from './template/vite.config.ts.tmpl?raw';
+import viteConfigLegacyTmpl from './template/vite.config.legacy.ts.tmpl?raw';
 import tsconfigTmpl from './template/tsconfig.json.tmpl?raw';
 import readmeTmpl from './template/README.md.tmpl?raw';
 import viewHtmlTmpl from './template/view.html.tmpl?raw';
@@ -120,6 +135,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   onProgress('Resolving latest SDK version...');
   const sdkVersion = await getLatestSdkVersion();
+  const viteConfig = (await sdkExposesViteHelper()) ? viteConfigTmpl : viteConfigLegacyTmpl;
 
   const populate = (tmpl: string) =>
     tmpl
@@ -132,7 +148,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   // ── Shared root files (all non-theme types) ───────────────────────────────
   await writeTextFile(`${location}/package.json`, populate(packageJsonTmpl));
-  await writeTextFile(`${location}/vite.config.ts`, populate(viteConfigTmpl));
+  await writeTextFile(`${location}/vite.config.ts`, populate(viteConfig));
   await writeTextFile(`${location}/tsconfig.json`, populate(tsconfigTmpl));
   await writeTextFile(`${location}/.gitignore`, 'node_modules\ndist\n.env\n*.zip\n');
   await writeTextFile(`${location}/README.md`, populate(readmeTmpl));

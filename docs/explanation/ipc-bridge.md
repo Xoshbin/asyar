@@ -4,23 +4,26 @@ order: 3
 
 # The IPC Bridge — How Service Calls Travel
 
-Asyar runs every Tier 2 extension across **two iframes** — a `worker` and a
-`view` — and every host service call traverses the same `postMessage` bridge
-out of whichever iframe made the call. Each iframe owns its own
-`ExtensionContext` + `MessageBroker` singleton; they do not share JS state.
-Cross-iframe coordination goes through the launcher (the state broker and
+Asyar runs every Tier 2 extension across **two contexts** — a `worker` (a
+headless Web Worker) and a `view` (an on-demand iframe) — and every host
+service call traverses the same `postMessage` bridge out of whichever context
+made the call. Each context owns its own `ExtensionContext` + `MessageBroker`
+singleton; they do not share JS state. (A worker bundle that cannot start as a
+Web Worker falls back to a hidden iframe until 0.2.0; see
+[extension runtime](./extension-runtime.md#two-contexts-per-extension).)
+Cross-context coordination goes through the launcher (the state broker and
 the RPC primitive, both documented in [extension runtime](./extension-runtime.md)).
 
 ```
-worker.html (hidden iframe)            view.html (on-demand iframe)
+background.main (Web Worker)            view.html (on-demand iframe)
 ┌──────────────────────────┐           ┌──────────────────────────┐
 │ ExtensionContext         │           │ ExtensionContext         │
 │  (role: worker)          │           │  (role: view)            │
 │ MessageBroker singleton  │           │ MessageBroker singleton  │
 └─────────────┬────────────┘           └─────────────┬────────────┘
-              │ window.parent.postMessage           │
+              │ self.postMessage          window.parent.postMessage
               ▼                                     ▼
-              ─── crosses iframe boundary ──────────
+              ─── cross the context boundary ───────
                               │
                               ▼
                    ExtensionIpcRouter (SvelteKit host)
@@ -86,38 +89,41 @@ Everything sent across the bridge is shaped consistently by the SDK:
 ### IPC Round-Trip Lifecycle
 
 Scenario: extension code calls `context.proxies.log.info("Hello")` from the
-**worker** iframe.
+**worker**.
 
 1. **SDK Proxy Intercept:** `LogServiceProxy` calls `this.broker.invoke('log:info', { message: "Hello" })`.
-2. **PostMessage Dispatch:** `MessageBroker` prepends `'asyar:api:'` to form the type `asyar:api:log:info`, packages it alongside the payload, and calls `window.parent.postMessage(message, '*')`.
-3. **Host Reception:** `ExtensionIpcRouter` has a global `window.addEventListener('message')` trap; each frame is run through the stage pipeline above.
+2. **PostMessage Dispatch:** `MessageBroker` prepends `'asyar:api:'` to form the type `asyar:api:log:info`, packages it alongside the payload, and posts it to the host — `self.postMessage(message)` from a Web Worker, `window.parent.postMessage(message, '*')` from an iframe.
+3. **Host Reception:** `ExtensionIpcRouter` has a global `window.addEventListener('message')` trap for iframes; `workerHost` forwards each Web Worker message into the same handler wrapped in a synthetic event whose `source` is that worker. Every frame is run through the stage pipeline above.
 4. **`protocolFilter` stage:** confirms the message type carries the `asyar:` prefix and is not itself a response.
-5. **`identify` stage:** captures `event.source`. For a Tier 2 iframe (`source !== window`) it scans `iframe[data-extension-id]` elements for the one whose `contentWindow === source` and reads `data-extension-id` + `data-role` off that element. The identity is **never** taken from the message body — a payload-supplied `extensionId` would let any extension impersonate another. It then looks up the manifest via `getManifestById(extensionId)`; unknown → error reply and drop. Services that care which role made the call (state writes, action handler registration, RPC) read `role` off the dispatch context.
+5. **`identify` stage:** captures `event.source`. If `workerHost` owns that source (a mounted Web Worker), the extension id comes from its worker registry and the role is `worker`. Otherwise, for a Tier 2 iframe (`source !== window`), it scans `iframe[data-extension-id]` elements for the one whose `contentWindow === source` and reads `data-extension-id` + `data-role` off that element. The identity is **never** taken from the message body — a payload-supplied `extensionId` would let any extension impersonate another. It then looks up the manifest via `getManifestById(extensionId)`; unknown → error reply and drop. Services that care which role made the call (state writes, action handler registration, RPC) read `role` off the dispatch context.
 6. **`permissionGate` stage:** for `asyar:api:*` only, consults the fail-closed Rust gate. A denial replies with `{ error }` and stops.
 7. **`dispatch` stage:** splits `asyar:api:log:info` into `['asyar', 'api', 'log', 'info']`, looks up `'log'` in the service registry, and applies `Object.values(payload)` as positional arguments to the target method.
 8. **Tauri Invocation / Execution:** Native side effects fire (logging to stdout / file).
 9. **Response Packaging:** the `replyEnvelope` / `dispatch` pair maps the result into `{ type: 'asyar:response', messageId, result }`, or a throw into `{ type: 'asyar:response', messageId, error }`.
-10. **PostMessage Return:** `event.source.postMessage(response, '*')` — replies land in **the same iframe** that made the call. Two iframes from the same extension cannot accidentally receive each other's responses.
-11. **Promise Resolution:** That iframe's `MessageBroker` matches `messageId` and resolves the awaiting promise.
+10. **PostMessage Return:** the reply goes back to `event.source` — `worker.postMessage(response)` for a Web Worker, `postMessage(response, '*')` for an iframe — so replies land in **the same context** that made the call. The worker and view of one extension cannot accidentally receive each other's responses.
+11. **Promise Resolution:** That context's `MessageBroker` matches `messageId` and resolves the awaiting promise.
 
-### Role-aware iframe selection
+### Role-aware message delivery
 
-Some host → iframe pushes (preferences, search requests, view-search keystrokes, push events) need to target a _specific_ role. The launcher uses the helper at [`asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts`](../../asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts):
+Some host → extension pushes (preferences, search requests, view-search keystrokes, push events) need to target a _specific_ role. Host → worker/view messages go through `postToExtension` in [`extensionDelivery.ts`](../../asyar-launcher/src/services/extension/extensionDelivery.ts):
 
 ```ts
-function pickExtensionIframe(extensionId, prefer: 'view' | 'worker') {
-  // Try the preferred role, then the other role, then any iframe with that
-  // extension-id (legacy fallback).
-  return document.querySelector(
-    `iframe[data-extension-id="${extensionId}"][data-role="${prefer}"]`
-  ) ?? /* fallback to other role */ /* fallback to unscoped */ ;
+function postToExtension(extensionId, role: 'worker' | 'view', message, options) {
+  // role === 'worker' and a Web Worker is mounted → workerHost.post(...)
+  // otherwise → pickExtensionIframe(extensionId, role): the role's iframe,
+  //   then the other role's, then any iframe with that extension-id
+  //   (this is how worker-iframe compatibility fallbacks are reached).
+  // nothing found → warn "no target ...; message dropped" and return false.
 }
 ```
 
-Push events (`asyar:event:*`) prefer the **worker** iframe — its always-on
+`pickExtensionIframe` in [`extensionIframeSelector.ts`](../../asyar-launcher/src/services/extension/extensionIframeSelector.ts) is for iframe-specific operations (focus, readiness, visual views) and the worker-iframe compatibility lookup; do not use it to deliver messages directly.
+
+Push events (`asyar:event:*`) prefer the **worker** — its always-on
 lifecycle means subscribers stay current even when the user has dismissed
 the launcher. The view iframe receives only the pushes it directly needs
-(preferences, view-search keystrokes, keyboard forwarding).
+(preferences, view-search keystrokes, keyboard forwarding). Role-scoped state
+pushes never fall back to the other role.
 
 ### Built-in Extension IPC Emulation
 
@@ -125,10 +131,10 @@ Built-in (Tier 1) extensions heavily use the exact same `context.proxies...` SDK
 
 ## view → worker RPC — `state:rpcRequest` / `state:rpcReply`
 
-The view iframe is on-demand and DOM-bound; the worker iframe owns long-lived state. To let view code call worker handlers without plumbing a fresh listener per feature, the SDK ships a **launcher-brokered RPC primitive** (`extensionRpc`):
+The view iframe is on-demand and DOM-bound; the worker owns long-lived state. To let view code call worker handlers without plumbing a fresh listener per feature, the SDK ships a **launcher-brokered RPC primitive** (`extensionRpc`):
 
 ```
-view iframe                        Launcher (state broker)              worker iframe
+view iframe                        Launcher (state broker)              worker
 ─────────────────────              ──────────────────────────           ──────────────────────
 context.request('getStats', p)
   ├─ generates correlationId
@@ -169,11 +175,11 @@ For the underlying mailbox + lifecycle state machine, see [extension runtime](./
 
 ## Preferences delivery — `asyar:event:preferences:set-all`
 
-Declarative extension preferences (see [Preferences](../reference/sdk/preferences.md)) need to reach the live `ExtensionContext` inside each extension iframe both at boot and whenever the user edits a value in the Settings window. This is a **host → extension** push with no response — the extension doesn't acknowledge, it just updates its frozen `context.preferences` snapshot and fires any registered `onPreferencesChanged` listeners.
+Declarative extension preferences (see [Preferences](../reference/sdk/preferences.md)) need to reach the live `ExtensionContext` inside each extension context (worker or view) both at boot and whenever the user edits a value in the Settings window. This is a **host → extension** push with no response — the extension doesn't acknowledge, it just updates its frozen `context.preferences` snapshot and fires any registered `onPreferencesChanged` listeners.
 
 ### Why the message type lives under `asyar:event:*`
 
-The SDK's `MessageBroker` inside the iframe only dispatches messages to registered listeners when the type begins with one of three prefixes:
+The SDK's `MessageBroker` inside the context only dispatches messages to registered listeners when the type begins with one of three prefixes:
 
 | Prefix           | Purpose                                                             |
 | ---------------- | ------------------------------------------------------------------- |
@@ -186,7 +192,7 @@ Anything else is silently dropped. The preferences listener is registered via `b
 ### Protocol overview
 
 ```
-                     Settings window / Main launcher window            Tier 2 iframe (worker or view)
+                     Settings window / Main launcher window            Tier 2 context (worker or view)
                      ────────────────────────────────────              ──────────────────────────────
 User edits
   focusMinutes ────► extensionPreferencesService.set(…)
@@ -210,7 +216,8 @@ User edits
                                 if Tier 1: reloadExtensions()
                                 if Tier 2: extensionIframeManager.sendPreferencesToExtension(id, bundle)
                                              │
-                                             │ iframe.contentWindow.postMessage(
+                                             │ postToExtension(id, 'worker', …)  → worker.postMessage(…)
+                                             │ view iframe.contentWindow.postMessage(
                                              │   { type: 'asyar:event:preferences:set-all',
                                              │     payload: { extension, commands } },
                                              │   '*'  // WKWebView custom-scheme origin fix
@@ -233,7 +240,7 @@ User edits
 
 ### Boot delivery via `asyar:extension:loaded`
 
-Both iframes — worker and view — post `{ type: 'asyar:extension:loaded', extensionId, role }` once their `ExtensionContext` is wired. It is a lifecycle frame, not an `asyar:api:*` call, so it has its own entry in `IPC_HANDLERS`: identity and manifest are still required, but the permission gate is never consulted. The host treats it as the runtime ready-ack for that role's lifecycle state machine (see [extension runtime](./extension-runtime.md)) and replies with the initial preferences bundle to the iframe that posted it:
+Both contexts — the worker (Web Worker, or its compatibility iframe) and the view iframe — post `{ type: 'asyar:extension:loaded', extensionId, role }` once their `ExtensionContext` is wired. It is a lifecycle frame, not an `asyar:api:*` call, so it has its own entry in `IPC_HANDLERS`: identity and manifest are still required, but the permission gate is never consulted. The host treats it as the runtime ready-ack for that role's lifecycle state machine (see [extension runtime](./extension-runtime.md)) and replies with the initial preferences bundle to the iframe that posted it:
 
 ```
 iframe main.ts                          ExtensionIpcRouter
