@@ -236,7 +236,14 @@ fn migrate_legacy_search_index_db(
 
     // Snapshot the source, including any WAL data, into a new backup. Never
     // overwrite an older backup or remove the source after a failed snapshot.
-    let migrated_path = app_data_dir.join("search_index.db.migrated");
+    //
+    // An earlier run can already have left a backup behind — killed between
+    // this snapshot and the source removal below — and `VACUUM INTO` refuses to
+    // write over an existing file. Take the next free name rather than failing:
+    // returning `Err` here reached the Tauri setup hook, where a Rust panic
+    // cannot unwind, so the app aborted on launch and every later launch hit
+    // the same condition, leaving no way to recover.
+    let migrated_path = next_free_backup_path(app_data_dir)?;
     let snapshot = rusqlite::Connection::open_with_flags(
         &legacy_path,
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
@@ -249,6 +256,26 @@ fn migrate_legacy_search_index_db(
     fs::remove_file(&legacy_path).map_err(SearchError::Io)?;
 
     Ok(())
+}
+
+/// First unused `search_index.db.migrated[.N]` path, so retrying a migration
+/// that was interrupted after its snapshot never overwrites that backup.
+fn next_free_backup_path(
+    app_data_dir: &std::path::Path,
+) -> Result<std::path::PathBuf, SearchError> {
+    let base = app_data_dir.join("search_index.db.migrated");
+    if !base.exists() {
+        return Ok(base);
+    }
+    for suffix in 2..=100u32 {
+        let candidate = app_data_dir.join(format!("search_index.db.migrated.{suffix}"));
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    Err(SearchError::Other(
+        "Legacy search migration: exhausted backup file names".into(),
+    ))
 }
 
 // Initialize the state by loading from SQLite (with JSON migration)
@@ -266,11 +293,19 @@ pub fn initialize_search_state<R: tauri::Runtime>(
 
     let conn = data_store.conn()?;
 
-    // Migrate from legacy search_index.db if needed
-    migrate_legacy_search_index_db(&app_data_dir, &conn)?;
-
-    // Migrate from JSON if needed
-    migrate_json_to_db(&app_data_dir, &conn)?;
+    // Legacy data migrations are best-effort. Both import into the live DB
+    // idempotently and verify every row before retiring their source, so the
+    // DB is correct whether or not they finish — and an unfinished migration
+    // must never abort startup. This runs inside the Tauri setup hook, where a
+    // Rust panic cannot unwind: propagating an error here aborted the process
+    // on launch rather than surfacing a fault, so legacy housekeeping is logged
+    // and skipped instead.
+    if let Err(e) = migrate_legacy_search_index_db(&app_data_dir, &conn) {
+        log::error!("Legacy search_index.db migration failed; continuing startup: {e}");
+    }
+    if let Err(e) = migrate_json_to_db(&app_data_dir, &conn) {
+        log::error!("Legacy search_data.json migration failed; continuing startup: {e}");
+    }
 
     // Load items into memory
     let items = load_items_from_db(&conn)?;
@@ -2336,6 +2371,11 @@ mod service_tests {
 
     #[test]
     fn legacy_migration_preserves_existing_backup_after_successful_import() {
+        // A run killed between `VACUUM INTO` and the source removal leaves both
+        // the source and its backup on disk. Erroring there propagated out of
+        // the Tauri setup hook and left the app permanently unlaunchable, so the
+        // migration finishes instead: the older backup is never overwritten, a
+        // fresh snapshot lands beside it, and the source is retired.
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("search_index.db");
         let backup = dir.path().join("search_index.db.migrated");
@@ -2347,13 +2387,39 @@ mod service_tests {
             )
             .unwrap();
         drop(legacy);
-        fs::write(&backup, b"old backup").unwrap();
+        // A real SQLite backup, as an earlier interrupted run would have left:
+        // this is what makes `VACUUM INTO` report "output file already exists".
+        let earlier = rusqlite::Connection::open(&backup).unwrap();
+        earlier
+            .execute_batch(
+                "CREATE TABLE sentinel (id TEXT); INSERT INTO sentinel VALUES ('earlier');",
+            )
+            .unwrap();
+        drop(earlier);
+
         let store = crate::storage::create_test_store();
         let conn = store.conn().unwrap();
-        assert!(migrate_legacy_search_index_db(dir.path(), &conn).is_err());
-        assert!(source.exists());
-        assert_eq!(fs::read(&backup).unwrap(), b"old backup");
+        migrate_legacy_search_index_db(dir.path(), &conn).unwrap();
+
+        assert!(!source.exists(), "source must be retired");
+        // The older backup is never overwritten.
+        let earlier = rusqlite::Connection::open(&backup).unwrap();
+        let sentinel: String = earlier
+            .query_row("SELECT id FROM sentinel", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(sentinel, "earlier");
+        drop(earlier);
+        // A fresh snapshot lands beside it, holding the source's data.
+        let fresh = dir.path().join("search_index.db.migrated.2");
+        let snapshot = rusqlite::Connection::open(&fresh).unwrap();
+        let favorites: i64 = snapshot
+            .query_row("SELECT COUNT(*) FROM search_favorites", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(favorites, 1);
+        drop(snapshot);
         assert!(load_favorites_from_db(&conn).unwrap().contains("favorite"));
+        // Idempotent: nothing left to do on the next launch.
+        migrate_legacy_search_index_db(dir.path(), &conn).unwrap();
     }
 
     #[test]
