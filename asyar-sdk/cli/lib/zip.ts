@@ -32,17 +32,21 @@ export function packageExtension(
     if (!fs.existsSync(distDir)) {
       throw new Error('dist/ not found. Run "asyar build" first.');
     }
-    // manifest.json at root of zip
-    zip.addLocalFile(path.join(cwd, 'manifest.json'));
+    // dist/ is flattened into the archive root, so path declarations that
+    // point into dist/ must describe that packaged layout too.
+    const manifest = JSON.parse(fs.readFileSync(path.join(cwd, 'manifest.json'), 'utf8'));
+    if (manifest.background?.main) {
+      manifest.background.main = toPackagedPath(manifest.background.main);
+    }
+    zip.addFile('manifest.json', Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`));
     // dist/ contents flattened into zip root
     addDirectoryToZip(zip, distDir, '');
   }
 
   const zipFileName = `${extensionId}-${version}.zip`;
   const zipPath = path.join(os.tmpdir(), zipFileName);
-  zip.writeZip(zipPath);
-
-  const fileBuffer = fs.readFileSync(zipPath);
+  const fileBuffer = zip.toBuffer();
+  fs.writeFileSync(zipPath, fileBuffer);
   const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
   return {
@@ -50,6 +54,10 @@ export function packageExtension(
     checksum: `sha256:${hash}`,
     sizeBytes: fileBuffer.length,
   };
+}
+
+export function toPackagedPath(entry: string): string {
+  return entry.startsWith('dist/') ? entry.slice('dist/'.length) : entry;
 }
 
 export function computeChecksum(buffer: Buffer): string {

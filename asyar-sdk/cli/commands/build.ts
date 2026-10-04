@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { readManifest, lintManifest } from '../lib/manifest';
+import { toPackagedPath } from '../lib/zip';
 
 export function registerBuild(program: Command) {
   program
@@ -85,10 +86,13 @@ export function verifyBuildOutput(
   // view command is declared — or when no manifest is available to tell.
   const hasView = fs.existsSync(path.join(distDir, 'view.html'));
   const workerEntry = manifest?.background?.main;
-  const resolvedWorkerEntry = workerEntry ? path.resolve(cwd, workerEntry) : null;
+  const packagedWorkerEntry = workerEntry ? toPackagedPath(workerEntry) : null;
+  const resolvedWorkerEntry = packagedWorkerEntry
+    ? path.resolve(distDir, packagedWorkerEntry)
+    : null;
   const hasWorker =
     !!resolvedWorkerEntry &&
-    resolvedWorkerEntry.startsWith(path.resolve(cwd) + path.sep) &&
+    resolvedWorkerEntry.startsWith(path.resolve(distDir) + path.sep) &&
     fs.existsSync(resolvedWorkerEntry);
   const requiresWorker = !!manifest?.background?.main;
   const requiresView = manifest?.commands ? manifest.commands.some((c) => c.mode === 'view') : true;

@@ -105,6 +105,16 @@ describe('verifyBuildOutput', () => {
     ).toThrow('process.exit(1)');
   });
 
+  it('validates a root-relative manifest entry against the post-package layout', () => {
+    writeDist('worker.js');
+    expect(() =>
+      verifyBuildOutput(cwd, {
+        background: { main: 'worker.js' },
+        commands: [{ mode: 'background' }],
+      }),
+    ).not.toThrow();
+  });
+
   it('accepts legacy single-entry layouts without a manifest', () => {
     writeDist('index.html');
     expect(() => verifyBuildOutput(cwd)).not.toThrow();

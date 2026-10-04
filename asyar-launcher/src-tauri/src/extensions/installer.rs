@@ -292,7 +292,7 @@ pub(crate) fn validate_package_structure(
                         background.main
                     )));
                 }
-                if !extracted_dir.join(main).exists() {
+                if super::discovery::resolve_entry_for_layout(extracted_dir, main).is_none() {
                     return Err(AppError::Validation(format!(
                         "Extension package with background.main must include '{}' in the package",
                         background.main
@@ -912,6 +912,27 @@ mod tests {
             ("manifest.json", manifest.as_bytes()),
             ("view.html", b"<html/>"),
             ("dist/daemon/main.js", b"self.postMessage(1);"),
+        ])
+        .await
+        .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
+        assert!(validate_package_structure(dest.path(), &m).is_ok());
+    }
+
+    /// Packages built by older SDKs flatten `dist/` into the archive root but
+    /// still declare `background.main: "dist/worker.js"`. They must install;
+    /// discovery resolves the entry against the flat layout at scan time.
+    #[tokio::test]
+    async fn validate_package_structure_accepts_legacy_flat_worker_entry() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "background": {"main": "dist/worker.js"},
+            "commands":[{"id":"tick","name":"Tick","mode":"background"}]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("worker.js", b"self.postMessage(1);"),
         ])
         .await
         .unwrap();

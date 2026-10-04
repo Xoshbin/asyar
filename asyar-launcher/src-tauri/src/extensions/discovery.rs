@@ -452,6 +452,8 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
             Ok(mut manifest) => {
                 let id = manifest.id.clone();
 
+                resolve_background_entry_for_layout(&mut manifest, &path);
+
                 // Validate schedule declarations — strip invalid ones gracefully
                 for cmd in &mut manifest.commands {
                     if let Some(ref schedule) = cmd.schedule {
@@ -575,6 +577,87 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
     }
 
     records
+}
+
+/// Resolve the manifest's worker entry against the extension layout once, at
+/// discovery time. Linked extensions retain their source-relative `dist/`
+/// entry, while packages produced by older SDKs can use the flattened entry.
+fn resolve_background_entry_for_layout(manifest: &mut ExtensionManifest, root: &Path) {
+    let Some(background) = manifest.background.as_mut() else {
+        return;
+    };
+    if let Some(resolved) = resolve_entry_for_layout(root, &background.main) {
+        background.main = resolved;
+    }
+}
+
+/// Find the on-disk spelling of a manifest-declared entry path under `root`.
+/// Returns the declared path when it exists, the `dist/`-stripped path when
+/// only the flattened (packaged) layout is present, and `None` otherwise.
+pub(crate) fn resolve_entry_for_layout(root: &Path, declared: &str) -> Option<String> {
+    if root.join(declared).is_file() {
+        return Some(declared.to_string());
+    }
+    let flat = declared.strip_prefix("dist/")?;
+    root.join(flat).is_file().then(|| flat.to_string())
+}
+
+#[cfg(test)]
+mod background_entry_resolution_tests {
+    use super::*;
+    use crate::extensions::BackgroundSpec;
+    use tempfile::TempDir;
+
+    fn manifest_with_worker(main: &str) -> ExtensionManifest {
+        ExtensionManifest {
+            id: "test.worker".into(),
+            name: "Worker".into(),
+            version: "1.0.0".into(),
+            description: String::new(),
+            author: None,
+            extension_type: Some("extension".into()),
+            lifecycle: None,
+            background: Some(BackgroundSpec { main: main.into() }),
+            searchable: None,
+            icon: None,
+            commands: Vec::new(),
+            permissions: None,
+            permission_args: None,
+            min_app_version: None,
+            asyar_sdk: None,
+            platforms: None,
+            preferences: None,
+            actions: None,
+            onboarding: None,
+            runtimes: None,
+            walkthrough: None,
+            tools: None,
+        }
+    }
+
+    #[test]
+    fn keeps_declared_worker_entry_for_dev_linked_layout() {
+        let tmp = TempDir::new().unwrap();
+        let worker = tmp.path().join("dist/worker.js");
+        std::fs::create_dir_all(worker.parent().unwrap()).unwrap();
+        std::fs::write(worker, "export {};").unwrap();
+        let mut manifest = manifest_with_worker("dist/worker.js");
+
+        resolve_background_entry_for_layout(&mut manifest, tmp.path());
+
+        assert_eq!(manifest.background.unwrap().main, "dist/worker.js");
+    }
+
+    #[test]
+    fn falls_back_to_flat_worker_entry_for_installed_layout() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("worker.js"), "export {};").unwrap();
+        let mut manifest = manifest_with_worker("dist/worker.js");
+
+        resolve_background_entry_for_layout(&mut manifest, tmp.path());
+
+        assert_eq!(manifest.background.unwrap().main, "worker.js");
+    }
 }
 
 /// Read and parse a single manifest.json file
