@@ -134,6 +134,28 @@ pub fn clipboard_record_capture(
     Ok(res)
 }
 
+/// Apply an item pulled from cloud sync. Async so a large pull runs on the
+/// async runtime instead of the main thread (sync commands block the UI thread
+/// and froze the whole desktop during a first restore). Returns whether the
+/// item was stored; expired non-favorites are skipped.
+#[tauri::command]
+pub async fn clipboard_apply_synced(
+    item: super::clipboard::ClipboardItem,
+    retention_ms: Option<f64>,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<ClipboardFts>>,
+) -> Result<bool, AppError> {
+    let conn = store.conn()?;
+    Ok(super::clipboard::apply_synced_item_with_fts(
+        &conn,
+        &item,
+        keystore.master_key(),
+        fts.inner(),
+        retention_ms,
+    )?)
+}
+
 #[tauri::command]
 pub fn clipboard_toggle_favorite(
     id: String,

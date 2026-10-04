@@ -1061,6 +1061,46 @@ pub fn record_capture_with_fts(
     Ok(res)
 }
 
+/// Apply an item pulled from cloud sync: a plain upsert by id.
+///
+/// Deliberately NOT [`record_capture`]. A pull restores what the server
+/// already holds, so it must not:
+/// - dedupe by content (two devices copying the same text legitimately own two
+///   ids; deleting one would tombstone it and push the delete to the cloud),
+/// - run [`cleanup`] (a full-table scan per pulled item, and it tombstones
+///   every row past retention, deleting them from the cloud).
+///
+/// A non-favorite already past `retention_ms` is skipped (`Ok(false)`) rather
+/// than inserted, since the next local capture would evict and tombstone it.
+pub fn apply_synced_item(
+    conn: &Connection,
+    item: &ClipboardItem,
+    master_key: &[u8; 32],
+    retention_ms: Option<f64>,
+) -> Result<bool, AppError> {
+    let age_ms = retention_ms.unwrap_or(MAX_HISTORY_AGE_MS);
+    if !item.favorite && item.created_at < js_sys_now() - age_ms {
+        return Ok(false);
+    }
+    add_item(conn, item, master_key)?;
+    Ok(true)
+}
+
+/// FTS-aware wrapper for [`apply_synced_item`].
+pub fn apply_synced_item_with_fts(
+    conn: &Connection,
+    item: &ClipboardItem,
+    master_key: &[u8; 32],
+    fts: &ClipboardFts,
+    retention_ms: Option<f64>,
+) -> Result<bool, AppError> {
+    let applied = apply_synced_item(conn, item, master_key, retention_ms)?;
+    if applied {
+        fts.upsert(&item.id, item.preview.as_deref(), item.content.as_deref())?;
+    }
+    Ok(applied)
+}
+
 /// JavaScript-compatible timestamp (milliseconds since epoch).
 /// In test builds this returns 0 so that age-based cleanup uses a negative
 /// cutoff and never purges items whose `created_at` is set to small fake
@@ -1108,6 +1148,82 @@ mod tests {
         )
         .optional()
         .unwrap()
+    }
+
+    fn tombstone_count(conn: &Connection) -> i64 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM cloud_sync_items_journal WHERE is_tombstone = 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    }
+
+    fn row_count(conn: &Connection) -> i64 {
+        conn.query_row("SELECT COUNT(*) FROM clipboard_items", [], |r| r.get(0))
+            .unwrap()
+    }
+
+    /// A pull must restore what the server holds. Two devices that copied the
+    /// same text produce two ids with identical content; the local-capture
+    /// dedupe would delete one and tombstone it, pushing a delete back to the
+    /// cloud for an item that was just restored.
+    #[test]
+    fn apply_synced_item_keeps_same_content_items_and_writes_no_tombstones() {
+        let conn = setup();
+        let key = test_key();
+        let now = js_sys_now();
+        let mut a = make_item("1", "same text", false);
+        let mut b = make_item("2", "same text", false);
+        a.created_at = now - 1000.0;
+        b.created_at = now - 500.0;
+
+        assert!(apply_synced_item(&conn, &a, &key, None).unwrap());
+        assert!(apply_synced_item(&conn, &b, &key, None).unwrap());
+
+        assert_eq!(row_count(&conn), 2, "both pulled items must survive");
+        assert_eq!(tombstone_count(&conn), 0, "a pull must never tombstone");
+    }
+
+    /// Applying a pulled item must not run retention cleanup over the rest of
+    /// the table: that is a full scan per item (the freeze) and tombstones
+    /// every expired row (cloud data loss).
+    #[test]
+    fn apply_synced_item_does_not_evict_or_tombstone_other_rows() {
+        let conn = setup();
+        let key = test_key();
+        let now = js_sys_now();
+        let mut old = make_item("1", "old local", false);
+        old.created_at = now - 40.0 * 86_400_000.0;
+        add_item(&conn, &old, &key).unwrap();
+        let mut fresh = make_item("2", "fresh remote", false);
+        fresh.created_at = now - 1000.0;
+
+        let retention_30d = Some(30.0 * 86_400_000.0);
+        assert!(apply_synced_item(&conn, &fresh, &key, retention_30d).unwrap());
+
+        assert_eq!(row_count(&conn), 2);
+        assert_eq!(tombstone_count(&conn), 0);
+    }
+
+    /// An item already past retention would be evicted (and tombstoned) by the
+    /// next local capture, deleting it from the cloud. Skip it instead.
+    #[test]
+    fn apply_synced_item_skips_expired_non_favorites_but_keeps_favorites() {
+        let conn = setup();
+        let key = test_key();
+        let now = js_sys_now();
+        let retention_30d = Some(30.0 * 86_400_000.0);
+        let mut expired = make_item("1", "expired", false);
+        expired.created_at = now - 40.0 * 86_400_000.0;
+        let mut expired_fav = make_item("2", "expired favorite", true);
+        expired_fav.created_at = now - 40.0 * 86_400_000.0;
+
+        assert!(!apply_synced_item(&conn, &expired, &key, retention_30d).unwrap());
+        assert!(apply_synced_item(&conn, &expired_fav, &key, retention_30d).unwrap());
+
+        assert_eq!(row_count(&conn), 1);
+        assert_eq!(tombstone_count(&conn), 0);
     }
 
     #[test]

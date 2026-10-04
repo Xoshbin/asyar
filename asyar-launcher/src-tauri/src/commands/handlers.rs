@@ -145,6 +145,7 @@ macro_rules! storage_commands {
                 $crate::storage::commands::clipboard_export_for_sync,
                 $crate::storage::commands::clipboard_count,
                 $crate::storage::commands::clipboard_record_capture,
+                $crate::storage::commands::clipboard_apply_synced,
                 $crate::storage::commands::clipboard_toggle_favorite,
                 $crate::storage::commands::clipboard_delete_item,
                 $crate::storage::commands::clipboard_clear_non_favorites,

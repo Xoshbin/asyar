@@ -98,9 +98,12 @@ describe('shortcutStore', () => {
       // launcher's in-memory store stays empty and handleFiredShortcut
       // logs "Received shortcut for unknown objectId" when the user hits
       // the hotkey — even though Rust dispatched correctly.
-      vi.mocked(shortcutGetAll).mockResolvedValueOnce([] as any);
+      // The store is a singleton shared across this file, so init() may already
+      // have run; start from a clean mock queue and an empty cache either way.
+      vi.mocked(shortcutGetAll).mockReset();
+      vi.mocked(shortcutGetAll).mockResolvedValue([] as any);
       await shortcutStore.init();
-      expect(shortcutStore.shortcuts).toHaveLength(0);
+      shortcutStore.shortcuts = [];
 
       // Simulate the cross-webview write: SQLite now has a new entry.
       vi.mocked(shortcutGetAll).mockResolvedValueOnce([

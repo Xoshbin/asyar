@@ -63,12 +63,7 @@ class ShortcutStoreClass {
     if (this.#initialized) return;
     this.#initialized = true;
 
-    try {
-      const data = await shortcutGetAll();
-      this.shortcuts = data as ItemShortcut[];
-    } catch {
-      // Keep empty default
-    }
+    await this.#load();
 
     // Cross-webview sync: Rust fires `shortcuts:changed` after every
     // `shortcut_upsert` / `shortcut_remove` so each webview's in-memory
@@ -117,9 +112,28 @@ class ShortcutStoreClass {
     this.#notify({ type: 'delete', itemId: objectId });
   }
 
+  /**
+   * Re-read the shortcuts from Rust. Must NOT go through `init()`: that
+   * registers the `shortcuts:changed` listener, and that listener itself calls
+   * `reload()`, so every event would add another listener and the count would
+   * double per event (cloud sync upserting N shortcuts spawned 2^N reloads and
+   * froze the app).
+   */
   async reload() {
-    this.#initialized = false;
-    await this.init();
+    if (!this.#initialized) {
+      await this.init();
+      return;
+    }
+    await this.#load();
+  }
+
+  async #load() {
+    try {
+      const data = await shortcutGetAll();
+      this.shortcuts = data as ItemShortcut[];
+    } catch {
+      // Keep the current list
+    }
   }
 }
 

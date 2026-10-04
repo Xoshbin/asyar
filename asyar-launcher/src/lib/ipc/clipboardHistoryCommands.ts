@@ -124,6 +124,19 @@ export async function clipboardRecordCapture(
   return invokeSafe<ClipboardCaptureResult>('clipboard_record_capture', { item, retentionMs });
 }
 
+/**
+ * Store an item pulled from cloud sync. Unlike `clipboardRecordCapture` this
+ * never dedupes by content or runs retention cleanup, so a restore cannot
+ * delete (tombstone) the very items it brings back. Resolves `false` when the
+ * item was skipped for being past retention.
+ */
+export async function clipboardApplySynced(
+  item: StoredClipboardItem,
+  retentionMs?: number,
+): Promise<boolean> {
+  return invokeSafe<boolean>('clipboard_apply_synced', { item, retentionMs });
+}
+
 export async function clipboardToggleFavorite(id: string): Promise<boolean> {
   return invokeSafe<boolean>('clipboard_toggle_favorite', { id });
 }
