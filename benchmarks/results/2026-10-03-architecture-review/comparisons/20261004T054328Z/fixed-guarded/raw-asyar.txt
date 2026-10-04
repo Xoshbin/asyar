@@ -1,0 +1,67 @@
+coldstart_ms=732
+run=1 ms=11.1
+run=2 ms=16.7
+run=3 ms=12.3
+run=4 ms=13.1
+run=5 ms=14.8
+run=6 ms=12.8
+run=7 ms=11.6
+run=8 ms=14.9
+run=9 ms=11.8
+run=10 ms=11.8
+run=11 ms=13.8
+run=12 ms=12.4
+run=13 ms=18.3
+run=14 ms=11.3
+run=15 ms=11.8
+median_ms=12.4
+p95_ms=16.7
+min_ms=11.1
+p99_ms=18.3
+samples_ms=11.1,16.7,12.3,13.1,14.8,12.8,11.6,14.9,11.8,11.8,13.8,12.4,18.3,11.3,11.8
+process pid=63899 mb=219.6 name=asyar
+process pid=63900 mb=2.7 name=SetStoreUpdateService
+process pid=63901 mb=21.1 name=com.apple.WebKit.GPU
+process pid=63902 mb=120.2 name=com.apple.WebKit.WebContent
+process pid=63903 mb=6.8 name=com.apple.WebKit.Networking
+process pid=63904 mb=68.7 name=com.apple.WebKit.WebContent
+process pid=63905 mb=15.4 name=com.apple.WebKit.WebContent
+process pid=63906 mb=15.4 name=com.apple.WebKit.WebContent
+process pid=63908 mb=5.5 name=com.apple.audio.SandboxHelper
+process pid=63925 mb=11.0 name=com.apple.SafariPlatformSupport.Helper
+process_count=10
+total_mb=486.2
+cpu_pct=1.10
+cpu_pct_deep=0.71
+net_bytes_in=4017
+net_bytes_out=1151
+pm_cpu_ms_s=n/a
+pm_wakeups_s=n/a
+disk_write_ops=n/a
+disk_files_touched=n/a
+run=1 ms=timeout
+run=2 ms=timeout
+run=3 ms=timeout
+run=4 ms=timeout
+run=5 ms=timeout
+run=6 ms=timeout
+run=7 ms=timeout
+run=8 ms=timeout
+run=9 ms=timeout
+run=10 ms=timeout
+type_p50_ms=n/a
+type_p95_ms=n/a
+type_p99_ms=n/a
+process pid=63899 mb=175.5 name=asyar
+process pid=63900 mb=2.5 name=SetStoreUpdateService
+process pid=63901 mb=225.9 name=com.apple.WebKit.GPU
+process pid=63902 mb=150.6 name=com.apple.WebKit.WebContent
+process pid=63903 mb=6.7 name=com.apple.WebKit.Networking
+process pid=63904 mb=68.7 name=com.apple.WebKit.WebContent
+process pid=63905 mb=15.4 name=com.apple.WebKit.WebContent
+process pid=63906 mb=15.4 name=com.apple.WebKit.WebContent
+process pid=63908 mb=5.5 name=com.apple.audio.SandboxHelper
+process pid=63925 mb=11.0 name=com.apple.SafariPlatformSupport.Helper
+process_count=10
+total_mb_deep=677.1
+size_mb=68

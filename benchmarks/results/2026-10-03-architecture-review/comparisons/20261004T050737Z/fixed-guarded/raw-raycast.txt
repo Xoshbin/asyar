@@ -1,0 +1,61 @@
+coldstart_ms=1289
+run=1 ms=27.4
+run=2 ms=38.7
+run=3 ms=43.0
+run=4 ms=30.6
+run=5 ms=40.7
+run=6 ms=37.4
+run=7 ms=22.0
+run=8 ms=33.9
+run=9 ms=42.3
+run=10 ms=29.0
+run=11 ms=16.0
+run=12 ms=19.3
+run=13 ms=16.1
+run=14 ms=19.3
+run=15 ms=41.8
+median_ms=30.6
+p95_ms=42.3
+min_ms=16.0
+p99_ms=43.0
+samples_ms=27.4,38.7,43.0,30.6,40.7,37.4,22.0,33.9,42.3,29.0,16.0,19.3,16.1,19.3,41.8
+process pid=53061 mb=70.2 name=Raycast
+process pid=53080 mb=2.3 name=SetStoreUpdateService
+process pid=53107 mb=18.5 name=ollama
+process pid=53113 mb=5.4 name=com.apple.WebKit.GPU
+process pid=53114 mb=34.2 name=com.apple.WebKit.WebContent
+process pid=53115 mb=6.3 name=com.apple.WebKit.Networking
+process pid=53116 mb=5.5 name=com.apple.audio.SandboxHelper
+process_count=7
+total_mb=142.4
+cpu_pct=0.05
+cpu_pct_deep=0.05
+net_bytes_in=0
+net_bytes_out=0
+pm_cpu_ms_s=n/a
+pm_wakeups_s=n/a
+disk_write_ops=n/a
+disk_files_touched=n/a
+run=1 ms=timeout
+run=2 ms=timeout
+run=3 ms=timeout
+run=4 ms=timeout
+run=5 ms=timeout
+run=6 ms=timeout
+run=7 ms=timeout
+run=8 ms=timeout
+run=9 ms=timeout
+run=10 ms=timeout
+type_p50_ms=n/a
+type_p95_ms=n/a
+type_p99_ms=n/a
+process pid=53061 mb=76.4 name=Raycast
+process pid=53080 mb=2.5 name=SetStoreUpdateService
+process pid=53107 mb=18.4 name=ollama
+process pid=53113 mb=5.4 name=com.apple.WebKit.GPU
+process pid=53114 mb=34.2 name=com.apple.WebKit.WebContent
+process pid=53115 mb=6.2 name=com.apple.WebKit.Networking
+process pid=53116 mb=5.5 name=com.apple.audio.SandboxHelper
+process_count=7
+total_mb_deep=148.6
+size_mb=133
