@@ -221,7 +221,7 @@ describe('ScriptsManager', () => {
   it('stop_clears_registrations_and_unsubscribes', async () => {
     const unlistenChanged = vi.fn();
     const unlistenInlineTick = vi.fn();
-    // scripts:changed subscribes via listen, scripts:inline:tick via the
+    // scripts:changed subscribes via bridgeListen, scripts:inline:tick via the
     // eval-free bridge.
     vi.mocked(bridgeListen).mockResolvedValueOnce(unlistenChanged);
     vi.mocked(bridgeListen).mockResolvedValueOnce(unlistenInlineTick);

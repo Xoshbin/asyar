@@ -29,7 +29,7 @@ use tokio::sync::Notify;
 const QUEUE_CAP: usize = 1024;
 
 /// Label of the one window that drains the queue via `bridge_poll`.
-const POLLER_WINDOW_LABEL: &str = "main";
+const POLLER_WINDOW_LABEL: &str = crate::SPOTLIGHT_LABEL;
 
 /// Timeout for a parked poller. A returning `Ok(vec![])` is the no-op
 /// heartbeat; the JS side re-issues the poll.
