@@ -6,6 +6,8 @@ pub enum SelectionError {
     AccessibilityUnavailable(String),
     #[error("CLIPBOARD_RESTORE_FAILED: {0}")]
     ClipboardRestoreFailed(String),
+    #[error("LAUNCHER_FOCUSED")]
+    LauncherFocused,
     #[error("OPERATION_FAILED: {0}")]
     OperationFailed(String),
 }

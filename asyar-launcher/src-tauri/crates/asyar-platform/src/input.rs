@@ -32,6 +32,13 @@ pub fn post_copy_chord_to_frontmost() {
     }
 }
 
+/// Sends Cmd+C directly to `pid`, regardless of which app is frontmost.
+#[cfg(target_os = "macos")]
+pub fn post_copy_chord_to_pid(pid: i32) {
+    // kVK_ANSI_C = 8, kCGEventFlagMaskCommand = 0x00100000
+    post_key_chord_to_pid(pid, 8, 0x00100000);
+}
+
 /// Shared helper for enigo-based modifier chords.
 pub fn post_key_chord_via_enigo(modifier: Key, key_char: char) {
     let mut enigo = Enigo::new();

@@ -84,7 +84,12 @@ fn register_observer(hub: Arc<AppEventsHub>, name: &NSString, kind: ObserverKind
         let ev = match kind {
             ObserverKind::Launch => build_launched(&app),
             ObserverKind::Terminate => build_terminated(&app),
-            ObserverKind::Activate => build_frontmost(&app),
+            ObserverKind::Activate => {
+                crate::selection::platform::note_frontmost_activated(unsafe {
+                    app.processIdentifier()
+                });
+                build_frontmost(&app)
+            }
         };
         if let Some(ev) = ev {
             hub.dispatch(ev);

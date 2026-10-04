@@ -626,6 +626,25 @@ describe('IPC pipeline — denial and error envelopes', () => {
     );
   });
 
+  it('forwards a thrown error code as the response errorCode', async () => {
+    const get = vi.fn(async () => {
+      throw Object.assign(new Error('LAUNCHER_FOCUSED'), { code: 'LAUNCHER_FOCUSED' });
+    });
+
+    await makeRouter({ storage: { get } }).handleMessage(
+      frameEvent({ type: 'asyar:api:storage:get', payload: { key: 'k' }, messageId: 'm-code' }),
+    );
+
+    expect(responsesTo(viewPost)).toEqual([
+      {
+        type: 'asyar:response',
+        messageId: 'm-code',
+        error: 'LAUNCHER_FOCUSED',
+        errorCode: 'LAUNCHER_FOCUSED',
+      },
+    ]);
+  });
+
   it('suppresses the second diagnostic for an already-reported HandledDispatchError', async () => {
     const get = vi.fn(async () => {
       throw new HandledDispatchError('already reported');

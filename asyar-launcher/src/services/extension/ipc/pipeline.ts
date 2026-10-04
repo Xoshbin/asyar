@@ -152,7 +152,9 @@ const replyEnvelope: IpcStage = {
     } catch (error) {
       const catchError = extractErrorMessage(error);
       logService.error(`[Main] IPC handling error for ${ctx.extensionId}: ${catchError}`);
-      ctx.replyError(catchError);
+      // Forward a typed `code` (e.g. SelectionError) so extensions can branch on it.
+      const thrownCode = (error as { code?: unknown } | null)?.code;
+      ctx.replyError(catchError, typeof thrownCode === 'string' ? thrownCode : undefined);
       // invokeSafe wrappers already reported their own diagnostic.
       if (!(error instanceof HandledDispatchError) && !(error instanceof IpcError)) {
         void feedbackService.report({

@@ -2,6 +2,7 @@ export type SelectionErrorCode =
   | 'ACCESSIBILITY_PERMISSION_REQUIRED'
   | 'ACCESSIBILITY_UNAVAILABLE'
   | 'CLIPBOARD_RESTORE_FAILED'
+  | 'LAUNCHER_FOCUSED'
   | 'OPERATION_FAILED';
 
 export interface SelectionError extends Error {

@@ -5,13 +5,14 @@ in an open panel.
 
 **Permission required:** `selection:read` (gates both methods).
 
-Reads the user's current selection from whatever app is frontmost when your extension runs. Two methods, both opt-in via a single permission, both return clean serializable data:
+Reads the user's current selection from the application the user was in when they summoned Asyar (the frontmost app, or — on macOS, while the launcher itself has focus — the last external app that was frontmost). Two methods, both opt-in via a single permission, both return clean serializable data:
 
 ```typescript
 type SelectionErrorCode =
   | 'ACCESSIBILITY_PERMISSION_REQUIRED'
   | 'ACCESSIBILITY_UNAVAILABLE'
   | 'CLIPBOARD_RESTORE_FAILED'
+  | 'LAUNCHER_FOCUSED'
   | 'OPERATION_FAILED';
 
 interface SelectionError extends Error {
@@ -149,12 +150,13 @@ Only one selection operation can be in flight at a time across all extensions. I
 
 #### Error handling
 
-| `SelectionErrorCode`                | When it fires                                                                                                        | What to do                                                                              |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `ACCESSIBILITY_PERMISSION_REQUIRED` | macOS — Asyar lacks Accessibility permission. Asyar automatically opens the System Settings panel.                   | Show a toast or HUD telling the user to grant access; the call will work after they do. |
-| `ACCESSIBILITY_UNAVAILABLE`         | The platform's accessibility subsystem is not running (rare; primarily Linux without `at-spi2-core`).                | Inform the user; degrade gracefully.                                                    |
-| `CLIPBOARD_RESTORE_FAILED`          | The clipboard snapshot was captured but the restore step failed. The user's clipboard may be in an unexpected state. | Surface the error visibly. This is rare but important.                                  |
-| `OPERATION_FAILED`                  | Generic catch-all for OS API errors.                                                                                 | Log; consider falling back to a different code path.                                    |
+| `SelectionErrorCode`                | When it fires                                                                                                                                   | What to do                                                                                 |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `ACCESSIBILITY_PERMISSION_REQUIRED` | macOS — Asyar lacks Accessibility permission. Asyar automatically opens the System Settings panel.                                              | Show a toast or HUD telling the user to grant access; the call will work after they do.    |
+| `ACCESSIBILITY_UNAVAILABLE`         | The platform's accessibility subsystem is not running (rare; primarily Linux without `at-spi2-core`).                                           | Inform the user; degrade gracefully.                                                       |
+| `CLIPBOARD_RESTORE_FAILED`          | The clipboard snapshot was captured but the restore step failed. The user's clipboard may be in an unexpected state.                            | Surface the error visibly. This is rare but important.                                     |
+| `LAUNCHER_FOCUSED`                  | macOS — the launcher has focus and Asyar cannot tell which app you were in (none remembered, or it has quit). Distinct from "nothing selected". | Ask the user to select something in another app and retry. Never treat as empty selection. |
+| `OPERATION_FAILED`                  | Generic catch-all for OS API errors.                                                                                                            | Log; consider falling back to a different code path.                                       |
 
 A `null` return from `getSelectedText()` and an empty array from `getSelectedFinderItems()` are **not errors** — they are the expected "nothing was selected" outcome. Don't wrap them in try/catch logic.
 
