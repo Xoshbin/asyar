@@ -7,6 +7,7 @@ import type {
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
 import { noteStore, type Note } from './noteStore.svelte';
+import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import { noteViewState } from './noteViewState.svelte';
 import { splitQuickCapture } from './quickCapture';
 import {
@@ -71,6 +72,9 @@ class NotesExtension implements Extension {
 
   private handleKeydown(e: KeyboardEvent) {
     if (!this.inView) return;
+    if (typeof document !== 'undefined') {
+      if (document.querySelector('.action-popup') || isAnyModalOpen(document)) return;
+    }
 
     if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
       e.preventDefault();
@@ -78,14 +82,15 @@ class NotesExtension implements Extension {
       return;
     }
 
+    // The launcher's own search input is focused while browsing the list, so
+    // "is an input" can't be the exemption — only the note editor's fields
+    // (title/body) keep their native cursor-movement keys.
     const target = e.target as HTMLElement | null;
-    const inEditableField =
-      !!target &&
-      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-    if (inEditableField) return; // let the field handle its own keys (typing, cursor movement)
+    if (target?.closest?.('.note-editor')) return;
 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
+      e.stopPropagation();
       noteViewState.moveSelection(e.key === 'ArrowUp' ? 'up' : 'down');
     }
   }
@@ -249,8 +254,8 @@ class NotesExtension implements Extension {
   async viewActivated(_viewId: string): Promise<void> {
     this.inView = true;
     if (typeof window !== 'undefined') {
-      window.removeEventListener('keydown', this.handleKeydownBound);
-      window.addEventListener('keydown', this.handleKeydownBound);
+      window.removeEventListener('keydown', this.handleKeydownBound, true);
+      window.addEventListener('keydown', this.handleKeydownBound, true);
     }
     await noteStore.reload();
 
@@ -267,7 +272,7 @@ class NotesExtension implements Extension {
   async viewDeactivated(_viewId: string): Promise<void> {
     this.inView = false;
     if (typeof window !== 'undefined') {
-      window.removeEventListener('keydown', this.handleKeydownBound);
+      window.removeEventListener('keydown', this.handleKeydownBound, true);
     }
     this.unlistenNotesChanged?.();
     this.unlistenNotesChanged = null;
@@ -286,7 +291,7 @@ class NotesExtension implements Extension {
   async deactivate(): Promise<void> {
     this.inView = false;
     if (typeof window !== 'undefined') {
-      window.removeEventListener('keydown', this.handleKeydownBound);
+      window.removeEventListener('keydown', this.handleKeydownBound, true);
     }
     this.unlistenNotesChanged?.();
     this.unlistenNotesChanged = null;

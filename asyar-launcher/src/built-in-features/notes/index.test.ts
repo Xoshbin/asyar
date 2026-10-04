@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async () => vi.fn()),
@@ -150,7 +150,7 @@ describe('NotesExtension lifecycle: viewActivated, viewDeactivated, activate, de
   it('viewActivated attaches keydown listener, listens for notes:changed, and registers view actions', async () => {
     await notesExtension.viewActivated('notes/DefaultView');
 
-    expect(window.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(window.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function), true);
     expect(listen).toHaveBeenCalledWith('notes:changed', expect.any(Function), undefined);
     expect(noteStore.reload).toHaveBeenCalled();
     expect(actionService.registerAction).toHaveBeenCalledWith(
@@ -171,7 +171,7 @@ describe('NotesExtension lifecycle: viewActivated, viewDeactivated, activate, de
     await notesExtension.viewActivated('notes/DefaultView');
     await notesExtension.viewDeactivated('notes/DefaultView');
 
-    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function), true);
     expect(unlistenMock).toHaveBeenCalled();
     expect(noteViewState.reset).toHaveBeenCalled();
     expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:add');
@@ -195,7 +195,7 @@ describe('NotesExtension lifecycle: viewActivated, viewDeactivated, activate, de
     await notesExtension.viewActivated('notes/DefaultView');
     await notesExtension.deactivate();
 
-    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function), true);
     expect(unlistenMock).toHaveBeenCalled();
     expect(noteViewState.reset).toHaveBeenCalled();
     expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:add');
@@ -206,5 +206,56 @@ describe('NotesExtension lifecycle: viewActivated, viewDeactivated, activate, de
     await notesExtension.deactivate();
     expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:add');
     expect(noteViewState.reset).toHaveBeenCalled();
+  });
+});
+
+describe('NotesExtension keyboard navigation', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await notesExtension.viewActivated('notes/DefaultView');
+  });
+
+  afterEach(async () => {
+    document.body.innerHTML = '';
+    await notesExtension.viewDeactivated('notes/DefaultView');
+  });
+
+  function press(target: Element, key: string) {
+    const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    target.dispatchEvent(e);
+    return e;
+  }
+
+  it('moves the selection when focus is in the launcher search input', () => {
+    const search = document.createElement('input');
+    document.body.appendChild(search);
+
+    const down = press(search, 'ArrowDown');
+    expect(noteViewState.moveSelection).toHaveBeenCalledWith('down');
+    expect(down.defaultPrevented).toBe(true);
+
+    press(search, 'ArrowUp');
+    expect(noteViewState.moveSelection).toHaveBeenCalledWith('up');
+  });
+
+  it('leaves arrow keys alone inside the note editor fields', () => {
+    const editor = document.createElement('div');
+    editor.className = 'note-editor';
+    const body = document.createElement('textarea');
+    editor.appendChild(body);
+    document.body.appendChild(editor);
+
+    const e = press(body, 'ArrowDown');
+    expect(noteViewState.moveSelection).not.toHaveBeenCalled();
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('does not navigate while a modal or action popup is open', () => {
+    const popup = document.createElement('div');
+    popup.className = 'action-popup';
+    document.body.appendChild(popup);
+
+    press(document.body, 'ArrowDown');
+    expect(noteViewState.moveSelection).not.toHaveBeenCalled();
   });
 });
