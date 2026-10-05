@@ -23,9 +23,16 @@ class ShortcutService {
     await Promise.all(
       shortcuts.map(async (s) => {
         const [modifier, key] = parseShortcut(s.shortcut);
-        const ok = await registerItemShortcut(s.objectId, modifier, key);
-        if (!ok) {
-          logService.warn(`Failed to re-register shortcut ${s.shortcut} for ${s.itemName}`);
+        // registerItemShortcut rejects on failure (e.g. two restored items bound
+        // to one chord). One bad shortcut must never abort app startup: init()
+        // failing flips the app to "not initialized" and freezes launcher search.
+        try {
+          const ok = await registerItemShortcut(s.objectId, modifier, key);
+          if (!ok) {
+            logService.warn(`Failed to re-register shortcut ${s.shortcut} for ${s.itemName}`);
+          }
+        } catch (err) {
+          logService.warn(`Failed to re-register shortcut ${s.shortcut} for ${s.itemName}: ${err}`);
         }
       }),
     );
