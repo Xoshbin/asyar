@@ -4,7 +4,7 @@ vi.mock('./log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { envService } from './envService';
+import { envService, SUPPORTED_SDK_VERSION } from './envService';
 
 describe('storeApiBaseUrl', () => {
   it('returns the production URL', () => {
@@ -13,8 +13,13 @@ describe('storeApiBaseUrl', () => {
 });
 
 describe('supportedSdkVersion', () => {
-  it('returns the current supported SDK version', () => {
-    expect(envService.supportedSdkVersion).toBe('4.13.0');
+  // Deliberately not a hard-coded version literal. The release scripts rewrite
+  // SUPPORTED_SDK_VERSION but cannot rewrite an assertion, so a literal here
+  // fails CI on the release branch of every SDK bump. These two tests cover the
+  // same ground without that: the getter returns the constant, and the constant
+  // tracks the SDK actually in the workspace.
+  it('exposes the exported constant', () => {
+    expect(envService.supportedSdkVersion).toBe(SUPPORTED_SDK_VERSION);
   });
 
   it('matches the version in asyar-sdk/package.json', async () => {

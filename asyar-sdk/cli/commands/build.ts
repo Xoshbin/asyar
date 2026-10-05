@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { readManifest, lintManifest } from '../lib/manifest';
 import { toPackagedPath } from '../lib/zip';
+import { workerBundleNeedsDomFallback, workerCompatWarning } from '../lib/workerCompat';
 
 export function registerBuild(program: Command) {
   program
@@ -122,6 +123,17 @@ export function verifyBuildOutput(
       );
     }
     process.exit(1);
+  }
+
+  // Advisory, not fatal: the extension still runs today, on a compatibility
+  // path that is going away. Warn at build time so the author hears about it
+  // from their own terminal rather than from a user after the fallback is gone.
+  if (hasWorker && workerBundleNeedsDomFallback(resolvedWorkerEntry!)) {
+    console.log(
+      '\n' +
+        chalk.yellow('  ⚠️  Deprecated: ') +
+        workerCompatWarning(path.relative(cwd, resolvedWorkerEntry!)),
+    );
   }
 
   console.log('\nOutput:');

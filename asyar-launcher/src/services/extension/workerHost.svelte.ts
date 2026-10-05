@@ -212,7 +212,7 @@ export class WorkerHost {
       return;
     this.unmount(extensionId, 'iframe_compatibility');
     logService.warn(
-      `[workerHost] iframe fallback for ${extensionId}: ${String(reason ?? 'Worker startup failed')}; worker bundle may depend on document; rebuild with modulePreload: false`,
+      `[workerHost] iframe fallback for ${extensionId}: ${String(reason ?? 'Worker startup failed')}; worker bundle may depend on document; rebuild with modulePreload: false. This compatibility fallback is removed in launcher 0.2.0.`,
     );
     this._fallbackEntries.push({ extensionId, mountToken });
     void recordWorkerFallback(extensionId).catch((error) => {
