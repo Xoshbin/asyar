@@ -2,6 +2,9 @@ import {
   shortcutStore,
   type ItemShortcut,
 } from '../../../built-in-features/shortcuts/shortcutStore.svelte';
+import { normalizeShortcut } from '../../../built-in-features/shortcuts/shortcutFormatter';
+import { outranks } from '../../../built-in-features/shortcuts/shortcutDedupe';
+import { syncMarkTombstone } from '../../../lib/ipc/syncCommands';
 import type {
   ISyncProvider,
   SyncProviderData,
@@ -121,8 +124,29 @@ export class ShortcutsSyncProvider implements ISyncProvider {
     }));
   }
 
+  /**
+   * One chord per item. `object_id` is unique but the chord is not, and agent
+   * command ids are minted per device, so a pull can bring back rows that
+   * collide with a chord a local row already holds. The loser is dropped and
+   * tombstoned explicitly: change events are suppressed while a pull is being
+   * applied, so the store's own delete event would never reach the journal.
+   */
   async applyItemUpsert(item: SyncItem): Promise<void> {
-    shortcutStore.add(item.content as ItemShortcut);
+    const incoming = item.content as ItemShortcut;
+    const chord = normalizeShortcut(incoming.shortcut);
+    const rivals = shortcutStore
+      .getAll()
+      .filter((s) => s.objectId !== incoming.objectId && normalizeShortcut(s.shortcut) === chord);
+
+    if (rivals.some((r) => outranks(r, incoming))) {
+      await syncMarkTombstone(incoming.objectId, this.id);
+      return;
+    }
+    for (const rival of rivals) {
+      shortcutStore.remove(rival.objectId);
+      await syncMarkTombstone(rival.objectId, this.id);
+    }
+    shortcutStore.add(incoming);
   }
 
   async applyItemDelete(itemId: string): Promise<void> {

@@ -41,6 +41,10 @@ vi.mock('../../../built-in-features/shortcuts/shortcutStore.svelte', () => {
   };
 });
 
+vi.mock('../../../lib/ipc/syncCommands', () => ({
+  syncMarkTombstone: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('ShortcutsSyncProvider', () => {
   let provider: ShortcutsSyncProvider;
 
@@ -240,6 +244,95 @@ describe('ShortcutsSyncProvider', () => {
       };
       await provider.applyItemUpsert({ id: 'app-x', categoryId: 'shortcuts', content });
       expect(shortcutStore.add).toHaveBeenCalledWith(content);
+    });
+  });
+
+  describe('applyItemUpsert enforces one chord per item', () => {
+    const row = (objectId: string, shortcut: string, createdAt: number) => ({
+      id: objectId,
+      objectId,
+      itemName: 'Grammar Fix',
+      itemType: 'command' as const,
+      shortcut,
+      createdAt,
+    });
+
+    async function mocks() {
+      const { shortcutStore } =
+        await import('../../../built-in-features/shortcuts/shortcutStore.svelte');
+      const { syncMarkTombstone } = await import('../../../lib/ipc/syncCommands');
+      return { shortcutStore, syncMarkTombstone };
+    }
+
+    it('drops an older incoming row that collides with a local chord and tombstones it', async () => {
+      const { shortcutStore, syncMarkTombstone } = await mocks();
+      vi.mocked(shortcutStore.getAll).mockReturnValue([
+        row('cmd_agents_dyn_live', 'Super+Shift+L', 5000),
+      ] as any);
+      const orphan = row('cmd_agents_dyn_dead', 'Shift+Super+L', 1000);
+
+      await provider.applyItemUpsert({
+        id: orphan.objectId,
+        categoryId: 'shortcuts',
+        content: orphan,
+      });
+
+      expect(shortcutStore.add).not.toHaveBeenCalled();
+      expect(syncMarkTombstone).toHaveBeenCalledWith('cmd_agents_dyn_dead', 'shortcuts');
+    });
+
+    it('replaces an older local row when the incoming one is newer', async () => {
+      const { shortcutStore, syncMarkTombstone } = await mocks();
+      vi.mocked(shortcutStore.getAll).mockReturnValue([
+        row('cmd_agents_dyn_old', 'Super+Shift+L', 1000),
+      ] as any);
+      const incoming = row('cmd_agents_dyn_new', 'Super+Shift+L', 9000);
+
+      await provider.applyItemUpsert({
+        id: incoming.objectId,
+        categoryId: 'shortcuts',
+        content: incoming,
+      });
+
+      expect(shortcutStore.remove).toHaveBeenCalledWith('cmd_agents_dyn_old');
+      expect(syncMarkTombstone).toHaveBeenCalledWith('cmd_agents_dyn_old', 'shortcuts');
+      expect(shortcutStore.add).toHaveBeenCalledWith(incoming);
+    });
+
+    it('still updates the same object in place (same objectId is not a collision)', async () => {
+      const { shortcutStore, syncMarkTombstone } = await mocks();
+      vi.mocked(shortcutStore.getAll).mockReturnValue([
+        row('cmd_agents_dyn_a', 'Super+Shift+L', 1000),
+      ] as any);
+      const same = row('cmd_agents_dyn_a', 'Super+Shift+L', 2000);
+
+      await provider.applyItemUpsert({ id: same.objectId, categoryId: 'shortcuts', content: same });
+
+      expect(shortcutStore.add).toHaveBeenCalledWith(same);
+      expect(syncMarkTombstone).not.toHaveBeenCalled();
+    });
+
+    it('restore path: 12 stale rows pulled after onboarding leave exactly one holder of the chord', async () => {
+      const { shortcutStore } = await mocks();
+      let local: any[] = [row('cmd_agents_dyn_live', 'Super+Shift+L', 9000)];
+      vi.mocked(shortcutStore.getAll).mockImplementation(() => [...local]);
+      vi.mocked(shortcutStore.add).mockImplementation((s: any) => {
+        local = [...local.filter((x) => x.objectId !== s.objectId), s];
+      });
+      vi.mocked(shortcutStore.remove).mockImplementation((id: string) => {
+        local = local.filter((x) => x.objectId !== id);
+      });
+
+      for (let i = 0; i < 12; i++) {
+        const stale = row(`cmd_agents_dyn_stale${i}`, 'Super+Shift+L', 1000 + i);
+        await provider.applyItemUpsert({
+          id: stale.objectId,
+          categoryId: 'shortcuts',
+          content: stale,
+        });
+      }
+
+      expect(local.map((s) => s.objectId)).toEqual(['cmd_agents_dyn_live']);
     });
   });
 

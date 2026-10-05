@@ -7,6 +7,13 @@ use rusqlite::Connection;
 
 pub const DEFAULT_AGENT_SYSTEM_PROMPT: &str = "You are Asyar Assistant, a friendly and helpful AI built into the Asyar launcher. Help the user with quick questions, explanations, drafting, summarizing, and general thinking-through. Be concise, accurate, and direct. If you don't know something, say so. Use Markdown for code and lists when it improves clarity.";
 
+/// Fixed id for the bundled Grammar Fix agent. It is an identity key, not a
+/// display name: renaming the agent never changes it. Agents are not
+/// cloud-synced but the hotkey bound to `cmd_agents_dyn_<id>` is, so a random
+/// id per install left every reset with a fresh orphan shortcut row. Only this
+/// seeded agent gets a fixed id; user-created agents keep uuids.
+pub const GRAMMAR_FIX_AGENT_ID: &str = "grammar-fix";
+
 pub const GRAMMAR_FIX_SYSTEM_PROMPT: &str = "You rewrite English text with corrected grammar, spelling, and phrasing.\nPreserve the original tone, voice, language, register, and formatting.\n\nOutput rules:\n- Output the corrected text only. Match the input's length — a short\n  input gets a short output, a long input gets a long output.\n- No preamble. No explanation. No alternatives. No quotation marks\n  around the output. No \"Here is...\" or \"Sure, ...\".\n- If the input is already correct, output it unchanged.\n\nExamples:\n\nInput: the cat sit on mat\nOutput: The cat sits on the mat.\n\nInput: i recieved you're message yesterday and ill respond asap\nOutput: I received your message yesterday and I'll respond ASAP.\n\nInput: We was going too the store wen it started raining\nOutput: We were going to the store when it started raining.\n\nInput: This is a perfectly fine sentence already.\nOutput: This is a perfectly fine sentence already.\n\nNow correct the user's next message the same way.";
 
 const INLINE_EMOJI_SYSTEM_PROMPT: &str = "You are an inline emoji resolver. The user just typed a {trigger}shortcode{trigger} pattern that did not match any known shortcode. Call the emoji_find tool with the inner word as the description. Reply with exactly one emoji character if confident, or empty string if not. No prose, no quotes.";
@@ -120,15 +127,17 @@ pub fn seed_grammar_fix_agent(
     model_id: &str,
 ) -> Result<AgentRow, AppError> {
     validate_provider_model(provider_id, model_id)?;
+    // Id first: the user may have renamed it. Name second: installs that
+    // predate the fixed id hold a uuid-keyed "Grammar Fix".
     if let Some(existing) = list_agents(conn)?
         .into_iter()
-        .find(|agent| agent.name == "Grammar Fix")
+        .find(|agent| agent.id == GRAMMAR_FIX_AGENT_ID || agent.name == "Grammar Fix")
     {
         return Ok(existing);
     }
     let now = now_ms();
     let agent = AgentRow {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: GRAMMAR_FIX_AGENT_ID.to_string(),
         name: "Grammar Fix".to_string(),
         description: Some(
             "Silent agent: replace selected text with the grammar-corrected version.".to_string(),
@@ -356,6 +365,29 @@ mod tests {
         assert_eq!(updated.tool_selection, vec!["builtin:search"]);
         assert_eq!(updated.provider_id, "anthropic");
         assert_eq!(updated.model_id, "claude-sonnet");
+    }
+
+    #[test]
+    fn grammar_fix_seed_uses_a_stable_id_so_synced_shortcuts_survive_a_reset() {
+        let first = seed_grammar_fix_agent(&conn(), "openai", "gpt-4o-mini").unwrap();
+        let after_reset = seed_grammar_fix_agent(&conn(), "openai", "gpt-4o-mini").unwrap();
+
+        assert_eq!(first.id, GRAMMAR_FIX_AGENT_ID);
+        assert_eq!(after_reset.id, first.id);
+    }
+
+    #[test]
+    fn grammar_fix_seed_finds_the_agent_by_id_after_the_user_renames_it() {
+        let conn = conn();
+        let mut seeded = seed_grammar_fix_agent(&conn, "openai", "gpt-4o-mini").unwrap();
+        seeded.name = "My Proofreader".to_string();
+        crate::storage::agents::update_agent(&conn, &seeded).unwrap();
+
+        let again = seed_grammar_fix_agent(&conn, "openai", "gpt-4o-mini").unwrap();
+
+        assert_eq!(again.id, GRAMMAR_FIX_AGENT_ID);
+        assert_eq!(again.name, "My Proofreader");
+        assert_eq!(list_agents(&conn).unwrap().len(), 1);
     }
 
     #[test]

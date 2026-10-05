@@ -6,6 +6,7 @@ import type { AgentService } from './agentService.svelte';
 import { agentService as defaultAgentService } from './agentService.svelte';
 import type { ChatStreamStatus } from '../../services/ai/IProviderPlugin';
 import { appListen } from '../../lib/ipc/bridgeEvents';
+import { healDuplicateChords } from '../shortcuts/shortcutHeal';
 
 const AGENTS_EXTENSION_ID = 'agents';
 
@@ -114,6 +115,16 @@ export class AgentsManager {
       icon: 'icon:sparkles',
     }));
     await replaceDynamicCommandsBuiltin(AGENTS_EXTENSION_ID, regs);
+
+    // Cloud restores bring back shortcuts bound to agent ids that no longer
+    // exist (agents aren't synced), colliding on one chord. Now that the live
+    // agent list is known, drop the losers. Never blocks or fails the refresh.
+    try {
+      const healed = healDuplicateChords(new Set(this.service.agents.map((a) => a.id)));
+      if (healed > 0) logService.info(`[agents] removed ${healed} duplicate-chord shortcut(s)`);
+    } catch (err) {
+      logService.warn(`[agents] shortcut heal failed: ${err}`);
+    }
   }
 }
 
