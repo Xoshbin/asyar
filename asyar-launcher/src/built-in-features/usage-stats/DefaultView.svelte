@@ -17,7 +17,7 @@
 </script>
 
 <div class="usage-view">
-  <AppBar title="Usage Stats" />
+  <AppBar title={t('features.usage_stats.ui.title')} />
 
   <div class="usage-body custom-scrollbar">
     {#if stats && hasUsage}
@@ -39,7 +39,7 @@
       </Card>
 
       <section class="usage-section">
-        <div class="section-header">Most used</div>
+        <div class="section-header">{t('features.usage_stats.ui.most_used')}</div>
         <div class="usage-list">
           {#each stats.top as item, i (item.id)}
             <RankedStatRow

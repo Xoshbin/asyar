@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type { SystemActionId } from '../../lib/ipc/commands';
 
 export interface SystemActionSpec {
@@ -23,57 +24,58 @@ export interface SystemActionSpec {
  * "Sign Out" where everything else says "Log Out".
  */
 export function systemActionSpecs(os: string): Record<SystemActionId, SystemActionSpec> {
-  const logOutName = os === 'windows' ? 'Sign Out' : 'Log Out';
+  const logOutName =
+    os === 'windows' ? t('features.system.sign_out') : t('features.system.log_out');
   return {
     sleep: {
       id: 'sleep',
-      name: 'Sleep',
-      description: 'Put the computer to sleep',
+      name: t('features.system.sleep'),
+      description: t('features.system.sleep_desc'),
       icon: 'icon:moon',
     },
     hibernate: {
       id: 'hibernate',
-      name: 'Hibernate',
-      description: 'Hibernate the computer',
+      name: t('features.system.hibernate'),
+      description: t('features.system.hibernate_desc'),
       icon: 'icon:moon',
     },
     lockScreen: {
       id: 'lockScreen',
-      name: 'Lock Screen',
-      description: 'Lock the screen',
+      name: t('features.system.lock'),
+      description: t('features.system.lock_desc'),
       icon: 'icon:lock',
     },
     logOut: {
       id: 'logOut',
       name: logOutName,
-      description: 'End the current session',
+      description: t('features.system.log_out_desc'),
       icon: 'icon:log-out',
       confirm: {
         title: logOutName,
-        message: `Are you sure you want to ${logOutName.toLowerCase()}? Unsaved work may be lost.`,
+        message: t('features.system.log_out_confirm', { action: logOutName.toLowerCase() }),
         confirmText: logOutName,
       },
     },
     restart: {
       id: 'restart',
-      name: 'Restart',
-      description: 'Restart the computer',
+      name: t('features.system.restart'),
+      description: t('features.system.restart_desc'),
       icon: 'icon:refresh',
       confirm: {
-        title: 'Restart',
-        message: 'Are you sure you want to restart the computer?',
-        confirmText: 'Restart',
+        title: t('features.system.restart'),
+        message: t('features.system.restart_confirm'),
+        confirmText: t('features.system.restart'),
       },
     },
     shutDown: {
       id: 'shutDown',
-      name: 'Shut Down',
-      description: 'Shut down the computer',
+      name: t('features.system.shut_down'),
+      description: t('features.system.shut_down_desc'),
       icon: 'icon:power',
       confirm: {
-        title: 'Shut Down',
-        message: 'Are you sure you want to shut down the computer?',
-        confirmText: 'Shut Down',
+        title: t('features.system.shut_down'),
+        message: t('features.system.shut_down_confirm'),
+        confirmText: t('features.system.shut_down'),
       },
     },
   };

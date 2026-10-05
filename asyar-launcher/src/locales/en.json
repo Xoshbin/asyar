@@ -830,7 +830,10 @@
       "error_empty": "Please enter an alias.",
       "error_too_long": "Alias must be at most 10 characters.",
       "error_invalid_chars": "Alias may only contain lowercase letters and digits.",
-      "error_save_failed": "Failed to save alias. Please try again."
+      "error_save_failed": "Failed to save alias. Please try again.",
+      "ui": {
+        "placeholder": "e.g. c, s, app"
+      }
     },
     "clipboard": {
       "title": "Clipboard History",
@@ -847,7 +850,43 @@
       "time_yesterday": "Yesterday",
       "time_this_week": "This week",
       "time_this_month": "This month",
-      "time_older": "Older"
+      "time_older": "Older",
+      "act": {
+        "toggle_html": "Toggle HTML Rendered/Source",
+        "toggle_html_desc": "Switch between rendered HTML preview and raw source",
+        "open_browser": "Open in Browser",
+        "open_browser_desc": "Open the selected URL in the default browser",
+        "paste_plain": "Paste as Plain Text",
+        "paste_plain_desc": "Paste the selected item as plain text, stripping all formatting",
+        "toggle_favorite": "Toggle Favorite",
+        "toggle_favorite_desc": "Pin or unpin the selected clipboard item",
+        "save_snippet": "Save as Snippet",
+        "save_snippet_desc": "Open this clipboard item in the snippet editor",
+        "delete_desc": "Delete the selected clipboard item",
+        "clear_selection": "Clear Selection",
+        "clear_selection_desc": "Deselect all multi-selected clipboard items",
+        "ask_ai": "Ask AI about this",
+        "ask_ai_desc": "Open AI Chat with this clipboard text pre-filled"
+      },
+      "subtitle": "View and manage your clipboard history",
+      "unsupported_item": "Not supported yet — {type} clipboard items can't be used with \"{action}\" yet.",
+      "refresh_failed": "Could not refresh clipboard history — list may be stale",
+      "paste_permission": "Asyar needs macOS Accessibility permission to paste. Enable Asyar under System Settings → Privacy & Security → Accessibility, then try again.",
+      "merge_nothing": "Nothing to paste — {count} selected item(s) can't be merged as text.",
+      "merge_skipped": "{count} item(s) skipped — only text/HTML/RTF can be merged.",
+      "ui": {
+        "reveal_failed": "Could not reveal {path} in Finder",
+        "indexing": "Indexing… search results will appear when ready",
+        "url_preview": "URL preview",
+        "no_preview": "No preview available",
+        "encrypted_secret": "Encrypted secret",
+        "paste_original": "Pasting uses the original value",
+        "loading_image": "Loading image...",
+        "preview_alt": "Preview",
+        "image_failed": "Failed to load image",
+        "reveal_title": "Reveal in Finder",
+        "preview_unavailable": "Preview unavailable"
+      }
     },
     "snippets": {
       "title": "Snippets",
@@ -866,12 +905,72 @@
       "private_label": "Private (Local Only)",
       "private_hint": "Keep this snippet on this device and exclude it from cloud sync.",
       "toggle_private": "Toggle Private (Local Only)",
-      "toggle_private_description": "Mark or unmark the selected snippet as private to prevent cloud sync."
+      "toggle_private_description": "Mark or unmark the selected snippet as private to prevent cloud sync.",
+      "act": {
+        "add": "Add Snippet",
+        "add_desc": "Create a new text expansion snippet",
+        "paste": "Paste Snippet",
+        "paste_desc": "Paste the selected snippet expansion into the active application",
+        "edit": "Edit Snippet",
+        "edit_desc": "Edit the selected snippet",
+        "delete": "Delete Snippet",
+        "delete_desc": "Delete the selected snippet",
+        "copy": "Copy Expansion",
+        "copy_desc": "Copy the snippet expansion text to the clipboard",
+        "duplicate": "Duplicate Snippet",
+        "duplicate_desc": "Create a duplicate of the selected snippet",
+        "pin": "Pin/Unpin Snippet",
+        "pin_desc": "Pin or unpin the selected snippet to keep it at the top",
+        "private": "Toggle Private (Local Only)",
+        "private_desc": "Mark or unmark the selected snippet as private to prevent cloud sync",
+        "clear_all": "Clear All Snippets",
+        "clear_all_desc": "Remove all snippets permanently"
+      },
+      "ui": {
+        "accessibility_warning": "Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar. If running in development, add the binary at: src-tauri/target/debug/asyar",
+        "open_settings": "Open System Settings",
+        "recheck": "Re-check Permission",
+        "all": "All Snippets",
+        "keyword_optional": "Keyword (optional)",
+        "keyword_hint": "Use a prefix like ; or /. Lowercase letters and symbols only.",
+        "expansion": "Expansion",
+        "name_placeholder": "e.g. My Email",
+        "insert_placeholder": "Insert placeholder",
+        "browse_pre": "Press",
+        "browse_post": "to browse.",
+        "encrypted_secret": "Encrypted secret",
+        "badge": "snippet",
+        "add_first": "Add your first snippet"
+      }
     },
     "file_search": {
       "title": "File Search",
       "select_file_preview": "Select a file to preview",
-      "start_typing_files": "Start typing to find files"
+      "start_typing_files": "Start typing to find files",
+      "act": {
+        "reveal": "Reveal in Finder",
+        "reveal_desc": "Show the file in Finder",
+        "copy_path": "Copy Path",
+        "copy_path_desc": "Copy the absolute file path",
+        "copy_name": "Copy Name",
+        "copy_name_desc": "Copy the filename only",
+        "open_terminal": "Open in Terminal",
+        "open_terminal_desc": "Open the containing folder in the default terminal",
+        "toggle_pin": "Toggle Pin",
+        "toggle_pin_desc": "Pin this file to the top or unpin it",
+        "trash": "Move to Trash",
+        "trash_desc": "Move the file to the system trash",
+        "quick_look": "Quick Look",
+        "quick_look_desc": "Preview the file",
+        "send_ai": "Send to Asyar AI",
+        "send_ai_desc": "Open AI chat with this file as context",
+        "search_everywhere": "Search Everywhere",
+        "search_everywhere_desc": "Run an OS-native deep search (Spotlight/Everything/plocate) for the current query"
+      },
+      "ui": {
+        "deep": "deep",
+        "loading_preview": "Loading preview…"
+      }
     },
     "notes": {
       "title": "Notes",
@@ -880,13 +979,54 @@
       "no_notes_description": "Write your first note — it saves as you type.",
       "select_note_description": "Choose a note from the list to read or edit it.",
       "no_other_notes": "No other notes yet",
-      "link_to_note": "Link to note"
+      "link_to_note": "Link to note",
+      "act": {
+        "new": "New Note",
+        "new_desc": "Create a new note",
+        "pin": "Pin/Unpin Note",
+        "pin_desc": "Pin or unpin the selected note to keep it at the top",
+        "duplicate": "Duplicate Note",
+        "duplicate_desc": "Create a duplicate of the selected note",
+        "copy_md": "Copy as Markdown",
+        "copy_md_desc": "Copy the selected note to the clipboard as Markdown",
+        "stick": "Stick to Desktop",
+        "stick_desc": "Pin this note to your desktop as a floating window",
+        "export_md": "Export as Markdown…",
+        "export_md_desc": "Save the selected note as a .md file and reveal it",
+        "delete": "Delete Note",
+        "delete_desc": "Delete the selected note"
+      },
+      "ui": {
+        "all": "All Notes",
+        "untitled": "Untitled Note",
+        "body_placeholder": "Start writing… ⌘Enter follows a [[link]] under the cursor.",
+        "linked_mentions": "Linked Mentions",
+        "create_first": "Create your first note"
+      }
     },
     "walkthrough": {
       "title": "Walkthrough",
       "no_tasks": "No walkthrough tasks yet",
       "no_matching_tasks": "No tasks match your search",
-      "no_tasks_description": "Extensions add their own tasks here as you install them."
+      "no_tasks_description": "Extensions add their own tasks here as you install them.",
+      "act": {
+        "beyond": "Beyond the basics",
+        "complete": "Mark as Complete",
+        "complete_desc": "Tick this task off without doing it",
+        "complete_all": "Mark All as Complete",
+        "complete_all_desc": "Finish every remaining task at once",
+        "hide": "Hide Progress from Search",
+        "hide_desc": "Stop showing the progress row in the main search list",
+        "restart": "Restart Walkthrough",
+        "restart_desc": "Forget hand-ticked tasks and start over"
+      },
+      "progress_subtitle": "{completed} of {total} tasks — learn what Asyar can really do",
+      "ui": {
+        "beyond": "Beyond the basics",
+        "tasks_aria": "Walkthrough tasks",
+        "marked": "Marked",
+        "done": "Done"
+      }
     },
     "window_management": {
       "title": "Window Management",
@@ -917,7 +1057,30 @@
       "copy_title": "Copy Title",
       "title_copied": "Title copied to clipboard",
       "badge_active": "Active",
-      "badge_minimized": "Minimized"
+      "badge_minimized": "Minimized",
+      "act": {
+        "save_layout": "Save Current Window as Layout",
+        "save_layout_desc": "Capture the frontmost window position and size as a custom layout"
+      },
+      "err_no_layout": "No layout name or ID provided",
+      "err_not_found": "Layout \"{name}\" not found",
+      "err_apply": "Could not apply layout",
+      "err_apply_detail": "Could not apply layout — {detail}",
+      "nothing_restore": "Nothing to restore",
+      "err_restore": "Restore failed",
+      "err_restore_detail": "Restore failed — {detail}",
+      "err_save": "Could not save layout",
+      "err_save_detail": "Could not save layout — {detail}",
+      "layout_subtitle": "{w}x{h} at ({x}, {y})",
+      "ui": {
+        "apply_title": "Apply \"{name}\"",
+        "rename_title": "Rename \"{name}\"",
+        "delete_title": "Delete \"{name}\"",
+        "list_failed": "Failed to list windows: {error}",
+        "switch_failed": "Could not switch to window: {error}",
+        "close_failed": "Could not close window: {error}",
+        "copy_title_failed": "Could not copy title: {error}"
+      }
     },
     "shortcuts": {
       "title": "Shortcuts",
@@ -926,13 +1089,46 @@
       "no_matching_shortcuts": "No matching shortcuts",
       "action_change": "Change",
       "action_remove": "Remove",
-      "remove_confirm_title": "Remove shortcut"
+      "remove_confirm_title": "Remove shortcut",
+      "ui": {
+        "remove_confirm": "Remove the shortcut for \"{name}\"?",
+        "applications": "Applications",
+        "commands": "Commands",
+        "assign": "Assign Shortcut",
+        "type": "Type",
+        "path": "Path",
+        "badge": "shortcut",
+        "press_pre": "Press",
+        "press_post": "to cancel"
+      }
     },
     "scripts": {
       "title": "Scripts",
       "no_scripts": "No scripts found",
       "no_scripts_description": "Executable files from watched directories appear here.",
-      "select_script": "Select a script or issue"
+      "select_script": "Select a script or issue",
+      "act": {
+        "run": "Run Script",
+        "run_desc": "Run the selected script",
+        "reveal": "Reveal in File Manager",
+        "reveal_desc": "Show the selected file in its folder",
+        "copy_path": "Copy Path",
+        "copy_path_desc": "Copy the selected file path",
+        "rescan": "Rescan Scripts",
+        "rescan_desc": "Refresh scripts and diagnostics now",
+        "add_dir": "Add Script Directory",
+        "add_dir_desc": "Choose another directory to watch",
+        "make_exec": "Make Executable",
+        "make_exec_desc": "Allow the selected script file to run"
+      },
+      "ui": {
+        "list_aria": "Scripts and issues",
+        "issues": "Issues",
+        "config": "Configuration",
+        "file": "File",
+        "directory": "Directory",
+        "arguments": "Arguments"
+      }
     },
     "store": {
       "title": "Extension Store",
@@ -944,7 +1140,59 @@
       "uninstall": "Uninstall",
       "update": "Update",
       "installed": "Installed",
-      "uninstall_confirm_title": "Uninstall extension"
+      "uninstall_confirm_title": "Uninstall extension",
+      "act": {
+        "update": "Update Extension",
+        "update_desc": "Update the currently viewed extension",
+        "uninstall": "Uninstall Extension",
+        "uninstall_desc": "Uninstall the currently viewed extension",
+        "install": "Install Extension",
+        "install_desc": "Install the currently viewed extension"
+      },
+      "t_install_failed": "Install Failed",
+      "t_install_no_ext": "Could not determine which extension to install.",
+      "t_installing": "Installing {name}",
+      "t_install_started": "Installation Started",
+      "t_install_started_body": "Installation for {name} initiated. App may reload.",
+      "t_installation_failed": "Installation Failed",
+      "t_installation_failed_body": "Could not install {name}. {error}",
+      "t_uninstalling": "Uninstalling {name}",
+      "t_uninstall_complete": "Uninstall Complete",
+      "t_uninstall_complete_body": "{name} has been removed.",
+      "t_uninstall_failed": "Uninstall Failed",
+      "t_uninstall_failed_body": "Could not uninstall {name}. {error}",
+      "t_updating": "Updating {name}",
+      "t_update_complete": "Update Complete",
+      "t_update_complete_body": "{name} updated to v{version}.",
+      "t_no_selection": "No extension selected.",
+      "act_update_named": "Update {name} Extension",
+      "act_update_named_desc": "Update the {name} extension",
+      "act_uninstall_named": "Uninstall {name} Extension",
+      "act_uninstall_named_desc": "Uninstall the {name} extension",
+      "act_install_named": "Install {name} Extension",
+      "act_install_named_desc": "Install the {name} extension",
+      "ui": {
+        "update_available": "Update Available",
+        "screenshot_alt": "Screenshot",
+        "sdk_too_old": "Cannot install {name}: requires newer SDK ({sdk})",
+        "uninstall_confirm": "Uninstall {name}? You can reinstall it from the store.",
+        "run_failed": "Could not run command \"{command}\"",
+        "configure": "Configure",
+        "activate_theme": "Activate in Settings → Appearance → Custom Themes",
+        "about": "About",
+        "commands_actions": "Commands & Actions",
+        "arguments_label": "Arguments:",
+        "docs": "Documentation & Guide",
+        "configurable": "Configurable Settings",
+        "open_in_settings": "Open in Settings →",
+        "permissions": "Permissions",
+        "details": "Details",
+        "version": "Version",
+        "updated": "Updated",
+        "status": "Status",
+        "added": "Added",
+        "lazy_failed": "Failed to load view"
+      }
     },
     "agents": {
       "setup_ai": "Set up your AI",
@@ -966,7 +1214,56 @@
       "searching": "Searching…",
       "sources": "Sources",
       "google_search_suggestions": "Google Search Suggestions",
-      "error_open_ai_settings": "Could not open AI settings. Try again."
+      "error_open_ai_settings": "Could not open AI settings. Try again.",
+      "act": {
+        "new": "New Agent",
+        "new_desc": "Create a new agent",
+        "edit": "Edit Agent",
+        "edit_desc": "Edit the selected agent",
+        "delete": "Delete Agent",
+        "delete_desc": "Delete the selected agent",
+        "new_thread": "New Thread",
+        "new_thread_desc": "Start a new conversation thread",
+        "delete_thread": "Delete Current Thread",
+        "delete_thread_desc": "Delete the active conversation thread",
+        "cancel": "Cancel Run",
+        "cancel_desc": "Abort the in-flight assistant response"
+      },
+      "edit": {
+        "name_placeholder": "My Agent",
+        "system_prompt": "System prompt",
+        "system_prompt_placeholder": "You are a helpful assistant.",
+        "type": "Type",
+        "provider": "Provider",
+        "no_providers": "No AI providers configured. Add an API key in Settings → AI before creating an agent.",
+        "select": "Select…",
+        "model": "Model",
+        "pick_provider": "Pick a provider above to load its models.",
+        "loading_models": "Loading models…",
+        "no_models": "No models returned by this provider.",
+        "tools": "Tools",
+        "silent": "Run silently (no chat view)",
+        "silent_hint": "Silent agents run in the background and put the result back wherever you triggered them from. Useful for one-shot tasks like grammar fixes or translations.",
+        "input_from": "Input from",
+        "input_argument": "Argument (typed in the launcher bar)",
+        "input_selection": "Selected text in the active app",
+        "input_clipboard": "Clipboard contents",
+        "input_none": "Nothing (use the system prompt alone)",
+        "input_shortcode": "Shortcode miss event",
+        "shortcode_trigger": "Shortcode trigger",
+        "shortcode_hint": "The character(s) that must wrap the word to trigger this agent. For example, \":\" for \":party:\" or \"/\" for \"/fix/\".",
+        "then": "Then",
+        "out_replace": "Replace the selection with the result",
+        "out_paste": "Paste the result at the cursor",
+        "out_copy": "Copy the result to the clipboard",
+        "out_hud": "Show the result as a HUD message",
+        "cache": "Cache and learn responses",
+        "cache_hint": "Remembers previous outputs for identical inputs to avoid repeated LLM calls.",
+        "promote": "Promote to permanent snippet",
+        "delete_cache": "Delete cache entry",
+        "clear_cache": "Clear Cache",
+        "saving": "Saving…"
+      }
     },
     "sticky": {
       "new_sticky": "New sticky",
@@ -982,11 +1279,38 @@
       "streaming_output": "Output will appear as it streams.",
       "dismissed_output": "Output has been dismissed.",
       "select_run": "Select a run",
-      "select_run_description": "Choose a run from the left to see its details."
+      "select_run_description": "Choose a run from the left to see its details.",
+      "act": {
+        "clear_recent": "Clear Recent",
+        "view_conversation": "View Conversation",
+        "view_conversation_desc": "Jump to the agent chat thread that produced this run"
+      },
+      "ui": {
+        "ai_thread": "AI Chat Thread",
+        "ai_thread_desc": "This run was managed inside an AI conversation thread. Output response streams and state are persisted directly within the agent chat interface. Use the command menu (Cmd+K) to View Conversation.",
+        "failed": "Execution Failed",
+        "failed_desc": "The execution failed or returned an error:",
+        "exit_nonzero": "Script exited with non-zero status.",
+        "succeeded": "Finished Successfully",
+        "succeeded_in": "Process successfully completed in {seconds} seconds.",
+        "succeeded_silent": "Execution successful. The script terminated without printing any output to standard out."
+      }
     },
     "usage_stats": {
       "no_usage": "No usage yet",
-      "no_usage_description": "Run some commands and your stats will appear here."
+      "no_usage_description": "Run some commands and your stats will appear here.",
+      "act": {
+        "send": "Send usage now",
+        "send_desc": "Send today's anonymous usage snapshot to Asyar now",
+        "failed": "Failed to send usage. Please try again."
+      },
+      "sent": "Usage sent ({count} {unit})",
+      "event_one": "event",
+      "event_other": "events",
+      "ui": {
+        "title": "Usage Stats",
+        "most_used": "Most used"
+      }
     },
     "raycast_import": {
       "import_title": "Import from Raycast",
@@ -1000,7 +1324,20 @@
       "category_shortcuts": "Hotkeys → Shortcuts",
       "category_shortcuts_hint": "App and quicklink hotkeys",
       "category_aliases": "Aliases",
-      "category_aliases_hint": "App and quicklink aliases"
+      "category_aliases_hint": "App and quicklink aliases",
+      "ui": {
+        "filter_name": "Raycast export",
+        "choose_file": "Choose export file…",
+        "protected": "This export is password-protected",
+        "password_placeholder": "Export password",
+        "wrong_password": "Incorrect password — try again.",
+        "unlock": "Unlock",
+        "importing": "Importing…",
+        "failed": "Import failed",
+        "start_over": "Start over",
+        "back_preview": "Back to preview",
+        "import_another": "Import another file"
+      }
     },
     "create_extension": {
       "no_extensions": "No extensions yet",
@@ -1045,7 +1382,70 @@
       "action_retry_build": "Refine & Retry",
       "action_retry_build_desc": "Retry the build with the same prompt",
       "action_start_over": "Start Over",
-      "action_start_over_desc": "Clear the failed build and start fresh"
+      "action_start_over_desc": "Clear the failed build and start fresh",
+      "act": {
+        "open_editor": "Open in editor",
+        "open_editor_desc": "Open the selected extension in your editor",
+        "publish": "Publish to Asyar Store",
+        "publish_desc": "Publish the selected extension to the Asyar Store"
+      },
+      "ai": {
+        "cant_build": "Asyar can't build that",
+        "feasible": "Feasible — starting build",
+        "build_blocked": "Build blocked",
+        "secret_found": "A secret was hardcoded; refusing to ship.",
+        "ready": "✅ Extension ready",
+        "ready_body": "{id} built and verified ({summary}).",
+        "build_failed": "Build failed",
+        "needs_input": "AI Builder needs input",
+        "publish_title": "Publish to Asyar Store",
+        "publish_message": "This builds the extension, creates a PUBLIC GitHub repository, pushes the code, and submits it to the Asyar Store for review. Continue?",
+        "publish_confirm": "Publish",
+        "editor_failed": "Couldn't open the editor. Open the folder manually: {path}",
+        "terminal_hint": "Open a terminal in {dir} and run: {command}",
+        "terminal_failed": "Couldn't open a terminal. Run \"{command}\" in {dir}."
+      },
+      "ui": {
+        "runtimes_title": "Download required runtimes?",
+        "runtimes_total": "Total download:",
+        "runtimes_desc_one": "The AI Extension Builder needs the following, which isn't installed yet. Asyar downloads each once and reuses it everywhere it's needed.",
+        "runtimes_desc_other": "The AI Extension Builder needs the following, which aren't installed yet. Asyar downloads each once and reuses it everywhere it's needed.",
+        "bundle_id_placeholder": "com.myname.awesome-tool"
+      },
+      "view": {
+        "title": "Build with AI",
+        "subtitle": "Describe what you want — the AI will scaffold, write, and verify your extension.",
+        "warning": "The AI builds and runs generated code on your machine (like building any project). Only build extensions you understand.",
+        "tip": "For best results, use Anthropic Opus or a newer model — it produces the most reliable Asyar extensions.",
+        "prompt_label": "What should this extension do?",
+        "prompt_hint": "e.g. Create an extension for Notion that lets me search my pages",
+        "prompt_placeholder": "Create an extension for…",
+        "building": "Building…",
+        "building_hint": "You can leave this view — Asyar will notify you when input is needed or the build is done.",
+        "progress_aria": "Build progress",
+        "starting": "Starting up…",
+        "input_needed": "Input needed",
+        "ready": "✅ Ready",
+        "ready_desc": "Your extension has been built and verified.",
+        "extension_id": "Extension ID",
+        "smoke_test": "Smoke test",
+        "ready_pre": "Press",
+        "ready_post": "to open the action panel — you can open in editor, load the extension, or start a new build from there.",
+        "failed": "❌ Build failed",
+        "build_log": "Build log",
+        "failed_pre": "Open the action panel (",
+        "failed_post": ") to refine your prompt, retry, or start over.",
+        "choose_answer": "Choose an answer",
+        "press_enter": "Press Enter to send",
+        "complete": "Build complete",
+        "see_panel": "See action panel to retry",
+        "build": "Build",
+        "yes": "Yes",
+        "no": "No",
+        "send_answer": "Send answer",
+        "list_failed": "Could not list created extensions: {error}",
+        "search_failed": "Could not search created extensions: {error}"
+      }
     },
     "feedback": {
       "placeholder_tell_us": "Tell us what's on your mind…",
@@ -1085,7 +1485,40 @@
       "tab_detected_configs": "From Detected Configs",
       "tab_paste_json": "Paste JSON",
       "transport_stdio": "Stdio",
-      "transport_http": "HTTP"
+      "transport_http": "HTTP",
+      "act": {
+        "refresh": "Refresh Servers",
+        "refresh_desc": "Re-query MCP server statuses and tool lists",
+        "install": "Install MCP Server",
+        "install_desc": "Add a new MCP server manually",
+        "import": "Import MCP Servers",
+        "import_desc": "Import servers from existing configs or pasted JSON",
+        "permissions": "View MCP Permissions",
+        "permissions_desc": "Open the saved permission decisions for MCP tool calls",
+        "activity": "View Recent MCP Activity",
+        "activity_desc": "See the audit log of MCP tool calls — success and failure",
+        "strict": "Toggle Strict Mode",
+        "strict_desc": "Always ask before any MCP tool call (recommended for untrusted servers)"
+      },
+      "ui": {
+        "import_placeholder": "Paste MCP config JSON here",
+        "parse": "Parse",
+        "imported": "Imported",
+        "strict_title": "Strict mode on — every tool call asks for permission",
+        "strict": "Strict",
+        "prompt_title": "Allow MCP tool call?",
+        "prompt_wants": "wants to call",
+        "prompt_on": "on",
+        "no_description": "No description provided by the server.",
+        "col_server": "Server",
+        "col_tool": "Tool",
+        "col_agent": "Agent",
+        "col_decision": "Decision",
+        "revoke": "Revoke",
+        "runtime_title": "Download required runtime?",
+        "runtime_pre": "This MCP server needs",
+        "runtime_post": "({size}), which isn't installed yet. Asyar downloads it once and reuses it for every server that needs it."
+      }
     },
     "portals": {
       "title": "Portals",
@@ -1097,7 +1530,88 @@
       "action_edit": "Edit",
       "action_duplicate": "Duplicate",
       "action_delete": "Delete",
-      "delete_confirm_title": "Delete portal"
+      "delete_confirm_title": "Delete portal",
+      "act": {
+        "new": "New Portal",
+        "new_desc": "Add a new portal URL shortcut"
+      },
+      "ui": {
+        "save_failed": "Could not save portal: {error}",
+        "delete_confirm": "Delete \"{name}\"? This cannot be undone.",
+        "remove_failed": "Could not fully remove portal: {error}",
+        "index_failed": "Could not index duplicated portal: {error}",
+        "url": "URL",
+        "placeholders": "Placeholders",
+        "badge": "portal",
+        "add_first": "Add your first portal",
+        "insert_placeholder": "Insert placeholder",
+        "use_placeholders": "Use placeholders in the URL: {tokens}.",
+        "browse_pre": "Press",
+        "browse_mid": "or the",
+        "browse_post": "button to browse all placeholders."
+      }
+    },
+    "help": {
+      "act": {
+        "guide": "Open User Guide",
+        "guide_desc": "Open the full Asyar user guide in your browser"
+      },
+      "topics": {
+        "getting_started": "Getting Started",
+        "getting_started_sub": "Install, first launch, your hotkey",
+        "basics": "The Basics",
+        "basics_sub": "Search, navigation, the action panel",
+        "calculator": "Calculator",
+        "calculator_sub": "Math, units, currency, dates",
+        "clipboard": "Clipboard History",
+        "clipboard_sub": "Browse, filter, favorite, paste past copies",
+        "snippets": "Snippets",
+        "snippets_sub": "Type a keyword, paste the full text",
+        "window_management": "Window Management",
+        "window_management_sub": "Resize and arrange windows",
+        "aliases_shortcuts": "Aliases & Shortcuts",
+        "aliases_shortcuts_sub": "Custom triggers and global hotkeys",
+        "portals": "Portals",
+        "portals_sub": "Save URLs as searchable shortcuts",
+        "scripts": "Scripts",
+        "scripts_sub": "Run shell scripts from watched folders",
+        "ai_agents": "AI & Agents",
+        "ai_agents_sub": "Ask AI, build agents, manage threads",
+        "mcp": "MCP",
+        "mcp_sub": "Connect external tools to your agents",
+        "browser": "Browser Integration",
+        "browser_sub": "Search bookmarks, history, and tabs",
+        "extensions": "Extensions",
+        "extensions_sub": "Browse, install, and manage extensions"
+      },
+      "shortcuts_heading": "Keyboard Shortcuts",
+      "no_topics": "No topics match your search.",
+      "ui": {
+        "guides": "Feature Guides"
+      }
+    },
+    "quit": {
+      "title": "Quit Asyar",
+      "message": "Are you sure you want to quit Asyar?",
+      "confirm": "Quit"
+    },
+    "system": {
+      "sleep": "Sleep",
+      "sleep_desc": "Put the computer to sleep",
+      "hibernate": "Hibernate",
+      "hibernate_desc": "Hibernate the computer",
+      "lock": "Lock Screen",
+      "lock_desc": "Lock the screen",
+      "log_out": "Log Out",
+      "sign_out": "Sign Out",
+      "log_out_desc": "End the current session",
+      "log_out_confirm": "Are you sure you want to {action}? Unsaved work may be lost.",
+      "restart": "Restart",
+      "restart_desc": "Restart the computer",
+      "restart_confirm": "Are you sure you want to restart the computer?",
+      "shut_down": "Shut Down",
+      "shut_down_desc": "Shut down the computer",
+      "shut_down_confirm": "Are you sure you want to shut down the computer?"
     }
   },
   "common": {
@@ -1155,7 +1669,16 @@
     "copy": "Copy",
     "copied": "Copied!",
     "dismiss": "Dismiss",
-    "search_ellipsis": "Search…"
+    "search_ellipsis": "Search…",
+    "pinned": "Pinned",
+    "loading_ellipsis": "Loading…",
+    "installed": "Installed",
+    "duplicate": "Duplicate",
+    "uninstall": "Uninstall",
+    "refresh": "Refresh",
+    "run": "Run",
+    "import": "Import",
+    "update": "Update"
   },
   "components": {
     "shortcut_recorder": {
@@ -1210,7 +1733,15 @@
     "shortcuts": "Shortcuts",
     "aliases": "Aliases",
     "runs": "Runs",
-    "search_history": "Search history"
+    "search_history": "Search history",
+    "agents": "Agents",
+    "notes": "Notes",
+    "snippets": "Snippets",
+    "mcp": "MCP",
+    "scripts": "Scripts",
+    "portals": "Portals",
+    "ai_builder": "AI Builder",
+    "usage_stats": "Usage Stats"
   },
   "core_actions": {
     "settings": "Settings",

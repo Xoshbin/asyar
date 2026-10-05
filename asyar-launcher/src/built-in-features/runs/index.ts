@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext } from 'asyar-sdk/contracts';
 import { ActionContext } from 'asyar-sdk/contracts';
 import RunView from './RunView.svelte';
@@ -30,7 +31,7 @@ class RunsExtension implements Extension {
   private registerViewActions(): void {
     actionService.registerAction({
       id: CLEAR_RECENT_ACTION_ID,
-      label: 'Clear Recent',
+      label: t('features.runs.act.clear_recent'),
       icon: 'icon:trash',
       extensionId: 'runs',
       context: ActionContext.EXTENSION_VIEW,
@@ -43,10 +44,10 @@ class RunsExtension implements Extension {
 
     actionService.registerAction({
       id: OPEN_AGENT_RUN_IN_CHAT_ACTION_ID,
-      label: 'View Conversation',
+      label: t('features.runs.act.view_conversation'),
       icon: '💬',
-      description: 'Jump to the agent chat thread that produced this run',
-      category: 'Agents',
+      description: t('features.runs.act.view_conversation_desc'),
+      category: t('categories.agents'),
       extensionId: 'runs',
       context: ActionContext.EXTENSION_VIEW,
       visible: () => this.selectedAgentRunId() !== null,

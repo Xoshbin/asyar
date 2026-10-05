@@ -55,7 +55,7 @@
         label: t('features.create_extension.action_cancel_build'),
         icon: 'icon:scissors',
         description: t('features.create_extension.action_cancel_build_desc'),
-        category: 'AI Builder',
+        category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -74,7 +74,7 @@
         label: t('features.create_extension.action_open_in_editor'),
         icon: 'icon:terminal',
         description: t('features.create_extension.action_open_in_editor_desc'),
-        category: 'AI Builder',
+        category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -86,7 +86,7 @@
         label: t('features.create_extension.action_build_another'),
         icon: 'icon:sparkles',
         description: t('features.create_extension.action_build_another_desc'),
-        category: 'AI Builder',
+        category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -98,7 +98,7 @@
         label: t('features.create_extension.action_publish_store'),
         icon: 'icon:cloud-upload',
         description: t('features.create_extension.action_publish_store_desc'),
-        category: 'AI Builder',
+        category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -119,7 +119,7 @@
         label: t('features.create_extension.action_retry_build'),
         icon: 'icon:refresh',
         description: t('features.create_extension.action_retry_build_desc'),
-        category: 'AI Builder',
+        category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -134,7 +134,7 @@
         label: t('features.create_extension.action_start_over'),
         icon: 'icon:trash',
         description: t('features.create_extension.action_start_over_desc'),
-        category: 'AI Builder',
+        category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -217,32 +217,30 @@
     <!-- ── IDLE (no job) ──────────────────────────────────────────────── -->
     {#if !job}
       <div class="header">
-        <h1 class="text-page-title">Build with AI</h1>
+        <h1 class="text-page-title">{t('features.create_extension.view.title')}</h1>
         <p class="text-subtitle">
-          Describe what you want — the AI will scaffold, write, and verify your extension.
+          {t('features.create_extension.view.subtitle')}
         </p>
       </div>
 
       <WarningBanner>
-        The AI builds and runs generated code on your machine (like building any project). Only
-        build extensions you understand.
+        {t('features.create_extension.view.warning')}
       </WarningBanner>
 
       <p class="text-caption">
-        For best results, use Anthropic Opus or a newer model — it produces the most reliable Asyar
-        extensions.
+        {t('features.create_extension.view.tip')}
       </p>
 
       <div class="fields">
         <FormField
-          label="What should this extension do?"
-          hint="e.g. Create an extension for Notion that lets me search my pages"
+          label={t('features.create_extension.view.prompt_label')}
+          hint={t('features.create_extension.view.prompt_hint')}
         >
           <Textarea
             unstyled
             textIntent="natural"
             bind:value={prompt}
-            placeholder="Create an extension for…"
+            placeholder={t('features.create_extension.view.prompt_placeholder')}
             rows={4}
             autocomplete="off"
             onfocus={handleFocus}
@@ -260,14 +258,14 @@
       <!-- ── WORKING ────────────────────────────────────────────────────── -->
     {:else if job.status === 'working'}
       <div class="header">
-        <h1 class="text-page-title">Building…</h1>
+        <h1 class="text-page-title">{t('features.create_extension.view.building')}</h1>
         <p class="text-subtitle">
-          You can leave this view — Asyar will notify you when input is needed or the build is done.
+          {t('features.create_extension.view.building_hint')}
         </p>
       </div>
 
       {#if job.steps.length > 0}
-        <ol class="step-list" aria-label="Build progress">
+        <ol class="step-list" aria-label={t('features.create_extension.view.progress_aria')}>
           {#each job.steps as step, i}
             <li class="step-item" class:step-latest={i === job.steps.length - 1}>
               <span class="step-label">{step.label}</span>
@@ -278,13 +276,13 @@
           {/each}
         </ol>
       {:else}
-        <p class="text-caption">Starting up…</p>
+        <p class="text-caption">{t('features.create_extension.view.starting')}</p>
       {/if}
 
       <!-- ── WAITING (question) ─────────────────────────────────────────── -->
     {:else if job.status === 'waiting' && job.pendingQuestion}
       <div class="header">
-        <h1 class="text-page-title">Input needed</h1>
+        <h1 class="text-page-title">{t('features.create_extension.view.input_needed')}</h1>
       </div>
 
       {#if job.pendingQuestion.inputKind === 'confirm'}
@@ -321,31 +319,32 @@
       <!-- ── DONE ───────────────────────────────────────────────────────── -->
     {:else if job.status === 'done' && job.result}
       <div class="header">
-        <h1 class="text-page-title">✅ Ready</h1>
-        <p class="text-subtitle">Your extension has been built and verified.</p>
+        <h1 class="text-page-title">{t('features.create_extension.view.ready')}</h1>
+        <p class="text-subtitle">{t('features.create_extension.view.ready_desc')}</p>
       </div>
 
       <div class="result-card">
         <div class="result-row">
-          <span class="result-label">Extension ID</span>
+          <span class="result-label">{t('features.create_extension.view.extension_id')}</span>
           <code class="result-value text-mono">{job.result.extensionId}</code>
         </div>
         <div class="result-divider"></div>
         <div class="result-row">
-          <span class="result-label">Smoke test</span>
+          <span class="result-label">{t('features.create_extension.view.smoke_test')}</span>
           <span class="result-value">{job.result.smokeSummary}</span>
         </div>
       </div>
 
       <p class="text-caption">
-        Press <KeyboardHint keys="⌘K" /> to open the action panel — you can open in editor, load the extension,
-        or start a new build from there.
+        {t('features.create_extension.view.ready_pre')}
+        <KeyboardHint keys="⌘K" />
+        {t('features.create_extension.view.ready_post')}
       </p>
 
       <!-- ── FAILED ─────────────────────────────────────────────────────── -->
     {:else if job.status === 'failed' && job.failure}
       <div class="header">
-        <h1 class="text-page-title">❌ Build failed</h1>
+        <h1 class="text-page-title">{t('features.create_extension.view.failed')}</h1>
         <p class="text-subtitle">
           <span class="text-mono">{job.failure.step}</span>: {job.failure.error}
         </p>
@@ -353,14 +352,15 @@
 
       {#if job.failure.log}
         <div class="log-section">
-          <span class="section-header">Build log</span>
+          <span class="section-header">{t('features.create_extension.view.build_log')}</span>
           <pre class="build-log custom-scrollbar">{job.failure.log}</pre>
         </div>
       {/if}
 
       <p class="text-caption">
-        Open the action panel (<KeyboardHint keys="⌘K" />) to refine your prompt, retry, or start
-        over.
+        {t('features.create_extension.view.failed_pre')}<KeyboardHint keys="⌘K" />{t(
+          'features.create_extension.view.failed_post',
+        )}
       </p>
     {/if}
   </div>
@@ -378,14 +378,14 @@
         >
       {:else if job.status === 'waiting' && job.pendingQuestion}
         {#if job.pendingQuestion.inputKind === 'confirm'}
-          <span class="text-caption">Choose an answer</span>
+          <span class="text-caption">{t('features.create_extension.view.choose_answer')}</span>
         {:else}
-          <span class="text-caption">Press Enter to send</span>
+          <span class="text-caption">{t('features.create_extension.view.press_enter')}</span>
         {/if}
       {:else if job.status === 'done' && job.result}
-        <span class="text-caption">Build complete</span>
+        <span class="text-caption">{t('features.create_extension.view.complete')}</span>
       {:else if job.status === 'failed' && job.failure}
-        <span class="text-caption">See action panel to retry</span>
+        <span class="text-caption">{t('features.create_extension.view.see_panel')}</span>
       {/if}
     {/snippet}
 
@@ -396,17 +396,23 @@
           disabled={!prompt.trim() || isStarting}
           onclick={() => void onStart()}
         >
-          {isStarting ? 'Starting…' : 'Build'}
+          {isStarting
+            ? t('features.create_extension.view.starting')
+            : t('features.create_extension.view.build')}
         </Button>
       {:else if job.status === 'waiting' && job.pendingQuestion}
         {#if job.pendingQuestion.inputKind === 'confirm'}
           <div class="confirm-actions">
-            <Button onclick={() => void onConfirm('no')}>No</Button>
-            <Button class="btn-primary" onclick={() => void onConfirm('yes')}>Yes</Button>
+            <Button onclick={() => void onConfirm('no')}
+              >{t('features.create_extension.view.no')}</Button
+            >
+            <Button class="btn-primary" onclick={() => void onConfirm('yes')}
+              >{t('features.create_extension.view.yes')}</Button
+            >
           </div>
         {:else}
           <Button class="btn-primary" disabled={!answer.trim()} onclick={() => void onAnswer()}>
-            Send answer
+            {t('features.create_extension.view.send_answer')}
           </Button>
         {/if}
       {/if}

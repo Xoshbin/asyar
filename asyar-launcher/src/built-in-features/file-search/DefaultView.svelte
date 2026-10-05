@@ -305,9 +305,14 @@
         {/snippet}
         {#snippet trailing()}
           {#if item.source === 'deep'}
-            <Badge text="deep" variant="default" mono />
+            <Badge text={t('features.file_search.ui.deep')} variant="default" mono />
           {:else if pinnedIds.has(item.fileId)}
-            <svg class="pin-badge" fill="currentColor" viewBox="0 0 24 24" aria-label="Pinned">
+            <svg
+              class="pin-badge"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              aria-label={t('common.pinned')}
+            >
               <path
                 d="M16 2v5l2 2-4 4v4l-2-2-2 2v-4L6 9l2-2V2h8zm0-2H8v6.17L4.83 9.34a1 1 0 000 1.41L8 13.92V18a1 1 0 00.55.89l2 1a1 1 0 00.9 0l2-1A1 1 0 0014 18v-4.08l3.17-3.17a1 1 0 000-1.41L16 6.17V0z"
               />
@@ -323,7 +328,9 @@
           {#if selected.isDir}
             <div class="text-caption opacity-70 p-4">Folder — {selected.path}</div>
           {:else if previewLoading}
-            <div class="text-caption opacity-50">Loading preview…</div>
+            <div class="text-caption opacity-50">
+              {t('features.file_search.ui.loading_preview')}
+            </div>
           {:else if previewText}
             <div class="text-pane">
               <pre class="text-preview">{previewText}</pre>

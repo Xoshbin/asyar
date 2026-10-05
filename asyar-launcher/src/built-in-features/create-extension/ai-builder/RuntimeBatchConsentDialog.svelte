@@ -31,11 +31,14 @@
       id="ext-builder-runtime-consent-title"
       class="text-xl font-semibold mb-4 text-[var(--text-primary)]"
     >
-      Download required runtimes?
+      {t('features.create_extension.ui.runtimes_title')}
     </h2>
     <p class="text-[var(--text-secondary)] mb-3">
-      The AI Extension Builder needs the following, which {runtimes.length > 1 ? "aren't" : "isn't"} installed
-      yet. Asyar downloads each once and reuses it everywhere it's needed.
+      {t(
+        runtimes.length > 1
+          ? 'features.create_extension.ui.runtimes_desc_other'
+          : 'features.create_extension.ui.runtimes_desc_one',
+      )}
     </p>
     <ul class="mb-3 list-disc pl-5 text-[var(--text-secondary)]">
       {#each runtimes as runtime (runtime.name)}
@@ -43,7 +46,7 @@
       {/each}
     </ul>
     <p class="text-[var(--text-secondary)] mb-3">
-      Total download: <strong>{formatBytes(totalBytes)}</strong>
+      {t('features.create_extension.ui.runtimes_total')} <strong>{formatBytes(totalBytes)}</strong>
     </p>
   {/snippet}
   {#snippet actions()}

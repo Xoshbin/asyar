@@ -520,7 +520,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not reveal ${path} in Finder` },
+        context: { message: t('features.clipboard.ui.reveal_failed', { path }) },
       });
     }
   }
@@ -582,7 +582,7 @@
 
 <div class="view-container">
   {#if clipboardHistoryStore.indexState === 'indexing' && clipboardViewState.searchQuery.trim()}
-    <div class="indexing-hint">Indexing… search results will appear when ready</div>
+    <div class="indexing-hint">{t('features.clipboard.ui.indexing')}</div>
   {/if}
   <div class="split-list-wrapper" bind:this={listWrapperEl}>
     <SplitListDetail
@@ -596,7 +596,7 @@
     >
       {#snippet listItem(item, index)}
         {#if index === 0 && favoritesCount > 0}
-          <div class="list-section">Pinned</div>
+          <div class="list-section">{t('common.pinned')}</div>
         {/if}
         {@const isFirstNonFavorite = index === favoritesCount && index < items.length}
         {@const prevItem = index > favoritesCount ? items[index - 1] : null}
@@ -686,34 +686,44 @@
       {#snippet detail()}
         {#if selectedId}
           {#if !selectedFullItem?.redactedKinds?.length && showRenderedHtml && isUrl(selectedFullItem?.content) && urlBlobUrl}
-            <iframe src={urlBlobUrl} class="url-iframe" sandbox="allow-scripts" title="URL preview"
+            <iframe
+              src={urlBlobUrl}
+              class="url-iframe"
+              sandbox="allow-scripts"
+              title={t('features.clipboard.ui.url_preview')}
             ></iframe>
           {:else}
             <div class="clip-detail-content custom-scrollbar" bind:this={detailEl}>
               {#if !selectedFullItem}
-                <span style="color: var(--text-tertiary)">Loading…</span>
+                <span style="color: var(--text-tertiary)">{t('common.loading_ellipsis')}</span>
               {:else if !selectedFullItem.content}
-                <span style="color: var(--text-tertiary)">No preview available</span>
+                <span style="color: var(--text-tertiary)"
+                  >{t('features.clipboard.ui.no_preview')}</span
+                >
               {:else if selectedFullItem.redactedKinds?.length}
                 <div class="flex items-center gap-3 p-6">
-                  <Badge text="Encrypted secret" variant="warning" />
-                  <span class="text-caption">Pasting uses the original value</span>
+                  <Badge text={t('features.clipboard.ui.encrypted_secret')} variant="warning" />
+                  <span class="text-caption">{t('features.clipboard.ui.paste_original')}</span>
                 </div>
               {:else if selectedFullItem.type === 'image'}
                 <div
                   class="image-container w-full h-full flex flex-col items-center justify-center p-4"
                 >
                   {#if imageLoading}
-                    <div class="text-caption opacity-50">Loading image...</div>
+                    <div class="text-caption opacity-50">
+                      {t('features.clipboard.ui.loading_image')}
+                    </div>
                   {:else if imageUrl}
                     <img
                       src={imageUrl}
                       class="max-w-full max-h-full object-contain rounded-md shadow-sm border"
                       style="border-color: var(--border-color);"
-                      alt="Preview"
+                      alt={t('features.clipboard.ui.preview_alt')}
                     />
                   {:else}
-                    <div class="text-caption opacity-50">Failed to load image</div>
+                    <div class="text-caption opacity-50">
+                      {t('features.clipboard.ui.image_failed')}
+                    </div>
                   {/if}
                   {#if selectedFullItem.metadata && (selectedFullItem.metadata.width || selectedFullItem.metadata.sizeBytes)}
                     <div class="mt-3 text-caption opacity-70 flex items-center gap-3">
@@ -807,7 +817,7 @@
                       >
                       <IconButton
                         onclick={() => revealFile(filePath)}
-                        title="Reveal in Finder"
+                        title={t('features.clipboard.ui.reveal_title')}
                         ariaLabel="Reveal in Finder"
                       >
                         <svg
@@ -862,7 +872,9 @@
                     <div class="url-domain">{getUrlDomain(selectedFullItem.content)}</div>
                     <div class="url-full">{selectedFullItem.content.trim()}</div>
                     {#if urlFetchFailed}
-                      <div class="url-fetch-notice">Preview unavailable</div>
+                      <div class="url-fetch-notice">
+                        {t('features.clipboard.ui.preview_unavailable')}
+                      </div>
                     {/if}
                   </div>
                 {/if}

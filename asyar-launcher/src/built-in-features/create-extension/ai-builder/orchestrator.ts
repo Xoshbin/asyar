@@ -1,3 +1,4 @@
+import { t } from '../../../services/i18n';
 import type { SidecarEvent } from './buildProtocol';
 import { parseSidecarEvent } from './buildProtocol';
 import { buildJobStore } from './buildJobStore.svelte';
@@ -21,12 +22,15 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
       if (!ev.possible) {
         buildJobStore.finishFailed({ step: 'feasibility', error: ev.reason, log: ev.reason });
         await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
-          title: "Asyar can't build that",
+          title: t('features.create_extension.ai.cant_build'),
           body: ev.reason,
         });
         return;
       }
-      buildJobStore.appendStep({ label: 'Feasible — starting build', detail: ev.degradedNote });
+      buildJobStore.appendStep({
+        label: t('features.create_extension.ai.feasible'),
+        detail: ev.degradedNote,
+      });
       return;
     }
     case 'step':
@@ -50,8 +54,8 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
             log: `Secret found at ${scan.path}`,
           });
           await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
-            title: 'Build blocked',
-            body: 'A secret was hardcoded; refusing to ship.',
+            title: t('features.create_extension.ai.build_blocked'),
+            body: t('features.create_extension.ai.secret_found'),
           });
           return;
         }
@@ -61,12 +65,15 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
           smokeSummary: ev.smokeSummary,
         });
         await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
-          title: '✅ Extension ready',
-          body: `${ev.extensionId} built and verified (${ev.smokeSummary}).`,
+          title: t('features.create_extension.ai.ready'),
+          body: t('features.create_extension.ai.ready_body', {
+            id: ev.extensionId,
+            summary: ev.smokeSummary,
+          }),
           actions: [
             {
               id: 'open',
-              title: 'Open in editor',
+              title: t('features.create_extension.act.open_editor'),
               commandId: 'build-with-ai',
               args: { buildId: 'current' },
             },
@@ -75,7 +82,7 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
       } catch (err) {
         buildJobStore.finishFailed({ step: 'finalize', error: String(err), log: String(err) });
         await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
-          title: 'Build failed',
+          title: t('features.create_extension.ai.build_failed'),
           body: `finalize: ${String(err)}`,
         });
       }
@@ -84,7 +91,7 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
     case 'fail':
       buildJobStore.finishFailed({ step: ev.step, error: ev.error, log: ev.log });
       await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
-        title: 'Build failed',
+        title: t('features.create_extension.ai.build_failed'),
         body: `${ev.step}: ${ev.error}`,
       });
       return;

@@ -108,7 +108,7 @@
         <Input
           textIntent="exact"
           bind:value
-          placeholder="e.g. c, s, app"
+          placeholder={t('features.aliases.ui.placeholder')}
           disabled={saving}
           autocomplete="off"
           autofocus

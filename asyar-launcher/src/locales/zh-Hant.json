@@ -830,7 +830,10 @@
       "error_empty": "請輸入別名。",
       "error_too_long": "別名最多 10 個字元。",
       "error_invalid_chars": "別名只能包含小寫字母和數字。",
-      "error_save_failed": "儲存別名失敗，請重試。"
+      "error_save_failed": "儲存別名失敗，請重試。",
+      "ui": {
+        "placeholder": "例如 c、s、app"
+      }
     },
     "clipboard": {
       "title": "剪貼簿歷史",
@@ -847,7 +850,43 @@
       "time_yesterday": "昨天",
       "time_this_week": "本週",
       "time_this_month": "本月",
-      "time_older": "更早"
+      "time_older": "更早",
+      "act": {
+        "toggle_html": "切換 HTML 轉譯/原始碼",
+        "toggle_html_desc": "在轉譯的 HTML 預覽與原始碼之間切換",
+        "open_browser": "在瀏覽器中開啟",
+        "open_browser_desc": "在預設瀏覽器中開啟所選網址",
+        "paste_plain": "貼上為純文字",
+        "paste_plain_desc": "將所選項目貼上為純文字，移除所有格式",
+        "toggle_favorite": "切換我的最愛",
+        "toggle_favorite_desc": "釘選或取消釘選所選剪貼簿項目",
+        "save_snippet": "儲存為片段",
+        "save_snippet_desc": "在片段編輯器中開啟此剪貼簿項目",
+        "delete_desc": "刪除所選剪貼簿項目",
+        "clear_selection": "清除選取",
+        "clear_selection_desc": "取消選取所有多選的剪貼簿項目",
+        "ask_ai": "針對此項目詢問 AI",
+        "ask_ai_desc": "開啟 AI 聊天並預填此剪貼簿文字"
+      },
+      "subtitle": "檢視與管理剪貼簿歷史",
+      "unsupported_item": "尚未支援——{type} 類型的剪貼簿項目尚無法用於「{action}」。",
+      "refresh_failed": "無法重新整理剪貼簿歷史——清單可能已過期",
+      "paste_permission": "Asyar 需要 macOS 輔助使用權限才能貼上。請在「系統設定 → 隱私權與安全性 → 輔助使用」中啟用 Asyar，然後再試一次。",
+      "merge_nothing": "沒有可貼上的內容——所選的 {count} 個項目無法合併為文字。",
+      "merge_skipped": "已略過 {count} 個項目——只能合併文字/HTML/RTF。",
+      "ui": {
+        "reveal_failed": "無法在 Finder 中顯示 {path}",
+        "indexing": "正在建立索引…搜尋結果準備好後將顯示",
+        "url_preview": "網址預覽",
+        "no_preview": "沒有可用預覽",
+        "encrypted_secret": "加密的密鑰",
+        "paste_original": "貼上時將使用原始值",
+        "loading_image": "正在載入圖片...",
+        "preview_alt": "預覽",
+        "image_failed": "載入圖片失敗",
+        "reveal_title": "在 Finder 中顯示",
+        "preview_unavailable": "預覽無法使用"
+      }
     },
     "snippets": {
       "title": "片段",
@@ -866,12 +905,72 @@
       "private_label": "私密（僅本機）",
       "private_hint": "將此片段保留在此裝置上，並從雲端同步中排除。",
       "toggle_private": "切換私密（僅本機）",
-      "toggle_private_description": "標記或取消標記所選片段為私密以防止雲端同步。"
+      "toggle_private_description": "標記或取消標記所選片段為私密以防止雲端同步。",
+      "act": {
+        "add": "新增片段",
+        "add_desc": "建立新的文字展開片段",
+        "paste": "貼上片段",
+        "paste_desc": "將所選片段的展開內容貼上到目前的應用程式",
+        "edit": "編輯片段",
+        "edit_desc": "編輯所選片段",
+        "delete": "刪除片段",
+        "delete_desc": "刪除所選片段",
+        "copy": "複製展開內容",
+        "copy_desc": "將片段的展開文字複製到剪貼簿",
+        "duplicate": "複製片段",
+        "duplicate_desc": "建立所選片段的副本",
+        "pin": "釘選/取消釘選片段",
+        "pin_desc": "釘選或取消釘選所選片段，使其保持在頂端",
+        "private": "切換私人（僅限本機）",
+        "private_desc": "將所選片段標記或取消標記為私人，以防止雲端同步",
+        "clear_all": "清除所有片段",
+        "clear_all_desc": "永久移除所有片段"
+      },
+      "ui": {
+        "accessibility_warning": "背景展開需要輔助使用權限。請開啟「系統設定 → 隱私權與安全性 → 輔助使用」並加入 Asyar。若處於開發環境，請加入位於以下路徑的執行檔：src-tauri/target/debug/asyar",
+        "open_settings": "開啟系統設定",
+        "recheck": "重新檢查權限",
+        "all": "所有片段",
+        "keyword_optional": "關鍵字（選填）",
+        "keyword_hint": "使用 ; 或 / 等前綴，僅限小寫字母與符號。",
+        "expansion": "展開內容",
+        "name_placeholder": "例如：我的電子郵件",
+        "insert_placeholder": "插入預留位置",
+        "browse_pre": "按",
+        "browse_post": "以瀏覽。",
+        "encrypted_secret": "加密的密鑰",
+        "badge": "片段",
+        "add_first": "新增你的第一個片段"
+      }
     },
     "file_search": {
       "title": "檔案搜尋",
       "select_file_preview": "選擇一個檔案進行預覽",
-      "start_typing_files": "開始輸入以查詢檔案"
+      "start_typing_files": "開始輸入以查詢檔案",
+      "act": {
+        "reveal": "在 Finder 中顯示",
+        "reveal_desc": "在 Finder 中顯示該檔案",
+        "copy_path": "複製路徑",
+        "copy_path_desc": "複製檔案的絕對路徑",
+        "copy_name": "複製名稱",
+        "copy_name_desc": "僅複製檔案名稱",
+        "open_terminal": "在終端機中開啟",
+        "open_terminal_desc": "在預設終端機中開啟所在資料夾",
+        "toggle_pin": "切換釘選",
+        "toggle_pin_desc": "將此檔案釘選到頂端或取消釘選",
+        "trash": "移至垃圾桶",
+        "trash_desc": "將檔案移至系統垃圾桶",
+        "quick_look": "快速查看",
+        "quick_look_desc": "預覽該檔案",
+        "send_ai": "傳送給 Asyar AI",
+        "send_ai_desc": "以此檔案為內容開啟 AI 聊天",
+        "search_everywhere": "全域搜尋",
+        "search_everywhere_desc": "對目前查詢執行系統原生深度搜尋（Spotlight/Everything/plocate）"
+      },
+      "ui": {
+        "deep": "深度",
+        "loading_preview": "正在載入預覽…"
+      }
     },
     "notes": {
       "title": "筆記",
@@ -880,13 +979,54 @@
       "no_notes_description": "寫下你的第一條筆記 —— 邊寫邊自動儲存。",
       "select_note_description": "從列表中選擇一條筆記來閱讀或編輯。",
       "no_other_notes": "暫無其他筆記",
-      "link_to_note": "連結到筆記"
+      "link_to_note": "連結到筆記",
+      "act": {
+        "new": "新增筆記",
+        "new_desc": "建立新筆記",
+        "pin": "釘選/取消釘選筆記",
+        "pin_desc": "釘選或取消釘選所選筆記，使其保持在頂端",
+        "duplicate": "複製筆記",
+        "duplicate_desc": "建立所選筆記的副本",
+        "copy_md": "複製為 Markdown",
+        "copy_md_desc": "將所選筆記以 Markdown 格式複製到剪貼簿",
+        "stick": "釘選到桌面",
+        "stick_desc": "將此筆記作為浮動視窗釘選在桌面上",
+        "export_md": "匯出為 Markdown…",
+        "export_md_desc": "將所選筆記儲存為 .md 檔案並顯示",
+        "delete": "刪除筆記",
+        "delete_desc": "刪除所選筆記"
+      },
+      "ui": {
+        "all": "所有筆記",
+        "untitled": "未命名筆記",
+        "body_placeholder": "開始書寫…按 ⌘Enter 可跳轉游標處的 [[連結]]。",
+        "linked_mentions": "連結提及",
+        "create_first": "建立你的第一則筆記"
+      }
     },
     "walkthrough": {
       "title": "操作指引",
       "no_tasks": "暫無指引任務",
       "no_matching_tasks": "沒有匹配搜尋的任務",
-      "no_tasks_description": "安裝擴充套件後，擴充套件會把自己的任務新增到這裡。"
+      "no_tasks_description": "安裝擴充套件後，擴充套件會把自己的任務新增到這裡。",
+      "act": {
+        "beyond": "進階使用",
+        "complete": "標記為完成",
+        "complete_desc": "不執行直接勾選此任務",
+        "complete_all": "全部標記為完成",
+        "complete_all_desc": "一次完成所有剩餘任務",
+        "hide": "在搜尋中隱藏進度",
+        "hide_desc": "不再於主搜尋清單中顯示進度列",
+        "restart": "重新開始導覽",
+        "restart_desc": "忘記手動勾選的任務並重新開始"
+      },
+      "progress_subtitle": "{completed} / {total} 項任務——了解 Asyar 的真正實力",
+      "ui": {
+        "beyond": "進階使用",
+        "tasks_aria": "導覽任務",
+        "marked": "已標記",
+        "done": "已完成"
+      }
     },
     "window_management": {
       "title": "視窗管理",
@@ -917,7 +1057,30 @@
       "copy_title": "複製標題",
       "title_copied": "標題已複製到剪貼簿",
       "badge_active": "目前",
-      "badge_minimized": "已最小化"
+      "badge_minimized": "已最小化",
+      "act": {
+        "save_layout": "將目前視窗儲存為版面配置",
+        "save_layout_desc": "將最前方視窗的位置與大小儲存為自訂版面配置"
+      },
+      "err_no_layout": "未提供版面配置名稱或 ID",
+      "err_not_found": "找不到版面配置「{name}」",
+      "err_apply": "無法套用版面配置",
+      "err_apply_detail": "無法套用版面配置——{detail}",
+      "nothing_restore": "沒有可還原的內容",
+      "err_restore": "還原失敗",
+      "err_restore_detail": "還原失敗——{detail}",
+      "err_save": "無法儲存版面配置",
+      "err_save_detail": "無法儲存版面配置——{detail}",
+      "layout_subtitle": "{w}x{h}，位於 ({x}, {y})",
+      "ui": {
+        "apply_title": "套用「{name}」",
+        "rename_title": "重新命名「{name}」",
+        "delete_title": "刪除「{name}」",
+        "list_failed": "無法列出視窗：{error}",
+        "switch_failed": "無法切換到視窗：{error}",
+        "close_failed": "無法關閉視窗：{error}",
+        "copy_title_failed": "無法複製標題：{error}"
+      }
     },
     "shortcuts": {
       "title": "快速鍵",
@@ -926,13 +1089,46 @@
       "no_matching_shortcuts": "沒有匹配的快速鍵",
       "action_change": "更改",
       "action_remove": "移除",
-      "remove_confirm_title": "移除快速鍵"
+      "remove_confirm_title": "移除快速鍵",
+      "ui": {
+        "remove_confirm": "移除「{name}」的快速鍵？",
+        "applications": "應用程式",
+        "commands": "指令",
+        "assign": "指派快速鍵",
+        "type": "類型",
+        "path": "路徑",
+        "badge": "快速鍵",
+        "press_pre": "按",
+        "press_post": "取消"
+      }
     },
     "scripts": {
       "title": "指令碼",
       "no_scripts": "未找到指令碼",
       "no_scripts_description": "被監視目錄中的執行檔會顯示在這裡。",
-      "select_script": "選擇一個指令碼或問題項"
+      "select_script": "選擇一個指令碼或問題項",
+      "act": {
+        "run": "執行指令碼",
+        "run_desc": "執行所選指令碼",
+        "reveal": "在檔案管理員中顯示",
+        "reveal_desc": "在所在資料夾中顯示所選檔案",
+        "copy_path": "複製路徑",
+        "copy_path_desc": "複製所選檔案的路徑",
+        "rescan": "重新掃描指令碼",
+        "rescan_desc": "立即重新整理指令碼與診斷資訊",
+        "add_dir": "新增指令碼目錄",
+        "add_dir_desc": "選擇另一個要監看的目錄",
+        "make_exec": "設為可執行",
+        "make_exec_desc": "允許所選指令碼檔案執行"
+      },
+      "ui": {
+        "list_aria": "指令碼與問題",
+        "issues": "問題",
+        "config": "設定",
+        "file": "檔案",
+        "directory": "目錄",
+        "arguments": "引數"
+      }
     },
     "store": {
       "title": "擴充套件商店",
@@ -944,7 +1140,59 @@
       "uninstall": "解除安裝",
       "update": "更新",
       "installed": "已安裝",
-      "uninstall_confirm_title": "解除安裝擴充套件"
+      "uninstall_confirm_title": "解除安裝擴充套件",
+      "act": {
+        "update": "更新擴充功能",
+        "update_desc": "更新目前檢視的擴充功能",
+        "uninstall": "解除安裝擴充功能",
+        "uninstall_desc": "解除安裝目前檢視的擴充功能",
+        "install": "安裝擴充功能",
+        "install_desc": "安裝目前檢視的擴充功能"
+      },
+      "t_install_failed": "安裝失敗",
+      "t_install_no_ext": "無法判斷要安裝哪個擴充功能。",
+      "t_installing": "正在安裝 {name}",
+      "t_install_started": "已開始安裝",
+      "t_install_started_body": "已開始安裝 {name}。應用程式可能會重新載入。",
+      "t_installation_failed": "安裝失敗",
+      "t_installation_failed_body": "無法安裝 {name}。{error}",
+      "t_uninstalling": "正在解除安裝 {name}",
+      "t_uninstall_complete": "解除安裝完成",
+      "t_uninstall_complete_body": "{name} 已被移除。",
+      "t_uninstall_failed": "解除安裝失敗",
+      "t_uninstall_failed_body": "無法解除安裝 {name}。{error}",
+      "t_updating": "正在更新 {name}",
+      "t_update_complete": "更新完成",
+      "t_update_complete_body": "{name} 已更新至 v{version}。",
+      "t_no_selection": "未選擇擴充功能。",
+      "act_update_named": "更新 {name} 擴充功能",
+      "act_update_named_desc": "更新 {name} 擴充功能",
+      "act_uninstall_named": "解除安裝 {name} 擴充功能",
+      "act_uninstall_named_desc": "解除安裝 {name} 擴充功能",
+      "act_install_named": "安裝 {name} 擴充功能",
+      "act_install_named_desc": "安裝 {name} 擴充功能",
+      "ui": {
+        "update_available": "有可用更新",
+        "screenshot_alt": "截圖",
+        "sdk_too_old": "無法安裝 {name}：需要更新的 SDK（{sdk}）",
+        "uninstall_confirm": "解除安裝 {name}？你可以隨時從商店重新安裝。",
+        "run_failed": "無法執行指令「{command}」",
+        "configure": "設定",
+        "activate_theme": "在「設定 → 外觀 → 自訂主題」中啟用",
+        "about": "關於",
+        "commands_actions": "指令與操作",
+        "arguments_label": "引數：",
+        "docs": "文件與指南",
+        "configurable": "可設定項目",
+        "open_in_settings": "在設定中開啟 →",
+        "permissions": "權限",
+        "details": "詳細資料",
+        "version": "版本",
+        "updated": "更新於",
+        "status": "狀態",
+        "added": "新增於",
+        "lazy_failed": "載入檢視失敗"
+      }
     },
     "agents": {
       "setup_ai": "設定你的 AI",
@@ -966,7 +1214,56 @@
       "searching": "搜尋中……",
       "sources": "來源",
       "google_search_suggestions": "Google 搜尋建議",
-      "error_open_ai_settings": "無法開啟 AI 設定，請重試。"
+      "error_open_ai_settings": "無法開啟 AI 設定，請重試。",
+      "act": {
+        "new": "新增代理",
+        "new_desc": "建立新的代理",
+        "edit": "編輯代理",
+        "edit_desc": "編輯所選代理",
+        "delete": "刪除代理",
+        "delete_desc": "刪除所選代理",
+        "new_thread": "新增對話",
+        "new_thread_desc": "開始新的對話",
+        "delete_thread": "刪除目前對話",
+        "delete_thread_desc": "刪除目前作用中的對話",
+        "cancel": "取消執行",
+        "cancel_desc": "中止進行中的助理回應"
+      },
+      "edit": {
+        "name_placeholder": "我的代理",
+        "system_prompt": "系統提示詞",
+        "system_prompt_placeholder": "你是一位樂於助人的助理。",
+        "type": "類型",
+        "provider": "提供者",
+        "no_providers": "尚未設定 AI 提供者。建立代理之前，請先在「設定 → AI」中新增 API 金鑰。",
+        "select": "請選擇…",
+        "model": "模型",
+        "pick_provider": "請先在上方選擇提供者以載入其模型。",
+        "loading_models": "正在載入模型…",
+        "no_models": "此提供者未傳回任何模型。",
+        "tools": "工具",
+        "silent": "靜默執行（無聊天檢視）",
+        "silent_hint": "靜默代理在背景執行，並將結果放回你觸發它的位置。適用於文法修正或翻譯等一次性任務。",
+        "input_from": "輸入來源",
+        "input_argument": "引數（在啟動器列中輸入）",
+        "input_selection": "目前應用程式中選取的文字",
+        "input_clipboard": "剪貼簿內容",
+        "input_none": "無（僅使用系統提示詞）",
+        "input_shortcode": "短代碼未命中事件",
+        "shortcode_trigger": "短代碼觸發符",
+        "shortcode_hint": "必須包覆在單字兩側以觸發此代理的字元。例如，「:」對應「:party:」，「/」對應「/fix/」。",
+        "then": "然後",
+        "out_replace": "用結果取代所選內容",
+        "out_paste": "在游標處貼上結果",
+        "out_copy": "將結果複製到剪貼簿",
+        "out_hud": "以 HUD 訊息顯示結果",
+        "cache": "快取並學習回應",
+        "cache_hint": "為相同輸入記住先前的輸出，避免重複呼叫 LLM。",
+        "promote": "升級為永久片段",
+        "delete_cache": "刪除快取項目",
+        "clear_cache": "清除快取",
+        "saving": "正在儲存…"
+      }
     },
     "sticky": {
       "new_sticky": "新增便利貼",
@@ -982,11 +1279,38 @@
       "streaming_output": "輸出會隨產生即時顯示。",
       "dismissed_output": "輸出已被關閉。",
       "select_run": "選擇一條執行記錄",
-      "select_run_description": "從左側選擇一條執行記錄以檢視詳情。"
+      "select_run_description": "從左側選擇一條執行記錄以檢視詳情。",
+      "act": {
+        "clear_recent": "清除最近項目",
+        "view_conversation": "檢視對話",
+        "view_conversation_desc": "跳至產生此次執行的代理對話"
+      },
+      "ui": {
+        "ai_thread": "AI 聊天對話",
+        "ai_thread_desc": "此次執行是在 AI 對話中管理的。輸出串流與狀態直接保存在代理聊天介面中。使用指令選單（Cmd+K）可檢視對話。",
+        "failed": "執行失敗",
+        "failed_desc": "執行失敗或傳回了錯誤：",
+        "exit_nonzero": "指令碼以非零狀態結束。",
+        "succeeded": "成功完成",
+        "succeeded_in": "程序已在 {seconds} 秒內成功完成。",
+        "succeeded_silent": "執行成功。指令碼結束時沒有向標準輸出列印任何內容。"
+      }
     },
     "usage_stats": {
       "no_usage": "暫無使用記錄",
-      "no_usage_description": "執行一些命令後，你的統計資訊會顯示在這裡。"
+      "no_usage_description": "執行一些命令後，你的統計資訊會顯示在這裡。",
+      "act": {
+        "send": "立即傳送使用情況",
+        "send_desc": "立即向 Asyar 傳送今天的匿名使用情況快照",
+        "failed": "傳送使用情況失敗，請再試一次。"
+      },
+      "sent": "已傳送使用情況（{count} {unit}）",
+      "event_one": "個事件",
+      "event_other": "個事件",
+      "ui": {
+        "title": "使用統計",
+        "most_used": "最常用"
+      }
     },
     "raycast_import": {
       "import_title": "從 Raycast 匯入",
@@ -1000,7 +1324,20 @@
       "category_shortcuts": "熱鍵 → 快速鍵",
       "category_shortcuts_hint": "應用程式與快速連結熱鍵",
       "category_aliases": "別名",
-      "category_aliases_hint": "應用程式與快速連結別名"
+      "category_aliases_hint": "應用程式與快速連結別名",
+      "ui": {
+        "filter_name": "Raycast 匯出檔",
+        "choose_file": "選擇匯出檔案…",
+        "protected": "此匯出檔受密碼保護",
+        "password_placeholder": "匯出密碼",
+        "wrong_password": "密碼錯誤——請再試一次。",
+        "unlock": "解鎖",
+        "importing": "正在匯入…",
+        "failed": "匯入失敗",
+        "start_over": "重新開始",
+        "back_preview": "返回預覽",
+        "import_another": "匯入另一個檔案"
+      }
     },
     "create_extension": {
       "no_extensions": "暫無擴充套件",
@@ -1045,7 +1382,70 @@
       "action_retry_build": "最佳化並重試",
       "action_retry_build_desc": "使用相同的提示詞重試建置",
       "action_start_over": "重新開始",
-      "action_start_over_desc": "清除失敗的建置並重新開始"
+      "action_start_over_desc": "清除失敗的建置並重新開始",
+      "act": {
+        "open_editor": "在編輯器中開啟",
+        "open_editor_desc": "在編輯器中開啟所選擴充功能",
+        "publish": "發布到 Asyar 商店",
+        "publish_desc": "將所選擴充功能發布到 Asyar 商店"
+      },
+      "ai": {
+        "cant_build": "Asyar 無法建置該擴充功能",
+        "feasible": "可行——開始建置",
+        "build_blocked": "建置已被封鎖",
+        "secret_found": "偵測到寫死的密鑰，已拒絕發布。",
+        "ready": "✅ 擴充功能已就緒",
+        "ready_body": "{id} 已建置並驗證（{summary}）。",
+        "build_failed": "建置失敗",
+        "needs_input": "AI 建置器需要你的輸入",
+        "publish_title": "發布到 Asyar 商店",
+        "publish_message": "這將建置擴充功能、建立一個公開的 GitHub 儲存庫、推送程式碼，並提交到 Asyar 商店審核。是否繼續？",
+        "publish_confirm": "發布",
+        "editor_failed": "無法開啟編輯器。請手動開啟資料夾：{path}",
+        "terminal_hint": "在 {dir} 中開啟終端機並執行：{command}",
+        "terminal_failed": "無法開啟終端機。請在 {dir} 中執行「{command}」。"
+      },
+      "ui": {
+        "runtimes_title": "下載所需的執行環境？",
+        "runtimes_total": "下載總量：",
+        "runtimes_desc_one": "AI 擴充功能建置器需要以下尚未安裝的項目。Asyar 只會下載一次，並在需要的地方重複使用。",
+        "runtimes_desc_other": "AI 擴充功能建置器需要以下尚未安裝的項目。Asyar 只會下載一次，並在需要的地方重複使用。",
+        "bundle_id_placeholder": "com.myname.awesome-tool"
+      },
+      "view": {
+        "title": "使用 AI 建置",
+        "subtitle": "描述你想要的功能——AI 會建立架構、撰寫並驗證你的擴充功能。",
+        "warning": "AI 會在你的電腦上建置並執行產生的程式碼（與建置任何專案相同）。請只建置你了解的擴充功能。",
+        "tip": "為獲得最佳效果，請使用 Anthropic Opus 或更新的模型——它能產生最可靠的 Asyar 擴充功能。",
+        "prompt_label": "這個擴充功能應該做什麼？",
+        "prompt_hint": "例如：為 Notion 建立一個可以搜尋我頁面的擴充功能",
+        "prompt_placeholder": "建立一個用於…的擴充功能",
+        "building": "正在建置…",
+        "building_hint": "你可以離開此檢視——需要輸入或建置完成時 Asyar 會通知你。",
+        "progress_aria": "建置進度",
+        "starting": "正在啟動…",
+        "input_needed": "需要輸入",
+        "ready": "✅ 已就緒",
+        "ready_desc": "你的擴充功能已建置並驗證完成。",
+        "extension_id": "擴充功能 ID",
+        "smoke_test": "冒煙測試",
+        "ready_pre": "按",
+        "ready_post": "開啟操作面板——你可以在那裡用編輯器開啟、載入擴充功能或開始新的建置。",
+        "failed": "❌ 建置失敗",
+        "build_log": "建置記錄",
+        "failed_pre": "開啟操作面板（",
+        "failed_post": "）以調整提示詞、重試或重新開始。",
+        "choose_answer": "請選擇一個答案",
+        "press_enter": "按 Enter 傳送",
+        "complete": "建置完成",
+        "see_panel": "請在操作面板中重試",
+        "build": "建置",
+        "yes": "是",
+        "no": "否",
+        "send_answer": "傳送回答",
+        "list_failed": "無法列出已建立的擴充功能：{error}",
+        "search_failed": "無法搜尋已建立的擴充功能：{error}"
+      }
     },
     "feedback": {
       "placeholder_tell_us": "告訴我們你的想法……",
@@ -1085,7 +1485,40 @@
       "tab_detected_configs": "來自檢測到的設定",
       "tab_paste_json": "貼上 JSON",
       "transport_stdio": "Stdio",
-      "transport_http": "HTTP"
+      "transport_http": "HTTP",
+      "act": {
+        "refresh": "重新整理伺服器",
+        "refresh_desc": "重新查詢 MCP 伺服器狀態與工具清單",
+        "install": "安裝 MCP 伺服器",
+        "install_desc": "手動新增 MCP 伺服器",
+        "import": "匯入 MCP 伺服器",
+        "import_desc": "從現有設定或貼上的 JSON 匯入伺服器",
+        "permissions": "檢視 MCP 權限",
+        "permissions_desc": "開啟已儲存的 MCP 工具呼叫權限決定",
+        "activity": "檢視最近的 MCP 活動",
+        "activity_desc": "檢視 MCP 工具呼叫的稽核記錄——成功與失敗",
+        "strict": "切換嚴格模式",
+        "strict_desc": "在任何 MCP 工具呼叫前一律詢問（建議用於不受信任的伺服器）"
+      },
+      "ui": {
+        "import_placeholder": "在此貼上 MCP 設定 JSON",
+        "parse": "解析",
+        "imported": "已匯入",
+        "strict_title": "嚴格模式已開啟——每次工具呼叫都會請求權限",
+        "strict": "嚴格",
+        "prompt_title": "允許 MCP 工具呼叫？",
+        "prompt_wants": "想要呼叫",
+        "prompt_on": "於",
+        "no_description": "伺服器未提供描述。",
+        "col_server": "伺服器",
+        "col_tool": "工具",
+        "col_agent": "代理",
+        "col_decision": "決定",
+        "revoke": "撤銷",
+        "runtime_title": "下載所需的執行環境？",
+        "runtime_pre": "此 MCP 伺服器需要",
+        "runtime_post": "（{size}），但尚未安裝。Asyar 只會下載一次，並供所有需要它的伺服器重複使用。"
+      }
     },
     "portals": {
       "title": "門戶",
@@ -1097,7 +1530,88 @@
       "action_edit": "編輯",
       "action_duplicate": "建立副本",
       "action_delete": "刪除",
-      "delete_confirm_title": "刪除門戶"
+      "delete_confirm_title": "刪除門戶",
+      "act": {
+        "new": "新增傳送門",
+        "new_desc": "新增傳送門網址捷徑"
+      },
+      "ui": {
+        "save_failed": "無法儲存傳送門：{error}",
+        "delete_confirm": "刪除「{name}」？此操作無法復原。",
+        "remove_failed": "無法完全移除傳送門：{error}",
+        "index_failed": "無法為複製的傳送門建立索引：{error}",
+        "url": "網址",
+        "placeholders": "預留位置",
+        "badge": "傳送門",
+        "add_first": "新增你的第一個傳送門",
+        "insert_placeholder": "插入預留位置",
+        "use_placeholders": "在網址中使用預留位置：{tokens}。",
+        "browse_pre": "按",
+        "browse_mid": "或點擊",
+        "browse_post": "按鈕以瀏覽所有預留位置。"
+      }
+    },
+    "help": {
+      "act": {
+        "guide": "開啟使用手冊",
+        "guide_desc": "在瀏覽器中開啟完整的 Asyar 使用手冊"
+      },
+      "topics": {
+        "getting_started": "快速入門",
+        "getting_started_sub": "安裝、首次啟動、你的快速鍵",
+        "basics": "基本操作",
+        "basics_sub": "搜尋、導覽、操作面板",
+        "calculator": "計算機",
+        "calculator_sub": "數學、單位、貨幣、日期",
+        "clipboard": "剪貼簿歷史",
+        "clipboard_sub": "瀏覽、篩選、加入最愛、貼上過往複製的內容",
+        "snippets": "片段",
+        "snippets_sub": "輸入關鍵字，貼上完整文字",
+        "window_management": "視窗管理",
+        "window_management_sub": "調整與排列視窗",
+        "aliases_shortcuts": "別名與快速鍵",
+        "aliases_shortcuts_sub": "自訂觸發詞與全域快速鍵",
+        "portals": "傳送門",
+        "portals_sub": "將網址儲存為可搜尋的捷徑",
+        "scripts": "指令碼",
+        "scripts_sub": "執行受監看資料夾中的 Shell 指令碼",
+        "ai_agents": "AI 與代理",
+        "ai_agents_sub": "詢問 AI、建立代理、管理對話",
+        "mcp": "MCP",
+        "mcp_sub": "將外部工具連接到你的代理",
+        "browser": "瀏覽器整合",
+        "browser_sub": "搜尋書籤、歷史紀錄與分頁",
+        "extensions": "擴充功能",
+        "extensions_sub": "瀏覽、安裝與管理擴充功能"
+      },
+      "shortcuts_heading": "鍵盤快速鍵",
+      "no_topics": "沒有符合搜尋的主題。",
+      "ui": {
+        "guides": "功能指南"
+      }
+    },
+    "quit": {
+      "title": "結束 Asyar",
+      "message": "確定要結束 Asyar 嗎？",
+      "confirm": "結束"
+    },
+    "system": {
+      "sleep": "睡眠",
+      "sleep_desc": "讓電腦進入睡眠",
+      "hibernate": "休眠",
+      "hibernate_desc": "讓電腦休眠",
+      "lock": "鎖定螢幕",
+      "lock_desc": "鎖定螢幕",
+      "log_out": "登出",
+      "sign_out": "登出",
+      "log_out_desc": "結束目前工作階段",
+      "log_out_confirm": "確定要{action}嗎？未儲存的工作可能會遺失。",
+      "restart": "重新啟動",
+      "restart_desc": "重新啟動電腦",
+      "restart_confirm": "確定要重新啟動電腦嗎？",
+      "shut_down": "關機",
+      "shut_down_desc": "關閉電腦",
+      "shut_down_confirm": "確定要關閉電腦嗎？"
     }
   },
   "common": {
@@ -1155,7 +1669,16 @@
     "copy": "複製",
     "copied": "已複製！",
     "dismiss": "忽略",
-    "search_ellipsis": "搜尋…"
+    "search_ellipsis": "搜尋…",
+    "pinned": "已釘選",
+    "loading_ellipsis": "正在載入…",
+    "installed": "已安裝",
+    "duplicate": "複製",
+    "uninstall": "解除安裝",
+    "refresh": "重新整理",
+    "run": "執行",
+    "import": "匯入",
+    "update": "更新"
   },
   "components": {
     "shortcut_recorder": {
@@ -1210,7 +1733,15 @@
     "shortcuts": "快速鍵",
     "aliases": "別名",
     "runs": "執行",
-    "search_history": "搜尋紀錄"
+    "search_history": "搜尋紀錄",
+    "agents": "代理",
+    "notes": "筆記",
+    "snippets": "片段",
+    "mcp": "MCP",
+    "scripts": "指令碼",
+    "portals": "傳送門",
+    "ai_builder": "AI 建置器",
+    "usage_stats": "使用統計"
   },
   "core_actions": {
     "settings": "設定",

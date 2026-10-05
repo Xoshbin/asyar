@@ -87,7 +87,7 @@
   {:else}
     <header class="head">
       <div class="head-row">
-        <span class="head-title">Beyond the basics</span>
+        <span class="head-title">{t('features.walkthrough.ui.beyond')}</span>
         <span class="head-count">{progress.completed} of {progress.total}</span>
       </div>
       <MeterBar value={progress.total === 0 ? 0 : progress.completed / progress.total} />
@@ -103,7 +103,12 @@
           : undefined}
       />
     {:else}
-      <div class="list" role="listbox" aria-label="Walkthrough tasks" bind:this={listEl}>
+      <div
+        class="list"
+        role="listbox"
+        aria-label={t('features.walkthrough.ui.tasks_aria')}
+        bind:this={listEl}
+      >
         {#each walkthroughViewState.visible as item, i (item.id)}
           <ListItem
             data-index={i}
@@ -123,9 +128,9 @@
             {/snippet}
             {#snippet trailing()}
               {#if item.completed && item.source === 'manual'}
-                <Badge text="Marked" variant="default" />
+                <Badge text={t('features.walkthrough.ui.marked')} variant="default" />
               {:else if item.completed}
-                <Badge text="Done" variant="success" />
+                <Badge text={t('features.walkthrough.ui.done')} variant="success" />
               {:else if taskProgressLabel(item.progress)}
                 <span class="row-progress">
                   <span class="row-progress-label">{taskProgressLabel(item.progress)}</span>

@@ -57,7 +57,7 @@
       title: t('features.portals.action_edit'),
       icon: 'icon:pencil',
       extensionId: 'portals',
-      category: 'Portals',
+      category: t('categories.portals'),
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         startEdit(portal);
@@ -68,7 +68,7 @@
       title: t('features.portals.action_duplicate'),
       icon: 'icon:copy',
       extensionId: 'portals',
-      category: 'Portals',
+      category: t('categories.portals'),
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         await handleDuplicate(portal);
@@ -79,7 +79,7 @@
       title: t('features.portals.action_delete'),
       icon: 'icon:trash',
       extensionId: 'portals',
-      category: 'Portals',
+      category: t('categories.portals'),
       destructive: true,
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -133,7 +133,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not save portal: ${err}` },
+        context: { message: t('features.portals.ui.save_failed', { error: String(err) }) },
       });
     } finally {
       cancelEdit();
@@ -143,7 +143,7 @@
   async function handleDelete(portal: Portal) {
     const confirmed = await feedbackService.confirmAlert({
       title: t('features.portals.delete_confirm_title'),
-      message: `Delete "${portal.name}"? This cannot be undone.`,
+      message: t('features.portals.ui.delete_confirm', { name: portal.name }),
       confirmText: t('common.delete'),
       variant: 'danger',
     });
@@ -156,7 +156,7 @@
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: `Could not fully remove portal: ${err}` },
+        context: { message: t('features.portals.ui.remove_failed', { error: String(err) }) },
       });
     }
   }
@@ -177,7 +177,7 @@
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: `Could not index duplicated portal: ${err}` },
+        context: { message: t('features.portals.ui.index_failed', { error: String(err) }) },
       });
     }
     await tick();
@@ -254,13 +254,13 @@
           </div>
 
           <div class="field-group">
-            <div class="field-label">URL</div>
+            <div class="field-label">{t('features.portals.ui.url')}</div>
             <pre class="portal-url">{selectedPortal.url}</pre>
           </div>
 
           {#if tokens.length > 0}
             <div class="field-group">
-              <div class="field-label">Placeholders</div>
+              <div class="field-label">{t('features.portals.ui.placeholders')}</div>
               <div class="placeholder-row">
                 {#each tokens as token}
                   <Badge text={token} variant="default" mono />
@@ -272,7 +272,7 @@
         <ActionFooter>
           {#snippet left()}
             <div class="flex items-center gap-3">
-              <Badge text="portal" variant="default" mono />
+              <Badge text={t('features.portals.ui.badge')} variant="default" mono />
               <span class="text-caption">
                 {dateFormat.format(selectedPortal.createdAt)}
               </span>
@@ -302,7 +302,9 @@
             </svg>
           {/snippet}
           {#if portals.length === 0}
-            <button class="btn-primary mt-4" onclick={startCreate}>Add your first portal</button>
+            <button class="btn-primary mt-4" onclick={startCreate}
+              >{t('features.portals.ui.add_first')}</button
+            >
           {/if}
         </EmptyState>
       {/if}

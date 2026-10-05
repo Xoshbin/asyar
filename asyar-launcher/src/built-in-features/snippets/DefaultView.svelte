@@ -225,16 +225,14 @@
       <WarningBanner>
         {#snippet children()}
           <p>
-            Background expansion requires Accessibility permission. Open System Settings → Privacy &
-            Security → Accessibility and add Asyar. If running in development, add the binary at:
-            src-tauri/target/debug/asyar
+            {t('features.snippets.ui.accessibility_warning')}
           </p>
         {/snippet}
         {#snippet actions()}
           <Button onclick={() => snippetService.openAccessibilityPreferences()}
-            >Open System Settings</Button
+            >{t('features.snippets.ui.open_settings')}</Button
           >
-          <Button onclick={recheckPermission}>Re-check Permission</Button>
+          <Button onclick={recheckPermission}>{t('features.snippets.ui.recheck')}</Button>
         {/snippet}
       </WarningBanner>
     </div>
@@ -251,10 +249,10 @@
   >
     {#snippet listItem(snippet, index)}
       {#if index === 0 && snippetViewState.pinnedCount > 0}
-        <div class="list-section">Pinned</div>
+        <div class="list-section">{t('common.pinned')}</div>
       {/if}
       {#if index === snippetViewState.pinnedCount && snippetViewState.pinnedCount > 0}
-        <div class="list-section">All Snippets</div>
+        <div class="list-section">{t('features.snippets.ui.all')}</div>
       {/if}
       <LauncherListRow
         data-index={index}
@@ -293,7 +291,7 @@
             </h2>
           </div>
           <div class="form-body custom-scrollbar">
-            <FormField label="Name" id="form-name">
+            <FormField label={t('features.snippets.name_label')} id="form-name">
               <Input
                 unstyled
                 textIntent="natural"
@@ -302,13 +300,13 @@
                 type="text"
                 autocomplete="off"
                 bind:value={formName}
-                placeholder="e.g. My Email"
+                placeholder={t('features.snippets.ui.name_placeholder')}
               />
             </FormField>
             <FormField
-              label="Keyword (optional)"
+              label={t('features.snippets.ui.keyword_optional')}
               id="form-keyword"
-              hint="Use a prefix like ; or /. Lowercase letters and symbols only."
+              hint={t('features.snippets.ui.keyword_hint')}
             >
               <Input
                 unstyled
@@ -321,7 +319,7 @@
                 placeholder="e.g. ;email"
               />
             </FormField>
-            <FormField label="Expansion" id="form-expansion">
+            <FormField label={t('features.snippets.ui.expansion')} id="form-expansion">
               <div style="position: relative">
                 <div class="textarea-wrapper">
                   <Textarea
@@ -338,7 +336,7 @@
                   ></Textarea>
                   <Button
                     class="picker-toggle"
-                    title="Insert placeholder"
+                    title={t('features.snippets.ui.insert_placeholder')}
                     onclick={openPickerViaButton}>{'{ }'}</Button
                   >
                 </div>
@@ -350,7 +348,8 @@
                 Supported: {`{Selected Text}, {Clipboard Text}, {UUID}, {Date}, {Time}, {Weekday}`}.
                 Custom format supported e.g.
                 <code class="code-inline">{'{Date format="YYYY-MM-DD"}'}</code>.<br />
-                Press <code class="code-inline">{'{'}</code> to browse.
+                {t('features.snippets.ui.browse_pre')} <code class="code-inline">{'{'}</code>
+                {t('features.snippets.ui.browse_post')}
               </p>
             </FormField>
             <div class="private-toggle-row">
@@ -369,9 +368,9 @@
               onclick={() => {
                 snippetViewState.cancelEdit();
                 prefillExpansion = null;
-              }}>Cancel</Button
+              }}>{t('common.cancel')}</Button
             >
-            <Button class="btn-primary" onclick={handleSave}>Save</Button>
+            <Button class="btn-primary" onclick={handleSave}>{t('common.save')}</Button>
           </div>
         </div>
       {:else if selectedSnippet}
@@ -386,10 +385,10 @@
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
               <Button class="edit-btn" onclick={() => handleDuplicate(selectedSnippet)}
-                >Duplicate</Button
+                >{t('common.duplicate')}</Button
               >
               <Button class="edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}
-                >Edit</Button
+                >{t('common.edit')}</Button
               >
             </div>
           </div>
@@ -400,7 +399,7 @@
           {/if}
           {#if selectedSnippet.redactedKinds?.length}
             <div class="flex items-center gap-3 p-6">
-              <Badge text="Encrypted secret" variant="warning" />
+              <Badge text={t('features.snippets.ui.encrypted_secret')} variant="warning" />
               <span class="text-caption">
                 {selectedSnippet.redactedKinds.join(', ')} — expands to the original value
               </span>
@@ -412,7 +411,7 @@
         <ActionFooter>
           {#snippet left()}
             <div class="flex items-center gap-3">
-              <Badge text="snippet" variant="default" mono />
+              <Badge text={t('features.snippets.ui.badge')} variant="default" mono />
               {#if selectedSnippet.isPrivate}
                 <Badge text={t('features.snippets.private_badge')} variant="warning" />
               {/if}
@@ -457,7 +456,7 @@
           {/snippet}
           {#if filteredSnippets.length === 0}
             <Button class="btn-primary mt-4" onclick={() => snippetViewState.startCreate()}
-              >Add your first snippet</Button
+              >{t('features.snippets.ui.add_first')}</Button
             >
           {/if}
         </EmptyState>

@@ -1,3 +1,4 @@
+import { t } from '../../../services/i18n';
 import { buildJobStore, type PendingQuestion } from './buildJobStore.svelte';
 import { sidecarClient } from './sidecarClient';
 import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
@@ -18,7 +19,7 @@ const CALLER_EXT_ID = 'create-extension';
 export async function presentQuestion(q: PendingQuestion): Promise<void> {
   buildJobStore.setQuestion(q);
   await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
-    title: 'AI Builder needs input',
+    title: t('features.create_extension.ai.needs_input'),
     body: q.prompt,
     actions: [
       {

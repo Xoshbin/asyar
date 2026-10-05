@@ -830,7 +830,10 @@
       "error_empty": "Por favor, insira um apelido.",
       "error_too_long": "O apelido deve ter no máximo 10 caracteres.",
       "error_invalid_chars": "O apelido deve conter apenas letras minúsculas e números.",
-      "error_save_failed": "Falha ao salvar o apelido. Tente novamente."
+      "error_save_failed": "Falha ao salvar o apelido. Tente novamente.",
+      "ui": {
+        "placeholder": "ex.: c, s, app"
+      }
     },
     "clipboard": {
       "title": "Histórico da Área de Transferência",
@@ -847,7 +850,43 @@
       "time_yesterday": "Ontem",
       "time_this_week": "Esta semana",
       "time_this_month": "Este mês",
-      "time_older": "Mais antigos"
+      "time_older": "Mais antigos",
+      "act": {
+        "toggle_html": "Alternar HTML renderizado/código-fonte",
+        "toggle_html_desc": "Alternar entre a pré-visualização HTML renderizada e o código-fonte",
+        "open_browser": "Abrir no navegador",
+        "open_browser_desc": "Abrir a URL selecionada no navegador padrão",
+        "paste_plain": "Colar como texto simples",
+        "paste_plain_desc": "Colar o item selecionado como texto simples, removendo toda a formatação",
+        "toggle_favorite": "Alternar favorito",
+        "toggle_favorite_desc": "Fixar ou desafixar o item selecionado da área de transferência",
+        "save_snippet": "Salvar como snippet",
+        "save_snippet_desc": "Abrir este item da área de transferência no editor de snippets",
+        "delete_desc": "Excluir o item selecionado da área de transferência",
+        "clear_selection": "Limpar seleção",
+        "clear_selection_desc": "Desmarcar todos os itens selecionados da área de transferência",
+        "ask_ai": "Perguntar à IA sobre isto",
+        "ask_ai_desc": "Abrir o chat de IA com este texto da área de transferência preenchido"
+      },
+      "subtitle": "Veja e gerencie o histórico da área de transferência",
+      "unsupported_item": "Ainda não suportado — itens de {type} da área de transferência ainda não podem ser usados com \"{action}\".",
+      "refresh_failed": "Não foi possível atualizar o histórico da área de transferência — a lista pode estar desatualizada",
+      "paste_permission": "O Asyar precisa da permissão de Acessibilidade do macOS para colar. Ative o Asyar em Ajustes do Sistema → Privacidade e Segurança → Acessibilidade e tente novamente.",
+      "merge_nothing": "Nada para colar — {count} item(ns) selecionado(s) não pode(m) ser mesclado(s) como texto.",
+      "merge_skipped": "{count} item(ns) ignorado(s) — somente texto/HTML/RTF podem ser mesclados.",
+      "ui": {
+        "reveal_failed": "Não foi possível mostrar {path} no Finder",
+        "indexing": "Indexando… os resultados da busca aparecerão quando estiverem prontos",
+        "url_preview": "Pré-visualização da URL",
+        "no_preview": "Nenhuma pré-visualização disponível",
+        "encrypted_secret": "Segredo criptografado",
+        "paste_original": "A colagem usa o valor original",
+        "loading_image": "Carregando imagem...",
+        "preview_alt": "Pré-visualização",
+        "image_failed": "Falha ao carregar a imagem",
+        "reveal_title": "Mostrar no Finder",
+        "preview_unavailable": "Pré-visualização indisponível"
+      }
     },
     "snippets": {
       "title": "Snippets",
@@ -866,12 +905,72 @@
       "private_label": "Privado (Apenas Local)",
       "private_hint": "Mantenha este snippet neste dispositivo e exclua-o da sincronização na nuvem.",
       "toggle_private": "Alternar Privado (Apenas Local)",
-      "toggle_private_description": "Marcar ou desmarcar o snippet selecionado como privado para evitar a sincronização na nuvem."
+      "toggle_private_description": "Marcar ou desmarcar o snippet selecionado como privado para evitar a sincronização na nuvem.",
+      "act": {
+        "add": "Adicionar snippet",
+        "add_desc": "Criar um novo snippet de expansão de texto",
+        "paste": "Colar snippet",
+        "paste_desc": "Colar a expansão do snippet selecionado no aplicativo ativo",
+        "edit": "Editar snippet",
+        "edit_desc": "Editar o snippet selecionado",
+        "delete": "Excluir snippet",
+        "delete_desc": "Excluir o snippet selecionado",
+        "copy": "Copiar expansão",
+        "copy_desc": "Copiar o texto de expansão do snippet para a área de transferência",
+        "duplicate": "Duplicar snippet",
+        "duplicate_desc": "Criar uma cópia do snippet selecionado",
+        "pin": "Fixar/desafixar snippet",
+        "pin_desc": "Fixar ou desafixar o snippet selecionado para mantê-lo no topo",
+        "private": "Alternar privado (somente local)",
+        "private_desc": "Marcar ou desmarcar o snippet selecionado como privado para impedir a sincronização na nuvem",
+        "clear_all": "Limpar todos os snippets",
+        "clear_all_desc": "Remover todos os snippets permanentemente"
+      },
+      "ui": {
+        "accessibility_warning": "A expansão em segundo plano requer a permissão de Acessibilidade. Abra Ajustes do Sistema → Privacidade e Segurança → Acessibilidade e adicione o Asyar. Se estiver em desenvolvimento, adicione o binário em: src-tauri/target/debug/asyar",
+        "open_settings": "Abrir Ajustes do Sistema",
+        "recheck": "Verificar permissão novamente",
+        "all": "Todos os snippets",
+        "keyword_optional": "Palavra-chave (opcional)",
+        "keyword_hint": "Use um prefixo como ; ou /. Somente letras minúsculas e símbolos.",
+        "expansion": "Expansão",
+        "name_placeholder": "ex.: Meu e-mail",
+        "insert_placeholder": "Inserir marcador",
+        "browse_pre": "Pressione",
+        "browse_post": "para ver as opções.",
+        "encrypted_secret": "Segredo criptografado",
+        "badge": "snippet",
+        "add_first": "Adicione seu primeiro snippet"
+      }
     },
     "file_search": {
       "title": "Busca de Arquivos",
       "select_file_preview": "Selecione um arquivo para pré-visualizar",
-      "start_typing_files": "Comece a digitar para encontrar arquivos"
+      "start_typing_files": "Comece a digitar para encontrar arquivos",
+      "act": {
+        "reveal": "Mostrar no Finder",
+        "reveal_desc": "Mostrar o arquivo no Finder",
+        "copy_path": "Copiar caminho",
+        "copy_path_desc": "Copiar o caminho absoluto do arquivo",
+        "copy_name": "Copiar nome",
+        "copy_name_desc": "Copiar apenas o nome do arquivo",
+        "open_terminal": "Abrir no Terminal",
+        "open_terminal_desc": "Abrir a pasta que contém o arquivo no terminal padrão",
+        "toggle_pin": "Alternar fixação",
+        "toggle_pin_desc": "Fixar este arquivo no topo ou desafixá-lo",
+        "trash": "Mover para a Lixeira",
+        "trash_desc": "Mover o arquivo para a lixeira do sistema",
+        "quick_look": "Quick Look",
+        "quick_look_desc": "Pré-visualizar o arquivo",
+        "send_ai": "Enviar para o Asyar AI",
+        "send_ai_desc": "Abrir o chat de IA com este arquivo como contexto",
+        "search_everywhere": "Pesquisar em todo lugar",
+        "search_everywhere_desc": "Executar uma busca profunda nativa do SO (Spotlight/Everything/plocate) para a consulta atual"
+      },
+      "ui": {
+        "deep": "profunda",
+        "loading_preview": "Carregando pré-visualização…"
+      }
     },
     "notes": {
       "title": "Notas",
@@ -880,13 +979,54 @@
       "no_notes_description": "Escreva sua primeira nota — ela é salva conforme você digita.",
       "select_note_description": "Escolha uma nota da lista para ler ou editar.",
       "no_other_notes": "Nenhuma outra nota ainda",
-      "link_to_note": "Link para a nota"
+      "link_to_note": "Link para a nota",
+      "act": {
+        "new": "Nova nota",
+        "new_desc": "Criar uma nova nota",
+        "pin": "Fixar/desafixar nota",
+        "pin_desc": "Fixar ou desafixar a nota selecionada para mantê-la no topo",
+        "duplicate": "Duplicar nota",
+        "duplicate_desc": "Criar uma cópia da nota selecionada",
+        "copy_md": "Copiar como Markdown",
+        "copy_md_desc": "Copiar a nota selecionada para a área de transferência como Markdown",
+        "stick": "Fixar na área de trabalho",
+        "stick_desc": "Fixar esta nota na área de trabalho como uma janela flutuante",
+        "export_md": "Exportar como Markdown…",
+        "export_md_desc": "Salvar a nota selecionada como arquivo .md e mostrá-lo",
+        "delete": "Excluir nota",
+        "delete_desc": "Excluir a nota selecionada"
+      },
+      "ui": {
+        "all": "Todas as notas",
+        "untitled": "Nota sem título",
+        "body_placeholder": "Comece a escrever… ⌘Enter segue um [[link]] sob o cursor.",
+        "linked_mentions": "Menções vinculadas",
+        "create_first": "Crie sua primeira nota"
+      }
     },
     "walkthrough": {
       "title": "Passo a Passo",
       "no_tasks": "Nenhuma tarefa de passo a passo ainda",
       "no_matching_tasks": "Nenhuma tarefa corresponde à sua pesquisa",
-      "no_tasks_description": "Extensões adicionam suas próprias tarefas aqui conforme você as instala."
+      "no_tasks_description": "Extensões adicionam suas próprias tarefas aqui conforme você as instala.",
+      "act": {
+        "beyond": "Além do básico",
+        "complete": "Marcar como concluída",
+        "complete_desc": "Marcar esta tarefa como feita sem executá-la",
+        "complete_all": "Marcar todas como concluídas",
+        "complete_all_desc": "Concluir todas as tarefas restantes de uma vez",
+        "hide": "Ocultar progresso da busca",
+        "hide_desc": "Parar de mostrar a linha de progresso na lista de busca principal",
+        "restart": "Reiniciar o passo a passo",
+        "restart_desc": "Esquecer as tarefas marcadas manualmente e recomeçar"
+      },
+      "progress_subtitle": "{completed} de {total} tarefas — descubra do que o Asyar é realmente capaz",
+      "ui": {
+        "beyond": "Além do básico",
+        "tasks_aria": "Tarefas do passo a passo",
+        "marked": "Marcado",
+        "done": "Concluído"
+      }
     },
     "window_management": {
       "title": "Gerenciamento de Janelas",
@@ -917,7 +1057,30 @@
       "copy_title": "Copiar Título",
       "title_copied": "Título copiado para a área de transferência",
       "badge_active": "Ativa",
-      "badge_minimized": "Minimizada"
+      "badge_minimized": "Minimizada",
+      "act": {
+        "save_layout": "Salvar janela atual como layout",
+        "save_layout_desc": "Capturar a posição e o tamanho da janela da frente como um layout personalizado"
+      },
+      "err_no_layout": "Nenhum nome ou ID de layout informado",
+      "err_not_found": "Layout \"{name}\" não encontrado",
+      "err_apply": "Não foi possível aplicar o layout",
+      "err_apply_detail": "Não foi possível aplicar o layout — {detail}",
+      "nothing_restore": "Nada para restaurar",
+      "err_restore": "Falha ao restaurar",
+      "err_restore_detail": "Falha ao restaurar — {detail}",
+      "err_save": "Não foi possível salvar o layout",
+      "err_save_detail": "Não foi possível salvar o layout — {detail}",
+      "layout_subtitle": "{w}x{h} em ({x}, {y})",
+      "ui": {
+        "apply_title": "Aplicar \"{name}\"",
+        "rename_title": "Renomear \"{name}\"",
+        "delete_title": "Excluir \"{name}\"",
+        "list_failed": "Falha ao listar janelas: {error}",
+        "switch_failed": "Não foi possível alternar para a janela: {error}",
+        "close_failed": "Não foi possível fechar a janela: {error}",
+        "copy_title_failed": "Não foi possível copiar o título: {error}"
+      }
     },
     "shortcuts": {
       "title": "Atalhos",
@@ -926,13 +1089,46 @@
       "no_matching_shortcuts": "Nenhum atalho correspondente",
       "action_change": "Alterar",
       "action_remove": "Remover",
-      "remove_confirm_title": "Remover atalho"
+      "remove_confirm_title": "Remover atalho",
+      "ui": {
+        "remove_confirm": "Remover o atalho de \"{name}\"?",
+        "applications": "Aplicativos",
+        "commands": "Comandos",
+        "assign": "Atribuir atalho",
+        "type": "Tipo",
+        "path": "Caminho",
+        "badge": "atalho",
+        "press_pre": "Pressione",
+        "press_post": "para cancelar"
+      }
     },
     "scripts": {
       "title": "Scripts",
       "no_scripts": "Nenhum script encontrado",
       "no_scripts_description": "Arquivos executáveis dos diretórios monitorados aparecerão aqui.",
-      "select_script": "Selecione um script ou item"
+      "select_script": "Selecione um script ou item",
+      "act": {
+        "run": "Executar script",
+        "run_desc": "Executar o script selecionado",
+        "reveal": "Mostrar no gerenciador de arquivos",
+        "reveal_desc": "Mostrar o arquivo selecionado em sua pasta",
+        "copy_path": "Copiar caminho",
+        "copy_path_desc": "Copiar o caminho do arquivo selecionado",
+        "rescan": "Reanalisar scripts",
+        "rescan_desc": "Atualizar scripts e diagnósticos agora",
+        "add_dir": "Adicionar diretório de scripts",
+        "add_dir_desc": "Escolher outro diretório para monitorar",
+        "make_exec": "Tornar executável",
+        "make_exec_desc": "Permitir a execução do arquivo de script selecionado"
+      },
+      "ui": {
+        "list_aria": "Scripts e problemas",
+        "issues": "Problemas",
+        "config": "Configuração",
+        "file": "Arquivo",
+        "directory": "Diretório",
+        "arguments": "Argumentos"
+      }
     },
     "store": {
       "title": "Loja de Extensões",
@@ -944,7 +1140,59 @@
       "uninstall": "Desinstalar",
       "update": "Atualizar",
       "installed": "Instalado",
-      "uninstall_confirm_title": "Desinstalar extensão"
+      "uninstall_confirm_title": "Desinstalar extensão",
+      "act": {
+        "update": "Atualizar extensão",
+        "update_desc": "Atualizar a extensão atualmente exibida",
+        "uninstall": "Desinstalar extensão",
+        "uninstall_desc": "Desinstalar a extensão atualmente exibida",
+        "install": "Instalar extensão",
+        "install_desc": "Instalar a extensão atualmente exibida"
+      },
+      "t_install_failed": "Falha na instalação",
+      "t_install_no_ext": "Não foi possível determinar qual extensão instalar.",
+      "t_installing": "Instalando {name}",
+      "t_install_started": "Instalação iniciada",
+      "t_install_started_body": "A instalação de {name} foi iniciada. O app pode recarregar.",
+      "t_installation_failed": "Falha na instalação",
+      "t_installation_failed_body": "Não foi possível instalar {name}. {error}",
+      "t_uninstalling": "Desinstalando {name}",
+      "t_uninstall_complete": "Desinstalação concluída",
+      "t_uninstall_complete_body": "{name} foi removido.",
+      "t_uninstall_failed": "Falha na desinstalação",
+      "t_uninstall_failed_body": "Não foi possível desinstalar {name}. {error}",
+      "t_updating": "Atualizando {name}",
+      "t_update_complete": "Atualização concluída",
+      "t_update_complete_body": "{name} atualizado para a v{version}.",
+      "t_no_selection": "Nenhuma extensão selecionada.",
+      "act_update_named": "Atualizar a extensão {name}",
+      "act_update_named_desc": "Atualizar a extensão {name}",
+      "act_uninstall_named": "Desinstalar a extensão {name}",
+      "act_uninstall_named_desc": "Desinstalar a extensão {name}",
+      "act_install_named": "Instalar a extensão {name}",
+      "act_install_named_desc": "Instalar a extensão {name}",
+      "ui": {
+        "update_available": "Atualização disponível",
+        "screenshot_alt": "Captura de tela",
+        "sdk_too_old": "Não é possível instalar {name}: requer um SDK mais recente ({sdk})",
+        "uninstall_confirm": "Desinstalar {name}? Você pode reinstalá-lo pela loja.",
+        "run_failed": "Não foi possível executar o comando \"{command}\"",
+        "configure": "Configurar",
+        "activate_theme": "Ative em Configurações → Aparência → Temas personalizados",
+        "about": "Sobre",
+        "commands_actions": "Comandos e ações",
+        "arguments_label": "Argumentos:",
+        "docs": "Documentação e guia",
+        "configurable": "Configurações ajustáveis",
+        "open_in_settings": "Abrir em Configurações →",
+        "permissions": "Permissões",
+        "details": "Detalhes",
+        "version": "Versão",
+        "updated": "Atualizado",
+        "status": "Status",
+        "added": "Adicionado",
+        "lazy_failed": "Falha ao carregar a tela"
+      }
     },
     "agents": {
       "setup_ai": "Configure sua IA",
@@ -966,7 +1214,56 @@
       "searching": "Pesquisando…",
       "error_open_ai_settings": "Não foi possível abrir as configurações de IA. Tente novamente.",
       "sources": "Fontes",
-      "google_search_suggestions": "Sugestões da Pesquisa Google"
+      "google_search_suggestions": "Sugestões da Pesquisa Google",
+      "act": {
+        "new": "Novo agente",
+        "new_desc": "Criar um novo agente",
+        "edit": "Editar agente",
+        "edit_desc": "Editar o agente selecionado",
+        "delete": "Excluir agente",
+        "delete_desc": "Excluir o agente selecionado",
+        "new_thread": "Nova conversa",
+        "new_thread_desc": "Iniciar uma nova conversa",
+        "delete_thread": "Excluir conversa atual",
+        "delete_thread_desc": "Excluir a conversa ativa",
+        "cancel": "Cancelar execução",
+        "cancel_desc": "Interromper a resposta do assistente em andamento"
+      },
+      "edit": {
+        "name_placeholder": "Meu agente",
+        "system_prompt": "Prompt do sistema",
+        "system_prompt_placeholder": "Você é um assistente prestativo.",
+        "type": "Tipo",
+        "provider": "Provedor",
+        "no_providers": "Nenhum provedor de IA configurado. Adicione uma chave de API em Configurações → IA antes de criar um agente.",
+        "select": "Selecionar…",
+        "model": "Modelo",
+        "pick_provider": "Escolha um provedor acima para carregar os modelos dele.",
+        "loading_models": "Carregando modelos…",
+        "no_models": "Nenhum modelo retornado por este provedor.",
+        "tools": "Ferramentas",
+        "silent": "Executar silenciosamente (sem tela de chat)",
+        "silent_hint": "Agentes silenciosos são executados em segundo plano e devolvem o resultado ao local de onde foram acionados. Úteis para tarefas pontuais, como correções gramaticais ou traduções.",
+        "input_from": "Entrada de",
+        "input_argument": "Argumento (digitado na barra do launcher)",
+        "input_selection": "Texto selecionado no aplicativo ativo",
+        "input_clipboard": "Conteúdo da área de transferência",
+        "input_none": "Nada (usar apenas o prompt do sistema)",
+        "input_shortcode": "Evento de atalho de texto não reconhecido",
+        "shortcode_trigger": "Gatilho do atalho de texto",
+        "shortcode_hint": "O(s) caractere(s) que devem envolver a palavra para acionar este agente. Por exemplo, \":\" para \":party:\" ou \"/\" para \"/fix/\".",
+        "then": "Depois",
+        "out_replace": "Substituir a seleção pelo resultado",
+        "out_paste": "Colar o resultado no cursor",
+        "out_copy": "Copiar o resultado para a área de transferência",
+        "out_hud": "Mostrar o resultado como mensagem HUD",
+        "cache": "Armazenar em cache e aprender respostas",
+        "cache_hint": "Lembra saídas anteriores para entradas idênticas, evitando chamadas repetidas ao LLM.",
+        "promote": "Promover a snippet permanente",
+        "delete_cache": "Excluir entrada do cache",
+        "clear_cache": "Limpar cache",
+        "saving": "Salvando…"
+      }
     },
     "sticky": {
       "new_sticky": "Novo lembrete",
@@ -982,11 +1279,38 @@
       "streaming_output": "A saída aparecerá conforme for gerada.",
       "dismissed_output": "A saída foi dispensada.",
       "select_run": "Selecione uma execução",
-      "select_run_description": "Escolha uma execução à esquerda para ver seus detalhes."
+      "select_run_description": "Escolha uma execução à esquerda para ver seus detalhes.",
+      "act": {
+        "clear_recent": "Limpar recentes",
+        "view_conversation": "Ver conversa",
+        "view_conversation_desc": "Ir para a conversa do agente que gerou esta execução"
+      },
+      "ui": {
+        "ai_thread": "Conversa de chat com IA",
+        "ai_thread_desc": "Esta execução foi gerenciada dentro de uma conversa de IA. Os fluxos de resposta e o estado são mantidos diretamente na interface de chat do agente. Use o menu de comandos (Cmd+K) para Ver conversa.",
+        "failed": "Falha na execução",
+        "failed_desc": "A execução falhou ou retornou um erro:",
+        "exit_nonzero": "O script terminou com status diferente de zero.",
+        "succeeded": "Concluído com sucesso",
+        "succeeded_in": "Processo concluído com sucesso em {seconds} segundos.",
+        "succeeded_silent": "Execução bem-sucedida. O script terminou sem imprimir nada na saída padrão."
+      }
     },
     "usage_stats": {
       "no_usage": "Nenhum uso ainda",
-      "no_usage_description": "Execute alguns comandos e suas estatísticas aparecerão aqui."
+      "no_usage_description": "Execute alguns comandos e suas estatísticas aparecerão aqui.",
+      "act": {
+        "send": "Enviar uso agora",
+        "send_desc": "Enviar agora o resumo anônimo de uso de hoje ao Asyar",
+        "failed": "Falha ao enviar o uso. Tente novamente."
+      },
+      "sent": "Uso enviado ({count} {unit})",
+      "event_one": "evento",
+      "event_other": "eventos",
+      "ui": {
+        "title": "Estatísticas de uso",
+        "most_used": "Mais usados"
+      }
     },
     "raycast_import": {
       "import_title": "Importar do Raycast",
@@ -1000,7 +1324,20 @@
       "category_shortcuts": "Teclas de atalho → Atalhos",
       "category_shortcuts_hint": "Teclas de atalho para aplicativos e links rápidos",
       "category_aliases": "Apelidos",
-      "category_aliases_hint": "Apelidos de aplicativos e links rápidos"
+      "category_aliases_hint": "Apelidos de aplicativos e links rápidos",
+      "ui": {
+        "filter_name": "Exportação do Raycast",
+        "choose_file": "Escolher arquivo de exportação…",
+        "protected": "Esta exportação é protegida por senha",
+        "password_placeholder": "Senha da exportação",
+        "wrong_password": "Senha incorreta — tente novamente.",
+        "unlock": "Desbloquear",
+        "importing": "Importando…",
+        "failed": "Falha na importação",
+        "start_over": "Recomeçar",
+        "back_preview": "Voltar para a pré-visualização",
+        "import_another": "Importar outro arquivo"
+      }
     },
     "create_extension": {
       "no_extensions": "Nenhuma extensão ainda",
@@ -1045,7 +1382,70 @@
       "action_retry_build": "Refinar e Tentar Novamente",
       "action_retry_build_desc": "Tenta construir novamente com as mesmas instruções",
       "action_start_over": "Começar do Zero",
-      "action_start_over_desc": "Limpa a construção com erro e reinicia"
+      "action_start_over_desc": "Limpa a construção com erro e reinicia",
+      "act": {
+        "open_editor": "Abrir no editor",
+        "open_editor_desc": "Abrir a extensão selecionada no seu editor",
+        "publish": "Publicar na Asyar Store",
+        "publish_desc": "Publicar a extensão selecionada na Asyar Store"
+      },
+      "ai": {
+        "cant_build": "O Asyar não consegue criar isso",
+        "feasible": "Viável — iniciando a construção",
+        "build_blocked": "Construção bloqueada",
+        "secret_found": "Um segredo foi codificado diretamente; recusando a publicação.",
+        "ready": "✅ Extensão pronta",
+        "ready_body": "{id} construída e verificada ({summary}).",
+        "build_failed": "Falha na construção",
+        "needs_input": "O AI Builder precisa de uma resposta",
+        "publish_title": "Publicar na Asyar Store",
+        "publish_message": "Isto compila a extensão, cria um repositório PÚBLICO no GitHub, envia o código e o submete à Asyar Store para revisão. Continuar?",
+        "publish_confirm": "Publicar",
+        "editor_failed": "Não foi possível abrir o editor. Abra a pasta manualmente: {path}",
+        "terminal_hint": "Abra um terminal em {dir} e execute: {command}",
+        "terminal_failed": "Não foi possível abrir um terminal. Execute \"{command}\" em {dir}."
+      },
+      "ui": {
+        "runtimes_title": "Baixar os runtimes necessários?",
+        "runtimes_total": "Download total:",
+        "runtimes_desc_one": "O AI Extension Builder precisa do item a seguir, que ainda não está instalado. O Asyar baixa cada um uma vez e o reutiliza onde for necessário.",
+        "runtimes_desc_other": "O AI Extension Builder precisa dos itens a seguir, que ainda não estão instalados. O Asyar baixa cada um uma vez e o reutiliza onde for necessário.",
+        "bundle_id_placeholder": "com.meunome.ferramenta-incrivel"
+      },
+      "view": {
+        "title": "Criar com IA",
+        "subtitle": "Descreva o que você quer — a IA criará a estrutura, escreverá e verificará sua extensão.",
+        "warning": "A IA compila e executa o código gerado na sua máquina (como ao compilar qualquer projeto). Crie apenas extensões que você entende.",
+        "tip": "Para melhores resultados, use o Anthropic Opus ou um modelo mais recente — ele gera as extensões Asyar mais confiáveis.",
+        "prompt_label": "O que esta extensão deve fazer?",
+        "prompt_hint": "ex.: Crie uma extensão para o Notion que me permita pesquisar minhas páginas",
+        "prompt_placeholder": "Crie uma extensão para…",
+        "building": "Construindo…",
+        "building_hint": "Você pode sair desta tela — o Asyar avisará quando for necessária uma resposta ou quando a construção terminar.",
+        "progress_aria": "Progresso da construção",
+        "starting": "Iniciando…",
+        "input_needed": "Resposta necessária",
+        "ready": "✅ Pronto",
+        "ready_desc": "Sua extensão foi construída e verificada.",
+        "extension_id": "ID da extensão",
+        "smoke_test": "Teste de fumaça",
+        "ready_pre": "Pressione",
+        "ready_post": "para abrir o painel de ações — de lá você pode abrir no editor, carregar a extensão ou iniciar uma nova construção.",
+        "failed": "❌ Falha na construção",
+        "build_log": "Log de construção",
+        "failed_pre": "Abra o painel de ações (",
+        "failed_post": ") para refinar seu prompt, tentar novamente ou recomeçar.",
+        "choose_answer": "Escolha uma resposta",
+        "press_enter": "Pressione Enter para enviar",
+        "complete": "Construção concluída",
+        "see_panel": "Veja o painel de ações para tentar novamente",
+        "build": "Construir",
+        "yes": "Sim",
+        "no": "Não",
+        "send_answer": "Enviar resposta",
+        "list_failed": "Não foi possível listar as extensões criadas: {error}",
+        "search_failed": "Não foi possível pesquisar as extensões criadas: {error}"
+      }
     },
     "feedback": {
       "placeholder_tell_us": "Conte-nos o que você achou…",
@@ -1085,7 +1485,40 @@
       "tab_detected_configs": "De Configurações Detectadas",
       "tab_paste_json": "Colar JSON",
       "transport_stdio": "Stdio",
-      "transport_http": "HTTP"
+      "transport_http": "HTTP",
+      "act": {
+        "refresh": "Atualizar servidores",
+        "refresh_desc": "Consultar novamente o status dos servidores MCP e as listas de ferramentas",
+        "install": "Instalar servidor MCP",
+        "install_desc": "Adicionar um novo servidor MCP manualmente",
+        "import": "Importar servidores MCP",
+        "import_desc": "Importar servidores de configurações existentes ou de JSON colado",
+        "permissions": "Ver permissões MCP",
+        "permissions_desc": "Abrir as decisões de permissão salvas para chamadas de ferramentas MCP",
+        "activity": "Ver atividade recente do MCP",
+        "activity_desc": "Ver o registro de auditoria das chamadas de ferramentas MCP — sucessos e falhas",
+        "strict": "Alternar modo estrito",
+        "strict_desc": "Sempre perguntar antes de qualquer chamada de ferramenta MCP (recomendado para servidores não confiáveis)"
+      },
+      "ui": {
+        "import_placeholder": "Cole aqui o JSON de configuração do MCP",
+        "parse": "Analisar",
+        "imported": "Importado",
+        "strict_title": "Modo estrito ativado — toda chamada de ferramenta pede permissão",
+        "strict": "Estrito",
+        "prompt_title": "Permitir chamada de ferramenta MCP?",
+        "prompt_wants": "quer chamar",
+        "prompt_on": "em",
+        "no_description": "Nenhuma descrição fornecida pelo servidor.",
+        "col_server": "Servidor",
+        "col_tool": "Ferramenta",
+        "col_agent": "Agente",
+        "col_decision": "Decisão",
+        "revoke": "Revogar",
+        "runtime_title": "Baixar o runtime necessário?",
+        "runtime_pre": "Este servidor MCP precisa de",
+        "runtime_post": "({size}), que ainda não está instalado. O Asyar o baixa uma vez e o reutiliza em todos os servidores que precisarem."
+      }
     },
     "portals": {
       "title": "Portais",
@@ -1097,7 +1530,88 @@
       "action_edit": "Editar",
       "action_duplicate": "Duplicar",
       "action_delete": "Excluir",
-      "delete_confirm_title": "Excluir portal"
+      "delete_confirm_title": "Excluir portal",
+      "act": {
+        "new": "Novo portal",
+        "new_desc": "Adicionar um novo atalho de URL de portal"
+      },
+      "ui": {
+        "save_failed": "Não foi possível salvar o portal: {error}",
+        "delete_confirm": "Excluir \"{name}\"? Esta ação não pode ser desfeita.",
+        "remove_failed": "Não foi possível remover o portal completamente: {error}",
+        "index_failed": "Não foi possível indexar o portal duplicado: {error}",
+        "url": "URL",
+        "placeholders": "Marcadores",
+        "badge": "portal",
+        "add_first": "Adicione seu primeiro portal",
+        "insert_placeholder": "Inserir marcador",
+        "use_placeholders": "Use marcadores na URL: {tokens}.",
+        "browse_pre": "Pressione",
+        "browse_mid": "ou o botão",
+        "browse_post": "para ver todos os marcadores."
+      }
+    },
+    "help": {
+      "act": {
+        "guide": "Abrir guia do usuário",
+        "guide_desc": "Abrir o guia completo do usuário do Asyar no navegador"
+      },
+      "topics": {
+        "getting_started": "Primeiros passos",
+        "getting_started_sub": "Instalação, primeira execução e seu atalho",
+        "basics": "O básico",
+        "basics_sub": "Busca, navegação e o painel de ações",
+        "calculator": "Calculadora",
+        "calculator_sub": "Matemática, unidades, moedas e datas",
+        "clipboard": "Histórico da área de transferência",
+        "clipboard_sub": "Navegue, filtre, favorite e cole cópias anteriores",
+        "snippets": "Snippets",
+        "snippets_sub": "Digite uma palavra-chave e cole o texto completo",
+        "window_management": "Gerenciamento de janelas",
+        "window_management_sub": "Redimensione e organize janelas",
+        "aliases_shortcuts": "Aliases e atalhos",
+        "aliases_shortcuts_sub": "Gatilhos personalizados e atalhos globais",
+        "portals": "Portais",
+        "portals_sub": "Salve URLs como atalhos pesquisáveis",
+        "scripts": "Scripts",
+        "scripts_sub": "Execute scripts de shell de pastas monitoradas",
+        "ai_agents": "IA e agentes",
+        "ai_agents_sub": "Pergunte à IA, crie agentes e gerencie conversas",
+        "mcp": "MCP",
+        "mcp_sub": "Conecte ferramentas externas aos seus agentes",
+        "browser": "Integração com o navegador",
+        "browser_sub": "Pesquise favoritos, histórico e abas",
+        "extensions": "Extensões",
+        "extensions_sub": "Navegue, instale e gerencie extensões"
+      },
+      "shortcuts_heading": "Atalhos de teclado",
+      "no_topics": "Nenhum tópico corresponde à sua busca.",
+      "ui": {
+        "guides": "Guias de recursos"
+      }
+    },
+    "quit": {
+      "title": "Sair do Asyar",
+      "message": "Tem certeza de que deseja sair do Asyar?",
+      "confirm": "Sair"
+    },
+    "system": {
+      "sleep": "Suspender",
+      "sleep_desc": "Colocar o computador em repouso",
+      "hibernate": "Hibernar",
+      "hibernate_desc": "Hibernar o computador",
+      "lock": "Bloquear tela",
+      "lock_desc": "Bloquear a tela",
+      "log_out": "Encerrar sessão",
+      "sign_out": "Sair da conta",
+      "log_out_desc": "Encerrar a sessão atual",
+      "log_out_confirm": "Tem certeza de que deseja {action}? Trabalhos não salvos podem ser perdidos.",
+      "restart": "Reiniciar",
+      "restart_desc": "Reiniciar o computador",
+      "restart_confirm": "Tem certeza de que deseja reiniciar o computador?",
+      "shut_down": "Desligar",
+      "shut_down_desc": "Desligar o computador",
+      "shut_down_confirm": "Tem certeza de que deseja desligar o computador?"
     }
   },
   "common": {
@@ -1155,7 +1669,16 @@
     "copy": "Copiar",
     "copied": "Copiado!",
     "dismiss": "Dispensar",
-    "search_ellipsis": "Pesquisar…"
+    "search_ellipsis": "Pesquisar…",
+    "pinned": "Fixados",
+    "loading_ellipsis": "Carregando…",
+    "installed": "Instalado",
+    "duplicate": "Duplicar",
+    "uninstall": "Desinstalar",
+    "refresh": "Atualizar",
+    "run": "Executar",
+    "import": "Importar",
+    "update": "Atualizar"
   },
   "components": {
     "shortcut_recorder": {
@@ -1210,7 +1733,15 @@
     "shortcuts": "Atalhos",
     "aliases": "Aliases",
     "runs": "Execuções",
-    "search_history": "Histórico de busca"
+    "search_history": "Histórico de busca",
+    "agents": "Agentes",
+    "notes": "Notas",
+    "snippets": "Snippets",
+    "mcp": "MCP",
+    "scripts": "Scripts",
+    "portals": "Portais",
+    "ai_builder": "AI Builder",
+    "usage_stats": "Estatísticas de uso"
   },
   "core_actions": {
     "settings": "Configurações",

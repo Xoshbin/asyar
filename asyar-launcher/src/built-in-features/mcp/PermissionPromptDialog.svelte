@@ -58,12 +58,13 @@
 >
   {#snippet children()}
     <h2 id="mcp-permission-title" class="text-xl font-semibold mb-4 text-[var(--text-primary)]">
-      Allow MCP tool call?
+      {t('features.mcp.ui.prompt_title')}
     </h2>
     <p class="text-[var(--text-secondary)] mb-3">
-      <strong>{agentLabel}</strong> wants to call
+      <strong>{agentLabel}</strong>
+      {t('features.mcp.ui.prompt_wants')}
       <code class="font-mono text-sm">{toolId}</code>
-      on <strong>{serverLabel}</strong>.
+      {t('features.mcp.ui.prompt_on')} <strong>{serverLabel}</strong>.
     </p>
     {#if toolDescription}
       <p class="text-[var(--text-secondary)] text-sm italic">
@@ -71,7 +72,7 @@
       </p>
     {:else}
       <p class="text-[var(--text-secondary)] text-sm italic">
-        No description provided by the server.
+        {t('features.mcp.ui.no_description')}
       </p>
     {/if}
   {/snippet}

@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { clipboardViewState } from './state.svelte';
 import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from '../../services/action/actionService.svelte';
@@ -26,8 +27,12 @@ import { snippetUiState } from '../snippets/snippetUiState.svelte';
 const clipboardResults = [
   {
     id: 'clipboard-history',
-    title: 'Clipboard History',
-    subtitle: 'View and manage your clipboard history',
+    get title() {
+      return t('features.clipboard.title');
+    },
+    get subtitle() {
+      return t('features.clipboard.subtitle');
+    },
     keywords: 'clipboard copy paste history',
   },
 ];
@@ -54,7 +59,7 @@ async function assertTextSendable(actionTitle: string): Promise<string | null> {
       severity: 'error',
       retryable: false,
       context: {
-        message: `Not supported yet — ${typeName} clipboard items can't be used with "${actionTitle}" yet.`,
+        message: t('features.clipboard.unsupported_item', { type: typeName, action: actionTitle }),
       },
     });
     return null;
@@ -141,7 +146,7 @@ class ClipboardHistoryExtension implements Extension {
             kind: 'manual',
             severity: 'warning',
             retryable: false,
-            context: { message: 'Could not refresh clipboard history — list may be stale' },
+            context: { message: t('features.clipboard.refresh_failed') },
           });
         });
         return {
@@ -234,8 +239,8 @@ class ClipboardHistoryExtension implements Extension {
 
     const toggleHtmlAction: ExtensionAction = {
       id: 'clipboard-history:toggle-html-view',
-      title: 'Toggle HTML Rendered/Source',
-      description: 'Switch between rendered HTML preview and raw source',
+      title: t('features.clipboard.act.toggle_html'),
+      description: t('features.clipboard.act.toggle_html_desc'),
       icon: 'icon:eye',
       extensionId: 'clipboard-history',
       category: 'clipboard-action',
@@ -247,8 +252,8 @@ class ClipboardHistoryExtension implements Extension {
 
     const openInBrowserAction: ExtensionAction = {
       id: 'clipboard-history:open-in-browser',
-      title: 'Open in Browser',
-      description: 'Open the selected URL in the default browser',
+      title: t('features.clipboard.act.open_browser'),
+      description: t('features.clipboard.act.open_browser_desc'),
       icon: 'icon:link',
       extensionId: 'clipboard-history',
       category: 'clipboard-action',
@@ -263,8 +268,8 @@ class ClipboardHistoryExtension implements Extension {
 
     const pasteAsPlainTextAction: ExtensionAction = {
       id: 'clipboard-history:paste-as-plain-text',
-      title: 'Paste as Plain Text',
-      description: 'Paste the selected item as plain text, stripping all formatting',
+      title: t('features.clipboard.act.paste_plain'),
+      description: t('features.clipboard.act.paste_plain_desc'),
       icon: 'icon:type',
       extensionId: 'clipboard-history',
       category: 'clipboard-action',
@@ -276,8 +281,8 @@ class ClipboardHistoryExtension implements Extension {
 
     const toggleFavoriteAction: ExtensionAction = {
       id: 'clipboard-history:toggle-favorite',
-      title: 'Toggle Favorite',
-      description: 'Pin or unpin the selected clipboard item',
+      title: t('features.clipboard.act.toggle_favorite'),
+      description: t('features.clipboard.act.toggle_favorite_desc'),
       icon: 'icon:star',
       extensionId: 'clipboard-history',
       category: 'clipboard-action',
@@ -293,9 +298,9 @@ class ClipboardHistoryExtension implements Extension {
 
     actionService.registerAction({
       id: 'clipboard-history:save-as-snippet',
-      title: 'Save as Snippet',
+      title: t('features.clipboard.act.save_snippet'),
       icon: 'icon:scissors',
-      description: 'Open this clipboard item in the snippet editor',
+      description: t('features.clipboard.act.save_snippet_desc'),
       category: 'clipboard-action',
       extensionId: 'clipboard-history',
       context: ActionContext.EXTENSION_VIEW,
@@ -312,7 +317,7 @@ class ClipboardHistoryExtension implements Extension {
     actionService.registerAction({
       id: 'clipboard-history:delete',
       title: 'Delete',
-      description: 'Delete the selected clipboard item',
+      description: t('features.clipboard.act.delete_desc'),
       icon: 'icon:trash',
       category: 'clipboard-action',
       extensionId: 'clipboard-history',
@@ -327,8 +332,8 @@ class ClipboardHistoryExtension implements Extension {
 
     actionService.registerAction({
       id: 'clipboard-history:clear-multi-selection',
-      title: 'Clear Selection',
-      description: 'Deselect all multi-selected clipboard items',
+      title: t('features.clipboard.act.clear_selection'),
+      description: t('features.clipboard.act.clear_selection_desc'),
       icon: 'icon:x',
       category: 'clipboard-action',
       extensionId: 'clipboard-history',
@@ -341,8 +346,8 @@ class ClipboardHistoryExtension implements Extension {
 
     actionService.registerAction({
       id: 'clipboard-history:ask-ai-about-this',
-      title: 'Ask AI about this',
-      description: 'Open AI Chat with this clipboard text pre-filled',
+      title: t('features.clipboard.act.ask_ai'),
+      description: t('features.clipboard.act.ask_ai_desc'),
       icon: 'icon:ai-chat',
       category: 'clipboard-action',
       extensionId: 'clipboard-history',

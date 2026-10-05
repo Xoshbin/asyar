@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext } from 'asyar-sdk/contracts';
 import { quitApp, setFocusLock } from '../../lib/ipc/commands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -13,10 +14,10 @@ class QuitExtension implements Extension {
       await setFocusLock(true);
       try {
         const confirmed = await feedbackService.confirmAlert({
-          title: 'Quit Asyar',
-          message: 'Are you sure you want to quit Asyar?',
-          confirmText: 'Quit',
-          cancelText: 'Cancel',
+          title: t('features.quit.title'),
+          message: t('features.quit.message'),
+          confirmText: t('features.quit.confirm'),
+          cancelText: t('common.cancel'),
           variant: 'danger',
         });
 

@@ -15,7 +15,9 @@
     try {
       const selected = await open({
         multiple: false,
-        filters: [{ name: 'Raycast export', extensions: ['rayconfig', 'json'] }],
+        filters: [
+          { name: t('features.raycast_import.ui.filter_name'), extensions: ['rayconfig', 'json'] },
+        ],
       });
       if (typeof selected === 'string') {
         await state.chooseFile(selected);
@@ -70,12 +72,12 @@
           <Icon name="download" size={28} />
         {/snippet}
         <Button class="btn-primary" onclick={pickFile} disabled={state.parsing}>
-          Choose export file…
+          {t('features.raycast_import.ui.choose_file')}
         </Button>
       </EmptyState>
     {:else if state.phase === 'password'}
       <div class="import-step">
-        <p class="text-title">This export is password-protected</p>
+        <p class="text-title">{t('features.raycast_import.ui.protected')}</p>
         <p class="text-caption">
           Enter the password you set in Raycast when exporting
           {#if state.filePath}“{fileName(state.filePath)}”{/if}.
@@ -83,23 +85,25 @@
         <Input
           textIntent="exact"
           type="password"
-          placeholder="Export password"
+          placeholder={t('features.raycast_import.ui.password_placeholder')}
           bind:value={state.password}
           onkeydown={(e: KeyboardEvent) => {
             if (e.key === 'Enter') state.submitPassword();
           }}
         />
         {#if state.passwordError}
-          <p class="text-caption password-error">Incorrect password — try again.</p>
+          <p class="text-caption password-error">
+            {t('features.raycast_import.ui.wrong_password')}
+          </p>
         {/if}
         <div class="import-actions">
-          <Button onclick={() => state.reset()}>Back</Button>
+          <Button onclick={() => state.reset()}>{t('common.back')}</Button>
           <Button
             class="btn-primary"
             onclick={() => state.submitPassword()}
             disabled={!state.password || state.parsing}
           >
-            Unlock
+            {t('features.raycast_import.ui.unlock')}
           </Button>
         </div>
       </div>
@@ -136,7 +140,7 @@
           </p>
         {/if}
         <div class="import-actions">
-          <Button onclick={() => state.reset()}>Back</Button>
+          <Button onclick={() => state.reset()}>{t('common.back')}</Button>
           <Button
             class="btn-primary"
             onclick={() => state.runImport()}
@@ -145,19 +149,22 @@
               !state.selection.shortcuts &&
               !state.selection.aliases}
           >
-            Import
+            {t('common.import')}
           </Button>
         </div>
       </div>
     {:else if state.phase === 'importing'}
-      <LoadingState message="Importing…" />
+      <LoadingState message={t('features.raycast_import.ui.importing')} />
     {:else if state.phase === 'error'}
       <div class="import-step">
-        <p class="text-title">Import failed</p>
+        <p class="text-title">{t('features.raycast_import.ui.failed')}</p>
         <p class="text-caption password-error">{state.errorMessage}</p>
         <div class="import-actions">
-          <Button onclick={() => state.reset()}>Start over</Button>
-          <Button class="btn-primary" onclick={() => state.backToPreview()}>Back to preview</Button>
+          <Button onclick={() => state.reset()}>{t('features.raycast_import.ui.start_over')}</Button
+          >
+          <Button class="btn-primary" onclick={() => state.backToPreview()}
+            >{t('features.raycast_import.ui.back_preview')}</Button
+          >
         </div>
       </div>
     {:else if state.phase === 'done' && state.summary}
@@ -182,7 +189,9 @@
             >Aliases: {state.summary.aliases.added} added, {state.summary.aliases.skipped} skipped</span
           >
         </div>
-        <Button class="btn-primary" onclick={() => state.reset()}>Import another file</Button>
+        <Button class="btn-primary" onclick={() => state.reset()}
+          >{t('features.raycast_import.ui.import_another')}</Button
+        >
       </EmptyState>
     {/if}
   </div>

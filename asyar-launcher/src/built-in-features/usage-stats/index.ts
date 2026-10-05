@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type {
   Extension,
   ExtensionContext,
@@ -39,10 +40,10 @@ class UsageStatsExtension implements Extension {
     // action panel to keep the view body clean and keyboard-first.
     actionService.registerAction({
       id: ACTION_SEND_NOW,
-      title: 'Send usage now',
-      description: "Send today's anonymous usage snapshot to Asyar now",
+      title: t('features.usage_stats.act.send'),
+      description: t('features.usage_stats.act.send_desc'),
       icon: 'icon:cloud-upload',
-      category: 'Usage Stats',
+      category: t('categories.usage_stats'),
       extensionId: 'usage-stats',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -53,7 +54,16 @@ class UsageStatsExtension implements Extension {
             kind: 'manual',
             severity: 'success',
             retryable: false,
-            context: { message: `Usage sent (${count} ${count === 1 ? 'event' : 'events'})` },
+            context: {
+              message: t('features.usage_stats.sent', {
+                count,
+                unit: t(
+                  count === 1
+                    ? 'features.usage_stats.event_one'
+                    : 'features.usage_stats.event_other',
+                ),
+              }),
+            },
           });
         } catch (e) {
           feedbackService.report({
@@ -61,7 +71,7 @@ class UsageStatsExtension implements Extension {
             kind: 'manual',
             severity: 'error',
             retryable: false,
-            context: { message: 'Failed to send usage. Please try again.' },
+            context: { message: t('features.usage_stats.act.failed') },
             developerDetail: String(e),
           });
         }

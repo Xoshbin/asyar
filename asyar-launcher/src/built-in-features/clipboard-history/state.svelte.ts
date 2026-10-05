@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { logService as globalLogService } from '../../services/log/logService';
 import {
   type ClipboardHistoryItem,
@@ -321,9 +322,7 @@ export class ClipboardViewStateClass {
           severity: 'warning',
           retryable: false,
           context: {
-            message:
-              'Asyar needs macOS Accessibility permission to paste. Enable Asyar under ' +
-              'System Settings → Privacy & Security → Accessibility, then try again.',
+            message: t('features.clipboard.paste_permission'),
           },
         });
         return;
@@ -341,7 +340,7 @@ export class ClipboardViewStateClass {
             severity: 'warning',
             retryable: false,
             context: {
-              message: `Nothing to paste — ${skippedCount} selected item(s) can't be merged as text.`,
+              message: t('features.clipboard.merge_nothing', { count: skippedCount }),
             },
           });
         }
@@ -365,7 +364,7 @@ export class ClipboardViewStateClass {
           severity: 'warning',
           retryable: false,
           context: {
-            message: `${skippedCount} item(s) skipped — only text/HTML/RTF can be merged.`,
+            message: t('features.clipboard.merge_skipped', { count: skippedCount }),
           },
         });
       }

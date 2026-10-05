@@ -1,3 +1,4 @@
+import { t } from '../../../services/i18n';
 import { Command } from '@tauri-apps/plugin-shell';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { platform } from '@tauri-apps/plugin-os';
@@ -18,7 +19,7 @@ export async function openInEditor(path: string): Promise<void> {
         kind: 'manual',
         severity: 'info',
         retryable: false,
-        context: { message: `Couldn't open the editor. Open the folder manually: ${path}` },
+        context: { message: t('features.create_extension.ai.editor_failed', { path }) },
       });
     }
   }

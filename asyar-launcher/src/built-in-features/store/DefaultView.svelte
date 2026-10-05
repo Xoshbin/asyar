@@ -60,9 +60,9 @@
       {/snippet}
       {#snippet trailing()}
         {#if item.status === 'UPDATE_AVAILABLE'}
-          <Badge text="Update" variant="warning" mono />
+          <Badge text={t('common.update')} variant="warning" mono />
         {:else if item.status === 'INSTALLED'}
-          <Badge text="Installed" variant="success" mono />
+          <Badge text={t('common.installed')} variant="success" mono />
         {:else}
           <Badge text={item.category} variant="default" mono />
         {/if}
@@ -118,7 +118,7 @@
           <div class="store-screenshot">
             <img
               src={selectedItem.screenshot_urls[0]}
-              alt="Screenshot"
+              alt={t('features.store.ui.screenshot_alt')}
               class="store-screenshot-img"
             />
           </div>
@@ -129,9 +129,9 @@
         {#snippet left()}
           <div class="flex items-center gap-3">
             {#if selectedItem.status === 'UPDATE_AVAILABLE'}
-              <Badge text="Update Available" variant="warning" mono />
+              <Badge text={t('features.store.ui.update_available')} variant="warning" mono />
             {:else if selectedItem.status === 'INSTALLED'}
-              <Badge text="Installed" variant="success" mono />
+              <Badge text={t('common.installed')} variant="success" mono />
             {:else}
               <Badge text={selectedItem.category} variant="default" mono />
             {/if}

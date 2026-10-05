@@ -127,20 +127,18 @@
         </div>
         {#if selectedRun.cancellable && selectedRun.status === 'running'}
           <div class="run-detail-actions">
-            <Button onclick={handleCancel}>Cancel</Button>
+            <Button onclick={handleCancel}>{t('common.cancel')}</Button>
           </div>
         {/if}
         {#if selectedRun.kind === 'agent' || selectedRun.kind === 'ai-chat'}
           <div class="run-status-panel">
             <div class="run-status-header">
               <span>💬</span>
-              <span class="text-title">AI Chat Thread</span>
+              <span class="text-title">{t('features.runs.ui.ai_thread')}</span>
             </div>
             <div class="run-status-content">
               <div class="text-caption">
-                This run was managed inside an AI conversation thread. Output response streams and
-                state are persisted directly within the agent chat interface. Use the command menu
-                (Cmd+K) to View Conversation.
+                {t('features.runs.ui.ai_thread_desc')}
               </div>
             </div>
           </div>
@@ -154,12 +152,14 @@
           <div class="run-status-panel run-status-failed">
             <div class="run-status-header">
               <span>❌</span>
-              <span class="text-title" style="color: var(--accent-danger);">Execution Failed</span>
+              <span class="text-title" style="color: var(--accent-danger);"
+                >{t('features.runs.ui.failed')}</span
+              >
             </div>
             <div class="run-status-content">
-              <div class="text-caption">The execution failed or returned an error:</div>
+              <div class="text-caption">{t('features.runs.ui.failed_desc')}</div>
               <div class="run-status-error-box">
-                {selectedRun.errorMessage || 'Script exited with non-zero status.'}
+                {selectedRun.errorMessage || t('features.runs.ui.exit_nonzero')}
               </div>
             </div>
           </div>
@@ -168,21 +168,19 @@
             <div class="run-status-header">
               <span>✅</span>
               <span class="text-title" style="color: var(--accent-success);"
-                >Finished Successfully</span
+                >{t('features.runs.ui.succeeded')}</span
               >
             </div>
             <div class="run-status-content">
               {#if selectedRun.endedAt && selectedRun.startedAt}
                 <div class="text-caption">
-                  Process successfully completed in {(
-                    (selectedRun.endedAt - selectedRun.startedAt) /
-                    1000
-                  ).toFixed(2)} seconds.
+                  {t('features.runs.ui.succeeded_in', {
+                    seconds: ((selectedRun.endedAt - selectedRun.startedAt) / 1000).toFixed(2),
+                  })}
                 </div>
               {:else}
                 <div class="text-caption">
-                  Execution successful. The script terminated without printing any output to
-                  standard out.
+                  {t('features.runs.ui.succeeded_silent')}
                 </div>
               {/if}
             </div>

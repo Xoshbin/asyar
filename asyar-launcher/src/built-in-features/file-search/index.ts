@@ -137,8 +137,8 @@ class FileSearchExtension implements Extension {
     const actions: ExtensionAction[] = [
       {
         id: 'file-search:reveal-in-finder',
-        title: 'Reveal in Finder',
-        description: 'Show the file in Finder',
+        title: t('features.file_search.act.reveal'),
+        description: t('features.file_search.act.reveal_desc'),
         icon: 'icon:folder',
         extensionId: 'file-search',
         category: 'file-action',
@@ -152,8 +152,8 @@ class FileSearchExtension implements Extension {
       },
       {
         id: 'file-search:copy-path',
-        title: 'Copy Path',
-        description: 'Copy the absolute file path',
+        title: t('features.file_search.act.copy_path'),
+        description: t('features.file_search.act.copy_path_desc'),
         icon: 'icon:clipboard',
         extensionId: 'file-search',
         category: 'file-action',
@@ -167,8 +167,8 @@ class FileSearchExtension implements Extension {
       },
       {
         id: 'file-search:copy-name',
-        title: 'Copy Name',
-        description: 'Copy the filename only',
+        title: t('features.file_search.act.copy_name'),
+        description: t('features.file_search.act.copy_name_desc'),
         icon: 'icon:clipboard',
         extensionId: 'file-search',
         category: 'file-action',
@@ -182,8 +182,8 @@ class FileSearchExtension implements Extension {
       },
       {
         id: 'file-search:open-in-terminal',
-        title: 'Open in Terminal',
-        description: 'Open the containing folder in the default terminal',
+        title: t('features.file_search.act.open_terminal'),
+        description: t('features.file_search.act.open_terminal_desc'),
         icon: 'icon:terminal',
         extensionId: 'file-search',
         category: 'file-action',
@@ -197,8 +197,8 @@ class FileSearchExtension implements Extension {
       },
       {
         id: 'file-search:toggle-pin',
-        title: 'Toggle Pin',
-        description: 'Pin this file to the top or unpin it',
+        title: t('features.file_search.act.toggle_pin'),
+        description: t('features.file_search.act.toggle_pin_desc'),
         icon: 'icon:bookmark',
         extensionId: 'file-search',
         category: 'file-action',
@@ -212,8 +212,8 @@ class FileSearchExtension implements Extension {
       },
       {
         id: 'file-search:move-to-trash',
-        title: 'Move to Trash',
-        description: 'Move the file to the system trash',
+        title: t('features.file_search.act.trash'),
+        description: t('features.file_search.act.trash_desc'),
         icon: 'icon:trash',
         extensionId: 'file-search',
         category: 'file-action',
@@ -243,8 +243,8 @@ class FileSearchExtension implements Extension {
       },
       {
         id: 'file-search:quick-look',
-        title: 'Quick Look',
-        description: 'Preview the file',
+        title: t('features.file_search.act.quick_look'),
+        description: t('features.file_search.act.quick_look_desc'),
         icon: 'icon:eye',
         shortcut: 'Space',
         extensionId: 'file-search',
@@ -259,8 +259,8 @@ class FileSearchExtension implements Extension {
       },
       {
         id: 'file-search:send-to-ai',
-        title: 'Send to Asyar AI',
-        description: 'Open AI chat with this file as context',
+        title: t('features.file_search.act.send_ai'),
+        description: t('features.file_search.act.send_ai_desc'),
         icon: 'icon:sparkles',
         extensionId: 'file-search',
         category: 'file-action',
@@ -274,9 +274,8 @@ class FileSearchExtension implements Extension {
       },
       {
         id: 'file-search:deep-search',
-        title: 'Search Everywhere',
-        description:
-          'Run an OS-native deep search (Spotlight/Everything/plocate) for the current query',
+        title: t('features.file_search.act.search_everywhere'),
+        description: t('features.file_search.act.search_everywhere_desc'),
         icon: 'icon:globe',
         extensionId: 'file-search',
         category: 'file-action',

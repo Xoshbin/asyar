@@ -87,7 +87,7 @@
     } catch (err) {
       modelFetchError = {
         ...modelFetchError,
-        [providerId]: err instanceof Error ? err.message : 'Failed to fetch models',
+        [providerId]: err instanceof Error ? err.message : t('settings.ai.fetch_models_failed'),
       };
     } finally {
       fetchingModels = { ...fetchingModels, [providerId]: false };
@@ -221,32 +221,32 @@
     {@const activeForm = form}
     <div class="agent-edit-form">
       <div class="form-field">
-        <label class="field-label" for="agent-name">Name</label>
+        <label class="field-label" for="agent-name">{t('common.name')}</label>
         <Input
           textIntent="natural"
           id="agent-name"
           bind:value={activeForm.name}
-          placeholder="My Agent"
+          placeholder={t('features.agents.edit.name_placeholder')}
         />
       </div>
 
       <div class="form-field">
-        <label class="field-label" for="agent-description">Description</label>
+        <label class="field-label" for="agent-description">{t('common.description')}</label>
         <Input
           textIntent="natural"
           id="agent-description"
           bind:value={activeForm.description}
-          placeholder="(optional)"
+          placeholder={t('settings.ai.optional')}
         />
       </div>
 
       <div class="form-field" style="position: relative">
         <label class="field-label" for="agent-system-prompt">
-          System prompt
+          {t('features.agents.edit.system_prompt')}
           <button
             class="picker-toggle"
             type="button"
-            title="Insert placeholder"
+            title={t('features.portals.ui.insert_placeholder')}
             onclick={openPickerViaButton}
             style="margin-left: auto; padding: 2px 6px; font-size: 11px; background: var(--bg-hover); border-radius: var(--radius-xs); border: 1px solid var(--border-color); cursor: pointer;"
             >{'{ }'}</button
@@ -261,14 +261,15 @@
           bind:ref={promptTextareaEl}
           oninput={handlePromptInput}
           rows={6}
-          placeholder="You are a helpful assistant."
+          placeholder={t('features.agents.edit.system_prompt_placeholder')}
         ></Textarea>
 
         {#if pickerOpen}
           <PlaceholderPicker onInsert={handleInsert} onClose={closePicker} />
         {/if}
         <p class="field-hint" style="margin-top: 4px;">
-          Type <code
+          {t('features.agents.edit.type')}
+          <code
             class="code-inline"
             style="background: var(--bg-hover); padding: 1px 4px; border-radius: var(--radius-xs);"
             >{'{'}</code
@@ -278,14 +279,14 @@
       </div>
 
       <div class="form-field">
-        <label class="field-label" for="agent-provider">Provider</label>
+        <label class="field-label" for="agent-provider">{t('features.agents.edit.provider')}</label>
         {#if providers.length === 0}
           <p class="field-hint">
-            No AI providers configured. Add an API key in Settings → AI before creating an agent.
+            {t('features.agents.edit.no_providers')}
           </p>
         {:else}
           <select id="agent-provider" class="field-select" bind:value={activeForm.providerId}>
-            <option value="">Select…</option>
+            <option value="">{t('features.agents.edit.select')}</option>
             {#each providers as p (p.id)}
               <option value={p.id}>{p.name}</option>
             {/each}
@@ -294,17 +295,21 @@
       </div>
 
       <div class="form-field">
-        <label class="field-label" for="agent-model">Model</label>
+        <label class="field-label" for="agent-model">{t('features.agents.edit.model')}</label>
         {#if !activeForm.providerId}
-          <p class="field-hint">Pick a provider above to load its models.</p>
+          <p class="field-hint">{t('features.agents.edit.pick_provider')}</p>
         {:else if isFetchingModels}
-          <p class="field-hint">Loading models…</p>
+          <p class="field-hint">{t('features.agents.edit.loading_models')}</p>
         {:else if modelFetchErrorForProvider}
           <p class="field-error">{modelFetchErrorForProvider}</p>
-          <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}>Retry</Button>
+          <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}
+            >{t('common.retry')}</Button
+          >
         {:else if modelsForProvider.length === 0}
-          <p class="field-hint">No models returned by this provider.</p>
-          <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}>Refresh</Button>
+          <p class="field-hint">{t('features.agents.edit.no_models')}</p>
+          <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}
+            >{t('common.refresh')}</Button
+          >
         {:else}
           <div class="model-row">
             <ModelSelector
@@ -315,14 +320,16 @@
                 activeForm.modelId = val;
               }}
             />
-            <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}>Refresh</Button>
+            <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}
+              >{t('common.refresh')}</Button
+            >
           </div>
         {/if}
       </div>
 
       {#if groups.length > 0}
         <div class="form-field">
-          <span class="field-label">Tools</span>
+          <span class="field-label">{t('features.agents.edit.tools')}</span>
           <ToolPickerTree
             {groups}
             selectedIds={activeForm.toolSelection}
@@ -344,33 +351,36 @@
       <div class="form-field">
         <label class="silent-toggle">
           <input type="checkbox" bind:checked={activeForm.silent} />
-          <span>Run silently (no chat view)</span>
+          <span>{t('features.agents.edit.silent')}</span>
         </label>
         <p class="field-hint silent-hint">
-          Silent agents run in the background and put the result back wherever you triggered them
-          from. Useful for one-shot tasks like grammar fixes or translations.
+          {t('features.agents.edit.silent_hint')}
         </p>
       </div>
 
       <div class="form-field" class:disabled={!activeForm.silent}>
-        <label class="field-label" for="agent-input-source">Input from</label>
+        <label class="field-label" for="agent-input-source"
+          >{t('features.agents.edit.input_from')}</label
+        >
         <select
           id="agent-input-source"
           class="field-select"
           bind:value={activeForm.inputSource}
           disabled={!activeForm.silent}
         >
-          <option value="argument">Argument (typed in the launcher bar)</option>
-          <option value="selection">Selected text in the active app</option>
-          <option value="clipboard">Clipboard contents</option>
-          <option value="none">Nothing (use the system prompt alone)</option>
-          <option value="shortcodeMiss">Shortcode miss event</option>
+          <option value="argument">{t('features.agents.edit.input_argument')}</option>
+          <option value="selection">{t('features.agents.edit.input_selection')}</option>
+          <option value="clipboard">{t('features.agents.edit.input_clipboard')}</option>
+          <option value="none">{t('features.agents.edit.input_none')}</option>
+          <option value="shortcodeMiss">{t('features.agents.edit.input_shortcode')}</option>
         </select>
       </div>
 
       {#if activeForm.silent && activeForm.inputSource === 'shortcodeMiss'}
         <div class="form-field">
-          <label class="field-label" for="agent-shortcode-trigger">Shortcode trigger</label>
+          <label class="field-label" for="agent-shortcode-trigger"
+            >{t('features.agents.edit.shortcode_trigger')}</label
+          >
           <Input
             textIntent="natural"
             id="agent-shortcode-trigger"
@@ -378,24 +388,24 @@
             placeholder="e.g. : or ;"
           />
           <p class="field-hint">
-            The character(s) that must wrap the word to trigger this agent. For example, ":" for
-            ":party:" or "/" for "/fix/".
+            {t('features.agents.edit.shortcode_hint')}
           </p>
         </div>
       {/if}
 
       <div class="form-field" class:disabled={!activeForm.silent}>
-        <label class="field-label" for="agent-output-action">Then</label>
+        <label class="field-label" for="agent-output-action">{t('features.agents.edit.then')}</label
+        >
         <select
           id="agent-output-action"
           class="field-select"
           bind:value={activeForm.outputAction}
           disabled={!activeForm.silent}
         >
-          <option value="replaceSelection">Replace the selection with the result</option>
-          <option value="paste">Paste the result at the cursor</option>
-          <option value="copy">Copy the result to the clipboard</option>
-          <option value="hud">Show the result as a HUD message</option>
+          <option value="replaceSelection">{t('features.agents.edit.out_replace')}</option>
+          <option value="paste">{t('features.agents.edit.out_paste')}</option>
+          <option value="copy">{t('features.agents.edit.out_copy')}</option>
+          <option value="hud">{t('features.agents.edit.out_hud')}</option>
         </select>
       </div>
 
@@ -403,10 +413,10 @@
         <div class="form-field">
           <label class="silent-toggle">
             <input type="checkbox" bind:checked={activeForm.cacheResponses} />
-            <span>Cache and learn responses</span>
+            <span>{t('features.agents.edit.cache')}</span>
           </label>
           <p class="field-hint silent-hint">
-            Remembers previous outputs for identical inputs to avoid repeated LLM calls.
+            {t('features.agents.edit.cache_hint')}
           </p>
         </div>
 
@@ -426,18 +436,20 @@
                       <button
                         class="icon-button"
                         onclick={() => promoteItem(item[0])}
-                        title="Promote to permanent snippet">✨</button
+                        title={t('features.agents.edit.promote')}>✨</button
                       >
                       <button
                         class="icon-button"
                         onclick={() => deleteItem(item[0])}
-                        title="Delete cache entry">🗑️</button
+                        title={t('features.agents.edit.delete_cache')}>🗑️</button
                       >
                     </div>
                   </div>
                 {/each}
               </div>
-              <button class="clear-button" onclick={clearCache}>Clear Cache</button>
+              <button class="clear-button" onclick={clearCache}
+                >{t('features.agents.edit.clear_cache')}</button
+              >
             {:else}
               <EmptyState compact message={t('features.agents.no_cached_responses')} />
             {/if}
@@ -450,8 +462,10 @@
       {/if}
 
       <div class="agent-edit-actions">
-        <Button onclick={onCancel} disabled={saving}>Cancel</Button>
-        <Button onclick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+        <Button onclick={onCancel} disabled={saving}>{t('common.cancel')}</Button>
+        <Button onclick={onSave} disabled={saving}
+          >{saving ? t('features.agents.edit.saving') : t('common.save')}</Button
+        >
       </div>
     </div>
   {/if}

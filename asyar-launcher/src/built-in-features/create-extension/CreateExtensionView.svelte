@@ -201,7 +201,7 @@
           textIntent="exact"
           type="text"
           bind:value={extId}
-          placeholder="com.myname.awesome-tool"
+          placeholder={t('features.create_extension.ui.bundle_id_placeholder')}
           autocomplete="off"
           onfocus={handleFocus}
           onblur={handleBlur}
