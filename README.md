@@ -174,6 +174,19 @@ If you are moving over from Raycast, you don't have to rebuild your configuratio
 
 ---
 
+## Supported Languages
+
+The launcher interface follows your system language and is available in:
+
+- English
+- Português (Brasil)
+- 简体中文 (Simplified Chinese)
+- 繁體中文 (Traditional Chinese)
+
+Want Asyar in your language? See [Contributing a Localization](CONTRIBUTING.md#internationalization-i18n--translations).
+
+---
+
 ## Privacy Scorecard
 
 |                                                                                | Asyar |
