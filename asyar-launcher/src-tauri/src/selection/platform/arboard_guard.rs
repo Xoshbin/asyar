@@ -50,6 +50,10 @@ impl ClipboardGuard {
     }
 
     /// Construct a guard with an explicit snapshot (useful for testing or staged restoration).
+    ///
+    /// The returned guard still writes `snapshot` to the real OS clipboard when
+    /// it drops. A test that only wants the value back should hold it in a
+    /// `ManuallyDrop`, or it will clobber the clipboard other tests are using.
     pub fn from_snapshot(snapshot: ClipboardSnapshot) -> Self {
         Self { snapshot }
     }
