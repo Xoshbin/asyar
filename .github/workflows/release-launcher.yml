@@ -370,8 +370,17 @@ jobs:
               find squashfs-root \( -type f -o -type l \) -name 'libwayland-client.so*' -print >&2
               exit 1
             fi
-            # Verify AppImage spec compliance: .DirIcon must exist and resolve
+            # Verify AppImage spec compliance: .DirIcon must exist and resolve.
+            # .DirIcon is normally a symlink to the app icon, and
+            # --appimage-extract only writes paths matching its pattern — so
+            # extracting '.DirIcon' alone leaves a dangling link whose target
+            # was never written. Pull the target out too, then let the -e test
+            # below check that it genuinely resolves.
             "$appimage_path" --appimage-extract '.DirIcon' >/dev/null
+            if [ -L squashfs-root/.DirIcon ]; then
+              icon_target="$(readlink squashfs-root/.DirIcon)"
+              "$appimage_path" --appimage-extract "$icon_target" >/dev/null
+            fi
             if [ ! -e squashfs-root/.DirIcon ]; then
               echo "AppImage is missing or has a broken .DirIcon:" >&2
               ls -la squashfs-root/.DirIcon 2>&1 || true
