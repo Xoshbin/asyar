@@ -305,6 +305,7 @@
       "retention_custom_placeholder": "上限",
       "behavior_section": "行為",
       "providers_section": "供應商",
+      "error_repoint_agents": "供應商已移除，但部分代理無法移至預設供應商。",
       "add_provider": "+ 新增供應商",
       "test_and_fetch": "測試並取得模型",
       "fetching": "取得中……",

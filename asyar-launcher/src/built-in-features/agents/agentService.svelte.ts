@@ -151,6 +151,39 @@ export class AgentService {
   }
 
   /**
+   * Moves every agent bound to `fromProviderId` onto `toProviderId`/`toModelId`.
+   * Used when a provider is removed so agents follow the surviving (favourited)
+   * provider instead of dangling on a config that no longer exists. The model
+   * is replaced too — model ids are not portable across providers.
+   * Returns how many agents were moved.
+   */
+  async repointAgents(
+    fromProviderId: string,
+    toProviderId: string,
+    toModelId: string,
+  ): Promise<number> {
+    const stranded = this.agents.filter((a) => a.providerId === fromProviderId);
+    for (const agent of stranded) {
+      const { id, name, description, systemPrompt, toolSelection } = agent;
+      await this.update({
+        id,
+        name,
+        description,
+        systemPrompt,
+        providerId: toProviderId,
+        modelId: toModelId,
+        toolSelection,
+        silent: agent.silent,
+        inputSource: agent.inputSource,
+        outputAction: agent.outputAction,
+        cacheResponses: agent.cacheResponses,
+        shortcodeTrigger: agent.shortcodeTrigger,
+      });
+    }
+    return stranded.length;
+  }
+
+  /**
    * Seed the bundled "Grammar Fix" silent agent if it isn't already present.
    * Pure agent creation only — the caller is responsible for binding any
    * hotkey via `shortcutService.register` after this resolves. Keeping the

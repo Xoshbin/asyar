@@ -305,6 +305,7 @@
       "retention_custom_placeholder": "Cap",
       "behavior_section": "Behavior",
       "providers_section": "Providers",
+      "error_repoint_agents": "Provider removed, but some agents could not be moved to the default provider.",
       "add_provider": "+ Add provider",
       "test_and_fetch": "Test & Fetch Models",
       "fetching": "Fetching…",

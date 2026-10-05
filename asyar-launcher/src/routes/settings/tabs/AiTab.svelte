@@ -313,6 +313,20 @@
         await settingsService.updateSettings('ai', { defaultAgentId: null });
       }
     }
+
+    // Agents still bound to the removed provider follow the favourited (default)
+    // provider. Agents on other surviving providers are left to the user.
+    const target = agentService.getDefaultAgent();
+    if (target && target.providerId !== id) {
+      try {
+        await agentService.repointAgents(id, target.providerId, target.modelId);
+      } catch {
+        removeErrors = {
+          ...removeErrors,
+          [id]: t('settings.ai.error_repoint_agents'),
+        };
+      }
+    }
   }
 
   function addProviderRow() {
