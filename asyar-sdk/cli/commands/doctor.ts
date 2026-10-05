@@ -6,6 +6,8 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { STORE_URL } from '../lib/auth';
 import { getExtensionsDir } from '../lib/platform';
+import { toPackagedPath } from '../lib/zip';
+import { WORKER_FALLBACK_REMOVED_IN, workerBundleNeedsDomFallback } from '../lib/workerCompat';
 
 interface CheckResult {
   name: string;
@@ -83,6 +85,42 @@ function findSdkRoot(startDir: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * Report whether this project's built worker still needs the launcher's iframe
+ * fallback. Returns null outside a built extension project, or when the
+ * extension declares no background worker — there is nothing to say then.
+ */
+export function checkWorkerCompatibility(cwd: string): CheckResult | null {
+  const manifestPath = path.join(cwd, 'manifest.json');
+  if (!fs.existsSync(manifestPath)) return null;
+
+  let main: string | undefined;
+  try {
+    main = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))?.background?.main;
+  } catch {
+    return null; // a malformed manifest is already reported by validate/build
+  }
+  if (!main) return null;
+
+  const distDir = path.join(cwd, 'dist');
+  const resolved = path.resolve(distDir, toPackagedPath(main));
+  if (!resolved.startsWith(path.resolve(distDir) + path.sep) || !fs.existsSync(resolved)) {
+    return { name: 'Worker bundle', status: 'warn', message: 'not built yet — run "asyar build"' };
+  }
+
+  const rel = path.relative(cwd, resolved);
+  return workerBundleNeedsDomFallback(resolved)
+    ? {
+        name: 'Worker bundle',
+        status: 'warn',
+        message:
+          `${rel} needs the iframe fallback, which is removed in launcher ` +
+          `${WORKER_FALLBACK_REMOVED_IN}. Rebuild with asyar-sdk@^4.14.0 ` +
+          `("asyar-sdk/vite"), or set build.modulePreload: false.`,
+      }
+    : { name: 'Worker bundle', status: 'ok', message: `${rel} runs as a real Web Worker` };
 }
 
 export function registerDoctor(program: Command) {
@@ -186,7 +224,12 @@ export function registerDoctor(program: Command) {
         results.push({ name: 'Store', status: 'warn', message: `${STORE_URL} is not reachable` });
       }
 
-      // 6. Monorepo detection
+      // 6. Worker compatibility — only meaningful inside a built extension
+      // project that declares a background worker.
+      const workerCheck = checkWorkerCompatibility(process.cwd());
+      if (workerCheck) results.push(workerCheck);
+
+      // 7. Monorepo detection
       const projectRoot = findProjectRoot(process.cwd());
       if (projectRoot) {
         results.push({ name: 'Monorepo', status: 'ok', message: `root at ${projectRoot}` });
