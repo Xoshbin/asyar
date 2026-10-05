@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import { onMount } from 'svelte';
   import {
     fetchPlaceholders,
@@ -53,7 +54,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="placeholder-picker">
-  <div class="picker-header">Insert Placeholder</div>
+  <div class="picker-header">{t('placeholder_picker.title')}</div>
   <ul class="picker-list custom-scrollbar" role="listbox">
     {#each placeholders as placeholder, i (placeholder.id)}
       <!-- svelte-ignore a11y_click_events_have_key_events -->

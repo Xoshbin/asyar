@@ -117,7 +117,7 @@
     onclick={handleStartRecording}
     {disabled}
     tabindex={disabled ? -1 : 0}
-    aria-label="Press keys to set shortcut"
+    aria-label={t('recorder.aria')}
   >
     {#if capture.state.isRecording}
       <div class="recorder-content">
@@ -201,7 +201,7 @@
       </div>
     {:else if capture.state.saveState === 'saving'}
       <div class="recorder-content">
-        <span class="recording-label">Saving...</span>
+        <span class="recording-label">{t('recorder.saving')}</span>
       </div>
     {:else}
       <div class="recorder-content">
@@ -227,7 +227,7 @@
       (capture.state.errorType !== '' && capture.state.errorType !== 'no-modifier')}
   >
     {#if capture.state.saveState === 'success'}
-      <div class="success-message">Saved</div>
+      <div class="success-message">{t('recorder.saved')}</div>
     {:else if capture.state.errorType === 'invalid-key'}
       <div class="error-message">
         Invalid {capture.state.invalidKeys.size > 1 ? 'keys' : 'key'}

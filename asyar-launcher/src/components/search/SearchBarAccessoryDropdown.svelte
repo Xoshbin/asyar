@@ -250,8 +250,8 @@
           bind:value={filterQuery}
           type="text"
           class="accessory-filter-input"
-          placeholder="Type to filter…"
-          aria-label="Filter options"
+          placeholder={t('search_accessory.filter_placeholder')}
+          aria-label={t('search_accessory.filter_aria')}
           aria-autocomplete="list"
           autocomplete="off"
         />

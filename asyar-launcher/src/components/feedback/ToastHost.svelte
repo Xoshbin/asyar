@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { fadeIn } from '$lib/transitions';
   import { IconButton } from '../index';
@@ -34,8 +35,8 @@
     {/if}
     <IconButton
       class="toast-dismiss"
-      ariaLabel="Dismiss announcement"
-      title="Dismiss announcement"
+      ariaLabel={t('toast.dismiss_announcement')}
+      title={t('toast.dismiss_announcement')}
       size="sm"
       onclick={() => feedbackService.onAnnouncementDismissed()}
     >

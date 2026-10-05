@@ -1,3 +1,5 @@
+import { untrack } from 'svelte';
+import { t, i18nService } from '../i18n';
 import { logService } from '../log/logService';
 import { toFullActionId } from './actionId';
 import type { ExtensionAction, IActionService } from 'asyar-sdk/contracts';
@@ -59,14 +61,16 @@ function buildMacosConfirmMessage(appName: string, scan: UninstallScanResult): s
   const lines: string[] = [];
   const total = formatBytes(scan.totalBytes);
   if (scan.dataPaths.length === 0) {
-    lines.push(
-      `This will move ${appName} to the Trash (${total}). You can restore it from there later.`,
-    );
+    lines.push(t('core_actions.uninstall_msg_mac_none', { name: appName, total }));
   } else {
     lines.push(
-      `This will move ${appName} and ${scan.dataPaths.length} associated ${
-        scan.dataPaths.length === 1 ? 'file' : 'files'
-      } to the Trash — ${total} total. You can restore from Trash if needed.`,
+      scan.dataPaths.length === 1
+        ? t('core_actions.uninstall_msg_mac_files_one', { name: appName, total })
+        : t('core_actions.uninstall_msg_mac_files_other', {
+            name: appName,
+            count: scan.dataPaths.length,
+            total,
+          }),
     );
   }
   return lines.join(' ');
@@ -117,6 +121,17 @@ export class ActionService implements IActionService {
   constructor() {
     this.registerBuiltInActions();
     this.updateState();
+    // Registered actions keep plain-string labels, so re-register the built-ins
+    // when the locale changes (system locale resolves asynchronously after boot).
+    $effect.root(() => {
+      $effect(() => {
+        void i18nService.locale;
+        untrack(() => {
+          this.registerBuiltInActions();
+          this.updateState();
+        });
+      });
+    });
   }
 
   setExtensionForwarder(
@@ -400,10 +415,10 @@ export class ActionService implements IActionService {
   private registerBuiltInActions() {
     this.registerAction({
       id: 'settings',
-      label: 'Settings',
+      label: t('core_actions.settings'),
       icon: 'icon:settings',
-      description: 'Configure application settings',
-      category: 'System',
+      description: t('core_actions.settings_desc'),
+      category: t('categories.system'),
       context: ActionContext.CORE,
       execute: async () => {
         logService.info('Executing built-in action: Open Settings');
@@ -417,10 +432,10 @@ export class ActionService implements IActionService {
 
     this.registerAction({
       id: 'send_feedback',
-      label: 'Send Feedback',
+      label: t('common.send_feedback'),
       icon: 'icon:info',
-      description: 'Share an idea, praise, or report a problem',
-      category: 'System',
+      description: t('core_actions.send_feedback_desc'),
+      category: t('categories.system'),
       context: ActionContext.CORE,
       execute: async () => {
         logService.info('Executing built-in action: Send Feedback');
@@ -434,10 +449,10 @@ export class ActionService implements IActionService {
 
     this.registerAction({
       id: 'reset_search',
-      label: 'Reset Search Index',
+      label: t('core_actions.reset_search'),
       icon: 'icon:refresh',
-      description: 'Reset the search index',
-      category: 'System',
+      description: t('core_actions.reset_search_desc'),
+      category: t('categories.system'),
       context: ActionContext.CORE,
       visible: () => developerSettingsService.isDeveloperMode,
       execute: async () => {
@@ -448,22 +463,20 @@ export class ActionService implements IActionService {
 
     this.registerAction({
       id: 'factory_reset',
-      label: 'Reset Asyar to Factory Default',
+      label: t('core_actions.factory_reset'),
       icon: 'icon:trash',
-      description:
-        'Erase all Asyar data — settings, history, snippets, shortcuts, installed extensions — and quit',
-      category: 'Danger',
+      description: t('core_actions.factory_reset_desc'),
+      category: t('categories.danger'),
       context: ActionContext.CORE,
       confirm: true,
       visible: () => developerSettingsService.isDeveloperMode,
       execute: async () => {
         logService.info('Executing built-in action: Factory Reset');
         const confirmed = await feedbackService.confirmAlert({
-          title: 'Reset Asyar to Factory Default?',
-          message:
-            'Asyar will quit. The next time you launch it, every setting, clipboard entry, snippet, shortcut, alias, OAuth token, and installed extension will be erased. This cannot be undone.',
-          confirmText: 'Reset & Quit',
-          cancelText: 'Cancel',
+          title: t('core_actions.factory_reset_title'),
+          message: t('core_actions.factory_reset_message'),
+          confirmText: t('core_actions.factory_reset_confirm'),
+          cancelText: t('common.cancel'),
           variant: 'danger',
         });
         if (!confirmed) return;
@@ -482,12 +495,12 @@ export class ActionService implements IActionService {
 
     this.registerAction({
       id: 'uninstall_application',
-      label: 'Uninstall Application',
+      label: t('core_actions.uninstall_app'),
       icon: 'icon:trash',
       description: IS_MACOS
-        ? 'Move this application to the Trash'
-        : 'Launch the installer to remove this application',
-      category: 'Danger',
+        ? t('core_actions.uninstall_desc_mac')
+        : t('core_actions.uninstall_desc_win'),
+      category: t('categories.danger'),
       context: ActionContext.CORE,
       confirm: true,
       destructive: true,
@@ -528,18 +541,22 @@ export class ActionService implements IActionService {
             logService.warn(
               `Uninstall scan failed for '${appPath}'. Falling back to app-only confirm: ${String(error)}`,
             );
-            confirmMessage = `This will move ${appName} to the Trash. You can restore it from there later.`;
+            confirmMessage = t('core_actions.uninstall_msg_mac_fallback', { name: appName });
           }
         } else {
           // Windows
-          confirmMessage = `This will launch the uninstaller for ${appName}. The vendor's uninstaller will take over from there.`;
+          confirmMessage = t('core_actions.uninstall_msg_win', { name: appName });
         }
 
-        const confirmButton = IS_MACOS ? 'Move to Trash' : 'Open Uninstaller';
-        const successHud = IS_MACOS ? 'Moved to Trash' : 'Uninstaller launched';
+        const confirmButton = IS_MACOS
+          ? t('core_actions.uninstall_confirm_mac')
+          : t('core_actions.uninstall_confirm_win');
+        const successHud = IS_MACOS
+          ? t('core_actions.uninstall_hud_mac')
+          : t('core_actions.uninstall_hud_win');
 
         const confirmed = await feedbackService.confirmAlert({
-          title: `Uninstall ${appName}?`,
+          title: t('core_actions.uninstall_title', { name: appName }),
           message: confirmMessage,
           confirmText: confirmButton,
           variant: 'danger',
@@ -552,17 +569,19 @@ export class ActionService implements IActionService {
         } catch (err) {
           logService.error(`Uninstall failed for '${appPath}': ${err}`);
           const reason = err instanceof Error ? err.message : String(err);
-          await feedbackService.showHUD(`Uninstall failed: ${reason}`, { severity: 'error' });
+          await feedbackService.showHUD(t('core_actions.uninstall_failed', { reason }), {
+            severity: 'error',
+          });
         }
       },
     });
 
     this.registerAction({
       id: 'copy_deeplink',
-      label: 'Copy Deeplink',
+      label: t('core_actions.copy_deeplink'),
       icon: 'icon:link',
-      description: 'Copy a deep link URL for this command',
-      category: 'Share',
+      description: t('core_actions.copy_deeplink_desc'),
+      category: t('categories.share'),
       context: ActionContext.CORE,
       shortcut: 'Super+Shift+C',
       visible: () => {
@@ -578,16 +597,16 @@ export class ActionService implements IActionService {
         const url = `asyar://extensions/${encodeURIComponent(extensionId)}/${encodeURIComponent(commandId)}`;
 
         await writeText(url);
-        await feedbackService.showHUD('Deeplink Copied to Clipboard');
+        await feedbackService.showHUD(t('core_actions.deeplink_copied'));
       },
     });
 
     this.registerAction({
       id: 'view_extension_commands',
-      label: 'View Extension Commands',
+      label: t('core_actions.view_extension_commands'),
       icon: 'icon:list',
-      description: 'Show all commands provided by this extension',
-      category: 'Extension',
+      description: t('core_actions.view_extension_commands_desc'),
+      category: t('categories.extension'),
       context: ActionContext.CORE,
       shortcut: 'Super+Shift+E',
       visible: () => {
@@ -606,10 +625,10 @@ export class ActionService implements IActionService {
 
     this.registerAction({
       id: 'configure_extension',
-      label: 'Configure Extension Settings',
+      label: t('core_actions.configure_extension'),
       icon: 'icon:settings',
-      description: 'Open preferences and settings for this extension',
-      category: 'Extension',
+      description: t('core_actions.configure_extension_desc'),
+      category: t('categories.extension'),
       context: ActionContext.CORE,
       shortcut: 'Super+Shift+,',
       visible: () => {

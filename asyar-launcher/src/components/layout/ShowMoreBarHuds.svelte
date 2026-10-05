@@ -9,6 +9,7 @@
     falls back to the original "Show More ↓"-only layout.
 -->
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import Icon from '../base/Icon.svelte';
   import StatusDot from '../base/StatusDot.svelte';
   import { runService } from '../../services/run/runService.svelte';
@@ -25,7 +26,7 @@
   const agentsVisible = $derived(counts.agents.active > 0 || counts.agents.done > 0);
 </script>
 
-<div class="show-more-bar-huds" role="group" aria-label="Active runs summary">
+<div class="show-more-bar-huds" role="group" aria-label={t('show_more.runs_aria')}>
   {#if scriptsVisible}
     <div class="hud-chip">
       <Icon name="dev-tools" size={14} />

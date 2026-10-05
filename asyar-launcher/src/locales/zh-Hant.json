@@ -1153,7 +1153,9 @@
     "no_items_found": "未找到條目",
     "continue": "繼續",
     "copy": "複製",
-    "copied": "已複製！"
+    "copied": "已複製！",
+    "dismiss": "忽略",
+    "search_ellipsis": "搜尋…"
   },
   "components": {
     "shortcut_recorder": {
@@ -1188,5 +1190,145 @@
   },
   "ocr_copied": "文字已複製到剪貼簿",
   "ocr_no_text": "所選區域未找到文字",
-  "ocr_cancelled": "螢幕截圖已取消"
+  "ocr_cancelled": "螢幕截圖已取消",
+  "shortcuts_help": {
+    "open_settings": "開啟設定",
+    "toggle_actions": "切換操作面板",
+    "toggle_dropdown": "切換搜尋列下拉選單（顯示時）",
+    "tab": "填寫指令參數，或切換到 AI / 上下文模式",
+    "move": "在結果之間移動",
+    "run": "執行所選結果",
+    "escape": "清除搜尋、返回，然後隱藏 Asyar",
+    "backspace": "從檢視返回，或在搜尋為空時退出 AI 模式"
+  },
+  "categories": {
+    "system": "系統",
+    "danger": "危險操作",
+    "share": "分享",
+    "extension": "擴充功能",
+    "item": "項目",
+    "shortcuts": "快速鍵",
+    "aliases": "別名",
+    "runs": "執行",
+    "search_history": "搜尋紀錄"
+  },
+  "core_actions": {
+    "settings": "設定",
+    "settings_desc": "設定應用程式設定",
+    "send_feedback_desc": "分享想法、讚美或回報問題",
+    "reset_search": "重設搜尋索引",
+    "reset_search_desc": "重設搜尋索引",
+    "factory_reset": "將 Asyar 還原為原廠設定",
+    "factory_reset_desc": "清除所有 Asyar 資料——設定、歷史紀錄、片段、快速鍵、已安裝擴充功能——並結束",
+    "factory_reset_title": "將 Asyar 還原為原廠設定？",
+    "factory_reset_message": "Asyar 將結束。下次啟動時，所有設定、剪貼簿紀錄、片段、快速鍵、別名、OAuth 權杖與已安裝的擴充功能都將被清除，此操作無法復原。",
+    "factory_reset_confirm": "重設並結束",
+    "uninstall_app": "解除安裝應用程式",
+    "uninstall_desc_mac": "將此應用程式移至垃圾桶",
+    "uninstall_desc_win": "啟動安裝程式以移除此應用程式",
+    "uninstall_title": "解除安裝 {name}？",
+    "uninstall_confirm_mac": "移至垃圾桶",
+    "uninstall_confirm_win": "開啟解除安裝程式",
+    "uninstall_hud_mac": "已移至垃圾桶",
+    "uninstall_hud_win": "解除安裝程式已啟動",
+    "uninstall_failed": "解除安裝失敗：{reason}",
+    "uninstall_msg_mac_none": "這會將 {name} 移至垃圾桶（{total}）。你之後可以從垃圾桶中還原。",
+    "uninstall_msg_mac_files_one": "這會將 {name} 及 1 個相關檔案移至垃圾桶——共 {total}。如有需要可從垃圾桶還原。",
+    "uninstall_msg_mac_files_other": "這會將 {name} 及 {count} 個相關檔案移至垃圾桶——共 {total}。如有需要可從垃圾桶還原。",
+    "uninstall_msg_mac_fallback": "這會將 {name} 移至垃圾桶。你之後可以從垃圾桶中還原。",
+    "uninstall_msg_win": "這會啟動 {name} 的解除安裝程式，之後將由廠商的解除安裝程式接管。",
+    "copy_deeplink": "複製深層連結",
+    "copy_deeplink_desc": "複製此指令的深層連結 URL",
+    "deeplink_copied": "深層連結已複製到剪貼簿",
+    "view_extension_commands": "檢視擴充功能指令",
+    "view_extension_commands_desc": "顯示此擴充功能提供的所有指令",
+    "configure_extension": "設定擴充功能設定",
+    "configure_extension_desc": "開啟此擴充功能的偏好設定"
+  },
+  "selection_actions": {
+    "change_shortcut": "變更快速鍵",
+    "assign_shortcut": "指派快速鍵",
+    "assign_shortcut_desc": "指派全域快速鍵",
+    "cancel_run": "取消執行",
+    "cancel_run_desc": "取消此執行中的工作",
+    "dismiss_failure": "忽略失敗",
+    "dismiss_failure_desc": "從啟動器清單中移除此失敗的執行（仍保留在歷史紀錄中）",
+    "change_alias": "變更別名",
+    "assign_alias": "指派別名",
+    "assign_alias_desc": "指派一個快速文字別名",
+    "unfavorite": "從我的最愛移除",
+    "unfavorite_desc": "讓此項目恢復自動排序",
+    "favorite": "加入我的最愛",
+    "favorite_desc": "搜尋為空時優先顯示此項目",
+    "delete_history": "從歷史紀錄中刪除",
+    "delete_history_title": "從歷史紀錄中刪除？",
+    "delete_history_message": "此查詢將無法再透過向上鍵叫出。"
+  },
+  "launcher_errors": {
+    "command_args_open": "無法開啟指令參數——請再試一次",
+    "command_args_run": "無法使用所提供的參數執行指令",
+    "action_exec": "執行操作時發生錯誤",
+    "action_failed": "失敗：{message}",
+    "confirm_run": "確定要執行「{label}」嗎？此操作無法復原。"
+  },
+  "feedback_nudge": {
+    "title": "有回饋嗎？我們在聽",
+    "message": "分享想法、讚美或回報問題"
+  },
+  "recorder": {
+    "aria": "按下按鍵以設定快速鍵",
+    "saving": "正在儲存...",
+    "saved": "已儲存"
+  },
+  "feedback_details": {
+    "title": "回饋詳情",
+    "in_progress": "進行中",
+    "progress_of": "{completed} / {total}",
+    "technical": "技術細節",
+    "context": "內容",
+    "report": "回報"
+  },
+  "toast": {
+    "dismiss_announcement": "忽略公告"
+  },
+  "usage_prompt": {
+    "aria": "匿名使用情況分享",
+    "title": "分享匿名使用情況？",
+    "subtitle": "分享 {day} 的匿名使用情況？僅傳送指令次數與你的匿名 ID。",
+    "send": "傳送",
+    "not_now": "暫時不要"
+  },
+  "entitlement": {
+    "requires_subscription": "{feature} 需要訂閱",
+    "sign_in": "登入以查看可用方案",
+    "view_plans": "檢視方案"
+  },
+  "model_selector": {
+    "popover_aria": "模型選擇器彈出視窗",
+    "clear_search": "清除搜尋"
+  },
+  "placeholder_picker": {
+    "title": "插入預留位置"
+  },
+  "search_header": {
+    "go_back_title": "按 Esc 返回",
+    "go_back": "返回",
+    "exit_context": "退出內容模式",
+    "query_placeholder": "查詢..."
+  },
+  "show_more": {
+    "runs_aria": "執行中項目摘要"
+  },
+  "actions_popup": {
+    "sr_heading": "可用操作"
+  },
+  "search_accessory": {
+    "filter_placeholder": "輸入以篩選…",
+    "filter_aria": "篩選選項"
+  },
+  "shell_consent": {
+    "alias": "別名：",
+    "non_standard": "非標準路徑：",
+    "non_standard_desc": "此執行檔位於標準系統路徑之外。"
+  }
 }

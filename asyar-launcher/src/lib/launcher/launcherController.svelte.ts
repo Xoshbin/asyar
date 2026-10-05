@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
 import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
@@ -167,7 +168,7 @@ export class LauncherController {
         kind: 'action_failed',
         severity: 'error',
         retryable: false,
-        context: { message: 'Could not run command with the provided arguments' },
+        context: { message: t('launcher_errors.command_args_run') },
       });
     }
   }
@@ -241,7 +242,7 @@ export class LauncherController {
           kind: 'action_failed',
           severity: 'error',
           retryable: false,
-          context: { message: 'Error executing action' },
+          context: { message: t('launcher_errors.action_exec') },
         });
       }
     }

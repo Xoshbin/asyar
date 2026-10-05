@@ -40,7 +40,7 @@
   }
 </script>
 
-<Modal bind:isOpen title="Feedback details" width="34rem">
+<Modal bind:isOpen title={t('feedback_details.title')} width="34rem">
   {#snippet children()}
     <div class="details" data-severity={feedback.severity}>
       <p class="message">{message}</p>
@@ -48,21 +48,26 @@
         <div class="progress-row">
           <Spinner size="inline" accent />
           {#if feedback.progress.completed != null && feedback.progress.total != null}
-            <span>{feedback.progress.completed} of {feedback.progress.total}</span>
+            <span
+              >{t('feedback_details.progress_of', {
+                completed: feedback.progress.completed,
+                total: feedback.progress.total,
+              })}</span
+            >
           {:else}
-            <span>In progress</span>
+            <span>{t('feedback_details.in_progress')}</span>
           {/if}
         </div>
       {/if}
       {#if feedback.developerDetail}
         <section>
-          <h4>Technical detail</h4>
+          <h4>{t('feedback_details.technical')}</h4>
           <pre>{feedback.developerDetail}</pre>
         </section>
       {/if}
       {#if contextEntries.length > 0}
         <section>
-          <h4>Context</h4>
+          <h4>{t('feedback_details.context')}</h4>
           <dl>
             {#each contextEntries as [key, value]}
               <dt>{key}</dt>
@@ -75,7 +80,8 @@
   {/snippet}
   {#snippet actions()}
     <Button onclick={copyDetails}>{t('common.copy_details')}</Button>
-    {#if feedback.reportActionId}<Button onclick={report}>Report</Button>{/if}
+    {#if feedback.reportActionId}<Button onclick={report}>{t('feedback_details.report')}</Button
+      >{/if}
     {#if feedback.retryable && feedback.retryActionId}<Button onclick={retry}
         >{t('common.retry')}</Button
       >{/if}

@@ -1153,7 +1153,9 @@
     "no_items_found": "No items found",
     "continue": "Continue",
     "copy": "Copy",
-    "copied": "Copied!"
+    "copied": "Copied!",
+    "dismiss": "Dismiss",
+    "search_ellipsis": "Search…"
   },
   "components": {
     "shortcut_recorder": {
@@ -1188,5 +1190,145 @@
   },
   "ocr_copied": "Text copied to clipboard",
   "ocr_no_text": "No text found in selected area",
-  "ocr_cancelled": "Screen capture cancelled"
+  "ocr_cancelled": "Screen capture cancelled",
+  "shortcuts_help": {
+    "open_settings": "Open Settings",
+    "toggle_actions": "Toggle the action panel",
+    "toggle_dropdown": "Toggle the search-bar dropdown (when one is shown)",
+    "tab": "Fill command arguments, or switch to AI / context mode",
+    "move": "Move between results",
+    "run": "Run the selected result",
+    "escape": "Clear the search, go back, then hide Asyar",
+    "backspace": "Go back from a view, or exit AI mode when the search is empty"
+  },
+  "categories": {
+    "system": "System",
+    "danger": "Danger",
+    "share": "Share",
+    "extension": "Extension",
+    "item": "Item",
+    "shortcuts": "Shortcuts",
+    "aliases": "Aliases",
+    "runs": "Runs",
+    "search_history": "Search history"
+  },
+  "core_actions": {
+    "settings": "Settings",
+    "settings_desc": "Configure application settings",
+    "send_feedback_desc": "Share an idea, praise, or report a problem",
+    "reset_search": "Reset Search Index",
+    "reset_search_desc": "Reset the search index",
+    "factory_reset": "Reset Asyar to Factory Default",
+    "factory_reset_desc": "Erase all Asyar data — settings, history, snippets, shortcuts, installed extensions — and quit",
+    "factory_reset_title": "Reset Asyar to Factory Default?",
+    "factory_reset_message": "Asyar will quit. The next time you launch it, every setting, clipboard entry, snippet, shortcut, alias, OAuth token, and installed extension will be erased. This cannot be undone.",
+    "factory_reset_confirm": "Reset & Quit",
+    "uninstall_app": "Uninstall Application",
+    "uninstall_desc_mac": "Move this application to the Trash",
+    "uninstall_desc_win": "Launch the installer to remove this application",
+    "uninstall_title": "Uninstall {name}?",
+    "uninstall_confirm_mac": "Move to Trash",
+    "uninstall_confirm_win": "Open Uninstaller",
+    "uninstall_hud_mac": "Moved to Trash",
+    "uninstall_hud_win": "Uninstaller launched",
+    "uninstall_failed": "Uninstall failed: {reason}",
+    "uninstall_msg_mac_none": "This will move {name} to the Trash ({total}). You can restore it from there later.",
+    "uninstall_msg_mac_files_one": "This will move {name} and 1 associated file to the Trash — {total} total. You can restore from Trash if needed.",
+    "uninstall_msg_mac_files_other": "This will move {name} and {count} associated files to the Trash — {total} total. You can restore from Trash if needed.",
+    "uninstall_msg_mac_fallback": "This will move {name} to the Trash. You can restore it from there later.",
+    "uninstall_msg_win": "This will launch the uninstaller for {name}. The vendor's uninstaller will take over from there.",
+    "copy_deeplink": "Copy Deeplink",
+    "copy_deeplink_desc": "Copy a deep link URL for this command",
+    "deeplink_copied": "Deeplink Copied to Clipboard",
+    "view_extension_commands": "View Extension Commands",
+    "view_extension_commands_desc": "Show all commands provided by this extension",
+    "configure_extension": "Configure Extension Settings",
+    "configure_extension_desc": "Open preferences and settings for this extension"
+  },
+  "selection_actions": {
+    "change_shortcut": "Change Shortcut",
+    "assign_shortcut": "Assign Shortcut",
+    "assign_shortcut_desc": "Assign global shortcut",
+    "cancel_run": "Cancel Run",
+    "cancel_run_desc": "Cancel this running task",
+    "dismiss_failure": "Dismiss Failure",
+    "dismiss_failure_desc": "Remove this failed run from the launcher list (still kept in history)",
+    "change_alias": "Change Alias",
+    "assign_alias": "Assign Alias",
+    "assign_alias_desc": "Assign a quick text alias",
+    "unfavorite": "Remove from favorites",
+    "unfavorite_desc": "Return this item to automatic ranking",
+    "favorite": "Add to favorites",
+    "favorite_desc": "Show this item first when the search is empty",
+    "delete_history": "Delete from history",
+    "delete_history_title": "Delete from history?",
+    "delete_history_message": "This query will no longer be available with the up arrow."
+  },
+  "launcher_errors": {
+    "command_args_open": "Could not open command arguments — please try again",
+    "command_args_run": "Could not run command with the provided arguments",
+    "action_exec": "Error executing action",
+    "action_failed": "Failed: {message}",
+    "confirm_run": "Are you sure you want to run '{label}'? This cannot be undone."
+  },
+  "feedback_nudge": {
+    "title": "Got feedback? We're listening",
+    "message": "Share an idea, praise, or report an issue"
+  },
+  "recorder": {
+    "aria": "Press keys to set shortcut",
+    "saving": "Saving...",
+    "saved": "Saved"
+  },
+  "feedback_details": {
+    "title": "Feedback details",
+    "in_progress": "In progress",
+    "progress_of": "{completed} of {total}",
+    "technical": "Technical detail",
+    "context": "Context",
+    "report": "Report"
+  },
+  "toast": {
+    "dismiss_announcement": "Dismiss announcement"
+  },
+  "usage_prompt": {
+    "aria": "Anonymous usage share",
+    "title": "Share anonymous usage?",
+    "subtitle": "Share anonymous usage for {day}? Only command counts and your anonymous id are sent.",
+    "send": "Send",
+    "not_now": "Not now"
+  },
+  "entitlement": {
+    "requires_subscription": "{feature} requires a subscription",
+    "sign_in": "Sign in to see available plans",
+    "view_plans": "View Plans"
+  },
+  "model_selector": {
+    "popover_aria": "Model selector popover",
+    "clear_search": "Clear search"
+  },
+  "placeholder_picker": {
+    "title": "Insert Placeholder"
+  },
+  "search_header": {
+    "go_back_title": "Press Escape to go back",
+    "go_back": "Go back",
+    "exit_context": "Exit context mode",
+    "query_placeholder": "Query..."
+  },
+  "show_more": {
+    "runs_aria": "Active runs summary"
+  },
+  "actions_popup": {
+    "sr_heading": "Available Actions"
+  },
+  "search_accessory": {
+    "filter_placeholder": "Type to filter…",
+    "filter_aria": "Filter options"
+  },
+  "shell_consent": {
+    "alias": "Alias:",
+    "non_standard": "Non-standard:",
+    "non_standard_desc": "This binary runs outside standard system paths."
+  }
 }

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { settingsService } from '../settings/settingsService.svelte';
 import { feedbackService } from './feedbackService.svelte';
 import { commandService } from '../extension/commandService.svelte';
@@ -48,8 +49,8 @@ export async function checkAndNotifyFeedback(): Promise<void> {
 
     await feedbackService.announceFromHost({
       id: 'feedback-nudge',
-      title: "Got feedback? We're listening",
-      message: 'Share an idea, praise, or report an issue',
+      title: t('feedback_nudge.title'),
+      message: t('feedback_nudge.message'),
       onClick: async () => {
         try {
           await commandService.executeCommand('cmd_feedback_send-feedback');

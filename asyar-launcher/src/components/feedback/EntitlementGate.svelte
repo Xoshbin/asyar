@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import type { Snippet } from 'svelte';
   import { gate } from '../../services/auth/gateService.svelte';
   import type { AbilityName, EntitlementName } from '../../services/auth/gateService.svelte';
@@ -56,17 +57,17 @@
         </svg>
       </div>
       <p class="text-sm font-medium" style="color: var(--text-primary)">
-        {featureName} requires a subscription
+        {t('entitlement.requires_subscription', { feature: featureName })}
       </p>
       {#if !authService.isLoggedIn}
-        <p class="text-xs" style="color: var(--text-secondary)">Sign in to see available plans</p>
+        <p class="text-xs" style="color: var(--text-secondary)">{t('entitlement.sign_in')}</p>
       {/if}
       <button
         class="mt-1 px-4 py-2 rounded-lg text-sm font-medium"
         style="background: var(--bg-tertiary); border: 1px solid var(--separator); color: var(--text-primary); cursor: pointer;"
         onclick={() => openUrl('https://asyar.org/pricing')}
       >
-        View Plans
+        {t('entitlement.view_plans')}
       </button>
     </div>
   </div>

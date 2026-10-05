@@ -1153,7 +1153,9 @@
     "no_items_found": "Nenhum item encontrado",
     "continue": "Continuar",
     "copy": "Copiar",
-    "copied": "Copiado!"
+    "copied": "Copiado!",
+    "dismiss": "Dispensar",
+    "search_ellipsis": "Pesquisar…"
   },
   "components": {
     "shortcut_recorder": {
@@ -1188,5 +1190,145 @@
   },
   "ocr_copied": "Texto copiado para a área de transferência",
   "ocr_no_text": "Nenhum texto encontrado na área selecionada",
-  "ocr_cancelled": "Captura de tela cancelada"
+  "ocr_cancelled": "Captura de tela cancelada",
+  "shortcuts_help": {
+    "open_settings": "Abrir Configurações",
+    "toggle_actions": "Alternar o painel de ações",
+    "toggle_dropdown": "Alternar o menu suspenso da barra de busca (quando exibido)",
+    "tab": "Preencher argumentos do comando ou alternar para o modo IA / contexto",
+    "move": "Navegar entre os resultados",
+    "run": "Executar o resultado selecionado",
+    "escape": "Limpar a busca, voltar e depois ocultar o Asyar",
+    "backspace": "Voltar de uma tela ou sair do modo IA quando a busca estiver vazia"
+  },
+  "categories": {
+    "system": "Sistema",
+    "danger": "Perigo",
+    "share": "Compartilhar",
+    "extension": "Extensão",
+    "item": "Item",
+    "shortcuts": "Atalhos",
+    "aliases": "Aliases",
+    "runs": "Execuções",
+    "search_history": "Histórico de busca"
+  },
+  "core_actions": {
+    "settings": "Configurações",
+    "settings_desc": "Configurar as configurações do aplicativo",
+    "send_feedback_desc": "Compartilhe uma ideia, elogio ou relate um problema",
+    "reset_search": "Redefinir índice de busca",
+    "reset_search_desc": "Redefine o índice de busca",
+    "factory_reset": "Restaurar o Asyar às configurações de fábrica",
+    "factory_reset_desc": "Apaga todos os dados do Asyar — configurações, histórico, snippets, atalhos, extensões instaladas — e encerra",
+    "factory_reset_title": "Restaurar o Asyar às configurações de fábrica?",
+    "factory_reset_message": "O Asyar será encerrado. Na próxima vez que você o abrir, todas as configurações, entradas da área de transferência, snippets, atalhos, aliases, tokens OAuth e extensões instaladas terão sido apagados. Esta ação não pode ser desfeita.",
+    "factory_reset_confirm": "Redefinir e sair",
+    "uninstall_app": "Desinstalar aplicativo",
+    "uninstall_desc_mac": "Mover este aplicativo para a Lixeira",
+    "uninstall_desc_win": "Iniciar o instalador para remover este aplicativo",
+    "uninstall_title": "Desinstalar {name}?",
+    "uninstall_confirm_mac": "Mover para a Lixeira",
+    "uninstall_confirm_win": "Abrir desinstalador",
+    "uninstall_hud_mac": "Movido para a Lixeira",
+    "uninstall_hud_win": "Desinstalador iniciado",
+    "uninstall_failed": "Falha ao desinstalar: {reason}",
+    "uninstall_msg_mac_none": "Isto moverá {name} para a Lixeira ({total}). Você poderá restaurá-lo de lá depois.",
+    "uninstall_msg_mac_files_one": "Isto moverá {name} e 1 arquivo associado para a Lixeira — {total} no total. Você poderá restaurar da Lixeira, se necessário.",
+    "uninstall_msg_mac_files_other": "Isto moverá {name} e {count} arquivos associados para a Lixeira — {total} no total. Você poderá restaurar da Lixeira, se necessário.",
+    "uninstall_msg_mac_fallback": "Isto moverá {name} para a Lixeira. Você poderá restaurá-lo de lá depois.",
+    "uninstall_msg_win": "Isto iniciará o desinstalador de {name}. O desinstalador do fabricante assumirá a partir daí.",
+    "copy_deeplink": "Copiar deeplink",
+    "copy_deeplink_desc": "Copiar uma URL de deeplink para este comando",
+    "deeplink_copied": "Deeplink copiado para a área de transferência",
+    "view_extension_commands": "Ver comandos da extensão",
+    "view_extension_commands_desc": "Mostrar todos os comandos fornecidos por esta extensão",
+    "configure_extension": "Configurar ajustes da extensão",
+    "configure_extension_desc": "Abrir preferências e configurações desta extensão"
+  },
+  "selection_actions": {
+    "change_shortcut": "Alterar atalho",
+    "assign_shortcut": "Atribuir atalho",
+    "assign_shortcut_desc": "Atribuir atalho global",
+    "cancel_run": "Cancelar execução",
+    "cancel_run_desc": "Cancelar esta tarefa em execução",
+    "dismiss_failure": "Dispensar falha",
+    "dismiss_failure_desc": "Remover esta execução com falha da lista do launcher (continua no histórico)",
+    "change_alias": "Alterar alias",
+    "assign_alias": "Atribuir alias",
+    "assign_alias_desc": "Atribuir um alias de texto rápido",
+    "unfavorite": "Remover dos favoritos",
+    "unfavorite_desc": "Devolver este item à classificação automática",
+    "favorite": "Adicionar aos favoritos",
+    "favorite_desc": "Mostrar este item primeiro quando a busca estiver vazia",
+    "delete_history": "Excluir do histórico",
+    "delete_history_title": "Excluir do histórico?",
+    "delete_history_message": "Esta consulta não estará mais disponível com a seta para cima."
+  },
+  "launcher_errors": {
+    "command_args_open": "Não foi possível abrir os argumentos do comando — tente novamente",
+    "command_args_run": "Não foi possível executar o comando com os argumentos fornecidos",
+    "action_exec": "Erro ao executar a ação",
+    "action_failed": "Falha: {message}",
+    "confirm_run": "Tem certeza de que deseja executar '{label}'? Esta ação não pode ser desfeita."
+  },
+  "feedback_nudge": {
+    "title": "Tem feedback? Estamos ouvindo",
+    "message": "Compartilhe uma ideia, elogio ou relate um problema"
+  },
+  "recorder": {
+    "aria": "Pressione as teclas para definir o atalho",
+    "saving": "Salvando...",
+    "saved": "Salvo"
+  },
+  "feedback_details": {
+    "title": "Detalhes do feedback",
+    "in_progress": "Em andamento",
+    "progress_of": "{completed} de {total}",
+    "technical": "Detalhe técnico",
+    "context": "Contexto",
+    "report": "Relatar"
+  },
+  "toast": {
+    "dismiss_announcement": "Dispensar aviso"
+  },
+  "usage_prompt": {
+    "aria": "Compartilhamento anônimo de uso",
+    "title": "Compartilhar uso anônimo?",
+    "subtitle": "Compartilhar o uso anônimo de {day}? Somente as contagens de comandos e seu ID anônimo são enviados.",
+    "send": "Enviar",
+    "not_now": "Agora não"
+  },
+  "entitlement": {
+    "requires_subscription": "{feature} requer uma assinatura",
+    "sign_in": "Entre para ver os planos disponíveis",
+    "view_plans": "Ver planos"
+  },
+  "model_selector": {
+    "popover_aria": "Seletor de modelo",
+    "clear_search": "Limpar pesquisa"
+  },
+  "placeholder_picker": {
+    "title": "Inserir marcador"
+  },
+  "search_header": {
+    "go_back_title": "Pressione Esc para voltar",
+    "go_back": "Voltar",
+    "exit_context": "Sair do modo de contexto",
+    "query_placeholder": "Consulta..."
+  },
+  "show_more": {
+    "runs_aria": "Resumo das execuções ativas"
+  },
+  "actions_popup": {
+    "sr_heading": "Ações disponíveis"
+  },
+  "search_accessory": {
+    "filter_placeholder": "Digite para filtrar…",
+    "filter_aria": "Filtrar opções"
+  },
+  "shell_consent": {
+    "alias": "Alias:",
+    "non_standard": "Fora do padrão:",
+    "non_standard_desc": "Este binário é executado fora dos caminhos padrão do sistema."
+  }
 }
