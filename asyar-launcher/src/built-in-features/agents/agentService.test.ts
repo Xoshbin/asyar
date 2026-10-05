@@ -347,6 +347,27 @@ describe('Rust-owned agent lifecycle', () => {
     expect(result).toEqual(row);
   });
 
+  it('repoints only agents on the removed provider to the target provider/model', async () => {
+    const onOld = makeAgent({ id: 'a1', providerId: 'old', modelId: 'old-model' });
+    const onOther = makeAgent({ id: 'a2', providerId: 'other', modelId: 'other-model' });
+    vi.mocked(commands.agentsList).mockResolvedValueOnce([onOld, onOther] as never);
+    await service.init();
+    vi.mocked(commands.agentsUpdate).mockImplementation((async (input: { id: string }) => ({
+      ...onOld,
+      ...input,
+    })) as never);
+
+    const count = await service.repointAgents('old', 'new', 'new-model');
+
+    expect(count).toBe(1);
+    expect(commands.agentsUpdate).toHaveBeenCalledTimes(1);
+    expect(commands.agentsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'a1', providerId: 'new', modelId: 'new-model' }),
+    );
+    expect(service.getById('a1')?.providerId).toBe('new');
+    expect(service.getById('a2')?.providerId).toBe('other');
+  });
+
   it('delegates idempotent Grammar Fix seeding to Rust', async () => {
     const row = makeAgent({ id: 'grammar-1', name: 'Grammar Fix', silent: true });
     vi.mocked(commands.agentsSeedGrammarFix).mockResolvedValue(row as never);

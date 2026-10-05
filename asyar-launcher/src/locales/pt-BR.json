@@ -305,6 +305,7 @@
       "retention_custom_placeholder": "Limite",
       "behavior_section": "Comportamento",
       "providers_section": "Provedores",
+      "error_repoint_agents": "Provedor removido, mas alguns agentes não puderam ser movidos para o provedor padrão.",
       "add_provider": "+ Adicionar provedor",
       "test_and_fetch": "Testar e Buscar Modelos",
       "fetching": "Buscando…",
