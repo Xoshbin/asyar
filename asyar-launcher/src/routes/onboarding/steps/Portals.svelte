@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../services/i18n';
   import { Card, Button, LauncherHint } from '../../../components';
   import { advanceStep } from '../stepLogic';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
@@ -21,19 +22,23 @@
 
 <Card>
   <div class="step">
-    <p class="step__kicker">Turn any site into a command</p>
-    <h1 class="step__title"><span class="onb-hl">Portals</span></h1>
+    <p class="step__kicker">{t('onboarding.portals_kicker')}</p>
+    <h1 class="step__title"><span class="onb-hl">{t('onboarding.portals_heading')}</span></h1>
     <p class="step__lede">
-      A portal is a saved URL with a <code>{'{query}'}</code> placeholder — type a few letters and jump
-      straight into a search. We'll add a sample "Search GitHub" portal so you can try it.
+      {t('onboarding.portals_desc_pre')} <code>{'{query}'}</code>
+      {t('onboarding.portals_desc_post')}
     </p>
 
     <Button class="btn-secondary" onclick={addSample} disabled={seeded}>
-      {seeded ? '✓ Sample added' : 'Add sample portal'}
+      {seeded ? t('onboarding.portals_sample_added') : t('onboarding.portals_add_sample')}
     </Button>
 
     <LauncherHint
-      steps={[`Press ${mod}+${key}`, 'Type Search GitHub', 'Press Tab, type a query, Enter']}
+      steps={[
+        t('onboarding.hint_press_shortcut', { shortcut: `${mod}+${key}` }),
+        t('onboarding.portals_hint_type'),
+        t('onboarding.portals_hint_tab'),
+      ]}
     />
   </div>
 </Card>

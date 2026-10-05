@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import { onMount } from 'svelte';
   import { onboardingService } from '../../services/onboarding/onboardingService.svelte';
   import StepProgress from '../../components/onboarding/StepProgress.svelte';
@@ -67,7 +68,7 @@
       </div>
       <div class="onboarding-stage__footer">
         {#if nav.showBack}
-          <Button class="btn-secondary" onclick={nav.onBack}>Back</Button>
+          <Button class="btn-secondary" onclick={nav.onBack}>{t('common.back')}</Button>
         {:else}
           <span></span>
         {/if}
@@ -82,7 +83,7 @@
     <OnboardingStage image={visual.image} lean={visual.lean} />
   </div>
 {:else}
-  <p>Loading…</p>
+  <p>{t('common.loading')}</p>
 {/if}
 
 <style>

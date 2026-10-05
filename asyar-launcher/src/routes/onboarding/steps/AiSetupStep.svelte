@@ -98,7 +98,7 @@
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: `Failed to connect ${spec.name}` },
+        context: { message: t('onboarding.connect_failed', { name: spec.name }) },
         developerDetail: String(err),
       });
     } finally {
@@ -137,10 +137,10 @@
   $effect(() => {
     onboardingNav.set({
       showSkip: true,
-      skipLabel: 'Skip for now',
+      skipLabel: t('onboarding.skip_for_now'),
       onSkip: handleAiSkip,
       onPrimary: handleAiSetupDone,
-      primaryLabel: hasConfiguredProvider ? 'Continue' : 'Skip for now',
+      primaryLabel: hasConfiguredProvider ? t('onboarding.continue') : t('onboarding.skip_for_now'),
     });
   });
 </script>
@@ -233,7 +233,9 @@
                   onclick={() => connectCli(spec)}
                   disabled={connecting !== null}
                 >
-                  {connecting === spec.id ? 'Connecting...' : t('onboarding.ai_step_quick_connect')}
+                  {connecting === spec.id
+                    ? t('onboarding.connecting')
+                    : t('onboarding.ai_step_quick_connect')}
                 </Button>
               {/if}
             </div>

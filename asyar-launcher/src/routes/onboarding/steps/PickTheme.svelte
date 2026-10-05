@@ -100,7 +100,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: true,
-        context: { message: `Could not install "${theme.name}"` },
+        context: { message: t('onboarding.theme_install_failed', { name: theme.name }) },
       });
     } finally {
       installingId = null;
@@ -122,7 +122,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: true,
-        context: { message: `Could not apply "${theme.name}"` },
+        context: { message: t('onboarding.theme_apply_failed', { name: theme.name }) },
       });
     }
   }

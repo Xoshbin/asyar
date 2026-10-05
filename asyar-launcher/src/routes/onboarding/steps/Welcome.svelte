@@ -7,7 +7,11 @@
   import { t } from '../../../services/i18n';
 
   $effect(() => {
-    onboardingNav.set({ showBack: false, primaryLabel: 'Start the tour', onPrimary: advanceStep });
+    onboardingNav.set({
+      showBack: false,
+      primaryLabel: t('onboarding.start_tour'),
+      onPrimary: advanceStep,
+    });
   });
 
   const currentTheme = $derived(settingsService.currentSettings.appearance.theme);
@@ -34,7 +38,8 @@
   <div class="welcome">
     <p class="welcome__kicker">{t('onboarding.welcome_title')}</p>
     <h1 class="welcome__title">
-      Meet Asyar — your keyboard-first <span class="onb-hl">command center</span>
+      {t('onboarding.welcome_headline_pre')}
+      <span class="onb-hl">{t('onboarding.welcome_headline_hl')}</span>
     </h1>
     <p class="welcome__lede">
       {t('onboarding.welcome_desc')}

@@ -90,7 +90,7 @@
 
     onboardingNav.set({
       showSkip: true,
-      primaryLabel: `Install ${installableSelected.length} selected`,
+      primaryLabel: t('onboarding.install_n_selected', { n: installableSelected.length }),
       primaryDisabled: installableSelected.length === 0 || installingIds.size > 0,
       onSkip: advanceStep,
       onPrimary: installSelected,
@@ -153,9 +153,10 @@
                   disabled={installed || installingIds.has(ext.id)}
                 />
                 <span class="name">{ext.name}</span>
-                {#if installed}<Badge text="Installed" variant="success" />{/if}
-                {#if installingIds.has(ext.id)}<span class="hint">Installing…</span>{/if}
-                {#if failedIds.has(ext.id)}<span class="error">Failed</span>{/if}
+                {#if installed}<Badge text={t('onboarding.installed')} variant="success" />{/if}
+                {#if installingIds.has(ext.id)}<span class="hint">{t('common.installing')}</span
+                  >{/if}
+                {#if failedIds.has(ext.id)}<span class="error">{t('onboarding.failed')}</span>{/if}
               </label>
             </li>
           {/each}

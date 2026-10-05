@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../services/i18n';
   import { onMount } from 'svelte';
   import { Card, Button, ExpansionDemo } from '../../../components';
   import { advanceStep } from '../stepLogic';
@@ -15,7 +16,10 @@
   let error = $state('');
 
   $effect(() => {
-    onboardingNav.set({ primaryLabel: installed ? 'Continue' : 'Skip', onPrimary: advanceStep });
+    onboardingNav.set({
+      primaryLabel: installed ? t('onboarding.continue') : t('onboarding.skip'),
+      onPrimary: advanceStep,
+    });
   });
 
   async function checkInstalled() {
@@ -62,28 +66,34 @@
 
 <Card>
   <div class="step">
-    <p class="step__kicker">Faster than an emoji picker</p>
-    <h1 class="step__title">Emoji <span class="onb-hl">shortcodes</span></h1>
+    <p class="step__kicker">{t('onboarding.emoji_kicker')}</p>
+    <h1 class="step__title">
+      {t('onboarding.emoji_title_pre')} <span class="onb-hl">{t('onboarding.emoji_title_hl')}</span>
+    </h1>
     <p class="step__lede">
-      Type <code>:party:</code> and it becomes 🎉 — anywhere you type. Install the Emoji extension, then
-      try it in any app you type in.
+      {t('onboarding.emoji_desc_pre')} <code>:party:</code>
+      {t('onboarding.emoji_desc_post')}
     </p>
 
     <div class="step__setup">
-      <span class="step__label">1 · Install</span>
+      <span class="step__label"
+        >{t('onboarding.step_num', { n: 1, label: t('onboarding.install') })}</span
+      >
       <Button onclick={doInstall} disabled={installing || installed}>
-        {installed ? '✓ Emoji installed' : installing ? 'Installing…' : 'Install Emoji extension'}
+        {installed
+          ? t('onboarding.emoji_installed')
+          : installing
+            ? t('common.installing')
+            : t('onboarding.emoji_install_btn')}
       </Button>
       {#if error}<p class="step__error">{error}</p>{/if}
-      <span class="step__label">2 · Permission</span>
+      <span class="step__label"
+        >{t('onboarding.step_num', { n: 2, label: t('onboarding.permission') })}</span
+      >
       <AccessibilityGate bind:granted={axGranted} />
     </div>
 
-    <ExpansionDemo
-      trigger=":party:"
-      result="🎉"
-      note="Heads up: shortcodes expand in other apps (Notes, Slack, your editor) — not inside Asyar's own windows. Install above, then try it anywhere you type."
-    />
+    <ExpansionDemo trigger=":party:" result="🎉" note={t('onboarding.emoji_note')} />
   </div>
 </Card>
 

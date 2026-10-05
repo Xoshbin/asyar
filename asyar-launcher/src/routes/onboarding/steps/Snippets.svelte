@@ -13,7 +13,10 @@
   let error = $state('');
 
   $effect(() => {
-    onboardingNav.set({ primaryLabel: seeded ? 'Continue' : 'Skip', onPrimary: advanceStep });
+    onboardingNav.set({
+      primaryLabel: seeded ? t('onboarding.continue') : t('onboarding.skip'),
+      onPrimary: advanceStep,
+    });
   });
 
   async function setUp() {
@@ -24,7 +27,7 @@
       seeded = true;
       const ok = await enableExpansion();
       if (!ok) {
-        error = 'Could not enable expansion — grant Accessibility permission above and try again.';
+        error = t('onboarding.snippets_expansion_error');
       } else {
         enabled = true;
       }
@@ -45,23 +48,21 @@
     </p>
 
     <div class="step__setup">
-      <span class="step__label">1 · Permission</span>
+      <span class="step__label"
+        >{t('onboarding.step_num', { n: 1, label: t('onboarding.permission') })}</span
+      >
       <AccessibilityGate bind:granted={axGranted} />
       <Button onclick={setUp} disabled={working || (seeded && enabled)}>
         {seeded && enabled
-          ? '✓ Sample snippet ready'
+          ? t('onboarding.snippets_sample_ready')
           : working
-            ? 'Setting up…'
-            : '2 · Add sample & enable'}
+            ? t('onboarding.setting_up')
+            : t('onboarding.step_num', { n: 2, label: t('onboarding.snippets_add_sample') })}
       </Button>
       {#if error}<p class="step__error">{error}</p>{/if}
     </div>
 
-    <ExpansionDemo
-      trigger=";email"
-      result="you@example.com"
-      note="Heads up: snippets expand in other apps — not inside Asyar's own windows. Add the sample above, then type ;email anywhere you type."
-    />
+    <ExpansionDemo trigger=";email" result="you@example.com" note={t('onboarding.snippets_note')} />
   </div>
 </Card>
 

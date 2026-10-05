@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../services/i18n';
   import { Card, Button, ShortcutRecorder, TestBox } from '../../../components';
   import { advanceStep } from '../stepLogic';
   import { DEFAULT_GRAMMAR_FIX_HOTKEY } from '../../../built-in-features/agents/defaultAgent';
@@ -24,7 +25,10 @@
   }
 
   $effect(() => {
-    onboardingNav.set({ primaryLabel: configured ? 'Continue' : 'Skip', onPrimary: advanceStep });
+    onboardingNav.set({
+      primaryLabel: configured ? t('onboarding.continue') : t('onboarding.skip'),
+      onPrimary: advanceStep,
+    });
   });
 
   async function setUp() {
@@ -33,7 +37,7 @@
     try {
       const res = await setUpHiddenCommand(modifier, key);
       configured = res.ok;
-      if (!res.ok) error = res.error ?? 'Something went wrong.';
+      if (!res.ok) error = res.error ?? t('onboarding.generic_error');
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -44,44 +48,52 @@
 
 <Card>
   <div class="step">
-    <p class="step__kicker">Magic with no window</p>
-    <h1 class="step__title">Hidden <span class="onb-hl">AI commands</span></h1>
-    <p class="step__lede">
-      Select text in any app, press a hotkey, and Asyar rewrites it in place — no window, no
-      copy-paste. We'll set up a "Grammar Fix" command you can try right here.
-    </p>
+    <p class="step__kicker">{t('onboarding.hidden_kicker')}</p>
+    <h1 class="step__title">
+      {t('onboarding.hidden_title_pre')}
+      <span class="onb-hl">{t('onboarding.hidden_title_hl')}</span>
+    </h1>
+    <p class="step__lede">{t('onboarding.hidden_desc')}</p>
 
     <div class="examples">
-      <span class="examples__label">A few you can build:</span>
+      <span class="examples__label">{t('onboarding.hidden_examples_label')}</span>
       <ul class="examples__list">
-        <li>✍️ Fix grammar &amp; spelling</li>
-        <li>🌍 Translate selection to English</li>
-        <li>🎩 Make it more formal</li>
-        <li>✂️ Summarize in one line</li>
+        <li>{t('onboarding.hidden_example_grammar')}</li>
+        <li>{t('onboarding.hidden_example_translate')}</li>
+        <li>{t('onboarding.hidden_example_formal')}</li>
+        <li>{t('onboarding.hidden_example_summarize')}</li>
       </ul>
     </div>
 
     {#if !aiReady}
-      <p class="step__warn">Connect an AI provider in the previous step to enable this.</p>
+      <p class="step__warn">{t('onboarding.hidden_need_ai')}</p>
     {:else}
       <div class="step__setup">
-        <span class="step__label">1 · Pick a hotkey</span>
+        <span class="step__label"
+          >{t('onboarding.step_num', { n: 1, label: t('onboarding.hidden_step_hotkey') })}</span
+        >
         <ShortcutRecorder bind:modifier bind:key onsave={recordHotkey} />
-        <span class="step__label">2 · Permission</span>
+        <span class="step__label"
+          >{t('onboarding.step_num', { n: 2, label: t('onboarding.permission') })}</span
+        >
         <AccessibilityGate bind:granted={axGranted} />
         <Button onclick={setUp} disabled={working || configured}>
-          {configured ? '✓ Grammar Fix ready' : working ? 'Setting up…' : '3 · Create the command'}
+          {configured
+            ? t('onboarding.hidden_ready')
+            : working
+              ? t('onboarding.setting_up')
+              : t('onboarding.step_num', { n: 3, label: t('onboarding.hidden_create') })}
         </Button>
         {#if error}<p class="step__error">{error}</p>{/if}
       </div>
 
       <TestBox
-        label="Try it — select the line below and press your hotkey anywhere you type"
+        label={t('onboarding.hidden_try_label')}
         prefill="i has a apple and it are very tasty"
         multiline
         enabled={ready}
-        enabledHint={`Select the text and press ${modifier}+${key} — also works in any other app. Taking too long? Press it again to cancel.`}
-        disabledHint="Finish the 3 setup steps to try it here"
+        enabledHint={t('onboarding.hidden_enabled_hint', { shortcut: `${modifier}+${key}` })}
+        disabledHint={t('onboarding.hidden_disabled_hint')}
       />
     {/if}
   </div>

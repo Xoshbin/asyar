@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '../../services/i18n';
   import { platform } from '@tauri-apps/plugin-os';
   import { onboardingService } from '../../services/onboarding/onboardingService.svelte';
   import { settingsService } from '../../services/settings/settingsService.svelte';
@@ -56,7 +57,12 @@
 
 <div class="onboarding-frame">
   <header class="onboarding-frame__header">
-    <button type="button" class="onboarding-frame__close" aria-label="Close" onclick={handleClose}>
+    <button
+      type="button"
+      class="onboarding-frame__close"
+      aria-label={t('common.close')}
+      onclick={handleClose}
+    >
       ✕
     </button>
   </header>
