@@ -159,6 +159,24 @@ describe('init', () => {
     await expect(shortcutService.init()).resolves.not.toThrow();
     expect(mockRegisterItemShortcut).toHaveBeenCalledTimes(2);
   });
+
+  // `registerItemShortcut` is built on invokeSafeVoid, which REJECTS on failure
+  // (it never resolves false). A restored profile can carry several items bound
+  // to one chord; the second registration rejects with "already in use". That
+  // must not abort app startup — it used to, which flipped the app to
+  // "not initialized" and froze launcher search on its initial list.
+  it('does not throw when a registration rejects (duplicate chord)', async () => {
+    mockStoreGetAll.mockReturnValue([
+      makeShortcut({ shortcut: 'Alt+A', objectId: 'a' }),
+      makeShortcut({ shortcut: 'Alt+A', objectId: 'a-dup' }),
+      makeShortcut({ shortcut: 'Alt+B', objectId: 'b' }),
+    ]);
+    mockRegisterItemShortcut.mockRejectedValueOnce(
+      new Error('Shortcut already in use by another item'),
+    );
+    await expect(shortcutService.init()).resolves.toBeUndefined();
+    expect(mockRegisterItemShortcut).toHaveBeenCalledTimes(3);
+  });
 });
 
 // ── isConflict ────────────────────────────────────────────────────────────────
