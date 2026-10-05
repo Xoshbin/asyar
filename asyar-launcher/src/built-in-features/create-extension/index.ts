@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 import { ActionContext } from 'asyar-sdk/contracts';
 import DefaultView from './CreateExtensionView.svelte';
@@ -72,10 +73,10 @@ class CreateExtension implements Extension {
       this.extensionManager?.setActiveViewActionLabel('Open');
       actionService.registerAction({
         id: 'ai-builder:open-created',
-        label: 'Open in editor',
+        label: t('features.create_extension.act.open_editor'),
         icon: 'icon:terminal',
-        description: 'Open the selected extension in your editor',
-        category: 'AI Builder',
+        description: t('features.create_extension.act.open_editor_desc'),
+        category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -85,10 +86,10 @@ class CreateExtension implements Extension {
       });
       actionService.registerAction({
         id: 'ai-builder:publish-created',
-        label: 'Publish to Asyar Store',
+        label: t('features.create_extension.act.publish'),
         icon: 'icon:cloud-upload',
-        description: 'Publish the selected extension to the Asyar Store',
-        category: 'AI Builder',
+        description: t('features.create_extension.act.publish_desc'),
+        category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {

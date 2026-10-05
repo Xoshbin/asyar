@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import Spinner from '../base/Spinner.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { DIAGNOSTIC_MESSAGES } from '../../services/diagnostics/messages';
@@ -61,11 +62,13 @@
     {/if}
     {#if current.retryable && current.retryActionId}
       <button type="button" class="feedback-action" onclick={onRetry}>
-        <KeyboardHint keys={['⌘', 'R']} action="Retry" />
+        <KeyboardHint keys={['⌘', 'R']} action={t('common.retry')} />
       </button>
     {/if}
     {#if current.severity === 'error'}
-      <button type="button" class="feedback-action" onclick={onDismiss}> Dismiss </button>
+      <button type="button" class="feedback-action" onclick={onDismiss}>
+        {t('common.dismiss')}
+      </button>
     {/if}
   </div>
   {#if detailsOpen}

@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 import DefaultView from './DefaultView.svelte';
 import { portalStore } from './portalStore.svelte';
@@ -81,10 +82,10 @@ class PortalsExtension implements Extension {
   private registerViewActions() {
     actionService.registerAction({
       id: 'portals:new-portal',
-      label: 'New Portal',
+      label: t('features.portals.act.new'),
       icon: 'icon:plus',
-      description: 'Add a new portal URL shortcut',
-      category: 'Portals',
+      description: t('features.portals.act.new_desc'),
+      category: t('categories.portals'),
       extensionId: 'portals',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {

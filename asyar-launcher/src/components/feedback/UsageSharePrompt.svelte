@@ -1,21 +1,25 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import { usageSharePromptState } from '../../services/feedback/usageSharePromptState.svelte';
   import Button from '../base/Button.svelte';
 </script>
 
 {#if usageSharePromptState.pendingDay}
-  <div class="usage-share-prompt" role="region" aria-label="Anonymous usage share">
+  <div class="usage-share-prompt" role="region" aria-label={t('usage_prompt.aria')}>
     <div class="usage-share-prompt-header">
-      <span class="usage-share-prompt-title">Share anonymous usage?</span>
+      <span class="usage-share-prompt-title">{t('usage_prompt.title')}</span>
       <span class="usage-share-prompt-subtitle">
-        Share anonymous usage for {usageSharePromptState.pendingDay}? Only command counts and your
-        anonymous id are sent.
+        {t('usage_prompt.subtitle', { day: usageSharePromptState.pendingDay })}
       </span>
     </div>
 
     <div class="usage-share-prompt-actions">
-      <Button onclick={() => usageSharePromptState.confirm()} class="btn-primary">Send</Button>
-      <Button onclick={() => usageSharePromptState.dismiss()} class="btn-secondary">Not now</Button>
+      <Button onclick={() => usageSharePromptState.confirm()} class="btn-primary"
+        >{t('usage_prompt.send')}</Button
+      >
+      <Button onclick={() => usageSharePromptState.dismiss()} class="btn-secondary"
+        >{t('usage_prompt.not_now')}</Button
+      >
     </div>
   </div>
 {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   let {
     title = 'Asyar',
     showBackButton = false,
@@ -15,7 +16,7 @@
     <button
       onclick={() => onback?.()}
       class="mr-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus:outline-none"
-      aria-label="Back"
+      aria-label={t('common.back')}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

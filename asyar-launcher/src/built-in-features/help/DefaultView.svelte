@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import { helpViewState } from './helpState.svelte';
   import { LAUNCHER_SHORTCUTS } from '../../lib/keyboard/shortcutCatalog';
   import Icon from '../../components/base/Icon.svelte';
@@ -26,7 +27,7 @@
 
 <div class="help-view custom-scrollbar" bind:this={listEl}>
   <section class="cheat-sheet">
-    <h2 class="section-title">Keyboard Shortcuts</h2>
+    <h2 class="section-title">{t('features.help.shortcuts_heading')}</h2>
     <ul class="shortcut-list">
       {#each LAUNCHER_SHORTCUTS as s}
         <li class="shortcut-row">
@@ -40,7 +41,7 @@
   </section>
 
   <section class="topics">
-    <h2 class="section-title">Feature Guides</h2>
+    <h2 class="section-title">{t('features.help.ui.guides')}</h2>
     <ul class="topic-list">
       {#each helpViewState.filtered as topic, i}
         <li class="topic-row" class:selected={i === helpViewState.selectedIndex} data-index={i}>
@@ -54,7 +55,7 @@
         </li>
       {/each}
       {#if helpViewState.filtered.length === 0}
-        <li class="empty">No topics match your search.</li>
+        <li class="empty">{t('features.help.no_topics')}</li>
       {/if}
     </ul>
   </section>

@@ -53,7 +53,11 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Failed to list windows: ${err?.message ?? err}` },
+        context: {
+          message: t('features.window_management.ui.list_failed', {
+            error: String(err?.message ?? err),
+          }),
+        },
       });
     } finally {
       isLoading = false;
@@ -72,7 +76,11 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not switch to window: ${err?.message ?? err}` },
+        context: {
+          message: t('features.window_management.ui.switch_failed', {
+            error: String(err?.message ?? err),
+          }),
+        },
       });
     }
   }
@@ -88,7 +96,11 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not close window: ${err?.message ?? err}` },
+        context: {
+          message: t('features.window_management.ui.close_failed', {
+            error: String(err?.message ?? err),
+          }),
+        },
       });
     }
   }
@@ -115,7 +127,11 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not copy title: ${err?.message ?? err}` },
+        context: {
+          message: t('features.window_management.ui.copy_title_failed', {
+            error: String(err?.message ?? err),
+          }),
+        },
       });
     }
   }

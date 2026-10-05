@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type {
   Extension,
   ExtensionContext,
@@ -63,8 +64,8 @@ class HelpExtension implements Extension {
   private registerViewActions(): void {
     const openGuide: ExtensionAction = {
       id: OPEN_GUIDE_ACTION_ID,
-      title: 'Open User Guide',
-      description: 'Open the full Asyar user guide in your browser',
+      title: t('features.help.act.guide'),
+      description: t('features.help.act.guide_desc'),
       icon: 'icon:globe',
       extensionId: 'help',
       category: 'help-action',

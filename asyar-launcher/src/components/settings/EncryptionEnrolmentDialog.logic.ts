@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 const MIN_LEN = 12;
 const MAX_LEN = 256;
 const MIN_STRENGTH_SCORE = 3;
@@ -10,20 +11,20 @@ export function evaluatePassphraseStrength(p: string): {
   // Use Unicode char count (not byte length).
   const charCount = [...p].length;
   if (charCount === 0) {
-    return { accepted: false, score: 0, reason: 'Passphrase cannot be empty.' };
+    return { accepted: false, score: 0, reason: t('settings.e2ee.strength_empty') };
   }
   if (charCount < MIN_LEN) {
-    return { accepted: false, score: 0, reason: `Minimum ${MIN_LEN} characters.` };
+    return { accepted: false, score: 0, reason: t('settings.e2ee.strength_min', { min: MIN_LEN }) };
   }
   if (charCount > MAX_LEN) {
-    return { accepted: false, score: 0, reason: `Maximum ${MAX_LEN} characters.` };
+    return { accepted: false, score: 0, reason: t('settings.e2ee.strength_max', { max: MAX_LEN }) };
   }
   const score = quickScore(p);
   if (score < MIN_STRENGTH_SCORE) {
     return {
       accepted: false,
       score,
-      reason: 'Too predictable. Try a passphrase with multiple unrelated words.',
+      reason: t('settings.e2ee.strength_predictable'),
     };
   }
   return { accepted: true, score };

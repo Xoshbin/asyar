@@ -53,7 +53,7 @@
         kind: 'manual',
         severity: 'success',
         retryable: false,
-        context: { message: `Reloaded ${extensionId}` },
+        context: { message: t('settings.developer.reloaded', { id: extensionId }) },
       });
     } else {
       logService.error(`Failed to hot-reload ${extensionId}`);
@@ -71,7 +71,7 @@
     if (detachingExt) return;
     const confirmed = await feedbackService.confirmAlert({
       title: t('settings.developer.detach_title'),
-      message: `Remove "${extensionId}" from the dev extension registry? The extension files will not be deleted.`,
+      message: t('settings.developer.detach_message', { id: extensionId }),
       confirmText: t('settings.developer.detach'),
       variant: 'danger',
     });
@@ -87,7 +87,7 @@
         kind: 'manual',
         severity: 'success',
         retryable: false,
-        context: { message: `Detached ${extensionId}` },
+        context: { message: t('settings.developer.detached', { id: extensionId }) },
       });
     } catch (err) {
       logService.error(`Failed to detach dev extension: ${err}`);

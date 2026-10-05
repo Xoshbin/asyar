@@ -25,7 +25,11 @@
   ]);
 </script>
 
-<div class="window-mode-selector" role="radiogroup" aria-label="Window mode">
+<div
+  class="window-mode-selector"
+  role="radiogroup"
+  aria-label={t('settings.appearance.window_mode_aria')}
+>
   {#each options as option}
     <button
       class="mode-option"

@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { tick } from 'svelte';
 import * as commands from '../../lib/ipc/commands';
 import { viewManager } from '../../services/extension/viewManager.svelte';
@@ -153,7 +154,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
         kind: 'action_failed',
         severity: 'error',
         retryable: false,
-        context: { message: 'Could not open command arguments — please try again' },
+        context: { message: t('launcher_errors.command_args_open') },
       });
     });
     return true;

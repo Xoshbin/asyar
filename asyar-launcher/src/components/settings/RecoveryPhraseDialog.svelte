@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import Modal from '../base/Modal.svelte';
   import { Button, Input, Checkbox } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
@@ -42,7 +43,7 @@
       stage = 'phrase';
     } catch (err) {
       logService.warn(`recovery phrase dialog failed: ${String(err)}`);
-      errorMessage = 'Incorrect passphrase. Try again.';
+      errorMessage = t('settings.privacy.error_incorrect_passphrase');
       stage = 'passphrase';
     }
   }
@@ -77,12 +78,12 @@
 <Modal bind:isOpen labelledBy="phrase-title" width="32rem" onEscape={cancel} onEnter={handleEnter}>
   {#snippet children()}
     {#if stage === 'passphrase' || stage === 'submitting'}
-      <h2 id="phrase-title" class="dialog-title">View recovery phrase</h2>
-      <p class="dialog-body">Enter your current passphrase to view your 24-word recovery phrase.</p>
+      <h2 id="phrase-title" class="dialog-title">{t('settings.e2ee.view_title')}</h2>
+      <p class="dialog-body">{t('settings.e2ee.view_body')}</p>
       <Input
         textIntent="exact"
         type="password"
-        placeholder="Passphrase"
+        placeholder={t('common.passphrase')}
         bind:value={passphrase}
         bind:ref={passphraseInput}
         maxlength={256}
@@ -91,33 +92,34 @@
         <p class="text-caption error mt-2">{errorMessage}</p>
       {/if}
       <div class="dialog-actions">
-        <Button onclick={cancel}>Cancel</Button>
+        <Button onclick={cancel}>{t('common.cancel')}</Button>
         <Button
           class="btn-primary"
           disabled={passphrase.length === 0 || stage === 'submitting'}
           onclick={submit}
         >
-          {stage === 'submitting' ? 'Verifying…' : 'View'}
+          {stage === 'submitting' ? t('settings.e2ee.verifying') : t('settings.e2ee.view_button')}
         </Button>
       </div>
     {:else if stage === 'phrase'}
-      <h2 id="phrase-title" class="dialog-title">Your recovery phrase</h2>
+      <h2 id="phrase-title" class="dialog-title">{t('settings.e2ee.phrase_title')}</h2>
       <p class="dialog-body">
-        Save these 24 words somewhere safe — a password manager, encrypted note, or paper. If you
-        forget your passphrase, this is the only way to get your data back.
+        {t('settings.e2ee.phrase_body_view')}
       </p>
       <div class="phrase-blob">{recoveryPhrase}</div>
       <div class="phrase-actions-row">
         <Button onclick={copyPhrase}>
-          {copied ? 'Copied!' : 'Copy'}
+          {copied ? t('common.copied') : t('common.copy')}
         </Button>
       </div>
       <label class="written-down-label">
         <Checkbox checked={savedConfirmed} onchange={(v) => (savedConfirmed = v)} />
-        <span class="dialog-body-inline">I've saved this somewhere safe.</span>
+        <span class="dialog-body-inline">{t('settings.e2ee.saved_confirm')}</span>
       </label>
       <div class="dialog-actions">
-        <Button class="btn-primary" disabled={!savedConfirmed} onclick={finish}>Done</Button>
+        <Button class="btn-primary" disabled={!savedConfirmed} onclick={finish}
+          >{t('common.done')}</Button
+        >
       </div>
     {/if}
   {/snippet}

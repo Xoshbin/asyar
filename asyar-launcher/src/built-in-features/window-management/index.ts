@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import {
   registerBuiltinSearchProvider,
   type BuiltinSearchRow,
@@ -89,7 +90,7 @@ class WindowManagementExtension implements Extension {
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: 'No layout name or ID provided' },
+        context: { message: t('features.window_management.err_no_layout') },
       });
       return;
     }
@@ -109,7 +110,7 @@ class WindowManagementExtension implements Extension {
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Layout "${missing}" not found` },
+        context: { message: t('features.window_management.err_not_found', { name: missing }) },
       });
     }
   }
@@ -135,7 +136,11 @@ class WindowManagementExtension implements Extension {
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not apply layout${err.message ? ' — ' + err.message : ''}` },
+        context: {
+          message: err.message
+            ? t('features.window_management.err_apply_detail', { detail: err.message })
+            : t('features.window_management.err_apply'),
+        },
       });
     }
   }
@@ -148,7 +153,7 @@ class WindowManagementExtension implements Extension {
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: 'Nothing to restore' },
+        context: { message: t('features.window_management.nothing_restore') },
       });
       return;
     }
@@ -161,7 +166,11 @@ class WindowManagementExtension implements Extension {
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Restore failed${err.message ? ' — ' + err.message : ''}` },
+        context: {
+          message: err.message
+            ? t('features.window_management.err_restore_detail', { detail: err.message })
+            : t('features.window_management.err_restore'),
+        },
       });
     }
   }
@@ -176,7 +185,12 @@ class WindowManagementExtension implements Extension {
     return matched.map((layout) => ({
       id: `cmd_window-management_layout_${layout.id}`,
       title: layout.name,
-      subtitle: `${Math.round(layout.bounds.width)}x${Math.round(layout.bounds.height)} at (${Math.round(layout.bounds.x)}, ${Math.round(layout.bounds.y)})`,
+      subtitle: t('features.window_management.layout_subtitle', {
+        w: Math.round(layout.bounds.width),
+        h: Math.round(layout.bounds.height),
+        x: Math.round(layout.bounds.x),
+        y: Math.round(layout.bounds.y),
+      }),
       score: 0.7,
       icon: 'icon:store',
       actionPayload: { layoutId: layout.id },
@@ -236,8 +250,8 @@ class WindowManagementExtension implements Extension {
   private registerManageActions(): void {
     actionService.registerAction({
       id: 'window-management:save-current-window',
-      title: 'Save Current Window as Layout',
-      description: 'Capture the frontmost window position and size as a custom layout',
+      title: t('features.window_management.act.save_layout'),
+      description: t('features.window_management.act.save_layout_desc'),
       icon: 'icon:plus',
       extensionId: 'window-management',
       category: 'window-management',
@@ -270,7 +284,11 @@ class WindowManagementExtension implements Extension {
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not save layout${err.message ? ' — ' + err.message : ''}` },
+        context: {
+          message: err.message
+            ? t('features.window_management.err_save_detail', { detail: err.message })
+            : t('features.window_management.err_save'),
+        },
       });
     }
   }

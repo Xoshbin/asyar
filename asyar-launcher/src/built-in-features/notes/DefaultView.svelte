@@ -189,10 +189,10 @@
 >
   {#snippet listItem(note, index)}
     {#if index === 0 && noteViewState.pinnedCount > 0}
-      <div class="list-section">Pinned</div>
+      <div class="list-section">{t('common.pinned')}</div>
     {/if}
     {#if index === noteViewState.pinnedCount && noteViewState.pinnedCount > 0}
-      <div class="list-section">All Notes</div>
+      <div class="list-section">{t('features.notes.ui.all')}</div>
     {/if}
     <LauncherListRow
       data-index={index}
@@ -229,7 +229,7 @@
           bind:value={formTitle}
           oninput={scheduleSave}
           onblur={flushSave}
-          placeholder="Untitled Note"
+          placeholder={t('features.notes.ui.untitled')}
         />
         {#if tags.length > 0}
           <div class="tag-row">
@@ -249,7 +249,7 @@
             oninput={handleBodyInput}
             onkeydown={handleBodyKeydown}
             onblur={flushSave}
-            placeholder="Start writing… ⌘Enter follows a [[link]] under the cursor."
+            placeholder={t('features.notes.ui.body_placeholder')}
           ></Textarea>
           {#if wikilinkPickerOpen}
             <WikilinkPicker
@@ -262,7 +262,7 @@
         </div>
         {#if backlinks.length > 0}
           <div class="backlinks-section custom-scrollbar">
-            <div class="backlinks-header">Linked Mentions</div>
+            <div class="backlinks-header">{t('features.notes.ui.linked_mentions')}</div>
             {#each backlinks as n (n.id)}
               <button class="backlink-item" onclick={() => jumpToNote(n.id)}>
                 {n.title || 'Untitled Note'}
@@ -300,7 +300,7 @@
         {/snippet}
         {#if filteredNotes.length === 0}
           <Button class="btn-primary mt-4" onclick={() => noteViewState.createNote()}
-            >Create your first note</Button
+            >{t('features.notes.ui.create_first')}</Button
           >
         {/if}
       </EmptyState>

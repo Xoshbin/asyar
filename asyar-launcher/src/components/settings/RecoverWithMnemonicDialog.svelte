@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import { Textarea } from '..';
   import Modal from '../base/Modal.svelte';
   import { Button, Input } from '../index';
@@ -56,8 +57,8 @@
     } catch (err) {
       logService.warn(`recover dialog submit failed: ${String(err)}`);
       errorMessage = String(err).includes('match')
-        ? "Recovery phrase doesn't match your account. Re-check the words you typed."
-        : "Couldn't recover. Check your connection and try again.";
+        ? t('settings.e2ee.recover_mismatch_error')
+        : t('settings.e2ee.recover_error');
       stage = 'passphrase';
     }
   }
@@ -75,9 +76,9 @@
 <Modal bind:isOpen labelledBy="recover-title" width="32rem" onEscape={cancel} onEnter={handleEnter}>
   {#snippet children()}
     {#if stage === 'words'}
-      <h2 id="recover-title" class="dialog-title">Recover with your 24-word phrase</h2>
+      <h2 id="recover-title" class="dialog-title">{t('settings.e2ee.recover_title')}</h2>
       <p class="dialog-body">
-        Paste your recovery phrase below. Words can be separated by spaces or new lines.
+        {t('settings.e2ee.recover_body')}
       </p>
       <Textarea
         unstyled
@@ -91,37 +92,45 @@
       ></Textarea>
       <div class="phrase-status">
         {#if parsed.words.length === 0}
-          <span class="text-caption">0 / 24 words</span>
+          <span class="text-caption">{t('settings.e2ee.words_count', { count: 0 })}</span>
         {:else if parsed.unknownWords.length > 0}
           <span class="text-caption error">
-            Unknown {parsed.unknownWords.length === 1 ? 'word' : 'words'}:
-            {parsed.unknownWords.slice(0, 3).join(', ')}{parsed.unknownWords.length > 3 ? '…' : ''}
+            {t(
+              parsed.unknownWords.length === 1
+                ? 'settings.e2ee.unknown_word'
+                : 'settings.e2ee.unknown_words',
+              {
+                words:
+                  parsed.unknownWords.slice(0, 3).join(', ') +
+                  (parsed.unknownWords.length > 3 ? '…' : ''),
+              },
+            )}
           </span>
         {:else if parsed.words.length !== 24}
           <span class="text-caption" class:error={parsed.words.length > 24}>
-            {parsed.words.length} / 24 words
+            {t('settings.e2ee.words_count', { count: parsed.words.length })}
           </span>
         {:else}
-          <span class="text-caption ok">All 24 words look valid.</span>
+          <span class="text-caption ok">{t('settings.e2ee.all_words_valid')}</span>
         {/if}
       </div>
       <div class="dialog-actions">
-        <Button onclick={cancel}>Cancel</Button>
+        <Button onclick={cancel}>{t('common.cancel')}</Button>
         <Button class="btn-primary" disabled={!parsed.isValid} onclick={continueToPassphrase}>
-          Continue
+          {t('common.continue')}
         </Button>
       </div>
     {:else if stage === 'passphrase' || stage === 'submitting'}
-      <h2 id="recover-title" class="dialog-title">Choose a new passphrase</h2>
+      <h2 id="recover-title" class="dialog-title">{t('settings.e2ee.new_passphrase_title')}</h2>
       <p class="dialog-body">
-        This passphrase will replace your forgotten one. Your recovery phrase stays the same.
+        {t('settings.e2ee.new_passphrase_body')}
       </p>
       <div class="flex-col">
         <div class="input-gap">
           <Input
             textIntent="exact"
             type="password"
-            placeholder="New passphrase (12+ characters)"
+            placeholder={t('common.new_passphrase')}
             bind:value={newPass}
             maxlength={256}
           />
@@ -130,28 +139,32 @@
           <Input
             textIntent="exact"
             type="password"
-            placeholder="Confirm new passphrase"
+            placeholder={t('common.confirm_new_passphrase')}
             bind:value={confirmNew}
             maxlength={256}
           />
         </div>
         {#if newPass.length > 0}
           <p class="text-caption" class:error={!strength.accepted}>
-            Strength {strength.score}/4{#if strength.reason}
+            {t('settings.e2ee.strength', { score: strength.score })}{#if strength.reason}
               — {strength.reason}{/if}
           </p>
         {/if}
         {#if confirmNew.length > 0 && !confirmsMatch}
-          <p class="text-caption error">Passphrases don't match.</p>
+          <p class="text-caption error">{t('settings.e2ee.passphrases_mismatch')}</p>
         {/if}
         {#if errorMessage}
           <p class="text-caption error">{errorMessage}</p>
         {/if}
       </div>
       <div class="dialog-actions">
-        <Button onclick={() => (stage = 'words')} disabled={stage === 'submitting'}>Back</Button>
+        <Button onclick={() => (stage = 'words')} disabled={stage === 'submitting'}
+          >{t('common.back')}</Button
+        >
         <Button class="btn-primary" disabled={submitDisabled} onclick={submit}>
-          {stage === 'submitting' ? 'Recovering…' : 'Recover'}
+          {stage === 'submitting'
+            ? t('settings.e2ee.recovering')
+            : t('settings.e2ee.recover_button')}
         </Button>
       </div>
     {/if}

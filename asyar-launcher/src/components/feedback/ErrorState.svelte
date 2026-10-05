@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import type { FeedbackItem } from '../../services/feedback/feedbackService.svelte';
   import { DIAGNOSTIC_MESSAGES } from '../../services/diagnostics/messages';
   import type { DiagnosticKind } from '../../services/diagnostics/kinds';
@@ -28,7 +29,7 @@
     <div class="error-state-message text-title">{message}</div>
     {#if status.retryable && status.retryActionId}
       <div class="error-state-action">
-        <Button onclick={onRetry}>Retry</Button>
+        <Button onclick={onRetry}>{t('common.retry')}</Button>
       </div>
     {/if}
   </div>

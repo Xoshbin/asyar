@@ -141,7 +141,7 @@
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
       <div class="awaiting-container">
-        <LoadingState message="Waiting for browser login..." />
+        <LoadingState message={t('settings.account.waiting_browser_login')} />
         <Button onclick={handleCancel}>{t('common.cancel')}</Button>
       </div>
     </SettingsCard>
@@ -240,7 +240,11 @@
       <SettingsRow label={t('settings.account.section_profile')}>
         <div class="profile-row">
           {#if authService.user?.avatarUrl}
-            <img src={authService.user.avatarUrl} alt="Avatar" class="avatar" />
+            <img
+              src={authService.user.avatarUrl}
+              alt={t('settings.account.avatar_alt')}
+              class="avatar"
+            />
           {:else}
             <div class="avatar-placeholder">
               {authService.user?.name?.charAt(0).toUpperCase() ?? '?'}
@@ -256,10 +260,10 @@
         </div>
       </SettingsRow>
 
-      <SettingsRow label="Features">
+      <SettingsRow label={t('settings.account.features')}>
         {#if authService.entitlements.length === 0}
           <div class="no-subscription">
-            <span class="secondary-text">No active subscription.</span>
+            <span class="secondary-text">{t('settings.account.no_subscription')}</span>
             <button
               class="text-link"
               onclick={() => {
@@ -268,7 +272,7 @@
                 );
               }}
             >
-              View plans
+              {t('settings.account.view_plans')}
             </button>
           </div>
         {:else}
@@ -379,20 +383,20 @@
             <div class="e2ee-row">
               <div class="e2ee-status">
                 {#if !syncEncryptionService.enabled}
-                  <Badge text="Off" variant="default" />
-                  <span class="secondary-text">Server can read your synced data.</span>
+                  <Badge text={t('settings.account.e2ee_off')} variant="default" />
+                  <span class="secondary-text">{t('settings.account.e2ee_off_desc')}</span>
                 {:else if syncEncryptionService.locked}
                   <div class="e2ee-badge-with-dot">
                     <StatusDot color="warning" />
                     <Badge text={t('settings.account.locked')} variant="warning" />
                   </div>
-                  <span class="secondary-text">Passphrase needed to continue.</span>
+                  <span class="secondary-text">{t('settings.account.e2ee_locked_desc')}</span>
                 {:else}
                   <div class="e2ee-badge-with-dot">
                     <StatusDot color="success" />
-                    <Badge text="On" variant="success" />
+                    <Badge text={t('settings.account.e2ee_on')} variant="success" />
                   </div>
-                  <span class="secondary-text">Server stores only ciphertext.</span>
+                  <span class="secondary-text">{t('settings.account.e2ee_on_desc')}</span>
                 {/if}
               </div>
               <Toggle
@@ -432,7 +436,7 @@
           label={t('settings.account.section_sync')}
           description={t('settings.account.plan_no_sync')}
         >
-          <span class="secondary-text">Unavailable</span>
+          <span class="secondary-text">{t('settings.account.unavailable')}</span>
         </SettingsRow>
       {/if}
     </SettingsCard>

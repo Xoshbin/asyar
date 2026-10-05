@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { advanceStep, goBackStep } from './stepLogic';
 
 export interface OnbNav {
@@ -15,8 +16,8 @@ function defaults(): OnbNav {
   return {
     showBack: true,
     showSkip: false,
-    skipLabel: 'Skip',
-    primaryLabel: 'Continue',
+    skipLabel: t('onboarding.skip'),
+    primaryLabel: t('onboarding.continue'),
     primaryDisabled: false,
     onBack: goBackStep,
     onSkip: advanceStep,

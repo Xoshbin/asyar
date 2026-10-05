@@ -39,7 +39,7 @@ The frontend and extension layers remain thin presenters that query or receive s
 
 ## 2. Core Model: `ParsedLocale`
 
-All locale tags are parsed into a canonical, structured [`ParsedLocale`](file:///Users/khoshbin/develop/Asyar-Project/asyar-launcher/src-tauri/src/locale/bcp47.rs):
+All locale tags are parsed into a canonical, structured [`ParsedLocale`](../../asyar-launcher/src-tauri/src/locale/bcp47.rs):
 
 ```rust
 pub struct ParsedLocale {
@@ -95,10 +95,10 @@ When formatting numbers, currencies, and physical units, the user's regional env
 
 The natural-language calculator evaluates expressions in a canonical `1,234.56` notation. The locale subsystem bridges comma-decimal regions via two symmetric transformations:
 
-1. **[`canonicalize_input(query, format)`](file:///Users/khoshbin/develop/Asyar-Project/asyar-launcher/src-tauri/src/locale/number_format.rs)**:
+1. **[`canonicalize_input(query, format)`](../../asyar-launcher/src-tauri/src/locale/number_format.rs)**:
    - Rewrites input queries before evaluation (`61,78 * 1,19` → `61.78 * 1.19`, `1.234,56` → `1234.56`).
    - Protects list commas in color functions (`rgb(255,0,0)`) and dates (`25.12.2026`).
-2. **[`localize_output(text, format)`](file:///Users/khoshbin/develop/Asyar-Project/asyar-launcher/src-tauri/src/locale/number_format.rs)**:
+2. **[`localize_output(text, format)`](../../asyar-launcher/src-tauri/src/locale/number_format.rs)**:
    - Rewrites output answers after evaluation (`73.5182` → `73,5182`, `1,234,567` → `1.234.567`).
 
 ---
@@ -120,7 +120,7 @@ The following Tauri commands are exposed for frontend and extension consumption:
 - `get_system_locale()` → Returns `ParsedLocale`
 - `get_locale_candidates(locale: string)` → Returns `string[]`
 
-TypeScript types are automatically derived via `specta` in [`src/bindings.ts`](file:///Users/khoshbin/develop/Asyar-Project/asyar-launcher/src/bindings.ts):
+TypeScript types are automatically derived via `specta` in [`src/bindings.ts`](../../asyar-launcher/src/bindings.ts):
 
 ```typescript
 export type NumberFormat = 'point' | 'comma';
@@ -138,21 +138,48 @@ export type ParsedLocale = {
 
 ## 7. Frontend I18n Architecture (`I18nService` & Catalogs)
 
-On the presentation layer, [`I18nService`](file:///Users/khoshbin/develop/Asyar-Project/asyar-launcher/src/services/i18n/i18nService.svelte.ts) consumes the system locale and resolves translated strings reactively:
+On the presentation layer, [`I18nService`](../../asyar-launcher/src/services/i18n/i18nService.svelte.ts) consumes the system locale and resolves translated strings reactively:
 
 - **Candidate Fallback Chains**: When looking up a key (e.g. for `zh-Hans-CN`), the service checks `zh-Hans-CN` → `zh-Hans` → `zh` → `en` before falling back to the raw key.
 - **Dynamic Parameter Interpolation**: `t('features.mcp.detected_configs_description', { sources: 'VS Code' })` dynamically replaces `{param}` placeholders.
 - **Extension Manifest Localization**: `resolveLocalized(value, fallback)` transparently resolves multi-lingual JSON objects (`{ "en": "Clear", "ckb": "سڕینەوە" }`) declared in extension manifests.
 - **Svelte 5 Reactivity**: The global `t` helper works seamlessly with Svelte 5 `$derived` state, ensuring all labels, placeholders, and action titles update instantly when the active locale changes.
+- **Import-Time and Registration-Time Caveats**: `t()` is reactive only where it is evaluated during rendering or inside an effect. Module-level constants are computed once at import, and `actionService.registerAction()` copies labels as plain strings, so module-level lists use getters and built-in actions are re-registered when the locale changes. See [How to Add and Maintain Translations](../how-to/add-translations.md#in-module-level-constants).
 
 ---
 
 ## 8. Static AST Translation Enforcement
 
-To guarantee that no untranslated text reaches production, Asyar implements an automated AST static analysis test suite in [`noHardcodedStrings.test.ts`](file:///Users/khoshbin/develop/Asyar-Project/asyar-launcher/src/services/i18n/noHardcodedStrings.test.ts):
+To catch untranslated text before it ships, Asyar implements an automated AST static analysis test suite in [`noHardcodedStrings.test.ts`](../../asyar-launcher/src/services/i18n/noHardcodedStrings.test.ts):
 
 1. **Catalog Integrity**: Ensures every `t("key")` call references an existing, non-empty key in `en.json`.
 2. **Template Sensitive Props**: Scans all Svelte component invocations and HTML tags to prevent literal strings on sensitive props (`label`, `description`, `placeholder`, `message`, `emptyMessage`, `kicker`, `hint`, `subtitle`, `error`).
 3. **Interactive Elements**: Asserts that all text inside interactive elements (`<button>`, `<Button>`, `<option>`, `<label>`) is wrapped with `{t('...')}`.
 4. **Script Block Literals**: Walks AST property nodes in `<script>` blocks to catch unlocalized action definitions, default prop assignments, and notification payloads.
 5. **Technical Whitelisting**: Employs an exact heuristic (`isTechnicalOrSymbol`) to permit symbols (⌘K, +), numbers/units (12px, 100%), paths/URLs, and recognized system identifiers (e.g. `github`, `tauri`, `json`).
+6. **Catalog Parity** (in `catalogs.test.ts`): Every locale file must contain exactly the keys of `en.json` and preserve every `{placeholder}`.
+
+### What the Suite Does Not Cover
+
+The suite is a safety net, not a proof of full localization. It does **not** scan:
+
+- `.ts` files (action registrations, toast and dialog payloads, static result lists, `*.logic.ts` helpers).
+- Attributes outside the list above, such as `title`, `aria-label`, `alt`, `text` and `confirmText`.
+- Plain text inside non-interactive elements (`<p>`, `<span>`, `<h2>`, `<li>`).
+- Strings rendered by Rust (see below).
+
+Reviewers should therefore check diffs for new literals in those places.
+
+---
+
+## 9. Native (Rust) Strings
+
+A few strings are rendered natively by Rust before or outside the webview, so the frontend catalogs cannot supply them: the tray menu (Settings, Check for Updates, Quit) and some window titles (Settings, Sticky Note, Onboarding).
+
+[`locale/native.rs`](../../asyar-launcher/src-tauri/src/locale/native.rs) holds a small, compile-time translation table for them:
+
+- `NativeLang` mirrors the frontend catalogs (`En`, `PtBr`, `ZhHans`, `ZhHant`). `NativeLang::from_locale` resolves a `ParsedLocale` to a table: an explicit Chinese script wins, otherwise `TW`/`HK`/`MO` map to Traditional and other Chinese locales to Simplified; unknown languages fall back to English.
+- `NativeText` lists every native string, and `native_text(locale, key)` returns the translation. The `match` is exhaustive, so adding a key or a language without translating it does not compile.
+- `app_native_text(manager, key)` reads the locale from the managed `LocaleService`, falling back to the host locale before the service is registered.
+
+These strings are resolved when they are created. The tray menu is built once at startup, so changing the OS language while Asyar is running updates it on the next launch. The Settings window is declared statically in `tauri.conf.json` with an English title, which Rust overrides at startup.

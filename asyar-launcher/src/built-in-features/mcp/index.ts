@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext } from 'asyar-sdk/contracts';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { mcpService } from './mcpService.svelte';
@@ -56,10 +57,10 @@ class McpExtension implements Extension {
     if (viewId.startsWith('mcp/')) {
       actionService.registerAction({
         id: ACTION_REFRESH,
-        label: 'Refresh Servers',
+        label: t('features.mcp.act.refresh'),
         icon: '🔄',
-        description: 'Re-query MCP server statuses and tool lists',
-        category: 'MCP',
+        description: t('features.mcp.act.refresh_desc'),
+        category: t('categories.mcp'),
         extensionId: 'mcp',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -69,10 +70,10 @@ class McpExtension implements Extension {
       if (viewId === 'mcp/ManageServersView') {
         actionService.registerAction({
           id: ACTION_INSTALL,
-          label: 'Install MCP Server',
+          label: t('features.mcp.act.install'),
           icon: '➕',
-          description: 'Add a new MCP server manually',
-          category: 'MCP',
+          description: t('features.mcp.act.install_desc'),
+          category: t('categories.mcp'),
           extensionId: 'mcp',
           context: ActionContext.EXTENSION_VIEW,
           execute: async () => {
@@ -81,10 +82,10 @@ class McpExtension implements Extension {
         });
         actionService.registerAction({
           id: ACTION_IMPORT,
-          label: 'Import MCP Servers',
+          label: t('features.mcp.act.import'),
           icon: '📥',
-          description: 'Import servers from existing configs or pasted JSON',
-          category: 'MCP',
+          description: t('features.mcp.act.import_desc'),
+          category: t('categories.mcp'),
           extensionId: 'mcp',
           context: ActionContext.EXTENSION_VIEW,
           execute: async () => {
@@ -94,10 +95,10 @@ class McpExtension implements Extension {
       }
       actionService.registerAction({
         id: ACTION_VIEW_PERMISSIONS,
-        label: 'View MCP Permissions',
+        label: t('features.mcp.act.permissions'),
         icon: '🔑',
-        description: 'Open the saved permission decisions for MCP tool calls',
-        category: 'MCP',
+        description: t('features.mcp.act.permissions_desc'),
+        category: t('categories.mcp'),
         extensionId: 'mcp',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -106,10 +107,10 @@ class McpExtension implements Extension {
       });
       actionService.registerAction({
         id: ACTION_VIEW_ACTIVITY,
-        label: 'View Recent MCP Activity',
+        label: t('features.mcp.act.activity'),
         icon: '📜',
-        description: 'See the audit log of MCP tool calls — success and failure',
-        category: 'MCP',
+        description: t('features.mcp.act.activity_desc'),
+        category: t('categories.mcp'),
         extensionId: 'mcp',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
@@ -118,10 +119,10 @@ class McpExtension implements Extension {
       });
       actionService.registerAction({
         id: ACTION_TOGGLE_STRICT,
-        label: 'Toggle Strict Mode',
+        label: t('features.mcp.act.strict'),
         icon: '🛡️',
-        description: 'Always ask before any MCP tool call (recommended for untrusted servers)',
-        category: 'MCP',
+        description: t('features.mcp.act.strict_desc'),
+        category: t('categories.mcp'),
         extensionId: 'mcp',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {

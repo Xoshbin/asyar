@@ -80,7 +80,7 @@
           <span class="path">{resolvedPath}</span>
           {#if isAliasDiff}
             <div class="alias-row">
-              <span class="alias-label">Alias:</span>
+              <span class="alias-label">{t('shell_consent.alias')}</span>
               <span class="alias-value">{program}</span>
             </div>
           {/if}
@@ -92,8 +92,8 @@
     {#if !isSafe}
       <WarningBanner>
         <div class="warning-content">
-          <span class="warning-title">Non-standard:</span>
-          This binary runs outside standard system paths.
+          <span class="warning-title">{t('shell_consent.non_standard')}</span>
+          {t('shell_consent.non_standard_desc')}
         </div>
       </WarningBanner>
     {/if}

@@ -110,7 +110,7 @@
     if (action.confirm) {
       const confirmed = await feedbackService.confirmAlert({
         title: t('dialogs.confirm.title'),
-        message: `Are you sure you want to run '${action.label}'? This cannot be undone.`,
+        message: t('launcher_errors.confirm_run', { label: action.label }),
         confirmText: t('common.confirm'),
         variant: 'danger',
       });
@@ -134,7 +134,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Failed: ${msg}` },
+        context: { message: t('launcher_errors.action_failed', { message: msg }) },
       });
     }
   }
@@ -165,7 +165,7 @@
   aria-modal="true"
   aria-labelledby="action-list-heading"
 >
-  <h2 id="action-list-heading" class="sr-only">Available Actions</h2>
+  <h2 id="action-list-heading" class="sr-only">{t('actions_popup.sr_heading')}</h2>
 
   <div class="action-scroll custom-scrollbar">
     {#if showHeader}

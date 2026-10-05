@@ -206,7 +206,10 @@
         severity: 'warning',
         retryable: false,
         context: {
-          message: `Cannot install ${extensionDetail.name}: requires newer SDK (${extensionDetail.asyarSdk})`,
+          message: t('features.store.ui.sdk_too_old', {
+            name: extensionDetail.name,
+            sdk: extensionDetail.asyarSdk ?? '',
+          }),
         },
       });
       return;
@@ -227,7 +230,7 @@
 
     const confirmed = await feedbackService.confirmAlert({
       title: t('features.store.uninstall_confirm_title'),
-      message: `Uninstall ${extensionDetail.name}? You can reinstall it from the store.`,
+      message: t('features.store.ui.uninstall_confirm', { name: extensionDetail.name }),
       confirmText: t('features.store.uninstall'),
       variant: 'danger',
     });
@@ -271,7 +274,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not run command "${commandId}"` },
+        context: { message: t('features.store.ui.run_failed', { command: commandId }) },
       });
     }
   }
@@ -347,7 +350,7 @@
                   Update to v{availableUpdate?.latestVersion}
                 </Button>
                 <Button class="btn-danger h-10 px-5 font-semibold" onclick={uninstallExtension}>
-                  Uninstall
+                  {t('common.uninstall')}
                 </Button>
               {:else if isInstalled}
                 {#if primaryCommand}
@@ -355,16 +358,17 @@
                     class="btn-primary h-10 px-6 font-semibold"
                     onclick={() => runCommand(primaryCommand.id)}
                   >
-                    Run {primaryCommand.name}
+                    {t('common.run')}
+                    {primaryCommand.name}
                   </Button>
                 {/if}
                 {#if declaredPreferences.length > 0}
                   <Button class="btn-secondary h-10 px-4 font-semibold" onclick={openPreferences}>
-                    Configure
+                    {t('features.store.ui.configure')}
                   </Button>
                 {/if}
                 <Button class="btn-danger h-10 px-5 font-semibold" onclick={uninstallExtension}>
-                  Uninstall
+                  {t('common.uninstall')}
                 </Button>
               {:else}
                 <Button
@@ -402,7 +406,7 @@
                       d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     /></svg
                   >
-                  Activate in Settings → Appearance → Custom Themes
+                  {t('features.store.ui.activate_theme')}
                 </div>
               {/if}
 
@@ -444,7 +448,7 @@
           <!-- Left Column: Description, Commands & Preferences -->
           <div class="lg:col-span-2 space-y-10">
             <section>
-              <h3 class="text-section mb-3">About</h3>
+              <h3 class="text-section mb-3">{t('features.store.ui.about')}</h3>
               <div class="prose max-w-none text-body">
                 <p>{extensionDetail?.description || 'No description provided.'}</p>
               </div>
@@ -453,7 +457,7 @@
             {#if declaredCommands.length > 0}
               <section>
                 <div class="flex items-center justify-between mb-4">
-                  <h3 class="text-section">Commands & Actions</h3>
+                  <h3 class="text-section">{t('features.store.ui.commands_actions')}</h3>
                   <span class="text-caption text-[var(--text-tertiary)]">
                     {declaredCommands.length}
                     {declaredCommands.length === 1 ? 'command' : 'commands'}
@@ -496,7 +500,7 @@
                             class="btn-secondary h-7 px-3 text-caption flex-shrink-0"
                             onclick={() => runCommand(cmd.id)}
                           >
-                            Run
+                            {t('common.run')}
                           </Button>
                         {/if}
                       </div>
@@ -510,7 +514,7 @@
                       {#if cmd.arguments && cmd.arguments.length > 0}
                         <div class="command-args mt-3 pt-2.5 border-t border-[var(--separator)]">
                           <span class="text-caption text-[var(--text-tertiary)] mr-2"
-                            >Arguments:</span
+                            >{t('features.store.ui.arguments_label')}</span
                           >
                           <div class="inline-flex flex-wrap gap-1.5 align-middle">
                             {#each cmd.arguments as arg}
@@ -530,7 +534,7 @@
             {#if readmeHtml}
               <section>
                 <div class="flex items-center justify-between mb-4">
-                  <h3 class="text-section">Documentation & Guide</h3>
+                  <h3 class="text-section">{t('features.store.ui.docs')}</h3>
                 </div>
                 <div
                   class="prose max-w-none text-body bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--separator)] overflow-x-auto markdown-body"
@@ -544,10 +548,10 @@
             {#if declaredPreferences.length > 0}
               <section>
                 <div class="flex items-center justify-between mb-4">
-                  <h3 class="text-section">Configurable Settings</h3>
+                  <h3 class="text-section">{t('features.store.ui.configurable')}</h3>
                   {#if isInstalled}
                     <button class="preferences-link" onclick={openPreferences}>
-                      Open in Settings →
+                      {t('features.store.ui.open_in_settings')}
                     </button>
                   {/if}
                 </div>
@@ -579,7 +583,7 @@
               <section
                 class="bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--separator)]"
               >
-                <h3 class="text-section mb-6">Permissions</h3>
+                <h3 class="text-section mb-6">{t('features.store.ui.permissions')}</h3>
                 <PermissionList
                   permissions={listedPermissions}
                   permissionArgs={manifest?.permissionArgs ?? {}}
@@ -590,13 +594,15 @@
             <section
               class="bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--separator)]"
             >
-              <h3 class="text-section mb-6">Details</h3>
+              <h3 class="text-section mb-6">{t('features.store.ui.details')}</h3>
 
               <dl class="space-y-4 text-caption">
                 <div
                   class="flex justify-between items-center pb-3 border-b border-[var(--separator)]"
                 >
-                  <dt class="text-[var(--text-secondary)] font-medium">Version</dt>
+                  <dt class="text-[var(--text-secondary)] font-medium">
+                    {t('features.store.ui.version')}
+                  </dt>
                   <dd class="font-semibold text-[var(--text-primary)]">
                     {extensionDetail?.version || '1.0.0'}
                   </dd>
@@ -604,7 +610,9 @@
                 <div
                   class="flex justify-between items-center pb-3 border-b border-[var(--separator)]"
                 >
-                  <dt class="text-[var(--text-secondary)] font-medium">Updated</dt>
+                  <dt class="text-[var(--text-secondary)] font-medium">
+                    {t('features.store.ui.updated')}
+                  </dt>
                   <dd class="font-semibold text-[var(--text-primary)]">
                     {extensionDetail?.updatedAt
                       ? new Date(extensionDetail.updatedAt).toLocaleDateString(undefined, {
@@ -618,7 +626,9 @@
                 <div
                   class="flex justify-between items-center pb-3 border-b border-[var(--separator)]"
                 >
-                  <dt class="text-[var(--text-secondary)] font-medium">Status</dt>
+                  <dt class="text-[var(--text-secondary)] font-medium">
+                    {t('features.store.ui.status')}
+                  </dt>
                   <dd
                     class="font-semibold flex items-center gap-1.5 align-middle"
                     style="color: var(--accent-success);"
@@ -628,7 +638,9 @@
                   </dd>
                 </div>
                 <div class="flex justify-between items-center pb-1">
-                  <dt class="text-[var(--text-secondary)] font-medium">Added</dt>
+                  <dt class="text-[var(--text-secondary)] font-medium">
+                    {t('features.store.ui.added')}
+                  </dt>
                   <dd class="font-semibold text-[var(--text-primary)]">
                     {extensionDetail?.createdAt
                       ? new Date(extensionDetail.createdAt).toLocaleDateString(undefined, {

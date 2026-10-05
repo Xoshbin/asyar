@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   let { steps }: { steps: string[] } = $props();
 </script>
 
 <div class="lhint">
-  <span class="lhint__badge">Try it in the launcher</span>
+  <span class="lhint__badge">{t('onboarding.launcher_hint_badge')}</span>
   <ol class="lhint__steps">
     {#each steps as step}<li>{step}</li>{/each}
   </ol>

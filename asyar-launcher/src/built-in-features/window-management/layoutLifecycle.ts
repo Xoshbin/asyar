@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { windowManagementState, type CustomLayout } from './state.svelte';
 import { windowManagementService } from '../../services/windowManagement/windowManagementService';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -25,7 +26,11 @@ export async function applyCustomLayout(
       kind: 'manual',
       severity: 'error',
       retryable: false,
-      context: { message: `Could not apply layout${err.message ? ' — ' + err.message : ''}` },
+      context: {
+        message: err.message
+          ? t('features.window_management.err_apply_detail', { detail: err.message })
+          : t('features.window_management.err_apply'),
+      },
     });
   }
 }

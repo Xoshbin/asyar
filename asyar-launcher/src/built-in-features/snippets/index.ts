@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
@@ -63,10 +64,10 @@ class SnippetsExtension implements Extension {
   private registerViewActions(): void {
     actionService.registerAction({
       id: 'snippets:add',
-      label: 'Add Snippet',
+      label: t('features.snippets.act.add'),
       icon: 'icon:plus',
-      description: 'Create a new text expansion snippet',
-      category: 'Snippets',
+      description: t('features.snippets.act.add_desc'),
+      category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -75,10 +76,10 @@ class SnippetsExtension implements Extension {
     });
     actionService.registerAction({
       id: 'snippets:paste',
-      label: 'Paste Snippet',
+      label: t('features.snippets.act.paste'),
       icon: 'icon:keyboard',
-      description: 'Paste the selected snippet expansion into the active application',
-      category: 'Snippets',
+      description: t('features.snippets.act.paste_desc'),
+      category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -88,10 +89,10 @@ class SnippetsExtension implements Extension {
     });
     actionService.registerAction({
       id: 'snippets:edit',
-      label: 'Edit Snippet',
+      label: t('features.snippets.act.edit'),
       icon: 'icon:pencil',
-      description: 'Edit the selected snippet',
-      category: 'Snippets',
+      description: t('features.snippets.act.edit_desc'),
+      category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -101,10 +102,10 @@ class SnippetsExtension implements Extension {
     });
     actionService.registerAction({
       id: 'snippets:delete',
-      label: 'Delete Snippet',
+      label: t('features.snippets.act.delete'),
       icon: 'icon:trash',
-      description: 'Delete the selected snippet',
-      category: 'Snippets',
+      description: t('features.snippets.act.delete_desc'),
+      category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       confirm: true,
@@ -119,10 +120,10 @@ class SnippetsExtension implements Extension {
     });
     actionService.registerAction({
       id: 'snippets:copy-expansion',
-      label: 'Copy Expansion',
+      label: t('features.snippets.act.copy'),
       icon: 'icon:copy',
-      description: 'Copy the snippet expansion text to the clipboard',
-      category: 'Snippets',
+      description: t('features.snippets.act.copy_desc'),
+      category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -132,10 +133,10 @@ class SnippetsExtension implements Extension {
     });
     actionService.registerAction({
       id: 'snippets:duplicate',
-      label: 'Duplicate Snippet',
+      label: t('features.snippets.act.duplicate'),
       icon: 'icon:layers',
-      description: 'Create a duplicate of the selected snippet',
-      category: 'Snippets',
+      description: t('features.snippets.act.duplicate_desc'),
+      category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -162,10 +163,10 @@ class SnippetsExtension implements Extension {
     });
     actionService.registerAction({
       id: 'snippets:toggle-pin',
-      label: 'Pin/Unpin Snippet',
+      label: t('features.snippets.act.pin'),
       icon: 'icon:pin',
-      description: 'Pin or unpin the selected snippet to keep it at the top',
-      category: 'Snippets',
+      description: t('features.snippets.act.pin_desc'),
+      category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -178,10 +179,10 @@ class SnippetsExtension implements Extension {
     });
     actionService.registerAction({
       id: 'snippets:toggle-private',
-      label: 'Toggle Private (Local Only)',
+      label: t('features.snippets.act.private'),
       icon: 'icon:lock',
-      description: 'Mark or unmark the selected snippet as private to prevent cloud sync',
-      category: 'Snippets',
+      description: t('features.snippets.act.private_desc'),
+      category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -194,10 +195,10 @@ class SnippetsExtension implements Extension {
     });
     actionService.registerAction({
       id: 'snippets:clear-all',
-      label: 'Clear All Snippets',
+      label: t('features.snippets.act.clear_all'),
       icon: 'icon:trash',
-      description: 'Remove all snippets permanently',
-      category: 'Snippets',
+      description: t('features.snippets.act.clear_all_desc'),
+      category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       confirm: true,

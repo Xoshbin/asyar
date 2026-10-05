@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 /**
  * Human-readable catalog of launcher-global keyboard shortcuts.
  *
@@ -22,24 +23,60 @@ export interface ShortcutEntry {
 }
 
 export const LAUNCHER_SHORTCUTS: readonly ShortcutEntry[] = [
-  { keys: ['⌘', ','], label: 'Open Settings', scope: 'global' },
-  { keys: ['⌘', 'K'], label: 'Toggle the action panel', scope: 'global' },
+  {
+    keys: ['⌘', ','],
+    get label() {
+      return t('shortcuts_help.open_settings');
+    },
+    scope: 'global',
+  },
+  {
+    keys: ['⌘', 'K'],
+    get label() {
+      return t('shortcuts_help.toggle_actions');
+    },
+    scope: 'global',
+  },
   {
     keys: ['⌘', 'P'],
-    label: 'Toggle the search-bar dropdown (when one is shown)',
+    get label() {
+      return t('shortcuts_help.toggle_dropdown');
+    },
     scope: 'global',
   },
   {
     keys: ['Tab'],
-    label: 'Fill command arguments, or switch to AI / context mode',
+    get label() {
+      return t('shortcuts_help.tab');
+    },
     scope: 'global',
   },
-  { keys: ['↑', '↓'], label: 'Move between results', scope: 'global' },
-  { keys: ['Enter'], label: 'Run the selected result', scope: 'global' },
-  { keys: ['Esc'], label: 'Clear the search, go back, then hide Asyar', scope: 'global' },
+  {
+    keys: ['↑', '↓'],
+    get label() {
+      return t('shortcuts_help.move');
+    },
+    scope: 'global',
+  },
+  {
+    keys: ['Enter'],
+    get label() {
+      return t('shortcuts_help.run');
+    },
+    scope: 'global',
+  },
+  {
+    keys: ['Esc'],
+    get label() {
+      return t('shortcuts_help.escape');
+    },
+    scope: 'global',
+  },
   {
     keys: ['⌫'],
-    label: 'Go back from a view, or exit AI mode when the search is empty',
+    get label() {
+      return t('shortcuts_help.backspace');
+    },
     scope: 'view',
   },
 ] as const;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import { describePermission } from '../../services/extension/permissionCatalog';
 
   let { permissions, permissionArgs = {} } = $props<{
@@ -28,7 +29,7 @@
       <p class="permission-desc">
         {info.description}
         {#if !info.known}
-          <span class="permission-caution">⚠️ Review carefully before allowing.</span>
+          <span class="permission-caution">{t('settings.extensions.review_carefully')}</span>
         {/if}
       </p>
       {#if args.chips}

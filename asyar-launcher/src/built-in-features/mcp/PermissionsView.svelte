@@ -34,7 +34,7 @@
 
 <div class="permissions-view custom-scrollbar">
   {#if loading}
-    <LoadingState message="Loading…" />
+    <LoadingState message={t('common.loading_ellipsis')} />
   {:else if mcpService.permissions.length === 0}
     <EmptyState
       message={t('features.mcp.no_permissions')}
@@ -44,10 +44,10 @@
     <table class="permissions-table">
       <thead>
         <tr>
-          <th>Server</th>
-          <th>Tool</th>
-          <th>Agent</th>
-          <th>Decision</th>
+          <th>{t('features.mcp.ui.col_server')}</th>
+          <th>{t('features.mcp.ui.col_tool')}</th>
+          <th>{t('features.mcp.ui.col_agent')}</th>
+          <th>{t('features.mcp.ui.col_decision')}</th>
           <th></th>
         </tr>
       </thead>
@@ -65,7 +65,7 @@
             </td>
             <td>
               <Button onclick={() => handleRevoke(row.serverId, row.toolId, row.agentId)}>
-                Revoke
+                {t('features.mcp.ui.revoke')}
               </Button>
             </td>
           </tr>

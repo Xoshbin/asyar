@@ -124,7 +124,7 @@
   </FormField>
 
   <div style="position: relative">
-    <FormField label="URL" id="portal-url">
+    <FormField label={t('features.portals.ui.url')} id="portal-url">
       <div class="url-input-row">
         <Input
           unstyled
@@ -140,7 +140,7 @@
         <button
           class="btn-secondary picker-toggle"
           type="button"
-          title="Insert placeholder"
+          title={t('features.portals.ui.insert_placeholder')}
           onclick={openPickerViaButton}>{'{ }'}</button
         >
       </div>
@@ -165,9 +165,10 @@
   </FormField>
 
   <p class="text-caption">
-    Use placeholders in the URL: {tokenList}.<br />
-    Press <code class="text-mono code-inline">{'{'}</code> or the <strong>{'{ }'}</strong> button to browse
-    all placeholders.
+    {t('features.portals.ui.use_placeholders', { tokens: tokenList })}<br />
+    {t('features.portals.ui.browse_pre')} <code class="text-mono code-inline">{'{'}</code>
+    {t('features.portals.ui.browse_mid')} <strong>{'{ }'}</strong>
+    {t('features.portals.ui.browse_post')}
   </p>
 
   <div class="flex justify-end gap-2 pt-1">

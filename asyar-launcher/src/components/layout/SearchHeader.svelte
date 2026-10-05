@@ -283,8 +283,8 @@
         class="back-button-new"
         tabindex="-1"
         onclick={handleBackClick}
-        title="Press Escape to go back"
-        aria-label="Go back"
+        title={t('search_header.go_back_title')}
+        aria-label={t('search_header.go_back')}
       >
         <KeyboardHint keys="←" />
       </button>
@@ -307,7 +307,7 @@
             class="chip-dismiss"
             onclick={dismissContext}
             tabindex="-1"
-            aria-label="Exit context mode">×</button
+            aria-label={t('search_header.exit_context')}>×</button
           >
         </span>
         <Input
@@ -315,7 +315,7 @@
           bind:ref
           type="text"
           bind:value={contextQuery}
-          placeholder="Query..."
+          placeholder={t('search_header.query_placeholder')}
           autocomplete="off"
           unstyled
           class="context-query-input"

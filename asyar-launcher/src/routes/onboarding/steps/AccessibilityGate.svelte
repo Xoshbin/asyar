@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../services/i18n';
   import { onMount, onDestroy } from 'svelte';
   import { platform } from '@tauri-apps/plugin-os';
   import Button from '../../../components/base/Button.svelte';
@@ -35,18 +36,16 @@
 {#if isMac && !granted}
   <div class="axgate">
     <p class="axgate__text">
-      This needs macOS <strong>Accessibility</strong> permission so Asyar can read your selection and
-      type for you.
+      {t('onboarding.ax_text_pre')} <strong>{t('onboarding.ax_name')}</strong>
+      {t('onboarding.ax_text_post')}
     </p>
     <Button onclick={openPrefs} disabled={loading}>
-      {loading ? 'Opening…' : 'Open System Settings'}
+      {loading ? t('onboarding.ax_opening') : t('onboarding.ax_open_settings')}
     </Button>
-    <p class="axgate__hint">
-      Toggle Asyar on, then return here — it detects the grant automatically.
-    </p>
+    <p class="axgate__hint">{t('onboarding.ax_hint')}</p>
   </div>
 {:else if isMac && granted}
-  <p class="axgate__ok">✓ Accessibility granted</p>
+  <p class="axgate__ok">{t('onboarding.ax_granted')}</p>
 {/if}
 
 <style>

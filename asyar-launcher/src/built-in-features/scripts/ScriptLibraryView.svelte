@@ -144,7 +144,7 @@
       class="h-full p-2"
       bind:this={listContainer}
       role="listbox"
-      aria-label="Scripts and issues"
+      aria-label={t('features.scripts.ui.list_aria')}
     >
       {#if scripts.length === 0 && issues.length === 0}
         <EmptyState
@@ -176,7 +176,7 @@
         {/if}
 
         {#if issues.length > 0}
-          <div class="section-header px-3 py-2">Issues</div>
+          <div class="section-header px-3 py-2">{t('features.scripts.ui.issues')}</div>
           {#each issues as issue, index (issue.absolutePath)}
             {#if index === 0 || issues[index - 1]?.directoryPath !== issue.directoryPath}
               <div class="section-header px-3 py-2 truncate" title={issue.directoryPath}>
@@ -214,17 +214,21 @@
           <Badge text={selectedScript.header.mode} variant="info" />
         </div>
 
-        <Card title="Configuration">
+        <Card title={t('features.scripts.ui.config')}>
           <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-4 text-body">
-            <dt class="text-label text-[var(--text-secondary)]">File</dt>
+            <dt class="text-label text-[var(--text-secondary)]">{t('features.scripts.ui.file')}</dt>
             <dd class="text-mono break-all text-[var(--text-primary)]">
               {selectedScript.fileName}
             </dd>
-            <dt class="text-label text-[var(--text-secondary)]">Directory</dt>
+            <dt class="text-label text-[var(--text-secondary)]">
+              {t('features.scripts.ui.directory')}
+            </dt>
             <dd class="text-mono break-all text-[var(--text-primary)]">
               {selectedScript.directoryPath}
             </dd>
-            <dt class="text-label text-[var(--text-secondary)]">Arguments</dt>
+            <dt class="text-label text-[var(--text-secondary)]">
+              {t('features.scripts.ui.arguments')}
+            </dt>
             <dd class="text-[var(--text-primary)]">
               {#if selectedScript.header.arguments.length === 0}
                 None
@@ -237,7 +241,7 @@
               {/if}
             </dd>
             {#if selectedScript.header.mode === 'inline'}
-              <dt class="text-label text-[var(--text-secondary)]">Refresh</dt>
+              <dt class="text-label text-[var(--text-secondary)]">{t('common.refresh')}</dt>
               <dd class="text-[var(--text-primary)]">
                 {selectedScript.header.refreshTimeSeconds
                   ? `${selectedScript.header.refreshTimeSeconds}s`
@@ -268,7 +272,7 @@
         </WarningBanner>
 
         <div class="mt-6">
-          <Card title="File">
+          <Card title={t('features.scripts.ui.file')}>
             <div class="text-mono break-all text-body text-[var(--text-primary)]">
               {selectedIssue.absolutePath}
             </div>

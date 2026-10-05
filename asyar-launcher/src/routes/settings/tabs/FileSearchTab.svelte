@@ -223,7 +223,7 @@
       textIntent="exact"
       type="text"
       class="exclude-input"
-      placeholder="e.g. *.tmp"
+      placeholder={t('settings.file_search.pattern_placeholder')}
       bind:value={newExcludePattern}
       onkeydown={(e) => e.key === 'Enter' && handleAddExcludePattern()}
     />

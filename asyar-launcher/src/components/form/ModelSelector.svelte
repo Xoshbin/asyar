@@ -240,7 +240,7 @@
       bind:this={popoverRef}
       onkeydown={handlePopoverKeydown}
       role="region"
-      aria-label="Model selector popover"
+      aria-label={t('model_selector.popover_aria')}
     >
       <div class="ms-search-bar">
         <svg class="ms-search-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -264,7 +264,7 @@
           <button
             type="button"
             class="ms-clear-btn"
-            aria-label="Clear search"
+            aria-label={t('model_selector.clear_search')}
             onclick={() => {
               searchQuery = '';
               searchInputRef?.focus();

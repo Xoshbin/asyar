@@ -1,3 +1,4 @@
+import { t } from '../../../services/i18n';
 import {
   listCreatedExtensions,
   searchCreatedExtensions,
@@ -24,7 +25,9 @@ class CreatedExtensionsViewState {
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: `Could not list created extensions: ${String(err)}` },
+        context: {
+          message: t('features.create_extension.view.list_failed', { error: String(err) }),
+        },
       });
     }
   }
@@ -52,7 +55,9 @@ class CreatedExtensionsViewState {
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: `Could not search created extensions: ${String(err)}` },
+        context: {
+          message: t('features.create_extension.view.search_failed', { error: String(err) }),
+        },
       });
     }
     this.selection.setIndex(0);

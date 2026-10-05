@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 /** Maps each Help topic to its page in the user guide on asyar.org. */
 export interface HelpTopic {
   id: string;
@@ -18,92 +19,144 @@ export function guideUrl(slug: string): string {
 export const HELP_TOPICS: readonly HelpTopic[] = [
   {
     id: 'getting-started',
-    title: 'Getting Started',
-    subtitle: 'Install, first launch, your hotkey',
+    get title() {
+      return t('features.help.topics.getting_started');
+    },
+    get subtitle() {
+      return t('features.help.topics.getting_started_sub');
+    },
     icon: 'icon:sparkles',
     slug: 'getting-started',
   },
   {
     id: 'the-basics',
-    title: 'The Basics',
-    subtitle: 'Search, navigation, the action panel',
+    get title() {
+      return t('features.help.topics.basics');
+    },
+    get subtitle() {
+      return t('features.help.topics.basics_sub');
+    },
     icon: 'icon:keyboard',
     slug: 'the-basics',
   },
   {
     id: 'calculator',
-    title: 'Calculator',
-    subtitle: 'Math, units, currency, dates',
+    get title() {
+      return t('features.help.topics.calculator');
+    },
+    get subtitle() {
+      return t('features.help.topics.calculator_sub');
+    },
     icon: 'icon:calculator',
     slug: 'features/calculator',
   },
   {
     id: 'clipboard-history',
-    title: 'Clipboard History',
-    subtitle: 'Browse, filter, favorite, paste past copies',
+    get title() {
+      return t('features.help.topics.clipboard');
+    },
+    get subtitle() {
+      return t('features.help.topics.clipboard_sub');
+    },
     icon: 'icon:clipboard',
     slug: 'features/clipboard-history',
   },
   {
     id: 'snippets',
-    title: 'Snippets',
-    subtitle: 'Type a keyword, paste the full text',
+    get title() {
+      return t('features.help.topics.snippets');
+    },
+    get subtitle() {
+      return t('features.help.topics.snippets_sub');
+    },
     icon: 'icon:snippets',
     slug: 'features/snippets',
   },
   {
     id: 'window-management',
-    title: 'Window Management',
-    subtitle: 'Resize and arrange windows',
+    get title() {
+      return t('features.help.topics.window_management');
+    },
+    get subtitle() {
+      return t('features.help.topics.window_management_sub');
+    },
     icon: 'icon:layers',
     slug: 'features/window-management',
   },
   {
     id: 'aliases-and-shortcuts',
-    title: 'Aliases & Shortcuts',
-    subtitle: 'Custom triggers and global hotkeys',
+    get title() {
+      return t('features.help.topics.aliases_shortcuts');
+    },
+    get subtitle() {
+      return t('features.help.topics.aliases_shortcuts_sub');
+    },
     icon: 'icon:keyboard',
     slug: 'features/aliases-and-shortcuts',
   },
   {
     id: 'portals',
-    title: 'Portals',
-    subtitle: 'Save URLs as searchable shortcuts',
+    get title() {
+      return t('features.help.topics.portals');
+    },
+    get subtitle() {
+      return t('features.help.topics.portals_sub');
+    },
     icon: 'icon:link',
     slug: 'features/portals',
   },
   {
     id: 'scripts',
-    title: 'Scripts',
-    subtitle: 'Run shell scripts from watched folders',
+    get title() {
+      return t('features.help.topics.scripts');
+    },
+    get subtitle() {
+      return t('features.help.topics.scripts_sub');
+    },
     icon: 'icon:terminal',
     slug: 'features/scripts',
   },
   {
     id: 'ai-and-agents',
-    title: 'AI & Agents',
-    subtitle: 'Ask AI, build agents, manage threads',
+    get title() {
+      return t('features.help.topics.ai_agents');
+    },
+    get subtitle() {
+      return t('features.help.topics.ai_agents_sub');
+    },
     icon: 'icon:sparkles',
     slug: 'features/ai-and-agents',
   },
   {
     id: 'mcp',
-    title: 'MCP',
-    subtitle: 'Connect external tools to your agents',
+    get title() {
+      return t('features.help.topics.mcp');
+    },
+    get subtitle() {
+      return t('features.help.topics.mcp_sub');
+    },
     icon: 'icon:server',
     slug: 'features/mcp',
   },
   {
     id: 'browser-integration',
-    title: 'Browser Integration',
-    subtitle: 'Search bookmarks, history, and tabs',
+    get title() {
+      return t('features.help.topics.browser');
+    },
+    get subtitle() {
+      return t('features.help.topics.browser_sub');
+    },
     icon: 'icon:globe',
     slug: 'features/browser-integration',
   },
   {
     id: 'extensions',
-    title: 'Extensions',
-    subtitle: 'Browse, install, and manage extensions',
+    get title() {
+      return t('features.help.topics.extensions');
+    },
+    get subtitle() {
+      return t('features.help.topics.extensions_sub');
+    },
     icon: 'icon:store',
     slug: 'features/extensions',
   },

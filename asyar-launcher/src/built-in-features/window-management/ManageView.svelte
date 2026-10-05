@@ -47,7 +47,11 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not save layout${err.message ? ' — ' + err.message : ''}` },
+        context: {
+          message: err.message
+            ? t('features.window_management.err_save_detail', { detail: err.message })
+            : t('features.window_management.err_save'),
+        },
       });
     }
   }
@@ -116,7 +120,7 @@
 
     actionService.registerAction({
       id: 'window-management:apply-layout',
-      title: `Apply "${name}"`,
+      title: t('features.window_management.ui.apply_title', { name }),
       icon: 'icon:play',
       shortcut: '↵',
       extensionId: 'window-management',
@@ -127,7 +131,7 @@
 
     actionService.registerAction({
       id: 'window-management:rename-layout',
-      title: `Rename "${name}"`,
+      title: t('features.window_management.ui.rename_title', { name }),
       icon: 'icon:edit',
       shortcut: '⌘R',
       extensionId: 'window-management',
@@ -138,7 +142,7 @@
 
     actionService.registerAction({
       id: 'window-management:delete-layout',
-      title: `Delete "${name}"`,
+      title: t('features.window_management.ui.delete_title', { name }),
       icon: 'icon:trash',
       extensionId: 'window-management',
       category: 'window-management',

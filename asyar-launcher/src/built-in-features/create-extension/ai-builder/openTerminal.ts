@@ -1,3 +1,4 @@
+import { t } from '../../../services/i18n';
 import { Command } from '@tauri-apps/plugin-shell';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { platform } from '@tauri-apps/plugin-os';
@@ -71,7 +72,7 @@ export async function openTerminalAt(dir: string, command: string): Promise<void
       kind: 'manual',
       severity: 'info',
       retryable: false,
-      context: { message: `Open a terminal in ${dir} and run: ${command}` },
+      context: { message: t('features.create_extension.ai.terminal_hint', { dir, command }) },
     });
     return;
   }
@@ -84,7 +85,7 @@ export async function openTerminalAt(dir: string, command: string): Promise<void
       kind: 'manual',
       severity: 'warning',
       retryable: false,
-      context: { message: `Couldn't open a terminal. Run "${command}" in ${dir}.` },
+      context: { message: t('features.create_extension.ai.terminal_failed', { command, dir }) },
     });
   }
 }

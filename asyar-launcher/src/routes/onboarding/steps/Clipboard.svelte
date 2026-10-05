@@ -15,16 +15,17 @@
 
 <GuidanceStep kicker={t('onboarding.clipboard_kicker')} title={t('features.clipboard.title')}>
   {#snippet body()}
-    <p>
-      Everything you copy is saved and searchable — text, links, even images. Find an old copy and
-      paste it in one keystroke.
-    </p>
+    <p>{t('onboarding.clipboard_desc')}</p>
     <LauncherHint
-      steps={[`Press ${mod}+${key}`, 'Type clip and press Enter', 'Pick any past item to paste it']}
+      steps={[
+        t('onboarding.hint_press_shortcut', { shortcut: `${mod}+${key}` }),
+        t('onboarding.clipboard_hint_type'),
+        t('onboarding.clipboard_hint_pick'),
+      ]}
     />
     <p>
-      Need several at once? Cmd/Ctrl-click (or Cmd/Ctrl+↑/↓) to select multiple items, then press
-      Enter to <span class="onb-hl">merge them into a single paste</span>.
+      {t('onboarding.clipboard_multi_pre')}
+      <span class="onb-hl">{t('onboarding.clipboard_multi_hl')}</span>.
     </p>
   {/snippet}
 </GuidanceStep>

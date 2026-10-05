@@ -130,7 +130,10 @@
       "error_remove_active_theme": "无法移除当前启用的主题",
       "applied": "已应用",
       "use_default": "使用默认",
-      "error_revert_default": "无法恢复为默认主题"
+      "error_revert_default": "无法恢复为默认主题",
+      "error_save_display": "无法保存启动器显示器设置",
+      "error_save_position": "无法保存启动器位置",
+      "error_save_snap": "无法保存启动器吸附设置"
     },
     "appearance": {
       "theme": "主题",
@@ -141,7 +144,9 @@
       "compact_mode": "紧凑模式",
       "compact_mode_description": "缩小启动器各处的间距与内边距",
       "window_mode": "窗口模式",
-      "window_mode_description": "输入之前，启动器显示多少内容。"
+      "window_mode_description": "输入之前，启动器显示多少内容。",
+      "theme_aria": "外观主题",
+      "window_mode_aria": "窗口模式"
     },
     "advanced": {
       "section_extension_surface": "扩展展示范围",
@@ -202,7 +207,16 @@
       "view_recovery_phrase": "查看恢复短语",
       "forgot_passphrase": "我忘记了口令",
       "view_plans": "查看套餐",
-      "error_sync_failed": "云端同步失败"
+      "error_sync_failed": "云端同步失败",
+      "waiting_browser_login": "正在等待浏览器登录...",
+      "avatar_alt": "头像",
+      "no_subscription": "没有有效订阅。",
+      "e2ee_off": "关闭",
+      "e2ee_on": "开启",
+      "e2ee_off_desc": "服务器可以读取你同步的数据。",
+      "e2ee_locked_desc": "需要输入口令才能继续。",
+      "e2ee_on_desc": "服务器仅存储密文。",
+      "unavailable": "不可用"
     },
     "backup": {
       "password_optional": "密码（选填）",
@@ -242,7 +256,8 @@
       "search_roots_description": "留空 ⇒ 整个用户主目录。添加特定目录可缩小范围。",
       "exclude_patterns": "排除规则",
       "exclude_patterns_description": "索引时跳过的 Glob 匹配模式。",
-      "add_search_root_title": "添加搜索根目录"
+      "add_search_root_title": "添加搜索根目录",
+      "pattern_placeholder": "例如 *.tmp"
     },
     "extensions": {
       "installed": "已安装的扩展",
@@ -287,7 +302,23 @@
       "required_builtin_explanation": "核心必需功能无法禁用",
       "type_command": "命令",
       "type_extension": "扩展",
-      "type_theme": "主题"
+      "type_theme": "主题",
+      "panel_trigger": "触发词",
+      "panel_add_alias": "添加别名…",
+      "panel_record_hotkey": "录制快捷键…",
+      "panel_preferences": "偏好设置",
+      "panel_runtime": "运行时",
+      "runtime_failed_desc": "所需的运行时下载失败或已被拒绝。在安装完成前，命令将被隐藏——可在此处重试。",
+      "revoke_permissions_message": "“{title}”将失去已授予的权限，直到你重新审核并允许。它仍保持安装和启用状态。",
+      "save_preference_error": "无法保存偏好设置“{name}”",
+      "invalid_dropdown": "下拉菜单配置无效",
+      "review_carefully": "⚠️ 允许前请仔细审核。",
+      "required_setup_title": "扩展需要设置",
+      "required_setup_pre": "请填写以下扩展的必填偏好设置：",
+      "required_setup_mid": "以运行",
+      "coming_soon": "即将推出",
+      "uninstall_title": "卸载扩展",
+      "uninstall_message": "确定要卸载“{title}”吗？此操作无法撤销。"
     },
     "ai": {
       "google_search": "Google 搜索",
@@ -318,7 +349,92 @@
       "use_custom_model": "使用自定义模型“{query}”",
       "enter_custom_model": "输入自定义模型 ID……",
       "custom_model_badge": "自定义",
-      "probe_cli_error": "探测 CLI 状态失败"
+      "probe_cli_error": "探测 CLI 状态失败",
+      "fetch_models_failed": "获取模型失败",
+      "error_set_default": "无法将其设为默认 AI 智能体。",
+      "error_auto_set_default": "无法自动设置默认 AI 智能体。你可以用星标手动选择。",
+      "error_check_removable": "无法检查是否可以安全移除此提供商。",
+      "error_update_default_after_remove": "移除原提供商后无法更新默认智能体。",
+      "error_update_default": "无法更新默认 AI 智能体。",
+      "providers_hint_pre": "带有",
+      "providers_hint_post": "的提供商会在你于启动器中按 Tab 时供 Asyar 助手使用。",
+      "cli_experimental_badge": "CLI（实验性）",
+      "default_provider": "默认提供商",
+      "set_as_default": "设为默认",
+      "fetch_model_first": "请先获取模型",
+      "remove_provider": "移除提供商",
+      "remove_named": "移除 {name}",
+      "field_name": "名称",
+      "name_placeholder": "提供商连接名称",
+      "connection_method": "连接方式",
+      "connection_api_key": "直接使用 API 密钥（HTTP）",
+      "connection_cli": "本地 CLI（{name}）（实验性）",
+      "connection_cli_desc": "直接运行本地 {name} CLI，使用你现有的终端 / 订阅认证，无需 API 密钥。",
+      "connection_api_desc": "使用 API 密钥直接向提供商 API 发送 HTTP 请求。",
+      "cli_checking": "正在检查 CLI...",
+      "cli_installed": "● 已安装",
+      "experimental": "实验性",
+      "quota_used": "已使用 {percent}% 配额",
+      "cli_not_detected": "○ 未检测到",
+      "checking": "正在检查...",
+      "refresh": "刷新",
+      "binary_label": "可执行文件：",
+      "cli_not_found": "在标准系统路径中未找到 {name}。",
+      "custom_cli_path": "自定义 CLI 可执行文件路径",
+      "optional": "（可选）",
+      "api_key": "API 密钥",
+      "api_key_placeholder_optional": "无需认证的端点请留空",
+      "base_url": "基础 URL",
+      "api_format": "API 格式",
+      "api_format_responses": "Responses（推荐）",
+      "api_format_chat": "Chat Completions（兼容性广）",
+      "api_format_desc_pre": "Responses 支持托管工具和类型化流式输出。当端点未实现",
+      "api_format_desc_post": "时，请使用 Chat Completions。",
+      "openai_hosted_search": "OpenAI 托管网页搜索",
+      "openai_hosted_search_desc": "允许兼容的 OpenAI/Codex 代理端点搜索实时网页。无需单独的搜索 API 密钥；不支持的端点在启用后可能会拒绝请求。",
+      "model": "模型",
+      "fetch_failed_manual": "（获取失败——请手动输入）",
+      "model_manual_placeholder": "例如 gpt-4o 或 llama3.2",
+      "reasoning": "推理",
+      "model_default": "模型默认",
+      "reasoning_desc": "更高的级别可以改善困难问题的回答，但通常耗时更长。可用级别取决于所选模型。",
+      "effort_off": "关闭",
+      "effort_minimal": "最低",
+      "effort_low": "低",
+      "effort_medium": "中",
+      "effort_high": "高",
+      "effort_xhigh": "超高",
+      "effort_max": "最大",
+      "temperature": "温度：{value}",
+      "omitted": "（已省略）",
+      "use_model_default": "使用模型默认值",
+      "max_tokens": "最大 Token 数",
+      "reset_n": "重置（{value}）",
+      "custom_headers": "自定义请求头",
+      "add_header": "+ 添加",
+      "custom_headers_desc": "随发往此提供商的每个请求附带的额外 HTTP 请求头。",
+      "header_name_placeholder": "请求头名称",
+      "header_value_placeholder": "请求头值",
+      "remove_header": "移除请求头",
+      "web_search_section": "网页搜索",
+      "search_engine": "搜索引擎",
+      "engine_duckduckgo": "DuckDuckGo（免费，隐私优先）",
+      "engine_brave": "Brave Search API",
+      "engine_tavily": "Tavily Search API",
+      "engine_serply": "Serply Search API",
+      "engine_searxng": "SearXNG / 自定义端点",
+      "ddg_desc": "零配置、本地运行、注重隐私。如遇速率限制或反机器人检测，会自动回退到即时答案和维基百科。",
+      "brave_key": "Brave API 密钥",
+      "brave_desc": "快速、独立的网页搜索索引。每月提供 2,000 次免费查询，详见",
+      "tavily_key": "Tavily API 密钥",
+      "tavily_desc": "为 LLM 智能体优化的 AI 搜索引擎。每月提供 1,000 次免费搜索，详见",
+      "serply_key": "Serply API 密钥",
+      "serply_desc_pre": "通过 JSON API 提供 Google 搜索结果。赠送 2,500 个免费额度，使用优惠码",
+      "serply_desc_mid": "可享额度包 75 折，详见",
+      "api_key_placeholder": "输入你的 API 密钥",
+      "searxng_url": "SearXNG 基础 URL",
+      "searxng_desc_pre": "自托管或公共元搜索实例，必须支持 JSON 格式（",
+      "searxng_desc_post": "）。"
     },
     "applications": {
       "no_match": "没有匹配筛选条件的应用",
@@ -333,7 +449,9 @@
       "table_alias": "别名",
       "table_hotkey": "快捷键",
       "table_enabled": "已启用",
-      "add_directory_title": "添加应用目录"
+      "add_directory_title": "添加应用目录",
+      "change_alias_title": "更改别名",
+      "reassign_hotkey_title": "重新分配快捷键"
     },
     "browsers": {
       "no_browsers": "尚未配对浏览器",
@@ -374,7 +492,10 @@
       "reloading": "重载中……",
       "error_load_dev_extensions": "加载开发扩展失败。",
       "error_reload_failed": "重载失败",
-      "detach_title": "取消挂载开发扩展"
+      "detach_title": "取消挂载开发扩展",
+      "reloaded": "已重新加载 {id}",
+      "detached": "已分离 {id}",
+      "detach_message": "要将“{id}”从开发扩展注册表中移除吗？扩展文件不会被删除。"
     },
     "scripts": {
       "no_directories": "尚未添加脚本目录",
@@ -387,7 +508,9 @@
       "error_load_list": "无法加载已安装运行时列表",
       "remove_runtime_title": "移除运行时",
       "remove_anyway": "仍然移除",
-      "removing": "移除中……"
+      "removing": "移除中……",
+      "downloads": "下载",
+      "error_remove": "无法移除运行时“{name}”"
     },
     "tasks": {
       "title": "计划任务",
@@ -469,7 +592,11 @@
       "retention_24hours": "24 小时",
       "retention_7days": "7 天",
       "retention_30days": "30 天",
-      "retention_90days": "90 天（默认）"
+      "retention_90days": "90 天（默认）",
+      "protected": "受保护",
+      "platform_note": "平台说明",
+      "linux_clipboard_note": "你的 Linux 桌面环境未提供标准的剪贴板排除 API，仅支持按来源应用过滤。",
+      "source_filter_only": "仅来源过滤"
     },
     "about": {
       "section_updates": "更新",
@@ -492,7 +619,53 @@
       "project_links_description": "开源、政策与许可相关信息。",
       "privacy_policy": "隐私政策",
       "license": "许可证"
-    }
+    },
+    "e2ee": {
+      "disable_title": "停用加密同步",
+      "disable_body": "停用加密同步会将所有项目以明文重新上传到 Asyar 服务器，Asyar 将再次能够读取你同步的数据。是否继续？",
+      "disable_confirm_pre": "要确认，请在下方输入",
+      "disable_confirm_post": "。",
+      "disable_error": "无法停用加密同步。请检查网络连接后重试。",
+      "disabling": "正在停用…",
+      "enrol_title": "设置加密同步",
+      "enrol_body": "请选择一个口令。你在其他每台设备上都需要它，Asyar 无法为你重置。",
+      "enrol_passphrase_placeholder": "口令（12 个以上字符）",
+      "enrol_confirm_placeholder": "确认口令",
+      "strength": "强度 {score}/4",
+      "passphrases_mismatch": "两次输入的口令不一致。",
+      "enrol_error": "无法启用加密同步。请检查网络连接后重试。",
+      "setting_up": "正在设置…",
+      "phrase_title": "你的恢复短语",
+      "phrase_body_enrol": "请将这 24 个单词保存在安全的地方——密码管理器、加密笔记或纸张。如果你忘记口令，这是恢复数据的唯一方式。",
+      "phrase_body_view": "请将这 24 个单词保存在安全的地方——密码管理器、加密笔记或纸张。如果你忘记口令，这是找回数据的唯一方式。",
+      "saved_confirm": "我已将其保存在安全的地方。",
+      "recover_title": "使用 24 个单词的短语恢复",
+      "recover_body": "请在下方粘贴你的恢复短语。单词之间可用空格或换行分隔。",
+      "words_count": "{count} / 24 个单词",
+      "unknown_word": "未知单词：{words}",
+      "unknown_words": "未知单词：{words}",
+      "all_words_valid": "24 个单词均有效。",
+      "new_passphrase_title": "选择新口令",
+      "new_passphrase_body": "此口令将取代你忘记的口令。你的恢复短语保持不变。",
+      "recover_mismatch_error": "恢复短语与你的账户不匹配。请重新检查你输入的单词。",
+      "recover_error": "无法恢复。请检查网络连接后重试。",
+      "recover_button": "恢复",
+      "recovering": "正在恢复…",
+      "view_title": "查看恢复短语",
+      "view_body": "输入当前口令以查看你的 24 个单词的恢复短语。",
+      "view_button": "查看",
+      "verifying": "正在验证…",
+      "strength_empty": "口令不能为空。",
+      "strength_min": "至少 {min} 个字符。",
+      "strength_max": "最多 {max} 个字符。",
+      "strength_predictable": "过于容易猜测。请尝试使用由多个无关单词组成的口令。"
+    },
+    "shell_trust": {
+      "error_load": "无法加载 {name} 的 Shell 信任设置",
+      "error_revoke": "无法撤销 {path} 的 Shell 信任"
+    },
+    "page_title": "Asyar 设置",
+    "loading": "正在加载设置..."
   },
   "onboarding": {
     "open_asyar": "打开 Asyar",
@@ -562,7 +735,81 @@
     "featured_desc": "安装社区打造的强大附加组件。你随时可以在商店里发现更多。",
     "featured_empty_tip_badge": "觉得商店空空的？别失望！",
     "featured_empty_store_tip": "如果你觉得商店里没什么东西，别失望！用“用 AI 创建扩展”命令就能轻松做出自己的扩展。大家都是这么干的 —— 自己做了扩展，只是忘了推送到商店，所以你也能轻松做出来。",
-    "clipboard_kicker": "再也不会丢失复制的内容"
+    "clipboard_kicker": "再也不会丢失复制的内容",
+    "continue": "继续",
+    "skip": "跳过",
+    "skip_for_now": "暂时跳过",
+    "start_tour": "开始导览",
+    "welcome_headline_pre": "认识 Asyar——键盘优先的",
+    "welcome_headline_hl": "指挥中心",
+    "launcher_hint_badge": "在启动器中试试",
+    "hint_press_shortcut": "按 {shortcut}",
+    "summon_lede_pre": "在任何位置按",
+    "summon_lede_mid": "即可打开 Asyar。试试搜索应用，或快速计算——输入",
+    "summon_lede_post": "然后按回车。",
+    "summon_hint_type": "输入应用名称，或“1234 * 56”",
+    "summon_hint_enter": "按回车",
+    "quick_look_label": "快速查看：",
+    "clipboard_desc": "你复制的所有内容都会被保存并可搜索——文本、链接，甚至图片。找到旧的复制内容，一键粘贴。",
+    "clipboard_hint_type": "输入 clip 并按回车",
+    "clipboard_hint_pick": "选择任意历史项目进行粘贴",
+    "clipboard_multi_pre": "需要一次粘贴多项？按住 Cmd/Ctrl 点击（或 Cmd/Ctrl+↑/↓）选择多个项目，然后按回车，",
+    "clipboard_multi_hl": "合并为一次粘贴",
+    "permission": "权限",
+    "step_num": "{n} · {label}",
+    "install": "安装",
+    "setting_up": "正在设置…",
+    "generic_error": "出了点问题。",
+    "emoji_kicker": "比表情选择器更快",
+    "emoji_title_pre": "表情",
+    "emoji_title_hl": "短代码",
+    "emoji_desc_pre": "输入",
+    "emoji_desc_post": "即可变成 🎉——在任何输入的地方都有效。安装 Emoji 扩展，然后在任意应用中试试。",
+    "emoji_install_btn": "安装 Emoji 扩展",
+    "emoji_installed": "✓ 已安装 Emoji",
+    "emoji_note": "注意：短代码会在其他应用（备忘录、Slack、你的编辑器）中展开，而不是在 Asyar 自己的窗口内。先在上方安装，然后在任意输入处试试。",
+    "hidden_kicker": "无需窗口的魔法",
+    "hidden_title_pre": "隐藏的",
+    "hidden_title_hl": "AI 命令",
+    "hidden_desc": "在任意应用中选中文本，按下快捷键，Asyar 就会就地改写——无需窗口，无需复制粘贴。我们将设置一个“语法修正”命令，你可以在这里直接试用。",
+    "hidden_examples_label": "你可以创建的一些命令：",
+    "hidden_example_grammar": "✍️ 修正语法和拼写",
+    "hidden_example_translate": "🌍 将所选内容翻译成英文",
+    "hidden_example_formal": "🎩 改得更正式",
+    "hidden_example_summarize": "✂️ 总结为一行",
+    "hidden_need_ai": "请在上一步连接 AI 提供商以启用此功能。",
+    "hidden_step_hotkey": "选择快捷键",
+    "hidden_create": "创建命令",
+    "hidden_ready": "✓ 语法修正已就绪",
+    "hidden_try_label": "试试看——选中下面这行，然后在任意输入处按下你的快捷键",
+    "hidden_enabled_hint": "选中文本并按 {shortcut}——在其他任意应用中同样有效。耗时太久？再按一次即可取消。",
+    "hidden_disabled_hint": "完成 3 个设置步骤即可在此试用",
+    "portals_kicker": "把任何网站变成命令",
+    "portals_heading": "门户",
+    "portals_desc_pre": "门户是带有",
+    "portals_desc_post": "占位符的已保存网址——输入几个字母即可直接开始搜索。我们会添加一个“Search GitHub”示例门户供你试用。",
+    "portals_sample_added": "✓ 已添加示例",
+    "portals_add_sample": "添加示例门户",
+    "portals_hint_type": "输入 Search GitHub",
+    "portals_hint_tab": "按 Tab，输入查询，回车",
+    "snippets_expansion_error": "无法启用展开功能——请在上方授予辅助功能权限后重试。",
+    "snippets_sample_ready": "✓ 示例片段已就绪",
+    "snippets_add_sample": "添加示例并启用",
+    "snippets_note": "注意：片段会在其他应用中展开，而不是在 Asyar 自己的窗口内。先在上方添加示例，然后在任意输入处键入 ;email。",
+    "ax_text_pre": "这需要 macOS 的",
+    "ax_name": "辅助功能",
+    "ax_text_post": "权限，以便 Asyar 读取你的选中内容并代你输入。",
+    "ax_open_settings": "打开系统设置",
+    "ax_opening": "正在打开…",
+    "ax_hint": "打开 Asyar 的开关，然后返回此处——系统会自动检测授权。",
+    "ax_granted": "✓ 已授予辅助功能权限",
+    "install_n_selected": "安装已选的 {n} 项",
+    "installed": "已安装",
+    "failed": "失败",
+    "connecting": "正在连接...",
+    "connect_failed": "连接 {name} 失败",
+    "theme_install_failed": "无法安装“{name}”",
+    "theme_apply_failed": "无法应用“{name}”"
   },
   "dev": {
     "no_enabled_extensions": "没有已启用的扩展",
@@ -583,7 +830,10 @@
       "error_empty": "请输入别名。",
       "error_too_long": "别名最多 10 个字符。",
       "error_invalid_chars": "别名只能包含小写字母和数字。",
-      "error_save_failed": "保存别名失败，请重试。"
+      "error_save_failed": "保存别名失败，请重试。",
+      "ui": {
+        "placeholder": "例如 c、s、app"
+      }
     },
     "clipboard": {
       "title": "剪贴板历史",
@@ -600,7 +850,43 @@
       "time_yesterday": "昨天",
       "time_this_week": "本周",
       "time_this_month": "本月",
-      "time_older": "更早"
+      "time_older": "更早",
+      "act": {
+        "toggle_html": "切换 HTML 渲染/源码",
+        "toggle_html_desc": "在渲染的 HTML 预览和原始源码之间切换",
+        "open_browser": "在浏览器中打开",
+        "open_browser_desc": "在默认浏览器中打开所选网址",
+        "paste_plain": "粘贴为纯文本",
+        "paste_plain_desc": "将所选项目粘贴为纯文本，去除所有格式",
+        "toggle_favorite": "切换收藏",
+        "toggle_favorite_desc": "固定或取消固定所选剪贴板项目",
+        "save_snippet": "保存为片段",
+        "save_snippet_desc": "在片段编辑器中打开此剪贴板项目",
+        "delete_desc": "删除所选剪贴板项目",
+        "clear_selection": "清除选择",
+        "clear_selection_desc": "取消选择所有多选的剪贴板项目",
+        "ask_ai": "就此询问 AI",
+        "ask_ai_desc": "打开 AI 聊天并预填此剪贴板文本"
+      },
+      "subtitle": "查看和管理剪贴板历史",
+      "unsupported_item": "暂不支持——{type} 类型的剪贴板项目尚无法用于“{action}”。",
+      "refresh_failed": "无法刷新剪贴板历史——列表可能已过期",
+      "paste_permission": "Asyar 需要 macOS 辅助功能权限才能粘贴。请在“系统设置 → 隐私与安全性 → 辅助功能”中启用 Asyar，然后重试。",
+      "merge_nothing": "没有可粘贴的内容——所选的 {count} 个项目无法合并为文本。",
+      "merge_skipped": "已跳过 {count} 个项目——只能合并文本/HTML/RTF。",
+      "ui": {
+        "reveal_failed": "无法在访达中显示 {path}",
+        "indexing": "正在建立索引…搜索结果准备好后将显示",
+        "url_preview": "网址预览",
+        "no_preview": "无可用预览",
+        "encrypted_secret": "加密的密钥",
+        "paste_original": "粘贴时将使用原始值",
+        "loading_image": "正在加载图片...",
+        "preview_alt": "预览",
+        "image_failed": "加载图片失败",
+        "reveal_title": "在访达中显示",
+        "preview_unavailable": "预览不可用"
+      }
     },
     "snippets": {
       "title": "片段",
@@ -619,12 +905,72 @@
       "private_label": "私密（仅本地）",
       "private_hint": "将此片段保留在当前设备上，并从云同步中排除。",
       "toggle_private": "切换私密（仅本地）",
-      "toggle_private_description": "标记或取消标记所选片段为私密以防止云同步。"
+      "toggle_private_description": "标记或取消标记所选片段为私密以防止云同步。",
+      "act": {
+        "add": "添加片段",
+        "add_desc": "创建新的文本展开片段",
+        "paste": "粘贴片段",
+        "paste_desc": "将所选片段的展开内容粘贴到当前应用",
+        "edit": "编辑片段",
+        "edit_desc": "编辑所选片段",
+        "delete": "删除片段",
+        "delete_desc": "删除所选片段",
+        "copy": "复制展开内容",
+        "copy_desc": "将片段的展开文本复制到剪贴板",
+        "duplicate": "复制片段",
+        "duplicate_desc": "创建所选片段的副本",
+        "pin": "固定/取消固定片段",
+        "pin_desc": "固定或取消固定所选片段，使其保持在顶部",
+        "private": "切换私有（仅本地）",
+        "private_desc": "将所选片段标记或取消标记为私有，以阻止云同步",
+        "clear_all": "清除所有片段",
+        "clear_all_desc": "永久删除所有片段"
+      },
+      "ui": {
+        "accessibility_warning": "后台展开需要辅助功能权限。请打开“系统设置 → 隐私与安全性 → 辅助功能”并添加 Asyar。如果处于开发环境，请添加位于以下路径的二进制文件：src-tauri/target/debug/asyar",
+        "open_settings": "打开系统设置",
+        "recheck": "重新检查权限",
+        "all": "所有片段",
+        "keyword_optional": "关键词（可选）",
+        "keyword_hint": "使用 ; 或 / 等前缀，仅限小写字母和符号。",
+        "expansion": "展开内容",
+        "name_placeholder": "例如：我的邮箱",
+        "insert_placeholder": "插入占位符",
+        "browse_pre": "按",
+        "browse_post": "以浏览。",
+        "encrypted_secret": "加密的密钥",
+        "badge": "片段",
+        "add_first": "添加你的第一个片段"
+      }
     },
     "file_search": {
       "title": "文件搜索",
       "select_file_preview": "选择一个文件进行预览",
-      "start_typing_files": "开始输入以查找文件"
+      "start_typing_files": "开始输入以查找文件",
+      "act": {
+        "reveal": "在访达中显示",
+        "reveal_desc": "在访达中显示该文件",
+        "copy_path": "复制路径",
+        "copy_path_desc": "复制文件的绝对路径",
+        "copy_name": "复制名称",
+        "copy_name_desc": "仅复制文件名",
+        "open_terminal": "在终端中打开",
+        "open_terminal_desc": "在默认终端中打开所在文件夹",
+        "toggle_pin": "切换固定",
+        "toggle_pin_desc": "将此文件固定到顶部或取消固定",
+        "trash": "移到废纸篓",
+        "trash_desc": "将文件移到系统废纸篓",
+        "quick_look": "快速查看",
+        "quick_look_desc": "预览该文件",
+        "send_ai": "发送给 Asyar AI",
+        "send_ai_desc": "以此文件为上下文打开 AI 聊天",
+        "search_everywhere": "全局搜索",
+        "search_everywhere_desc": "对当前查询执行系统原生深度搜索（Spotlight/Everything/plocate）"
+      },
+      "ui": {
+        "deep": "深度",
+        "loading_preview": "正在加载预览…"
+      }
     },
     "notes": {
       "title": "笔记",
@@ -633,13 +979,54 @@
       "no_notes_description": "写下你的第一条笔记 —— 边写边自动保存。",
       "select_note_description": "从列表中选择一条笔记来阅读或编辑。",
       "no_other_notes": "暂无其他笔记",
-      "link_to_note": "链接到笔记"
+      "link_to_note": "链接到笔记",
+      "act": {
+        "new": "新建笔记",
+        "new_desc": "创建新笔记",
+        "pin": "固定/取消固定笔记",
+        "pin_desc": "固定或取消固定所选笔记，使其保持在顶部",
+        "duplicate": "复制笔记",
+        "duplicate_desc": "创建所选笔记的副本",
+        "copy_md": "复制为 Markdown",
+        "copy_md_desc": "将所选笔记以 Markdown 格式复制到剪贴板",
+        "stick": "贴到桌面",
+        "stick_desc": "将此笔记作为浮动窗口固定在桌面上",
+        "export_md": "导出为 Markdown…",
+        "export_md_desc": "将所选笔记保存为 .md 文件并显示",
+        "delete": "删除笔记",
+        "delete_desc": "删除所选笔记"
+      },
+      "ui": {
+        "all": "所有笔记",
+        "untitled": "无标题笔记",
+        "body_placeholder": "开始书写…按 ⌘Enter 可跳转光标处的 [[链接]]。",
+        "linked_mentions": "关联提及",
+        "create_first": "创建你的第一条笔记"
+      }
     },
     "walkthrough": {
       "title": "操作指引",
       "no_tasks": "暂无指引任务",
       "no_matching_tasks": "没有匹配搜索的任务",
-      "no_tasks_description": "安装扩展后，扩展会把自己的任务添加到这里。"
+      "no_tasks_description": "安装扩展后，扩展会把自己的任务添加到这里。",
+      "act": {
+        "beyond": "进阶使用",
+        "complete": "标记为完成",
+        "complete_desc": "不执行直接勾选此任务",
+        "complete_all": "全部标记为完成",
+        "complete_all_desc": "一次性完成所有剩余任务",
+        "hide": "在搜索中隐藏进度",
+        "hide_desc": "不再在主搜索列表中显示进度行",
+        "restart": "重新开始引导",
+        "restart_desc": "忘记手动勾选的任务并重新开始"
+      },
+      "progress_subtitle": "{completed} / {total} 项任务——了解 Asyar 的真正实力",
+      "ui": {
+        "beyond": "进阶使用",
+        "tasks_aria": "引导任务",
+        "marked": "已标记",
+        "done": "已完成"
+      }
     },
     "window_management": {
       "title": "窗口管理",
@@ -670,7 +1057,30 @@
       "copy_title": "复制标题",
       "title_copied": "标题已复制到剪贴板",
       "badge_active": "当前",
-      "badge_minimized": "已最小化"
+      "badge_minimized": "已最小化",
+      "act": {
+        "save_layout": "将当前窗口保存为布局",
+        "save_layout_desc": "将最前窗口的位置和大小保存为自定义布局"
+      },
+      "err_no_layout": "未提供布局名称或 ID",
+      "err_not_found": "未找到布局“{name}”",
+      "err_apply": "无法应用布局",
+      "err_apply_detail": "无法应用布局——{detail}",
+      "nothing_restore": "没有可恢复的内容",
+      "err_restore": "恢复失败",
+      "err_restore_detail": "恢复失败——{detail}",
+      "err_save": "无法保存布局",
+      "err_save_detail": "无法保存布局——{detail}",
+      "layout_subtitle": "{w}x{h}，位于 ({x}, {y})",
+      "ui": {
+        "apply_title": "应用“{name}”",
+        "rename_title": "重命名“{name}”",
+        "delete_title": "删除“{name}”",
+        "list_failed": "无法列出窗口：{error}",
+        "switch_failed": "无法切换到窗口：{error}",
+        "close_failed": "无法关闭窗口：{error}",
+        "copy_title_failed": "无法复制标题：{error}"
+      }
     },
     "shortcuts": {
       "title": "快捷键",
@@ -679,13 +1089,46 @@
       "no_matching_shortcuts": "没有匹配的快捷键",
       "action_change": "更改",
       "action_remove": "移除",
-      "remove_confirm_title": "移除快捷键"
+      "remove_confirm_title": "移除快捷键",
+      "ui": {
+        "remove_confirm": "移除“{name}”的快捷键？",
+        "applications": "应用",
+        "commands": "命令",
+        "assign": "分配快捷键",
+        "type": "类型",
+        "path": "路径",
+        "badge": "快捷键",
+        "press_pre": "按",
+        "press_post": "取消"
+      }
     },
     "scripts": {
       "title": "脚本",
       "no_scripts": "未找到脚本",
       "no_scripts_description": "被监视目录中的可执行文件会显示在这里。",
-      "select_script": "选择一个脚本或问题项"
+      "select_script": "选择一个脚本或问题项",
+      "act": {
+        "run": "运行脚本",
+        "run_desc": "运行所选脚本",
+        "reveal": "在文件管理器中显示",
+        "reveal_desc": "在所在文件夹中显示所选文件",
+        "copy_path": "复制路径",
+        "copy_path_desc": "复制所选文件的路径",
+        "rescan": "重新扫描脚本",
+        "rescan_desc": "立即刷新脚本和诊断信息",
+        "add_dir": "添加脚本目录",
+        "add_dir_desc": "选择另一个要监视的目录",
+        "make_exec": "设为可执行",
+        "make_exec_desc": "允许所选脚本文件运行"
+      },
+      "ui": {
+        "list_aria": "脚本与问题",
+        "issues": "问题",
+        "config": "配置",
+        "file": "文件",
+        "directory": "目录",
+        "arguments": "参数"
+      }
     },
     "store": {
       "title": "扩展商店",
@@ -697,7 +1140,59 @@
       "uninstall": "卸载",
       "update": "更新",
       "installed": "已安装",
-      "uninstall_confirm_title": "卸载扩展"
+      "uninstall_confirm_title": "卸载扩展",
+      "act": {
+        "update": "更新扩展",
+        "update_desc": "更新当前查看的扩展",
+        "uninstall": "卸载扩展",
+        "uninstall_desc": "卸载当前查看的扩展",
+        "install": "安装扩展",
+        "install_desc": "安装当前查看的扩展"
+      },
+      "t_install_failed": "安装失败",
+      "t_install_no_ext": "无法确定要安装哪个扩展。",
+      "t_installing": "正在安装 {name}",
+      "t_install_started": "已开始安装",
+      "t_install_started_body": "已开始安装 {name}。应用可能会重新加载。",
+      "t_installation_failed": "安装失败",
+      "t_installation_failed_body": "无法安装 {name}。{error}",
+      "t_uninstalling": "正在卸载 {name}",
+      "t_uninstall_complete": "卸载完成",
+      "t_uninstall_complete_body": "{name} 已被移除。",
+      "t_uninstall_failed": "卸载失败",
+      "t_uninstall_failed_body": "无法卸载 {name}。{error}",
+      "t_updating": "正在更新 {name}",
+      "t_update_complete": "更新完成",
+      "t_update_complete_body": "{name} 已更新至 v{version}。",
+      "t_no_selection": "未选择扩展。",
+      "act_update_named": "更新 {name} 扩展",
+      "act_update_named_desc": "更新 {name} 扩展",
+      "act_uninstall_named": "卸载 {name} 扩展",
+      "act_uninstall_named_desc": "卸载 {name} 扩展",
+      "act_install_named": "安装 {name} 扩展",
+      "act_install_named_desc": "安装 {name} 扩展",
+      "ui": {
+        "update_available": "有可用更新",
+        "screenshot_alt": "截图",
+        "sdk_too_old": "无法安装 {name}：需要更新的 SDK（{sdk}）",
+        "uninstall_confirm": "卸载 {name}？你可以随时从商店重新安装。",
+        "run_failed": "无法运行命令“{command}”",
+        "configure": "配置",
+        "activate_theme": "在“设置 → 外观 → 自定义主题”中启用",
+        "about": "关于",
+        "commands_actions": "命令与操作",
+        "arguments_label": "参数：",
+        "docs": "文档与指南",
+        "configurable": "可配置设置",
+        "open_in_settings": "在设置中打开 →",
+        "permissions": "权限",
+        "details": "详情",
+        "version": "版本",
+        "updated": "更新于",
+        "status": "状态",
+        "added": "添加于",
+        "lazy_failed": "加载视图失败"
+      }
     },
     "agents": {
       "setup_ai": "设置你的 AI",
@@ -719,7 +1214,56 @@
       "searching": "搜索中……",
       "sources": "来源",
       "google_search_suggestions": "Google 搜索建议",
-      "error_open_ai_settings": "无法打开 AI 设置，请重试。"
+      "error_open_ai_settings": "无法打开 AI 设置，请重试。",
+      "act": {
+        "new": "新建智能体",
+        "new_desc": "创建新的智能体",
+        "edit": "编辑智能体",
+        "edit_desc": "编辑所选智能体",
+        "delete": "删除智能体",
+        "delete_desc": "删除所选智能体",
+        "new_thread": "新建对话",
+        "new_thread_desc": "开始新的对话",
+        "delete_thread": "删除当前对话",
+        "delete_thread_desc": "删除当前活动的对话",
+        "cancel": "取消运行",
+        "cancel_desc": "中止正在进行的助手回复"
+      },
+      "edit": {
+        "name_placeholder": "我的智能体",
+        "system_prompt": "系统提示词",
+        "system_prompt_placeholder": "你是一个乐于助人的助手。",
+        "type": "类型",
+        "provider": "提供商",
+        "no_providers": "尚未配置 AI 提供商。创建智能体之前，请先在“设置 → AI”中添加 API 密钥。",
+        "select": "请选择…",
+        "model": "模型",
+        "pick_provider": "请先在上方选择提供商以加载其模型。",
+        "loading_models": "正在加载模型…",
+        "no_models": "此提供商未返回任何模型。",
+        "tools": "工具",
+        "silent": "静默运行（无聊天视图）",
+        "silent_hint": "静默智能体在后台运行，并将结果放回你触发它的位置。适用于语法修正或翻译等一次性任务。",
+        "input_from": "输入来源",
+        "input_argument": "参数（在启动器栏中输入）",
+        "input_selection": "当前应用中选中的文本",
+        "input_clipboard": "剪贴板内容",
+        "input_none": "无（仅使用系统提示词）",
+        "input_shortcode": "短代码未命中事件",
+        "shortcode_trigger": "短代码触发符",
+        "shortcode_hint": "必须包裹在单词两侧以触发此智能体的字符。例如，\":\" 对应 \":party:\"，\"/\" 对应 \"/fix/\"。",
+        "then": "然后",
+        "out_replace": "用结果替换所选内容",
+        "out_paste": "在光标处粘贴结果",
+        "out_copy": "将结果复制到剪贴板",
+        "out_hud": "以 HUD 消息显示结果",
+        "cache": "缓存并学习回复",
+        "cache_hint": "为相同输入记住之前的输出，避免重复调用 LLM。",
+        "promote": "升级为永久片段",
+        "delete_cache": "删除缓存条目",
+        "clear_cache": "清除缓存",
+        "saving": "正在保存…"
+      }
     },
     "sticky": {
       "new_sticky": "新建便签",
@@ -735,11 +1279,38 @@
       "streaming_output": "输出会随生成实时显示。",
       "dismissed_output": "输出已被关闭。",
       "select_run": "选择一条运行记录",
-      "select_run_description": "从左侧选择一条运行记录以查看详情。"
+      "select_run_description": "从左侧选择一条运行记录以查看详情。",
+      "act": {
+        "clear_recent": "清除最近记录",
+        "view_conversation": "查看对话",
+        "view_conversation_desc": "跳转到产生此次运行的智能体对话"
+      },
+      "ui": {
+        "ai_thread": "AI 聊天对话",
+        "ai_thread_desc": "此次运行是在 AI 对话中管理的。输出流和状态直接保存在智能体聊天界面中。使用命令菜单（Cmd+K）可查看对话。",
+        "failed": "执行失败",
+        "failed_desc": "执行失败或返回了错误：",
+        "exit_nonzero": "脚本以非零状态退出。",
+        "succeeded": "成功完成",
+        "succeeded_in": "进程已在 {seconds} 秒内成功完成。",
+        "succeeded_silent": "执行成功。脚本结束时没有向标准输出打印任何内容。"
+      }
     },
     "usage_stats": {
       "no_usage": "暂无使用记录",
-      "no_usage_description": "运行一些命令后，你的统计信息会显示在这里。"
+      "no_usage_description": "运行一些命令后，你的统计信息会显示在这里。",
+      "act": {
+        "send": "立即发送使用情况",
+        "send_desc": "立即向 Asyar 发送今天的匿名使用情况快照",
+        "failed": "发送使用情况失败，请重试。"
+      },
+      "sent": "已发送使用情况（{count} {unit}）",
+      "event_one": "个事件",
+      "event_other": "个事件",
+      "ui": {
+        "title": "使用统计",
+        "most_used": "最常用"
+      }
     },
     "raycast_import": {
       "import_title": "从 Raycast 导入",
@@ -753,7 +1324,20 @@
       "category_shortcuts": "热键 → 快捷键",
       "category_shortcuts_hint": "应用与快捷链接热键",
       "category_aliases": "别名",
-      "category_aliases_hint": "应用与快捷链接别名"
+      "category_aliases_hint": "应用与快捷链接别名",
+      "ui": {
+        "filter_name": "Raycast 导出文件",
+        "choose_file": "选择导出文件…",
+        "protected": "此导出文件受密码保护",
+        "password_placeholder": "导出密码",
+        "wrong_password": "密码错误——请重试。",
+        "unlock": "解锁",
+        "importing": "正在导入…",
+        "failed": "导入失败",
+        "start_over": "重新开始",
+        "back_preview": "返回预览",
+        "import_another": "导入另一个文件"
+      }
     },
     "create_extension": {
       "no_extensions": "暂无扩展",
@@ -798,7 +1382,70 @@
       "action_retry_build": "优化并重试",
       "action_retry_build_desc": "使用相同的提示词重试构建",
       "action_start_over": "重新开始",
-      "action_start_over_desc": "清除失败的构建并重新开始"
+      "action_start_over_desc": "清除失败的构建并重新开始",
+      "act": {
+        "open_editor": "在编辑器中打开",
+        "open_editor_desc": "在编辑器中打开所选扩展",
+        "publish": "发布到 Asyar 商店",
+        "publish_desc": "将所选扩展发布到 Asyar 商店"
+      },
+      "ai": {
+        "cant_build": "Asyar 无法构建该扩展",
+        "feasible": "可行——开始构建",
+        "build_blocked": "构建被阻止",
+        "secret_found": "检测到硬编码的密钥，已拒绝发布。",
+        "ready": "✅ 扩展已就绪",
+        "ready_body": "{id} 已构建并验证（{summary}）。",
+        "build_failed": "构建失败",
+        "needs_input": "AI 构建器需要你的输入",
+        "publish_title": "发布到 Asyar 商店",
+        "publish_message": "这将构建扩展、创建一个公开的 GitHub 仓库、推送代码，并提交到 Asyar 商店审核。是否继续？",
+        "publish_confirm": "发布",
+        "editor_failed": "无法打开编辑器。请手动打开文件夹：{path}",
+        "terminal_hint": "在 {dir} 中打开终端并运行：{command}",
+        "terminal_failed": "无法打开终端。请在 {dir} 中运行“{command}”。"
+      },
+      "ui": {
+        "runtimes_title": "下载所需的运行时？",
+        "runtimes_total": "下载总量：",
+        "runtimes_desc_one": "AI 扩展构建器需要以下尚未安装的内容。Asyar 只会下载一次，并在需要的地方重复使用。",
+        "runtimes_desc_other": "AI 扩展构建器需要以下尚未安装的内容。Asyar 只会下载一次，并在需要的地方重复使用。",
+        "bundle_id_placeholder": "com.myname.awesome-tool"
+      },
+      "view": {
+        "title": "使用 AI 构建",
+        "subtitle": "描述你想要的功能——AI 会搭建、编写并验证你的扩展。",
+        "warning": "AI 会在你的电脑上构建并运行生成的代码（与构建任何项目一样）。请只构建你了解的扩展。",
+        "tip": "为获得最佳效果，请使用 Anthropic Opus 或更新的模型——它能生成最可靠的 Asyar 扩展。",
+        "prompt_label": "这个扩展应该做什么？",
+        "prompt_hint": "例如：为 Notion 创建一个可以搜索我页面的扩展",
+        "prompt_placeholder": "创建一个用于…的扩展",
+        "building": "正在构建…",
+        "building_hint": "你可以离开此视图——需要输入或构建完成时 Asyar 会通知你。",
+        "progress_aria": "构建进度",
+        "starting": "正在启动…",
+        "input_needed": "需要输入",
+        "ready": "✅ 已就绪",
+        "ready_desc": "你的扩展已构建并验证完成。",
+        "extension_id": "扩展 ID",
+        "smoke_test": "冒烟测试",
+        "ready_pre": "按",
+        "ready_post": "打开操作面板——你可以在那里用编辑器打开、加载扩展或开始新的构建。",
+        "failed": "❌ 构建失败",
+        "build_log": "构建日志",
+        "failed_pre": "打开操作面板（",
+        "failed_post": "）以优化提示词、重试或重新开始。",
+        "choose_answer": "请选择一个答案",
+        "press_enter": "按回车发送",
+        "complete": "构建完成",
+        "see_panel": "请在操作面板中重试",
+        "build": "构建",
+        "yes": "是",
+        "no": "否",
+        "send_answer": "发送回答",
+        "list_failed": "无法列出已创建的扩展：{error}",
+        "search_failed": "无法搜索已创建的扩展：{error}"
+      }
     },
     "feedback": {
       "placeholder_tell_us": "告诉我们你的想法……",
@@ -838,7 +1485,40 @@
       "tab_detected_configs": "来自检测到的配置",
       "tab_paste_json": "粘贴 JSON",
       "transport_stdio": "Stdio",
-      "transport_http": "HTTP"
+      "transport_http": "HTTP",
+      "act": {
+        "refresh": "刷新服务器",
+        "refresh_desc": "重新查询 MCP 服务器状态和工具列表",
+        "install": "安装 MCP 服务器",
+        "install_desc": "手动添加新的 MCP 服务器",
+        "import": "导入 MCP 服务器",
+        "import_desc": "从现有配置或粘贴的 JSON 导入服务器",
+        "permissions": "查看 MCP 权限",
+        "permissions_desc": "打开已保存的 MCP 工具调用权限决定",
+        "activity": "查看最近的 MCP 活动",
+        "activity_desc": "查看 MCP 工具调用的审计日志——成功与失败",
+        "strict": "切换严格模式",
+        "strict_desc": "在任何 MCP 工具调用前始终询问（建议用于不受信任的服务器）"
+      },
+      "ui": {
+        "import_placeholder": "在此粘贴 MCP 配置 JSON",
+        "parse": "解析",
+        "imported": "已导入",
+        "strict_title": "严格模式已开启——每次工具调用都会请求权限",
+        "strict": "严格",
+        "prompt_title": "允许 MCP 工具调用？",
+        "prompt_wants": "想要调用",
+        "prompt_on": "于",
+        "no_description": "服务器未提供描述。",
+        "col_server": "服务器",
+        "col_tool": "工具",
+        "col_agent": "智能体",
+        "col_decision": "决定",
+        "revoke": "撤销",
+        "runtime_title": "下载所需的运行时？",
+        "runtime_pre": "此 MCP 服务器需要",
+        "runtime_post": "（{size}），但尚未安装。Asyar 只会下载一次，并供所有需要它的服务器重复使用。"
+      }
     },
     "portals": {
       "title": "门户",
@@ -850,7 +1530,88 @@
       "action_edit": "编辑",
       "action_duplicate": "创建副本",
       "action_delete": "删除",
-      "delete_confirm_title": "删除门户"
+      "delete_confirm_title": "删除门户",
+      "act": {
+        "new": "新建门户",
+        "new_desc": "添加新的门户网址快捷方式"
+      },
+      "ui": {
+        "save_failed": "无法保存门户：{error}",
+        "delete_confirm": "删除“{name}”？此操作无法撤销。",
+        "remove_failed": "无法完全移除门户：{error}",
+        "index_failed": "无法为复制的门户建立索引：{error}",
+        "url": "网址",
+        "placeholders": "占位符",
+        "badge": "门户",
+        "add_first": "添加你的第一个门户",
+        "insert_placeholder": "插入占位符",
+        "use_placeholders": "在网址中使用占位符：{tokens}。",
+        "browse_pre": "按",
+        "browse_mid": "或点击",
+        "browse_post": "按钮以浏览所有占位符。"
+      }
+    },
+    "help": {
+      "act": {
+        "guide": "打开用户指南",
+        "guide_desc": "在浏览器中打开完整的 Asyar 用户指南"
+      },
+      "topics": {
+        "getting_started": "快速入门",
+        "getting_started_sub": "安装、首次启动、你的快捷键",
+        "basics": "基础知识",
+        "basics_sub": "搜索、导航、操作面板",
+        "calculator": "计算器",
+        "calculator_sub": "数学、单位、货币、日期",
+        "clipboard": "剪贴板历史",
+        "clipboard_sub": "浏览、筛选、收藏、粘贴过往复制的内容",
+        "snippets": "片段",
+        "snippets_sub": "输入关键词，粘贴完整文本",
+        "window_management": "窗口管理",
+        "window_management_sub": "调整和排列窗口",
+        "aliases_shortcuts": "别名与快捷键",
+        "aliases_shortcuts_sub": "自定义触发词和全局快捷键",
+        "portals": "门户",
+        "portals_sub": "将网址保存为可搜索的快捷方式",
+        "scripts": "脚本",
+        "scripts_sub": "运行受监视文件夹中的 Shell 脚本",
+        "ai_agents": "AI 与智能体",
+        "ai_agents_sub": "询问 AI、创建智能体、管理对话",
+        "mcp": "MCP",
+        "mcp_sub": "将外部工具连接到你的智能体",
+        "browser": "浏览器集成",
+        "browser_sub": "搜索书签、历史记录和标签页",
+        "extensions": "扩展",
+        "extensions_sub": "浏览、安装和管理扩展"
+      },
+      "shortcuts_heading": "键盘快捷键",
+      "no_topics": "没有与搜索匹配的主题。",
+      "ui": {
+        "guides": "功能指南"
+      }
+    },
+    "quit": {
+      "title": "退出 Asyar",
+      "message": "确定要退出 Asyar 吗？",
+      "confirm": "退出"
+    },
+    "system": {
+      "sleep": "睡眠",
+      "sleep_desc": "让电脑进入睡眠",
+      "hibernate": "休眠",
+      "hibernate_desc": "让电脑休眠",
+      "lock": "锁定屏幕",
+      "lock_desc": "锁定屏幕",
+      "log_out": "退出登录",
+      "sign_out": "注销",
+      "log_out_desc": "结束当前会话",
+      "log_out_confirm": "确定要{action}吗？未保存的工作可能会丢失。",
+      "restart": "重启",
+      "restart_desc": "重启电脑",
+      "restart_confirm": "确定要重启电脑吗？",
+      "shut_down": "关机",
+      "shut_down_desc": "关闭电脑",
+      "shut_down_confirm": "确定要关闭电脑吗？"
     }
   },
   "common": {
@@ -903,7 +1664,21 @@
     "install": "安装",
     "installing": "安装中……",
     "downloading": "下载中……",
-    "no_items_found": "未找到条目"
+    "no_items_found": "未找到条目",
+    "continue": "继续",
+    "copy": "复制",
+    "copied": "已复制！",
+    "dismiss": "忽略",
+    "search_ellipsis": "搜索…",
+    "pinned": "已固定",
+    "loading_ellipsis": "正在加载…",
+    "installed": "已安装",
+    "duplicate": "复制",
+    "uninstall": "卸载",
+    "refresh": "刷新",
+    "run": "运行",
+    "import": "导入",
+    "update": "更新"
   },
   "components": {
     "shortcut_recorder": {
@@ -938,5 +1713,153 @@
   },
   "ocr_copied": "文本已复制到剪贴板",
   "ocr_no_text": "所选区域未找到文本",
-  "ocr_cancelled": "屏幕截图已取消"
+  "ocr_cancelled": "屏幕截图已取消",
+  "shortcuts_help": {
+    "open_settings": "打开设置",
+    "toggle_actions": "切换操作面板",
+    "toggle_dropdown": "切换搜索栏下拉菜单（显示时）",
+    "tab": "填写命令参数，或切换到 AI / 上下文模式",
+    "move": "在结果之间移动",
+    "run": "运行所选结果",
+    "escape": "清除搜索、返回，然后隐藏 Asyar",
+    "backspace": "从视图返回，或在搜索为空时退出 AI 模式"
+  },
+  "categories": {
+    "system": "系统",
+    "danger": "危险操作",
+    "share": "分享",
+    "extension": "扩展",
+    "item": "项目",
+    "shortcuts": "快捷键",
+    "aliases": "别名",
+    "runs": "运行",
+    "search_history": "搜索历史",
+    "agents": "智能体",
+    "notes": "笔记",
+    "snippets": "片段",
+    "mcp": "MCP",
+    "scripts": "脚本",
+    "portals": "门户",
+    "ai_builder": "AI 构建器",
+    "usage_stats": "使用统计"
+  },
+  "core_actions": {
+    "settings": "设置",
+    "settings_desc": "配置应用设置",
+    "send_feedback_desc": "分享想法、表扬或报告问题",
+    "reset_search": "重置搜索索引",
+    "reset_search_desc": "重置搜索索引",
+    "factory_reset": "将 Asyar 恢复出厂设置",
+    "factory_reset_desc": "清除所有 Asyar 数据——设置、历史记录、片段、快捷键、已安装扩展——并退出",
+    "factory_reset_title": "将 Asyar 恢复出厂设置？",
+    "factory_reset_message": "Asyar 将退出。下次启动时，所有设置、剪贴板记录、片段、快捷键、别名、OAuth 令牌和已安装的扩展都将被清除，此操作无法撤销。",
+    "factory_reset_confirm": "重置并退出",
+    "uninstall_app": "卸载应用",
+    "uninstall_desc_mac": "将此应用移到废纸篓",
+    "uninstall_desc_win": "启动安装程序以移除此应用",
+    "uninstall_title": "卸载 {name}？",
+    "uninstall_confirm_mac": "移到废纸篓",
+    "uninstall_confirm_win": "打开卸载程序",
+    "uninstall_hud_mac": "已移到废纸篓",
+    "uninstall_hud_win": "卸载程序已启动",
+    "uninstall_failed": "卸载失败：{reason}",
+    "uninstall_msg_mac_none": "这会将 {name} 移到废纸篓（{total}）。你之后可以从废纸篓中恢复。",
+    "uninstall_msg_mac_files_one": "这会将 {name} 及 1 个相关文件移到废纸篓——共 {total}。如有需要可从废纸篓恢复。",
+    "uninstall_msg_mac_files_other": "这会将 {name} 及 {count} 个相关文件移到废纸篓——共 {total}。如有需要可从废纸篓恢复。",
+    "uninstall_msg_mac_fallback": "这会将 {name} 移到废纸篓。你之后可以从废纸篓中恢复。",
+    "uninstall_msg_win": "这会启动 {name} 的卸载程序，之后将由厂商的卸载程序接管。",
+    "copy_deeplink": "复制深度链接",
+    "copy_deeplink_desc": "复制此命令的深度链接 URL",
+    "deeplink_copied": "深度链接已复制到剪贴板",
+    "view_extension_commands": "查看扩展命令",
+    "view_extension_commands_desc": "显示此扩展提供的所有命令",
+    "configure_extension": "配置扩展设置",
+    "configure_extension_desc": "打开此扩展的偏好设置"
+  },
+  "selection_actions": {
+    "change_shortcut": "更改快捷键",
+    "assign_shortcut": "分配快捷键",
+    "assign_shortcut_desc": "分配全局快捷键",
+    "cancel_run": "取消运行",
+    "cancel_run_desc": "取消此正在运行的任务",
+    "dismiss_failure": "忽略失败",
+    "dismiss_failure_desc": "从启动器列表中移除此失败的运行（仍保留在历史记录中）",
+    "change_alias": "更改别名",
+    "assign_alias": "分配别名",
+    "assign_alias_desc": "分配一个快速文本别名",
+    "unfavorite": "从收藏中移除",
+    "unfavorite_desc": "让此项目恢复自动排序",
+    "favorite": "添加到收藏",
+    "favorite_desc": "搜索为空时优先显示此项目",
+    "delete_history": "从历史记录中删除",
+    "delete_history_title": "从历史记录中删除？",
+    "delete_history_message": "此查询将无法再通过向上箭头调出。"
+  },
+  "launcher_errors": {
+    "command_args_open": "无法打开命令参数——请重试",
+    "command_args_run": "无法使用所提供的参数运行命令",
+    "action_exec": "执行操作时出错",
+    "action_failed": "失败：{message}",
+    "confirm_run": "确定要运行“{label}”吗？此操作无法撤销。"
+  },
+  "feedback_nudge": {
+    "title": "有反馈吗？我们在听",
+    "message": "分享想法、表扬或报告问题"
+  },
+  "recorder": {
+    "aria": "按下按键以设置快捷键",
+    "saving": "正在保存...",
+    "saved": "已保存"
+  },
+  "feedback_details": {
+    "title": "反馈详情",
+    "in_progress": "进行中",
+    "progress_of": "{completed} / {total}",
+    "technical": "技术细节",
+    "context": "上下文",
+    "report": "报告"
+  },
+  "toast": {
+    "dismiss_announcement": "忽略公告"
+  },
+  "usage_prompt": {
+    "aria": "匿名使用情况分享",
+    "title": "分享匿名使用情况？",
+    "subtitle": "分享 {day} 的匿名使用情况？仅发送命令次数和你的匿名 ID。",
+    "send": "发送",
+    "not_now": "暂不"
+  },
+  "entitlement": {
+    "requires_subscription": "{feature} 需要订阅",
+    "sign_in": "登录以查看可用套餐",
+    "view_plans": "查看套餐"
+  },
+  "model_selector": {
+    "popover_aria": "模型选择器弹窗",
+    "clear_search": "清除搜索"
+  },
+  "placeholder_picker": {
+    "title": "插入占位符"
+  },
+  "search_header": {
+    "go_back_title": "按 Esc 返回",
+    "go_back": "返回",
+    "exit_context": "退出上下文模式",
+    "query_placeholder": "查询..."
+  },
+  "show_more": {
+    "runs_aria": "活动运行摘要"
+  },
+  "actions_popup": {
+    "sr_heading": "可用操作"
+  },
+  "search_accessory": {
+    "filter_placeholder": "输入以筛选…",
+    "filter_aria": "筛选选项"
+  },
+  "shell_consent": {
+    "alias": "别名：",
+    "non_standard": "非标准路径：",
+    "non_standard_desc": "此可执行文件位于标准系统路径之外。"
+  }
 }

@@ -40,7 +40,7 @@
       title: t('features.shortcuts.action_change'),
       icon: 'icon:pencil',
       extensionId: 'shortcuts',
-      category: 'Shortcuts',
+      category: t('categories.shortcuts'),
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         startEdit();
@@ -51,7 +51,7 @@
       title: t('features.shortcuts.action_remove'),
       icon: 'icon:trash',
       extensionId: 'shortcuts',
-      category: 'Shortcuts',
+      category: t('categories.shortcuts'),
       destructive: true,
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -118,7 +118,7 @@
   async function handleRemove(id: string, name: string) {
     const confirmed = await feedbackService.confirmAlert({
       title: t('features.shortcuts.remove_confirm_title'),
-      message: `Remove the shortcut for "${name}"?`,
+      message: t('features.shortcuts.ui.remove_confirm', { name }),
       confirmText: t('common.remove'),
       variant: 'danger',
     });
@@ -150,9 +150,9 @@
     {#snippet listItem(s, index)}
       {@const section = shouldShowSectionHeader(index)}
       {#if section === 'applications'}
-        <div class="list-section">Applications</div>
+        <div class="list-section">{t('features.shortcuts.ui.applications')}</div>
       {:else if section === 'commands'}
-        <div class="list-section">Commands</div>
+        <div class="list-section">{t('features.shortcuts.ui.commands')}</div>
       {/if}
       <LauncherListRow
         data-index={index}
@@ -168,7 +168,7 @@
       {#if mode === 'edit' && selectedShortcut}
         <div class="form-panel">
           <div class="form-header">
-            <h2 class="form-title">Assign Shortcut</h2>
+            <h2 class="form-title">{t('features.shortcuts.ui.assign')}</h2>
             <p class="form-subtitle">
               Press the combination you want to use for {selectedShortcut.itemName}.
             </p>
@@ -196,10 +196,10 @@
           </div>
 
           <div class="meta-grid">
-            <div class="meta-label">Type</div>
+            <div class="meta-label">{t('features.shortcuts.ui.type')}</div>
             <div class="meta-value">{selectedShortcut.itemType}</div>
             {#if selectedShortcut.itemPath}
-              <div class="meta-label">Path</div>
+              <div class="meta-label">{t('features.shortcuts.ui.path')}</div>
               <div class="meta-value mono">{selectedShortcut.itemPath}</div>
             {/if}
           </div>
@@ -207,7 +207,7 @@
         <ActionFooter>
           {#snippet left()}
             <div class="flex items-center gap-3">
-              <Badge text="shortcut" variant="default" mono />
+              <Badge text={t('features.shortcuts.ui.badge')} variant="default" mono />
               <span class="text-caption">{selectedShortcut.itemType}</span>
               <span class="text-caption shortcut-meta-dim">
                 {selectedShortcut.itemName}

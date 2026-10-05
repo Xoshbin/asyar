@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -10,16 +11,16 @@ export function setupQueryHistoryActions(state: LauncherState) {
     if (query !== null && !state.activeViewVal && !state.activeContext) {
       actionService.registerAction({
         id: 'query-history:delete',
-        label: 'Delete from history',
+        label: t('selection_actions.delete_history'),
         icon: 'icon:trash',
-        category: 'Search history',
+        category: t('categories.search_history'),
         context: ActionContext.CORE,
         destructive: true,
         execute: async () => {
           const confirmed = await feedbackService.confirmAlert({
-            title: 'Delete from history?',
-            message: 'This query will no longer be available with the up arrow.',
-            confirmText: 'Delete',
+            title: t('selection_actions.delete_history_title'),
+            message: t('selection_actions.delete_history_message'),
+            confirmText: t('common.delete'),
             variant: 'danger',
           });
           if (confirmed && (await state.queryHistory.deleteCurrent())) {

@@ -20,8 +20,8 @@
 
 <div class="manage-view">
   {#if strictMode}
-    <span class="strict-mode-badge" title="Strict mode on — every tool call asks for permission">
-      <Badge text="Strict" variant="warning" />
+    <span class="strict-mode-badge" title={t('features.mcp.ui.strict_title')}>
+      <Badge text={t('features.mcp.ui.strict')} variant="warning" />
     </span>
   {/if}
 

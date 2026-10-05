@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { envService } from '../../services/envService';
 import type {
   ExtensionContext,
@@ -97,8 +98,8 @@ class StoreExtension implements Extension {
     if (!slug) {
       this.logService?.error('Install function called without a slug.');
       this.sendNotification({
-        title: 'Install Failed',
-        body: 'Could not determine which extension to install.',
+        title: t('features.store.t_install_failed'),
+        body: t('features.store.t_install_no_ext'),
       });
       return;
     }
@@ -135,7 +136,7 @@ class StoreExtension implements Extension {
 
     this.logService?.info(`Install action triggered for slug: ${slug}`);
     const installProgress = await this.feedbackService?.showProgress({
-      title: `Installing ${displayName}`,
+      title: t('features.store.t_installing', { name: displayName }),
     });
     try {
       // 1. Get install info
@@ -189,8 +190,8 @@ class StoreExtension implements Extension {
         `Installation command invoked successfully for ${displayName}. App might reload extensions.`,
       );
       this.sendNotification({
-        title: 'Installation Started',
-        body: `Installation for ${displayName} initiated. App may reload.`,
+        title: t('features.store.t_install_started'),
+        body: t('features.store.t_install_started_body', { name: displayName }),
       });
       try {
         await this.extensionManager?.reloadExtensions();
@@ -240,8 +241,11 @@ class StoreExtension implements Extension {
       this.logService?.error(`Installation failed for ${displayName}: ${errorMessage}`);
       await installProgress?.fail(`Failed to install ${displayName}`, errorMessage);
       this.sendNotification({
-        title: 'Installation Failed',
-        body: `Could not install ${displayName}. ${errorMessage}`,
+        title: t('features.store.t_installation_failed'),
+        body: t('features.store.t_installation_failed_body', {
+          name: displayName,
+          error: errorMessage,
+        }),
       });
       throw e;
     } finally {
@@ -269,14 +273,14 @@ class StoreExtension implements Extension {
 
     this.logService?.info(`Uninstall action triggered for slug: ${slug}, id: ${extensionId}`);
     const uninstallProgress = await this.feedbackService?.showProgress({
-      title: `Uninstalling ${displayName}`,
+      title: t('features.store.t_uninstalling', { name: displayName }),
     });
     try {
       await commands.uninstallExtension(extensionId.toString());
       this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
       this.sendNotification({
-        title: 'Uninstall Complete',
-        body: `${displayName} has been removed.`,
+        title: t('features.store.t_uninstall_complete'),
+        body: t('features.store.t_uninstall_complete_body', { name: displayName }),
       });
       try {
         await this.extensionManager?.reloadExtensions();
@@ -295,8 +299,11 @@ class StoreExtension implements Extension {
       this.logService?.error(`Uninstall failed for ${displayName}: ${errorMessage}`);
       await uninstallProgress?.fail(`Failed to uninstall ${displayName}`, errorMessage);
       this.sendNotification({
-        title: 'Uninstall Failed',
-        body: `Could not uninstall ${displayName}. ${errorMessage}`,
+        title: t('features.store.t_uninstall_failed'),
+        body: t('features.store.t_uninstall_failed_body', {
+          name: displayName,
+          error: errorMessage,
+        }),
       });
       throw e;
     } finally {
@@ -323,7 +330,7 @@ class StoreExtension implements Extension {
     }
     const displayName = name || slug;
     const updateProgress = await this.feedbackService?.showProgress({
-      title: `Updating ${displayName}`,
+      title: t('features.store.t_updating', { name: displayName }),
     });
     try {
       const success = await extensionUpdateService.updateSingle(update, async () => {
@@ -336,8 +343,11 @@ class StoreExtension implements Extension {
           new CustomEvent('store-extension-updated', { detail: { slug, id: extensionId } }),
         );
         this.sendNotification({
-          title: 'Update Complete',
-          body: `${displayName} updated to v${update.latestVersion}.`,
+          title: t('features.store.t_update_complete'),
+          body: t('features.store.t_update_complete_body', {
+            name: displayName,
+            version: update.latestVersion,
+          }),
         });
         await updateProgress?.succeed(`${displayName} updated to v${update.latestVersion}`);
       } else {
@@ -532,8 +542,8 @@ class StoreExtension implements Extension {
       this.logService?.debug(`Registering action: ${ACTION_ID_UPDATE_DETAIL}`);
       const updateAction: ExtensionAction = {
         id: ACTION_ID_UPDATE_DETAIL,
-        title: 'Update Extension',
-        description: 'Update the currently viewed extension',
+        title: t('features.store.act.update'),
+        description: t('features.store.act.update_desc'),
         icon: 'icon:arrow-up-circle',
         extensionId: EXTENSION_ID,
         execute: async () => {
@@ -553,8 +563,8 @@ class StoreExtension implements Extension {
       this.logService?.debug(`Registering action: ${ACTION_ID_UNINSTALL_DETAIL}`);
       const uninstallAction: ExtensionAction = {
         id: ACTION_ID_UNINSTALL_DETAIL,
-        title: 'Uninstall Extension',
-        description: 'Uninstall the currently viewed extension',
+        title: t('features.store.act.uninstall'),
+        description: t('features.store.act.uninstall_desc'),
         icon: 'icon:trash',
         extensionId: EXTENSION_ID,
         execute: async () => {
@@ -574,8 +584,8 @@ class StoreExtension implements Extension {
       this.logService?.debug(`Registering action: ${ACTION_ID_INSTALL_DETAIL}`);
       const installAction: ExtensionAction = {
         id: ACTION_ID_INSTALL_DETAIL,
-        title: 'Install Extension',
-        description: 'Install the currently viewed extension',
+        title: t('features.store.act.install'),
+        description: t('features.store.act.install_desc'),
         icon: 'icon:download',
         extensionId: EXTENSION_ID,
         execute: async () => {
@@ -628,11 +638,11 @@ class StoreExtension implements Extension {
 
           if (selectedItem.status === 'UPDATE_AVAILABLE') {
             // Register "Update Selected" action
-            const dynamicTitle = `Update ${selectedItem.name} Extension`;
+            const dynamicTitle = t('features.store.act_update_named', { name: selectedItem.name });
             const updateSelectedAction: ExtensionAction = {
               id: ACTION_ID_UPDATE_SELECTED,
               title: dynamicTitle,
-              description: `Update the ${selectedItem.name} extension`,
+              description: t('features.store.act_update_named_desc', { name: selectedItem.name }),
               icon: 'icon:arrow-up-circle',
               extensionId: EXTENSION_ID,
               execute: async () => {
@@ -651,14 +661,18 @@ class StoreExtension implements Extension {
             actionService.registerAction(updateSelectedAction);
           } else if (selectedItem.status === 'INSTALLED') {
             // Register the "Uninstall Selected" action (for Cmd+K)
-            const dynamicTitle = `Uninstall ${selectedItem.name} Extension`;
+            const dynamicTitle = t('features.store.act_uninstall_named', {
+              name: selectedItem.name,
+            });
             this.logService?.debug(
               `Registering/Updating action ${ACTION_ID_UNINSTALL_SELECTED} with title: "${dynamicTitle}"`,
             );
             const uninstallSelectedAction: ExtensionAction = {
               id: ACTION_ID_UNINSTALL_SELECTED,
               title: dynamicTitle,
-              description: `Uninstall the ${selectedItem.name} extension`,
+              description: t('features.store.act_uninstall_named_desc', {
+                name: selectedItem.name,
+              }),
               icon: 'icon:trash',
               extensionId: EXTENSION_ID,
               execute: async () => {
@@ -676,8 +690,8 @@ class StoreExtension implements Extension {
                     'Uninstall selected action executed, but no item is selected in state anymore.',
                   );
                   this.sendNotification({
-                    title: 'Uninstall Failed',
-                    body: 'No extension selected.',
+                    title: t('features.store.t_uninstall_failed'),
+                    body: t('features.store.t_no_selection'),
                   });
                 }
               },
@@ -685,14 +699,14 @@ class StoreExtension implements Extension {
             actionService.registerAction(uninstallSelectedAction);
           } else {
             // Register the "Install Selected" action (for Cmd+K)
-            const dynamicTitle = `Install ${selectedItem.name} Extension`;
+            const dynamicTitle = t('features.store.act_install_named', { name: selectedItem.name });
             this.logService?.debug(
               `Registering/Updating action ${ACTION_ID_INSTALL_SELECTED} with title: "${dynamicTitle}"`,
             );
             const installSelectedAction: ExtensionAction = {
               id: ACTION_ID_INSTALL_SELECTED,
               title: dynamicTitle,
-              description: `Install the ${selectedItem.name} extension`,
+              description: t('features.store.act_install_named_desc', { name: selectedItem.name }),
               icon: 'icon:download',
               extensionId: EXTENSION_ID,
               execute: async () => {
@@ -710,8 +724,8 @@ class StoreExtension implements Extension {
                     'Install selected action executed, but no item is selected in state anymore.',
                   );
                   this.sendNotification({
-                    title: 'Install Failed',
-                    body: 'No extension selected.',
+                    title: t('features.store.t_install_failed'),
+                    body: t('features.store.t_no_selection'),
                   });
                 }
               },

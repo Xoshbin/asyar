@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import type {
   CommandExecuteArgs,
   Extension,
@@ -128,10 +129,10 @@ class NotesExtension implements Extension {
   private registerViewActions(): void {
     actionService.registerAction({
       id: 'notes:add',
-      label: 'New Note',
+      label: t('features.notes.act.new'),
       icon: 'icon:plus',
-      description: 'Create a new note',
-      category: 'Notes',
+      description: t('features.notes.act.new_desc'),
+      category: t('categories.notes'),
       extensionId: 'notes',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -140,10 +141,10 @@ class NotesExtension implements Extension {
     });
     actionService.registerAction({
       id: 'notes:toggle-pin',
-      label: 'Pin/Unpin Note',
+      label: t('features.notes.act.pin'),
       icon: 'icon:pin',
-      description: 'Pin or unpin the selected note to keep it at the top',
-      category: 'Notes',
+      description: t('features.notes.act.pin_desc'),
+      category: t('categories.notes'),
       extensionId: 'notes',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -153,10 +154,10 @@ class NotesExtension implements Extension {
     });
     actionService.registerAction({
       id: 'notes:duplicate',
-      label: 'Duplicate Note',
+      label: t('features.notes.act.duplicate'),
       icon: 'icon:layers',
-      description: 'Create a duplicate of the selected note',
-      category: 'Notes',
+      description: t('features.notes.act.duplicate_desc'),
+      category: t('categories.notes'),
       extensionId: 'notes',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -177,10 +178,10 @@ class NotesExtension implements Extension {
     });
     actionService.registerAction({
       id: 'notes:copy-markdown',
-      label: 'Copy as Markdown',
+      label: t('features.notes.act.copy_md'),
       icon: 'icon:copy',
-      description: 'Copy the selected note to the clipboard as Markdown',
-      category: 'Notes',
+      description: t('features.notes.act.copy_md_desc'),
+      category: t('categories.notes'),
       extensionId: 'notes',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -190,10 +191,10 @@ class NotesExtension implements Extension {
     });
     actionService.registerAction({
       id: 'notes:stick-to-desktop',
-      label: 'Stick to Desktop',
+      label: t('features.notes.act.stick'),
       icon: 'icon:pin',
-      description: 'Pin this note to your desktop as a floating window',
-      category: 'Notes',
+      description: t('features.notes.act.stick_desc'),
+      category: t('categories.notes'),
       extensionId: 'notes',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -211,10 +212,10 @@ class NotesExtension implements Extension {
     });
     actionService.registerAction({
       id: 'notes:export-markdown',
-      label: 'Export as Markdown…',
+      label: t('features.notes.act.export_md'),
       icon: 'icon:download',
-      description: 'Save the selected note as a .md file and reveal it',
-      category: 'Notes',
+      description: t('features.notes.act.export_md_desc'),
+      category: t('categories.notes'),
       extensionId: 'notes',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -226,10 +227,10 @@ class NotesExtension implements Extension {
     });
     actionService.registerAction({
       id: 'notes:delete',
-      label: 'Delete Note',
+      label: t('features.notes.act.delete'),
       icon: 'icon:trash',
-      description: 'Delete the selected note',
-      category: 'Notes',
+      description: t('features.notes.act.delete_desc'),
+      category: t('categories.notes'),
       extensionId: 'notes',
       context: ActionContext.EXTENSION_VIEW,
       confirm: true,

@@ -298,7 +298,7 @@
           bind:ref={filterEl}
           bind:value={filter}
           type="text"
-          placeholder="Search…"
+          placeholder={t('common.search_ellipsis')}
           aria-label="Search {arg.placeholder?.trim() || arg.name}"
           aria-autocomplete="list"
           autocomplete="off"

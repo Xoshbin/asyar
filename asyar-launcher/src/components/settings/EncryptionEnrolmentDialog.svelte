@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import Modal from '../base/Modal.svelte';
   import { Button, Input, Checkbox } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
@@ -54,7 +55,7 @@
       stage = 'phrase';
     } catch (err) {
       logService.warn(`enrolment dialog submit failed: ${String(err)}`);
-      errorMessage = "Couldn't enable encrypted sync. Check your connection and try again.";
+      errorMessage = t('settings.e2ee.enrol_error');
       stage = 'passphrase';
     }
   }
@@ -90,15 +91,13 @@
 <Modal bind:isOpen labelledBy="enrol-title" width="32rem" onEscape={cancel} onEnter={handleEnter}>
   {#snippet children()}
     {#if stage === 'passphrase' || stage === 'submitting'}
-      <h2 id="enrol-title" class="dialog-title">Set up encrypted sync</h2>
-      <p class="dialog-body">
-        Choose a passphrase. You'll need this on every other device. Asyar cannot reset it for you.
-      </p>
+      <h2 id="enrol-title" class="dialog-title">{t('settings.e2ee.enrol_title')}</h2>
+      <p class="dialog-body">{t('settings.e2ee.enrol_body')}</p>
       <div class="flex flex-col gap-3">
         <Input
           textIntent="exact"
           type="password"
-          placeholder="Passphrase (12+ characters)"
+          placeholder={t('settings.e2ee.enrol_passphrase_placeholder')}
           bind:value={pass1}
           bind:ref={pass1Input}
           maxlength={256}
@@ -106,47 +105,48 @@
         <Input
           textIntent="exact"
           type="password"
-          placeholder="Confirm passphrase"
+          placeholder={t('settings.e2ee.enrol_confirm_placeholder')}
           bind:value={pass2}
           maxlength={256}
         />
         {#if pass1.length > 0}
           <p class="text-caption" class:error={!strength.accepted}>
-            Strength {strength.score}/4{#if strength.reason}
+            {t('settings.e2ee.strength', { score: strength.score })}{#if strength.reason}
               — {strength.reason}{/if}
           </p>
         {/if}
         {#if pass2.length > 0 && !confirmsMatch}
-          <p class="text-caption error">Passphrases don't match.</p>
+          <p class="text-caption error">{t('settings.e2ee.passphrases_mismatch')}</p>
         {/if}
         {#if errorMessage}
           <p class="text-caption error">{errorMessage}</p>
         {/if}
       </div>
       <div class="dialog-actions">
-        <Button onclick={cancel}>Cancel</Button>
+        <Button onclick={cancel}>{t('common.cancel')}</Button>
         <Button class="btn-primary" disabled={submitDisabled} onclick={submitPassphrase}>
-          {stage === 'submitting' ? 'Setting up…' : 'Continue'}
+          {stage === 'submitting' ? t('settings.e2ee.setting_up') : t('common.continue')}
         </Button>
       </div>
     {:else if stage === 'phrase'}
-      <h2 id="enrol-title" class="dialog-title">Your recovery phrase</h2>
+      <h2 id="enrol-title" class="dialog-title">{t('settings.e2ee.phrase_title')}</h2>
       <p class="dialog-body">
-        Save these 24 words somewhere safe — a password manager, encrypted note, or paper. If you
-        forget your passphrase, this is the only way to recover your data.
+        {t('settings.e2ee.phrase_body_enrol')}
       </p>
       <div class="phrase-blob">{recoveryPhrase}</div>
       <div class="phrase-actions-row">
         <Button onclick={copyPhrase}>
-          {copied ? 'Copied!' : 'Copy'}
+          {copied ? t('common.copied') : t('common.copy')}
         </Button>
       </div>
       <label class="written-down-label">
         <Checkbox checked={savedConfirmed} onchange={(v) => (savedConfirmed = v)} />
-        <span class="dialog-body">I've saved this somewhere safe.</span>
+        <span class="dialog-body">{t('settings.e2ee.saved_confirm')}</span>
       </label>
       <div class="dialog-actions">
-        <Button class="btn-primary" disabled={!savedConfirmed} onclick={finish}>Done</Button>
+        <Button class="btn-primary" disabled={!savedConfirmed} onclick={finish}
+          >{t('common.done')}</Button
+        >
       </div>
     {/if}
   {/snippet}

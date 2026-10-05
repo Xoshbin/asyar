@@ -29,11 +29,11 @@
       id="mcp-runtime-consent-title"
       class="text-xl font-semibold mb-4 text-[var(--text-primary)]"
     >
-      Download required runtime?
+      {t('features.mcp.ui.runtime_title')}
     </h2>
     <p class="text-[var(--text-secondary)] mb-3">
-      This MCP server needs <strong>{name}</strong> ({sizeLabel}), which isn't installed yet. Asyar
-      downloads it once and reuses it for every server that needs it.
+      {t('features.mcp.ui.runtime_pre')} <strong>{name}</strong>
+      {t('features.mcp.ui.runtime_post', { size: sizeLabel })}
     </p>
   {/snippet}
   {#snippet actions()}

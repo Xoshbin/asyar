@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { getCompactSyncService } from '../../services/launcher/compactSyncService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
@@ -123,11 +124,11 @@ export function setupSelectionEffects(state: LauncherState) {
       actionService.registerAction({
         id: 'shortcuts:assign',
         label: state.shortcuts.some((s: ItemShortcut) => s.objectId === item.objectId)
-          ? 'Change Shortcut'
-          : 'Assign Shortcut',
+          ? t('selection_actions.change_shortcut')
+          : t('selection_actions.assign_shortcut'),
         icon: 'icon:keyboard',
-        description: 'Assign global shortcut',
-        category: 'Shortcuts',
+        description: t('selection_actions.assign_shortcut_desc'),
+        category: t('categories.shortcuts'),
         extensionId: 'shortcuts',
         context: ActionContext.CORE,
         execute: async () => {
@@ -157,10 +158,10 @@ export function setupSelectionEffects(state: LauncherState) {
       if (run && run.cancellable) {
         actionService.registerAction({
           id: 'runs:cancel',
-          label: 'Cancel Run',
+          label: t('selection_actions.cancel_run'),
           icon: 'icon:trash',
-          description: 'Cancel this running task',
-          category: 'Runs',
+          description: t('selection_actions.cancel_run_desc'),
+          category: t('categories.runs'),
           extensionId: 'runs',
           context: ActionContext.CORE,
           execute: async () => {
@@ -178,10 +179,10 @@ export function setupSelectionEffects(state: LauncherState) {
       const runId = item.object_id.replace(/^run_/, '');
       actionService.registerAction({
         id: 'runs:dismiss',
-        label: 'Dismiss Failure',
+        label: t('selection_actions.dismiss_failure'),
         icon: 'icon:trash',
-        description: 'Remove this failed run from the launcher list (still kept in history)',
-        category: 'Runs',
+        description: t('selection_actions.dismiss_failure_desc'),
+        category: t('categories.runs'),
         extensionId: 'runs',
         context: ActionContext.CORE,
         execute: async () => {
@@ -207,7 +208,7 @@ export function setupSelectionEffects(state: LauncherState) {
         description: isScript
           ? 'Remove this script result row and free its output (history record is kept)'
           : 'Remove this completed thread from the launcher list (still kept in history)',
-        category: 'Runs',
+        category: t('categories.runs'),
         extensionId: 'runs',
         context: ActionContext.CORE,
         execute: async () => {
@@ -242,10 +243,10 @@ export function setupSelectionEffects(state: LauncherState) {
       const hasAlias = aliasStore.byObjectId.has(item.objectId);
       actionService.registerAction({
         id: 'aliases:assign',
-        label: hasAlias ? 'Change Alias' : 'Assign Alias',
+        label: hasAlias ? t('selection_actions.change_alias') : t('selection_actions.assign_alias'),
         icon: 'icon:tag',
-        description: 'Assign a quick text alias',
-        category: 'Aliases',
+        description: t('selection_actions.assign_alias_desc'),
+        category: t('categories.aliases'),
         extensionId: 'aliases',
         context: ActionContext.CORE,
         execute: async () => {
@@ -275,10 +276,10 @@ export function setupSelectionEffects(state: LauncherState) {
         actionService.unregisterAction('favorite_item');
         actionService.registerAction({
           id: 'unfavorite_item',
-          label: 'Remove from favorites',
+          label: t('selection_actions.unfavorite'),
           icon: 'icon:star',
-          description: 'Return this item to automatic ranking',
-          category: 'Item',
+          description: t('selection_actions.unfavorite_desc'),
+          category: t('categories.item'),
           context: ActionContext.CORE,
           execute: async () => {
             const updated = await commands.setItemFavorite(item.objectId, false);
@@ -292,10 +293,10 @@ export function setupSelectionEffects(state: LauncherState) {
         actionService.unregisterAction('unfavorite_item');
         actionService.registerAction({
           id: 'favorite_item',
-          label: 'Add to favorites',
+          label: t('selection_actions.favorite'),
           icon: 'icon:star',
-          description: 'Show this item first when the search is empty',
-          category: 'Item',
+          description: t('selection_actions.favorite_desc'),
+          category: t('categories.item'),
           context: ActionContext.CORE,
           execute: async () => {
             const updated = await commands.setItemFavorite(item.objectId, true);

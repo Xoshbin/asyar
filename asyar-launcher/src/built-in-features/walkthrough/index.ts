@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import {
   registerBuiltinSearchProvider,
   type BuiltinSearchRow,
@@ -59,8 +60,8 @@ class WalkthroughExtension implements Extension {
     return [
       {
         score: 1.0,
-        title: 'Beyond the basics',
-        subtitle: `${completed} of ${total} tasks — learn what Asyar can really do`,
+        title: t('features.walkthrough.act.beyond'),
+        subtitle: t('features.walkthrough.progress_subtitle', { completed, total }),
         id: 'walkthrough_progress',
         icon: 'icon:star',
         priority: 'top',
@@ -118,8 +119,8 @@ class WalkthroughExtension implements Extension {
     const actions: ExtensionAction[] = [
       {
         id: COMPLETE_ACTION_ID,
-        title: 'Mark as Complete',
-        description: 'Tick this task off without doing it',
+        title: t('features.walkthrough.act.complete'),
+        description: t('features.walkthrough.act.complete_desc'),
         icon: 'icon:star',
         extensionId: 'walkthrough',
         category: 'walkthrough-action',
@@ -135,8 +136,8 @@ class WalkthroughExtension implements Extension {
       },
       {
         id: COMPLETE_ALL_ACTION_ID,
-        title: 'Mark All as Complete',
-        description: 'Finish every remaining task at once',
+        title: t('features.walkthrough.act.complete_all'),
+        description: t('features.walkthrough.act.complete_all_desc'),
         icon: 'icon:star',
         extensionId: 'walkthrough',
         category: 'walkthrough-action',
@@ -146,8 +147,8 @@ class WalkthroughExtension implements Extension {
       },
       {
         id: DISMISS_ACTION_ID,
-        title: 'Hide Progress from Search',
-        description: 'Stop showing the progress row in the main search list',
+        title: t('features.walkthrough.act.hide'),
+        description: t('features.walkthrough.act.hide_desc'),
         icon: 'icon:eye',
         extensionId: 'walkthrough',
         category: 'walkthrough-action',
@@ -157,8 +158,8 @@ class WalkthroughExtension implements Extension {
       },
       {
         id: RESET_ACTION_ID,
-        title: 'Restart Walkthrough',
-        description: 'Forget hand-ticked tasks and start over',
+        title: t('features.walkthrough.act.restart'),
+        description: t('features.walkthrough.act.restart_desc'),
         icon: 'icon:refresh',
         extensionId: 'walkthrough',
         category: 'walkthrough-action',

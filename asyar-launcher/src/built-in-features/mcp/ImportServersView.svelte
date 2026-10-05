@@ -164,12 +164,14 @@
           unstyled
           textIntent="exact"
           class="field-textarea paste-area"
-          placeholder="Paste MCP config JSON here"
+          placeholder={t('features.mcp.ui.import_placeholder')}
           bind:value={pasteJson}
           rows={8}
         ></Textarea>
         <div>
-          <Button onclick={handleParse} disabled={!pasteJson.trim()}>Parse</Button>
+          <Button onclick={handleParse} disabled={!pasteJson.trim()}
+            >{t('features.mcp.ui.parse')}</Button
+          >
         </div>
         {#if parseError}
           <p class="parse-error">{parseError}</p>
@@ -215,7 +217,7 @@
         <div class="import-result" class:import-result-fail={!outcome.ok}>
           <span class="result-name">{outcome.displayName}</span>
           {#if outcome.ok}
-            <span class="result-status result-ok">Imported</span>
+            <span class="result-status result-ok">{t('features.mcp.ui.imported')}</span>
           {:else}
             <span class="result-status result-fail-text">{outcome.error}</span>
           {/if}

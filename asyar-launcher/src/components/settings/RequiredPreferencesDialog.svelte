@@ -59,10 +59,12 @@
   onEnter={handleSave}
 >
   {#snippet children()}
-    <h2 id="required-prefs-title" class="modal-title">Extension requires setup</h2>
+    <h2 id="required-prefs-title" class="modal-title">
+      {t('settings.extensions.required_setup_title')}
+    </h2>
     <p class="modal-subtitle">
-      Fill in the required preferences for <strong>{extensionId}</strong>
-      to run <strong>{commandId}</strong>.
+      {t('settings.extensions.required_setup_pre')} <strong>{extensionId}</strong>
+      {t('settings.extensions.required_setup_mid')} <strong>{commandId}</strong>.
     </p>
 
     <div class="modal-form">

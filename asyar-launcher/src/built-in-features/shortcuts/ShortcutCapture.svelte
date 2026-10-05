@@ -64,7 +64,11 @@
     />
   </div>
 
-  <div class="hint">Press <KeyboardHint keys="Esc" /> to cancel</div>
+  <div class="hint">
+    {t('features.shortcuts.ui.press_pre')}
+    <KeyboardHint keys="Esc" />
+    {t('features.shortcuts.ui.press_post')}
+  </div>
 </Modal>
 
 <style>

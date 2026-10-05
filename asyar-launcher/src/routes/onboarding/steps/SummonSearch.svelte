@@ -7,7 +7,7 @@
   import { t } from '../../../services/i18n';
 
   $effect(() => {
-    onboardingNav.set({ primaryLabel: 'Continue', onPrimary: advanceStep });
+    onboardingNav.set({ primaryLabel: t('onboarding.continue'), onPrimary: advanceStep });
   });
 
   let modifier = $state(settingsService.currentSettings.shortcut.modifier);
@@ -20,16 +20,21 @@
     <p class="step__kicker">{t('onboarding.summon_title')}</p>
     <h1 class="step__title">{t('onboarding.summon_heading')}</h1>
     <p class="step__lede">
-      Press <kbd>{modifier}+{key}</kbd> from anywhere to open Asyar. Try searching an app, or do
-      quick math — type <code>1234 * 56</code> and press Enter.
+      {t('onboarding.summon_lede_pre')} <kbd>{modifier}+{key}</kbd>
+      {t('onboarding.summon_lede_mid')} <code>1234 * 56</code>
+      {t('onboarding.summon_lede_post')}
     </p>
 
     <LauncherHint
-      steps={[`Press ${modifier}+${key}`, 'Type an app name, or "1234 * 56"', 'Press Enter']}
+      steps={[
+        t('onboarding.hint_press_shortcut', { shortcut: `${modifier}+${key}` }),
+        t('onboarding.summon_hint_type'),
+        t('onboarding.summon_hint_enter'),
+      ]}
     />
 
     <p class="step__tip">
-      💡 <strong>Quick Look:</strong>
+      💡 <strong>{t('onboarding.quick_look_label')}</strong>
       {t('onboarding.summon_quick_look_tip')}
     </p>
 
