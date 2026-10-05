@@ -612,12 +612,19 @@ mod tests {
     use tempfile::TempDir;
 
     /// Helper: build an in-memory zip and write it to a temp file, then extract.
+    /// Builds the archive in memory and writes it with `tokio::fs::write`
+    /// rather than streaming into a `tokio::fs::File`. `ZipFileWriter::close`
+    /// finalises the ZIP *stream*, but it does not flush the `File` underneath
+    /// it, and dropping a `tokio::fs::File` does not guarantee a flush either —
+    /// so `extract_zip` could read a truncated archive and fail with
+    /// "unexpected end of file". A `Vec<u8>` has no such buffer, and
+    /// `tokio::fs::write` closes the file before returning.
     async fn make_zip_and_extract(entries: &[(&str, &[u8])]) -> Result<TempDir, AppError> {
         let dest = TempDir::new().map_err(AppError::Io)?;
         let zip_tmp = NamedTempFile::new().map_err(AppError::Io)?;
+        let mut zip_bytes: Vec<u8> = Vec::new();
         {
-            let zip_file = tokio::fs::File::create(zip_tmp.path()).await?;
-            let mut writer = ZipFileWriter::with_tokio(zip_file);
+            let mut writer = ZipFileWriter::with_tokio(&mut zip_bytes);
             for (name, content) in entries {
                 let entry = ZipEntryBuilder::new((*name).into(), Compression::Deflate);
                 writer
@@ -630,6 +637,9 @@ mod tests {
                 .await
                 .map_err(|e| AppError::Extension(e.to_string()))?;
         }
+        tokio::fs::write(zip_tmp.path(), &zip_bytes)
+            .await
+            .map_err(AppError::Io)?;
         extract_zip(zip_tmp.path(), dest.path()).await?;
         Ok(dest)
     }

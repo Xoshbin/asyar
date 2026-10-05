@@ -68,15 +68,22 @@ pub use super::arboard_guard::{ClipboardGuard, ClipboardSnapshot};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem::ManuallyDrop;
 
     #[test]
     fn test_linux_clipboard_guard_type_exports() {
+        // `ClipboardGuard::drop` writes its snapshot to the *real* OS clipboard.
+        // Letting these guards drop would clobber the system clipboard from a
+        // test that only means to check the re-exports, racing the live
+        // clipboard tests in `arboard_guard` — those serialise on a lock this
+        // module cannot reach, and they run in parallel with this one.
+        // `ManuallyDrop` keeps the restore from ever running.
         let empty = ClipboardSnapshot::Empty;
-        let guard = ClipboardGuard::from_snapshot(empty.clone());
+        let guard = ManuallyDrop::new(ClipboardGuard::from_snapshot(empty.clone()));
         assert_eq!(guard.snapshot(), &empty);
 
         let text = ClipboardSnapshot::Text("linux_selection_test".to_string());
-        let guard_text = ClipboardGuard::from_snapshot(text.clone());
+        let guard_text = ManuallyDrop::new(ClipboardGuard::from_snapshot(text.clone()));
         assert_eq!(guard_text.snapshot(), &text);
     }
 }

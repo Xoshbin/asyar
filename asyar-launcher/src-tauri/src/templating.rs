@@ -306,131 +306,135 @@ pub fn convert_date_format(format: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{DateTime, Local};
+
+    /// `resolve_template` samples the clock itself, so a rendered timestamp can
+    /// land on the far side of a second (or minute, or day) boundary that the
+    /// call happens to cross. Bracket the call and accept either reading rather
+    /// than comparing against a single `now` taken beforehand — the latter
+    /// fails roughly once per thousand runs and blocks the release workflow,
+    /// whose build jobs all gate on this suite.
+    async fn assert_renders(
+        template: &str,
+        ctx: &TemplateContext,
+        expected: impl Fn(&DateTime<Local>) -> String,
+    ) {
+        let before = Local::now();
+        let got = resolve_template(template, ctx).await.unwrap();
+        let after = Local::now();
+        let (from_before, from_after) = (expected(&before), expected(&after));
+        assert!(
+            got == from_before || got == from_after,
+            "got {got:?}; expected {from_before:?} or {from_after:?}",
+        );
+    }
 
     #[tokio::test]
     async fn test_default_date_and_time_placeholders() {
         let ctx = TemplateContext::default();
-        let now = chrono::Local::now();
 
-        let date_res = resolve_template("Today is {date}", &ctx).await.unwrap();
-        assert_eq!(date_res, format!("Today is {}", now.format("%-m/%-d/%Y")));
-
-        let date_cap_res = resolve_template("Today is {Date}", &ctx).await.unwrap();
-        assert_eq!(
-            date_cap_res,
-            format!("Today is {}", now.format("%-m/%-d/%Y"))
-        );
-
-        let time_res = resolve_template("Time: {time}", &ctx).await.unwrap();
-        assert_eq!(time_res, format!("Time: {}", now.format("%-I:%M:%S %p")));
-
-        let weekday_res = resolve_template("Day: {weekday}", &ctx).await.unwrap();
-        assert_eq!(weekday_res, format!("Day: {}", now.format("%A")));
+        assert_renders("Today is {date}", &ctx, |t| {
+            format!("Today is {}", t.format("%-m/%-d/%Y"))
+        })
+        .await;
+        assert_renders("Today is {Date}", &ctx, |t| {
+            format!("Today is {}", t.format("%-m/%-d/%Y"))
+        })
+        .await;
+        assert_renders("Time: {time}", &ctx, |t| {
+            format!("Time: {}", t.format("%-I:%M:%S %p"))
+        })
+        .await;
+        assert_renders("Day: {weekday}", &ctx, |t| {
+            format!("Day: {}", t.format("%A"))
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn test_custom_date_format_placeholders() {
         let ctx = TemplateContext::default();
-        let now = chrono::Local::now();
 
-        // ISO format YYYY-MM-DD
-        let res = resolve_template("ISO: {date format=\"YYYY-MM-DD\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, format!("ISO: {}", now.format("%Y-%m-%d")));
-
-        // Lowercase yyyy-MM-dd
-        let res = resolve_template("ISO: {date format=\"yyyy-MM-dd\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, format!("ISO: {}", now.format("%Y-%m-%d")));
-
-        // MM/dd/yy with single quotes
-        let res = resolve_template("Short: {date format='MM/dd/yy'}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, format!("Short: {}", now.format("%m/%d/%y")));
-
-        // Long textual date MMMM d, yyyy
-        let res = resolve_template("Long: {date format=\"MMMM d, yyyy\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, format!("Long: {}", now.format("%B %-d, %Y")));
-
-        // Capitalized {Date format="YYYY-MM-DD"}
-        let res = resolve_template("{Date format=\"YYYY-MM-DD\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, now.format("%Y-%m-%d").to_string());
+        // Both `YYYY-MM-DD` and `yyyy-MM-dd` spellings map to the same output.
+        assert_renders("ISO: {date format=\"YYYY-MM-DD\"}", &ctx, |t| {
+            format!("ISO: {}", t.format("%Y-%m-%d"))
+        })
+        .await;
+        assert_renders("ISO: {date format=\"yyyy-MM-dd\"}", &ctx, |t| {
+            format!("ISO: {}", t.format("%Y-%m-%d"))
+        })
+        .await;
+        assert_renders("Short: {date format='MM/dd/yy'}", &ctx, |t| {
+            format!("Short: {}", t.format("%m/%d/%y"))
+        })
+        .await;
+        assert_renders("Long: {date format=\"MMMM d, yyyy\"}", &ctx, |t| {
+            format!("Long: {}", t.format("%B %-d, %Y"))
+        })
+        .await;
+        assert_renders("{Date format=\"YYYY-MM-DD\"}", &ctx, |t| {
+            t.format("%Y-%m-%d").to_string()
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn test_custom_time_format_placeholders() {
         let ctx = TemplateContext::default();
-        let now = chrono::Local::now();
 
-        let res = resolve_template("24h: {time format=\"HH:mm\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, format!("24h: {}", now.format("%H:%M")));
-
-        let res = resolve_template("12h: {time format=\"hh:mm a\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, format!("12h: {}", now.format("%I:%M %p")));
-
-        let res = resolve_template("With seconds: {time format=\"HH:mm:ss\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, format!("With seconds: {}", now.format("%H:%M:%S")));
+        assert_renders("24h: {time format=\"HH:mm\"}", &ctx, |t| {
+            format!("24h: {}", t.format("%H:%M"))
+        })
+        .await;
+        assert_renders("12h: {time format=\"hh:mm a\"}", &ctx, |t| {
+            format!("12h: {}", t.format("%I:%M %p"))
+        })
+        .await;
+        assert_renders("With seconds: {time format=\"HH:mm:ss\"}", &ctx, |t| {
+            format!("With seconds: {}", t.format("%H:%M:%S"))
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn test_custom_datetime_format_placeholders() {
         let ctx = TemplateContext::default();
-        let now = chrono::Local::now();
 
-        let res = resolve_template("{datetime format=\"YYYY-MM-DD HH:mm:ss\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, now.format("%Y-%m-%d %H:%M:%S").to_string());
-
-        let res = resolve_template("{date-time format=\"YYYY-MM-DD HH:mm:ss\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, now.format("%Y-%m-%d %H:%M:%S").to_string());
-
-        let res = resolve_template("{Date & Time format=\"YYYY-MM-DD HH:mm:ss\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, now.format("%Y-%m-%d %H:%M:%S").to_string());
+        // `datetime`, `date-time` and `Date & Time` are aliases of one another.
+        for template in [
+            "{datetime format=\"YYYY-MM-DD HH:mm:ss\"}",
+            "{date-time format=\"YYYY-MM-DD HH:mm:ss\"}",
+            "{Date & Time format=\"YYYY-MM-DD HH:mm:ss\"}",
+        ] {
+            assert_renders(template, &ctx, |t| {
+                t.format("%Y-%m-%d %H:%M:%S").to_string()
+            })
+            .await;
+        }
     }
 
     #[tokio::test]
     async fn test_custom_weekday_format_placeholders() {
         let ctx = TemplateContext::default();
-        let now = chrono::Local::now();
 
-        let res = resolve_template("Day: {weekday format=\"EEE\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, format!("Day: {}", now.format("%a")));
-
-        let res = resolve_template("Day: {weekday format=\"EEEE\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, format!("Day: {}", now.format("%A")));
+        assert_renders("Day: {weekday format=\"EEE\"}", &ctx, |t| {
+            format!("Day: {}", t.format("%a"))
+        })
+        .await;
+        assert_renders("Day: {weekday format=\"EEEE\"}", &ctx, |t| {
+            format!("Day: {}", t.format("%A"))
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn test_direct_strftime_specifiers() {
         let ctx = TemplateContext::default();
-        let now = chrono::Local::now();
 
-        let res = resolve_template("{date format=\"%Y/%m/%d\"}", &ctx)
-            .await
-            .unwrap();
-        assert_eq!(res, now.format("%Y/%m/%d").to_string());
+        assert_renders("{date format=\"%Y/%m/%d\"}", &ctx, |t| {
+            t.format("%Y/%m/%d").to_string()
+        })
+        .await;
     }
 
     #[tokio::test]
@@ -439,20 +443,17 @@ mod tests {
             query: Some("rust lang".to_string()),
             trigger: Some("!g".to_string()),
         };
-        let now = chrono::Local::now();
 
-        let res = resolve_template(
+        assert_renders(
             "Query: {query}, Trigger: {trigger}, Date: {date format=\"YYYY-MM-DD\"}",
             &ctx,
+            |t| {
+                format!(
+                    "Query: rust lang, Trigger: !g, Date: {}",
+                    t.format("%Y-%m-%d")
+                )
+            },
         )
-        .await
-        .unwrap();
-        assert_eq!(
-            res,
-            format!(
-                "Query: rust lang, Trigger: !g, Date: {}",
-                now.format("%Y-%m-%d")
-            )
-        );
+        .await;
     }
 }

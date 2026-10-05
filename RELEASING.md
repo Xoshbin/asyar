@@ -7,6 +7,35 @@ This monorepo contains two independently-released packages. Each has its own flo
 | **Launcher** (`asyar-launcher/`) | Push a `v*` tag     | GitHub Releases + asyar.org updater feed                                      |
 | **SDK** (`asyar-sdk/`)           | Push a `sdk-v*` tag | npm: [`asyar-sdk`](https://www.npmjs.com/package/asyar-sdk) + GitHub Releases |
 
+## Ordering: release the SDK first
+
+When a release carries changes to **both** packages, **publish the SDK before the
+launcher.** The launcher's release script pins its `asyar-sdk` dependency to
+whatever version sits in `asyar-sdk/package.json` **on disk** — it never asks npm.
+So bumping the SDK locally and then releasing the launcher first would pin the
+launcher to a version that does not exist on npm yet, and every extension install
+that resolves `asyar-sdk` would fail.
+
+Check whether the SDK actually changed since its last published tag:
+
+```bash
+git diff --stat "sdk-v$(node -p "require('./asyar-sdk/package.json').version")"..HEAD -- asyar-sdk/
+```
+
+Empty output means the published SDK is current and you can release the launcher
+on its own. Any output means the SDK goes first.
+
+Two things in the SDK reach extension authors directly, so they are worth checking
+before deciding the order:
+
+- **`asyar-sdk/cli/`** — the `asyar` CLI that authors run to build and package.
+  A packaging fix here does nothing for them until it is on npm.
+- **`asyar-sdk/package.json` `exports`** — a new subpath (e.g. `./vite`) is
+  invisible to consumers until published. `scaffoldService.ts` probes npm with
+  `npm view asyar-sdk exports` at scaffold time and falls back to an older
+  template, so a new subpath starts being used the moment it is published — no
+  launcher release required.
+
 ---
 
 > **Preview first.** Add `--dry-run` to any release command to print exactly what
