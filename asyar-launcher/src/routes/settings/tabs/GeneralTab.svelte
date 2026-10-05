@@ -98,6 +98,12 @@
   /** Each placement edit is one store write. Persist-then-adopt lives in the
    *  service, so a failure leaves the previous choice selected rather than a
    *  setting that isn't on disk. */
+  const PLACEMENT_ERROR_KEYS: Record<string, string> = {
+    display: 'settings.general.error_save_display',
+    position: 'settings.general.error_save_position',
+    'snap setting': 'settings.general.error_save_snap',
+  };
+
   async function updatePlacement(change: () => Promise<void>, what: string) {
     try {
       await change();
@@ -108,7 +114,9 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not save the launcher ${what}` },
+        context: {
+          message: t(PLACEMENT_ERROR_KEYS[what] ?? 'settings.general.error_save_position'),
+        },
       });
     }
   }

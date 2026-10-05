@@ -152,7 +152,7 @@
     if (!ext?.id) return;
     const confirmed = await feedbackService.confirmAlert({
       title: t('settings.extensions.revoke_permissions_title'),
-      message: `"${ext.title}" will lose access to its granted permissions until you review and re-allow them. It stays installed and enabled.`,
+      message: t('settings.extensions.revoke_permissions_message', { title: ext.title }),
       confirmText: t('settings.extensions.revoke'),
       variant: 'danger',
     });
@@ -207,7 +207,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not save preference "${name}"` },
+        context: { message: t('settings.extensions.save_preference_error', { name }) },
       });
     }
   }
@@ -241,29 +241,29 @@
   <div class="panel-body">
     {#if command.cmd.description}
       <div class="panel-section">
-        <div class="section-header">Description</div>
+        <div class="section-header">{t('common.description')}</div>
         <p class="panel-desc">{command.cmd.description}</p>
       </div>
     {/if}
 
     <div class="panel-section">
-      <div class="section-header">Trigger</div>
+      <div class="section-header">{t('settings.extensions.panel_trigger')}</div>
       <code class="trigger-chip text-mono">{command.cmd.trigger}</code>
     </div>
 
     <div class="panel-section">
-      <div class="section-header">Alias</div>
-      <span class="placeholder-action">Add alias…</span>
+      <div class="section-header">{t('common.alias')}</div>
+      <span class="placeholder-action">{t('settings.extensions.panel_add_alias')}</span>
     </div>
 
     <div class="panel-section">
-      <div class="section-header">Hotkey</div>
-      <span class="placeholder-action">Record hotkey…</span>
+      <div class="section-header">{t('settings.extensions.table_hotkey')}</div>
+      <span class="placeholder-action">{t('settings.extensions.panel_record_hotkey')}</span>
     </div>
 
     {#if command.cmd.preferences && command.cmd.preferences.length > 0}
       <div class="panel-section">
-        <div class="section-header">Preferences</div>
+        <div class="section-header">{t('settings.extensions.panel_preferences')}</div>
         <ExtensionPreferencesForm
           preferences={command.cmd.preferences}
           values={preferenceValues}
@@ -327,7 +327,7 @@
     {#if needsRuntimeDownload}
       <div class="panel-section">
         <div class="section-header flex-header">
-          <span>Runtime</span>
+          <span>{t('settings.extensions.panel_runtime')}</span>
           <button
             class="review-link"
             onclick={retryRuntimeDownload}
@@ -337,8 +337,7 @@
           </button>
         </div>
         <p class="panel-desc">
-          A required runtime failed to download or was declined. Commands are hidden until it's
-          installed — retry from here.
+          {t('settings.extensions.runtime_failed_desc')}
         </p>
       </div>
     {/if}
@@ -395,7 +394,7 @@
     {#if extension.preferences && extension.preferences.length > 0}
       <div class="panel-section">
         <div class="section-header flex-header">
-          <span>Preferences</span>
+          <span>{t('settings.extensions.panel_preferences')}</span>
           <button
             class="reset-link"
             onclick={() => extensionPreferencesService.reset(extension!.id!)}

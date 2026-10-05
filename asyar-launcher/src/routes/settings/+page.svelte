@@ -93,12 +93,12 @@
 </script>
 
 <svelte:head>
-  <title>Asyar Settings</title>
+  <title>{t('settings.page_title')}</title>
 </svelte:head>
 
 {#if handler.isLoading}
   <div class="flex items-center justify-center h-screen">
-    <LoadingState message="Loading settings..." />
+    <LoadingState message={t('settings.loading')} />
   </div>
 {:else}
   <div class="settings-page">

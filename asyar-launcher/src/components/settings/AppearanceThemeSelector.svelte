@@ -25,7 +25,7 @@
   ]);
 </script>
 
-<div class="theme-selector" role="radiogroup" aria-label="Appearance theme">
+<div class="theme-selector" role="radiogroup" aria-label={t('settings.appearance.theme_aria')}>
   {#each options as option}
     <button
       class="theme-option"

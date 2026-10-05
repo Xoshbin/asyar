@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import Input from '../base/Input.svelte';
   import Checkbox from '../base/Checkbox.svelte';
   import Select from '../base/Select.svelte';
@@ -86,7 +87,7 @@
               onchange={(v) => handleValueChange(pref.name, v)}
             />
           {:else}
-            <div class="error-inline">Invalid dropdown configuration</div>
+            <div class="error-inline">{t('settings.extensions.invalid_dropdown')}</div>
           {/if}
         {:else if pref.type === 'appPicker' || pref.type === 'file' || pref.type === 'directory'}
           <Input

@@ -56,7 +56,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not remove runtime "${name}"` },
+        context: { message: t('settings.runtimes.error_remove', { name }) },
       });
     } finally {
       removingName = null;

@@ -401,7 +401,7 @@
                   e.stopPropagation();
                   openAliasCaptureForCommand(ext, cmd);
                 }}
-                title="Change alias"
+                title={t('settings.applications.change_alias_title')}
               >
                 <span class="alias-pill text-mono">{cmdAlias}</span>
               </button>
@@ -438,7 +438,7 @@
                   e.stopPropagation();
                   openShortcutCaptureForCommand(ext, cmd);
                 }}
-                title="Reassign hotkey"
+                title={t('settings.applications.reassign_hotkey_title')}
               >
                 <KeyboardHint keys={toDisplayString(cmdShortcut.shortcut)} />
               </button>
@@ -643,7 +643,7 @@
       <div class="dd-separator"></div>
     {/if}
     <div class="dd-section-label">{t('settings.developer.section_tools')}</div>
-    <button class="dd-item dd-item-disabled" disabled title="Coming soon">
+    <button class="dd-item dd-item-disabled" disabled title={t('settings.extensions.coming_soon')}>
       <svg
         viewBox="0 0 24 24"
         fill="none"

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
   import type { RuntimeDownload } from '../../lib/ipc/runtimeCommands';
 
   let { runtimes }: { runtimes: RuntimeDownload[] } = $props();
@@ -12,7 +13,7 @@
 
 {#if runtimes.length > 0}
   <div class="runtime-downloads">
-    <span class="text-label">Downloads</span>
+    <span class="text-label">{t('settings.runtimes.downloads')}</span>
     <ul class="flex flex-col gap-1">
       {#each runtimes as runtime (runtime.name)}
         <li class="flex items-baseline gap-2">

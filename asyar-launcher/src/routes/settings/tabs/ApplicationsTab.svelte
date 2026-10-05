@@ -299,7 +299,7 @@
                   type="button"
                   class="kbd-btn"
                   onclick={() => openAliasCapture(app)}
-                  title="Change alias"
+                  title={t('settings.applications.change_alias_title')}
                 >
                   <span class="alias-pill text-mono">{aliasStore.byObjectId.get(app.id)}</span>
                 </button>
@@ -323,7 +323,7 @@
                   type="button"
                   class="kbd-btn"
                   onclick={() => openShortcutCapture(app)}
-                  title="Reassign hotkey"
+                  title={t('settings.applications.reassign_hotkey_title')}
                 >
                   <KeyboardHint keys={toDisplayString(shortcut.shortcut)} />
                 </button>

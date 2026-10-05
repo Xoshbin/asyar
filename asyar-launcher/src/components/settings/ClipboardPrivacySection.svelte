@@ -52,17 +52,17 @@
     description={t('settings.privacy.clipboard_privacy_desc')}
   >
     {#snippet children()}
-      <Badge text="Protected" variant="info" />
+      <Badge text={t('settings.privacy.protected')} variant="info" />
     {/snippet}
   </SettingsRow>
 
   {#if isLinux}
     <SettingsRow
-      label="Platform note"
-      description="Your Linux desktop does not provide a standard clipboard exclusion API. Source-app filtering only."
+      label={t('settings.privacy.platform_note')}
+      description={t('settings.privacy.linux_clipboard_note')}
     >
       {#snippet children()}
-        <Badge text="Source filter only" variant="info" />
+        <Badge text={t('settings.privacy.source_filter_only')} variant="info" />
       {/snippet}
     </SettingsRow>
   {/if}
@@ -129,7 +129,7 @@
             <li class="denylist-row user-row">
               <span class="text-body">{bundleId}</span>
               <Button onclick={() => clipboardPrivacyService.removeFromDenylist(bundleId)}>
-                Remove
+                {t('common.remove')}
               </Button>
             </li>
           {/each}

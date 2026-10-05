@@ -39,7 +39,7 @@
       onComplete?.();
     } catch (err) {
       logService.warn(`disable dialog submit failed: ${String(err)}`);
-      errorMessage = "Couldn't disable encrypted sync. Check your connection and try again.";
+      errorMessage = t('settings.e2ee.disable_error');
       submitting = false;
     }
   }
@@ -51,13 +51,13 @@
 
 <Modal bind:isOpen labelledBy="disable-title" onEscape={cancel} onEnter={handleEnter}>
   {#snippet children()}
-    <h2 id="disable-title" class="dialog-title danger">Disable encrypted sync</h2>
+    <h2 id="disable-title" class="dialog-title danger">{t('settings.e2ee.disable_title')}</h2>
     <p class="dialog-body primary">
-      Disabling encrypted sync will re-upload every item to Asyar's servers in plaintext. Asyar will
-      be able to read your synced data again. Continue?
+      {t('settings.e2ee.disable_body')}
     </p>
     <p class="dialog-body">
-      To confirm, type <strong>DISABLE</strong> below.
+      {t('settings.e2ee.disable_confirm_pre')} <strong>DISABLE</strong>
+      {t('settings.e2ee.disable_confirm_post')}
     </p>
     <Input
       textIntent="exact"
@@ -71,7 +71,7 @@
     <div class="dialog-actions">
       <Button onclick={cancel}>{t('common.cancel')}</Button>
       <Button class="btn-danger" disabled={!canSubmit} onclick={submit}>
-        {submitting ? 'Disabling…' : 'Disable encrypted sync'}
+        {submitting ? t('settings.e2ee.disabling') : t('settings.e2ee.disable_title')}
       </Button>
     </div>
   {/snippet}

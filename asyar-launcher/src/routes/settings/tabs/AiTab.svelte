@@ -134,11 +134,7 @@
   }
 
   function reasoningEffortLabel(effort: ReasoningEffort): string {
-    if (effort === 'none') return 'Off';
-    if (effort === 'minimal') return 'Minimal';
-    if (effort === 'xhigh') return 'X-high';
-    if (effort === 'max') return 'Maximum';
-    return `${effort[0].toUpperCase()}${effort.slice(1)}`;
+    return t(`settings.ai.effort_${effort === 'none' ? 'off' : effort}`);
   }
 
   async function fetchModels(providerId: string, plugin: IProviderPlugin) {
@@ -165,7 +161,7 @@
     } catch (e: unknown) {
       fetchErrors = {
         ...fetchErrors,
-        [providerId]: e instanceof Error ? e.message : 'Failed to fetch models',
+        [providerId]: e instanceof Error ? e.message : t('settings.ai.fetch_models_failed'),
       };
       sessionModelCache = { ...sessionModelCache, [providerId]: [] };
     } finally {
@@ -240,7 +236,7 @@
     } catch {
       defaultAgentErrors = {
         ...defaultAgentErrors,
-        [id]: 'Could not set this as the default AI agent.',
+        [id]: t('settings.ai.error_set_default'),
       };
     }
   }
@@ -262,7 +258,7 @@
     } catch {
       defaultAgentErrors = {
         ...defaultAgentErrors,
-        [id]: 'Could not auto-set the default AI agent. You can pick it manually with the star.',
+        [id]: t('settings.ai.error_auto_set_default'),
       };
     }
   }
@@ -275,7 +271,7 @@
     } catch {
       removeErrors = {
         ...removeErrors,
-        [id]: 'Could not check whether this provider is safe to remove.',
+        [id]: t('settings.ai.error_check_removable'),
       };
       return;
     }
@@ -304,7 +300,7 @@
           } catch {
             defaultAgentErrors = {
               ...defaultAgentErrors,
-              [nextId]: 'Could not update the default agent after removing its previous provider.',
+              [nextId]: t('settings.ai.error_update_default_after_remove'),
             };
           }
         }
@@ -476,8 +472,8 @@
           <!-- Top toolbar: explanation on the left, Add button on the right -->
           <div class="providers-toolbar">
             <p class="providers-hint">
-              The <span class="hint-star">★</span> provider is what Asyar Assistant uses when you press
-              Tab in the launcher.
+              {t('settings.ai.providers_hint_pre')} <span class="hint-star">★</span>
+              {t('settings.ai.providers_hint_post')}
             </p>
             {#if !draftActive && availableForDraft.length > 0}
               <button class="add-provider-btn" onclick={addProviderRow}
@@ -527,7 +523,9 @@
                     <span class="provider-type-badge">{plugin.name}</span>
                   {/if}
                   {#if config.connectionMode === 'cli'}
-                    <span class="cli-experimental-badge">CLI (Experimental)</span>
+                    <span class="cli-experimental-badge"
+                      >{t('settings.ai.cli_experimental_badge')}</span
+                    >
                   {/if}
                   {#if !expanded && config.lastModelId}
                     <span class="row-summary">{config.lastModelId}</span>
@@ -541,11 +539,13 @@
                     disabled={!canBeDefault}
                     title={canBeDefault
                       ? defaultRow
-                        ? 'Default provider'
-                        : 'Set as default'
-                      : 'Fetch a model first'}
+                        ? t('settings.ai.default_provider')
+                        : t('settings.ai.set_as_default')
+                      : t('settings.ai.fetch_model_first')}
                     onclick={() => setAsDefault(providerId, selectedModelId)}
-                    aria-label={defaultRow ? 'Default provider' : 'Set as default'}
+                    aria-label={defaultRow
+                      ? t('settings.ai.default_provider')
+                      : t('settings.ai.set_as_default')}
                   >
                     {defaultRow ? '★' : '☆'}
                   </button>
@@ -553,8 +553,10 @@
                   <button
                     class="remove-btn"
                     onclick={() => removeProvider(providerId)}
-                    aria-label="Remove {config.name || plugin?.name || providerId}"
-                    title="Remove provider"
+                    aria-label={t('settings.ai.remove_named', {
+                      name: config.name || plugin?.name || providerId,
+                    })}
+                    title={t('settings.ai.remove_provider')}
                   >
                     ×
                   </button>
@@ -575,7 +577,9 @@
               {#if expanded}
                 <div class="row-body" id="row-body-{providerId}">
                   <div class="card-field">
-                    <label class="field-label" for="name-{providerId}">Name</label>
+                    <label class="field-label" for="name-{providerId}"
+                      >{t('settings.ai.field_name')}</label
+                    >
                     <Input
                       unstyled
                       textIntent="exact"
@@ -583,7 +587,7 @@
                       id="name-{providerId}"
                       type="text"
                       value={config.name ?? plugin?.name ?? ''}
-                      placeholder={plugin?.name ?? 'Provider connection name'}
+                      placeholder={plugin?.name ?? t('settings.ai.name_placeholder')}
                       autocomplete="off"
                       onblur={(e) =>
                         updateProviderConfig(providerId, {
@@ -595,7 +599,7 @@
                   {#if plugin?.supportsCliMode}
                     <div class="card-field">
                       <label class="field-label" for="connection-mode-{providerId}"
-                        >Connection method</label
+                        >{t('settings.ai.connection_method')}</label
                       >
                       <select
                         class="card-select"
@@ -610,17 +614,18 @@
                           }
                         }}
                       >
-                        <option value="api_key">Direct API Key (HTTP)</option>
+                        <option value="api_key">{t('settings.ai.connection_api_key')}</option>
                         <option value="cli"
-                          >Local CLI ({plugin.cliName ?? 'CLI'}) (Experimental)</option
+                          >{t('settings.ai.connection_cli', {
+                            name: plugin.cliName ?? 'CLI',
+                          })}</option
                         >
                       </select>
                       <p class="field-description">
                         {#if config.connectionMode === 'cli'}
-                          Runs your local {plugin.cliName} CLI directly. Uses your existing terminal /
-                          subscription authentication without requiring an API key.
+                          {t('settings.ai.connection_cli_desc', { name: plugin.cliName ?? 'CLI' })}
                         {:else}
-                          Direct HTTP requests to the provider API using an API key.
+                          {t('settings.ai.connection_api_desc')}
                         {/if}
                       </p>
                     </div>
@@ -631,10 +636,16 @@
                       <div class="cli-status-header">
                         <div class="cli-status-info">
                           {#if checkingCli[providerId]}
-                            <span class="cli-status-pill checking">Checking CLI...</span>
+                            <span class="cli-status-pill checking"
+                              >{t('settings.ai.cli_checking')}</span
+                            >
                           {:else if cliStatuses[providerId]?.installed}
-                            <span class="cli-status-pill installed">● Installed</span>
-                            <span class="cli-experimental-badge">Experimental</span>
+                            <span class="cli-status-pill installed"
+                              >{t('settings.ai.cli_installed')}</span
+                            >
+                            <span class="cli-experimental-badge"
+                              >{t('settings.ai.experimental')}</span
+                            >
                             {#if cliStatuses[providerId]?.version}
                               <span class="cli-version">{cliStatuses[providerId]?.version}</span>
                             {/if}
@@ -650,11 +661,15 @@
                             {/if}
                             {#if cliStatuses[providerId]?.account?.quotaUsedPercent !== null && cliStatuses[providerId]?.account?.quotaUsedPercent !== undefined}
                               <span class="cli-quota-pill"
-                                >{cliStatuses[providerId]?.account?.quotaUsedPercent}% quota used</span
+                                >{t('settings.ai.quota_used', {
+                                  percent: cliStatuses[providerId]?.account?.quotaUsedPercent ?? 0,
+                                })}</span
                               >
                             {/if}
                           {:else}
-                            <span class="cli-status-pill not-installed">○ Not Detected</span>
+                            <span class="cli-status-pill not-installed"
+                              >{t('settings.ai.cli_not_detected')}</span
+                            >
                           {/if}
                         </div>
                         <Button
@@ -663,22 +678,26 @@
                           onclick={() => checkCli(providerId, config.cliBinaryPath)}
                           disabled={checkingCli[providerId]}
                         >
-                          {checkingCli[providerId] ? 'Checking...' : 'Refresh'}
+                          {checkingCli[providerId]
+                            ? t('settings.ai.checking')
+                            : t('settings.ai.refresh')}
                         </Button>
                       </div>
                       {#if cliStatuses[providerId]?.installed && cliStatuses[providerId]?.path}
                         <p class="cli-path-note">
-                          Binary: <code>{cliStatuses[providerId]?.path}</code>
+                          {t('settings.ai.binary_label')}
+                          <code>{cliStatuses[providerId]?.path}</code>
                         </p>
                       {:else if cliStatuses[providerId] && !cliStatuses[providerId]?.installed}
                         <p class="cli-path-error">
                           {cliStatuses[providerId]?.error ??
-                            `${plugin?.cliName ?? 'CLI'} was not found in standard system paths.`}
+                            t('settings.ai.cli_not_found', { name: plugin?.cliName ?? 'CLI' })}
                         </p>
                       {/if}
                       <div class="card-field">
                         <label class="field-label" for="cli-path-{providerId}">
-                          Custom CLI binary path <span class="field-hint">(optional)</span>
+                          {t('settings.ai.custom_cli_path')}
+                          <span class="field-hint">{t('settings.ai.optional')}</span>
                         </label>
                         <Input
                           unstyled
@@ -707,8 +726,8 @@
                   {#if (plugin?.requiresApiKey || plugin?.optionalApiKey) && config.connectionMode !== 'cli'}
                     <div class="card-field">
                       <label class="field-label" for="apikey-{providerId}">
-                        API Key{#if !plugin?.requiresApiKey}
-                          <span class="field-hint">(optional)</span>{/if}
+                        {t('settings.ai.api_key')}{#if !plugin?.requiresApiKey}
+                          <span class="field-hint">{t('settings.ai.optional')}</span>{/if}
                       </label>
                       <Input
                         unstyled
@@ -719,7 +738,7 @@
                         value={config.apiKey ?? ''}
                         placeholder={plugin?.requiresApiKey
                           ? 'sk-••••••••••••••••'
-                          : 'Leave blank for unsecured endpoints'}
+                          : t('settings.ai.api_key_placeholder_optional')}
                         autocomplete="off"
                         onblur={(e) =>
                           updateProviderConfig(providerId, {
@@ -731,7 +750,9 @@
 
                   {#if plugin?.requiresBaseUrl}
                     <div class="card-field">
-                      <label class="field-label" for="baseurl-{providerId}">Base URL</label>
+                      <label class="field-label" for="baseurl-{providerId}"
+                        >{t('settings.ai.base_url')}</label
+                      >
                       <Input
                         unstyled
                         textIntent="exact"
@@ -753,7 +774,7 @@
                   {#if plugin?.supportsOpenAIApiMode && config.connectionMode !== 'cli'}
                     <div class="card-field">
                       <label class="field-label" for="openai-api-mode-{providerId}"
-                        >API format</label
+                        >{t('settings.ai.api_format')}</label
                       >
                       <select
                         class="card-select"
@@ -765,14 +786,13 @@
                               .value as OpenAIApiMode,
                           })}
                       >
-                        <option value="responses">Responses (recommended)</option>
-                        <option value="chat-completions"
-                          >Chat Completions (widely compatible)</option
-                        >
+                        <option value="responses">{t('settings.ai.api_format_responses')}</option>
+                        <option value="chat-completions">{t('settings.ai.api_format_chat')}</option>
                       </select>
                       <p class="field-description">
-                        Responses supports hosted tools and typed streaming. Use Chat Completions
-                        when an endpoint does not implement <code>/responses</code>.
+                        {t('settings.ai.api_format_desc_pre')} <code>/responses</code>{t(
+                          'settings.ai.api_format_desc_post',
+                        )}
                       </p>
                     </div>
                   {/if}
@@ -783,7 +803,7 @@
                         <label class="field-label" for="hosted-web-search-{providerId}">
                           {plugin.id === 'google'
                             ? t('settings.ai.google_search')
-                            : 'OpenAI Hosted Web Search'}
+                            : t('settings.ai.openai_hosted_search')}
                         </label>
                         <Toggle
                           id="hosted-web-search-{providerId}"
@@ -798,9 +818,7 @@
                         {#if plugin.id === 'google'}
                           {t('settings.ai.google_search_description')}
                         {:else}
-                          Lets compatible OpenAI/Codex proxy endpoints search the live web. No
-                          separate search API key is needed; unsupported endpoints may reject
-                          requests while this is enabled.
+                          {t('settings.ai.openai_hosted_search_desc')}
                         {/if}
                       </p>
                     </div>
@@ -823,7 +841,9 @@
                   <!-- Model picker -->
                   {#if effectiveModels.length > 0 && !useCustomInput}
                     <div class="card-field">
-                      <label class="field-label" for="model-{providerId}">Model</label>
+                      <label class="field-label" for="model-{providerId}"
+                        >{t('settings.ai.model')}</label
+                      >
                       <ModelSelector
                         id="model-{providerId}"
                         models={effectiveModels}
@@ -844,7 +864,7 @@
                             } catch {
                               defaultAgentErrors = {
                                 ...defaultAgentErrors,
-                                [providerId]: 'Could not update the default AI agent.',
+                                [providerId]: t('settings.ai.error_update_default'),
                               };
                             }
                           } else {
@@ -856,9 +876,9 @@
                   {:else if useCustomInput || fetchError || (!effectiveModels.length && !isFetching && (config.connectionMode === 'cli' || (!plugin?.requiresApiKey && !plugin?.requiresBaseUrl)))}
                     <div class="card-field">
                       <label class="field-label" for="model-manual-{providerId}">
-                        Model
+                        {t('settings.ai.model')}
                         {#if fetchError}<span class="field-hint"
-                            >(fetch failed — enter manually)</span
+                            >{t('settings.ai.fetch_failed_manual')}</span
                           >{/if}
                       </label>
                       <div class="model-manual-row">
@@ -869,7 +889,7 @@
                           id="model-manual-{providerId}"
                           type="text"
                           value={config.lastModelId ?? ''}
-                          placeholder="e.g. gpt-4o or llama3.2"
+                          placeholder={t('settings.ai.model_manual_placeholder')}
                           onblur={async (e) => {
                             const val = (e.currentTarget as HTMLInputElement).value.trim();
                             if (val) {
@@ -888,7 +908,7 @@
                                 } catch {
                                   defaultAgentErrors = {
                                     ...defaultAgentErrors,
-                                    [providerId]: 'Could not update the default AI agent.',
+                                    [providerId]: t('settings.ai.error_update_default'),
                                   };
                                 }
                               } else {
@@ -913,7 +933,7 @@
                   {#if reasoningEfforts.length > 0 && selectedModelId}
                     <div class="card-field">
                       <label class="field-label" for="reasoning-effort-{providerId}"
-                        >Reasoning</label
+                        >{t('settings.ai.reasoning')}</label
                       >
                       <select
                         class="card-select"
@@ -926,14 +946,13 @@
                           });
                         }}
                       >
-                        <option value="">Model default</option>
+                        <option value="">{t('settings.ai.model_default')}</option>
                         {#each reasoningEfforts as effort (effort)}
                           <option value={effort}>{reasoningEffortLabel(effort)}</option>
                         {/each}
                       </select>
                       <p class="field-description">
-                        Higher levels can improve difficult answers but usually take longer.
-                        Available levels depend on the selected model.
+                        {t('settings.ai.reasoning_desc')}
                       </p>
                     </div>
                   {/if}
@@ -941,11 +960,14 @@
                   <div class="card-field">
                     <div class="field-header-row">
                       <label class="field-label" for="temp-{providerId}">
-                        Temperature: {config.temperature !== undefined
-                          ? config.temperature.toFixed(2)
-                          : 'Model default'}
+                        {t('settings.ai.temperature', {
+                          value:
+                            config.temperature !== undefined
+                              ? config.temperature.toFixed(2)
+                              : t('settings.ai.model_default'),
+                        })}
                         {#if config.temperature === undefined}
-                          <span class="field-hint">(omitted)</span>
+                          <span class="field-hint">{t('settings.ai.omitted')}</span>
                         {/if}
                       </label>
                       {#if config.temperature !== undefined}
@@ -954,7 +976,7 @@
                           onclick={() =>
                             updateProviderConfig(providerId, { temperature: undefined })}
                         >
-                          Use model default
+                          {t('settings.ai.use_model_default')}
                         </button>
                       {/if}
                     </div>
@@ -975,13 +997,15 @@
 
                   <div class="card-field">
                     <div class="field-header-row">
-                      <label class="field-label" for="maxtokens-{providerId}"> Max Tokens </label>
+                      <label class="field-label" for="maxtokens-{providerId}">
+                        {t('settings.ai.max_tokens')}
+                      </label>
                       {#if config.maxTokens !== undefined && config.maxTokens !== 2048}
                         <button
                           class="text-btn"
                           onclick={() => updateProviderConfig(providerId, { maxTokens: 2048 })}
                         >
-                          Reset (2048)
+                          {t('settings.ai.reset_n', { value: 2048 })}
                         </button>
                       {/if}
                     </div>
@@ -1009,7 +1033,7 @@
                     {@const headerEntries = Object.entries(config.customHeaders ?? {})}
                     <div class="card-field">
                       <div class="field-header-row">
-                        <label class="field-label">Custom Headers</label>
+                        <label class="field-label">{t('settings.ai.custom_headers')}</label>
                         <button
                           class="text-btn"
                           onclick={() => {
@@ -1018,12 +1042,12 @@
                             updateProviderConfig(providerId, { customHeaders: existing });
                           }}
                         >
-                          + Add
+                          {t('settings.ai.add_header')}
                         </button>
                       </div>
                       {#if headerEntries.length > 0}
                         <p class="field-description">
-                          Extra HTTP headers sent with every request to this provider.
+                          {t('settings.ai.custom_headers_desc')}
                         </p>
                         {#each headerEntries as [hKey, hValue], hi (hi)}
                           <div class="custom-header-row">
@@ -1033,7 +1057,7 @@
                               class="card-input custom-header-key"
                               type="text"
                               value={hKey}
-                              placeholder="Header name"
+                              placeholder={t('settings.ai.header_name_placeholder')}
                               autocomplete="off"
                               onblur={(e) => {
                                 const newKey = (e.currentTarget as HTMLInputElement).value.trim();
@@ -1055,7 +1079,7 @@
                               class="card-input custom-header-value"
                               type="text"
                               value={hValue}
-                              placeholder="Header value"
+                              placeholder={t('settings.ai.header_value_placeholder')}
                               autocomplete="off"
                               onblur={(e) => {
                                 const newVal = (e.currentTarget as HTMLInputElement).value;
@@ -1073,7 +1097,7 @@
                             />
                             <button
                               class="remove-btn"
-                              aria-label="Remove header"
+                              aria-label={t('settings.ai.remove_header')}
                               onclick={() => {
                                 const entries = Object.entries(config.customHeaders ?? {});
                                 const rebuilt: Record<string, string> = {};
@@ -1123,12 +1147,14 @@
   </div>
 
   {#if mode === 'full'}
-    <div class="section-header">Web Search</div>
+    <div class="section-header">{t('settings.ai.web_search_section')}</div>
     <div id="ai-web-search" class="anchor-group">
       <SettingsCard>
         <div class="web-search-card">
           <div class="card-field">
-            <label class="field-label" for="web-search-engine">Search engine</label>
+            <label class="field-label" for="web-search-engine"
+              >{t('settings.ai.search_engine')}</label
+            >
             <select
               id="web-search-engine"
               class="card-select"
@@ -1138,22 +1164,23 @@
                   engine: (e.currentTarget as HTMLSelectElement).value as WebSearchEngine,
                 })}
             >
-              <option value="duckduckgo">DuckDuckGo (Free &amp; Privacy-first)</option>
-              <option value="brave">Brave Search API</option>
-              <option value="tavily">Tavily Search API</option>
-              <option value="serply">Serply Search API</option>
-              <option value="searxng">SearXNG / Custom Endpoint</option>
+              <option value="duckduckgo">{t('settings.ai.engine_duckduckgo')}</option>
+              <option value="brave">{t('settings.ai.engine_brave')}</option>
+              <option value="tavily">{t('settings.ai.engine_tavily')}</option>
+              <option value="serply">{t('settings.ai.engine_serply')}</option>
+              <option value="searxng">{t('settings.ai.engine_searxng')}</option>
             </select>
           </div>
 
           {#if webSearchSettings.engine === 'duckduckgo'}
             <p class="field-description">
-              Zero configuration, local and privacy-friendly. Automatically falls back to Instant
-              Answers and Wikipedia if rate limits or anti-bot checks occur.
+              {t('settings.ai.ddg_desc')}
             </p>
           {:else if webSearchSettings.engine === 'brave'}
             <div class="card-field">
-              <label class="field-label" for="web-search-brave-key">Brave API key</label>
+              <label class="field-label" for="web-search-brave-key"
+                >{t('settings.ai.brave_key')}</label
+              >
               <Input
                 unstyled
                 textIntent="exact"
@@ -1169,7 +1196,7 @@
               />
             </div>
             <p class="field-description">
-              Fast, independent web search index. Provides 2,000 free queries per month at
+              {t('settings.ai.brave_desc')}
               <a
                 href="https://brave.com/search/api/"
                 target="_blank"
@@ -1181,7 +1208,9 @@
             </p>
           {:else if webSearchSettings.engine === 'tavily'}
             <div class="card-field">
-              <label class="field-label" for="web-search-tavily-key">Tavily API key</label>
+              <label class="field-label" for="web-search-tavily-key"
+                >{t('settings.ai.tavily_key')}</label
+              >
               <Input
                 unstyled
                 textIntent="exact"
@@ -1197,21 +1226,23 @@
               />
             </div>
             <p class="field-description">
-              AI-optimized search engine for LLM agents. Provides 1,000 free searches per month at
+              {t('settings.ai.tavily_desc')}
               <a href="https://tavily.com" target="_blank" rel="noreferrer" class="external-link">
                 tavily.com
               </a>.
             </p>
           {:else if webSearchSettings.engine === 'serply'}
             <div class="card-field">
-              <label class="field-label" for="web-search-serply-key">Serply API key</label>
+              <label class="field-label" for="web-search-serply-key"
+                >{t('settings.ai.serply_key')}</label
+              >
               <Input
                 unstyled
                 textIntent="exact"
                 class="card-input"
                 id="web-search-serply-key"
                 type="password"
-                placeholder="Enter your API key"
+                placeholder={t('settings.ai.api_key_placeholder')}
                 value={webSearchSettings.apiKey ?? ''}
                 onblur={(e) =>
                   updateWebSearch({
@@ -1220,8 +1251,9 @@
               />
             </div>
             <p class="field-description">
-              Google search results over a JSON API. Provides 2,500 free credits, plus 25% off
-              credit packs with code <code>ASYAROS</code>, at
+              {t('settings.ai.serply_desc_pre')} <code>ASYAROS</code>{t(
+                'settings.ai.serply_desc_mid',
+              )}
               <a
                 href="https://app.serply.io/settings/billing?promo=ASYAROS#buy-credits"
                 target="_blank"
@@ -1233,7 +1265,9 @@
             </p>
           {:else if webSearchSettings.engine === 'searxng'}
             <div class="card-field">
-              <label class="field-label" for="web-search-base-url">SearXNG base URL</label>
+              <label class="field-label" for="web-search-base-url"
+                >{t('settings.ai.searxng_url')}</label
+              >
               <Input
                 unstyled
                 textIntent="exact"
@@ -1249,9 +1283,9 @@
               />
             </div>
             <p class="field-description">
-              Self-hosted or public metasearch instance. Must support JSON format (<code
-                >/search?format=json</code
-              >).
+              {t('settings.ai.searxng_desc_pre')}<code>/search?format=json</code>{t(
+                'settings.ai.searxng_desc_post',
+              )}
             </p>
           {/if}
         </div>

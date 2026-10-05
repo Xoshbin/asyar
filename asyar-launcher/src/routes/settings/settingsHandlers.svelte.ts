@@ -1,3 +1,4 @@
+import { t } from '../../services/i18n';
 import { onMount } from 'svelte';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { updateShortcut } from '../../utils/shortcutManager';
@@ -396,9 +397,9 @@ export class SettingsHandler {
 
   async requestUninstallExtension(extension: ExtensionItem) {
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Uninstall Extension',
-      message: `Are you sure you want to uninstall "${extension.title}"? This action cannot be undone.`,
-      confirmText: 'Uninstall',
+      title: t('settings.extensions.uninstall_title'),
+      message: t('settings.extensions.uninstall_message', { title: extension.title }),
+      confirmText: t('settings.extensions.uninstall'),
       variant: 'danger',
     });
     if (!confirmed) return;

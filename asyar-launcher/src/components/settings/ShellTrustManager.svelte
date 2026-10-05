@@ -64,7 +64,9 @@
           kind: 'manual',
           severity: 'warning',
           retryable: false,
-          context: { message: `Could not load shell trust for ${record.manifest.name}` },
+          context: {
+            message: t('settings.shell_trust.error_load', { name: record.manifest.name }),
+          },
         });
       }
     }
@@ -96,7 +98,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: `Could not revoke shell trust for ${binaryPath}` },
+        context: { message: t('settings.shell_trust.error_revoke', { path: binaryPath }) },
       });
     }
   }
