@@ -1,5 +1,5 @@
 import { untrack } from 'svelte';
-import { t, i18nService } from '../i18n';
+import { t } from '../i18n';
 import { logService } from '../log/logService';
 import { toFullActionId } from './actionId';
 import type { ExtensionAction, IActionService } from 'asyar-sdk/contracts';
@@ -125,7 +125,8 @@ export class ActionService implements IActionService {
     // when the locale changes (system locale resolves asynchronously after boot).
     $effect.root(() => {
       $effect(() => {
-        void i18nService.locale;
+        // `t()` reads the reactive locale, so this effect re-runs when it changes.
+        t('core_actions.settings');
         untrack(() => {
           this.registerBuiltInActions();
           this.updateState();

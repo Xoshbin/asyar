@@ -1,3 +1,4 @@
+use crate::locale::NativeText;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -37,15 +38,29 @@ fn show_settings_window(window: &tauri::WebviewWindow) {
 /// means core Asyar controls (Settings / Check for Updates / Quit) remain
 /// visible and stable regardless of which extensions are installed.
 pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
-    let quit_i = MenuItem::with_id(app, "quit", "Quit Asyar", true, None::<&str>)?;
+    let text = |key| crate::locale::app_native_text(app, key);
+
+    let quit_i = MenuItem::with_id(app, "quit", text(NativeText::TrayQuit), true, None::<&str>)?;
     let check_updates_i = MenuItem::with_id(
         app,
         "check-updates",
-        "Check for Updates",
+        text(NativeText::TrayCheckUpdates),
         true,
         None::<&str>,
     )?;
-    let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let settings_i = MenuItem::with_id(
+        app,
+        "settings",
+        text(NativeText::TraySettings),
+        true,
+        None::<&str>,
+    )?;
+
+    // The settings window is declared statically in tauri.conf.json (English
+    // title); localise it once the locale service is available.
+    if let Some(settings_window) = app.get_webview_window("settings") {
+        let _ = settings_window.set_title(text(NativeText::SettingsWindowTitle));
+    }
 
     let menu = Menu::with_items(app, &[&settings_i, &check_updates_i, &quit_i])?;
 

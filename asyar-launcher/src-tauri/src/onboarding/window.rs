@@ -36,7 +36,10 @@ pub fn open(app: &AppHandle) -> Result<(), AppError> {
         WINDOW_LABEL,
         tauri::WebviewUrl::App(WINDOW_URL.into()),
     )
-    .title("Welcome to Asyar")
+    .title(crate::locale::app_native_text(
+        app,
+        crate::locale::NativeText::OnboardingTitle,
+    ))
     .inner_size(WINDOW_WIDTH, WINDOW_HEIGHT)
     .resizable(false)
     .center()

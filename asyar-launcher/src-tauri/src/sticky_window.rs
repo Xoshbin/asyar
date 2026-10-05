@@ -164,7 +164,10 @@ fn build_window(app: &AppHandle, sticky: &StickyNote, focus: bool) -> Result<(),
     };
 
     let _window = tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App(url.into()))
-        .title("Sticky Note")
+        .title(crate::locale::app_native_text(
+            app,
+            crate::locale::NativeText::StickyNoteTitle,
+        ))
         .inner_size(sticky.width, sticky.height)
         .position(x, y)
         .resizable(true)
