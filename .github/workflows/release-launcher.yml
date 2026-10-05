@@ -358,8 +358,9 @@ jobs:
           fi
           appimage_path="$(readlink -f "$appimage_path")"
           verification_dir="$(mktemp -d)"
+          diricon_dir="$(mktemp -d)"
           cleanup() {
-            rm -rf "$verification_dir"
+            rm -rf "$verification_dir" "$diricon_dir"
           }
           trap cleanup EXIT INT TERM
           (
@@ -370,20 +371,21 @@ jobs:
               find squashfs-root \( -type f -o -type l \) -name 'libwayland-client.so*' -print >&2
               exit 1
             fi
-            # Verify AppImage spec compliance: .DirIcon must exist and resolve.
-            # .DirIcon is normally a symlink to the app icon, and
-            # --appimage-extract only writes paths matching its pattern — so
-            # extracting '.DirIcon' alone leaves a dangling link whose target
-            # was never written. Pull the target out too, then let the -e test
-            # below check that it genuinely resolves.
-            "$appimage_path" --appimage-extract '.DirIcon' >/dev/null
-            if [ -L squashfs-root/.DirIcon ]; then
-              icon_target="$(readlink squashfs-root/.DirIcon)"
-              "$appimage_path" --appimage-extract "$icon_target" >/dev/null
-            fi
+          )
+          # Verify AppImage spec compliance: .DirIcon must exist and resolve.
+          # Done against a FULL extraction, in its own directory, because
+          # --appimage-extract only writes paths matching its pattern: .DirIcon
+          # is a symlink whose target is itself usually a symlink into
+          # usr/share/icons, so no fixed number of pattern extractions is
+          # guaranteed to materialise the whole chain. Extract once and let -e
+          # walk it however deep it goes.
+          (
+            cd "$diricon_dir"
+            "$appimage_path" --appimage-extract >/dev/null
             if [ ! -e squashfs-root/.DirIcon ]; then
               echo "AppImage is missing or has a broken .DirIcon:" >&2
               ls -la squashfs-root/.DirIcon 2>&1 || true
+              echo "resolves to: $(readlink -f squashfs-root/.DirIcon 2>&1 || echo '<unresolvable>')" >&2
               exit 1
             fi
           )
