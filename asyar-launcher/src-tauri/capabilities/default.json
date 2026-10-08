@@ -14,6 +14,10 @@
     "opener:default",
     "opener:allow-open-url",
     "opener:allow-default-urls",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "x-apple.systempreferences:*" }]
+    },
     "log:default",
     "notification:default",
     "notification:allow-create-channel",
