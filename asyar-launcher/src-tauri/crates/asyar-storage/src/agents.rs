@@ -155,7 +155,9 @@ pub struct MessageRow {
 /// indexes if missing. Also patches in the silent-AI columns (`silent`,
 /// `input_source`, `output_action`) for installs whose `agents` table
 /// predates them — mirrors the `runs_history.subject_id` / `tail_output`
-/// ALTER TABLE guard pattern.
+/// ALTER TABLE guard pattern. Likewise patches `threads.is_pinned` and only
+/// then creates its index; databases already past the baseline migration get
+/// the column from the `threads_is_pinned` ledger migration instead.
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS agents (
