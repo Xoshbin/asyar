@@ -155,7 +155,9 @@ pub struct MessageRow {
 /// indexes if missing. Also patches in the silent-AI columns (`silent`,
 /// `input_source`, `output_action`) for installs whose `agents` table
 /// predates them — mirrors the `runs_history.subject_id` / `tail_output`
-/// ALTER TABLE guard pattern.
+/// ALTER TABLE guard pattern. Likewise patches `threads.is_pinned` and only
+/// then creates its index; databases already past the baseline migration get
+/// the column from the `threads_is_pinned` ledger migration instead.
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS agents (
@@ -187,9 +189,6 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
 
         CREATE INDEX IF NOT EXISTS idx_threads_agent_updated
             ON threads(agent_id, updated_at DESC);
-
-        CREATE INDEX IF NOT EXISTS idx_threads_pinned_updated
-            ON threads(is_pinned, updated_at DESC);
 
         CREATE TABLE IF NOT EXISTS messages (
             id          TEXT    PRIMARY KEY,
@@ -265,6 +264,15 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
     }
+
+    // Must run after the ALTER above: on legacy DBs `threads.is_pinned` does
+    // not exist until then, and indexing it earlier aborts the whole init.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_threads_pinned_updated
+            ON threads(is_pinned, updated_at DESC)",
+        [],
+    )
+    .map_err(|e| AppError::Database(e.to_string()))?;
     Ok(())
 }
 

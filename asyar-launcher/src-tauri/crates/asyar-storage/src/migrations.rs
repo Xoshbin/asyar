@@ -50,6 +50,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "search_engine_tables",
         up: migration_5_search_engine_tables,
     },
+    Migration {
+        version: 6,
+        name: "threads_is_pinned",
+        up: migration_6_threads_is_pinned,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -202,6 +207,41 @@ fn migration_4_snippets_is_private(conn: &Connection) -> Result<(), AppError> {
     .map_err(|e| {
         AppError::Database(format!(
             "Failed to create idx_snippets_is_private index: {e}"
+        ))
+    })?;
+
+    Ok(())
+}
+
+/// `threads.is_pinned` was added as a guard inside `agents::init_table`, which
+/// only runs in the baseline migration, so databases already stamped past v1
+/// never received the column. Guarded because fresh and v0 databases get it
+/// from baseline's `CREATE TABLE`.
+fn migration_6_threads_is_pinned(conn: &Connection) -> Result<(), AppError> {
+    let exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('threads') WHERE name='is_pinned'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !exists {
+        conn.execute(
+            "ALTER TABLE threads ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to add is_pinned column: {e}")))?;
+    }
+
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_threads_pinned_updated
+            ON threads(is_pinned, updated_at DESC);",
+    )
+    .map_err(|e| {
+        AppError::Database(format!(
+            "Failed to create idx_threads_pinned_updated index: {e}"
         ))
     })?;
 
@@ -404,6 +444,38 @@ mod tests {
             })
             .unwrap();
         assert_eq!(is_private, 0, "default is_private must be 0");
+    }
+
+    #[test]
+    fn version_five_db_adds_threads_is_pinned_without_losing_existing_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..5]).unwrap();
+        assert_eq!(user_version(&conn), 5);
+
+        // Simulate a stamped install whose threads table predates is_pinned.
+        conn.execute_batch(
+            "DROP INDEX IF EXISTS idx_threads_pinned_updated;
+             ALTER TABLE threads DROP COLUMN is_pinned;
+             INSERT INTO agents (id, name, system_prompt, provider_id, model_id, created_at, updated_at)
+                 VALUES ('a1', 'Agent', 'prompt', 'p', 'm', 1, 1);
+             INSERT INTO threads (id, agent_id, title, created_at, updated_at)
+                 VALUES ('t1', 'a1', NULL, 1, 1);",
+        )
+        .unwrap();
+        assert!(!column_names(&conn, "threads").contains(&"is_pinned".to_string()));
+
+        run(&conn).unwrap();
+
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
+        assert!(column_names(&conn, "threads").contains(&"is_pinned".to_string()));
+        assert!(names_of(&conn, "index").contains(&"idx_threads_pinned_updated".to_string()));
+
+        let is_pinned: i32 = conn
+            .query_row("SELECT is_pinned FROM threads WHERE id = 't1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(is_pinned, 0, "default is_pinned must be 0");
     }
 
     #[test]
