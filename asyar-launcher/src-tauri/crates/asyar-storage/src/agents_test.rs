@@ -335,6 +335,51 @@ fn init_table_adds_silent_columns_to_legacy_db() {
 }
 
 #[test]
+fn init_table_adds_is_pinned_and_index_to_legacy_threads_table() {
+    // Pre-pinning threads table: no is_pinned column. Indexing is_pinned
+    // before the ALTER used to abort init with "no such column: is_pinned".
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE threads (
+            id          TEXT    PRIMARY KEY,
+            agent_id    TEXT    NOT NULL,
+            title       TEXT,
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
+        );
+        INSERT INTO threads (id, agent_id, title, created_at, updated_at)
+            VALUES ('t1', 'a1', NULL, 1, 1);",
+    )
+    .unwrap();
+    init_table(&conn).unwrap();
+    let mut stmt = conn.prepare("PRAGMA table_info(threads)").unwrap();
+    let cols: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .unwrap()
+        .filter_map(Result::ok)
+        .collect();
+    assert!(
+        cols.contains(&"is_pinned".to_string()),
+        "legacy upgrade missed is_pinned: {cols:?}"
+    );
+    let index_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_threads_pinned_updated'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(index_count, 1, "pinned index missing after legacy upgrade");
+    let pinned: i64 = conn
+        .query_row("SELECT is_pinned FROM threads WHERE id = 't1'", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(pinned, 0);
+}
+
+#[test]
 fn init_table_is_idempotent_on_silent_columns() {
     let conn = Connection::open_in_memory().unwrap();
     init_table(&conn).unwrap();
