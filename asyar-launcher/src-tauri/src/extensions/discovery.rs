@@ -110,6 +110,19 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
         }
     }
 
+    // Action shortcuts both render a hint and bind the key, so a malformed one
+    // is a broken manifest, not a cosmetic typo.
+    crate::extensions::validate_manifest_actions(m.actions.as_deref())
+        .map_err(|e| AppError::Validation(format!("Extension '{}': {}", m.id, e)))?;
+    for cmd in &m.commands {
+        crate::extensions::validate_manifest_actions(cmd.actions.as_deref()).map_err(|e| {
+            AppError::Validation(format!(
+                "Command '{}' in extension '{}': {}",
+                cmd.id, m.id, e
+            ))
+        })?;
+    }
+
     if has_background_command {
         let main_ok = m
             .background
@@ -1744,6 +1757,62 @@ mod manifest_schema_tests {
         let manifest: ExtensionManifest = serde_json::from_str(json).map_err(AppError::Json)?;
         validate_manifest(&manifest)?;
         Ok(manifest)
+    }
+
+    // ── Action shortcuts ────────────────────────────────────────────────
+
+    #[test]
+    fn manifest_with_canonical_action_shortcuts_is_accepted() {
+        let json = r#"{
+            "id": "org.test.shortcuts-ok", "name": "Shortcuts", "version": "1.0.0",
+            "type": "extension",
+            "actions": [{ "id": "a", "title": "A", "shortcut": "Mod+Shift+C" }],
+            "commands": [{
+                "id": "c", "name": "C", "mode": "view", "component": "V",
+                "actions": [{ "id": "b", "title": "B", "shortcut": "Mod+N" }]
+            }]
+        }"#;
+        parse(json).expect("canonical shortcuts must be accepted");
+    }
+
+    #[test]
+    fn manifest_rejects_a_glyph_shortcut_on_an_extension_action() {
+        let json = r#"{
+            "id": "org.test.glyph", "name": "Glyph", "version": "1.0.0",
+            "type": "extension",
+            "commands": [{ "id": "c", "name": "C", "mode": "view", "component": "V" }],
+            "actions": [{ "id": "a", "title": "A", "shortcut": "\u2318N" }]
+        }"#;
+        let err = parse(json).unwrap_err().to_string();
+        assert!(
+            err.contains("org.test.glyph") && err.contains("'a'"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn manifest_rejects_a_reserved_shortcut_on_a_command_action() {
+        let json = r#"{
+            "id": "org.test.reserved", "name": "Reserved", "version": "1.0.0",
+            "type": "extension",
+            "commands": [{
+                "id": "c", "name": "C", "mode": "view", "component": "V",
+                "actions": [{ "id": "copy", "title": "Copy", "shortcut": "Mod+C" }]
+            }]
+        }"#;
+        let err = parse(json).unwrap_err().to_string();
+        assert!(err.contains("reserved") && err.contains("'c'"), "{err}");
+    }
+
+    #[test]
+    fn manifest_actions_without_shortcuts_are_unaffected() {
+        let json = r#"{
+            "id": "org.test.no-shortcut", "name": "None", "version": "1.0.0",
+            "type": "extension",
+            "commands": [{ "id": "c", "name": "C", "mode": "view", "component": "V" }],
+            "actions": [{ "id": "a", "title": "A" }]
+        }"#;
+        parse(json).expect("shortcut is optional");
     }
 
     // ── Happy paths ─────────────────────────────────────────────────────

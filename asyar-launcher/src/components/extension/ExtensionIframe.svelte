@@ -6,6 +6,7 @@
   import { collectThemeVariables } from '../../lib/themeVariables';
   import { buildFontFaceCSS } from '../../lib/themeFonts';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { announceActiveViewShortcuts } from '../../services/action/viewShortcutSync.svelte';
 
   let {
     extensionId,
@@ -64,9 +65,10 @@
       return;
     }
     if (type === 'asyar:extension:keydown') {
-      const { key, metaKey, ctrlKey, shiftKey, altKey } = payload || {};
+      const { key, code, metaKey, ctrlKey, shiftKey, altKey } = payload || {};
       const syntheticEvent = new KeyboardEvent('keydown', {
         key,
+        code,
         metaKey,
         ctrlKey,
         shiftKey,
@@ -82,6 +84,8 @@
 
   async function handleIframeLoad() {
     sendMessage('asyar:theme:variables', collectThemeVariables(document.documentElement));
+    // A fresh load starts with no announced shortcuts; resend the live set.
+    announceActiveViewShortcuts({ force: true });
     const css = await (fontCSS ?? buildFontFaceCSS());
     sendMessage('asyar:theme:fonts', css);
   }

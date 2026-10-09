@@ -14,6 +14,7 @@ import { isBuiltInFeature } from './extensionDiscovery';
 import { extensionBridge, type ExtensionBridge } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
 import { actionService } from '../action/actionService.svelte';
+import { startViewShortcutSync } from '../action/viewShortcutSync.svelte';
 
 import { commandService } from './commandService.svelte';
 import { performanceService } from '../performance/performanceService.svelte';
@@ -108,6 +109,9 @@ export class ExtensionManager implements IExtensionManager {
     actionService.setExtensionForwarder(
       extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager),
     );
+    // Tier 2 view iframes can't see window keydown; tell them which action
+    // chords are live so their SDK forwards exactly those to the dispatcher.
+    startViewShortcutSync();
 
     // (Removed: legacy settings-broadcast path that was used exclusively by
     // the Calculator built-in to pick up refreshInterval changes. Calculator

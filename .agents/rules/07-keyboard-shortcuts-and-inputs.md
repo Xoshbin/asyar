@@ -19,3 +19,10 @@
 - Shortcuts that repurpose keys like `Backspace`, `Delete`, or `Escape` for navigation (such as going back or dismissing context mode):
   - Must verify that the search query is strictly empty (`query === ''` or `input.value === ''`).
   - Must defer to any focused `<input>`, `<textarea>`, or `contenteditable` elements.
+
+## 4. Action Shortcuts Are Declarations (Single Dispatcher)
+
+- An action's `shortcut` both shows the hint and binds the key. It is dispatched by exactly one owner, `services/action/actionShortcutDispatcher.ts`, wired into `lib/keyboard/launcherKeyboard.ts`. **Never** add a `keydown` listener in a feature for a chord that is, or should be, an action; declare `shortcut` on the action instead.
+- Use the canonical format `Mod[+Alt][+Shift]+Key` (`lib/keyboard/actionShortcut.ts`). `Mod` is ⌘ on macOS and Ctrl elsewhere. Glyphs (`⌘N`), `Super`, `Ctrl` and plain keys are rejected at registration (and by Rust for Tier 2 manifests).
+- Plain keys (Enter, arrows, Space) are not bindable; they stay with list navigation. Destructive actions never get a shortcut. Reserved chords (`Mod+K`, `Mod+,`, `Mod+P`, `Mod+Q`, `Mod+A/C/V/X/Z/Y`) cannot be bound.
+- Guard: `built-in-features/shortcutDeclarations.guard.test.ts` fails on a non-canonical shortcut, a collision, or a duplicated hand-written handler.

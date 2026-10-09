@@ -665,6 +665,122 @@ pub fn validate_extension_command(cmd: &ExtensionCommand) -> Result<(), String> 
     Ok(())
 }
 
+/// Chords the launcher or the OS text field already owns; an action may never
+/// bind them. Mirrors `RESERVED_ACTION_SHORTCUTS` in
+/// `src/lib/keyboard/actionShortcut.ts`.
+const RESERVED_ACTION_SHORTCUTS: &[(&str, &str)] = &[
+    ("Mod+K", "toggles the action panel"),
+    ("Mod+,", "opens Settings"),
+    ("Mod+P", "toggles the search-bar accessory"),
+    (
+        "Mod+Q",
+        "is blocked so the launcher is not quit by accident",
+    ),
+    ("Mod+A", "is select-all in text fields"),
+    ("Mod+C", "is copy in text fields"),
+    ("Mod+V", "is paste in text fields"),
+    ("Mod+X", "is cut in text fields"),
+    ("Mod+Z", "is undo in text fields"),
+    ("Mod+Y", "is redo in text fields"),
+    ("Mod+Shift+Z", "is redo in text fields"),
+];
+
+fn is_action_f_key(s: &str) -> bool {
+    s.strip_prefix('F')
+        .filter(|n| !n.is_empty() && !n.starts_with('0') && n.chars().all(|c| c.is_ascii_digit()))
+        .and_then(|n| n.parse::<u32>().ok())
+        .is_some_and(|n| (1..=24).contains(&n))
+}
+
+fn is_action_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    match (chars.next(), chars.next()) {
+        (Some(c), None) => {
+            c.is_ascii_uppercase()
+                || c.is_ascii_digit()
+                || matches!(
+                    c,
+                    ',' | '.' | '/' | ';' | '\'' | '[' | ']' | '\\' | '-' | '=' | '`'
+                )
+        }
+        _ => matches!(key, "Space" | "Enter") || is_action_f_key(key),
+    }
+}
+
+/// Validate an action `shortcut` against the one canonical grammar:
+/// `Mod[+Alt][+Shift]+Key`, or a bare `F1`–`F24`.
+///
+/// `Mod` is the platform's primary modifier (⌘ on macOS, Ctrl elsewhere) and
+/// is required, because plain keys and Shift/Alt-only chords are typing and
+/// list navigation, never actions. Mirrors `validateActionShortcut` in
+/// `src/lib/keyboard/actionShortcut.ts`: the launcher enforces the same rules
+/// at registration, this rejects a bad manifest before it is ever installed.
+pub fn validate_action_shortcut(shortcut: &str) -> Result<(), String> {
+    if shortcut.is_empty() {
+        return Err("shortcut is empty".into());
+    }
+    if shortcut.chars().any(char::is_whitespace) {
+        return Err("shortcut must not contain whitespace".into());
+    }
+    if is_action_f_key(shortcut) {
+        return Ok(());
+    }
+    let parts: Vec<&str> = shortcut.split('+').collect();
+    let (key, modifiers) = parts.split_last().expect("split yields at least one part");
+    if key.is_empty() {
+        return Err("shortcut is missing its key".into());
+    }
+    if !is_action_key(key) {
+        return Err(format!(
+            "'{key}' is not a bindable key (use an uppercase letter or digit, punctuation, Space, Enter or F1-F24)"
+        ));
+    }
+    const ORDER: [&str; 3] = ["Mod", "Alt", "Shift"];
+    for m in modifiers {
+        if !ORDER.contains(m) {
+            return Err(format!(
+                "'{m}' is not a valid modifier (use Mod, Alt and Shift; Mod is Cmd on macOS and Ctrl elsewhere)"
+            ));
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    if !modifiers.iter().all(|m| seen.insert(*m)) {
+        return Err("shortcut repeats a modifier".into());
+    }
+    if !modifiers.contains(&"Mod") {
+        return Err("shortcut must include Mod; plain keys and Shift/Alt-only chords are reserved for typing and navigation".into());
+    }
+    let position = |m: &&str| ORDER.iter().position(|o| o == m);
+    if !modifiers
+        .windows(2)
+        .all(|w| position(&w[0]) < position(&w[1]))
+    {
+        return Err("modifiers must be ordered Mod, Alt, Shift".into());
+    }
+    if let Some((_, why)) = RESERVED_ACTION_SHORTCUTS
+        .iter()
+        .find(|(c, _)| *c == shortcut)
+    {
+        return Err(format!("{shortcut} is reserved: it {why}"));
+    }
+    Ok(())
+}
+
+/// Validate the `shortcut` of every action in a manifest `actions` list.
+pub fn validate_manifest_actions(actions: Option<&[ManifestAction]>) -> Result<(), String> {
+    for action in actions.unwrap_or(&[]) {
+        if let Some(shortcut) = &action.shortcut {
+            validate_action_shortcut(shortcut).map_err(|e| {
+                format!(
+                    "action '{}' has invalid shortcut '{}': {e}",
+                    action.id, shortcut
+                )
+            })?;
+        }
+    }
+    Ok(())
+}
+
 /// Cross-validate a `requireAnyOf` group against the command's declared
 /// arguments. The group means "at least one of these carries a user value", so
 /// it only makes sense over two or more real, non-`required` arguments.
@@ -1381,6 +1497,112 @@ mod tests {
         assert_eq!(options.len(), 2);
         assert_eq!(options[0].value, "all");
         assert_eq!(options[0].title, "All");
+    }
+
+    // ── action shortcut grammar ────────────────────────────────────────────
+    // Keep these tables in sync with `actionShortcut.test.ts`.
+
+    #[test]
+    fn action_shortcut_accepts_canonical_forms() {
+        for s in [
+            "Mod+N",
+            "Mod+Shift+C",
+            "Mod+Alt+C",
+            "Mod+Alt+Shift+F",
+            "Mod+Shift+,",
+            "Mod+Enter",
+            "F5",
+            "F24",
+        ] {
+            assert_eq!(validate_action_shortcut(s), Ok(()), "{s} should be valid");
+        }
+    }
+
+    #[test]
+    fn action_shortcut_rejects_non_canonical_forms() {
+        for s in [
+            "\u{2318}N",
+            "Cmd+N",
+            "Ctrl+N",
+            "Control+N",
+            "Super+N",
+            "Meta+N",
+            "mod+n",
+            "Mod+n",
+            "Shift+Mod+N",
+            "Alt+Mod+N",
+            "",
+            "Mod+",
+            "Mod",
+            "Mod+Mod+N",
+            "N",
+            "Shift+N",
+            "Alt+N",
+            "Enter",
+            "Space",
+            "Escape",
+            "Mod+Tab",
+            "Mod+Escape",
+            "Mod+ArrowUp",
+            "Mod+Backspace",
+            "Mod+Delete",
+            "Mod+N+M",
+            " Mod+N",
+            "F0",
+            "F25",
+            "F05",
+        ] {
+            assert!(
+                validate_action_shortcut(s).is_err(),
+                "{s:?} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn action_shortcut_rejects_reserved_chords() {
+        for s in [
+            "Mod+K",
+            "Mod+,",
+            "Mod+P",
+            "Mod+Q",
+            "Mod+A",
+            "Mod+C",
+            "Mod+V",
+            "Mod+X",
+            "Mod+Z",
+            "Mod+Y",
+            "Mod+Shift+Z",
+        ] {
+            let err = validate_action_shortcut(s).unwrap_err();
+            assert!(err.contains("reserved"), "{s}: {err}");
+        }
+    }
+
+    #[test]
+    fn validate_manifest_actions_names_the_offending_action() {
+        let actions = vec![
+            ManifestAction {
+                id: "ok".into(),
+                title: "Ok".into(),
+                description: None,
+                icon: None,
+                shortcut: Some("Mod+N".into()),
+                category: None,
+            },
+            ManifestAction {
+                id: "bad".into(),
+                title: "Bad".into(),
+                description: None,
+                icon: None,
+                shortcut: Some("\u{2318}N".into()),
+                category: None,
+            },
+        ];
+        let err = validate_manifest_actions(Some(&actions)).unwrap_err();
+        assert!(err.contains("'bad'"), "{err}");
+        assert!(validate_manifest_actions(None).is_ok());
+        assert!(validate_manifest_actions(Some(&actions[..1])).is_ok());
     }
 
     #[test]

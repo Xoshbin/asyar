@@ -1585,6 +1585,7 @@
         "extensions_sub": "浏览、安装和管理扩展"
       },
       "shortcuts_heading": "键盘快捷键",
+      "action_shortcuts_heading": "操作快捷键",
       "no_topics": "没有与搜索匹配的主题。",
       "ui": {
         "guides": "功能指南"

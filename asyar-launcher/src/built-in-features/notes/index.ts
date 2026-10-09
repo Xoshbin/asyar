@@ -77,12 +77,6 @@ class NotesExtension implements Extension {
       if (document.querySelector('.action-popup') || isAnyModalOpen(document)) return;
     }
 
-    if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-      e.preventDefault();
-      void noteViewState.createNote();
-      return;
-    }
-
     // The launcher's own search input is focused while browsing the list, so
     // "is an input" can't be the exemption — only the note editor's fields
     // (title/body) keep their native cursor-movement keys.
@@ -131,6 +125,7 @@ class NotesExtension implements Extension {
       id: 'notes:add',
       label: t('features.notes.act.new'),
       icon: 'icon:plus',
+      shortcut: 'Mod+N',
       description: t('features.notes.act.new_desc'),
       category: t('categories.notes'),
       extensionId: 'notes',

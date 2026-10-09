@@ -35,12 +35,6 @@ class SnippetsExtension implements Extension {
     }
     if (snippetViewState.mode !== 'view') return; // let form handle its own keys
 
-    if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-      e.preventDefault();
-      e.stopPropagation();
-      snippetViewState.startCreate();
-      return;
-    }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
       e.stopPropagation();
@@ -66,11 +60,15 @@ class SnippetsExtension implements Extension {
       id: 'snippets:add',
       label: t('features.snippets.act.add'),
       icon: 'icon:plus',
+      shortcut: 'Mod+N',
       description: t('features.snippets.act.add_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
+        // The form owns the keyboard once it is open; a second ⌘N must not
+        // reset the draft the user is typing.
+        if (snippetViewState.mode !== 'view') return;
         snippetViewState.startCreate();
       },
     });

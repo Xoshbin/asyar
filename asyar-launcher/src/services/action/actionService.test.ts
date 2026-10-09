@@ -170,9 +170,9 @@ describe('registerAction', () => {
 
   it('preserves shortcut through registerAction normalization', () => {
     const svc = freshService();
-    svc.registerAction({ ...makeAction('shortcut-me'), shortcut: '⌘⇧C' } as any);
+    svc.registerAction({ ...makeAction('shortcut-me'), shortcut: 'Mod+Shift+C' } as any);
     const action = svc.getAllActions().find((a) => a.id === 'shortcut-me');
-    expect(action?.shortcut).toBe('⌘⇧C');
+    expect(action?.shortcut).toBe('Mod+Shift+C');
   });
 
   it('shortcut defaults to undefined when not provided', () => {
@@ -588,7 +588,7 @@ describe('copy_deeplink built-in action', () => {
     const action = svc.getAllActions().find((a) => a.id === 'copy_deeplink');
     expect(action).toBeDefined();
     expect(action!.context).toBe(ActionContext.CORE);
-    expect(action!.shortcut).toBe('Super+Shift+C');
+    expect(action!.shortcut).toBe('Mod+Shift+C');
     expect(action!.category).toBe('Share');
     expect(action!.icon).toBe('icon:link');
   });

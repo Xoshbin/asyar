@@ -97,16 +97,17 @@ actionService.registerAction(refreshAction);
 
 ### Action field reference
 
-| Field         | Type                          | Required | Description                                                                       |
-| ------------- | ----------------------------- | -------- | --------------------------------------------------------------------------------- |
-| `id`          | `string`                      | ✅       | Globally unique. Namespace with your extension ID: `com.yourname.ext:action-name` |
-| `title`       | `string`                      | ✅       | Label shown in the Action Drawer.                                                 |
-| `extensionId` | `string`                      | ✅       | Your extension's `id` from `manifest.json`.                                       |
-| `execute`     | `() => void \| Promise<void>` | ✅       | Called when the user activates the action.                                        |
-| `description` | `string`                      | ❌       | Secondary text shown below the title.                                             |
-| `icon`        | `string`                      | ❌       | Emoji or `"icon:<name>"` shown next to the title.                                 |
-| `category`    | `string`                      | ❌       | Group label. Use `ActionCategory` constants for standard groups.                  |
-| `context`     | `ActionContext`               | ❌       | When this action is visible. Default: always visible.                             |
+| Field         | Type                          | Required | Description                                                                                  |
+| ------------- | ----------------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `id`          | `string`                      | ✅       | Globally unique. Namespace with your extension ID: `com.yourname.ext:action-name`            |
+| `title`       | `string`                      | ✅       | Label shown in the Action Drawer.                                                            |
+| `extensionId` | `string`                      | ✅       | Your extension's `id` from `manifest.json`.                                                  |
+| `execute`     | `() => void \| Promise<void>` | ✅       | Called when the user activates the action.                                                   |
+| `description` | `string`                      | ❌       | Secondary text shown below the title.                                                        |
+| `icon`        | `string`                      | ❌       | Emoji or `"icon:<name>"` shown next to the title.                                            |
+| `category`    | `string`                      | ❌       | Group label. Use `ActionCategory` constants for standard groups.                             |
+| `context`     | `ActionContext`               | ❌       | When this action is visible. Default: always visible.                                        |
+| `shortcut`    | `string`                      | ❌       | Keyboard shortcut, shown in the drawer and bound. See [Action shortcuts](#action-shortcuts). |
 
 ### Action context reference
 
@@ -210,6 +211,7 @@ The Rust extension loader validates action declarations at discovery time. Inval
 - **ID regex:** `/^[a-zA-Z][a-zA-Z0-9_-]*$/` — must start with a letter, contain only letters, digits, underscores, or hyphens
 - **Non-empty title:** Every declared action must have a non-empty `title`
 - **Unique IDs within extension:** Action IDs must be unique across both extension-level and command-level declarations in the same extension (no cross-scope duplicates)
+- **Canonical shortcut:** a declared `shortcut` must follow [Action shortcuts](#action-shortcuts) (e.g. `Mod+N`); glyphs like `⌘N`, plain keys and reserved chords make the extension invalid
 
 ### ManifestAction field reference
 
@@ -219,8 +221,29 @@ The Rust extension loader validates action declarations at discovery time. Inval
 | `title`       | `string` | ✅       | Label shown in the ⌘K action drawer.                   |
 | `description` | `string` | ❌       | Secondary text below the title.                        |
 | `icon`        | `string` | ❌       | Emoji or `"icon:<name>"`.                              |
-| `shortcut`    | `string` | ❌       | Keyboard hint displayed in the drawer (display-only).  |
+| `shortcut`    | `string` | ❌       | Keyboard shortcut: shown in the drawer **and bound**.  |
 | `category`    | `string` | ❌       | Groups related actions under a heading.                |
+
+---
+
+### Action shortcuts
+
+A `shortcut` is a declaration, not just a hint: the launcher shows it next to the action in the ⌘K drawer **and** runs the action when the user presses it. This works the same for manifest-declared actions, for actions you register at runtime with `registerAction`, and while your view iframe has focus — the launcher tells your iframe which chords are live and the SDK forwards exactly those key presses to it. You do not add a `keydown` listener for them.
+
+**Format:** `Mod[+Alt][+Shift]+Key`, or a bare function key `F1`–`F24`.
+
+- `Mod` is the platform's primary modifier: ⌘ on macOS, Ctrl on Windows and Linux. The hint is rendered per platform (`Mod+N` shows `⌘N` on macOS and `Ctrl N` elsewhere), so write it once.
+- Modifiers go in the order `Mod`, `Alt`, `Shift`. The key is an uppercase letter or digit, one of ``, . / ; ' [ ] \ - = ` ``, `Space` or `Enter`.
+- Examples: `Mod+N`, `Mod+Shift+C`, `Mod+Alt+Shift+F`, `Mod+Shift+,`, `F5`.
+
+**Rules**
+
+- **Plain keys are not bindable.** `Enter`, arrows, `Space`, `Tab`, `Esc`, `Backspace` and Shift/Alt-only chords belong to typing and list navigation. A shortcut must include `Mod` (function keys excepted).
+- **Reserved:** `Mod+K`, `Mod+,`, `Mod+P`, `Mod+Q` (launcher) and `Mod+A`, `Mod+C`, `Mod+V`, `Mod+X`, `Mod+Z`, `Mod+Y`, `Mod+Shift+Z` (text editing).
+- **Destructive actions get no shortcut.** An action with `destructive: true` is rejected if it declares one; it stays in the ⌘K drawer.
+- **Only visible actions fire.** A manifest action fires while its command is highlighted in root search; a runtime action fires while the extension's view is the active one. Shortcuts do nothing while the ⌘K drawer or a dialog is open.
+- **No collisions.** Two actions that are visible together must not share a chord; registering a second always-visible action with the same chord throws. If a tie still happens the view's own action wins, then registration order, and the launcher logs a warning.
+- Old formats (`"⌘N"`, `"Ctrl+N"`, `"Super+N"`) are not accepted. Manifests with an invalid `shortcut` fail validation at install; a runtime `registerAction` with one is rejected.
 
 ---
 

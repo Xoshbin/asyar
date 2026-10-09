@@ -2,11 +2,21 @@
   import { t } from '../../services/i18n';
   import { helpViewState } from './helpState.svelte';
   import { LAUNCHER_SHORTCUTS } from '../../lib/keyboard/shortcutCatalog';
+  import { actionShortcutEntries } from '../../lib/keyboard/actionShortcutCatalog';
+  import { actionService } from '../../services/action/actionService.svelte';
   import Icon from '../../components/base/Icon.svelte';
   import { getBuiltInIconName, isBuiltInIcon } from '../../lib/iconUtils';
   import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
 
   let listEl = $state<HTMLDivElement | undefined>();
+
+  // Generated from registered actions: a shortcut declared on an action is
+  // documented here automatically.
+  const actionShortcuts = $derived(
+    actionShortcutEntries(
+      actionService.getAllActions().map((a) => ({ label: a.label, shortcut: a.shortcut })),
+    ),
+  );
 
   // Keyboard selection lives in helpViewState; keep the selected topic row visible.
   $effect(() => {
@@ -38,6 +48,19 @@
         </li>
       {/each}
     </ul>
+    {#if actionShortcuts.length > 0}
+      <h2 class="section-title">{t('features.help.action_shortcuts_heading')}</h2>
+      <ul class="shortcut-list">
+        {#each actionShortcuts as s}
+          <li class="shortcut-row">
+            <span class="keys">
+              {#each s.keys as k}<kbd>{k}</kbd>{/each}
+            </span>
+            <span class="label">{s.label}</span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </section>
 
   <section class="topics">

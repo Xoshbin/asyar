@@ -953,6 +953,70 @@ describe('launcherKeyboard characterization tests', () => {
     });
   });
 
+  describe('handleGlobalKeydown: action shortcuts', () => {
+    it('hands the event to the action shortcut dispatcher', () => {
+      const handleActionShortcut = vi.fn(() => true);
+      const deps = createMockDeps({ handleActionShortcut });
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const event = createKeyEvent('n', { metaKey: true });
+
+      handleGlobalKeydown(event);
+
+      expect(handleActionShortcut).toHaveBeenCalledWith(event);
+    });
+
+    it('stops routing once an action shortcut consumed the event', () => {
+      viewManager.activeView = 'ext/View';
+      vi.mocked(isBuiltInFeature).mockReturnValue(false);
+      const deps = createMockDeps({
+        handleActionShortcut: vi.fn((e: KeyboardEvent) => e.metaKey),
+      });
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+      handleGlobalKeydown(createKeyEvent('Enter'));
+      expect(extensionManager.forwardKeyToActiveView).toHaveBeenCalled();
+
+      vi.mocked(extensionManager.forwardKeyToActiveView).mockClear();
+      handleGlobalKeydown(createKeyEvent('n', { metaKey: true }));
+      expect(extensionManager.forwardKeyToActiveView).not.toHaveBeenCalled();
+    });
+
+    it('lets the launcher-reserved chords win before any action shortcut', () => {
+      const handleActionShortcut = vi.fn(() => true);
+      const deps = createMockDeps({ handleActionShortcut });
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+      handleGlobalKeydown(createKeyEvent('k', { metaKey: true }));
+      handleGlobalKeydown(createKeyEvent(',', { metaKey: true }));
+      handleGlobalKeydown(createKeyEvent('q', { metaKey: true }));
+
+      expect(handleActionShortcut).not.toHaveBeenCalled();
+    });
+
+    it('does not dispatch while shortcuts are being captured', () => {
+      shortcutStore.isCapturing = true;
+      const handleActionShortcut = vi.fn(() => true);
+      const { handleGlobalKeydown } = createKeyboardHandlers(
+        createMockDeps({ handleActionShortcut }),
+      );
+      handleGlobalKeydown(createKeyEvent('n', { metaKey: true }));
+      expect(handleActionShortcut).not.toHaveBeenCalled();
+    });
+
+    it('does not dispatch in compact idle, which has no action panel', () => {
+      const handleActionShortcut = vi.fn(() => true);
+      const deps = createMockDeps({ handleActionShortcut, isCompactIdle: () => true });
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      handleGlobalKeydown(createKeyEvent('n', { metaKey: true }));
+      expect(handleActionShortcut).not.toHaveBeenCalled();
+    });
+
+    it('keeps working when no dispatcher is wired', () => {
+      const { handleGlobalKeydown } = createKeyboardHandlers(createMockDeps());
+      expect(() => handleGlobalKeydown(createKeyEvent('n', { metaKey: true }))).not.toThrow();
+    });
+  });
+
   describe('handleKeydown', () => {
     it('ignores navigation and submission keys when event.isComposing is true', () => {
       searchStores.selectedIndex = 0;

@@ -1585,6 +1585,7 @@
         "extensions_sub": "瀏覽、安裝與管理擴充功能"
       },
       "shortcuts_heading": "鍵盤快速鍵",
+      "action_shortcuts_heading": "動作快速鍵",
       "no_topics": "沒有符合搜尋的主題。",
       "ui": {
         "guides": "功能指南"

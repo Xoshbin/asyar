@@ -462,3 +462,28 @@ describe('constants', () => {
     expect(DOM_TO_MODIFIER['Meta']).toBe('Super');
   });
 });
+
+describe('toDisplayKeys with the platform-neutral Mod modifier', () => {
+  it('renders Mod as ⌘ on macOS', () => {
+    expect(toDisplayKeys('Mod+N', 'macos')).toEqual(['⌘', 'N']);
+    expect(toDisplayKeys('Mod+Alt+Shift+C', 'macos')).toEqual(['⌘', '⌥', '⇧', 'C']);
+  });
+
+  it('renders Mod as Ctrl, with named modifiers, on Windows and Linux', () => {
+    expect(toDisplayKeys('Mod+N', 'windows')).toEqual(['Ctrl', 'N']);
+    expect(toDisplayKeys('Mod+Alt+Shift+C', 'other')).toEqual(['Ctrl', 'Alt', 'Shift', 'C']);
+  });
+
+  it('renders a comma key and Enter', () => {
+    expect(toDisplayKeys('Mod+Shift+,', 'macos')).toEqual(['⌘', '⇧', ',']);
+    expect(toDisplayKeys('Mod+Enter', 'macos')).toEqual(['⌘', '↵']);
+  });
+
+  it('renders a bare F-key unchanged', () => {
+    expect(toDisplayKeys('F5', 'macos')).toEqual(['F5']);
+  });
+
+  it('keeps rendering physical-modifier shortcuts as before', () => {
+    expect(toDisplayKeys('Super+Shift+K')).toEqual(['⌘', '⇧', 'K']);
+  });
+});

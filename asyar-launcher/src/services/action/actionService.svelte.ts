@@ -20,7 +20,8 @@ import { commandService } from '../extension/commandService.svelte';
 import { applicationService } from '../application/applicationService';
 import type { UninstallScanResult } from '../application/applicationService';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
-import { platform } from '@tauri-apps/plugin-os';
+import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
+import { assertActionShortcut } from '../../lib/keyboard/actionShortcut';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
 
 // Module-level platform detection for the Uninstall action. macOS moves the
@@ -29,16 +30,7 @@ import { developerSettingsService } from '../settings/developerSettingsService.s
 // the vendor UninstallString. Linux is unsupported — packaging is too
 // fragmented (apt/dnf/pacman/flatpak/snap/AppImage) for a single first-party
 // path — and the action stays hidden there.
-const HOST_PLATFORM: 'macos' | 'windows' | 'other' = (() => {
-  try {
-    const p = platform();
-    if (p === 'macos') return 'macos';
-    if (p === 'windows') return 'windows';
-    return 'other';
-  } catch {
-    return 'other';
-  }
-})();
+const HOST_PLATFORM = getHostPlatform();
 const IS_MACOS = HOST_PLATFORM === 'macos';
 const IS_WINDOWS = HOST_PLATFORM === 'windows';
 const UNINSTALL_SUPPORTED = IS_MACOS || IS_WINDOWS;
@@ -199,6 +191,8 @@ export class ActionService implements IActionService {
    * Register an action from an extension or core
    */
   registerAction(action: ExtensionAction | ApplicationAction): void {
+    this.assertShortcutRegistrable(action);
+
     // Ensure it conforms to ApplicationAction structure internally
     const appAction: ApplicationAction = {
       id: action.id,
@@ -226,6 +220,43 @@ export class ActionService implements IActionService {
 
     // Update the state if the action matches the current context
     this.updateState();
+  }
+
+  /**
+   * A declared `shortcut` both shows a hint and binds the key, so it is held
+   * to the canonical grammar at the door: a bad one throws instead of
+   * rendering a hint that nothing answers.
+   *  - Destructive actions never get a direct shortcut; they live in ⌘K.
+   *  - Two actions in one scope (same context and owner) that are both
+   *    unconditionally visible would fight over the chord on every keypress,
+   *    so the second registration is refused. Actions that gate on `visible()`
+   *    may share a chord; `getShortcutCandidates()` orders any residual tie.
+   */
+  private assertShortcutRegistrable(action: ExtensionAction | ApplicationAction): void {
+    const shortcut = 'shortcut' in action ? action.shortcut : undefined;
+    if (shortcut === undefined) return;
+    assertActionShortcut(shortcut, action.id);
+    if ('destructive' in action && action.destructive) {
+      throw new Error(
+        `Action '${action.id}' is destructive and cannot bind shortcut '${shortcut}'; destructive actions are only reachable through the ⌘K panel`,
+      );
+    }
+    const visible = 'visible' in action ? (action as ApplicationAction).visible : undefined;
+    if (visible) return;
+    const scope = (a: { context?: ActionContext; extensionId?: string }) =>
+      `${a.context ?? ActionContext.EXTENSION_VIEW}|${a.extensionId ?? ''}`;
+    const mine = scope({
+      context: action.context,
+      extensionId: 'extensionId' in action ? action.extensionId : undefined,
+    });
+    for (const other of this.allActions.values()) {
+      if (other.id === action.id || other.visible || other.shortcut !== shortcut) continue;
+      if (scope(other) === mine) {
+        throw new Error(
+          `Action '${action.id}' cannot bind shortcut '${shortcut}': '${other.id}' already binds it in the same scope`,
+        );
+      }
+    }
   }
 
   /**
@@ -291,6 +322,22 @@ export class ActionService implements IActionService {
     );
 
     return filtered;
+  }
+
+  /**
+   * The actions a key press may trigger right now: exactly what the ⌘K panel
+   * would list for the current context, minus the ones without a shortcut.
+   * Recomputed on every call (not read from `filteredActions`) because
+   * `visible()` depends on the selected search item, which can change between
+   * the last `updateState()` and a keypress. View-scoped actions come before
+   * global/core ones, so inside a view the view wins a shared chord.
+   */
+  getShortcutCandidates(): ApplicationAction[] {
+    const rank = (a: ApplicationAction) =>
+      a.context === ActionContext.CORE || a.context === ActionContext.GLOBAL ? 1 : 0;
+    return Array.from(this.allActions.values())
+      .filter((a) => a.shortcut && !a.disabled && this.filterActionsByContext(a))
+      .sort((a, b) => rank(a) - rank(b));
   }
 
   /**
@@ -584,7 +631,7 @@ export class ActionService implements IActionService {
       description: t('core_actions.copy_deeplink_desc'),
       category: t('categories.share'),
       context: ActionContext.CORE,
-      shortcut: 'Super+Shift+C',
+      shortcut: 'Mod+Shift+C',
       visible: () => {
         const item = this.getSelectedSearchItem();
         return item?.type === 'command';
@@ -609,7 +656,7 @@ export class ActionService implements IActionService {
       description: t('core_actions.view_extension_commands_desc'),
       category: t('categories.extension'),
       context: ActionContext.CORE,
-      shortcut: 'Super+Shift+E',
+      shortcut: 'Mod+Shift+E',
       visible: () => {
         const item = this.getSelectedSearchItem();
         return !!(item && item.type === 'command' && item.extensionId);
@@ -631,7 +678,7 @@ export class ActionService implements IActionService {
       description: t('core_actions.configure_extension_desc'),
       category: t('categories.extension'),
       context: ActionContext.CORE,
-      shortcut: 'Super+Shift+,',
+      shortcut: 'Mod+Shift+,',
       visible: () => {
         const item = this.getSelectedSearchItem();
         return !!(item && item.type === 'command' && item.extensionId);

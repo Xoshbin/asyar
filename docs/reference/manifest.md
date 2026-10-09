@@ -78,14 +78,14 @@ extension to fail discovery with an unknown-field error:
 
 Both the root-level `actions` field and the per-command `actions` field accept the same `ManifestAction` shape:
 
-| Field         | Type     | Required | Constraints                                                  | Description                                                                                                                                   |
-| ------------- | -------- | -------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`          | `string` | ✅       | Regex: `/^[a-zA-Z][a-zA-Z0-9_-]*$/`, unique within extension | Programmatic identifier. Must be unique across both extension-level and command-level actions within the same extension.                      |
-| `title`       | `string` | ✅       | Non-empty                                                    | Label shown in the ⌘K action drawer.                                                                                                          |
-| `description` | `string` | ❌       | —                                                            | Secondary text shown below the title.                                                                                                         |
-| `icon`        | `string` | ❌       | Emoji or `"icon:<name>"`                                     | Icon next to the action title.                                                                                                                |
-| `shortcut`    | `string` | ❌       | Display string only                                          | Keyboard shortcut hint shown in the drawer (e.g. `"⌘⇧C"`). Display-only — the handler must be registered in code via `registerActionHandler`. |
-| `category`    | `string` | ❌       | Any string                                                   | Groups related actions under a heading in the drawer. Use `ActionCategory` constants for consistency.                                         |
+| Field         | Type     | Required | Constraints                                                  | Description                                                                                                                                                                                                                                                                                            |
+| ------------- | -------- | -------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`          | `string` | ✅       | Regex: `/^[a-zA-Z][a-zA-Z0-9_-]*$/`, unique within extension | Programmatic identifier. Must be unique across both extension-level and command-level actions within the same extension.                                                                                                                                                                               |
+| `title`       | `string` | ✅       | Non-empty                                                    | Label shown in the ⌘K action drawer.                                                                                                                                                                                                                                                                   |
+| `description` | `string` | ❌       | —                                                            | Secondary text shown below the title.                                                                                                                                                                                                                                                                  |
+| `icon`        | `string` | ❌       | Emoji or `"icon:<name>"`                                     | Icon next to the action title.                                                                                                                                                                                                                                                                         |
+| `shortcut`    | `string` | ❌       | Canonical shortcut, e.g. `Mod+Shift+C`                       | Keyboard shortcut. It is both shown in the `⌘K` drawer and **bound**: pressing it runs the action while the action is visible, including while your view iframe has focus. See [Action shortcuts](./actions.md#action-shortcuts). The handler is still registered in code via `registerActionHandler`. |
+| `category`    | `string` | ❌       | Any string                                                   | Groups related actions under a heading in the drawer. Use `ActionCategory` constants for consistency.                                                                                                                                                                                                  |
 
 **ID format:** The host constructs a global action ID as `act_{extensionId}_{actionId}`. Example: `act_com.example.github_clone-repo`. This is the ID your handler is registered under via `registerActionHandler`.
 
@@ -251,7 +251,7 @@ When an extension declares permissions or updates its declared permission set:
       "title": "Extension Settings",
       "description": "Configure Note Search preferences",
       "icon": "icon:settings",
-      "shortcut": "⌘,",
+      "shortcut": "Mod+Shift+,",
       "category": "System"
     }
   ],
@@ -269,7 +269,7 @@ When an extension declares permissions or updates its declared permission set:
           "title": "Export Note",
           "description": "Save the selected note as a file",
           "icon": "icon:download",
-          "shortcut": "⌘⇧E",
+          "shortcut": "Mod+Shift+E",
           "category": "Share"
         }
       ]

@@ -148,6 +148,9 @@ class AgentsExtension implements Extension {
     if (!agentId) return;
     try {
       const thread = await agentService.createThread(agentId, '');
+      // The user may have switched agent while the thread was being created;
+      // selecting it then would point the new agent at a foreign thread.
+      if (agentsManager.currentAgentId !== agentId) return;
       agentsManager.currentThreadId = thread.id;
     } catch (err) {
       logService.warn(`[agents] new-thread action failed: ${err}`);
@@ -221,6 +224,7 @@ class AgentsExtension implements Extension {
       id: ACTION_NEW_THREAD,
       label: t('features.agents.act.new_thread'),
       icon: '💬',
+      shortcut: 'Mod+N',
       description: t('features.agents.act.new_thread_desc'),
       category: t('categories.agents'),
       extensionId: 'agents',
@@ -256,7 +260,7 @@ class AgentsExtension implements Extension {
       category: t('categories.agents'),
       extensionId: 'agents',
       context: ActionContext.EXTENSION_VIEW,
-      shortcut: 'Super+Shift+C',
+      shortcut: 'Mod+Shift+C',
       visible: () => !agentsManager.sending && !!agentsManager.lastAssistantMessageText,
       execute: async () => this.runCopyLastResponse(),
     });

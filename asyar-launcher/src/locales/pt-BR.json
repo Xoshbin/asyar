@@ -1585,6 +1585,7 @@
         "extensions_sub": "Navegue, instale e gerencie extensões"
       },
       "shortcuts_heading": "Atalhos de teclado",
+      "action_shortcuts_heading": "Atalhos de ações",
       "no_topics": "Nenhum tópico corresponde à sua busca.",
       "ui": {
         "guides": "Guias de recursos"

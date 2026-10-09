@@ -68,7 +68,18 @@ export interface ManifestAction {
   description?: string;
   /** Icon reference (e.g. "icon:link" or an emoji). */
   icon?: string;
-  /** Display-only keyboard shortcut hint. */
+  /**
+   * Keyboard shortcut. Declaring it both shows the hint in the ⌘K panel and
+   * binds the key: pressing it runs the action while the action is visible
+   * (when its command is highlighted in root search, or while its view is open).
+   *
+   * Canonical form: `Mod[+Alt][+Shift]+Key`, e.g. `"Mod+N"` or `"Mod+Shift+C"`,
+   * or a bare `F1`–`F24`. `Mod` is ⌘ on macOS and Ctrl on Windows and Linux.
+   * Plain keys, glyphs (`"⌘N"`), `Ctrl`/`Cmd`/`Super`, destructive-looking
+   * text-editing chords (`Mod+A/C/V/X/Z/Y`) and the launcher's own chords
+   * (`Mod+K`, `Mod+,`, `Mod+P`, `Mod+Q`) are rejected when the manifest is
+   * installed.
+   */
   shortcut?: string;
   /** Grouping category in the action drawer. */
   category?: string;

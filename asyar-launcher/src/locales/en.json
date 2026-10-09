@@ -1585,6 +1585,7 @@
         "extensions_sub": "Browse, install, and manage extensions"
       },
       "shortcuts_heading": "Keyboard Shortcuts",
+      "action_shortcuts_heading": "Action Shortcuts",
       "no_topics": "No topics match your search.",
       "ui": {
         "guides": "Feature Guides"

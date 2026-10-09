@@ -28,6 +28,7 @@
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
+  import { actionShortcuts } from '../services/action/actionShortcuts';
   import { commandArgumentsService } from '../services/search/commandArguments';
   import { resolveCommandArguments } from '../lib/ipc/argumentModelCommands';
   import { commandArgDefaultsGet } from '../lib/ipc/commandArgDefaultsCommands';
@@ -135,6 +136,7 @@
     onBeforeHide: async () => {
       await searchService.saveIndex();
     },
+    handleActionShortcut: (event) => actionShortcuts.handle(event),
     isCompactIdle: () => isCompactIdle,
     onCompactExpand: () => {
       compactSync.compactExpanded = true;

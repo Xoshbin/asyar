@@ -43,6 +43,13 @@ export interface ExtensionAction {
   context?: ActionContext; // Add the context property with the enum type
   execute: (payload?: unknown) => Promise<void> | void;
   confirm?: boolean;
+  /**
+   * Keyboard shortcut that both shows the hint and runs the action while it is
+   * visible, including while the extension's view has focus. Canonical form
+   * `Mod[+Alt][+Shift]+Key` (`Mod` = ⌘ on macOS, Ctrl elsewhere) or a bare
+   * `F1`–`F24`. Registration is rejected for a non-canonical or reserved chord,
+   * and for a `destructive` action: destructive actions stay in the ⌘K panel.
+   */
   shortcut?: string;
   /** Renders in the launcher's danger color. Independent of `confirm`. */
   destructive?: boolean;
