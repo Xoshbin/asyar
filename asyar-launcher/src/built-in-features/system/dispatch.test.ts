@@ -30,8 +30,9 @@ describe('dispatchSystemCommand', () => {
   });
 
   it('non-destructive action runs without confirmation, hiding the window first', async () => {
-    await dispatchSystemCommand('sleep');
+    const result = await dispatchSystemCommand('sleep');
 
+    expect(result).toBeUndefined();
     expect(feedbackService.confirmAlert).not.toHaveBeenCalled();
     expect(commands.hideWindow).toHaveBeenCalledTimes(1);
     expect(commands.systemActionRun).toHaveBeenCalledWith('sleep');
@@ -71,9 +72,10 @@ describe('dispatchSystemCommand', () => {
   it('restores the launcher when the platform action fails', async () => {
     vi.mocked(commands.systemActionRun).mockResolvedValueOnce(false);
 
-    await dispatchSystemCommand('sleep');
+    const result = await dispatchSystemCommand('sleep');
 
     expect(commands.hideWindow).toHaveBeenCalledTimes(1);
     expect(commands.showWindow).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ type: 'keep-open' });
   });
 });
