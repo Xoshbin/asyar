@@ -502,6 +502,18 @@ describe('ExtensionManager Characterization Tests', () => {
         expect(agentDispatchMock).toHaveBeenCalledWith('uuid-2', args);
       });
 
+      it('keeps the launcher open when a built-in dynamic command opens a view', async () => {
+        agentDispatchMock.mockResolvedValueOnce({
+          type: 'view',
+          viewPath: 'agents/AgentChatView',
+        });
+
+        const result = await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-1');
+
+        expect(result).toEqual({ type: 'view', viewPath: 'agents/AgentChatView' });
+        expect(commands.hideWindow).not.toHaveBeenCalled();
+      });
+
       it('routes any built-in dynamic extension via the registered dispatcher (no hardcoded id list)', async () => {
         const { registerBuiltinDynamicDispatcher, unregisterBuiltinDynamicDispatcher } =
           await import('./builtinDynamicDispatchers');

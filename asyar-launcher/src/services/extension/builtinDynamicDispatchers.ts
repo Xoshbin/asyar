@@ -11,10 +11,16 @@
  * orchestrator.
  */
 
+/**
+ * Returned by a dispatcher that navigated to one of its views, so the
+ * caller keeps the launcher open instead of hiding it.
+ */
+export type BuiltinDispatchResult = { type: 'view'; viewPath: string };
+
 export type BuiltinDynamicDispatcher = (
   dynamicId: string,
   args?: Record<string, unknown>,
-) => Promise<void>;
+) => Promise<void | BuiltinDispatchResult>;
 
 const dispatchers = new Map<string, BuiltinDynamicDispatcher>();
 
