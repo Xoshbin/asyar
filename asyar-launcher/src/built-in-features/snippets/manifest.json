@@ -21,7 +21,7 @@
           "title": "Add Snippet",
           "description": "Create a new text expansion snippet",
           "icon": "icon:plus",
-          "shortcut": "⌘N",
+          "shortcut": "Super+N",
           "category": "Snippets"
         }
       ],

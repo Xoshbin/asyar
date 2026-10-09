@@ -154,7 +154,7 @@ describe('NotesExtension lifecycle: viewActivated, viewDeactivated, activate, de
     expect(listen).toHaveBeenCalledWith('notes:changed', expect.any(Function), undefined);
     expect(noteStore.reload).toHaveBeenCalled();
     expect(actionService.registerAction).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'notes:add' }),
+      expect.objectContaining({ id: 'notes:add', shortcut: 'Super+N' }),
     );
     expect(actionService.registerAction).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'notes:toggle-pin' }),

@@ -135,6 +135,7 @@ class NotesExtension implements Extension {
       category: t('categories.notes'),
       extensionId: 'notes',
       context: ActionContext.EXTENSION_VIEW,
+      shortcut: 'Super+N',
       execute: async () => {
         await noteViewState.createNote();
       },

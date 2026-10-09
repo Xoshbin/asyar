@@ -23,7 +23,7 @@
           "title": "New Note",
           "description": "Create a new note",
           "icon": "icon:plus",
-          "shortcut": "⌘N",
+          "shortcut": "Super+N",
           "category": "Notes"
         }
       ],

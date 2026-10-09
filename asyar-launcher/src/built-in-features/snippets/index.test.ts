@@ -211,10 +211,10 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
   it('viewActivated registers view actions including toggle-private', async () => {
     await snippetsExtension.viewActivated('snippets/DefaultView');
     expect(actionService.registerAction).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'snippets:add' }),
+      expect.objectContaining({ id: 'snippets:add', shortcut: 'Super+N' }),
     );
     expect(actionService.registerAction).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'snippets:paste' }),
+      expect.objectContaining({ id: 'snippets:paste', shortcut: 'Enter' }),
     );
     expect(actionService.registerAction).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'snippets:delete' }),

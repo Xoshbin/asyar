@@ -70,6 +70,7 @@ class SnippetsExtension implements Extension {
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      shortcut: 'Super+N',
       execute: async () => {
         snippetViewState.startCreate();
       },
@@ -82,6 +83,7 @@ class SnippetsExtension implements Extension {
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      shortcut: 'Enter',
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) await snippetService.pasteSnippet(s.expansion);
