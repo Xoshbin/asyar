@@ -2,6 +2,7 @@ import { getCurrentAgentService } from './agentService.svelte';
 import { agentsManager } from './agentsManager.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { dispatchSilentAgentCommand } from './silentDispatch';
+import type { BuiltinDispatchResult } from '../../services/extension/builtinDynamicDispatchers';
 
 /**
  * Entry point invoked by the dynamic-command dispatcher when the user
@@ -19,7 +20,7 @@ import { dispatchSilentAgentCommand } from './silentDispatch';
 export async function dispatchAgentCommand(
   dynamicId: string,
   _args?: unknown,
-): Promise<void | { type: 'view'; viewPath: string }> {
+): Promise<void | BuiltinDispatchResult> {
   const service = getCurrentAgentService();
   const agent = service.getById(dynamicId);
   if (!agent) {
