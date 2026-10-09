@@ -10,8 +10,8 @@
 
   let listEl = $state<HTMLDivElement | undefined>();
 
-  // Generated from registered actions: a shortcut declared on an action is
-  // documented here automatically.
+  // Generated from the actions registered while Help is open (the root-search
+  // core actions); view-only shortcuts are listed in the user guide.
   const actionShortcuts = $derived(
     actionShortcutEntries(
       actionService.getAllActions().map((a) => ({ label: a.label, shortcut: a.shortcut })),

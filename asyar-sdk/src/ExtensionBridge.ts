@@ -95,6 +95,10 @@ export class ExtensionBridge {
             ctrlKey: event.ctrlKey,
             shiftKey: event.shiftKey,
             altKey: event.altKey,
+            // The launcher re-dispatches this as a synthetic event; without these
+            // it could not ignore a held chord or an IME composition.
+            repeat: event.repeat,
+            isComposing: event.isComposing,
           },
         },
         '*',

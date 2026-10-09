@@ -65,9 +65,17 @@ describe('ExtensionBridge key forwarder: action shortcuts', () => {
           ctrlKey: false,
           shiftKey: false,
           altKey: false,
+          repeat: false,
+          isComposing: false,
         },
       },
     ]);
+  });
+
+  it('forwards key repeat so the launcher can ignore a held chord', () => {
+    pushChords(['Super+N']);
+    press({ key: 'n', code: 'KeyN', metaKey: true, repeat: true });
+    expect(forwarded()[0].payload.repeat).toBe(true);
   });
 
   it('does not forward chords the host did not announce', () => {

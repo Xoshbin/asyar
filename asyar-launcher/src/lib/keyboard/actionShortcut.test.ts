@@ -144,6 +144,32 @@ describe('eventToActionChord', () => {
   });
 });
 
+describe('eventToActionChord: keyboard layouts', () => {
+  it('follows the layout character for letters (Dvorak ⌘C is still copy)', () => {
+    // On Dvorak the key that types "c" is the physical KeyI.
+    expect(eventToActionChord(ev({ key: 'c', code: 'KeyI', metaKey: true }), 'macos')).toBe(
+      'Mod+C',
+    );
+  });
+
+  it('falls back to the physical key when the layout character is not ASCII', () => {
+    // Cyrillic layout: the KeyN key types "т".
+    expect(eventToActionChord(ev({ key: 'т', code: 'KeyN', ctrlKey: true }), 'windows')).toBe(
+      'Mod+N',
+    );
+    // macOS ⌥ turns the character into a symbol; the binding stays on N.
+    expect(
+      eventToActionChord(ev({ key: '˜', code: 'KeyN', metaKey: true, altKey: true }), 'macos'),
+    ).toBe('Mod+Alt+N');
+  });
+
+  it('never treats AltGr (Ctrl+Alt on Windows) as an action chord', () => {
+    const e = ev({ key: 'ć', code: 'KeyC', ctrlKey: true, altKey: true });
+    Object.defineProperty(e, 'getModifierState', { value: (k: string) => k === 'AltGraph' });
+    expect(eventToActionChord(e, 'windows')).toBeNull();
+  });
+});
+
 describe('resolveActionChord', () => {
   it('resolves Mod to the physical modifier the iframe can see', () => {
     expect(resolveActionChord('Mod+Shift+C', 'macos')).toBe('Super+Shift+C');

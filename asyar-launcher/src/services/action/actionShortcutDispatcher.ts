@@ -34,8 +34,8 @@ export interface DispatchableAction {
 export interface ActionShortcutDispatcherDeps {
   /** Visible actions for the current context, highest priority first. */
   getCandidates: () => readonly DispatchableAction[];
-  /** Runs the matched action (confirm dialog, execute, feedback). */
-  run: (action: DispatchableAction) => Promise<void> | void;
+  /** Runs the matched action (confirm dialog, execute, failure feedback). */
+  run: (action: DispatchableAction, opts: { reportSuccess: boolean }) => Promise<void> | void;
   platform: ActionShortcutPlatform;
   /** True while the ⌘K panel or a modal owns the keyboard. */
   isSuppressed: () => boolean;
@@ -98,7 +98,7 @@ export function createActionShortcutDispatcher(
     // but never wait on it: a failing action reports through its own feedback
     // path, so a rejection here would only be an unhandled one.
     try {
-      void Promise.resolve(deps.run(matches[0])).catch(() => {});
+      void Promise.resolve(deps.run(matches[0], { reportSuccess: false })).catch(() => {});
     } catch {
       // A synchronous throw is handled the same way.
     }

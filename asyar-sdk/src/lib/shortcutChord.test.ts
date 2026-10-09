@@ -64,4 +64,22 @@ describe('chordFromKeyboardEvent', () => {
     expect(chordFromKeyboardEvent(ev({ key: 'F5', code: 'F5' }))).toBe('F5');
     expect(chordFromKeyboardEvent(ev({ key: 'F5', code: 'F5', shiftKey: true }))).toBeNull();
   });
+
+  it('follows the layout character for letters (Dvorak ⌘C stays copy)', () => {
+    expect(chordFromKeyboardEvent(ev({ key: 'c', code: 'KeyI', metaKey: true }))).toBe('Super+C');
+  });
+
+  it('falls back to the physical key for non-Latin and ⌥-composed characters', () => {
+    expect(chordFromKeyboardEvent(ev({ key: 'т', code: 'KeyN', ctrlKey: true }))).toBe('Control+N');
+    expect(
+      chordFromKeyboardEvent(ev({ key: '˜', code: 'KeyN', metaKey: true, altKey: true })),
+    ).toBe('Super+Alt+N');
+  });
+
+  it('is null for AltGr, which types characters', () => {
+    const e = ev({ key: 'ć', code: 'KeyC', ctrlKey: true, altKey: true });
+    (e as unknown as { getModifierState: (k: string) => boolean }).getModifierState = (k) =>
+      k === 'AltGraph';
+    expect(chordFromKeyboardEvent(e)).toBeNull();
+  });
 });

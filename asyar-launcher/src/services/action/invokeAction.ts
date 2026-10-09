@@ -9,11 +9,12 @@ import { actionService } from './actionService.svelte';
  * `feedbackService`. The ⌘K panel and the shortcut dispatcher both call this,
  * so picking an action in the list and pressing its key behave identically.
  */
-export async function invokeAction(action: {
-  id: string;
-  label: string;
-  confirm?: boolean;
-}): Promise<void> {
+export async function invokeAction(
+  action: { id: string; label: string; confirm?: boolean },
+  // A pick from the ⌘K list confirms what ran; a shortcut press does not, or
+  // every ⌘N would flash a toast. Failures are reported either way.
+  { reportSuccess = true }: { reportSuccess?: boolean } = {},
+): Promise<void> {
   if (action.confirm) {
     const confirmed = await feedbackService.confirmAlert({
       title: t('dialogs.confirm.title'),
@@ -26,6 +27,7 @@ export async function invokeAction(action: {
 
   try {
     await actionService.executeAction(action.id);
+    if (!reportSuccess) return;
     await feedbackService.report({
       source: 'frontend',
       kind: 'manual',

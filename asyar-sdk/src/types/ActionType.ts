@@ -47,8 +47,8 @@ export interface ExtensionAction {
    * Keyboard shortcut that both shows the hint and runs the action while it is
    * visible, including while the extension's view has focus. Canonical form
    * `Mod[+Alt][+Shift]+Key` (`Mod` = ⌘ on macOS, Ctrl elsewhere) or a bare
-   * `F1`–`F24`. Registration is rejected for a non-canonical or reserved chord,
-   * and for a `destructive` action: destructive actions stay in the ⌘K panel.
+   * `F1`–`F24`. An invalid or reserved chord, or one on a `destructive` action,
+   * is ignored (the action still registers) and the launcher logs a warning.
    */
   shortcut?: string;
   /** Renders in the launcher's danger color. Independent of `confirm`. */

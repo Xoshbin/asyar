@@ -22,6 +22,7 @@ import type { UninstallScanResult } from '../application/applicationService';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
 import { assertActionShortcut } from '../../lib/keyboard/actionShortcut';
+import { isBuiltInFeature } from '../extension/extensionDiscovery';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
 
 // Module-level platform detection for the Uninstall action. macOS moves the
@@ -191,7 +192,7 @@ export class ActionService implements IActionService {
    * Register an action from an extension or core
    */
   registerAction(action: ExtensionAction | ApplicationAction): void {
-    this.assertShortcutRegistrable(action);
+    action = this.admitShortcut(action);
 
     // Ensure it conforms to ApplicationAction structure internally
     const appAction: ApplicationAction = {
@@ -220,6 +221,29 @@ export class ActionService implements IActionService {
 
     // Update the state if the action matches the current context
     this.updateState();
+  }
+
+  /**
+   * Built-ins fail fast on a bad shortcut. A Tier 2 extension's action is kept
+   * and only its shortcut is dropped (with a warning): its author may still use
+   * the old display-only formats (`⌘N`), and losing the whole action over a
+   * hint would break a published extension.
+   */
+  private admitShortcut<T extends ExtensionAction | ApplicationAction>(action: T): T {
+    const extensionId = 'extensionId' in action ? action.extensionId : undefined;
+    if (!extensionId || isBuiltInFeature(extensionId)) {
+      this.assertShortcutRegistrable(action);
+      return action;
+    }
+    try {
+      this.assertShortcutRegistrable(action);
+      return action;
+    } catch (error) {
+      logService.warn(
+        `[ActionService] Ignoring shortcut of '${action.id}' (${extensionId}): ${error}`,
+      );
+      return { ...action, shortcut: undefined };
+    }
   }
 
   /**

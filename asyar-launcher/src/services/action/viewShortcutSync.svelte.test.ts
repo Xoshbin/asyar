@@ -22,7 +22,11 @@ vi.mock('../extension/extensionIframeManager.svelte', () => ({
   extensionIframeManager: { sendActionShortcuts: state.send },
 }));
 
-import { announceActiveViewShortcuts, startViewShortcutSync } from './viewShortcutSync.svelte';
+import {
+  announceActiveViewShortcuts,
+  forgetAnnouncedShortcuts,
+  startViewShortcutSync,
+} from './viewShortcutSync.svelte';
 
 describe('announceActiveViewShortcuts', () => {
   beforeEach(() => {
@@ -59,6 +63,15 @@ describe('announceActiveViewShortcuts', () => {
     announceActiveViewShortcuts();
     expect(state.send).toHaveBeenCalledTimes(1);
     announceActiveViewShortcuts({ force: true });
+    expect(state.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('resends after an extension iframe reloads, even if the set is unchanged', () => {
+    state.viewManager.activeView = 'org.acme.ext/DefaultView';
+    state.chords = ['Super+N'];
+    announceActiveViewShortcuts({ force: true });
+    forgetAnnouncedShortcuts('org.acme.ext');
+    announceActiveViewShortcuts();
     expect(state.send).toHaveBeenCalledTimes(2);
   });
 

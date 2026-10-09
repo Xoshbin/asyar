@@ -26,4 +26,4 @@ interface IActionService {
 
 ---
 
-An `ExtensionAction` may declare a `shortcut` (canonical form `Mod+Shift+C`, where `Mod` is ⌘ on macOS and Ctrl elsewhere). It is shown in the ⌘K panel and **bound**: pressing it runs the action while the action is visible, even when your view iframe has focus. See [Action shortcuts](../actions.md#action-shortcuts) for the format, reserved chords and collision rules. Registration throws for a non-canonical or reserved shortcut, and for a `destructive` action.
+An `ExtensionAction` may declare a `shortcut` (canonical form `Mod+Shift+C`, where `Mod` is ⌘ on macOS and Ctrl elsewhere). It is shown in the ⌘K panel and **bound**: pressing it runs the action while the action is visible, even when your view iframe has focus. See [Action shortcuts](../actions.md#action-shortcuts) for the format, reserved chords and collision rules. A non-canonical or reserved shortcut, or one on a `destructive` action, is ignored (the action still registers) and the launcher logs a warning.

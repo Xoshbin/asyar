@@ -25,6 +25,19 @@ const CODE_TO_KEY: Record<string, string> = {
   Enter: 'Enter',
 };
 
+/**
+ * Letters and digits follow the keyboard layout (on Dvorak the key that types
+ * "c" is still ⌘C), matching the launcher; anything else — punctuation,
+ * shifted symbols, ⌥-composed or non-Latin characters — uses the physical key.
+ */
+function chordKey(e: KeyboardEvent): string {
+  if (e.key.length === 1) {
+    const upper = e.key.toUpperCase();
+    if (/^[A-Z0-9]$/.test(upper)) return upper;
+  }
+  return physicalKey(e);
+}
+
 function physicalKey(e: KeyboardEvent): string {
   const code = e.code ?? '';
   if (/^Key[A-Z]$/.test(code)) return code.slice(3);
@@ -40,7 +53,9 @@ const MODIFIER_KEYS = new Set(['Meta', 'Control', 'Alt', 'Shift', 'AltGraph', 'O
 export function chordFromKeyboardEvent(e: KeyboardEvent): string | null {
   if (MODIFIER_KEYS.has(e.key)) return null;
   if (e.metaKey && e.ctrlKey) return null;
-  const key = physicalKey(e);
+  // AltGr (Ctrl+Alt on Windows) types characters; it is never a chord.
+  if (e.getModifierState?.('AltGraph')) return null;
+  const key = chordKey(e);
   const primary = e.metaKey ? 'Super' : e.ctrlKey ? 'Control' : null;
   if (!primary) {
     return /^F([1-9]|1[0-9]|2[0-4])$/.test(key) && !e.altKey && !e.shiftKey ? key : null;

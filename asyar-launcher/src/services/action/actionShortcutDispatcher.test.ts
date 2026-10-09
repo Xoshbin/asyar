@@ -31,6 +31,12 @@ function setup(
 
 describe('createActionShortcutDispatcher', () => {
   describe('matching', () => {
+    it('asks the runner not to announce success (a keypress is not a menu pick)', () => {
+      const { dispatcher, run } = setup([action('notes:add', 'Mod+N')]);
+      dispatcher.handle(key({ key: 'n', code: 'KeyN', metaKey: true }));
+      expect(run.mock.calls[0][1]).toEqual({ reportSuccess: false });
+    });
+
     it('runs the action whose shortcut matches and consumes the event', () => {
       const { dispatcher, run } = setup([action('notes:add', 'Mod+N')]);
       const e = key({ key: 'n', code: 'KeyN', metaKey: true });

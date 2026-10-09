@@ -6,7 +6,10 @@
   import { collectThemeVariables } from '../../lib/themeVariables';
   import { buildFontFaceCSS } from '../../lib/themeFonts';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-  import { announceActiveViewShortcuts } from '../../services/action/viewShortcutSync.svelte';
+  import {
+    announceActiveViewShortcuts,
+    forgetAnnouncedShortcuts,
+  } from '../../services/action/viewShortcutSync.svelte';
 
   let {
     extensionId,
@@ -65,10 +68,12 @@
       return;
     }
     if (type === 'asyar:extension:keydown') {
-      const { key, code, metaKey, ctrlKey, shiftKey, altKey } = payload || {};
+      const { key, code, metaKey, ctrlKey, shiftKey, altKey, repeat, isComposing } = payload || {};
       const syntheticEvent = new KeyboardEvent('keydown', {
         key,
         code,
+        repeat: !!repeat,
+        isComposing: !!isComposing,
         metaKey,
         ctrlKey,
         shiftKey,
@@ -84,8 +89,10 @@
 
   async function handleIframeLoad() {
     sendMessage('asyar:theme:variables', collectThemeVariables(document.documentElement));
-    // A fresh load starts with no announced shortcuts; resend the live set.
-    announceActiveViewShortcuts({ force: true });
+    // A fresh load starts with no announced shortcuts: forget what this
+    // extension was last sent, then resend the live set if its view is active.
+    forgetAnnouncedShortcuts(extensionId);
+    announceActiveViewShortcuts();
     const css = await (fontCSS ?? buildFontFaceCSS());
     sendMessage('asyar:theme:fonts', css);
   }

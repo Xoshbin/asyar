@@ -133,10 +133,10 @@ A `shortcut` is a declaration, not just a hint: the launcher shows it next to th
 
 - **Plain keys are not bindable.** `Enter`, arrows, `Space`, `Tab`, `Esc`, `Backspace` and Shift/Alt-only chords belong to typing and list navigation. A shortcut must include `Mod` (function keys excepted).
 - **Reserved:** `Mod+K`, `Mod+,`, `Mod+P`, `Mod+Q` (launcher) and `Mod+A`, `Mod+C`, `Mod+V`, `Mod+X`, `Mod+Z`, `Mod+Y`, `Mod+Shift+Z` (text editing).
-- **Destructive actions get no shortcut.** An action with `destructive: true` is rejected if it declares one; it stays in the ⌘K drawer.
+- **Destructive actions get no shortcut.** An action with `destructive: true` that declares one keeps working, but its shortcut is ignored; it stays in the ⌘K drawer.
 - **Only visible actions fire.** A runtime action fires while the extension's view is the active one. Shortcuts do nothing while the ⌘K drawer or a dialog is open.
-- **No collisions.** Two actions that are visible together must not share a chord; registering a second always-visible action with the same chord throws. If a tie still happens the view's own action wins, then registration order, and the launcher logs a warning.
-- Old formats (`"⌘N"`, `"Ctrl+N"`, `"Super+N"`) are not accepted; a `registerAction` with one is rejected.
+- **No collisions.** Two actions that are visible together must not share a chord; the second always-visible action registered with the same chord keeps working without its shortcut. If a tie still happens the view's own action wins, then registration order, and the launcher logs a warning.
+- Old formats (`"⌘N"`, `"Ctrl+N"`, `"Super+N"`) are not accepted: the action still registers, but its shortcut is ignored and the launcher logs why. Rewrite it as `Mod+N`.
 
 ---
 

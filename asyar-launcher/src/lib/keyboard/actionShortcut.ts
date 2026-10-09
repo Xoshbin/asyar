@@ -18,8 +18,8 @@
  *    characters) belong to text entry and list navigation, never to actions.
  *    F-keys are the one bare-key exception.
  *
- * Rust mirrors this grammar for Tier 2 manifests
- * (`extensions::validate_action_shortcut`); keep the two test tables in sync.
+ * Built-ins that break it throw at registration; a Tier 2 extension's action
+ * keeps loading with the shortcut dropped (see `ActionService.admitShortcut`).
  */
 import { MODIFIER_KEYS, keyFromEvent } from '../../built-in-features/shortcuts/shortcutFormatter';
 import type { HostPlatform } from './hostPlatform';
@@ -96,6 +96,21 @@ export function assertActionShortcut(shortcut: string, actionId: string): void {
 }
 
 /**
+ * The key an action chord is matched on. Letters and digits follow the
+ * keyboard layout, as the OS and browser do for ⌘C/⌘V: on Dvorak the key that
+ * types "c" must stay copy, never become another action. Anything that is not
+ * an ASCII letter or digit (punctuation, shifted symbols, ⌥-composed or
+ * non-Latin characters) falls back to the physical key.
+ */
+function actionKeyFromEvent(e: KeyboardEvent): string {
+  if (e.key.length === 1) {
+    const upper = e.key.toUpperCase();
+    if (/^[A-Z0-9]$/.test(upper)) return upper;
+  }
+  return keyFromEvent(e);
+}
+
+/**
  * The canonical chord a keydown event represents on `platform`, or `null` when
  * the event cannot be an action shortcut (a lone modifier, a plain key, or the
  * non-primary modifier held: macOS Ctrl+N and Windows-key chords are never
@@ -106,12 +121,15 @@ export function eventToActionChord(
   platform: ActionShortcutPlatform,
 ): string | null {
   if (MODIFIER_KEYS.includes(e.key)) return null;
+  // AltGr arrives as Ctrl+Alt on Windows (and sets AltGraph elsewhere); it types
+  // characters, so it is never an action chord.
+  if (e.getModifierState?.('AltGraph')) return null;
   const mac = platform === 'macos';
   const primary = mac ? e.metaKey : e.ctrlKey;
   const foreign = mac ? e.ctrlKey : e.metaKey;
   if (foreign) return null;
 
-  const key = keyFromEvent(e);
+  const key = actionKeyFromEvent(e);
   if (!primary) return F_KEY.test(key) && !e.altKey && !e.shiftKey ? key : null;
 
   const parts = ['Mod'];

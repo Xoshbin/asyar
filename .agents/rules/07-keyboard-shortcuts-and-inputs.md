@@ -23,6 +23,6 @@
 ## 4. Action Shortcuts Are Declarations (Single Dispatcher)
 
 - An action's `shortcut` both shows the hint and binds the key. It is dispatched by exactly one owner, `services/action/actionShortcutDispatcher.ts`, wired into `lib/keyboard/launcherKeyboard.ts`. **Never** add a `keydown` listener in a feature for a chord that is, or should be, an action; declare `shortcut` on the action instead.
-- Use the canonical format `Mod[+Alt][+Shift]+Key` (`lib/keyboard/actionShortcut.ts`). `Mod` is ⌘ on macOS and Ctrl elsewhere. Glyphs (`⌘N`), `Super`, `Ctrl` and plain keys are rejected at registration (and by Rust for Tier 2 manifests).
+- Use the canonical format `Mod[+Alt][+Shift]+Key` (`lib/keyboard/actionShortcut.ts`). `Mod` is ⌘ on macOS and Ctrl elsewhere. Glyphs (`⌘N`), `Super`, `Ctrl` and plain keys throw at registration for built-ins; a Tier 2 extension's action keeps loading with the bad shortcut dropped and a warning logged.
 - Plain keys (Enter, arrows, Space) are not bindable; they stay with list navigation. Destructive actions never get a shortcut. Reserved chords (`Mod+K`, `Mod+,`, `Mod+P`, `Mod+Q`, `Mod+A/C/V/X/Z/Y`) cannot be bound.
 - Guard: `built-in-features/shortcutDeclarations.guard.test.ts` fails on a non-canonical shortcut, a collision, or a duplicated hand-written handler.

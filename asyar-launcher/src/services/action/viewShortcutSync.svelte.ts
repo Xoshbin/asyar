@@ -18,6 +18,14 @@ import { actionShortcuts } from './actionShortcuts';
  */
 const lastSent = new Map<string, string>();
 
+/**
+ * A reloaded iframe starts with no announced chords, so the next announcement
+ * to that extension must go out even if the set is unchanged.
+ */
+export function forgetAnnouncedShortcuts(extensionId: string): void {
+  lastSent.delete(extensionId);
+}
+
 export function announceActiveViewShortcuts(opts: { force?: boolean } = {}): void {
   const view = viewManager.activeView;
   if (!view) return;

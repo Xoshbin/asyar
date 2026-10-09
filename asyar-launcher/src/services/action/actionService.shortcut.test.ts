@@ -21,6 +21,9 @@ vi.mock('../application/applicationService', () => ({
   applicationService: { uninstallApplication: vi.fn() },
 }));
 vi.mock('../extension/commandService.svelte', () => ({ commandService: {} }));
+vi.mock('../extension/extensionDiscovery', () => ({
+  isBuiltInFeature: (id: string) => ['notes', 'snippets'].includes(id),
+}));
 
 const base = (over: Record<string, unknown>) => ({
   id: 'a',
@@ -104,6 +107,41 @@ describe('ActionService shortcut registration', () => {
     expect(shortcuts).toContain('Mod+Shift+C');
     expect(shortcuts).toContain('Mod+Shift+E');
     expect(shortcuts).toContain('Mod+Shift+,');
+  });
+});
+
+describe('ActionService: Tier 2 runtime registrations', () => {
+  let svc: ActionService;
+  beforeEach(() => {
+    svc = new ActionService();
+  });
+
+  it.each(['⌘N', 'Super+N', 'Mod+C'])(
+    'keeps a Tier 2 action whose shortcut %s is invalid, dropping only the shortcut',
+    (shortcut) => {
+      expect(() =>
+        svc.registerAction(base({ id: 'ext:a', extensionId: 'org.acme.ext', shortcut }) as any),
+      ).not.toThrow();
+      const a = svc.getAllActions().find((x) => x.id === 'ext:a');
+      expect(a).toBeDefined();
+      expect(a!.shortcut).toBeUndefined();
+    },
+  );
+
+  it('keeps a Tier 2 destructive action, without its shortcut', () => {
+    svc.registerAction(
+      base({
+        id: 'ext:d',
+        extensionId: 'org.acme.ext',
+        shortcut: 'Mod+D',
+        destructive: true,
+      }) as any,
+    );
+    expect(svc.getAllActions().find((x) => x.id === 'ext:d')?.shortcut).toBeUndefined();
+  });
+
+  it('still throws for built-in features, where a bad shortcut is a bug', () => {
+    expect(() => svc.registerAction(base({ id: 'notes:x', shortcut: '⌘N' }) as any)).toThrow();
   });
 });
 
