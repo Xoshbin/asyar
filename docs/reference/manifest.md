@@ -72,6 +72,8 @@ extension to fail discovery with an unknown-field error:
 
 > **Deeplink triggering:** Every command in an enabled extension is automatically reachable via `asyar://extensions/{id}/{commandId}?args` URLs. No manifest declaration needed. See [Deeplink triggering](./deeplink-triggering.md).
 
+> **Removed: `actions`.** The root-level and per-command `actions` fields no longer do anything. Manifests that still declare them keep loading (ignored, with a logged notice) until launcher 0.2.0, after which they are rejected. See [Actions](./actions.md).
+
 ### The `tools` array — per-tool fields (ManifestTool)
 
 The root-level `tools` field declares the tools your extension contributes to the agent runtime. Each entry is a `ManifestTool`:

@@ -567,10 +567,64 @@ mod background_entry_resolution_tests {
     }
 }
 
+// remove in 0.2.0 — compatibility for published manifests that still declare
+// `actions`. Manifest-declared root-search actions were removed; actions now
+// live in views. The field is dropped before parsing (the manifest structs deny
+// unknown fields) so those extensions keep loading, and a notice tells their
+// authors it is going away. When this goes, `actions` becomes an ordinary
+// unknown field again and such manifests are rejected.
+const REMOVED_ACTIONS_VERSION: &str = "0.2.0";
+
+/// Strip the removed `actions` field from a raw manifest and report where it
+/// was declared (`"extension"` or `"command '<id>'"`).
+fn strip_removed_actions(manifest: &mut serde_json::Value) -> Vec<String> {
+    let mut found = Vec::new();
+    let Some(root) = manifest.as_object_mut() else {
+        return found;
+    };
+    if root.remove("actions").is_some() {
+        found.push("extension".to_string());
+    }
+    if let Some(commands) = root.get_mut("commands").and_then(|c| c.as_array_mut()) {
+        for cmd in commands {
+            let Some(cmd) = cmd.as_object_mut() else {
+                continue;
+            };
+            if cmd.remove("actions").is_some() {
+                let id = cmd.get("id").and_then(|i| i.as_str()).unwrap_or("?");
+                found.push(format!("command '{id}'"));
+            }
+        }
+    }
+    found
+}
+
+/// The warning logged for an extension that still declares `actions`.
+pub fn removed_actions_notice(extension_id: &str, locations: &[String]) -> String {
+    format!(
+        "Extension '{extension_id}' declares manifest `actions` ({}). Manifest actions are no longer \
+         supported and are ignored; register actions inside your view instead. The field is \
+         rejected from launcher {REMOVED_ACTIONS_VERSION}.",
+        locations.join(", ")
+    )
+}
+
+/// Parse manifest JSON, tolerating the removed `actions` field. Returns the
+/// manifest and where `actions` was declared (empty when it was not).
+pub fn parse_manifest_str(content: &str) -> Result<(ExtensionManifest, Vec<String>), AppError> {
+    let mut value: serde_json::Value = serde_json::from_str(content).map_err(AppError::Json)?;
+    let removed = strip_removed_actions(&mut value);
+    let manifest: ExtensionManifest = serde_json::from_value(value).map_err(AppError::Json)?;
+    Ok((manifest, removed))
+}
+
 /// Read and parse a single manifest.json file
 pub fn read_manifest(path: &Path) -> Result<ExtensionManifest, AppError> {
     let content = std::fs::read_to_string(path).map_err(AppError::Io)?;
-    let manifest: ExtensionManifest = serde_json::from_str(&content).map_err(AppError::Json)?;
+    let (manifest, removed) = parse_manifest_str(&content)?;
+    if !removed.is_empty() {
+        warn!("{}", removed_actions_notice(&manifest.id, &removed));
+    }
     validate_manifest(&manifest)?;
     crate::extensions::validate_permission_args(&manifest)?;
     Ok(manifest)
@@ -1564,6 +1618,57 @@ mod manifest_schema_tests {
         let manifest: ExtensionManifest = serde_json::from_str(json).map_err(AppError::Json)?;
         validate_manifest(&manifest)?;
         Ok(manifest)
+    }
+
+    // ── Removed manifest `actions` (compatibility until 0.2.0) ──────────
+
+    const MANIFEST_WITH_REMOVED_ACTIONS: &str = r#"{
+        "id": "org.test.legacy-actions", "name": "Legacy", "version": "1.0.0",
+        "type": "extension",
+        "actions": [{ "id": "a", "title": "A", "shortcut": "\u2318N" }],
+        "commands": [{
+            "id": "c", "name": "C", "mode": "view", "component": "V",
+            "actions": [{ "id": "b", "title": "B" }]
+        }]
+    }"#;
+
+    #[test]
+    fn manifest_with_removed_actions_still_loads() {
+        let (manifest, removed) = parse_manifest_str(MANIFEST_WITH_REMOVED_ACTIONS)
+            .expect("published extensions that declare `actions` must keep loading");
+        assert_eq!(manifest.id, "org.test.legacy-actions");
+        assert_eq!(manifest.commands.len(), 1);
+        assert_eq!(
+            removed,
+            vec!["extension".to_string(), "command 'c'".to_string()]
+        );
+    }
+
+    #[test]
+    fn manifest_without_actions_reports_nothing_removed() {
+        let json = r#"{
+            "id": "org.test.clean", "name": "Clean", "version": "1.0.0", "type": "extension",
+            "commands": [{ "id": "c", "name": "C", "mode": "view", "component": "V" }]
+        }"#;
+        let (_, removed) = parse_manifest_str(json).unwrap();
+        assert!(removed.is_empty());
+    }
+
+    #[test]
+    fn removed_actions_do_not_loosen_the_rest_of_the_schema() {
+        let json = r#"{
+            "id": "org.test.typo", "name": "Typo", "version": "1.0.0", "type": "extension",
+            "actions": [], "notAField": 1,
+            "commands": [{ "id": "c", "name": "C", "mode": "view", "component": "V" }]
+        }"#;
+        assert!(parse_manifest_str(json).is_err());
+    }
+
+    #[test]
+    fn removed_actions_notice_names_the_extension_and_the_removal_version() {
+        let notice = removed_actions_notice("org.test.legacy-actions", &["extension".into()]);
+        assert!(notice.contains("org.test.legacy-actions"), "{notice}");
+        assert!(notice.contains("0.2.0"), "{notice}");
     }
 
     // ── Happy paths ─────────────────────────────────────────────────────

@@ -8,6 +8,8 @@ Actions are keyboard-accessible commands that appear in Asyar's Action Drawer wh
 
 Actions are registered in code with `actionService.registerAction()` and appear while your extension panel is open. Asyar has no manifest-declared actions on root-search rows: to expose something without opening a view, declare another **command** (a `background` command runs immediately and can show a HUD or toast); for anything view-specific, register an action inside the view.
 
+> **Deprecated: manifest `actions`.** Earlier versions let `manifest.json` declare `actions` (extension- and command-level) that showed on the root-search row. That feature was removed. Manifests that still declare them keep loading — the field is ignored and the launcher logs a notice — but it is rejected from launcher 0.2.0, and `asyar build` / `asyar validate` warn about it now. Move those actions into your view with `registerAction`, or declare another command.
+
 ### What actions are for
 
 Use actions for secondary operations relevant while the user is looking at your view: "Refresh", "Export CSV", "Toggle Filter", "Clear All", "Copy Link". They complement, rather than replace, the UI controls inside your view.
