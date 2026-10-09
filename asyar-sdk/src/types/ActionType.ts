@@ -43,6 +43,13 @@ export interface ExtensionAction {
   context?: ActionContext; // Add the context property with the enum type
   execute: (payload?: unknown) => Promise<void> | void;
   confirm?: boolean;
+  /**
+   * Keyboard shortcut that both shows the hint and runs the action while it is
+   * visible, including while the extension's view has focus. Canonical form
+   * `Mod[+Alt][+Shift]+Key` (`Mod` = ⌘ on macOS, Ctrl elsewhere) or a bare
+   * `F1`–`F24`. An invalid or reserved chord, or one on a `destructive` action,
+   * is ignored (the action still registers) and the launcher logs a warning.
+   */
   shortcut?: string;
   /** Renders in the launcher's danger color. Independent of `confirm`. */
   destructive?: boolean;
@@ -56,7 +63,7 @@ export interface IActionService {
   // Allow passing optional data (like extensionId or commandId) when setting context
   setContext(context: ActionContext, data?: { commandId?: string } | string): void;
   getContext(): ActionContext; // Return the enum type
-  /** Register a handler for a manifest-declared action. Local-only — no IPC. */
+  /** Register a handler for a notification action or search-result action. Local-only — no IPC. */
   registerActionHandler(
     actionId: string,
     handler: (payload?: unknown) => Promise<void> | void,

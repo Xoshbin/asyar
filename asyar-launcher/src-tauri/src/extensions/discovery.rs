@@ -1,5 +1,5 @@
 use super::scheduler;
-use super::{CompatibilityStatus, ExtensionManifest, ExtensionRecord, ManifestAction};
+use super::{CompatibilityStatus, ExtensionManifest, ExtensionRecord};
 use super::{DropdownOption, PreferenceDeclaration, PreferenceType};
 use crate::error::AppError;
 use log::{info, warn};
@@ -241,51 +241,6 @@ pub fn validate_preferences(prefs: &[PreferenceDeclaration]) -> Result<(), Strin
     }
     Ok(())
 }
-pub fn validate_actions(actions: &[ManifestAction], scope: &str) -> Result<(), String> {
-    let id_re = regex::Regex::new(r"^[a-zA-Z][a-zA-Z0-9_-]*$").unwrap();
-    let mut seen = HashSet::new();
-
-    for a in actions {
-        if a.id.is_empty() {
-            return Err(format!("Action in {} scope has empty id", scope));
-        }
-        if !id_re.is_match(&a.id) {
-            return Err(format!(
-                "Action id '{}' in {} scope must match /^[a-zA-Z][a-zA-Z0-9_-]*$/",
-                a.id, scope
-            ));
-        }
-        if !seen.insert(a.id.clone()) {
-            return Err(format!("Duplicate action id '{}' in {} scope", a.id, scope));
-        }
-        if a.title.trim().is_empty() {
-            return Err(format!(
-                "Action '{}' in {} scope must have a non-empty title",
-                a.id, scope
-            ));
-        }
-    }
-    Ok(())
-}
-
-pub fn validate_actions_cross_scope(
-    ext_actions: &[ManifestAction],
-    cmd_action_groups: &[&[ManifestAction]],
-) -> Result<(), String> {
-    let ext_ids: HashSet<&str> = ext_actions.iter().map(|a| a.id.as_str()).collect();
-    for group in cmd_action_groups {
-        for a in *group {
-            if ext_ids.contains(a.id.as_str()) {
-                return Err(format!(
-                    "Action id '{}' declared at both extension and command level",
-                    a.id
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
 const SUPPORTED_SDK_VERSION: &str = env!("ASYAR_SDK_VERSION");
 
 static BUILTIN_RECORDS: std::sync::OnceLock<Vec<ExtensionRecord>> = std::sync::OnceLock::new();
@@ -498,53 +453,6 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                     continue;
                 }
 
-                // Validate action declarations
-                let mut actions_valid = true;
-                if let Some(actions) = &manifest.actions {
-                    if let Err(e) = validate_actions(actions, "extension") {
-                        warn!(
-                            "Extension '{}' has invalid actions: {}. Skipping.",
-                            manifest.id, e
-                        );
-                        actions_valid = false;
-                    }
-                }
-                if actions_valid {
-                    for cmd in &manifest.commands {
-                        if let Some(actions) = &cmd.actions {
-                            if let Err(e) =
-                                validate_actions(actions, &format!("command '{}'", cmd.id))
-                            {
-                                warn!(
-                                    "Extension '{}' command '{}' has invalid actions: {}. Skipping extension.",
-                                    manifest.id, cmd.id, e
-                                );
-                                actions_valid = false;
-                                break;
-                            }
-                        }
-                    }
-                }
-                // Cross-scope uniqueness: extension-level action IDs must not collide with command-level
-                if actions_valid {
-                    let ext_actions = manifest.actions.as_deref().unwrap_or(&[]);
-                    let cmd_action_groups: Vec<&[ManifestAction]> = manifest
-                        .commands
-                        .iter()
-                        .filter_map(|c| c.actions.as_deref())
-                        .collect();
-                    if let Err(e) = validate_actions_cross_scope(ext_actions, &cmd_action_groups) {
-                        warn!(
-                            "Extension '{}' has conflicting action IDs: {}. Skipping.",
-                            manifest.id, e
-                        );
-                        actions_valid = false;
-                    }
-                }
-                if !actions_valid {
-                    continue;
-                }
-
                 let disableable = if is_built_in {
                     manifest
                         .lifecycle
@@ -627,7 +535,6 @@ mod background_entry_resolution_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             runtimes: None,
             walkthrough: None,
@@ -660,10 +567,64 @@ mod background_entry_resolution_tests {
     }
 }
 
+// remove in 0.2.0 — compatibility for published manifests that still declare
+// `actions`. Manifest-declared root-search actions were removed; actions now
+// live in views. The field is dropped before parsing (the manifest structs deny
+// unknown fields) so those extensions keep loading, and a notice tells their
+// authors it is going away. When this goes, `actions` becomes an ordinary
+// unknown field again and such manifests are rejected.
+const REMOVED_ACTIONS_VERSION: &str = "0.2.0";
+
+/// Strip the removed `actions` field from a raw manifest and report where it
+/// was declared (`"extension"` or `"command '<id>'"`).
+fn strip_removed_actions(manifest: &mut serde_json::Value) -> Vec<String> {
+    let mut found = Vec::new();
+    let Some(root) = manifest.as_object_mut() else {
+        return found;
+    };
+    if root.remove("actions").is_some() {
+        found.push("extension".to_string());
+    }
+    if let Some(commands) = root.get_mut("commands").and_then(|c| c.as_array_mut()) {
+        for cmd in commands {
+            let Some(cmd) = cmd.as_object_mut() else {
+                continue;
+            };
+            if cmd.remove("actions").is_some() {
+                let id = cmd.get("id").and_then(|i| i.as_str()).unwrap_or("?");
+                found.push(format!("command '{id}'"));
+            }
+        }
+    }
+    found
+}
+
+/// The warning logged for an extension that still declares `actions`.
+pub fn removed_actions_notice(extension_id: &str, locations: &[String]) -> String {
+    format!(
+        "Extension '{extension_id}' declares manifest `actions` ({}). Manifest actions are no longer \
+         supported and are ignored; register actions inside your view instead. The field is \
+         rejected from launcher {REMOVED_ACTIONS_VERSION}.",
+        locations.join(", ")
+    )
+}
+
+/// Parse manifest JSON, tolerating the removed `actions` field. Returns the
+/// manifest and where `actions` was declared (empty when it was not).
+pub fn parse_manifest_str(content: &str) -> Result<(ExtensionManifest, Vec<String>), AppError> {
+    let mut value: serde_json::Value = serde_json::from_str(content).map_err(AppError::Json)?;
+    let removed = strip_removed_actions(&mut value);
+    let manifest: ExtensionManifest = serde_json::from_value(value).map_err(AppError::Json)?;
+    Ok((manifest, removed))
+}
+
 /// Read and parse a single manifest.json file
 pub fn read_manifest(path: &Path) -> Result<ExtensionManifest, AppError> {
     let content = std::fs::read_to_string(path).map_err(AppError::Io)?;
-    let manifest: ExtensionManifest = serde_json::from_str(&content).map_err(AppError::Json)?;
+    let (manifest, removed) = parse_manifest_str(&content)?;
+    if !removed.is_empty() {
+        warn!("{}", removed_actions_notice(&manifest.id, &removed));
+    }
     validate_manifest(&manifest)?;
     crate::extensions::validate_permission_args(&manifest)?;
     Ok(manifest)
@@ -799,7 +760,6 @@ mod first_view_component_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             tools: None,
             runtimes: None,
@@ -819,7 +779,6 @@ mod first_view_component_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -838,7 +797,6 @@ mod first_view_component_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -887,7 +845,6 @@ mod first_view_component_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -919,7 +876,6 @@ mod first_view_component_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -952,7 +908,6 @@ mod onboarding_validation_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             tools: None,
             runtimes: None,
@@ -972,7 +927,6 @@ mod onboarding_validation_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -1010,7 +964,6 @@ mod onboarding_validation_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -1107,7 +1060,6 @@ mod compatibility_tests {
             asyar_sdk: asyar_sdk.map(String::from),
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             tools: None,
             runtimes: None,
@@ -1400,7 +1352,6 @@ mod discovery_tests {
             }),
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -1429,7 +1380,6 @@ mod discovery_tests {
             }),
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -1652,82 +1602,6 @@ mod preference_validation_tests {
 }
 
 #[cfg(test)]
-mod action_validation_tests {
-    use super::*;
-    use crate::extensions::ManifestAction;
-
-    fn action(id: &str, title: &str) -> ManifestAction {
-        ManifestAction {
-            id: id.to_string(),
-            title: title.to_string(),
-            description: None,
-            icon: None,
-            shortcut: None,
-            category: None,
-        }
-    }
-
-    #[test]
-    fn valid_actions_pass() {
-        let actions = vec![
-            action("open-browser", "Open in Browser"),
-            action("copy_url", "Copy URL"),
-        ];
-        assert!(validate_actions(&actions, "extension").is_ok());
-    }
-
-    #[test]
-    fn rejects_empty_action_id() {
-        let actions = vec![action("", "Some Action")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_invalid_action_id_chars() {
-        let actions = vec![action("bad action!", "Bad")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_action_id_starting_with_number() {
-        let actions = vec![action("1action", "Bad")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_duplicate_action_ids_in_scope() {
-        let actions = vec![action("dup", "First"), action("dup", "Second")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_empty_action_title() {
-        let actions = vec![action("valid-id", "")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_whitespace_only_title() {
-        let actions = vec![action("valid-id", "   ")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_cross_scope_duplicate_ids() {
-        let ext_actions = vec![action("shared-id", "Ext Action")];
-        let cmd_actions = vec![action("shared-id", "Cmd Action")];
-        assert!(validate_actions_cross_scope(&ext_actions, &[&cmd_actions]).is_err());
-    }
-
-    #[test]
-    fn allows_non_overlapping_cross_scope_ids() {
-        let ext_actions = vec![action("ext-only", "Ext Action")];
-        let cmd_actions = vec![action("cmd-only", "Cmd Action")];
-        assert!(validate_actions_cross_scope(&ext_actions, &[&cmd_actions]).is_ok());
-    }
-}
-
-#[cfg(test)]
 mod manifest_schema_tests {
     //! Covers the new manifest schema introduced by the Tier 2 worker/view
     //! split (plan: docs/superpowers/plans/2026-04-21-tier2-worker-view-split.md
@@ -1744,6 +1618,57 @@ mod manifest_schema_tests {
         let manifest: ExtensionManifest = serde_json::from_str(json).map_err(AppError::Json)?;
         validate_manifest(&manifest)?;
         Ok(manifest)
+    }
+
+    // ── Removed manifest `actions` (compatibility until 0.2.0) ──────────
+
+    const MANIFEST_WITH_REMOVED_ACTIONS: &str = r#"{
+        "id": "org.test.legacy-actions", "name": "Legacy", "version": "1.0.0",
+        "type": "extension",
+        "actions": [{ "id": "a", "title": "A", "shortcut": "\u2318N" }],
+        "commands": [{
+            "id": "c", "name": "C", "mode": "view", "component": "V",
+            "actions": [{ "id": "b", "title": "B" }]
+        }]
+    }"#;
+
+    #[test]
+    fn manifest_with_removed_actions_still_loads() {
+        let (manifest, removed) = parse_manifest_str(MANIFEST_WITH_REMOVED_ACTIONS)
+            .expect("published extensions that declare `actions` must keep loading");
+        assert_eq!(manifest.id, "org.test.legacy-actions");
+        assert_eq!(manifest.commands.len(), 1);
+        assert_eq!(
+            removed,
+            vec!["extension".to_string(), "command 'c'".to_string()]
+        );
+    }
+
+    #[test]
+    fn manifest_without_actions_reports_nothing_removed() {
+        let json = r#"{
+            "id": "org.test.clean", "name": "Clean", "version": "1.0.0", "type": "extension",
+            "commands": [{ "id": "c", "name": "C", "mode": "view", "component": "V" }]
+        }"#;
+        let (_, removed) = parse_manifest_str(json).unwrap();
+        assert!(removed.is_empty());
+    }
+
+    #[test]
+    fn removed_actions_do_not_loosen_the_rest_of_the_schema() {
+        let json = r#"{
+            "id": "org.test.typo", "name": "Typo", "version": "1.0.0", "type": "extension",
+            "actions": [], "notAField": 1,
+            "commands": [{ "id": "c", "name": "C", "mode": "view", "component": "V" }]
+        }"#;
+        assert!(parse_manifest_str(json).is_err());
+    }
+
+    #[test]
+    fn removed_actions_notice_names_the_extension_and_the_removal_version() {
+        let notice = removed_actions_notice("org.test.legacy-actions", &["extension".into()]);
+        assert!(notice.contains("org.test.legacy-actions"), "{notice}");
+        assert!(notice.contains("0.2.0"), "{notice}");
     }
 
     // ── Happy paths ─────────────────────────────────────────────────────
@@ -2357,7 +2282,6 @@ mod manifest_schema_tests {
                 schedule: None,
                 searchable: None,
                 preferences: None,
-                actions: None,
                 arguments: None,
                 require_any_of: None,
                 search_bar_accessory: Some(SearchBarAccessory::Dropdown {
@@ -2374,7 +2298,6 @@ mod manifest_schema_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             tools: None,
             runtimes: None,

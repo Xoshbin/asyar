@@ -45,15 +45,6 @@
       />
     </SettingsRow>
     <SettingsRow
-      label={t('settings.advanced.extension_actions')}
-      description={t('settings.advanced.extension_actions_description')}
-    >
-      <Toggle
-        checked={handler.settings.search?.allowExtensionActions ?? false}
-        onchange={() => handler.handleExtensionActionsToggle()}
-      />
-    </SettingsRow>
-    <SettingsRow
       label={t('settings.advanced.auto_update_extensions')}
       description={t('settings.advanced.auto_update_extensions_description')}
     >

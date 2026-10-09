@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as semver from 'semver';
 import { KNOWN_RUNTIMES } from './knownRuntimes';
+import { manifestActionsWarning } from './manifestActionsCompat';
 
 export type CommandMode = 'view' | 'background';
 
@@ -516,6 +517,17 @@ export function lintManifest(manifest: AsyarManifest, cwd: string): LintResult {
         'No icon specified in manifest.json. Adding an icon helps users recognize your extension in search and the store.',
     });
   }
+
+  // Removed feature, still tolerated by the launcher until the version named
+  // in the message. Advisory: the extension builds and runs, minus those actions.
+  if (asRecord.actions !== undefined) {
+    warnings.push({ field: 'actions', message: manifestActionsWarning() });
+  }
+  (manifest.commands ?? []).forEach((cmd, i) => {
+    if ((cmd as unknown as Record<string, unknown>).actions !== undefined) {
+      warnings.push({ field: `commands[${i}].actions`, message: manifestActionsWarning() });
+    }
+  });
 
   // Check command argument placeholders
   (manifest.commands ?? []).forEach((cmd, i) => {

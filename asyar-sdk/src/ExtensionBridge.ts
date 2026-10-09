@@ -5,6 +5,7 @@ import type { ExtensionAction } from './types/ActionType';
 import type { CommandHandler } from './types/CommandType';
 import { MessageBroker, messageBroker } from './ipc/MessageBroker';
 import type { IPCMessage, IPCResponse } from './ipc/MessageBroker';
+import { chordFromKeyboardEvent } from './lib/shortcutChord';
 
 // Bridge-internal trace logs route through `console.*` directly, never through
 // `LogServiceProxy`. The bridge is a singleton constructed at module load —
@@ -39,6 +40,12 @@ export class ExtensionBridge {
   > = new Map();
   private activeContexts: Map<string, ExtensionContextCore> = new Map();
   private broker: MessageBroker;
+  /**
+   * Physical chords of the action shortcuts that are live in this view right
+   * now, as announced by the launcher (`asyar:event:actions:shortcuts`). Only
+   * these are forwarded from the iframe; see `installNavigationKeyForwarder`.
+   */
+  private actionShortcutChords: Set<string> = new Set();
 
   constructor() {
     this.broker = messageBroker;
@@ -54,9 +61,17 @@ export class ExtensionBridge {
    * launcher's navigation and action-panel become unreachable whenever
    * the iframe has focus.
    *
-   * Two classes are forwarded:
-   *  - Modifier combos (Cmd/Ctrl+K, Cmd/Ctrl+,, Cmd/Ctrl+Q) — unconditional;
-   *    no conflict with typing.
+   * Three classes are forwarded:
+   *  - Launcher-reserved modifier combos (Cmd/Ctrl+K, Cmd/Ctrl+,, Cmd/Ctrl+Q)
+   *    — unconditional; no conflict with typing.
+   *  - Action shortcuts: a chord is forwarded only if the launcher announced it
+   *    as bound to a visible action. The launcher owns dispatch (an action's
+   *    `shortcut` both shows its hint and binds the key), so the iframe just
+   *    has to get the chord across. Such chords always include the platform
+   *    modifier (or are a bare F-key), so they never collide with typing and
+   *    are forwarded even while a text field has focus. The announcement is
+   *    what lets this call `preventDefault` synchronously, which a
+   *    forward-everything-and-let-the-host-decide scheme could not.
    *  - Escape and Backspace — only when no text field is focused, so
    *    users can still edit form inputs inside the extension.
    */
@@ -75,10 +90,15 @@ export class ExtensionBridge {
           type: 'asyar:extension:keydown',
           payload: {
             key: event.key,
+            code: event.code,
             metaKey: event.metaKey,
             ctrlKey: event.ctrlKey,
             shiftKey: event.shiftKey,
             altKey: event.altKey,
+            // The launcher re-dispatches this as a synthetic event; without these
+            // it could not ignore a held chord or an IME composition.
+            repeat: event.repeat,
+            isComposing: event.isComposing,
           },
         },
         '*',
@@ -91,6 +111,13 @@ export class ExtensionBridge {
         forward(event);
         return;
       }
+      if (this.actionShortcutChords.size > 0) {
+        const chord = chordFromKeyboardEvent(event);
+        if (chord && this.actionShortcutChords.has(chord)) {
+          forward(event);
+          return;
+        }
+      }
       if ((event.key === 'Escape' || event.key === 'Backspace') && !isEditableTarget()) {
         forward(event);
       }
@@ -98,6 +125,16 @@ export class ExtensionBridge {
   }
 
   private setupIPCListeners() {
+    // The launcher announces the chords of the actions visible in this view
+    // (see ExtensionBridge.installNavigationKeyForwarder). Each message is the
+    // full current set, so a stale chord stops forwarding as soon as its
+    // action disappears.
+    this.broker.on('asyar:event:actions:shortcuts', (raw: unknown) => {
+      const chords = (raw as { chords?: unknown } | undefined)?.chords;
+      if (!Array.isArray(chords)) return;
+      this.actionShortcutChords = new Set(chords.filter((c): c is string => typeof c === 'string'));
+    });
+
     // Listen for events from main app
     this.broker.on('asyar:invoke:command', async (raw: unknown) => {
       const data = raw as IPCMessage<{ commandId: string; args?: Record<string, unknown> }>;
@@ -278,10 +315,10 @@ export class ExtensionBridge {
   }
 
   /**
-   * Register a handler for a manifest-declared action.
+   * Register a handler for a notification action or search-result action.
    * Stores the handler locally in the actionRegistry so the
    * asyar:action:execute message from the host can find it.
-   * No IPC message sent — the host already knows about the action from the manifest.
+   * No IPC message sent — the handler is stored locally and dispatched on asyar:action:execute.
    */
   registerActionHandler(
     extensionId: string,

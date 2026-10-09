@@ -226,25 +226,47 @@ describe('SwitchWindowsView', () => {
     }
   });
 
-  it('supports direct Cmd+Shift+C shortcut to copy title', async () => {
+  it('declares Copy Title and Close Window as shortcut actions the dispatcher binds', async () => {
     render(SwitchWindowsView);
     await flush();
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', metaKey: true, shiftKey: true }));
-    await flush();
+    const byId = new Map(mockRegisterAction.mock.calls.map(([a]: any[]) => [a.id, a]));
+    expect(byId.get('window-management:copy-title').shortcut).toBe('Mod+Shift+C');
+    expect(byId.get('window-management:close-window').shortcut).toBe('Mod+W');
 
+    await byId.get('window-management:copy-title').execute();
     expect(mockWriteText).toHaveBeenCalledWith('GitHub - PR #123');
     expect(mockShowHUD).toHaveBeenCalledWith('features.window_management.title_copied');
+
+    await byId.get('window-management:close-window').execute();
+    expect(mockCloseWindow).toHaveBeenCalledWith('win-1');
   });
 
-  it('supports direct Cmd+W shortcut to close window', async () => {
+  it('does not bind plain Enter as an action shortcut (it is list navigation)', async () => {
     render(SwitchWindowsView);
     await flush();
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', metaKey: true }));
+    const focus = mockRegisterAction.mock.calls
+      .map(([a]: any[]) => a)
+      .find((a: any) => a.id === 'window-management:focus-window');
+    expect(focus.shortcut).toBeUndefined();
+  });
+
+  it('leaves modifier chords, including the text-copy chord, to the dispatcher and the input', async () => {
+    render(SwitchWindowsView);
     await flush();
 
-    expect(mockCloseWindow).toHaveBeenCalledWith('win-1');
+    for (const init of [
+      { key: 'c', metaKey: true, shiftKey: true },
+      { key: 'w', metaKey: true },
+      { key: 'c', metaKey: true },
+    ]) {
+      window.dispatchEvent(new KeyboardEvent('keydown', init));
+    }
+    await flush();
+
+    expect(mockWriteText).not.toHaveBeenCalled();
+    expect(mockCloseWindow).not.toHaveBeenCalled();
   });
 
   it('falls back to appName when window title is blank', async () => {

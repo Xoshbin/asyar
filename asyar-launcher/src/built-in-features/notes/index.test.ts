@@ -24,7 +24,6 @@ vi.mock('../../lib/ipc/commands', () => ({
 
 vi.mock('../../services/action/actionService.svelte', () => ({
   actionService: {
-    setActionExecutor: vi.fn(),
     registerAction: vi.fn(),
     unregisterAction: vi.fn(),
   },
@@ -81,21 +80,12 @@ describe('NotesExtension contract & commands', () => {
     expect(typeof notesExtension.executeCommand).toBe('function');
   });
 
-  it('initialize wires act_notes_add and initializes noteStore', async () => {
-    const navigateToView = vi.fn();
-    const ctx = makeContext({ navigateToView });
+  it('initialize initializes noteStore and registers no root-search action', async () => {
+    const ctx = makeContext({ navigateToView: vi.fn() });
     await notesExtension.initialize(ctx as never);
 
     expect(noteStore.init).toHaveBeenCalled();
-    expect(actionService.setActionExecutor).toHaveBeenCalledWith(
-      'act_notes_add',
-      expect.any(Function),
-    );
-
-    const [, executor] = vi.mocked(actionService.setActionExecutor).mock.calls[0];
-    await executor();
-    expect(navigateToView).toHaveBeenCalledWith('notes/DefaultView');
-    expect(noteViewState.createNote).toHaveBeenCalled();
+    expect(actionService.registerAction).not.toHaveBeenCalled();
   });
 
   it('executeCommand("open-notes") navigates to notes/DefaultView', async () => {

@@ -75,7 +75,6 @@ vi.mock('../../services/action/actionService.svelte', () => ({
   actionService: {
     registerAction: mockRegisterAction,
     unregisterAction: mockUnregisterAction,
-    setActionExecutor: vi.fn(),
   },
 }));
 vi.mock('../../services/search/SearchService', () => ({

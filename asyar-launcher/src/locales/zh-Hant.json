@@ -152,8 +152,6 @@
       "section_extension_surface": "擴充套件展示範圍",
       "extension_search": "擴充套件結果出現在搜尋中",
       "extension_search_description": "允許擴充套件在搜尋欄中提供結果。",
-      "extension_actions": "擴充套件操作出現在 ⌘K 中",
-      "extension_actions_description": "關閉後，操作面板中只顯示 Asyar 內建操作。",
       "auto_update_extensions": "自動更新擴充套件",
       "auto_update_extensions_description": "更新會在背景靜默安裝。",
       "section_input": "輸入",
@@ -866,7 +864,9 @@
         "clear_selection": "清除選取",
         "clear_selection_desc": "取消選取所有多選的剪貼簿項目",
         "ask_ai": "針對此項目詢問 AI",
-        "ask_ai_desc": "開啟 AI 聊天並預填此剪貼簿文字"
+        "ask_ai_desc": "開啟 AI 聊天並預填此剪貼簿文字",
+        "clear_history": "清除剪貼簿歷史記錄",
+        "clear_history_desc": "移除所有非最愛的剪貼簿項目"
       },
       "subtitle": "檢視與管理剪貼簿歷史",
       "unsupported_item": "尚未支援——{type} 類型的剪貼簿項目尚無法用於「{action}」。",
@@ -965,7 +965,9 @@
         "send_ai": "傳送給 Asyar AI",
         "send_ai_desc": "以此檔案為內容開啟 AI 聊天",
         "search_everywhere": "全域搜尋",
-        "search_everywhere_desc": "對目前查詢執行系統原生深度搜尋（Spotlight/Everything/plocate）"
+        "search_everywhere_desc": "對目前查詢執行系統原生深度搜尋（Spotlight/Everything/plocate）",
+        "clear_history": "清除搜尋歷史記錄",
+        "clear_history_desc": "移除所有依查詢學習的資料"
       },
       "ui": {
         "deep": "深度",
@@ -1585,6 +1587,7 @@
         "extensions_sub": "瀏覽、安裝與管理擴充功能"
       },
       "shortcuts_heading": "鍵盤快速鍵",
+      "action_shortcuts_heading": "動作快速鍵",
       "no_topics": "沒有符合搜尋的主題。",
       "ui": {
         "guides": "功能指南"

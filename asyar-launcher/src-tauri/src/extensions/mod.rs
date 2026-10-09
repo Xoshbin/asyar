@@ -227,22 +227,6 @@ pub enum SearchBarAccessory {
     },
 }
 
-/// An action declared in manifest.json that surfaces in the launcher action drawer.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManifestAction {
-    pub id: String,
-    pub title: String,
-    #[serde(default)]
-    pub description: Option<String>,
-    #[serde(default)]
-    pub icon: Option<String>,
-    #[serde(default)]
-    pub shortcut: Option<String>,
-    #[serde(default)]
-    pub category: Option<String>,
-}
-
 /// Mirrors the ExtensionCommand from asyar-sdk
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -271,8 +255,6 @@ pub struct ExtensionCommand {
     pub searchable: Option<bool>,
     #[serde(default)]
     pub preferences: Option<Vec<PreferenceDeclaration>>,
-    #[serde(default)]
-    pub actions: Option<Vec<ManifestAction>>,
     /// Declarative argument list — when present, Tab on the selected command
     /// in the launcher promotes it into argument-entry mode.
     #[serde(default)]
@@ -371,8 +353,6 @@ pub struct ExtensionManifest {
     pub platforms: Option<Vec<String>>,
     #[serde(default)]
     pub preferences: Option<Vec<PreferenceDeclaration>>,
-    #[serde(default)]
-    pub actions: Option<Vec<ManifestAction>>,
     /// When present, the launcher opens this command on first use instead of
     /// the default command. The referenced command must exist and have
     /// `mode: "view"`. Validated at parse time by `validate_manifest`.
@@ -1241,7 +1221,6 @@ mod tests {
                     asyar_sdk: None,
                     platforms: None,
                     preferences: None,
-                    actions: None,
                     onboarding: None,
                     tools: None,
                     runtimes: None,
@@ -1471,7 +1450,6 @@ mod tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: Some(SearchBarAccessory::Dropdown {
@@ -1501,7 +1479,6 @@ mod tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: Some(args),
             require_any_of: None,
             search_bar_accessory: None,

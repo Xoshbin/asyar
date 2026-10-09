@@ -894,5 +894,32 @@ describe('manifest validation — runtimes', () => {
       // Should have recommendations for icon, README, sdk, etc.
       expect(Array.isArray(result.warnings)).toBe(true);
     });
+
+    describe('removed manifest `actions` (deprecated)', () => {
+      it('warns, naming the launcher version that stops accepting them', async () => {
+        const { lintManifest } = await import('./manifest');
+        const { MANIFEST_ACTIONS_REMOVED_IN } = await import('./manifestActionsCompat');
+        const manifest = {
+          ...viewOnly,
+          actions: [{ id: 'a', title: 'A' }],
+          commands: [{ ...viewOnly.commands[0], actions: [{ id: 'b', title: 'B' }] }],
+        } as unknown as AsyarManifest;
+        const result = lintManifest(manifest, './');
+        const warned = result.warnings.filter((w) => w.field.endsWith('actions'));
+        expect(warned.map((w) => w.field)).toEqual(['actions', 'commands[0].actions']);
+        for (const w of warned) {
+          expect(w.message).toContain(MANIFEST_ACTIONS_REMOVED_IN);
+          expect(w.message).toMatch(/register actions inside your view/i);
+        }
+        // Advisory only: the extension still builds and runs.
+        expect(result.errors).toEqual([]);
+      });
+
+      it('stays silent for a manifest without actions', async () => {
+        const { lintManifest } = await import('./manifest');
+        const result = lintManifest(viewOnly, './');
+        expect(result.warnings.some((w) => w.field.endsWith('actions'))).toBe(false);
+      });
+    });
   });
 });

@@ -52,6 +52,22 @@ export class ExtensionIframeManager {
   }
 
   /**
+   * Announce the physical chords of the action shortcuts live in the extension's
+   * view iframe, so the SDK forwarder knows which key presses to hand to the
+   * launcher. Uses the `asyar:event:*` namespace the iframe's MessageBroker
+   * routes to listeners. `chords` must be plain strings (structured clone).
+   */
+  sendActionShortcuts(extensionId: string, chords: string[]): void {
+    const iframe = pickExtensionIframe(extensionId, 'view');
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:event:actions:shortcuts', payload: { chords } },
+        getExtensionFrameOrigin(extensionId),
+      );
+    }
+  }
+
+  /**
    * Post asyar:action:execute to the iframe that actually owns the handler.
    *
    * When `role` is provided (recorded by actionService when the SDK round-

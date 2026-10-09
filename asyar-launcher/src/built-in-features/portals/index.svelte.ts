@@ -84,6 +84,7 @@ class PortalsExtension implements Extension {
       id: 'portals:new-portal',
       label: t('features.portals.act.new'),
       icon: 'icon:plus',
+      shortcut: 'Mod+N',
       description: t('features.portals.act.new_desc'),
       category: t('categories.portals'),
       extensionId: 'portals',

@@ -53,6 +53,12 @@ export interface KeyboardDeps {
   onBeforeHide?: () => Promise<void>; // optional: called before invoke('hide')
   isCompactIdle?: () => boolean;
   onCompactExpand?: () => void;
+  /**
+   * The action shortcut dispatcher: returns true when the event was a declared
+   * action shortcut and has been run. Owned by `ActionService`'s dispatcher so
+   * this module stays a router and never learns which actions exist.
+   */
+  handleActionShortcut?: (event: KeyboardEvent) => boolean;
   navigateQueryHistory?: (direction: -1 | 1, selectedIndex: number) => boolean;
   recordQueryHistory?: (query: string) => void;
 }
@@ -289,6 +295,15 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return true;
   }
 
+  // A declared action shortcut (manifest, built-in view, core or Tier 2).
+  // Runs after every launcher-reserved chord above so those can never be
+  // shadowed, and before view routing so a view's own actions win over its
+  // forwarded keys. Compact idle has no action panel and so no actions.
+  function tryRunActionShortcut(event: KeyboardEvent): boolean {
+    if (deps.isCompactIdle?.()) return false;
+    return deps.handleActionShortcut?.(event) ?? false;
+  }
+
   // Route keyboard events to the active extension view
   function tryRouteToActiveView(event: KeyboardEvent): boolean {
     if (!viewManager.activeView) return false;
@@ -374,6 +389,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (tryToggleAccessoryPopover(event)) return;
     if (tryToggleActionPanel(event)) return;
     if (tryCloseActionPanel(event)) return;
+    if (tryRunActionShortcut(event)) return;
     tryRouteToActiveView(event);
   }
 

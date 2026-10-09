@@ -5,9 +5,8 @@
   import Icon from '../base/Icon.svelte';
   import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../lib/iconUtils';
   import EmptyState from '../feedback/EmptyState.svelte';
-  import { actionService } from '../../services/action/actionService.svelte';
+  import { invokeAction } from '../../services/action/invokeAction';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
-  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { filterActions } from './actionFilter';
   import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { useListSelection } from '../../lib/listSelection.svelte';
@@ -107,36 +106,7 @@
     // by the global DialogHost; it doesn't need this popup to stay open.
     closePopup();
 
-    if (action.confirm) {
-      const confirmed = await feedbackService.confirmAlert({
-        title: t('dialogs.confirm.title'),
-        message: t('launcher_errors.confirm_run', { label: action.label }),
-        confirmText: t('common.confirm'),
-        variant: 'danger',
-      });
-      if (!confirmed) return;
-    }
-
-    try {
-      await actionService.executeAction(actionId);
-      await feedbackService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'success',
-        retryable: false,
-        context: { message: action.label },
-      });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      logService.error(`[ActionListPopup] Failed to execute action ${actionId}: ${error}`);
-      await feedbackService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'error',
-        retryable: false,
-        context: { message: t('launcher_errors.action_failed', { message: msg }) },
-      });
-    }
+    await invokeAction(action);
   }
 
   function closePopup() {

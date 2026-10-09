@@ -152,8 +152,6 @@
       "section_extension_surface": "Superfície de extensões",
       "extension_search": "Resultados de extensões na busca",
       "extension_search_description": "Permitir que extensões adicionem resultados na barra de busca.",
-      "extension_actions": "Ações de extensão no ⌘K",
-      "extension_actions_description": "Quando desativado, apenas as ações nativas do Asyar aparecem no painel de ações.",
       "auto_update_extensions": "Atualizar extensões automaticamente",
       "auto_update_extensions_description": "As atualizações são instaladas silenciosamente em segundo plano.",
       "section_input": "Entrada",
@@ -866,7 +864,9 @@
         "clear_selection": "Limpar seleção",
         "clear_selection_desc": "Desmarcar todos os itens selecionados da área de transferência",
         "ask_ai": "Perguntar à IA sobre isto",
-        "ask_ai_desc": "Abrir o chat de IA com este texto da área de transferência preenchido"
+        "ask_ai_desc": "Abrir o chat de IA com este texto da área de transferência preenchido",
+        "clear_history": "Limpar histórico da área de transferência",
+        "clear_history_desc": "Remover todos os itens não favoritos da área de transferência"
       },
       "subtitle": "Veja e gerencie o histórico da área de transferência",
       "unsupported_item": "Ainda não suportado — itens de {type} da área de transferência ainda não podem ser usados com \"{action}\".",
@@ -965,7 +965,9 @@
         "send_ai": "Enviar para o Asyar AI",
         "send_ai_desc": "Abrir o chat de IA com este arquivo como contexto",
         "search_everywhere": "Pesquisar em todo lugar",
-        "search_everywhere_desc": "Executar uma busca profunda nativa do SO (Spotlight/Everything/plocate) para a consulta atual"
+        "search_everywhere_desc": "Executar uma busca profunda nativa do SO (Spotlight/Everything/plocate) para a consulta atual",
+        "clear_history": "Limpar histórico de busca",
+        "clear_history_desc": "Remover todos os dados de aprendizado por consulta"
       },
       "ui": {
         "deep": "profunda",
@@ -1585,6 +1587,7 @@
         "extensions_sub": "Navegue, instale e gerencie extensões"
       },
       "shortcuts_heading": "Atalhos de teclado",
+      "action_shortcuts_heading": "Atalhos de ações",
       "no_topics": "Nenhum tópico corresponde à sua busca.",
       "ui": {
         "guides": "Guias de recursos"

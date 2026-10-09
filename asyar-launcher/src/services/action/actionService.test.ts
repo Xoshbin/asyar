@@ -170,9 +170,9 @@ describe('registerAction', () => {
 
   it('preserves shortcut through registerAction normalization', () => {
     const svc = freshService();
-    svc.registerAction({ ...makeAction('shortcut-me'), shortcut: '⌘⇧C' } as any);
+    svc.registerAction({ ...makeAction('shortcut-me'), shortcut: 'Mod+Shift+C' } as any);
     const action = svc.getAllActions().find((a) => a.id === 'shortcut-me');
-    expect(action?.shortcut).toBe('⌘⇧C');
+    expect(action?.shortcut).toBe('Mod+Shift+C');
   });
 
   it('shortcut defaults to undefined when not provided', () => {
@@ -588,7 +588,7 @@ describe('copy_deeplink built-in action', () => {
     const action = svc.getAllActions().find((a) => a.id === 'copy_deeplink');
     expect(action).toBeDefined();
     expect(action!.context).toBe(ActionContext.CORE);
-    expect(action!.shortcut).toBe('Super+Shift+C');
+    expect(action!.shortcut).toBe('Mod+Shift+C');
     expect(action!.category).toBe('Share');
     expect(action!.icon).toBe('icon:link');
   });
@@ -844,56 +844,6 @@ describe('manifest-declared extension actions', () => {
     mockSearchStores.selectedIndex = 0;
     svc.refreshFiltered();
     expect(svc.filteredActions.map((a) => a.id)).toContain('act_com.example.github_open-browser');
-  });
-});
-
-// ── setActionExecutor ─────────────────────────────────────────────────────────
-
-describe('setActionExecutor', () => {
-  it('sets the execute function on an existing action', async () => {
-    const svc = freshService();
-    svc.registerAction({
-      ...makeAction('act_my-ext_do-thing', ActionContext.CORE),
-      execute: undefined as any,
-    });
-    const executor = vi.fn();
-    svc.setActionExecutor('act_my-ext_do-thing', executor);
-    await svc.executeAction('act_my-ext_do-thing');
-    expect(executor).toHaveBeenCalledOnce();
-  });
-
-  it('preserves the visible callback after setting executor', () => {
-    const svc = freshService();
-    const visible = vi.fn().mockReturnValue(false);
-    svc.registerAction({
-      ...makeAction('act_my-ext_do-thing', ActionContext.CORE),
-      visible,
-      execute: undefined as any,
-    });
-    svc.setActionExecutor('act_my-ext_do-thing', vi.fn());
-    const action = svc.getAllActions().find((a) => a.id === 'act_my-ext_do-thing');
-    expect(action?.visible).toBe(visible);
-  });
-
-  it('preserves label, extensionId, and context after setting executor', () => {
-    const svc = freshService();
-    svc.registerAction({
-      id: 'act_my-ext_do-thing',
-      label: 'Do Thing',
-      extensionId: 'my-ext',
-      context: ActionContext.CORE,
-      execute: undefined as any,
-    });
-    svc.setActionExecutor('act_my-ext_do-thing', vi.fn());
-    const action = svc.getAllActions().find((a) => a.id === 'act_my-ext_do-thing');
-    expect(action?.label).toBe('Do Thing');
-    expect(action?.extensionId).toBe('my-ext');
-    expect(action?.context).toBe(ActionContext.CORE);
-  });
-
-  it('is a no-op when the action does not exist', () => {
-    const svc = freshService();
-    expect(() => svc.setActionExecutor('nonexistent', vi.fn())).not.toThrow();
   });
 });
 

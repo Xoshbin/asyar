@@ -62,25 +62,12 @@ class NotesExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('extensions');
     await noteStore.init();
-
-    // Root "New Note" action — available from root search before the view
-    // opens, same handshake shape as snippets' act_snippets_add.
-    actionService.setActionExecutor('act_notes_add', async () => {
-      this.extensionManager?.navigateToView('notes/DefaultView');
-      await noteViewState.createNote();
-    });
   }
 
   private handleKeydown(e: KeyboardEvent) {
     if (!this.inView) return;
     if (typeof document !== 'undefined') {
       if (document.querySelector('.action-popup') || isAnyModalOpen(document)) return;
-    }
-
-    if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-      e.preventDefault();
-      void noteViewState.createNote();
-      return;
     }
 
     // The launcher's own search input is focused while browsing the list, so
@@ -131,6 +118,7 @@ class NotesExtension implements Extension {
       id: 'notes:add',
       label: t('features.notes.act.new'),
       icon: 'icon:plus',
+      shortcut: 'Mod+N',
       description: t('features.notes.act.new_desc'),
       category: t('categories.notes'),
       extensionId: 'notes',

@@ -152,8 +152,6 @@
       "section_extension_surface": "Extension surface",
       "extension_search": "Extension results in search",
       "extension_search_description": "Allow extensions to contribute results in the search bar.",
-      "extension_actions": "Extension actions in ⌘K",
-      "extension_actions_description": "When off, only Asyar's built-in actions appear in the action panel.",
       "auto_update_extensions": "Auto-update extensions",
       "auto_update_extensions_description": "Updates install silently in the background.",
       "section_input": "Input",
@@ -866,7 +864,9 @@
         "clear_selection": "Clear Selection",
         "clear_selection_desc": "Deselect all multi-selected clipboard items",
         "ask_ai": "Ask AI about this",
-        "ask_ai_desc": "Open AI Chat with this clipboard text pre-filled"
+        "ask_ai_desc": "Open AI Chat with this clipboard text pre-filled",
+        "clear_history": "Clear Clipboard History",
+        "clear_history_desc": "Remove all non-favorite clipboard items"
       },
       "subtitle": "View and manage your clipboard history",
       "unsupported_item": "Not supported yet — {type} clipboard items can't be used with \"{action}\" yet.",
@@ -965,7 +965,9 @@
         "send_ai": "Send to Asyar AI",
         "send_ai_desc": "Open AI chat with this file as context",
         "search_everywhere": "Search Everywhere",
-        "search_everywhere_desc": "Run an OS-native deep search (Spotlight/Everything/plocate) for the current query"
+        "search_everywhere_desc": "Run an OS-native deep search (Spotlight/Everything/plocate) for the current query",
+        "clear_history": "Clear Search History",
+        "clear_history_desc": "Remove all per-query learning data"
       },
       "ui": {
         "deep": "deep",
@@ -1585,6 +1587,7 @@
         "extensions_sub": "Browse, install, and manage extensions"
       },
       "shortcuts_heading": "Keyboard Shortcuts",
+      "action_shortcuts_heading": "Action Shortcuts",
       "no_topics": "No topics match your search.",
       "ui": {
         "guides": "Feature Guides"
