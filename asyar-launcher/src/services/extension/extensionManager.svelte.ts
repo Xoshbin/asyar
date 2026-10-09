@@ -260,7 +260,7 @@ export class ExtensionManager implements IExtensionManager {
         const result = await builtinDispatcher(dyn.dynamicId, args);
 
         searchService.saveIndex();
-        if (result?.type !== 'view') {
+        if (result?.type !== 'view' && result?.type !== 'keep-open') {
           void commands.hideWindow().then(resetLauncherState);
         }
 

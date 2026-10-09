@@ -26,8 +26,9 @@ describe('dispatchSettingsPaneCommand', () => {
   });
 
   it('hides the launcher then opens the pane by bundle id', async () => {
-    await dispatchSettingsPaneCommand('sound');
+    const result = await dispatchSettingsPaneCommand('sound');
 
+    expect(result).toBeUndefined();
     expect(commands.hideWindow).toHaveBeenCalledTimes(1);
     expect(commands.openSettingsPane).toHaveBeenCalledWith('com.apple.Sound-Settings.extension');
     expect(vi.mocked(commands.hideWindow).mock.invocationCallOrder[0]).toBeLessThan(
@@ -39,9 +40,10 @@ describe('dispatchSettingsPaneCommand', () => {
   it('restores the launcher when the pane does not open', async () => {
     vi.mocked(commands.openSettingsPane).mockResolvedValueOnce(false);
 
-    await dispatchSettingsPaneCommand('sound');
+    const result = await dispatchSettingsPaneCommand('sound');
 
     expect(commands.showWindow).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ type: 'keep-open' });
   });
 
   it('restores the launcher when the open command throws', async () => {
