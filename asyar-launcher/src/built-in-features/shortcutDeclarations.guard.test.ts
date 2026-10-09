@@ -56,6 +56,19 @@ function sourceDeclarations(feature: string): { file: string; shortcut: string }
 }
 
 describe('built-in action shortcut declarations', () => {
+  it('no built-in manifest declares root-search actions (they live in views)', () => {
+    for (const feature of features) {
+      const manifest = manifestOf(feature) as {
+        actions?: unknown;
+        commands?: { actions?: unknown }[];
+      } | null;
+      expect(manifest?.actions, `${feature} manifest`).toBeUndefined();
+      for (const cmd of manifest?.commands ?? []) {
+        expect(cmd.actions, `${feature} command`).toBeUndefined();
+      }
+    }
+  });
+
   it('scans the shipped features', () => {
     expect(features.length).toBeGreaterThan(10);
   });

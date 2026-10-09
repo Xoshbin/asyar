@@ -240,7 +240,7 @@ Before adding any capability, action, IPC route, shortcut, event listener, or st
 - **The Consequence**: Highlighting any extension with preferences in the launcher produced two duplicate configuration actions in the ⌘K Action Panel.
 - **The Fix & Guard**:
   - Host-level platform actions (settings, deeplinks, command lists) belong exclusively in `ActionService` as single sources of truth with standard shortcuts (`⌘ ⇧ ,`).
-  - `ExtensionLoader` only handles manifest-declared extension actions (`cmd.actions`).
+  - Extensions and built-ins register actions in code (`actionService.registerAction`); there are no manifest-declared actions.
 
 ### Shortcut & Action ID Collision Discipline
 

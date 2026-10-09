@@ -3,8 +3,7 @@
  *
  * An action's `shortcut` is a declaration, not a hint: this dispatcher is the
  * only code that turns a key press into an action run, for every source of
- * actions (built-in views, root-search manifest actions, core actions, Tier 2
- * manifest and runtime actions). Feature code declares `shortcut` on the
+ * actions (built-in views, core actions in root search, Tier 2 runtime actions). Feature code declares `shortcut` on the
  * action and installs no `keydown` listener of its own for it.
  *
  * It is pure with respect to the app: the candidate set, the runner and the

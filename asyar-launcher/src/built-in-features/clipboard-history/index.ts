@@ -109,19 +109,6 @@ class ClipboardHistoryExtension implements Extension {
       // Initialize state services
       clipboardViewState.initializeServices(context);
 
-      // Wire the execute callback for the manifest-declared "clear-history" action.
-      // The host registered this action (with its visibility callback) from manifest.json
-      // before initialize() was called. setActionExecutor patches only the execute field,
-      // leaving the host's visible() logic intact.
-      actionService.setActionExecutor('act_clipboard-history_clear-history', async () => {
-        try {
-          await this.clipboardService?.clearNonFavorites();
-          await this.refreshClipboardData();
-        } catch (error) {
-          this.logService?.error(`Failed to clear clipboard history: ${error}`);
-        }
-      });
-
       this.logService.info('Clipboard History extension initialized with services');
     } catch (error) {
       logService.error(`Clipboard History initialization failed: ${error}`);
@@ -229,10 +216,24 @@ class ClipboardHistoryExtension implements Extension {
     }
     this.logService?.debug('Registering clipboard view actions...');
 
-    // Note: "Clear Clipboard History" is now manifest-declared (see manifest.json)
-    // and available from root search. The executor is wired in initialize() via
-    // setActionExecutor. No view-level duplicate registration needed.
-    //
+    actionService.registerAction({
+      id: 'clipboard-history:clear-history',
+      title: t('features.clipboard.act.clear_history'),
+      description: t('features.clipboard.act.clear_history_desc'),
+      icon: 'icon:trash',
+      extensionId: 'clipboard-history',
+      category: 'clipboard-action',
+      destructive: true,
+      execute: async () => {
+        try {
+          await this.clipboardService?.clearNonFavorites();
+          await this.refreshClipboardData();
+        } catch (error) {
+          this.logService?.error(`Failed to clear clipboard history: ${error}`);
+        }
+      },
+    });
+
     // Note: type-filter actions (All/Text/Images/Files) were removed once the
     // searchBarAccessory dropdown took over filter selection. The dropdown
     // drives clipboardViewState.setTypeFilter directly — see DefaultView.svelte.
@@ -390,6 +391,7 @@ class ClipboardHistoryExtension implements Extension {
   // Helper method to unregister view-specific actions
   private unregisterViewActions() {
     this.logService?.debug('Unregistering clipboard view actions...');
+    actionService.unregisterAction('clipboard-history:clear-history');
     actionService.unregisterAction('clipboard-history:toggle-html-view');
     actionService.unregisterAction('clipboard-history:toggle-favorite');
     actionService.unregisterAction('clipboard-history:paste-as-plain-text');

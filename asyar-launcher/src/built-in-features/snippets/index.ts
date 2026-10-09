@@ -6,7 +6,6 @@ import { snippetStore } from './snippetStore.svelte';
 import { snippetService } from './snippetService';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
-import { snippetUiState } from './snippetUiState.svelte';
 import { snippetViewState } from './snippetViewState.svelte';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import { isAnyModalOpen } from '../../components/base/Modal.logic';
@@ -19,13 +18,6 @@ class SnippetsExtension implements Extension {
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('extensions');
-
-    // Wire manifest-declared "add" action — available from root search before the view opens.
-    // Uses the editorTrigger handshake: navigate first, view reads the flag on mount.
-    actionService.setActionExecutor('act_snippets_add', async () => {
-      snippetUiState.editorTrigger = 'add';
-      this.extensionManager?.navigateToView('snippets/DefaultView');
-    });
   }
 
   private async handleKeydown(e: KeyboardEvent) {

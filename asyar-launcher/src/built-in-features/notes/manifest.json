@@ -17,16 +17,6 @@
       "icon": "icon:type",
       "trigger": "notes",
       "description": "Browse, search, and write notes",
-      "actions": [
-        {
-          "id": "add",
-          "title": "New Note",
-          "description": "Create a new note",
-          "icon": "icon:plus",
-          "shortcut": "Mod+N",
-          "category": "Notes"
-        }
-      ],
       "mode": "view",
       "component": "DefaultView"
     },

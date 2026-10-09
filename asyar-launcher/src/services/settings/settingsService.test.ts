@@ -35,7 +35,6 @@ const DEFAULT: AppSettings = {
     searchSystemPreferences: true,
     fuzzySearch: true,
     enableExtensionSearch: false,
-    allowExtensionActions: false,
     additionalScanPaths: [],
     applicationEnabled: {},
   },

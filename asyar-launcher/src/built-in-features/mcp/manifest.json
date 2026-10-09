@@ -3,12 +3,13 @@
   "name": "MCP Servers",
   "icon": "icon:server",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "description": "Manage Model Context Protocol (MCP) servers",
   "author": "Core",
   "searchable": false,
   "type": "extension",
-  "actions": [],
   "commands": [
     {
       "id": "manage",

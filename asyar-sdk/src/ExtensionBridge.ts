@@ -311,10 +311,10 @@ export class ExtensionBridge {
   }
 
   /**
-   * Register a handler for a manifest-declared action.
+   * Register a handler for a notification action or search-result action.
    * Stores the handler locally in the actionRegistry so the
    * asyar:action:execute message from the host can find it.
-   * No IPC message sent — the host already knows about the action from the manifest.
+   * No IPC message sent — the handler is stored locally and dispatched on asyar:action:execute.
    */
   registerActionHandler(
     extensionId: string,

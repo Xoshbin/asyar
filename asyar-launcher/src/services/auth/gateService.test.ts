@@ -26,7 +26,6 @@ function mockSettings(partial: Partial<AppSettings>): void {
       searchSystemPreferences: true,
       fuzzySearch: true,
       enableExtensionSearch: false,
-      allowExtensionActions: false,
       additionalScanPaths: [],
       applicationEnabled: {},
     },

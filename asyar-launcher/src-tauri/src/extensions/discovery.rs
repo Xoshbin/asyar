@@ -1,5 +1,5 @@
 use super::scheduler;
-use super::{CompatibilityStatus, ExtensionManifest, ExtensionRecord, ManifestAction};
+use super::{CompatibilityStatus, ExtensionManifest, ExtensionRecord};
 use super::{DropdownOption, PreferenceDeclaration, PreferenceType};
 use crate::error::AppError;
 use log::{info, warn};
@@ -108,19 +108,6 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                 cmd.id, m.id, e
             )));
         }
-    }
-
-    // Action shortcuts both render a hint and bind the key, so a malformed one
-    // is a broken manifest, not a cosmetic typo.
-    crate::extensions::validate_manifest_actions(m.actions.as_deref())
-        .map_err(|e| AppError::Validation(format!("Extension '{}': {}", m.id, e)))?;
-    for cmd in &m.commands {
-        crate::extensions::validate_manifest_actions(cmd.actions.as_deref()).map_err(|e| {
-            AppError::Validation(format!(
-                "Command '{}' in extension '{}': {}",
-                cmd.id, m.id, e
-            ))
-        })?;
     }
 
     if has_background_command {
@@ -254,51 +241,6 @@ pub fn validate_preferences(prefs: &[PreferenceDeclaration]) -> Result<(), Strin
     }
     Ok(())
 }
-pub fn validate_actions(actions: &[ManifestAction], scope: &str) -> Result<(), String> {
-    let id_re = regex::Regex::new(r"^[a-zA-Z][a-zA-Z0-9_-]*$").unwrap();
-    let mut seen = HashSet::new();
-
-    for a in actions {
-        if a.id.is_empty() {
-            return Err(format!("Action in {} scope has empty id", scope));
-        }
-        if !id_re.is_match(&a.id) {
-            return Err(format!(
-                "Action id '{}' in {} scope must match /^[a-zA-Z][a-zA-Z0-9_-]*$/",
-                a.id, scope
-            ));
-        }
-        if !seen.insert(a.id.clone()) {
-            return Err(format!("Duplicate action id '{}' in {} scope", a.id, scope));
-        }
-        if a.title.trim().is_empty() {
-            return Err(format!(
-                "Action '{}' in {} scope must have a non-empty title",
-                a.id, scope
-            ));
-        }
-    }
-    Ok(())
-}
-
-pub fn validate_actions_cross_scope(
-    ext_actions: &[ManifestAction],
-    cmd_action_groups: &[&[ManifestAction]],
-) -> Result<(), String> {
-    let ext_ids: HashSet<&str> = ext_actions.iter().map(|a| a.id.as_str()).collect();
-    for group in cmd_action_groups {
-        for a in *group {
-            if ext_ids.contains(a.id.as_str()) {
-                return Err(format!(
-                    "Action id '{}' declared at both extension and command level",
-                    a.id
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
 const SUPPORTED_SDK_VERSION: &str = env!("ASYAR_SDK_VERSION");
 
 static BUILTIN_RECORDS: std::sync::OnceLock<Vec<ExtensionRecord>> = std::sync::OnceLock::new();
@@ -511,53 +453,6 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                     continue;
                 }
 
-                // Validate action declarations
-                let mut actions_valid = true;
-                if let Some(actions) = &manifest.actions {
-                    if let Err(e) = validate_actions(actions, "extension") {
-                        warn!(
-                            "Extension '{}' has invalid actions: {}. Skipping.",
-                            manifest.id, e
-                        );
-                        actions_valid = false;
-                    }
-                }
-                if actions_valid {
-                    for cmd in &manifest.commands {
-                        if let Some(actions) = &cmd.actions {
-                            if let Err(e) =
-                                validate_actions(actions, &format!("command '{}'", cmd.id))
-                            {
-                                warn!(
-                                    "Extension '{}' command '{}' has invalid actions: {}. Skipping extension.",
-                                    manifest.id, cmd.id, e
-                                );
-                                actions_valid = false;
-                                break;
-                            }
-                        }
-                    }
-                }
-                // Cross-scope uniqueness: extension-level action IDs must not collide with command-level
-                if actions_valid {
-                    let ext_actions = manifest.actions.as_deref().unwrap_or(&[]);
-                    let cmd_action_groups: Vec<&[ManifestAction]> = manifest
-                        .commands
-                        .iter()
-                        .filter_map(|c| c.actions.as_deref())
-                        .collect();
-                    if let Err(e) = validate_actions_cross_scope(ext_actions, &cmd_action_groups) {
-                        warn!(
-                            "Extension '{}' has conflicting action IDs: {}. Skipping.",
-                            manifest.id, e
-                        );
-                        actions_valid = false;
-                    }
-                }
-                if !actions_valid {
-                    continue;
-                }
-
                 let disableable = if is_built_in {
                     manifest
                         .lifecycle
@@ -640,7 +535,6 @@ mod background_entry_resolution_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             runtimes: None,
             walkthrough: None,
@@ -812,7 +706,6 @@ mod first_view_component_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             tools: None,
             runtimes: None,
@@ -832,7 +725,6 @@ mod first_view_component_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -851,7 +743,6 @@ mod first_view_component_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -900,7 +791,6 @@ mod first_view_component_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -932,7 +822,6 @@ mod first_view_component_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -965,7 +854,6 @@ mod onboarding_validation_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             tools: None,
             runtimes: None,
@@ -985,7 +873,6 @@ mod onboarding_validation_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -1023,7 +910,6 @@ mod onboarding_validation_tests {
             schedule: None,
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -1120,7 +1006,6 @@ mod compatibility_tests {
             asyar_sdk: asyar_sdk.map(String::from),
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             tools: None,
             runtimes: None,
@@ -1413,7 +1298,6 @@ mod discovery_tests {
             }),
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -1442,7 +1326,6 @@ mod discovery_tests {
             }),
             searchable: None,
             preferences: None,
-            actions: None,
             arguments: None,
             require_any_of: None,
             search_bar_accessory: None,
@@ -1665,82 +1548,6 @@ mod preference_validation_tests {
 }
 
 #[cfg(test)]
-mod action_validation_tests {
-    use super::*;
-    use crate::extensions::ManifestAction;
-
-    fn action(id: &str, title: &str) -> ManifestAction {
-        ManifestAction {
-            id: id.to_string(),
-            title: title.to_string(),
-            description: None,
-            icon: None,
-            shortcut: None,
-            category: None,
-        }
-    }
-
-    #[test]
-    fn valid_actions_pass() {
-        let actions = vec![
-            action("open-browser", "Open in Browser"),
-            action("copy_url", "Copy URL"),
-        ];
-        assert!(validate_actions(&actions, "extension").is_ok());
-    }
-
-    #[test]
-    fn rejects_empty_action_id() {
-        let actions = vec![action("", "Some Action")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_invalid_action_id_chars() {
-        let actions = vec![action("bad action!", "Bad")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_action_id_starting_with_number() {
-        let actions = vec![action("1action", "Bad")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_duplicate_action_ids_in_scope() {
-        let actions = vec![action("dup", "First"), action("dup", "Second")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_empty_action_title() {
-        let actions = vec![action("valid-id", "")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_whitespace_only_title() {
-        let actions = vec![action("valid-id", "   ")];
-        assert!(validate_actions(&actions, "extension").is_err());
-    }
-
-    #[test]
-    fn rejects_cross_scope_duplicate_ids() {
-        let ext_actions = vec![action("shared-id", "Ext Action")];
-        let cmd_actions = vec![action("shared-id", "Cmd Action")];
-        assert!(validate_actions_cross_scope(&ext_actions, &[&cmd_actions]).is_err());
-    }
-
-    #[test]
-    fn allows_non_overlapping_cross_scope_ids() {
-        let ext_actions = vec![action("ext-only", "Ext Action")];
-        let cmd_actions = vec![action("cmd-only", "Cmd Action")];
-        assert!(validate_actions_cross_scope(&ext_actions, &[&cmd_actions]).is_ok());
-    }
-}
-
-#[cfg(test)]
 mod manifest_schema_tests {
     //! Covers the new manifest schema introduced by the Tier 2 worker/view
     //! split (plan: docs/superpowers/plans/2026-04-21-tier2-worker-view-split.md
@@ -1757,62 +1564,6 @@ mod manifest_schema_tests {
         let manifest: ExtensionManifest = serde_json::from_str(json).map_err(AppError::Json)?;
         validate_manifest(&manifest)?;
         Ok(manifest)
-    }
-
-    // ── Action shortcuts ────────────────────────────────────────────────
-
-    #[test]
-    fn manifest_with_canonical_action_shortcuts_is_accepted() {
-        let json = r#"{
-            "id": "org.test.shortcuts-ok", "name": "Shortcuts", "version": "1.0.0",
-            "type": "extension",
-            "actions": [{ "id": "a", "title": "A", "shortcut": "Mod+Shift+C" }],
-            "commands": [{
-                "id": "c", "name": "C", "mode": "view", "component": "V",
-                "actions": [{ "id": "b", "title": "B", "shortcut": "Mod+N" }]
-            }]
-        }"#;
-        parse(json).expect("canonical shortcuts must be accepted");
-    }
-
-    #[test]
-    fn manifest_rejects_a_glyph_shortcut_on_an_extension_action() {
-        let json = r#"{
-            "id": "org.test.glyph", "name": "Glyph", "version": "1.0.0",
-            "type": "extension",
-            "commands": [{ "id": "c", "name": "C", "mode": "view", "component": "V" }],
-            "actions": [{ "id": "a", "title": "A", "shortcut": "\u2318N" }]
-        }"#;
-        let err = parse(json).unwrap_err().to_string();
-        assert!(
-            err.contains("org.test.glyph") && err.contains("'a'"),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn manifest_rejects_a_reserved_shortcut_on_a_command_action() {
-        let json = r#"{
-            "id": "org.test.reserved", "name": "Reserved", "version": "1.0.0",
-            "type": "extension",
-            "commands": [{
-                "id": "c", "name": "C", "mode": "view", "component": "V",
-                "actions": [{ "id": "copy", "title": "Copy", "shortcut": "Mod+C" }]
-            }]
-        }"#;
-        let err = parse(json).unwrap_err().to_string();
-        assert!(err.contains("reserved") && err.contains("'c'"), "{err}");
-    }
-
-    #[test]
-    fn manifest_actions_without_shortcuts_are_unaffected() {
-        let json = r#"{
-            "id": "org.test.no-shortcut", "name": "None", "version": "1.0.0",
-            "type": "extension",
-            "commands": [{ "id": "c", "name": "C", "mode": "view", "component": "V" }],
-            "actions": [{ "id": "a", "title": "A" }]
-        }"#;
-        parse(json).expect("shortcut is optional");
     }
 
     // ── Happy paths ─────────────────────────────────────────────────────
@@ -2426,7 +2177,6 @@ mod manifest_schema_tests {
                 schedule: None,
                 searchable: None,
                 preferences: None,
-                actions: None,
                 arguments: None,
                 require_any_of: None,
                 search_bar_accessory: Some(SearchBarAccessory::Dropdown {
@@ -2443,7 +2193,6 @@ mod manifest_schema_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             tools: None,
             runtimes: None,

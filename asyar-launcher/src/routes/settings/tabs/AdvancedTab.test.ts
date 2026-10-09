@@ -30,7 +30,6 @@ vi.mock('../../../services/settings/settingsService.svelte', () => ({
         searchSystemPreferences: true,
         fuzzySearch: true,
         enableExtensionSearch: false,
-        allowExtensionActions: false,
         additionalScanPaths: [],
         applicationEnabled: {},
       },
@@ -118,7 +117,6 @@ function createMockHandler(overrides?: Partial<SettingsHandler>): SettingsHandle
         searchSystemPreferences: true,
         fuzzySearch: true,
         enableExtensionSearch: false,
-        allowExtensionActions: false,
         additionalScanPaths: [],
         applicationEnabled: {},
       },
@@ -152,7 +150,6 @@ function createMockHandler(overrides?: Partial<SettingsHandler>): SettingsHandle
       fileSearch: { enabled: true, includeRoots: [], excludePatterns: [], indexHidden: false },
     },
     handleExtensionSearchToggle: vi.fn(),
-    handleExtensionActionsToggle: vi.fn(),
     handleExtensionAutoUpdateToggle: vi.fn(),
     handleDeveloperModeToggle: vi.fn(),
     updateEscapeBehavior: vi.fn(),
@@ -174,7 +171,6 @@ describe('AdvancedTab', () => {
     expect(screen.getByText('Extension surface')).toBeTruthy();
     expect(screen.getByText('Input')).toBeTruthy();
     expect(screen.getByText('Extension results in search')).toBeTruthy();
-    expect(screen.getByText('Extension actions in ⌘K')).toBeTruthy();
     expect(screen.getByText('Auto-update extensions')).toBeTruthy();
     expect(screen.getByText('Escape key')).toBeTruthy();
     expect(screen.getByText('Text expansion')).toBeTruthy();
@@ -190,21 +186,12 @@ describe('AdvancedTab', () => {
     expect(handler.handleExtensionSearchToggle).toHaveBeenCalledTimes(1);
   });
 
-  it('calls handleExtensionActionsToggle when toggling extension actions', async () => {
-    const handler = createMockHandler();
-    render(AdvancedTab, { props: { handler } });
-
-    const checkboxes = screen.getAllByRole('checkbox');
-    await fireEvent.change(checkboxes[1]);
-    expect(handler.handleExtensionActionsToggle).toHaveBeenCalledTimes(1);
-  });
-
   it('calls handleExtensionAutoUpdateToggle when toggling auto-update', async () => {
     const handler = createMockHandler();
     render(AdvancedTab, { props: { handler } });
 
     const checkboxes = screen.getAllByRole('checkbox');
-    await fireEvent.change(checkboxes[2]);
+    await fireEvent.change(checkboxes[1]);
     expect(handler.handleExtensionAutoUpdateToggle).toHaveBeenCalledTimes(1);
   });
 
@@ -223,7 +210,7 @@ describe('AdvancedTab', () => {
 
     const checkboxes = screen.getAllByRole('checkbox');
     // Checkbox index: 0 = ext search, 1 = ext actions, 2 = auto-update, 3 = snippets, 4 = dev mode
-    await fireEvent.change(checkboxes[3]);
+    await fireEvent.change(checkboxes[2]);
     expect(snippetService.setEnabled).toHaveBeenCalledWith(false);
   });
 
@@ -232,7 +219,7 @@ describe('AdvancedTab', () => {
     render(AdvancedTab, { props: { handler } });
 
     const checkboxes = screen.getAllByRole('checkbox');
-    await fireEvent.change(checkboxes[4]);
+    await fireEvent.change(checkboxes[3]);
     expect(handler.handleDeveloperModeToggle).toHaveBeenCalledTimes(1);
   });
 

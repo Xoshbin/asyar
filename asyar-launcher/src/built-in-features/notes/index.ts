@@ -62,13 +62,6 @@ class NotesExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('extensions');
     await noteStore.init();
-
-    // Root "New Note" action — available from root search before the view
-    // opens, same handshake shape as snippets' act_snippets_add.
-    actionService.setActionExecutor('act_notes_add', async () => {
-      this.extensionManager?.navigateToView('notes/DefaultView');
-      await noteViewState.createNote();
-    });
   }
 
   private handleKeydown(e: KeyboardEvent) {

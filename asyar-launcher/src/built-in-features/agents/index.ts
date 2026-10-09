@@ -37,25 +37,6 @@ class AgentsExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('extensions');
 
-    // Manifest-declared action executors. These show in Cmd+K when "Manage
-    // Agents" is highlighted in launcher search results (manifest-action
-    // visibility model — see ExtensionLoader.registerManifestActions).
-    actionService.setActionExecutor('act_agents_new-agent', async () => {
-      this.runNewAgent();
-    });
-    actionService.setActionExecutor('act_agents_edit-agent', async () => {
-      this.runEditAgent();
-    });
-    actionService.setActionExecutor('act_agents_delete-agent', async () => {
-      await this.runDeleteAgent();
-    });
-    actionService.setActionExecutor('act_agents_new-thread', async () => {
-      await this.runNewThread();
-    });
-    actionService.setActionExecutor('act_agents_delete-thread', async () => {
-      await this.runDeleteThread();
-    });
-
     this.registerContextMode();
   }
 

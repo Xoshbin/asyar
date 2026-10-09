@@ -16,7 +16,6 @@ export interface AppSettings {
     searchSystemPreferences: boolean;
     fuzzySearch: boolean;
     enableExtensionSearch: boolean;
-    allowExtensionActions: boolean;
     additionalScanPaths: string[];
     applicationEnabled: Record<string, boolean>;
   };

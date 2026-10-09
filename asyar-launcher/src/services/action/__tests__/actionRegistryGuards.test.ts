@@ -50,7 +50,7 @@ vi.mock('../../settings/developerSettingsService.svelte', () => ({
 
 vi.mock('../../settings/settingsService.svelte', () => ({
   settingsService: {
-    getSettings: vi.fn().mockReturnValue({ search: { allowExtensionActions: true } }),
+    getSettings: vi.fn().mockReturnValue({ search: {} }),
     isInitialized: vi.fn().mockReturnValue(true),
     isExtensionEnabled: vi.fn().mockReturnValue(true),
   },

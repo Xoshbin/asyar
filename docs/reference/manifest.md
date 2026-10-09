@@ -28,7 +28,6 @@ fields are listed below.
 | `asyarSdk`       | `string`                  | ❌          | Semver range                                                                                                  | SDK version requirement (e.g. `"^2.7.0"`). Extension will not load if the bundled SDK is older.                                                                                                                                                                                                                                                                                     |
 | `platforms`      | `string[]`                | ❌          | `"macos"`, `"windows"`, `"linux"`                                                                             | Restrict the extension to specific operating systems. Omit entirely for a universal extension. Extensions that don't support the current OS are hidden in the store and blocked from loading.                                                                                                                                                                                       |
 | `preferences`    | `PreferenceDeclaration[]` | ❌          | See [Preferences reference](./sdk/preferences.md)                                                             | Extension-level user-configurable settings. Auto-rendered as a settings panel in the launcher's Extensions tab, injected into `context.preferences` at extension boot, and synced across devices (except `password` type, which stays on-device).                                                                                                                                   |
-| `actions`        | `ManifestAction[]`        | ❌          | See [Actions reference](./actions.md#manifest-declared-actions)                                               | Extension-level actions that appear in the ⌘K drawer whenever any command from this extension is selected in the root search results.                                                                                                                                                                                                                                               |
 | `tools`          | `ManifestTool[]`          | ❌          | Each `id` must be unique within the extension and must not contain `:`. Requires `tools:register` permission. | Tools your extension exports to the agent runtime. See [Built-in Tools Reference](./builtin-tools.md) for Tier 1 tools and [Register extension tools](../how-to/register-extension-tools.md) for the authoring guide. Runtime API documented at [ToolsService](./sdk/tools-service.md).                                                                                             |
 | `lifecycle`      | `LifecycleSpec`           | ❌          | `{ "disableable"?: boolean, "background"?: boolean }`                                                         | Lifecycle policy declaration. Tier 2 extensions default to `disableable: true`. Only required core platform infrastructure (`system` and `settings`) is locked with `disableable: false`; all 16 user-facing bundled features explicitly declare `disableable: true` and can be toggled off by users in Settings → Extensions without disabling their underlying platform services. |
 | `walkthrough`    | `WalkthroughTask[]`       | ❌          | Each `id` must be unique within the extension and match `/^[A-Za-z0-9._-]+$/`.                                | Tasks that teach your extension's features, shown in the launcher's **Walkthrough** command. See [the walkthrough section](#walkthrough--teaching-your-features) below. No permission required and no runtime code — the launcher decides when each task is complete by watching real usage.                                                                                        |
@@ -68,28 +67,10 @@ extension to fail discovery with an unknown-field error:
 | `schedule`           | `{ intervalSeconds: number }`   | ❌          | Declares a recurring background timer. The command is dispatched to the worker every `intervalSeconds` seconds. Requires `mode: "background"`. Range: 10–86400 seconds. See [Background scheduling](./background-scheduling.md).                                                                                                                        |
 | `searchable`         | `boolean`                       | ❌          | If `false`, the command is excluded from the launcher's root search index. Useful for scheduled background tasks or internal worker commands. Defaults to `true`.                                                                                                                                                                                       |
 | `preferences`        | `PreferenceDeclaration[]`       | ❌          | Command-scoped preferences (as opposed to the extension-level ones on the root). At runtime, a command sees the union of extension-level and command-level preferences, with command-level shadowing extension-level on name collision. Reached via `context.preferences.commands[commandId][name]`. See [Preferences reference](./sdk/preferences.md). |
-| `actions`            | `ManifestAction[]`              | ❌          | Command-level actions that appear in the ⌘K drawer only when this specific command is selected. Combined with extension-level actions when applicable. See [Manifest-declared actions](./actions.md#manifest-declared-actions).                                                                                                                         |
 | `arguments`          | `CommandArgument[]`             | ❌          | Inline chip-row inputs collected in the search bar before the command runs. Max 3 per command; required args must precede optional ones. Values arrive at the handler under `args.arguments.<name>`. See [Command arguments reference](./command-arguments.md).                                                                                         |
 | `searchBarAccessory` | `SearchBarAccessoryDeclaration` | ❌          | Per-command dropdown the launcher renders in the top-right of the search bar while the view is active. Only valid when `mode === "view"`. See [Search bar accessory reference](./searchbar-accessory.md).                                                                                                                                               |
 
 > **Deeplink triggering:** Every command in an enabled extension is automatically reachable via `asyar://extensions/{id}/{commandId}?args` URLs. No manifest declaration needed. See [Deeplink triggering](./deeplink-triggering.md).
-
-### The `actions` array — per-action fields (ManifestAction)
-
-Both the root-level `actions` field and the per-command `actions` field accept the same `ManifestAction` shape:
-
-| Field         | Type     | Required | Constraints                                                  | Description                                                                                                                                                                                                                                                                                            |
-| ------------- | -------- | -------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`          | `string` | ✅       | Regex: `/^[a-zA-Z][a-zA-Z0-9_-]*$/`, unique within extension | Programmatic identifier. Must be unique across both extension-level and command-level actions within the same extension.                                                                                                                                                                               |
-| `title`       | `string` | ✅       | Non-empty                                                    | Label shown in the ⌘K action drawer.                                                                                                                                                                                                                                                                   |
-| `description` | `string` | ❌       | —                                                            | Secondary text shown below the title.                                                                                                                                                                                                                                                                  |
-| `icon`        | `string` | ❌       | Emoji or `"icon:<name>"`                                     | Icon next to the action title.                                                                                                                                                                                                                                                                         |
-| `shortcut`    | `string` | ❌       | Canonical shortcut, e.g. `Mod+Shift+C`                       | Keyboard shortcut. It is both shown in the `⌘K` drawer and **bound**: pressing it runs the action while the action is visible, including while your view iframe has focus. See [Action shortcuts](./actions.md#action-shortcuts). The handler is still registered in code via `registerActionHandler`. |
-| `category`    | `string` | ❌       | Any string                                                   | Groups related actions under a heading in the drawer. Use `ActionCategory` constants for consistency.                                                                                                                                                                                                  |
-
-**ID format:** The host constructs a global action ID as `act_{extensionId}_{actionId}`. Example: `act_com.example.github_clone-repo`. This is the ID your handler is registered under via `registerActionHandler`.
-
-> **Where to register handlers:** with the worker/view split, `registerActionHandler` runs from whichever role calls it. Anything that needs to fire while the panel is closed (notification action callbacks, scheduled-tick follow-ups, tray-driven actions) must register from the **worker**. Actions that only make sense with a view open can register from the view. See [extension runtime](../explanation/extension-runtime.md).
 
 ### The `tools` array — per-tool fields (ManifestTool)
 
@@ -245,16 +226,6 @@ When an extension declares permissions or updates its declared permission set:
       "default": 14
     }
   ],
-  "actions": [
-    {
-      "id": "open-settings",
-      "title": "Extension Settings",
-      "description": "Configure Note Search preferences",
-      "icon": "icon:settings",
-      "shortcut": "Mod+Shift+,",
-      "category": "System"
-    }
-  ],
   "commands": [
     {
       "id": "search",
@@ -262,17 +233,7 @@ When an extension declares permissions or updates its declared permission set:
       "description": "Live search your local notes as you type",
       "mode": "view",
       "component": "DetailView",
-      "icon": "🔍",
-      "actions": [
-        {
-          "id": "export-note",
-          "title": "Export Note",
-          "description": "Save the selected note as a file",
-          "icon": "icon:download",
-          "shortcut": "Mod+Shift+E",
-          "category": "Share"
-        }
-      ]
+      "icon": "🔍"
     },
     {
       "id": "new-note",

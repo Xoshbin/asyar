@@ -358,77 +358,9 @@ Distributed under the AGPLv3 License. See LICENSE.md for more information.
 
 ## Actions — The ⌘K Panel
 
-There are two ways to contribute actions to Asyar's ⌘K panel:
+Actions are registered in code, inside your extension view, and appear in the ⌘K panel while that view is open. There are no manifest-declared actions on root-search rows; to offer something without opening a view, declare another command.
 
-### 1. Manifest-declared actions (root search)
-
-Declare actions directly in `manifest.json`. These appear in the ⌘K drawer while the user has your command highlighted in the **main search results** — before opening any view.
-
-**`manifest.json`:**
-
-```json
-{
-  "id": "com.example.github",
-  "actions": [
-    {
-      "id": "open-settings",
-      "title": "Extension Settings",
-      "icon": "icon:settings",
-      "shortcut": "⌘,",
-      "category": "System"
-    }
-  ],
-  "commands": [
-    {
-      "id": "search-repos",
-      "name": "Search Repositories",
-      "mode": "view",
-      "component": "RepoSearch",
-      "actions": [
-        {
-          "id": "clone-repo",
-          "title": "Clone Repository",
-          "icon": "icon:download",
-          "shortcut": "⌘⇧C",
-          "category": "Primary"
-        }
-      ]
-    }
-  ]
-}
-```
-
-Register handlers in your extension's `initialize()` or `activate()`. With the worker/view split, `registerActionHandler` is role-neutral — it works from either role's `ExtensionContext`. Choose the role based on whether the action needs to fire while the panel is closed:
-
-```typescript
-// Worker entry — handles actions that must survive the view being Dormant
-// (notification action callbacks, tray-driven actions, etc.)
-class GitHubExtension implements Extension {
-  async initialize(context: ExtensionContext): Promise<void> {
-    context.actions.registerActionHandler('open-settings', async () => {
-      // your handler — fires even when no view is open
-    });
-  }
-}
-
-// View entry — handles actions that only make sense while the panel is open
-class GitHubView implements Extension {
-  async initialize(context: ExtensionContext): Promise<void> {
-    context.actions.registerActionHandler('clone-repo', async () => {
-      // your handler — uses DOM / view state
-    });
-  }
-}
-```
-
-The `actionId` you pass to `registerActionHandler` is the short local ID from `manifest.json`, not the full internal ID (`act_{extensionId}_{actionId}`).
-
-**Visibility rules:**
-
-- Root-level `actions[]` — visible when **any** command from your extension is highlighted
-- Command-level `actions[]` — visible only when **that specific command** is highlighted
-
-### 2. Programmatic actions (inside extension views)
+### Registering actions
 
 Register actions in code from your extension view components. These appear while your extension panel is open.
 
@@ -441,6 +373,7 @@ actionService.registerAction({
   description: 'A helpful description shown in the panel',
   icon: '✨',
   category: ActionCategory.PRIMARY,
+  shortcut: 'Mod+Shift+D', // optional: shown in ⌘K and bound (⌘ on macOS, Ctrl elsewhere)
   extensionId: context.extensionId,
   context: ActionContext.EXTENSION_VIEW,
   execute: async () => {

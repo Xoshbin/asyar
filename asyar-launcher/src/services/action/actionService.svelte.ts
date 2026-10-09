@@ -152,7 +152,7 @@ export class ActionService implements IActionService {
   }
 
   /**
-   * Stamp which iframe role owns the handler for a manifest-declared action.
+   * Stamp which iframe role owns the handler for an extension action handler.
    * Called by ExtensionIpcRouter when the SDK round-trips
    * actions:registerActionHandler. The short `actionId` is whatever the
    * extension passed to registerActionHandler; we key on the full
@@ -701,28 +701,12 @@ export class ActionService implements IActionService {
 
   /**
    * No-op on the host side — this method exists only on the SDK proxy for
-   * Tier 2 extensions to register iframe-local handlers. Tier 1 built-ins
-   * call setActionExecutor() instead.
+   * Tier 2 extensions to register iframe-local handlers (notification
+   * actions, search-result actions). Tier 1 built-ins pass `execute` to
+   * registerAction() directly.
    */
   registerActionHandler(_actionId: string, _handler: () => Promise<void> | void): void {
     // intentional no-op
-  }
-
-  /**
-   * Wire an execute callback into an already-registered action without
-   * overwriting its other fields (visible, label, context, etc.).
-   *
-   * Use this for Tier 1 built-in extensions that want to respond to
-   * manifest-declared actions: the host registers the action metadata +
-   * visible() callback; the extension calls setActionExecutor() in
-   * initialize() to supply the actual handler.
-   *
-   * No-op if the action does not exist yet.
-   */
-  setActionExecutor(actionId: string, executor: () => Promise<void> | void): void {
-    const action = this.allActions.get(actionId);
-    if (!action) return;
-    action.execute = executor;
   }
 
   /**

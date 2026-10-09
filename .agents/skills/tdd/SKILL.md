@@ -151,7 +151,7 @@ Unit tests with heavy mocking often hide multi-module bugs (e.g. duplicate actio
 
 When a feature interacts across registration boundaries:
 
-1. Write an integration test that boots the real modules together (e.g. `ExtensionLoader` registering manifest actions into `ActionService`).
+1. Write an integration test that boots the real modules together (e.g. a built-in feature registering its view actions into `ActionService`).
 2. Assert that no duplicate IDs, duplicate shortcuts, or clashing UI labels are produced in the shared registry.
 
 ## Quick Reference

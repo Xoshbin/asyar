@@ -21,7 +21,6 @@ vi.mock('./snippetService', () => ({
 
 vi.mock('../../services/action/actionService.svelte', () => ({
   actionService: {
-    setActionExecutor: vi.fn(),
     registerAction: vi.fn(),
     unregisterAction: vi.fn(),
   },

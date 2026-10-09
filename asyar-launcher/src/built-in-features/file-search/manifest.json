@@ -2,20 +2,13 @@
   "name": "File Search",
   "id": "file-search",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "description": "Search files across your home folder",
   "type": "extension",
   "searchable": true,
   "icon": "icon:folder-search",
-  "actions": [
-    {
-      "id": "clear-history",
-      "title": "Clear Search History",
-      "description": "Remove all per-query learning data",
-      "icon": "icon:trash",
-      "category": "System"
-    }
-  ],
   "commands": [
     {
       "id": "show-files",

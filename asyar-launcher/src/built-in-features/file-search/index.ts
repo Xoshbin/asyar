@@ -50,13 +50,6 @@ class FileSearchExtension implements Extension {
 
     await loadPinnedFiles();
     await checkDeepSearchAvailability();
-
-    // Wire executor for the manifest-declared "clear-history" action only.
-    // The host registered this action from manifest.json before initialize()
-    // was called. setActionExecutor patches only the execute field.
-    actionService.setActionExecutor('act_file-search_clear-history', async () => {
-      await fileSearchClearHistory();
-    });
   }
 
   async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
@@ -272,6 +265,19 @@ class FileSearchExtension implements Extension {
         },
       },
       {
+        id: 'file-search:clear-history',
+        title: t('features.file_search.act.clear_history'),
+        description: t('features.file_search.act.clear_history_desc'),
+        icon: 'icon:trash',
+        extensionId: 'file-search',
+        category: 'file-action',
+        context: ActionContext.EXTENSION_VIEW,
+        destructive: true,
+        execute: async () => {
+          await fileSearchClearHistory();
+        },
+      },
+      {
         id: 'file-search:deep-search',
         title: t('features.file_search.act.search_everywhere'),
         description: t('features.file_search.act.search_everywhere_desc'),
@@ -301,6 +307,7 @@ class FileSearchExtension implements Extension {
     actionService.unregisterAction('file-search:quick-look');
     actionService.unregisterAction('file-search:send-to-ai');
     actionService.unregisterAction('file-search:deep-search');
+    actionService.unregisterAction('file-search:clear-history');
   }
 
   async viewDeactivated(viewPath: string): Promise<void> {
