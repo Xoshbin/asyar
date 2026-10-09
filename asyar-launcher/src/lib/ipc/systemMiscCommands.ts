@@ -96,6 +96,13 @@ export async function checkAccessibilityPermission(): Promise<boolean> {
   return invokeSafe<boolean>('check_accessibility_permission');
 }
 
+/** Deep-opens an OS settings pane from Rust (allowlisted bundle ids only).
+ * Resolves `false` when the pane is not allowed, unsupported on this
+ * platform, or the OS opener fails. */
+export async function openSettingsPane(bundleId: string): Promise<boolean> {
+  return invokeSafe<boolean>('open_settings_pane', { bundleId });
+}
+
 export async function openUrl(url: string): Promise<void> {
   await invokeSafe('plugin:opener|open_url', { url });
 }

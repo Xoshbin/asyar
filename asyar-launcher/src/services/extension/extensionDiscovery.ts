@@ -27,6 +27,7 @@ export const BUILT_IN_FEATURE_IDS = new Set<string>([
   'snippets',
   'store',
   'system',
+  'system-settings',
   'usage-stats',
   'walkthrough',
   'window-management',
