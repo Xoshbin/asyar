@@ -16,7 +16,7 @@ import { platform } from '@tauri-apps/plugin-os';
 import * as commands from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
 import { registerSettingsPaneCommands, unregisterSettingsPaneCommands } from './manager';
-import { SETTINGS_PANES } from './panes';
+import { settingsPanesFor } from './panes';
 
 describe('system settings pane registration', () => {
   beforeEach(() => {
@@ -29,7 +29,7 @@ describe('system settings pane registration', () => {
 
     const [extId, regs] = vi.mocked(commands.replaceDynamicCommandsBuiltin).mock.calls[0];
     expect(extId).toBe('system-settings');
-    expect(regs.map((r) => r.id)).toEqual(SETTINGS_PANES.map((p) => p.id));
+    expect(regs.map((r) => r.id)).toEqual(settingsPanesFor('macos').map((p) => p.id));
     expect(regs.find((r) => r.id === 'sound')?.name).toBe('Sound');
     expect(regs.every((r) => r.name.length > 0 && r.icon?.startsWith('icon:'))).toBe(true);
   });
@@ -58,8 +58,13 @@ describe('system settings pane registration', () => {
 
 describe('settings pane table', () => {
   it('has unique ids valid as dynamic command ids', () => {
-    const ids = SETTINGS_PANES.map((p) => p.id);
+    const ids = settingsPanesFor('macos').map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.every((id) => /^[a-zA-Z0-9_-]+$/.test(id))).toBe(true);
+  });
+
+  it('has no panes on platforms without a table yet', () => {
+    expect(settingsPanesFor('windows')).toEqual([]);
+    expect(settingsPanesFor('linux')).toEqual([]);
   });
 });

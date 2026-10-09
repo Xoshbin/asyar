@@ -1,7 +1,13 @@
+import type { Platform } from '@tauri-apps/plugin-os';
 import { t } from '../../services/i18n';
 
+/**
+ * Pane ids are platform-neutral (`sound`, `displays`, …): they are the
+ * dynamic command ids and double as i18n keys under
+ * `features.system_settings.panes`, so another platform's table can reuse
+ * them with its own `bundleId`.
+ */
 export interface SettingsPaneSpec {
-  /** Dynamic command id — also the i18n key under `features.system_settings.panes`. */
   id: string;
   /** ExtensionKit bundle id of the pane (`/System/Library/ExtensionKit/Extensions/*.appex`). */
   bundleId: string;
@@ -9,11 +15,13 @@ export interface SettingsPaneSpec {
 }
 
 /**
- * macOS System Settings panes (macOS 13+). Each opens through the
- * `x-apple.systempreferences:<bundleId>` URL scheme; panes missing on an
- * older or newer macOS simply open System Settings at its default page.
+ * macOS System Settings panes (macOS 13+). Rust opens each through the
+ * `x-apple.systempreferences:<bundleId>` URL scheme and only accepts ids
+ * listed in `MACOS_SETTINGS_PANE_IDS` (`commands/settings_panes.rs`);
+ * panes missing on an older or newer macOS simply open System Settings at
+ * its default page.
  */
-export const SETTINGS_PANES: readonly SettingsPaneSpec[] = [
+const MACOS_SETTINGS_PANES: readonly SettingsPaneSpec[] = [
   { id: 'wifi', bundleId: 'com.apple.wifi-settings-extension', icon: 'icon:globe' },
   { id: 'bluetooth', bundleId: 'com.apple.BluetoothSettings', icon: 'icon:activity' },
   { id: 'network', bundleId: 'com.apple.Network-Settings.extension', icon: 'icon:globe' },
@@ -96,14 +104,15 @@ export const SETTINGS_PANES: readonly SettingsPaneSpec[] = [
   },
 ];
 
-export function settingsPaneUrl(pane: SettingsPaneSpec): string {
-  return `x-apple.systempreferences:${pane.bundleId}`;
+/** The single place that picks the pane table for a platform. */
+export function settingsPanesFor(os: Platform): readonly SettingsPaneSpec[] {
+  return os === 'macos' ? MACOS_SETTINGS_PANES : [];
 }
 
 export function settingsPaneName(pane: SettingsPaneSpec): string {
   return t(`features.system_settings.panes.${pane.id}`);
 }
 
-export function findSettingsPane(id: string): SettingsPaneSpec | undefined {
-  return SETTINGS_PANES.find((pane) => pane.id === id);
+export function findSettingsPane(os: Platform, id: string): SettingsPaneSpec | undefined {
+  return settingsPanesFor(os).find((pane) => pane.id === id);
 }

@@ -381,6 +381,7 @@ macro_rules! system_commands {
                 $crate::commands::power_list,
                 $crate::commands::system_actions_supported,
                 $crate::commands::system_action_run,
+                $crate::commands::open_settings_pane,
                 $crate::commands::system_events_subscribe,
                 $crate::commands::system_events_unsubscribe,
                 $crate::commands::app_events_subscribe,

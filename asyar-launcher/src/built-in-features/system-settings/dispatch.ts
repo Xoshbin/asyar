@@ -1,14 +1,24 @@
-import { hideWindow, openUrl } from '../../lib/ipc/commands';
+import { platform } from '@tauri-apps/plugin-os';
+import { hideWindow, openSettingsPane, showWindow } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
-import { findSettingsPane, settingsPaneUrl } from './panes';
+import { findSettingsPane } from './panes';
 
-/** Opens the System Settings pane behind a dynamic command, hiding the launcher first. */
+/**
+ * Opens the settings pane behind a dynamic command, hiding the launcher
+ * first. If the pane does not open, the launcher comes back so the user is
+ * not left without feedback.
+ */
 export async function dispatchSettingsPaneCommand(dynamicId: string): Promise<void> {
-  const pane = findSettingsPane(dynamicId);
+  const pane = findSettingsPane(platform(), dynamicId);
   if (!pane) {
     logService.warn(`[system-settings] unknown settings pane: ${dynamicId}`);
     return;
   }
   await hideWindow();
-  await openUrl(settingsPaneUrl(pane));
+  let opened = false;
+  try {
+    opened = await openSettingsPane(pane.bundleId);
+  } finally {
+    if (!opened) await showWindow();
+  }
 }
