@@ -52,7 +52,7 @@ beforeEach(() => vi.clearAllMocks());
 // ── Happy path ─────────────────────────────────────────────────────────────
 
 describe('registerItem happy path', () => {
-  it('sends statusBar:registerItem with the stripped tree + extensionId', () => {
+  it('sends statusBar:registerItem without caller-supplied identity', () => {
     const { proxy, broker } = makeProxy();
     proxy.registerItem(topLevel());
     const call = broker.invoke.mock.calls.find((c: any[]) => c[0] === 'statusBar:registerItem');
@@ -62,9 +62,9 @@ describe('registerItem happy path', () => {
         id: 'top',
         icon: '☕',
         text: 'Coffee',
-        extensionId: 'ext.test',
       }),
     });
+    expect(call![1].item).not.toHaveProperty('extensionId');
   });
 
   it('accepts a 2-level submenu tree', () => {
@@ -205,18 +205,19 @@ describe('registerItem validation (client-side)', () => {
 // ── unregister / update ─────────────────────────────────────────────────────
 
 describe('unregisterItem', () => {
-  it('sends the unregister IPC with extensionId + id', () => {
+  it('sends the unregister IPC with id only', () => {
     const { proxy, broker } = makeProxy();
     proxy.unregisterItem('top');
     const call = broker.invoke.mock.calls.find((c: any[]) => c[0] === 'statusBar:unregisterItem');
     expect(call).toBeDefined();
-    expect(call![1]).toMatchObject({ extensionId: 'ext.test', id: 'top' });
+    expect(call![1]).toEqual({ id: 'top' });
   });
 });
 
 describe('updateItem', () => {
   it('re-validates and sends merged tree', () => {
     const { proxy, broker } = makeProxy();
+    proxy.registerItem(topLevel());
     proxy.updateItem('top', { icon: '🍵', text: 'Tea' });
     const call = broker.invoke.mock.calls.find((c: any[]) => c[0] === 'statusBar:updateItem');
     expect(call).toBeDefined();
@@ -224,15 +225,97 @@ describe('updateItem', () => {
       id: 'top',
       icon: '🍵',
       text: 'Tea',
-      extensionId: 'ext.test',
     });
   });
 
   it('throws when the merged shape violates top-level rules', () => {
     const { proxy } = makeProxy();
+    proxy.registerItem(topLevel());
     // no icon / no iconPath
-    expect(() => proxy.updateItem('top', { text: 'Tea' })).toThrow(/icon/i);
+    expect(() => proxy.updateItem('top', { icon: undefined, text: 'Tea' })).toThrow(/icon/i);
   });
+
+  it('merges title onto the registered item, retaining icon, submenu and handlers', () => {
+    const { proxy, broker } = makeProxy();
+    const onClick = vi.fn();
+    proxy.registerItem(topLevel({ submenu: [{ id: 'play', text: 'Play', onClick }] }));
+    proxy.updateItem('top', { title: '25:00', id: 'spoof' } as Partial<IStatusBarItem>);
+    const calls = broker.invoke.mock.calls;
+    expect(calls[calls.length - 1]!.slice(0, 2)).toEqual([
+      'statusBar:updateItem',
+      {
+        id: 'top',
+        item: {
+          id: 'top',
+          icon: '☕',
+          text: 'Coffee',
+          title: '25:00',
+          submenu: [{ id: 'play', text: 'Play' }],
+        },
+      },
+    ]);
+    broker.emit('asyar:event:statusBar:click', { itemPath: ['top', 'play'] });
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it.each(['', undefined])('clears title with %s', (title) => {
+    const { proxy, broker } = makeProxy();
+    proxy.registerItem(topLevel({ title: '25:00' } as Partial<IStatusBarItem>));
+    proxy.updateItem('top', { title } as Partial<IStatusBarItem>);
+    const calls = broker.invoke.mock.calls;
+    expect(calls[calls.length - 1]![1].item.title).toBe(title);
+  });
+
+  it('throws for unknown and unregistered ids', () => {
+    const { proxy } = makeProxy();
+    expect(() => proxy.updateItem('top', { icon: '☕', text: 'Coffee' })).toThrow(/unknown/i);
+    proxy.registerItem(topLevel());
+    proxy.unregisterItem('top');
+    expect(() => proxy.updateItem('top', { icon: '☕', text: 'Coffee' })).toThrow(/unknown/i);
+  });
+
+  it('replaces submenu wholesale and drops old handlers', () => {
+    const { proxy, broker } = makeProxy();
+    const old = vi.fn();
+    const next = vi.fn();
+    proxy.registerItem(topLevel({ submenu: [{ id: 'old', text: 'Old', onClick: old }] }));
+    proxy.updateItem('top', { submenu: [{ id: 'next', text: 'Next', onClick: next }] });
+    broker.emit('asyar:event:statusBar:click', { itemPath: ['top', 'old'] });
+    broker.emit('asyar:event:statusBar:click', { itemPath: ['top', 'next'] });
+    expect(old).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledOnce();
+  });
+});
+
+describe('title validation', () => {
+  it.each(['a'.repeat(33), 'line\nbreak', 'tab\t', '\u007f', '\u0085'])(
+    'rejects invalid title %j',
+    (title) => {
+      const { proxy } = makeProxy();
+      expect(() => proxy.registerItem(topLevel({ title } as Partial<IStatusBarItem>))).toThrow(
+        /title/i,
+      );
+    },
+  );
+  it('accepts 32 Unicode characters', () => {
+    const { proxy } = makeProxy();
+    expect(() =>
+      proxy.registerItem(topLevel({ title: '🍅'.repeat(32) } as Partial<IStatusBarItem>)),
+    ).not.toThrow();
+  });
+  it.each([false, true])(
+    'rejects titles on submenu children, including separators (%s)',
+    (separator) => {
+      const { proxy } = makeProxy();
+      expect(() =>
+        proxy.registerItem(
+          topLevel({
+            submenu: [{ id: 'child', text: 'Child', separator, title: '' } as IStatusBarItem],
+          }),
+        ),
+      ).toThrow(/title/i);
+    },
+  );
 });
 
 // ── Click dispatch ──────────────────────────────────────────────────────────

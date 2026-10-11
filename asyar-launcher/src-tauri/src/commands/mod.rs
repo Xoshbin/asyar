@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod ai_usage;
 pub mod app;
 pub mod app_events;
 pub mod app_updater;

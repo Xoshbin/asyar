@@ -45,6 +45,144 @@ fn mock_config() -> ProviderConfig {
     }
 }
 
+fn usage_json(provider: &str, chunks: &[serde_json::Value]) -> serde_json::Value {
+    let mut config = mock_config();
+    if provider == "responses" {
+        config.open_ai_api_mode = Some("responses".into());
+    }
+    let mut parser = ProviderStreamParser::new(
+        if provider == "responses" {
+            "openai"
+        } else {
+            provider
+        },
+        &config,
+    );
+    for chunk in chunks {
+        let line = if provider == "ollama" {
+            chunk.to_string()
+        } else {
+            format!("data: {chunk}")
+        };
+        assert!(parser.push_line(&line).unwrap().is_empty());
+    }
+    let events = parser.finish().unwrap();
+    assert_eq!(events.len(), 1);
+    assert!(parser.finish().unwrap().is_empty());
+    serde_json::to_value(&events[0]).unwrap()["usage"].clone()
+}
+
+#[test]
+fn openai_chat_usage_chunk_with_empty_choices_emits_usage() {
+    let usage = usage_json(
+        "openai",
+        &[
+            json!({"choices":[], "usage":{"prompt_tokens":10,"completion_tokens":5,"prompt_tokens_details":{"cached_tokens":3},"completion_tokens_details":{"reasoning_tokens":2},"cost":0.01}}),
+        ],
+    );
+    assert_eq!(usage["inputTokens"], 10);
+    assert_eq!(usage["outputTokens"], 5);
+    assert_eq!(usage["cacheReadTokens"], 3);
+    assert_eq!(usage["reasoningTokens"], 2);
+    assert_eq!(usage["costUsd"], 0.01);
+}
+
+#[test]
+fn openai_chat_request_sets_include_usage() {
+    let req = build_request(
+        "openai",
+        &mock_config(),
+        &mock_messages(),
+        &mock_params(None),
+    )
+    .unwrap();
+    assert_eq!(req.body["stream_options"]["include_usage"], true);
+    let mut config = mock_config();
+    config.base_url = Some("http://localhost:8000/v1".into());
+    let req = build_request("custom", &config, &mock_messages(), &mock_params(None)).unwrap();
+    assert!(req.body.get("stream_options").is_none());
+}
+
+#[test]
+fn openrouter_request_requests_usage() {
+    let req = build_request(
+        "openrouter",
+        &mock_config(),
+        &mock_messages(),
+        &mock_params(None),
+    )
+    .unwrap();
+    assert_eq!(req.body["usage"]["include"], true);
+}
+
+#[test]
+fn openai_responses_completed_emits_usage_with_cached_and_reasoning() {
+    let usage = usage_json(
+        "responses",
+        &[
+            json!({"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":5,"input_tokens_details":{"cached_tokens":3},"output_tokens_details":{"reasoning_tokens":2}}}}),
+        ],
+    );
+    assert_eq!(usage["cacheReadTokens"], 3);
+    assert_eq!(usage["reasoningTokens"], 2);
+}
+
+#[test]
+fn anthropic_usage_merges_start_and_delta() {
+    let usage = usage_json(
+        "anthropic",
+        &[
+            json!({"type":"message_start","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":4,"cache_read_input_tokens":3}}}),
+            json!({"type":"message_delta","usage":{"output_tokens":5}}),
+        ],
+    );
+    assert_eq!(usage["inputTokens"], 10);
+    assert_eq!(usage["outputTokens"], 5);
+    assert_eq!(usage["cacheWriteTokens"], 4);
+    assert_eq!(usage["cacheReadTokens"], 3);
+}
+
+#[test]
+fn gemini_last_usage_metadata_wins() {
+    let usage = usage_json(
+        "google",
+        &[
+            json!({"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1}}),
+            json!({"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":5,"cachedContentTokenCount":3,"thoughtsTokenCount":2}}),
+        ],
+    );
+    assert_eq!(usage["inputTokens"], 10);
+    assert_eq!(usage["outputTokens"], 5);
+    assert_eq!(usage["reasoningTokens"], 2);
+}
+
+#[test]
+fn ollama_done_chunk_emits_usage() {
+    let usage = usage_json(
+        "ollama",
+        &[json!({"done":true,"prompt_eval_count":10,"eval_count":5})],
+    );
+    assert_eq!(usage["inputTokens"], 10);
+    assert_eq!(usage["outputTokens"], 5);
+}
+
+#[test]
+fn usage_emitted_once_when_done_and_finish_both_run() {
+    let mut parser = ProviderStreamParser::new("openai", &mock_config());
+    parser
+        .push_line("data: {\"choices\":[],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":2}}")
+        .unwrap();
+    assert_eq!(parser.push_line("data: [DONE]").unwrap().len(), 1);
+    assert!(parser.finish().unwrap().is_empty());
+}
+
+#[test]
+fn custom_without_usage_emits_none() {
+    let mut parser = ProviderStreamParser::new("custom", &mock_config());
+    parser.push_line("data: {\"choices\":[]}").unwrap();
+    assert!(parser.finish().unwrap().is_empty());
+}
+
 #[test]
 fn test_provider_config_preserves_openai_api_mode_wire_key() {
     let config: ProviderConfig = serde_json::from_value(json!({

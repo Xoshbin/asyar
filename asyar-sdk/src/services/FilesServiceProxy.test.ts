@@ -81,15 +81,28 @@ describe('FilesServiceProxy', () => {
     await expect(proxy.read('/etc/shadow')).rejects.toThrow('not covered');
   });
 
-  it('glob() calls broker.invoke with pattern and forwards maxResults', async () => {
-    const paths = ['C:/Steam/appcache/librarycache/105600/dca2.jpg'];
+  it('readRange invokes files:readRange', async () => {
+    const chunk = { text: 'line\n', start: 10, end: 15, size: 15, mtimeMs: 100, eof: true };
+    mockBroker.invoke.mockResolvedValueOnce(chunk);
+    const opts = { offset: 10, maxBytes: 100, align: 'line' as const };
+    expect(await proxy.readRange('/tmp/log', opts)).toEqual(chunk);
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:readRange', { path: '/tmp/log', opts });
+  });
+
+  it('glob() calls broker.invoke with pattern and forwards metadata options', async () => {
+    const paths = [
+      { path: 'C:/Steam/appcache/librarycache/105600/dca2.jpg', size: 3, mtimeMs: 10 },
+    ];
     vi.mocked(mockBroker.invoke).mockResolvedValueOnce(paths);
     const result = await proxy.glob('C:/Steam/appcache/librarycache/**/*.jpg', {
       maxResults: 5,
+      sort: 'modified-desc',
+      modifiedAfterMs: 1,
+      modifiedBeforeMs: 20,
     });
     expect(mockBroker.invoke).toHaveBeenCalledWith('files:glob', {
       pattern: 'C:/Steam/appcache/librarycache/**/*.jpg',
-      opts: { maxResults: 5 },
+      opts: { maxResults: 5, sort: 'modified-desc', modifiedAfterMs: 1, modifiedBeforeMs: 20 },
     });
     expect(result).toEqual(paths);
   });

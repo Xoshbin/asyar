@@ -10,10 +10,28 @@ use crate::extension_tray::item::StatusBarItem;
 /// level adds one. `4` means top-level plus three levels of submenus.
 pub const MAX_DEPTH: usize = 4;
 
+/// Maximum title length in Unicode characters.
+pub const MAX_TITLE_CHARS: usize = 32;
+
 /// Validate a top-level item registered by an extension. The item itself is
 /// treated as depth 1; `submenu` children are validated against the nested
 /// rules (separator / checked / enabled / depth).
 pub fn validate_top_level(item: &StatusBarItem) -> Result<(), AppError> {
+    if let Some(title) = &item.title {
+        if title.chars().count() > MAX_TITLE_CHARS {
+            return Err(AppError::Validation(format!(
+                "Status-bar title exceeds {MAX_TITLE_CHARS} characters"
+            )));
+        }
+        if title
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'))
+        {
+            return Err(AppError::Validation(
+                "Status-bar title cannot contain control characters or newlines".into(),
+            ));
+        }
+    }
     if item.id.trim().is_empty() {
         return Err(AppError::Validation(
             "Status-bar item id must not be empty".into(),
@@ -80,6 +98,11 @@ fn validate_siblings(items: &[StatusBarItem], depth: usize) -> Result<(), AppErr
 }
 
 fn validate_child(item: &StatusBarItem, depth: usize) -> Result<(), AppError> {
+    if item.title.is_some() {
+        return Err(AppError::Validation(
+            "Submenu children cannot have a title".into(),
+        ));
+    }
     if item.separator == Some(true) {
         if item.submenu.is_some() {
             return Err(AppError::Validation(
@@ -111,6 +134,36 @@ mod tests {
             icon: Some("🍅".into()),
             ..StatusBarItem::leaf(id, "text")
         }
+    }
+
+    fn with_title(title: &str) -> StatusBarItem {
+        serde_json::from_value(serde_json::json!({"id":"timer", "icon":"🍅", "title":title}))
+            .unwrap()
+    }
+
+    #[test]
+    fn top_level_title_within_cap_ok() {
+        validate_top_level(&with_title(&"🍅".repeat(32))).unwrap();
+        validate_top_level(&with_title("")).unwrap();
+    }
+
+    #[test]
+    fn title_over_cap_rejected() {
+        assert!(validate_top_level(&with_title(&"a".repeat(33))).is_err());
+    }
+
+    #[test]
+    fn title_with_newline_rejected() {
+        for title in ["a\nb", "a\rb", "a\tb", "\u{7f}", "\u{85}"] {
+            assert!(validate_top_level(&with_title(title)).is_err());
+        }
+    }
+
+    #[test]
+    fn submenu_child_title_rejected() {
+        let mut item = top_with_icon("timer");
+        item.submenu = Some(vec![with_title("")]);
+        assert!(validate_top_level(&item).is_err());
     }
 
     #[test]

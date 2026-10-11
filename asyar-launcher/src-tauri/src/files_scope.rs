@@ -144,6 +144,31 @@ pub fn glob_literal_prefix(expanded: &Path) -> PathBuf {
     prefix
 }
 
+/// Absolute component ceiling for a non-recursive pattern. Globstar is
+/// intentionally unbounded; every other pattern is pruned at its leaf depth.
+pub fn glob_max_depth(expanded: &Path) -> Option<usize> {
+    if expanded.to_string_lossy().contains("**") {
+        None
+    } else {
+        Some(expanded.components().count())
+    }
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+
+    #[test]
+    fn glob_max_depth_none_for_globstar() {
+        assert_eq!(glob_max_depth(Path::new("/tmp/**/*.log")), None);
+    }
+
+    #[test]
+    fn glob_max_depth_counts_components() {
+        assert_eq!(glob_max_depth(Path::new("/tmp/*/*.log")), Some(4));
+    }
+}
+
 /// Cheap pre-walk pruning for `files:glob`: a walk root is plausible when
 /// some declared pattern could match files under it — the pattern's own
 /// literal prefix contains, or is contained by, the walk root (or the

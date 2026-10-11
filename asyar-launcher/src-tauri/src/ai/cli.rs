@@ -308,6 +308,21 @@ pub fn parse_cli_stream_line_stateful(
 
     let mut events = Vec::new();
 
+    if normalize_engine(engine) == "claude" && val["type"].as_str() == Some("result") {
+        if let Some(usage) = val.get("usage").filter(|v| v.is_object()) {
+            events.push(ChatStreamEventPayload::Usage {
+                usage: crate::ai::types::TokenUsage {
+                    input_tokens: usage["input_tokens"].as_u64().unwrap_or_default(),
+                    output_tokens: usage["output_tokens"].as_u64().unwrap_or_default(),
+                    cache_read_tokens: usage["cache_read_input_tokens"].as_u64(),
+                    cache_write_tokens: usage["cache_creation_input_tokens"].as_u64(),
+                    cost_usd: val["total_cost_usd"].as_f64(),
+                    ..Default::default()
+                },
+            });
+        }
+    }
+
     // Claude Code tags its synthetic failure message with a bare machine code in a top-level
     // `error` key (e.g. "authentication_failed"); the readable text arrives on the `result` line.
     let is_claude_assistant_line = normalize_engine(engine) == "claude"
@@ -504,6 +519,22 @@ pub fn parse_cli_stream_line_stateful(
     }
 
     events
+}
+
+#[cfg(test)]
+#[test]
+fn test_parse_claude_result_emits_usage() {
+    let events = parse_cli_stream_line_stateful(
+        "claude",
+        r#"{"type":"result","is_error":false,"usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":3,"cache_creation_input_tokens":2},"total_cost_usd":0.01}"#,
+        &mut CliStreamState::default(),
+    );
+    assert_eq!(events.len(), 1);
+    let value = serde_json::to_value(&events[0]).unwrap();
+    assert_eq!(value["type"], "usage");
+    assert_eq!(value["usage"]["inputTokens"], 10);
+    assert_eq!(value["usage"]["cacheWriteTokens"], 2);
+    assert_eq!(value["usage"]["costUsd"], 0.01);
 }
 
 /// Helper that registers or updates the "asyar" MCP server entry in the given config JSON file.

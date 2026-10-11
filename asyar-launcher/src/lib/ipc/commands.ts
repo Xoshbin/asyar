@@ -43,6 +43,7 @@ export * from './scriptCommands';
 export * from './agentCommands';
 export * from './feedbackCommands';
 export * from './usageCommands';
+export * from './aiUsageCommands';
 export * from './systemActionCommands';
 export * from './ocrCommands';
 export * from './calculatorCommands';

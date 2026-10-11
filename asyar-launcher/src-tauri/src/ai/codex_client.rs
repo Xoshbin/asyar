@@ -354,6 +354,7 @@ impl CodexClient {
         send_json_rpc(&mut stdin, &turn_req).await?;
 
         // 3. Process incoming stream notifications
+        let mut usage = None;
         while let Some(line_res) = lines.next().await {
             let line = match line_res {
                 Ok(l) => l,
@@ -372,6 +373,11 @@ impl CodexClient {
             // Check server notifications
             if let Some(method) = val.get("method").and_then(|m| m.as_str()) {
                 match method {
+                    "thread/tokenUsage/updated" => {
+                        if let Some(latest) = token_usage_notification(&val) {
+                            usage = Some(latest);
+                        }
+                    }
                     "item/agentMessage/delta" => {
                         if let Some(delta) = val
                             .get("params")
@@ -395,6 +401,9 @@ impl CodexClient {
                         }
                     }
                     "turn/completed" => {
+                        if let Some(usage) = usage.take() {
+                            on_event(ChatStreamEventPayload::Usage { usage });
+                        }
                         on_event(ChatStreamEventPayload::Done);
                         let _ = child.kill().await;
                         return Ok(());
@@ -437,9 +446,46 @@ impl CodexClient {
     }
 }
 
+fn token_usage_notification(value: &serde_json::Value) -> Option<crate::ai::types::TokenUsage> {
+    if value["method"].as_str() != Some("thread/tokenUsage/updated") {
+        return None;
+    }
+    // Each Asyar request starts a fresh Codex thread. The cumulative total
+    // includes all internal model calls in this turn, not just its final call.
+    let usage = value.pointer("/params/tokenUsage/total")?.as_object()?;
+    Some(crate::ai::types::TokenUsage {
+        input_tokens: usage
+            .get("inputTokens")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or_default(),
+        output_tokens: usage
+            .get("outputTokens")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or_default(),
+        cache_read_tokens: usage
+            .get("cachedInputTokens")
+            .and_then(serde_json::Value::as_u64),
+        reasoning_tokens: usage
+            .get("reasoningOutputTokens")
+            .and_then(serde_json::Value::as_u64),
+        ..Default::default()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_token_usage_notification_maps_to_usage() {
+        let notification = serde_json::json!({"method":"thread/tokenUsage/updated","params":{"tokenUsage":{"total":{"inputTokens":100,"outputTokens":50,"cachedInputTokens":30,"reasoningOutputTokens":20},"last":{"inputTokens":10,"outputTokens":5,"cachedInputTokens":3,"reasoningOutputTokens":2}}}});
+        let usage = token_usage_notification(&notification).unwrap();
+        assert_eq!(usage.input_tokens, 100);
+        assert_eq!(usage.output_tokens, 50);
+        assert_eq!(usage.cache_read_tokens, Some(30));
+        assert_eq!(usage.reasoning_tokens, Some(20));
+        assert!(token_usage_notification(&serde_json::json!({"method":"other"})).is_none());
+    }
 
     #[test]
     fn test_parse_account_and_limits_json() {

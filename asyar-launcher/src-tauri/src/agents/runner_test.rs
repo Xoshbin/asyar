@@ -17,6 +17,132 @@ fn make_store() -> crate::storage::DataStore {
     crate::storage::create_test_store_with_foreign_keys()
 }
 
+async fn usage_provider(error_after_usage: bool) -> crate::ai::types::ProviderConfig {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut buf = [0; 4096];
+        let _ = tokio::io::AsyncReadExt::read(&mut socket, &mut buf).await;
+        let ending = if error_after_usage {
+            "data: invalid-json\n\n"
+        } else {
+            ""
+        };
+        let done = if error_after_usage {
+            ""
+        } else {
+            "data: [DONE]\n\n"
+        };
+        let body = format!("data: {{\"choices\":[{{\"delta\":{{\"content\":\"answer\"}}}}]}}\n\ndata: {{\"choices\":[],\"usage\":{{\"prompt_tokens\":10,\"completion_tokens\":5}}}}\n\n{done}{ending}");
+        socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+    });
+    crate::ai::types::ProviderConfig {
+        enabled: true,
+        provider_type: Some("openai".into()),
+        api_key: Some("key".into()),
+        base_url: Some(format!("http://{addr}")),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn thread_run_records_usage_with_thread_and_run_ids() {
+    let store = make_store();
+    let mut agent = shortcode_miss_agent();
+    agent.silent = false;
+    let now = chrono::Utc::now().timestamp_millis();
+    agent.created_at = Some(now);
+    agent.updated_at = Some(now);
+    insert_agent(&store.conn().unwrap(), &agent).unwrap();
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: "usage-thread".into(),
+            agent_id: agent.id.clone(),
+            title: None,
+            is_pinned: false,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+    let records = Arc::new(std::sync::Mutex::new(Vec::<
+        asyar_storage::ai_usage::AiUsageRecord,
+    >::new()));
+    let sink = records.clone();
+    run_thread_loop_impl(
+        &store,
+        &ToolRegistry::new(),
+        &agent.id,
+        "usage-thread",
+        "hello".into(),
+        Some("usage-run".into()),
+        run_config("openai", usage_provider(false).await, None, 100),
+        |_| {},
+        |_| async { Ok(json!({})) },
+        None,
+        Arc::new(move |r| sink.lock().unwrap().push(r)),
+    )
+    .await
+    .unwrap();
+    let records = records.lock().unwrap();
+    assert_eq!(records.len(), 1);
+    let record = &records[0];
+    assert_eq!(record.thread_id.as_deref(), Some("usage-thread"));
+    assert_eq!(record.run_id.as_deref(), Some("usage-run"));
+    assert_eq!(record.source, "thread");
+    assert_eq!(record.provider_type, "openai");
+    assert_eq!(record.connection_mode, "api");
+    assert_eq!(record.model_id, agent.model_id);
+    assert_eq!(record.agent_id, agent.id);
+    assert_eq!(record.input_tokens, 10);
+}
+
+async fn silent_usage_run(
+    error: bool,
+) -> (
+    Result<String, AppError>,
+    Vec<asyar_storage::ai_usage::AiUsageRecord>,
+) {
+    let records = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = records.clone();
+    let result = run_silent_agent_loop_impl(
+        &shortcode_miss_agent(),
+        &ToolRegistry::new(),
+        "hello".into(),
+        run_config("openai", usage_provider(error).await, None, 100),
+        |_| {},
+        |_| async { Ok(json!({})) },
+        None,
+        Some("ext.usage".into()),
+        Some("silent-run".into()),
+        Arc::new(move |r| sink.lock().unwrap().push(r)),
+    )
+    .await;
+    let records = records.lock().unwrap().clone();
+    (result, records)
+}
+
+#[tokio::test]
+async fn silent_run_records_extension_source() {
+    let (result, records) = silent_usage_run(false).await;
+    assert!(result.is_ok());
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].source, "extension");
+    assert_eq!(records[0].extension_id.as_deref(), Some("ext.usage"));
+    assert_eq!(records[0].run_id.as_deref(), Some("silent-run"));
+    assert_eq!(records[0].thread_id, None);
+}
+
+#[tokio::test]
+async fn usage_recorded_when_stream_errors_after_usage() {
+    let (result, records) = silent_usage_run(true).await;
+    assert!(result.is_err());
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].output_tokens, 5);
+}
+
 fn chat_message(role: &str, content: &str) -> crate::ai::types::ChatMessage {
     crate::ai::types::ChatMessage {
         id: uuid::Uuid::new_v4().to_string(),
@@ -210,6 +336,9 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
+        None,
+        None,
+        Arc::new(|_| {}),
     )
     .await
     .unwrap_err();
@@ -273,6 +402,9 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
+        None,
+        None,
+        Arc::new(|_| {}),
     )
     .await
     .unwrap()
@@ -352,6 +484,7 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
+        Arc::new(|_| {}),
     )
     .await
     .unwrap_err();
@@ -461,6 +594,7 @@ async fn test_run_thread_loop_text_only() {
             ))
         },
         None,
+        Arc::new(|_| {}),
     )
     .await
     .unwrap();
@@ -605,6 +739,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
             ))
         },
         None,
+        Arc::new(|_| {}),
     )
     .await
     .unwrap();
@@ -750,6 +885,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
             async { Ok(json!({ "answer": 42 })) }
         },
         None,
+        Arc::new(|_| {}),
     )
     .await
     .unwrap();
@@ -862,6 +998,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
             ))
         },
         None,
+        Arc::new(|_| {}),
     )
     .await
     .unwrap();
@@ -1153,6 +1290,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
             ))
         },
         None,
+        Arc::new(|_| {}),
     )
     .await
     .unwrap();

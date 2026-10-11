@@ -26,7 +26,7 @@ beforeEach(() => {
 
 describe('registerItem', () => {
   it('invokes tray_register_item with the full item including extensionId', async () => {
-    await statusBarService.registerItem(topItem());
+    await statusBarService.registerItem('ext-a', topItem({ extensionId: 'spoof' }));
     expect(invoke).toHaveBeenCalledWith(
       'tray_register_item',
       expect.objectContaining({
@@ -42,7 +42,7 @@ describe('registerItem', () => {
         { id: 'n', extensionId: 'ext-a', text: 'Next', enabled: false },
       ],
     });
-    await statusBarService.registerItem(item);
+    await statusBarService.registerItem('ext-a', item);
     const arg = vi.mocked(invoke).mock.calls[0][1] as any;
     expect(arg.item.submenu).toHaveLength(2);
     expect(arg.item.submenu[0]).toMatchObject({ id: 'p', checked: true });
@@ -50,18 +50,20 @@ describe('registerItem', () => {
 
   it('rejects the caller when the Rust command fails', async () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error('validation: top-level must provide icon'));
-    await expect(statusBarService.registerItem(topItem())).rejects.toThrow(/tray_register_item/);
+    await expect(statusBarService.registerItem('ext-a', topItem())).rejects.toThrow(
+      /tray_register_item/,
+    );
   });
 });
 
 describe('updateItem', () => {
   it('invokes tray_update_item with the merged item', async () => {
-    const merged = topItem({ icon: '🍵', text: 'Tea' });
-    await statusBarService.updateItem('ext-a', 't1', { item: merged });
+    const merged = topItem({ icon: '🍵', text: 'Tea', extensionId: 'spoof', id: 'spoof' });
+    await statusBarService.updateItem('ext-a', 't1', merged);
     expect(invoke).toHaveBeenCalledWith(
       'tray_update_item',
       expect.objectContaining({
-        item: expect.objectContaining({ id: 't1', icon: '🍵', text: 'Tea' }),
+        item: expect.objectContaining({ id: 't1', extensionId: 'ext-a', icon: '🍵', text: 'Tea' }),
       }),
     );
   });

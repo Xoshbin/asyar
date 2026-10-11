@@ -14,6 +14,7 @@ All metrics are stored locally in your SQLite database and are **never sent over
 - **Estimated Time Saved**: An estimate based on standard desktop interaction benchmarks (opening apps via finder/dock vs. instant hotkey activation).
 - **Most Used Items**: Ranked list of your top applications, extensions, and commands with usage counts and percentage bars (`RankedStatRow`).
 - **Recent Activity**: High-level trends showing your launcher engagement over daily and weekly windows.
+- **AI tokens · 30 days**: Input, output, and cache (read + write) token totals for Asyar's own AI requests, with a ranked provider/model breakdown. This section is independent of launch history. Counts are available only when the provider reports usage; CLI reporting is best-effort. Usage records stay local, contain no prompt content, and are retained for 365 days.
 
 ## How to use it
 

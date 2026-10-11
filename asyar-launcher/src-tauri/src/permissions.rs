@@ -273,6 +273,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // File content read — separate permission from the index search;
         // scope is in permissionArgs.files:read (glob patterns).
         "asyar:api:files:read" => Some("files:read"),
+        "asyar:api:files:readRange" => Some("files:read"),
         // Scoped enumeration and thumbnails ride the same permission and
         // the same declared globs: listing in-scope names and rendering an
         // in-scope file as an icon are both strictly less information than
@@ -693,6 +694,10 @@ mod tests {
             Some("files:read")
         );
         assert_eq!(
+            get_required_permission("asyar:api:files:readRange"),
+            Some("files:read")
+        );
+        assert_eq!(
             get_required_permission("asyar:api:files:glob"),
             Some("files:read")
         );
@@ -1007,6 +1012,13 @@ mod tests {
 
     #[test]
     fn gate_decision_requires_permission_for_gated_call() {
+        for call in [
+            "asyar:api:files:read",
+            "asyar:api:files:readRange",
+            "asyar:api:files:glob",
+        ] {
+            assert_eq!(gate_decision(call), GateDecision::Require("files:read"));
+        }
         assert_eq!(
             gate_decision("asyar:api:network:fetch"),
             GateDecision::Require("network")

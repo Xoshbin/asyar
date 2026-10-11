@@ -175,6 +175,35 @@ describe('ExtensionIpcRouter — auto-inject extensionId for fsWatcher', () => {
   });
 });
 
+describe('ExtensionIpcRouter — statusBar caller identity', () => {
+  it.each(['registerItem', 'updateItem', 'unregisterItem'])(
+    '%s ignores payload extensionId and injects router identity',
+    async (method) => {
+      const handler = vi.fn();
+      const router = new ExtensionIpcRouter(
+        { statusBar: { [method]: handler } } as unknown as ServiceRegistry,
+        vi.fn(),
+        vi.fn(),
+        vi.fn(),
+      );
+      const item = { id: 'timer', icon: '🍅', text: 'Focus', extensionId: 'victim' };
+      await (router as any).dispatchApiCall(
+        `asyar:api:statusBar:${method}`,
+        { extensionId: 'victim', id: 'timer', item },
+        'caller',
+        false,
+      );
+      const args =
+        method === 'registerItem'
+          ? ['caller', item]
+          : method === 'updateItem'
+            ? ['caller', 'timer', item]
+            : ['caller', 'timer'];
+      expect(handler).toHaveBeenCalledWith(...args);
+    },
+  );
+});
+
 describe('ExtensionIpcRouter — auto-inject extensionId for tools', () => {
   // Regression: tools.registerTool / unregisterTool host methods take
   // extensionId as their first argument. Missing the namespace from

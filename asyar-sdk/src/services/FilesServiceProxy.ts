@@ -3,6 +3,9 @@ import {
   FileHit,
   FileGlobOptions,
   FileReadOptions,
+  FileReadRangeOptions,
+  FileChunk,
+  GlobEntry,
   FileSearchOptions,
   FileThumbnailOptions,
   IndexStatus,
@@ -27,8 +30,12 @@ export class FilesServiceProxy extends BaseServiceProxy implements IFilesService
     return this.broker.invoke<string>('files:read', { path, opts: opts ?? {} });
   }
 
-  async glob(pattern: string, opts?: FileGlobOptions): Promise<string[]> {
-    return this.broker.invoke<string[]>('files:glob', { pattern, opts: opts ?? {} });
+  async readRange(path: string, opts?: FileReadRangeOptions): Promise<FileChunk> {
+    return this.broker.invoke<FileChunk>('files:readRange', { path, opts: opts ?? {} });
+  }
+
+  async glob(pattern: string, opts?: FileGlobOptions): Promise<GlobEntry[]> {
+    return this.broker.invoke<GlobEntry[]>('files:glob', { pattern, opts: opts ?? {} });
   }
 
   async thumbnail(path: string, opts?: FileThumbnailOptions): Promise<string | null> {

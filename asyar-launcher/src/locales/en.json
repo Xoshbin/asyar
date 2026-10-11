@@ -1311,7 +1311,11 @@
       "event_other": "events",
       "ui": {
         "title": "Usage Stats",
-        "most_used": "Most used"
+        "most_used": "Most used",
+        "ai_tokens_30_days": "AI tokens · 30 days",
+        "ai_input": "Input",
+        "ai_output": "Output",
+        "ai_cache": "Cache"
       }
     },
     "raycast_import": {

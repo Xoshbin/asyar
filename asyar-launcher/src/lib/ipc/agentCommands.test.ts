@@ -87,7 +87,17 @@ describe('agent runner commands', () => {
       config,
       streamId: 'stream-2',
       onEvent,
+      sourceExtensionId: null,
     });
+  });
+
+  it('attributes an extension silent request using the host-provided identity', async () => {
+    const onEvent = {} as Channel<AgentStreamEvent>;
+    await agentsRunSilent('agent-1', 'hello', config, 'stream-3', onEvent, 'ext.usage');
+    expect(invokeRaw).toHaveBeenCalledWith(
+      'agents_run_silent',
+      expect.objectContaining({ sourceExtensionId: 'ext.usage' }),
+    );
   });
 
   it('delegates default resolution and bundled profile lifecycle to Rust', async () => {

@@ -178,7 +178,12 @@ export type {
   IndexStatus,
   FileSearchOptions,
   FileReadOptions,
+  FileReadRangeOptions,
+  ReadAlign,
+  FileChunk,
   FileGlobOptions,
+  GlobEntry,
+  GlobSort,
   FileThumbnailOptions,
 } from './services/IFilesService';
 

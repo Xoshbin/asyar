@@ -37,6 +37,7 @@ Test stores (`create_test_store()`) are backed by a real file in a temporary dir
 - **`snippets`** — Text expansion snippets. Row-level upsert/update/delete.
 - **`shortcuts`** — Item keyboard shortcuts. Row-level upsert with `object_id` uniqueness.
 - **`extension_storage`** — Scoped key-value store for Tier 2 extensions. Composite primary key `(extension_id, key)` ensures data isolation. Cleaned up automatically on extension uninstall.
+- **`ai_usage`** — Local, content-free accounting for each AI request made by Asyar (API and best-effort CLI usage). Stores provider/model, agent, source (`thread`, `silent`, or `extension`), optional thread/run/extension IDs, token counts, and provider-reported cost. No prompts or responses are stored in this table. SQL provides totals and provider/model breakdowns; each insert prunes records older than 365 days. Added by migration 7; not cloud-synced or included in usage-sharing payloads.
 
 **Settings, portals, and AI chat** continue to use Tauri plugin-store (JSON files) — their datasets are small and write-infrequent.
 

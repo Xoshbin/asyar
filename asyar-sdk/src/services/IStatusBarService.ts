@@ -49,6 +49,17 @@ export interface IStatusBarItem {
    */
   iconPath?: string;
   /**
+   * Optional top-level tray title (max 32 Unicode characters, no controls).
+   * Empty string or undefined clears the title. Not valid on submenu children.
+   *
+   * | Platform | Presentation |
+   * | --- | --- |
+   * | macOS | Text right of the icon (emoji icons prefix the title). |
+   * | Linux | AppIndicator label; may be hidden by the desktop environment (GNOME needs an extension). |
+   * | Windows | Falls back to the tooltip: "title — text". |
+   */
+  title?: string;
+  /**
    * Tooltip at the top level; label shown in the menu at deeper levels.
    * REQUIRED everywhere except separator rows (same rationale as `id`).
    */
@@ -71,6 +82,7 @@ export interface IStatusBarItem {
 
 export interface IStatusBarService {
   registerItem(item: IStatusBarItem): void;
+  /** Shallow-merge with a registered item; supplied submenu replaces the tree wholesale. Unknown ids throw. */
   updateItem(id: string, updates: Partial<IStatusBarItem>): void;
   unregisterItem(id: string): void;
 }

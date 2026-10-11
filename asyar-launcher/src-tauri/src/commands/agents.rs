@@ -569,6 +569,7 @@ pub async fn agents_run_thread(
         emit_event,
         dispatch_external,
         Some(cancellation),
+        usage_sink(store.inner().clone()),
     )
     .await;
     if matches!(&result, Ok(true)) {
@@ -591,6 +592,7 @@ pub async fn agents_run_silent(
     config: AgentRunConfig,
     stream_id: String,
     on_event: Channel<AgentStreamEvent>,
+    source_extension_id: Option<String>,
 ) -> Result<String, AppError> {
     let agent = {
         let conn = store.conn()?;
@@ -649,6 +651,9 @@ pub async fn agents_run_silent(
         emit_event,
         dispatch_external,
         Some(cancellation),
+        source_extension_id,
+        Some(stream_id.clone()),
+        usage_sink(store.inner().clone()),
     )
     .await;
     let cleanup = runner_state.finish_run(&stream_id);
@@ -665,6 +670,20 @@ pub async fn agents_run_silent(
         (Err(error), _) | (Ok(_), Err(error)) => Err(error),
         (Ok(text), Ok(())) => Ok(text),
     }
+}
+
+fn usage_sink(store: DataStore) -> crate::agents::runner::UsageRecorder {
+    Arc::new(move |record| {
+        let store = store.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let result = store
+                .conn()
+                .and_then(|conn| asyar_storage::ai_usage::insert(&conn, &record));
+            if let Err(error) = result {
+                log::warn!("Failed to record AI token usage: {error}");
+            }
+        });
+    })
 }
 
 #[tauri::command]

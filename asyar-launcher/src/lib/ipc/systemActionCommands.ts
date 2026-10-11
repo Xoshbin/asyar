@@ -53,6 +53,7 @@ export async function agentsRunSilent(
   config: AgentRunConfig,
   streamId: string,
   onEvent: Channel<AgentStreamEvent>,
+  sourceExtensionId?: string,
 ): Promise<string> {
   return invokeRaw<string>('agents_run_silent', {
     agentId,
@@ -60,6 +61,7 @@ export async function agentsRunSilent(
     config,
     streamId,
     onEvent,
+    sourceExtensionId: sourceExtensionId ?? null,
   });
 }
 

@@ -6,6 +6,9 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) })
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }));
 
 vi.mock('../../lib/ipc/commands', () => ({
+  aiUsageSummary: vi
+    .fn()
+    .mockResolvedValue({ totals: { inputTokens: 0, outputTokens: 0 }, byModel: [] }),
   getUsageStats: vi.fn().mockResolvedValue({
     activeDays: 1,
     totalLaunches: 7,
