@@ -9,9 +9,6 @@ where
     F: Fn(ChatStreamEventPayload),
 {
     match event {
-        crate::ai::types::ChatStreamEvent::Usage { usage } => {
-            on_event(ChatStreamEventPayload::Usage { usage });
-        }
         crate::ai::types::ChatStreamEvent::Token { token } => {
             on_event(ChatStreamEventPayload::Token { token });
         }
@@ -92,36 +89,33 @@ where
     let mut line_buffer = LineBuffer::new();
     let mut parser = providers::ProviderStreamParser::new(provider_id, &config);
 
-    let result: Result<(), AppError> = async {
-        while let Some(chunk_result) = stream.next().await {
-            let chunk = chunk_result.map_err(|error| AppError::Other(error.to_string()))?;
-            for line in line_buffer.feed(&chunk) {
-                for event in parser.push_line(&line)? {
-                    emit_stream_event(event, &on_event);
-                }
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = match chunk_result {
+            Ok(c) => c,
+            Err(e) => {
+                on_event(ChatStreamEventPayload::Error {
+                    error: e.to_string(),
+                });
+                return Err(AppError::Other(e.to_string()));
             }
-        }
-        if let Some(line) = line_buffer.flush() {
+        };
+
+        let lines = line_buffer.feed(&chunk);
+        for line in lines {
             for event in parser.push_line(&line)? {
                 emit_stream_event(event, &on_event);
             }
         }
-        Ok(())
     }
-    .await;
 
-    // Usage can precede a provider/transport failure. Flush it even on error,
-    // but never publish partially assembled tool calls from a failed stream.
-    for event in parser.finish()? {
-        if result.is_ok() || matches!(event, crate::ai::types::ChatStreamEvent::Usage { .. }) {
+    if let Some(line) = line_buffer.flush() {
+        for event in parser.push_line(&line)? {
             emit_stream_event(event, &on_event);
         }
     }
-    if let Err(error) = result {
-        on_event(ChatStreamEventPayload::Error {
-            error: error.to_string(),
-        });
-        return Err(error);
+
+    for event in parser.finish()? {
+        emit_stream_event(event, &on_event);
     }
 
     on_event(ChatStreamEventPayload::Done);
@@ -141,48 +135,6 @@ mod tests {
     use super::*;
     use crate::ai::types::ChatMessage;
     use std::sync::{Arc, Mutex};
-
-    #[tokio::test]
-    async fn test_ai_stream_chat_impl_forwards_usage_before_done() {
-        use tokio::io::AsyncWriteExt;
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        tokio::spawn(async move {
-            let (mut socket, _) = listener.accept().await.unwrap();
-            let mut buf = [0; 4096];
-            let _ = tokio::io::AsyncReadExt::read(&mut socket, &mut buf).await;
-            let body = "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5}}\n\ndata: [DONE]\n\n";
-            socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
-        });
-        let events = Arc::new(Mutex::new(Vec::new()));
-        let sink = events.clone();
-        ai_stream_chat_impl(
-            "openai",
-            ProviderConfig {
-                enabled: true,
-                api_key: Some("key".into()),
-                base_url: Some(format!("http://{addr}")),
-                ..Default::default()
-            },
-            vec![],
-            ChatParams {
-                model_id: "test".into(),
-                temperature: None,
-                max_tokens: 100,
-                system_prompt: None,
-                tools: None,
-            },
-            "usage".into(),
-            move |e| sink.lock().unwrap().push(serde_json::to_value(e).unwrap()),
-        )
-        .await
-        .unwrap();
-        let events = events.lock().unwrap();
-        assert_eq!(events.len(), 2);
-        assert_eq!(events[0]["type"], "usage");
-        assert_eq!(events[0]["usage"]["inputTokens"], 10);
-        assert_eq!(events[1]["type"], "done");
-    }
 
     #[tokio::test]
     async fn test_ai_stream_chat_impl_success() {

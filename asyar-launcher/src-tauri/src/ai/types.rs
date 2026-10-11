@@ -96,23 +96,9 @@ pub struct RequestSpec {
     pub body: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct TokenUsage {
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-    pub cache_read_tokens: Option<u64>,
-    pub cache_write_tokens: Option<u64>,
-    pub reasoning_tokens: Option<u64>,
-    pub cost_usd: Option<f64>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ChatStreamEvent {
-    Usage {
-        usage: TokenUsage,
-    },
     Token {
         token: String,
     },
@@ -141,9 +127,6 @@ pub struct StreamEventPayload {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ChatStreamEventPayload {
-    Usage {
-        usage: TokenUsage,
-    },
     Token {
         token: String,
     },

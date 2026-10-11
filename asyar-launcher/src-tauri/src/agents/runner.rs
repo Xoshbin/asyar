@@ -301,19 +301,10 @@ impl AgentRunnerState {
 
 #[derive(Default)]
 struct TurnOutput {
-    usage: Option<crate::ai::types::TokenUsage>,
     text: String,
     tool_calls: Vec<ToolCall>,
     provider_context: Vec<Value>,
     status_active: bool,
-}
-
-pub type UsageRecorder = Arc<dyn Fn(asyar_storage::ai_usage::AiUsageRecord) + Send + Sync>;
-
-struct UsageOrigin<'a> {
-    thread_id: Option<&'a str>,
-    run_id: Option<&'a str>,
-    extension_id: Option<&'a str>,
 }
 
 enum Conversation<'a> {
@@ -651,8 +642,6 @@ async fn run_loop<F, D, Fut>(
     dispatch_external: D,
     mut cancellation: Option<watch::Receiver<bool>>,
     query: Option<&str>,
-    usage_origin: UsageOrigin<'_>,
-    record_usage: UsageRecorder,
 ) -> Result<Option<String>, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -701,7 +690,6 @@ where
                     return;
                 };
                 match event {
-                    ChatStreamEventPayload::Usage { usage } => output.usage = Some(usage),
                     ChatStreamEventPayload::Token { token } => {
                         if output.status_active {
                             output.status_active = false;
@@ -732,13 +720,13 @@ where
                 }
             },
         );
-        let (stream_result, cancelled) = if let Some(signal) = cancellation.as_mut() {
+        let stream_result = if let Some(signal) = cancellation.as_mut() {
             tokio::select! {
-                result = stream_future => (result, false),
-                _ = wait_for_cancellation(signal) => (Ok(()), true),
+                result = stream_future => result,
+                _ = wait_for_cancellation(signal) => return Ok(None),
             }
         } else {
-            (stream_future.await, false)
+            stream_future.await
         };
 
         let mut turn = {
@@ -748,45 +736,6 @@ where
             }
             std::mem::take(&mut *guard)
         };
-
-        if let Some(usage) = turn.usage.take() {
-            record_usage(asyar_storage::ai_usage::AiUsageRecord {
-                ts: chrono::Utc::now().timestamp_millis(),
-                provider_id: agent.provider_id.clone(),
-                provider_type: provider_config
-                    .provider_type
-                    .clone()
-                    .unwrap_or_else(|| agent.provider_id.clone()),
-                connection_mode: if provider_config.connection_mode.as_deref() == Some("cli") {
-                    "cli"
-                } else {
-                    "api"
-                }
-                .into(),
-                model_id: agent.model_id.clone(),
-                agent_id: agent.id.clone(),
-                source: if usage_origin.thread_id.is_some() {
-                    "thread"
-                } else if usage_origin.extension_id.is_some() {
-                    "extension"
-                } else {
-                    "silent"
-                }
-                .into(),
-                thread_id: usage_origin.thread_id.map(str::to_owned),
-                run_id: usage_origin.run_id.map(str::to_owned),
-                extension_id: usage_origin.extension_id.map(str::to_owned),
-                input_tokens: usage.input_tokens,
-                output_tokens: usage.output_tokens,
-                cache_read_tokens: usage.cache_read_tokens,
-                cache_write_tokens: usage.cache_write_tokens,
-                reasoning_tokens: usage.reasoning_tokens,
-                cost_usd: usage.cost_usd,
-            });
-        }
-        if cancelled {
-            return Ok(None);
-        }
 
         let mut resolved_calls = Vec::with_capacity(turn.tool_calls.len());
         for tool_call in turn.tool_calls.drain(..) {
@@ -901,7 +850,6 @@ pub async fn run_thread_loop_impl<F, D, Fut>(
     on_event: F,
     dispatch_external: D,
     cancellation: Option<watch::Receiver<bool>>,
-    record_usage: UsageRecorder,
 ) -> Result<bool, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -970,12 +918,6 @@ where
         dispatch_external,
         cancellation,
         Some(&user_text),
-        UsageOrigin {
-            thread_id: Some(thread_id),
-            run_id: Some(&run_id),
-            extension_id: None,
-        },
-        record_usage,
     )
     .await?;
     on_event(if result.is_some() {
@@ -986,7 +928,6 @@ where
     Ok(healed)
 }
 
-#[allow(clippy::too_many_arguments)] // Explicit accounting context and injected sink.
 pub async fn run_silent_agent_loop_impl<F, D, Fut>(
     agent: &AgentRow,
     registry: &ToolRegistry,
@@ -995,9 +936,6 @@ pub async fn run_silent_agent_loop_impl<F, D, Fut>(
     on_event: F,
     dispatch_external: D,
     cancellation: Option<watch::Receiver<bool>>,
-    source_extension_id: Option<String>,
-    run_id: Option<String>,
-    record_usage: UsageRecorder,
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -1030,12 +968,6 @@ where
         dispatch_external,
         cancellation,
         Some(&user_text),
-        UsageOrigin {
-            thread_id: None,
-            run_id: run_id.as_deref(),
-            extension_id: source_extension_id.as_deref(),
-        },
-        record_usage,
     )
     .await?;
     match result {
@@ -1065,7 +997,6 @@ pub async fn run_silent_loop_impl<F, D, Fut>(
     on_event: F,
     dispatch_external: D,
     cancellation: Option<watch::Receiver<bool>>,
-    record_usage: UsageRecorder,
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -1087,9 +1018,6 @@ where
         on_event,
         dispatch_external,
         cancellation,
-        None,
-        None,
-        record_usage,
     )
     .await
 }

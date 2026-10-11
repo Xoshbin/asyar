@@ -55,11 +55,6 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "threads_is_pinned",
         up: migration_6_threads_is_pinned,
     },
-    Migration {
-        version: 7,
-        name: "ai_usage",
-        up: super::ai_usage::init_table,
-    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -277,7 +272,6 @@ mod tests {
     /// Sorted; compared as a whole so an accidental add or drop fails loudly.
     const EXPECTED_TABLES: &[&str] = &[
         "agents",
-        "ai_usage",
         "clipboard_items",
         "cloud_sync_cursor",
         "cloud_sync_e2ee_local",
@@ -380,21 +374,6 @@ mod tests {
             user_version(&conn),
             MIGRATIONS.last().unwrap().version,
             "fresh DB must land on the newest ledger version"
-        );
-    }
-
-    #[test]
-    fn version_six_db_adds_ai_usage_without_losing_rows() {
-        let conn = Connection::open_in_memory().unwrap();
-        run_ledger(&conn, &MIGRATIONS[..6]).unwrap();
-        conn.execute("INSERT INTO snippets (id, expansion, name, created_at) VALUES ('kept', 'text', 'Kept', 1.0)", []).unwrap();
-        run(&conn).unwrap();
-        assert!(names_of(&conn, "table").contains(&"ai_usage".to_string()));
-        assert_eq!(
-            conn.query_row("SELECT name FROM snippets WHERE id='kept'", [], |r| r
-                .get::<_, String>(0))
-                .unwrap(),
-            "Kept"
         );
     }
 

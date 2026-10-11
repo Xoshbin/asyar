@@ -19,10 +19,8 @@ export class AiService {
   ): Promise<string> {
     let prompt: string;
     let options: AiCompletionOptions | undefined;
-    let extensionId: string | undefined;
 
     if (typeof promptOrOptions === 'string') {
-      extensionId = extensionIdOrPrompt;
       prompt = promptOrOptions;
       options = maybeOptions;
     } else {
@@ -57,7 +55,6 @@ export class AiService {
         runConfig,
         streamId,
         stream.channel,
-        extensionId,
       );
       return result;
     } finally {
@@ -139,7 +136,6 @@ export class AiService {
         runConfig,
         streamId,
         stream.channel,
-        extensionId,
       );
       streamHandle?.sendDone();
       return result;

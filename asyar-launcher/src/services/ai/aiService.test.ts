@@ -88,7 +88,6 @@ describe('AiService', () => {
         }),
         expect.stringContaining('ai-complete-'),
         expect.anything(),
-        'ext-1',
       );
       expect(result).toBe('Completed answer');
       expect(mockDispose).toHaveBeenCalled();
@@ -103,7 +102,6 @@ describe('AiService', () => {
         expect.anything(),
         expect.anything(),
         expect.anything(),
-        'ext-1',
       );
     });
 
@@ -116,7 +114,6 @@ describe('AiService', () => {
         expect.objectContaining({ maxTokens: 500 }),
         expect.anything(),
         expect.anything(),
-        undefined,
       );
     });
   });
@@ -147,14 +144,6 @@ describe('AiService', () => {
       );
 
       expect(streamDispatcher.create).toHaveBeenCalledWith('ext-1', 'stream-abc', 'worker');
-      expect(agentsRunSilent).toHaveBeenCalledWith(
-        'agent-123',
-        'Stream prompt',
-        expect.anything(),
-        'stream-abc',
-        expect.anything(),
-        'ext-1',
-      );
       expect(mockStreamHandle.sendChunk).toHaveBeenCalledWith({
         delta: 'Part 1',
         accumulated: 'Part 1',

@@ -1311,11 +1311,7 @@
       "event_other": "個事件",
       "ui": {
         "title": "使用統計",
-        "most_used": "最常用",
-        "ai_tokens_30_days": "AI 權杖 · 30 天",
-        "ai_input": "輸入",
-        "ai_output": "輸出",
-        "ai_cache": "快取"
+        "most_used": "最常用"
       }
     },
     "raycast_import": {

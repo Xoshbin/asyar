@@ -29,45 +29,6 @@ export type AgentRunConfig = {
 
 export type AgentStreamEvent = { type: "user_message_persisted" } | { type: "text_delta"; delta: string; accumulated: string } | { type: "status"; status: string | null } | { type: "assistant_turn_persisted" } | { type: "tool_dispatch"; tool_call_id: string; extension_id: string; tool_id: string; arguments: any } | { type: "tool_dispatch_cancelled"; tool_call_id: string } | { type: "mcp_permission_request"; tool_call_id: string; server_id: string; tool_id: string; agent_id: string } | { type: "mcp_permission_cancelled"; tool_call_id: string } | { type: "error"; message: string } | { type: "completed" } | { type: "cancelled" };
 
-export type AiUsageModelRow = {
-	providerId: string,
-	modelId: string,
-	totals: AiUsageTotals,
-};
-
-export type AiUsageRecord = {
-	ts: number,
-	providerId: string,
-	providerType: string,
-	connectionMode: string,
-	modelId: string,
-	agentId: string,
-	source: string,
-	threadId: string | null,
-	runId: string | null,
-	extensionId: string | null,
-	inputTokens: number,
-	outputTokens: number,
-	cacheReadTokens: number | null,
-	cacheWriteTokens: number | null,
-	reasoningTokens: number | null,
-	costUsd: number | null,
-};
-
-export type AiUsageSummary = {
-	totals: AiUsageTotals,
-	byModel: AiUsageModelRow[],
-};
-
-export type AiUsageTotals = {
-	inputTokens: number,
-	outputTokens: number,
-	cacheReadTokens: number | null,
-	cacheWriteTokens: number | null,
-	reasoningTokens: number | null,
-	costUsd: number | null,
-};
-
 export type AliasConflict = {
 	objectId: string,
 	itemName: string,
@@ -140,9 +101,9 @@ export type ChatParams = {
 	tools: ToolDefinition[] | null,
 };
 
-export type ChatStreamEvent = { type: "usage"; usage: TokenUsage } | { type: "token"; token: string } | { type: "status"; status: string } | { type: "toolCall"; id: string; name: string; input: any } | { type: "providerContext"; item: any };
+export type ChatStreamEvent = { type: "token"; token: string } | { type: "status"; status: string } | { type: "toolCall"; id: string; name: string; input: any } | { type: "providerContext"; item: any };
 
-export type ChatStreamEventPayload = { type: "usage"; usage: TokenUsage } | { type: "token"; token: string } | { type: "status"; status: string } | { type: "toolCall"; id: string; name: string; input: any } | { type: "providerContext"; item: any } | { type: "done" } | { type: "error"; error: string };
+export type ChatStreamEventPayload = { type: "token"; token: string } | { type: "status"; status: string } | { type: "toolCall"; id: string; name: string; input: any } | { type: "providerContext"; item: any } | { type: "done" } | { type: "error"; error: string };
 
 export type CliAccountInfo = {
 	email: string | null,
@@ -491,15 +452,6 @@ export type SystemAction = "sleep" | "hibernate" | "lockScreen" | "logOut" | "re
 export type TierResult = {
 	id: string,
 	tier: number,
-};
-
-export type TokenUsage = {
-	inputTokens: number,
-	outputTokens: number,
-	cacheReadTokens: number | null,
-	cacheWriteTokens: number | null,
-	reasoningTokens: number | null,
-	costUsd: number | null,
 };
 
 export type ToolCall = {

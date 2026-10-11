@@ -1311,11 +1311,7 @@
       "event_other": "eventos",
       "ui": {
         "title": "Estatísticas de uso",
-        "most_used": "Mais usados",
-        "ai_tokens_30_days": "Tokens de IA · 30 dias",
-        "ai_input": "Entrada",
-        "ai_output": "Saída",
-        "ai_cache": "Cache"
+        "most_used": "Mais usados"
       }
     },
     "raycast_import": {

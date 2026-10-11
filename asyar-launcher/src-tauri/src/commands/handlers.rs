@@ -73,7 +73,6 @@ macro_rules! app_commands {
                 $crate::commands::usage::record_active_day,
                 $crate::commands::usage::record_worker_fallback,
                 $crate::commands::usage::get_usage_stats,
-                $crate::commands::ai_usage::ai_usage_summary,
                 $crate::commands::usage::get_usage_anon_id,
                 $crate::commands::usage::reset_usage_anon_id,
                 $crate::commands::usage::send_pending_usage,

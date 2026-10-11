@@ -51,7 +51,6 @@ pub struct ProviderStreamParser {
     google_tool_counter: u32,
     google_grounding: serde_json::Map<String, Value>,
     ollama_tool_counter: u32,
-    usage: Option<crate::ai::types::TokenUsage>,
 }
 
 impl ProviderStreamParser {
@@ -68,7 +67,6 @@ impl ProviderStreamParser {
             google_tool_counter: 0,
             google_grounding: serde_json::Map::new(),
             ollama_tool_counter: 0,
-            usage: None,
         }
     }
 
@@ -102,9 +100,6 @@ impl ProviderStreamParser {
 
     pub fn finish(&mut self) -> Result<Vec<ChatStreamEvent>, AppError> {
         let mut events = Vec::new();
-        if let Some(usage) = self.usage.take() {
-            events.push(ChatStreamEvent::Usage { usage });
-        }
         for (_, pending) in std::mem::take(&mut self.openai_tools) {
             let input = serde_json::from_str(&pending.arguments).unwrap_or_else(|_| json!({}));
             events.push(ChatStreamEvent::ToolCall {
@@ -124,20 +119,6 @@ impl ProviderStreamParser {
         let value: Value = serde_json::from_str(payload).map_err(|error| {
             AppError::Other(format!("invalid OpenAI-compatible stream event: {error}"))
         })?;
-        if let Some(usage) = value.get("usage").filter(|v| v.is_object()) {
-            self.usage = Some(crate::ai::types::TokenUsage {
-                input_tokens: usage["prompt_tokens"].as_u64().unwrap_or_default(),
-                output_tokens: usage["completion_tokens"].as_u64().unwrap_or_default(),
-                cache_read_tokens: usage
-                    .pointer("/prompt_tokens_details/cached_tokens")
-                    .and_then(Value::as_u64),
-                reasoning_tokens: usage
-                    .pointer("/completion_tokens_details/reasoning_tokens")
-                    .and_then(Value::as_u64),
-                cost_usd: usage["cost"].as_f64(),
-                ..Default::default()
-            });
-        }
         let Some(choice) = value.get("choices").and_then(|choices| choices.get(0)) else {
             return Ok(Vec::new());
         };
@@ -190,22 +171,6 @@ impl ProviderStreamParser {
             .and_then(Value::as_str)
             .unwrap_or_default();
         match event_type {
-            "response.completed" => {
-                if let Some(usage) = value.pointer("/response/usage").filter(|v| v.is_object()) {
-                    self.usage = Some(crate::ai::types::TokenUsage {
-                        input_tokens: usage["input_tokens"].as_u64().unwrap_or_default(),
-                        output_tokens: usage["output_tokens"].as_u64().unwrap_or_default(),
-                        cache_read_tokens: usage
-                            .pointer("/input_tokens_details/cached_tokens")
-                            .and_then(Value::as_u64),
-                        reasoning_tokens: usage
-                            .pointer("/output_tokens_details/reasoning_tokens")
-                            .and_then(Value::as_u64),
-                        ..Default::default()
-                    });
-                }
-                Ok(Vec::new())
-            }
             "response.web_search_call.in_progress" | "response.web_search_call.searching" => {
                 Ok(vec![ChatStreamEvent::Status {
                     status: "searching".to_string(),
@@ -272,29 +237,6 @@ impl ProviderStreamParser {
         let value: Value = serde_json::from_str(payload)
             .map_err(|error| AppError::Other(format!("invalid Anthropic stream event: {error}")))?;
         match value.get("type").and_then(Value::as_str) {
-            Some("message_start") => {
-                if let Some(usage) = value.pointer("/message/usage").filter(|v| v.is_object()) {
-                    self.usage = Some(crate::ai::types::TokenUsage {
-                        input_tokens: usage["input_tokens"].as_u64().unwrap_or_default(),
-                        output_tokens: usage["output_tokens"].as_u64().unwrap_or_default(),
-                        cache_read_tokens: usage["cache_read_input_tokens"].as_u64(),
-                        cache_write_tokens: usage["cache_creation_input_tokens"].as_u64(),
-                        ..Default::default()
-                    });
-                }
-                Ok(Vec::new())
-            }
-            Some("message_delta") => {
-                if let Some(output) = value
-                    .pointer("/usage/output_tokens")
-                    .and_then(Value::as_u64)
-                {
-                    self.usage
-                        .get_or_insert_with(Default::default)
-                        .output_tokens = output;
-                }
-                Ok(Vec::new())
-            }
             Some("content_block_start") => {
                 let block = value.get("content_block").unwrap_or(&Value::Null);
                 if block.get("type").and_then(Value::as_str) == Some("tool_use") {
@@ -362,15 +304,6 @@ impl ProviderStreamParser {
     fn parse_google(&mut self, payload: &str) -> Result<Vec<ChatStreamEvent>, AppError> {
         let value: Value = serde_json::from_str(payload)
             .map_err(|error| AppError::Other(format!("invalid Gemini stream event: {error}")))?;
-        if let Some(usage) = value.get("usageMetadata").filter(|v| v.is_object()) {
-            self.usage = Some(crate::ai::types::TokenUsage {
-                input_tokens: usage["promptTokenCount"].as_u64().unwrap_or_default(),
-                output_tokens: usage["candidatesTokenCount"].as_u64().unwrap_or_default(),
-                cache_read_tokens: usage["cachedContentTokenCount"].as_u64(),
-                reasoning_tokens: usage["thoughtsTokenCount"].as_u64(),
-                ..Default::default()
-            });
-        }
         let mut events = Vec::new();
         for part in value
             .pointer("/candidates/0/content/parts")
@@ -426,15 +359,6 @@ impl ProviderStreamParser {
     fn parse_ollama(&mut self, payload: &str) -> Result<Vec<ChatStreamEvent>, AppError> {
         let value: Value = serde_json::from_str(payload)
             .map_err(|error| AppError::Other(format!("invalid Ollama stream event: {error}")))?;
-        if value["done"].as_bool() == Some(true)
-            && (value.get("prompt_eval_count").is_some() || value.get("eval_count").is_some())
-        {
-            self.usage = Some(crate::ai::types::TokenUsage {
-                input_tokens: value["prompt_eval_count"].as_u64().unwrap_or_default(),
-                output_tokens: value["eval_count"].as_u64().unwrap_or_default(),
-                ..Default::default()
-            });
-        }
         let mut events = Vec::new();
         if let Some(token) = value.pointer("/message/content").and_then(Value::as_str) {
             if !token.is_empty() {
@@ -701,7 +625,6 @@ fn build_openai_request(
             "model": params.model_id,
             "messages": msgs,
             "stream": true,
-            "stream_options": { "include_usage": true },
         });
 
         if let Some(obj) = body_map.as_object_mut() {
@@ -1111,7 +1034,6 @@ fn build_openrouter_request(
         "model": params.model_id,
         "messages": msgs,
         "stream": true,
-        "usage": { "include": true },
     });
 
     if let Some(obj) = body_map.as_object_mut() {

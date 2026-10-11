@@ -1,5 +1,4 @@
 pub mod agents;
-pub mod ai_usage;
 pub mod clipboard;
 pub mod clipboard_fts;
 pub mod clipboard_markup;

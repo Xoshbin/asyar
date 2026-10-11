@@ -1311,11 +1311,7 @@
       "event_other": "个事件",
       "ui": {
         "title": "使用统计",
-        "most_used": "最常用",
-        "ai_tokens_30_days": "AI 令牌 · 30 天",
-        "ai_input": "输入",
-        "ai_output": "输出",
-        "ai_cache": "缓存"
+        "most_used": "最常用"
       }
     },
     "raycast_import": {
