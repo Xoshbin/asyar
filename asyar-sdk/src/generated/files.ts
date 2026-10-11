@@ -8,11 +8,21 @@ export type FileChunk = {
 	eof: boolean,
 };
 
-export type FileGlobOptions = {
+export type FileGlobEntriesOptions = {
 	maxResults?: number | null,
 	sort?: GlobSort | null,
 	modifiedAfterMs?: number | null,
 	modifiedBeforeMs?: number | null,
+};
+
+export type FileGlobEntry = {
+	path: string,
+	size: number,
+	mtimeMs: number,
+};
+
+export type FileGlobOptions = {
+	maxResults?: number | null,
 };
 
 export type FileReadRangeOptions = {
@@ -20,12 +30,6 @@ export type FileReadRangeOptions = {
 	offset?: number | null,
 	fromEnd?: boolean | null,
 	align?: ReadAlign | null,
-};
-
-export type GlobEntry = {
-	path: string,
-	size: number,
-	mtimeMs: number,
 };
 
 export type GlobSort = "path" | "modified-desc";

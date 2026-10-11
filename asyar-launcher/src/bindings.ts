@@ -176,11 +176,21 @@ export type FileChunk = {
 	eof: boolean,
 };
 
-export type FileGlobOptions = {
+export type FileGlobEntriesOptions = {
 	maxResults?: number | null,
 	sort?: GlobSort | null,
 	modifiedAfterMs?: number | null,
 	modifiedBeforeMs?: number | null,
+};
+
+export type FileGlobEntry = {
+	path: string,
+	size: number,
+	mtimeMs: number,
+};
+
+export type FileGlobOptions = {
+	maxResults?: number | null,
 };
 
 // Wire shape for one search hit.
@@ -245,12 +255,6 @@ export type FileType = "document" | "image" | "code" | "audio-video" | "archive"
 export type GeminiGrounding = {
 	sources: GroundingSource[],
 	searchSuggestionsHtml: string | null,
-};
-
-export type GlobEntry = {
-	path: string,
-	size: number,
-	mtimeMs: number,
 };
 
 export type GlobSort = "path" | "modified-desc";

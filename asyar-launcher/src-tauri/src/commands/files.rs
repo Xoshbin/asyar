@@ -54,7 +54,7 @@ pub struct FileChunk {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct GlobEntry {
+pub struct FileGlobEntry {
     pub path: String,
     pub size: u64,
     pub mtime_ms: i64,
@@ -71,6 +71,13 @@ pub enum GlobSort {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FileGlobOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_results: Option<u32>,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FileGlobEntriesOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_results: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -294,7 +301,7 @@ pub async fn files_read_text<R: tauri::Runtime>(
 /// The launcher's own app-data dir (settings.dat, consent records, MCP
 /// config) joins the deny-list — a broad consented glob like `~/**` must
 /// not read the launcher's internal state.
-fn extension_scope_env<R: tauri::Runtime>(
+pub(crate) fn extension_scope_env<R: tauri::Runtime>(
     app_handle: &tauri::AppHandle<R>,
 ) -> Result<(PathBuf, Vec<PathBuf>), AppError> {
     let home = app_handle
@@ -591,8 +598,8 @@ pub async fn files_glob<R: tauri::Runtime>(
     permissions: tauri::State<'_, ExtensionPermissionRegistry>,
     extension_id: Option<String>,
     pattern: String,
-    opts: FileGlobOptions,
-) -> Result<Vec<GlobEntry>, AppError> {
+    max_results: Option<u32>,
+) -> Result<Vec<String>, AppError> {
     let Some(ext) = extension_id else {
         return Err(AppError::Validation(
             "files:glob requires an extension caller".into(),
@@ -605,7 +612,7 @@ pub async fn files_glob<R: tauri::Runtime>(
             &app_handle.state(),
             &ext,
             &pattern,
-            &opts,
+            &FileGlobOptions { max_results },
             &home,
             &extra_deny,
             GlobLimits::default(),
@@ -623,7 +630,62 @@ pub(crate) fn files_glob_inner(
     home: &Path,
     extra_deny: &[PathBuf],
     limits: GlobLimits,
-) -> Result<Vec<GlobEntry>, AppError> {
+) -> Result<Vec<String>, AppError> {
+    files_glob_entries_inner(
+        permissions,
+        extension_id,
+        pattern_str,
+        &FileGlobEntriesOptions {
+            max_results: opts.max_results,
+            ..Default::default()
+        },
+        home,
+        extra_deny,
+        limits,
+    )
+    .map(|entries| entries.into_iter().map(|entry| entry.path).collect())
+}
+
+/// Metadata enumeration beside the unchanged path-list API.
+#[tauri::command]
+pub async fn files_glob_entries<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    pattern: String,
+    opts: FileGlobEntriesOptions,
+) -> Result<Vec<FileGlobEntry>, AppError> {
+    let Some(ext) = extension_id else {
+        return Err(AppError::Validation(
+            "files:globEntries requires an extension caller".into(),
+        ));
+    };
+    let _ = permissions;
+    tokio::task::spawn_blocking(move || {
+        let (home, extra_deny) = extension_scope_env(&app_handle)?;
+        files_glob_entries_inner(
+            &app_handle.state(),
+            &ext,
+            &pattern,
+            &opts,
+            &home,
+            &extra_deny,
+            GlobLimits::default(),
+        )
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("File glob task failed: {e}")))?
+}
+
+pub(crate) fn files_glob_entries_inner(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    pattern_str: &str,
+    opts: &FileGlobEntriesOptions,
+    home: &Path,
+    extra_deny: &[PathBuf],
+    limits: GlobLimits,
+) -> Result<Vec<FileGlobEntry>, AppError> {
     permissions.check(&Some(extension_id.to_string()), FILES_READ_PERMISSION)?;
     // Same load-time rules as declared patterns: non-empty, no `..`, valid
     // glob syntax.
@@ -694,7 +756,7 @@ pub(crate) fn files_glob_inner(
 
     let mut visited: usize = 0;
     let max_depth = files_scope::glob_max_depth(&expanded);
-    let mut results: Vec<GlobEntry> = Vec::new();
+    let mut results: Vec<FileGlobEntry> = Vec::new();
     let mut stack: Vec<PathBuf> = vec![canonical_prefix.clone()];
     while let Some(dir) = stack.pop() {
         // Unreadable directories are skipped, not fatal — a broad glob may
@@ -796,7 +858,7 @@ pub(crate) fn files_glob_inner(
             {
                 continue;
             }
-            results.push(GlobEntry {
+            results.push(FileGlobEntry {
                 path: canonical_path.to_string_lossy().into_owned(),
                 size: meta.len(),
                 mtime_ms,
@@ -1433,6 +1495,34 @@ mod tests {
 
     // ---- files_glob (scoped enumeration) ----
 
+    #[test]
+    fn files_glob_returns_plain_sorted_paths_like_before() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        for name in ["z.jpg", "a.jpg", "m.jpg"] {
+            fs::write(root.join(name), "jpg").unwrap();
+        }
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &format!("{}/*.jpg", slashes(&root)),
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
+        let wire = serde_json::to_value(hits).unwrap();
+        assert_eq!(
+            wire,
+            serde_json::json!([
+                root.join("a.jpg").to_string_lossy(),
+                root.join("m.jpg").to_string_lossy(),
+                root.join("z.jpg").to_string_lossy(),
+            ])
+        );
+    }
+
     fn range_read(content: &str, opts: FileReadRangeOptions) -> FileChunk {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = files_read_setup(&tmp);
@@ -1688,7 +1778,7 @@ mod tests {
         assert_eq!(next.text, "two\n");
     }
 
-    fn glob_metadata(opts: &FileGlobOptions) -> Vec<GlobEntry> {
+    fn glob_metadata(opts: &FileGlobEntriesOptions) -> Vec<FileGlobEntry> {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = files_read_setup(&tmp);
         for (name, ms) in [("a", 1000), ("b", 3000), ("c", 2000)] {
@@ -1702,7 +1792,7 @@ mod tests {
                 .unwrap();
         }
         let pattern = format!("{}/*", slashes(&root));
-        files_glob_inner(
+        files_glob_entries_inner(
             &perms,
             "ext.a",
             &pattern,
@@ -1715,7 +1805,7 @@ mod tests {
     }
 
     #[test]
-    fn files_glob_returns_size_and_mtime() {
+    fn files_glob_entries_returns_size_and_mtime() {
         let hits = glob_metadata(&Default::default());
         assert_eq!(
             hits.iter()
@@ -1726,8 +1816,8 @@ mod tests {
     }
 
     #[test]
-    fn files_glob_sort_modified_desc_newest_first() {
-        let hits = glob_metadata(&FileGlobOptions {
+    fn files_glob_entries_sort_modified_desc_newest_first() {
+        let hits = glob_metadata(&FileGlobEntriesOptions {
             sort: Some(GlobSort::ModifiedDesc),
             ..Default::default()
         });
@@ -1738,8 +1828,8 @@ mod tests {
     }
 
     #[test]
-    fn files_glob_cap_applies_after_sort() {
-        let hits = glob_metadata(&FileGlobOptions {
+    fn files_glob_entries_cap_applies_after_sort() {
+        let hits = glob_metadata(&FileGlobEntriesOptions {
             max_results: Some(1),
             sort: Some(GlobSort::ModifiedDesc),
             ..Default::default()
@@ -1750,8 +1840,8 @@ mod tests {
     }
 
     #[test]
-    fn files_glob_modified_after_filters_older() {
-        let hits = glob_metadata(&FileGlobOptions {
+    fn files_glob_entries_modified_after_filters_older() {
+        let hits = glob_metadata(&FileGlobEntriesOptions {
             modified_after_ms: Some(1000),
             ..Default::default()
         });
@@ -1762,8 +1852,8 @@ mod tests {
     }
 
     #[test]
-    fn files_glob_modified_before_pages_keyset() {
-        let mut opts = FileGlobOptions {
+    fn files_glob_entries_modified_before_pages_keyset() {
+        let mut opts = FileGlobEntriesOptions {
             max_results: Some(1),
             sort: Some(GlobSort::ModifiedDesc),
             ..Default::default()
@@ -1811,6 +1901,58 @@ mod tests {
             GlobLimits { max_visits: 1 }
         )
         .is_err());
+        assert!(files_glob_entries_inner(
+            &perms,
+            "ext.a",
+            &format!("{}/**", slashes(&root)),
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits { max_visits: 1 }
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn files_glob_entries_visit_budget_exceeded_errors() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let error = files_glob_entries_inner(
+            &perms,
+            "ext.a",
+            &format!("{}/**", slashes(&root)),
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits { max_visits: 1 },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("visited more than 1"));
+    }
+
+    #[test]
+    fn files_glob_caps_at_256_after_path_sort() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        for i in (0..300).rev() {
+            fs::write(root.join(format!("{i:03}.jpg")), "jpg").unwrap();
+        }
+        let pattern = format!("{}/*.jpg", slashes(&root));
+        for max_results in [None, Some(u32::MAX)] {
+            let paths = files_glob_inner(
+                &perms,
+                "ext.a",
+                &pattern,
+                &FileGlobOptions { max_results },
+                &root,
+                &[],
+                GlobLimits::default(),
+            )
+            .unwrap();
+            assert_eq!(paths.len(), 256);
+            assert!(paths[0].ends_with("000.jpg"));
+            assert!(paths[255].ends_with("255.jpg"));
+        }
     }
 
     /// The motivating layout: content-addressed artwork under a per-app
@@ -1850,9 +1992,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(hits.len(), 1);
-        assert!(hits[0]
-            .path
-            .ends_with("dca288f5304172c39b7fa683273a5b6e6ce16f6b.jpg"));
+        assert!(hits[0].ends_with("dca288f5304172c39b7fa683273a5b6e6ce16f6b.jpg"));
     }
 
     #[test]
@@ -1871,17 +2011,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(hits.len(), 2);
-        assert!(
-            hits[0].path < hits[1].path,
-            "expected sorted results: {hits:?}"
-        );
+        assert!(hits[0] < hits[1], "expected sorted results: {hits:?}");
         let capped = files_glob_inner(
             &perms,
             "ext.a",
             &pattern,
             &FileGlobOptions {
                 max_results: Some(1),
-                ..Default::default()
             },
             &root,
             &[],
@@ -2011,7 +2147,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
-        assert!(!hits[0].path.contains(".ssh"));
+        assert!(!hits[0].contains(".ssh"));
     }
 
     #[test]
@@ -2044,7 +2180,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
-        assert!(hits[0].path.ends_with("in-scope.jpg"));
+        assert!(hits[0].ends_with("in-scope.jpg"));
     }
 
     #[cfg(unix)]
@@ -2069,7 +2205,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
-        assert!(!hits[0].path.contains("secret"));
+        assert!(!hits[0].contains("secret"));
     }
 
     #[test]
@@ -2097,10 +2233,7 @@ mod tests {
             GlobLimits::default(),
         )
         .unwrap();
-        assert_eq!(
-            hits.iter().map(|hit| &hit.path).collect::<Vec<_>>(),
-            vec![&target.to_string_lossy().into_owned()]
-        );
+        assert_eq!(hits, vec![target.to_string_lossy().into_owned()]);
     }
 
     #[cfg(unix)]

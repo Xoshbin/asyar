@@ -3,6 +3,15 @@ export interface RequestOptions {
   headers?: Record<string, string>;
   body?: string;
   timeout?: number; // ms, default 30000
+  /**
+   * Names declared in `permissionArgs['network:secrets']` (requires `network` too).
+   * The host injects the secret into the declared header; the token is never
+   * visible to the extension and the response is redacted. Only declared exact
+   * hosts over HTTPS are allowed, redirects are not followed, and requests are
+   * GET-only unless other methods are declared. Empty/omitted references use
+   * ordinary fetch without secret injection.
+   */
+  secretRefs?: string[];
 }
 
 export interface NetworkResponse {

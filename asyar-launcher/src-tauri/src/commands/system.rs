@@ -8,6 +8,122 @@ use log::info;
 use std::collections::HashMap;
 use tauri::AppHandle;
 
+pub(crate) async fn fetch_url_with_secrets_inner(
+    registry: &crate::permissions::ExtensionPermissionRegistry,
+    caller_extension_id: Option<String>,
+    secret_refs: Vec<String>,
+    request: crate::network::service::FetchRequest,
+    env: &crate::network::secret_refs::SecretEnv,
+) -> Result<serde_json::Value, AppError> {
+    let caller = require_secret_caller(&caller_extension_id)?;
+    registry.check(&caller_extension_id, "network")?;
+    registry.check(&caller_extension_id, "network:secrets")?;
+    let decls = registry.secret_refs(caller)?;
+    crate::network::secret_refs::fetch_with_secrets(&decls, &secret_refs, request, env).await
+}
+
+fn require_secret_caller(caller: &Option<String>) -> Result<&str, AppError> {
+    caller
+        .as_deref()
+        .filter(|id| !id.is_empty() && *id != "asyar")
+        .ok_or_else(|| AppError::Permission("Secret requests require an extension caller".into()))
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)] // Keep the existing fetch_url wire arguments, plus secret_refs.
+pub async fn fetch_url_with_secrets(
+    url: String,
+    method: Option<String>,
+    headers: Option<HashMap<String, String>>,
+    body: Option<String>,
+    timeout_ms: Option<u64>,
+    secret_refs: Vec<String>,
+    caller_extension_id: Option<String>,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    app_handle: tauri::AppHandle,
+) -> Result<serde_json::Value, AppError> {
+    let caller = require_secret_caller(&caller_extension_id)?.to_string();
+    let (home, extra) = super::files::extension_scope_env(&app_handle)?;
+    let env = crate::network::secret_refs::SecretEnv::new(
+        home,
+        extra,
+        caller,
+        registry.secret_runtime.clone(),
+    );
+    fetch_url_with_secrets_inner(
+        &registry,
+        caller_extension_id,
+        secret_refs,
+        crate::network::service::FetchRequest {
+            url,
+            method,
+            headers,
+            body,
+            timeout_ms,
+        },
+        &env,
+    )
+    .await
+}
+
+#[cfg(test)]
+mod secret_tests {
+    use super::*;
+    use crate::{
+        network::{secret_refs::SecretEnv, service::FetchRequest},
+        permissions::ExtensionPermissionRegistry,
+    };
+    fn request() -> FetchRequest {
+        FetchRequest {
+            url: "https://api.example.com".into(),
+            method: None,
+            headers: None,
+            body: None,
+            timeout_ms: None,
+        }
+    }
+    #[tokio::test]
+    async fn fetch_url_with_secrets_rejects_none_and_asyar_caller() {
+        let r = ExtensionPermissionRegistry::new();
+        let env = SecretEnv::insecure_for_tests();
+        for caller in [None, Some("asyar".into())] {
+            assert!(fetch_url_with_secrets_inner(
+                &r,
+                caller,
+                vec!["token".into()],
+                request(),
+                &env
+            )
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("extension caller"));
+        }
+    }
+    #[tokio::test]
+    async fn requires_both_network_and_network_secrets() {
+        let r = ExtensionPermissionRegistry::new();
+        let env = SecretEnv::insecure_for_tests();
+        for permission in ["network", "network:secrets"] {
+            r.register(
+                "test",
+                std::collections::HashSet::from([permission.into()]),
+                HashMap::new(),
+            );
+            let e = fetch_url_with_secrets_inner(
+                &r,
+                Some("test".into()),
+                vec!["token".into()],
+                request(),
+                &env,
+            )
+            .await
+            .unwrap_err();
+            assert!(e.to_string().contains("requires"), "{e}");
+        }
+    }
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebSocketConnectRequest {

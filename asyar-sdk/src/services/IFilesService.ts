@@ -2,14 +2,16 @@ import type {
   FileReadRangeOptions,
   FileChunk,
   FileGlobOptions,
-  GlobEntry,
+  FileGlobEntriesOptions,
+  FileGlobEntry,
 } from '../generated/files';
 export type {
   FileReadRangeOptions,
   ReadAlign,
   FileChunk,
   FileGlobOptions,
-  GlobEntry,
+  FileGlobEntriesOptions,
+  FileGlobEntry,
   GlobSort,
 } from '../generated/files';
 
@@ -102,12 +104,14 @@ export interface IFilesService {
    * content-addressed cache files (`librarycache/<appid>/<sha1>.jpg`).
    * The pattern must begin with an absolute literal prefix to walk from
    * (`C:/Steam/appcache/**` works; a leading `**` doesn't). Returns
-   * metadata for regular files only, sorted, capped, filtered to the
+   * absolute paths of regular files only, sorted, capped, filtered to the
    * declared scope minus the deny-list; symlinks are neither followed nor
    * reported. A missing walk root (e.g. an unplugged library drive)
    * resolves to `[]`; a pattern outside the declared scope rejects.
    */
-  glob(pattern: string, opts?: FileGlobOptions): Promise<GlobEntry[]>;
+  glob(pattern: string, opts?: FileGlobOptions): Promise<string[]>;
+  /** Metadata enumeration with time filters and sorting. Same files:read scope as glob. */
+  globEntries(pattern: string, opts?: FileGlobEntriesOptions): Promise<FileGlobEntry[]>;
   /**
    * Thumbnail of an absolute path as an `asyar-thumb://` URL, generated
    * and cached by the same pipeline the launcher's own file previews use —

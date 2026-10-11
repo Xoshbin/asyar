@@ -182,7 +182,8 @@ export type {
   ReadAlign,
   FileChunk,
   FileGlobOptions,
-  GlobEntry,
+  FileGlobEntry,
+  FileGlobEntriesOptions,
   GlobSort,
   FileThumbnailOptions,
 } from './services/IFilesService';

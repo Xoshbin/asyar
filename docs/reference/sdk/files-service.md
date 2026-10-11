@@ -3,7 +3,7 @@
 **Runs in:** both worker and view.
 
 **Permission required:** `files:search` for `search`/`status`;
-`files:read` for `read`/`readRange`/`glob`/`thumbnail`.
+`files:read` for `read`/`readRange`/`glob`/`globEntries`/`thumbnail`.
 
 The same bounded, cached file index that backs the host's own "Search
 Files" view — your extension gets the identical search capability, not a
@@ -19,6 +19,10 @@ shown to the user in the install/enable permission prompt. Unlike
 `fs:watch` patterns, they may anchor anywhere — another drive
 (`C:/Program Files (x86)/Steam/**`) or nowhere at all
 (`**/steamapps/appmanifest_*.acf`, which covers the file on every drive).
+
+Known AI CLI token files are never readable through `files:read`, even when a
+declared glob covers them. Use [`network:secrets`](./network-service.md#secret-references)
+for host-injected authentication without exposing the token to extension code.
 
 Two companions share `read`'s permission and scope, because each is
 strictly less information than the byte read already granted. `glob`
@@ -70,6 +74,11 @@ interface FileReadOptions {
 }
 
 interface FileGlobOptions {
+  /** Paths are always sorted by path. Default and ceiling: 256. */
+  maxResults?: number;
+}
+
+interface FileGlobEntriesOptions {
   /** Applied after filtering and sorting. Default and ceiling: 256. */
   maxResults?: number;
   sort?: 'path' | 'modified-desc'; // default: path
@@ -77,7 +86,7 @@ interface FileGlobOptions {
   modifiedBeforeMs?: number; // exclusive upper bound, Unix milliseconds
 }
 
-interface GlobEntry {
+interface FileGlobEntry {
   path: string;
   size: number; // bytes
   mtimeMs: number; // Unix milliseconds
@@ -118,11 +127,12 @@ interface IFilesService {
   /** Enumerate existing in-scope files matching a glob. The pattern must
    * begin with an absolute literal prefix to walk from
    * (`C:/Steam/appcache/**` works; a leading `**` doesn't). Returns
-   * metadata for regular files only, filtered to the declared
+   * absolute paths of regular files only, sorted by path, filtered to the declared
    * scope minus the deny-list; symlinks are neither followed nor
    * reported. A missing walk root (an unplugged library drive) resolves
    * to `[]`; a pattern outside the declared scope rejects. */
-  glob(pattern: string, opts?: FileGlobOptions): Promise<GlobEntry[]>;
+  glob(pattern: string, opts?: FileGlobOptions): Promise<string[]>;
+  globEntries(pattern: string, opts?: FileGlobEntriesOptions): Promise<FileGlobEntry[]>;
   /** Thumbnail of an in-scope file as an `asyar-thumb://` URL, usable
    * directly as a dynamic command's `icon`. Images only, identical on
    * every platform: non-image types resolve `null`. Rejects on scope
@@ -186,7 +196,7 @@ const hits = await files.glob(
   `C:/Program Files (x86)/Steam/appcache/librarycache/${appid}/${'?'.repeat(40)}.jpg`,
 );
 if (hits.length > 0) {
-  const icon = await files.thumbnail(hits[0].path, { maxDim: 64 });
+  const icon = await files.thumbnail(hits[0], { maxDim: 64 });
   // → 'asyar-thumb://localhost/<key>.png', ready for dynamic command registration
 }
 ```
@@ -229,9 +239,14 @@ At EOF an unterminated line is emitted as-is; a later append may therefore
 continue a previously emitted line. Consumers requiring complete log records
 should buffer that final fragment themselves.
 
-### Glob sorting, filtering, and keyset paging
+### `globEntries`: metadata, sorting, filtering, and keyset paging
 
-`glob` now returns `GlobEntry[]`, not strings. `sort: 'path'` is the default;
+`glob` remains the simple, sorted path-list API (`Promise<string[]>`) and is
+**not deprecated**. Existing extensions need no migration. Use the additive
+`globEntries` API when metadata, time filtering, or paging is needed; it returns
+`FileGlobEntry[]` with `path`, `size` (bytes), and `mtimeMs` (Unix milliseconds).
+Both calls use the same declared scope and never follow or report symlinks.
+`sort: 'path'` is the default;
 `'modified-desc'` returns newest files first, with path ordering for equal
 millisecond mtimes. `modifiedAfterMs` and `modifiedBeforeMs` are exclusive.
 The result cap (default/ceiling 256) applies **after** filtering and sorting.
@@ -242,7 +257,7 @@ returning an incomplete page. Narrow the literal prefix on that error.
 ```typescript
 let modifiedBeforeMs: number | undefined;
 for (;;) {
-  const page = await files.glob('/absolute/logs/**/*.log', {
+  const page = await files.globEntries('/absolute/logs/**/*.log', {
     sort: 'modified-desc',
     maxResults: 100,
     modifiedBeforeMs,
@@ -260,7 +275,7 @@ cap or narrower patterns/time ranges when every tied file matters; no
 lossless pagination guarantee is made for same-ms ties or concurrent changes.
 
 Note the surface is deliberately read-shaped: `search`/`status`/`read`/`readRange`/
-`glob`/`thumbnail` only. There is no write/delete here — for file
+`glob`/`globEntries`/`thumbnail` only. There is no write/delete here — for file
 _operations_ (reveal in file manager, trash) see
 [`FileManagerService`](./file-manager-service.md).
 

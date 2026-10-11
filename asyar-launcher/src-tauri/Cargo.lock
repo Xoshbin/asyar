@@ -253,6 +253,7 @@ dependencies = [
  "reqwest 0.12.28",
  "rusqlite",
  "scrypt",
+ "security-framework 3.7.0",
  "semver",
  "serde",
  "serde_json",

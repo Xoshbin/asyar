@@ -501,7 +501,8 @@ mod bindings_export {
             .register::<crate::commands::files::ReadAlign>()
             .register::<crate::commands::files::FileChunk>()
             .register::<crate::commands::files::FileGlobOptions>()
-            .register::<crate::commands::files::GlobEntry>()
+            .register::<crate::commands::files::FileGlobEntriesOptions>()
+            .register::<crate::commands::files::FileGlobEntry>()
             .register::<crate::commands::files::GlobSort>()
             .register::<crate::calculator::CalcResult>()
             .register::<crate::calculator::CalcKind>()
@@ -549,7 +550,8 @@ mod bindings_export {
             .register::<crate::commands::files::ReadAlign>()
             .register::<crate::commands::files::FileChunk>()
             .register::<crate::commands::files::FileGlobOptions>()
-            .register::<crate::commands::files::GlobEntry>()
+            .register::<crate::commands::files::FileGlobEntriesOptions>()
+            .register::<crate::commands::files::FileGlobEntry>()
             .register::<crate::commands::files::GlobSort>();
 
         Typescript::default()
@@ -578,7 +580,8 @@ mod bindings_export {
             "ReadAlign",
             "FileChunk",
             "FileGlobOptions",
-            "GlobEntry",
+            "FileGlobEntriesOptions",
+            "FileGlobEntry",
             "GlobSort",
         ] {
             assert!(bindings.contains(&format!("export type {name}")));

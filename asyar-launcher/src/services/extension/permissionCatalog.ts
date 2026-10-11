@@ -18,6 +18,11 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     title: 'Network access',
     description: 'Make outbound HTTP requests.',
   },
+  'network:secrets': {
+    title: 'Send secret references',
+    description:
+      'Send login secrets from declared sources to declared HTTPS hosts without exposing the token to the extension. Requires network access. Only approve hosts you trust.',
+  },
   'notifications:send': {
     title: 'Send notifications',
     description: 'Post notifications to the system notification center.',

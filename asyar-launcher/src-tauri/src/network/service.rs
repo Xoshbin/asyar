@@ -17,6 +17,18 @@ pub struct FetchRequest {
     pub timeout_ms: Option<u64>,
 }
 
+fn plain_redirect_policy() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        if let Err(error) = validate_url_for_ssrf(attempt.url().as_str()) {
+            attempt.error(error)
+        } else if attempt.previous().len() >= 10 {
+            attempt.error("Too many redirects")
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
 /// Evaluates whether an IP address belongs to loopback, private, link-local,
 /// CGNAT, documentation, IPv4-mapped IPv6, or unspecified restricted network ranges.
 pub fn is_restricted_ip(ip: &IpAddr) -> bool {
@@ -104,6 +116,7 @@ pub async fn fetch(req: FetchRequest) -> Result<serde_json::Value, AppError> {
         .local_address(IpAddr::V4(Ipv4Addr::UNSPECIFIED)) // force IPv4
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(timeout)
+        .redirect(plain_redirect_policy())
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15")
         .build()?;
 
@@ -112,6 +125,8 @@ pub async fn fetch(req: FetchRequest) -> Result<serde_json::Value, AppError> {
         "PUT" => reqwest::Method::PUT,
         "DELETE" => reqwest::Method::DELETE,
         "PATCH" => reqwest::Method::PATCH,
+        "HEAD" => reqwest::Method::HEAD,
+        "OPTIONS" => reqwest::Method::OPTIONS,
         _ => reqwest::Method::GET,
     };
 
@@ -160,6 +175,187 @@ pub async fn fetch(req: FetchRequest) -> Result<serde_json::Value, AppError> {
 mod tests {
     use super::*;
     use mockito::Server;
+
+    #[tokio::test]
+    async fn plain_fetch_unknown_methods_still_fall_back_to_get() {
+        let mut server = Server::new_async().await;
+        for method in ["unknown", "post", "TRACE", "", "get"] {
+            let mock = server
+                .mock("GET", "/fallback")
+                .with_body("GET")
+                .create_async()
+                .await;
+            let mut request = req(&format!("{}/fallback", server.url()));
+            request.method = Some(method.into());
+            assert_eq!(fetch(request).await.unwrap()["body"], "GET", "{method}");
+            mock.assert_async().await;
+            mock.remove_async().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn plain_redirect_public_to_public_still_works() {
+        let mut source = Server::new_async().await;
+        let mut destination = Server::new_async().await;
+        let target = format!(
+            "http://destination.example:{}/next",
+            destination.socket_address().port()
+        );
+        let redirect = source
+            .mock("GET", "/")
+            .with_status(302)
+            .with_header("location", &target)
+            .create_async()
+            .await;
+        let result = destination
+            .mock("GET", "/next")
+            .with_body("public redirect")
+            .create_async()
+            .await;
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .resolve("source.example", source.socket_address())
+            .resolve("destination.example", destination.socket_address())
+            .redirect(plain_redirect_policy())
+            .build()
+            .unwrap();
+        let response = client
+            .get(format!(
+                "http://source.example:{}/",
+                source.socket_address().port()
+            ))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.text().await.unwrap(), "public redirect");
+        redirect.assert_async().await;
+        result.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn plain_redirect_http_to_public_https_is_followed() {
+        use std::sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        };
+        let mut source = Server::new_async().await;
+        let redirect = source
+            .mock("GET", "/")
+            .with_status(302)
+            .with_header("location", "https://destination.example/next")
+            .create_async()
+            .await;
+        let followed = Arc::new(AtomicBool::new(false));
+        let observed = followed.clone();
+        let policy = plain_redirect_policy();
+        // Exercise the real redirect Attempt without external DNS/TLS dependencies.
+        // The destination intentionally has no listener: the policy must follow,
+        // after which transport fails (not redirect validation).
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let closed = listener.local_addr().unwrap();
+        drop(listener);
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .resolve("source.example", source.socket_address())
+            .resolve("destination.example", closed)
+            .redirect(reqwest::redirect::Policy::custom(move |attempt| {
+                assert_eq!(attempt.previous()[0].scheme(), "http");
+                assert_eq!(attempt.url().scheme(), "https");
+                let action = policy.redirect(attempt);
+                observed.store(format!("{action:?}").contains("Follow"), Ordering::SeqCst);
+                action
+            }))
+            .build()
+            .unwrap();
+        let error = client
+            .get(format!(
+                "http://source.example:{}/",
+                source.socket_address().port()
+            ))
+            .send()
+            .await
+            .unwrap_err();
+        assert!(followed.load(Ordering::SeqCst));
+        assert!(!error.is_redirect(), "{error}");
+        redirect.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn head_method_supported() {
+        let mut s = Server::new_async().await;
+        let m = s.mock("HEAD", "/").with_status(204).create_async().await;
+        let mut r = req(&s.url());
+        r.method = Some("HEAD".into());
+        assert_eq!(fetch(r).await.unwrap()["status"], 204);
+        m.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn redirect_to_private_ip_is_blocked() {
+        let mut s = Server::new_async().await;
+        let _m = s
+            .mock("GET", "/")
+            .with_status(302)
+            .with_header("location", "http://127.0.0.1:1/private")
+            .create_async()
+            .await;
+        let e = fetch(req(&s.url())).await.unwrap_err().to_string();
+        assert!(e.contains("redirect"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn public_redirect_still_followed() {
+        let mut s = Server::new_async().await;
+        let _redirect = s
+            .mock("GET", "/")
+            .with_status(302)
+            .with_header("location", "/next")
+            .create_async()
+            .await;
+        let dest = s
+            .mock("GET", "/next")
+            .with_body("followed")
+            .create_async()
+            .await;
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .resolve("public.example", s.socket_address())
+            .redirect(plain_redirect_policy())
+            .build()
+            .unwrap();
+        let res = client
+            .get(format!(
+                "http://public.example:{}/",
+                s.socket_address().port()
+            ))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.text().await.unwrap(), "followed");
+        dest.assert_async().await;
+    }
+    #[tokio::test]
+    async fn existing_behaviour_unchanged() {
+        let mut s = Server::new_async().await;
+        let get = s
+            .mock("GET", "/")
+            .with_body("fallback")
+            .create_async()
+            .await;
+        let mut r = req(&s.url());
+        r.method = Some("unsupported-method".into());
+        assert_eq!(fetch(r).await.unwrap()["body"], "fallback");
+        get.assert_async().await;
+    }
+    #[tokio::test]
+    async fn options_method_supported() {
+        let mut s = Server::new_async().await;
+        let m = s.mock("OPTIONS", "/").with_status(204).create_async().await;
+        let mut r = req(&s.url());
+        r.method = Some("OPTIONS".into());
+        assert_eq!(fetch(r).await.unwrap()["status"], 204);
+        m.assert_async().await;
+    }
 
     fn req(url: &str) -> FetchRequest {
         FetchRequest {

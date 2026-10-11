@@ -3,6 +3,13 @@ import { PERMISSION_CATALOG, describePermission } from './permissionCatalog';
 import { GATED_PERMISSIONS } from './gatedPermissions';
 
 describe('permissionCatalog', () => {
+  it('network_secrets_has_entry', () => {
+    expect(describePermission('network:secrets')).toMatchObject({
+      known: true,
+      title: 'Send secret references',
+    });
+    expect(describePermission('network').description).toBe('Make outbound HTTP requests.');
+  });
   it('describes a known permission with catalog metadata', () => {
     const info = describePermission('fs:watch');
     expect(info.known).toBe(true);

@@ -59,6 +59,11 @@ const dualMode: AsyarManifest = {
 };
 
 describe('manifest validation', () => {
+  it('accepts network:secrets alongside network', () => {
+    expect(
+      validateManifest({ ...backgroundOnly, permissions: ['network', 'network:secrets'] }, './'),
+    ).toEqual([]);
+  });
   it('accepts a background-only extension with background.main', () => {
     const errors = validateManifest(backgroundOnly, './');
     expect(errors).toEqual([]);

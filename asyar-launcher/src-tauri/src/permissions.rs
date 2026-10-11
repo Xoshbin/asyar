@@ -14,6 +14,7 @@ use std::sync::Mutex;
 pub struct ExtensionPermissionRegistry {
     pub inner: Mutex<HashMap<String, HashSet<String>>>,
     pub args: Mutex<HashMap<String, HashMap<String, serde_json::Value>>>,
+    pub secret_runtime: std::sync::Arc<crate::network::secret_refs::SecretRuntime>,
 }
 
 impl Default for ExtensionPermissionRegistry {
@@ -22,11 +23,44 @@ impl Default for ExtensionPermissionRegistry {
     }
 }
 
+#[cfg(test)]
+mod secret_tests {
+    use super::*;
+    #[test]
+    fn fetch_with_secrets_maps_to_network_secrets() {
+        assert_eq!(
+            get_required_permission("asyar:api:network:fetchWithSecrets"),
+            Some("network:secrets")
+        );
+        assert_eq!(
+            gate_decision("asyar:api:network:fetchWithSecrets"),
+            GateDecision::Require("network:secrets")
+        );
+    }
+    #[test]
+    fn secret_refs_lookup_is_scoped_to_caller() {
+        let r = ExtensionPermissionRegistry::new();
+        let args = serde_json::json!([{"name":"cli-token","sources":[{"type":"jsonFile","path":"~/.cli/a.json","pointer":"/token"}],"hosts":["api.example.com"],"header":"Authorization","template":"Bearer {secret}"}]);
+        r.register(
+            "a",
+            HashSet::from(["network".into(), "network:secrets".into()]),
+            HashMap::from([("network:secrets".into(), args)]),
+        );
+        r.register("b", HashSet::from(["network".into()]), HashMap::new());
+        assert_eq!(r.secret_refs("a").unwrap()[0].name, "cli-token");
+        assert!(r.secret_refs("b").is_err());
+        assert!(r.secret_refs("unknown").is_err());
+    }
+}
+
 impl ExtensionPermissionRegistry {
     pub fn new() -> Self {
         Self {
             inner: Mutex::new(HashMap::new()),
             args: Mutex::new(HashMap::new()),
+            secret_runtime: std::sync::Arc::new(
+                crate::network::secret_refs::SecretRuntime::default(),
+            ),
         }
     }
 
@@ -137,6 +171,17 @@ impl ExtensionPermissionRegistry {
     pub fn files_read_patterns(&self, extension_id: &str) -> Result<Vec<String>, AppError> {
         self.string_array_args(extension_id, "files:read")
     }
+    pub fn secret_refs(
+        &self,
+        extension_id: &str,
+    ) -> Result<Vec<crate::network::secret_refs::SecretRefDecl>, AppError> {
+        self.check(&Some(extension_id.into()), "network")?;
+        self.check(&Some(extension_id.into()), "network:secrets")?;
+        let value = self
+            .args_for(extension_id, "network:secrets")
+            .ok_or(crate::network::secret_refs::SecretError::InvalidDeclaration)?;
+        crate::network::secret_refs::validate_network_secrets_args(&value)
+    }
 }
 
 /// Maps an IPC call type string to the required permission.
@@ -167,6 +212,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:invoke" => Some("shell:spawn"),
         // Network
         "asyar:api:network:fetch" => Some("network"),
+        "asyar:api:network:fetchWithSecrets" => Some("network:secrets"),
         "asyar:api:network:wsConnect" => Some("network"),
         "asyar:api:network:wsSend" => Some("network"),
         "asyar:api:network:wsClose" => Some("network"),
@@ -279,6 +325,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // in-scope file as an icon are both strictly less information than
         // the byte read files:read already grants.
         "asyar:api:files:glob" => Some("files:read"),
+        "asyar:api:files:globEntries" => Some("files:read"),
         "asyar:api:files:thumbnail" => Some("files:read"),
         // Notes SDK service — third-party extensions can search/read/create/
         // append to the user's Notes (never update-in-place or delete an
@@ -699,6 +746,10 @@ mod tests {
         );
         assert_eq!(
             get_required_permission("asyar:api:files:glob"),
+            Some("files:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:files:globEntries"),
             Some("files:read")
         );
         assert_eq!(

@@ -4,6 +4,7 @@ import {
   filesReadText,
   filesReadRange,
   filesGlob,
+  filesGlobEntries,
   filesThumbnail,
 } from '../../lib/ipc/fileSearchCommands';
 import type {
@@ -13,7 +14,8 @@ import type {
   FileReadRangeOptions,
   FileChunk,
   FileGlobOptions,
-  GlobEntry,
+  FileGlobEntry,
+  FileGlobEntriesOptions,
 } from 'asyar-sdk/contracts';
 
 const DISABLED_STATUS: IndexStatus = {
@@ -64,8 +66,16 @@ export class FilesService {
     callerExtensionId: string | null,
     pattern: string,
     opts?: FileGlobOptions | null,
-  ): Promise<GlobEntry[]> {
-    return filesGlob(callerExtensionId, pattern, opts);
+  ): Promise<string[]> {
+    return filesGlob(callerExtensionId, pattern, opts?.maxResults ?? undefined);
+  }
+
+  async globEntries(
+    callerExtensionId: string | null,
+    pattern: string,
+    opts?: FileGlobEntriesOptions | null,
+  ): Promise<FileGlobEntry[]> {
+    return filesGlobEntries(callerExtensionId, pattern, opts);
   }
 
   async readRange(

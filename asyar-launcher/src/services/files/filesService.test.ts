@@ -96,17 +96,37 @@ describe('filesService', () => {
     });
   });
 
-  it('glob forwards the caller identity, pattern, and options to files_glob', async () => {
+  it('steam_extension_glob_call_contract', async () => {
+    const pattern = '/Steam/appcache/librarycache/123/' + '?'.repeat(40) + '.jpg';
+    const paths = ['/Steam/appcache/librarycache/123/' + 'a'.repeat(40) + '.jpg'];
+    for (const opts of [undefined, { maxResults: 5 }]) {
+      invokeMock.mockResolvedValueOnce(paths);
+      const hits = await filesService.glob('steam', pattern, opts);
+      expect(hits).toEqual(paths);
+      expect(typeof hits[0]).toBe('string');
+      expect(invokeMock).toHaveBeenLastCalledWith('files_glob', {
+        extensionId: 'steam',
+        pattern,
+        maxResults: opts?.maxResults,
+      });
+    }
+  });
+
+  it('globEntries forwards the caller identity, pattern, and options to files_glob_entries', async () => {
     const paths = [
       { path: 'C:/Steam/appcache/librarycache/105600/dca2.jpg', size: 3, mtimeMs: 10 },
     ];
     invokeMock.mockResolvedValue(paths);
-    const result = await filesService.glob('ext.a', 'C:/Steam/appcache/librarycache/**/*.jpg', {
-      maxResults: 5,
-      sort: 'modified-desc',
-      modifiedBeforeMs: 20,
-    });
-    expect(invokeMock).toHaveBeenCalledWith('files_glob', {
+    const result = await filesService.globEntries(
+      'ext.a',
+      'C:/Steam/appcache/librarycache/**/*.jpg',
+      {
+        maxResults: 5,
+        sort: 'modified-desc',
+        modifiedBeforeMs: 20,
+      },
+    );
+    expect(invokeMock).toHaveBeenCalledWith('files_glob_entries', {
       extensionId: 'ext.a',
       pattern: 'C:/Steam/appcache/librarycache/**/*.jpg',
       opts: { maxResults: 5, sort: 'modified-desc', modifiedBeforeMs: 20 },

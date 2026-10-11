@@ -21,7 +21,7 @@ fields are listed below.
 | `background`     | `object`                  | conditional | `{ "main": "<path>" }`                                                                                        | Path to the compiled worker bundle. Required when any command has `mode: "background"`, or when `searchable: true`. Optional otherwise. See [extension runtime](../explanation/extension-runtime.md).                                                                                                                                                                               |
 | `searchable`     | `boolean`                 | ❌          | —                                                                                                             | When `true`, the launcher forwards global search queries to your worker's `search()` method and in-view input to `onViewSearch()` / `onViewSubmit()`. Requires `background.main`.                                                                                                                                                                                                   |
 | `permissions`    | `string[]`                | ❌          | Known strings only                                                                                            | Declare every permission your extension needs. See [permissions reference](./permissions.md).                                                                                                                                                                                                                                                                                       |
-| `permissionArgs` | `object`                  | ❌          | Each key must also appear in `permissions`                                                                    | Sidecar for parameterized permissions. Value shape is permission-specific. Currently only `fs:watch` uses it (value must be `string[]` of glob patterns; see the `fs:watch` section below).                                                                                                                                                                                         |
+| `permissionArgs` | `object`                  | ❌          | Each key must also appear in `permissions`                                                                    | Sidecar for parameterized permissions. Shape is permission-specific: glob arrays for `fs:watch` and `files:read`, optional program/scheme arrays for shell permissions, and reference objects for `network:secrets` (see below).                                                                                                                                                    |
 | `runtimes`       | `string[]`                | ❌          | Known runtime names only: `bun`, `claude`, `uv`                                                               | On-demand sidecar runtimes your extension needs at execution time. Nothing is bundled with the app — a declared runtime is downloaded once on first use (behind a consent dialog that shows its download size alongside your permissions) and shared across every extension that requests it. Unknown names are rejected at parse time.                                             |
 | `icon`           | `string`                  | ❌          | Emoji, `"icon:<name>"`, or relative image path (e.g. `"icon.png"`)                                            | Default icon for the extension and its commands. Built-in icons use the `icon:` prefix (e.g. `"icon:calculator"`), emojis are used as-is (e.g. `"🧪"`), and relative image paths are resolved via `asyar-extension://`.                                                                                                                                                             |
 | `minAppVersion`  | `string`                  | ❌          | Valid semver                                                                                                  | Minimum Asyar app version. Extension will be marked incompatible if the app is older.                                                                                                                                                                                                                                                                                               |
@@ -185,6 +185,60 @@ Some permissions need a value in addition to being declared. Those values live i
 - Every pattern must resolve **under `$HOME` or `/tmp`**. Patterns resolving to `/etc`, `/usr`, another user's home, or absolute system paths are rejected.
 
 See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime surface.
+
+#### Secret reference schema
+
+`permissionArgs["network:secrets"]` is an array of named reference objects.
+Declare both `network` and `network:secrets` in `permissions`.
+
+```json
+{
+  "permissions": ["network", "network:secrets"],
+  "permissionArgs": {
+    "network:secrets": [
+      {
+        "name": "cli-token",
+        "sources": [
+          {
+            "type": "keychain",
+            "service": "Some-CLI-credentials",
+            "account": null,
+            "pointer": "/oauth/accessToken"
+          },
+          {
+            "type": "jsonFile",
+            "path": "~/.somecli/.credentials.json",
+            "pointer": "/oauth/accessToken"
+          }
+        ],
+        "hosts": ["api.example.com"],
+        "methods": ["GET"],
+        "pathPrefixes": ["/api/usage"],
+        "header": "Authorization",
+        "template": "Bearer {secret}"
+      }
+    ]
+  }
+}
+```
+
+| Field                          | Shape                        | Meaning                                                                       |
+| ------------------------------ | ---------------------------- | ----------------------------------------------------------------------------- |
+| `name`                         | `string`                     | Reference name passed in `RequestOptions.secretRefs`.                         |
+| `sources`                      | source object array          | Declared alternative sources for the login token.                             |
+| `sources[].type`               | `"keychain"` or `"jsonFile"` | Generic source kind, not a provider identifier.                               |
+| `sources[].service`, `account` | `string`, `string \| null`   | Keychain service and optional account.                                        |
+| `sources[].path`               | `string`                     | JSON file path; `~/` denotes the user's home directory.                       |
+| `sources[].pointer`            | `string`                     | JSON Pointer to the token in the source JSON.                                 |
+| `hosts`                        | `string[]`                   | Exact ASCII/punycode hosts, optionally `host:port`; HTTPS only, no wildcards. |
+| `methods`                      | `string[]`, optional         | Allowed methods; defaults to `["GET"]`.                                       |
+| `pathPrefixes`                 | `string[]`, optional         | Restrict destinations to the declared path prefixes.                          |
+| `header`                       | `string`                     | Header into which the host injects the secret.                                |
+| `template`                     | `string`                     | Header value template containing `{secret}`, e.g. `Bearer {secret}`.          |
+
+The permission review displays source locations and destinations, not token
+values. See [NetworkService](./sdk/network-service.md#secret-references) for
+redaction, timeout/response limits, and expired-token handling.
 
 ### Permission Consent and Review
 

@@ -64,6 +64,23 @@ describe('ExtensionIpcRouter — externally consumed responses', () => {
 });
 
 describe('ExtensionIpcRouter — host dispatcher integration', () => {
+  it('fetchWithSecrets_param_order', async () => {
+    const fetchWithSecrets = vi.fn();
+    const router = new ExtensionIpcRouter(
+      { network: { fetchWithSecrets } },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    const options = { secretRefs: ['cli-token'] };
+    await (router as any).dispatchApiCall(
+      'asyar:api:network:fetchWithSecrets',
+      { options, url: 'https://example.com' },
+      'ext.test',
+      false,
+    );
+    expect(fetchWithSecrets).toHaveBeenCalledWith('ext.test', 'https://example.com', options);
+  });
   beforeEach(() => {
     messageBroker.setHostDispatcher(null);
   });

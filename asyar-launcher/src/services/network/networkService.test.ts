@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockFetchUrl = vi.hoisted(() => vi.fn());
+const mockFetchUrlWithSecrets = vi.hoisted(() => vi.fn());
 const mockWsConnect = vi.hoisted(() => vi.fn());
 
 vi.mock('../../lib/ipc/commands', () => ({
   fetchUrl: mockFetchUrl,
+  fetchUrlWithSecrets: mockFetchUrlWithSecrets,
   wsConnect: mockWsConnect,
 }));
 
@@ -19,6 +21,38 @@ function makeSvc() {
 }
 
 describe('NetworkService', () => {
+  it('fetch_strips_secretRefs', async () => {
+    const options = { secretRefs: ['cli-token'], timeout: 1234 };
+    await makeSvc().fetch('ext.test', 'https://example.com', options);
+    expect(mockFetchUrl).toHaveBeenCalledWith({
+      url: 'https://example.com',
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+      timeoutMs: 1234,
+      callerExtensionId: 'ext.test',
+    });
+  });
+
+  it('fetchWithSecrets_forwards_refs', async () => {
+    const response = { status: 401, statusText: 'Unauthorized', headers: {}, body: '', ok: false };
+    mockFetchUrlWithSecrets.mockResolvedValueOnce(response);
+    expect(
+      await makeSvc().fetchWithSecrets('ext.test', 'https://example.com', {
+        secretRefs: ['cli-token'],
+        timeout: 1234,
+      }),
+    ).toEqual(response);
+    expect(mockFetchUrlWithSecrets).toHaveBeenCalledWith({
+      url: 'https://example.com',
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+      timeoutMs: 1234,
+      callerExtensionId: 'ext.test',
+      secretRefs: ['cli-token'],
+    });
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });

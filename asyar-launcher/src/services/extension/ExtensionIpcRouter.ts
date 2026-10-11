@@ -223,6 +223,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
 
   // network
   'network:fetch': ['url', 'options'],
+  'network:fetchWithSecrets': ['url', 'options'],
   'network:wsConnect': ['socketId', 'url', 'headers'],
   'network:wsSend': ['socketId', 'message'],
   'network:wsClose': ['socketId', 'code', 'reason'],
@@ -233,6 +234,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'files:read': ['path', 'opts'],
   'files:readRange': ['path', 'opts'],
   'files:glob': ['pattern', 'opts'],
+  'files:globEntries': ['pattern', 'opts'],
   'files:thumbnail': ['path', 'opts'],
 
   // opener

@@ -14,6 +14,52 @@ Declare every permission your extension needs in `manifest.json`:
 
 ### Full permissions table
 
+| Permission        | What it unlocks                                                                                               | SDK methods that require it                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `network:secrets` | Host-injected login secrets from declared sources, sent only to declared HTTPS hosts. Requires `network` too. | `NetworkService.fetch()` with non-empty `secretRefs` |
+
+Define references in `permissionArgs["network:secrets"]`, an array of objects
+with `name`, `sources`, `hosts`, `header`, and `template`. Sources are generic
+`keychain` objects (`service`, nullable `account`, JSON `pointer`) or `jsonFile`
+objects (`path`, JSON `pointer`). `methods` defaults to `["GET"]`; optional
+`pathPrefixes` further restrict destinations. For example:
+
+```json
+{
+  "permissions": ["network", "network:secrets"],
+  "permissionArgs": {
+    "network:secrets": [
+      {
+        "name": "cli-token",
+        "sources": [
+          {
+            "type": "keychain",
+            "service": "Some-CLI-credentials",
+            "account": null,
+            "pointer": "/oauth/accessToken"
+          },
+          {
+            "type": "jsonFile",
+            "path": "~/.somecli/.credentials.json",
+            "pointer": "/oauth/accessToken"
+          }
+        ],
+        "hosts": ["api.example.com"],
+        "methods": ["GET"],
+        "pathPrefixes": ["/api/usage"],
+        "header": "Authorization",
+        "template": "Bearer {secret}"
+      }
+    ]
+  }
+}
+```
+
+See the [manifest schema](./manifest.md#secret-reference-schema),
+[network service](./sdk/network-service.md#secret-references), and
+[residual risks](../explanation/permission-system.md#secret-references).
+Other permissions retain their existing behavior:
+
 | Permission                  | What it unlocks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | SDK methods that require it                                                                                                                    |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `network`                   | Outbound HTTP requests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `NetworkService.fetch()`                                                                                                                       |
