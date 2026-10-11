@@ -70,6 +70,12 @@ Or manually run the steps:
   - Built-ins must not incur dynamic manifest parsing or IPC closure-stripping side-tables (`inlineActions`). Built-in providers contribute directly to search results without closure stripping.
   - Platform services (`files:search`, `screen:capture`, `calculator:evaluate`, `notes:read`) remain registered in `ServiceRegistry` (`buildServiceRegistry`) for Tier 2 extensions.
   - Disabling optional built-ins is a direct reactive settings gate suppressing UI presentation without disrupting underlying platform services or requiring synthetic extension unregistration workflows.
+- **Beta Compatibility & Deprecation (until launcher 0.2.0)**: Asyar is in beta, so internals break freely and cleanly (SOLID, DRY, root-cause fixes, no symptom patching). But the **third-party extension contract** must not break for extensions already published in the Asyar Store: manifest schema, public `asyar-sdk` API, host↔extension IPC wire shapes (published extensions bundle their own SDK), runtime behavior, packaging/store formats. Full policy in `.agents/rules/09-beta-compatibility-and-deprecation.md`:
+  - Additive first: add the clean new contract beside the old one; mark the old one **deprecated** (`@deprecated … Remove in 0.2.0`, `#[deprecated]`, manifest/IPC deprecation warnings, `// COMPAT(remove in 0.2.0): …`) and keep it working until 0.2.0.
+  - Confine compat to **one adapter at the boundary** that normalizes old shapes into new ones. The core only sees the new shape, and there are no scattered `if (legacy)` branches.
+  - Every adapter has a contract test with an old-format fixture and a deadline guard (like `workerFallbackDeadline.test.ts`). All of it is removed before 0.2.0.
+  - Security/privacy outranks compatibility. If you can't stay compatible without compromising either, or you're unsure whether something is part of the contract, **stop and ask the user**.
+  - Anything no published extension can observe (built-ins, frontend-only Tauri commands, internal modules) is not protected. Break it cleanly with no shims.
 - **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
 
 ## 6. Tech Stack Standards

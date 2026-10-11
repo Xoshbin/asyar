@@ -66,7 +66,7 @@ is right and your change is wrong — fix the change, not the test.
 | Every Tauri command path appears exactly once in `commands/handlers.rs`.                                                                                                         | `command_paths_are_registered_once`                                            |
 | The TypeScript and Rust rankers must agree on which items match and their tier (scores and intra-tier order may differ).                                                         | `crates/asyar-search/tests/parity-fixture.json`, run from both suites          |
 | Extension builds must set `modulePreload: false` — Vite's polyfill touches `document` and kills a Web Worker on line one. Use `defineExtensionConfig` from `asyar-sdk/vite`.     | `asyar-sdk/src/vite.test.ts`, `create-extension/scaffoldService.build.test.ts` |
-| The iframe compatibility fallback for failed workers is temporary and must be removed before 0.2.0.                                                                              | `services/extension/workerFallbackDeadline.test.ts`                            |
+| The iframe compatibility fallback for failed workers is temporary and must be removed before 0.2.0 (policy: `09-beta-compatibility-and-deprecation.md`).                         | `services/extension/workerFallbackDeadline.test.ts`                            |
 
 **The recurring failure mode behind all of these:** a check validated the _input_ while the runtime
 consumed the _output_, and nothing compared them. A manifest declared a worker bundle that
