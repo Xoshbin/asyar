@@ -435,10 +435,7 @@ pub(crate) async fn install_from_file(
     match check_version_conflict(existing_version.as_deref(), &manifest.version) {
         VersionAction::FreshInstall => {}
         VersionAction::Upgrade => {
-            info!(
-                "Upgrading extension '{}' to v{}",
-                manifest.id, manifest.version
-            );
+            info!("Upgrading extension from {}", file_path);
             fs::remove_dir_all(&install_dir)?;
         }
         VersionAction::AlreadyInstalled => {
@@ -457,10 +454,7 @@ pub(crate) async fn install_from_file(
 
     crate::event_bridge::bridge_emit(app_handle, "extensions_updated", ());
 
-    info!(
-        "Extension '{}' v{} installed from file",
-        manifest.name, manifest.version
-    );
+    info!("Extension installed from file: {}", file_path);
     Ok(())
 }
 

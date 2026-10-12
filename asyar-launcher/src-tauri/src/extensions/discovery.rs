@@ -419,8 +419,6 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
             .to_string();
         match read_manifest(&manifest_path) {
             Ok(mut manifest) => {
-                let id = manifest.id.clone();
-
                 resolve_background_entry_for_layout(&mut manifest, &path);
 
                 // Validate schedule declarations — strip invalid ones gracefully
@@ -712,10 +710,7 @@ pub fn validate_compatibility(manifest: &ExtensionManifest) -> CompatibilityStat
                 }
             }
             Err(_) => {
-                warn!(
-                    "Extension {} has invalid asyarSdk requirement: {}",
-                    manifest.id, sdk_req_str
-                );
+                warn!("Extension has invalid asyarSdk semver requirement; treating as Unknown");
                 // Invalid semver range — treat as unknown rather than blocking
                 return CompatibilityStatus::Unknown;
             }
