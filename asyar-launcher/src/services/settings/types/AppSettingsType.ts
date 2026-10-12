@@ -67,6 +67,7 @@ export interface ClipboardHistorySettings {
 export interface FeedbackSettings {
   promptSeen?: boolean;
   firstLaunchDate?: string;
+  spreadPromptSeen?: boolean;
 }
 
 export interface FileSearchSettings {

@@ -288,9 +288,12 @@ export const appInitializer = {
             await checkAndNotifyWhatsNew();
             logService.info("What's New check complete.");
 
-            const { checkAndNotifyFeedback } = await import('./feedback/feedbackNotifier');
+            const { checkAndNotifyFeedback, checkAndNotifySpread } =
+              await import('./feedback/feedbackNotifier');
             await checkAndNotifyFeedback();
             logService.info('Feedback nudge check complete.');
+            await checkAndNotifySpread();
+            logService.info('Spread nudge check complete.');
           })();
         },
         { timeout: 4000 },

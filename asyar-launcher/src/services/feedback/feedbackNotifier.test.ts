@@ -18,14 +18,22 @@ vi.mock('./feedbackService.svelte', () => ({
 vi.mock('../extension/commandService.svelte', () => ({
   commandService: { executeCommand: vi.fn() },
 }));
+vi.mock('../opener/openerService', () => ({
+  openerService: { open: vi.fn() },
+}));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { checkAndNotifyFeedback } from './feedbackNotifier';
+import {
+  checkAndNotifyFeedback,
+  checkAndNotifySpread,
+  SPREAD_NUDGE_DAYS,
+} from './feedbackNotifier';
 import { settingsService } from '../settings/settingsService.svelte';
 import { feedbackService } from './feedbackService.svelte';
 import { commandService } from '../extension/commandService.svelte';
+import { openerService } from '../opener/openerService';
 
 describe('checkAndNotifyFeedback', () => {
   beforeEach(() => {
@@ -122,6 +130,98 @@ describe('checkAndNotifyFeedback', () => {
     expect(commandService.executeCommand).not.toHaveBeenCalled();
     expect(settingsService.updateSettings).toHaveBeenCalledWith('feedback', {
       promptSeen: true,
+    });
+  });
+});
+
+describe('checkAndNotifySpread', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    settingsService.currentSettings.feedback = {
+      spreadPromptSeen: false,
+      firstLaunchDate: undefined,
+    };
+  });
+
+  it('shows no notice if there is no firstLaunchDate recorded yet', async () => {
+    await checkAndNotifySpread();
+    expect(feedbackService.announceFromHost).not.toHaveBeenCalled();
+    expect(settingsService.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it('shows no notice if spreadPromptSeen is already true', async () => {
+    const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    settingsService.currentSettings.feedback = {
+      spreadPromptSeen: true,
+      firstLaunchDate: fifteenDaysAgo,
+    };
+    await checkAndNotifySpread();
+    expect(feedbackService.announceFromHost).not.toHaveBeenCalled();
+  });
+
+  it(`shows no notice if fewer than ${SPREAD_NUDGE_DAYS} days have passed since install`, async () => {
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    settingsService.currentSettings.feedback = {
+      spreadPromptSeen: false,
+      firstLaunchDate: fiveDaysAgo,
+    };
+    await checkAndNotifySpread();
+    expect(feedbackService.announceFromHost).not.toHaveBeenCalled();
+  });
+
+  it(`shows a sticky spread toast when >= ${SPREAD_NUDGE_DAYS} days have passed`, async () => {
+    const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    settingsService.currentSettings.feedback = {
+      spreadPromptSeen: false,
+      firstLaunchDate: fifteenDaysAgo,
+    };
+
+    await checkAndNotifySpread();
+
+    expect(feedbackService.announceFromHost).toHaveBeenCalledOnce();
+    const options = vi.mocked(feedbackService.announceFromHost).mock.calls[0][0];
+    expect(options.id).toBe('spread-the-word');
+    expect(typeof options.onClick).toBe('function');
+    expect(typeof options.onDismiss).toBe('function');
+    expect(settingsService.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it('clicking the notice opens the GitHub repo and marks spreadPromptSeen: true', async () => {
+    const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    settingsService.currentSettings.feedback = {
+      spreadPromptSeen: false,
+      firstLaunchDate: fifteenDaysAgo,
+    };
+
+    await checkAndNotifySpread();
+
+    const options = vi.mocked(feedbackService.announceFromHost).mock.calls[0][0];
+    await options.onClick!();
+
+    expect(openerService.open).toHaveBeenCalledWith(
+      null,
+      'https://github.com/Xoshbin/asyar-launcher',
+    );
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('feedback', {
+      spreadPromptSeen: true,
+    });
+  });
+
+  it('dismissing the notice marks spreadPromptSeen: true without opening the repo', async () => {
+    const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    settingsService.currentSettings.feedback = {
+      spreadPromptSeen: false,
+      firstLaunchDate: fifteenDaysAgo,
+    };
+
+    await checkAndNotifySpread();
+
+    const options = vi.mocked(feedbackService.announceFromHost).mock.calls[0][0];
+    await options.onDismiss!();
+
+    expect(openerService.open).not.toHaveBeenCalled();
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('feedback', {
+      spreadPromptSeen: true,
     });
   });
 });

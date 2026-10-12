@@ -1850,6 +1850,10 @@
     "title": "Tem feedback? Estamos ouvindo",
     "message": "Compartilhe uma ideia, elogio ou relate um problema"
   },
+  "spread_nudge": {
+    "title": "Curtindo o Asyar? Conte para alguém.",
+    "message": "Mais usuários → mais relatórios de bugs, ideias e contribuidores. Tudo volta como um app melhor."
+  },
   "recorder": {
     "aria": "Pressione as teclas para definir o atalho",
     "saving": "Salvando...",
