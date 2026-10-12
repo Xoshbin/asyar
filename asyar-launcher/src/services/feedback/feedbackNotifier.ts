@@ -6,7 +6,7 @@ import { openerService } from '../opener/openerService';
 import { logService } from '../log/logService';
 
 export const FEEDBACK_NUDGE_DAYS = 3;
-export const SPREAD_NUDGE_DAYS = 0; // TEMP: smoke test — revert to 14
+export const SPREAD_NUDGE_DAYS = 14;
 
 const ASYAR_REPO_URL = 'https://github.com/Xoshbin/asyar-launcher';
 
