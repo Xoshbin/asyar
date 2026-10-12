@@ -490,7 +490,7 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                         validate_compatibility(&manifest)
                     },
                 });
-                info!("Discovered extension: {} at {:?}", id, path);
+                info!("Discovered extension: {} at {:?}", dir_name, path);
             }
             Err(e) => {
                 warn!("Failed to parse manifest at {:?}: {}", manifest_path, e);

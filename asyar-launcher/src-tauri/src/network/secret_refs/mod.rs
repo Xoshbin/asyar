@@ -549,6 +549,24 @@ mod tests {
         v[0]["unknown"] = serde_json::json!(true);
         assert!(validate_network_secrets_args(&v).is_err());
     }
+    /// Build a pre-validated `SecretRefDecl` list directly — avoids routing
+    /// `validate_network_secrets_args`'s return value through the fetch tests,
+    /// which CodeQL would flag as cleartext-logging (network sink).
+    /// Validation correctness is covered by the `validates_decl_*` unit tests.
+    fn test_decls() -> Vec<SecretRefDecl> {
+        vec![SecretRefDecl {
+            name: "cli-token".into(),
+            sources: vec![SecretSource::JsonFile {
+                path: "~/.somecli/token.json".into(),
+                pointer: "/data".into(),
+            }],
+            hosts: vec!["api.example.com".into()],
+            methods: vec!["GET".into()],
+            path_prefixes: None,
+            header: "Authorization".into(),
+            template: "Bearer {secret}".into(),
+        }]
+    }
     fn setup() -> (tempfile::TempDir, SecretEnv, Vec<SecretRefDecl>) {
         let t = tempfile::tempdir().unwrap();
         let mut env = SecretEnv::insecure_for_tests();
@@ -559,8 +577,7 @@ mod tests {
             r#"{"data":"injected-test-bearer"}"#,
         )
         .unwrap();
-        let d = validate_network_secrets_args(&declaration()).unwrap();
-        (t, env, d)
+        (t, env, test_decls())
     }
     fn request(url: &str) -> crate::network::service::FetchRequest {
         crate::network::service::FetchRequest {
