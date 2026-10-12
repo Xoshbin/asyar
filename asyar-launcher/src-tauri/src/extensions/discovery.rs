@@ -407,6 +407,16 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
             continue;
         }
 
+        // Derive the extension identifier from the directory name for log calls
+        // below. This avoids routing CodeQL's taint (which marks the parsed
+        // manifest as sensitive because it may contain network:secrets args)
+        // through warn! sinks — the directory name is sourced from read_dir,
+        // not from the manifest JSON, so it is taint-clean.
+        let dir_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("?")
+            .to_string();
         match read_manifest(&manifest_path) {
             Ok(mut manifest) => {
                 let id = manifest.id.clone();
@@ -414,12 +424,12 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                 resolve_background_entry_for_layout(&mut manifest, &path);
 
                 // Validate schedule declarations — strip invalid ones gracefully
-                for cmd in &mut manifest.commands {
+                for (cmd_idx, cmd) in manifest.commands.iter_mut().enumerate() {
                     if let Some(ref schedule) = cmd.schedule {
                         if let Err(e) = scheduler::validate_interval(schedule.interval_seconds) {
                             warn!(
-                                "Extension '{}' command '{}': {}. Stripping schedule.",
-                                manifest.id, cmd.id, e
+                                "Extension '{}' command #{}: {}. Stripping schedule.",
+                                dir_name, cmd_idx, e
                             );
                             cmd.schedule = None;
                         }
@@ -434,18 +444,18 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                     if let Err(e) = validate_preferences(prefs) {
                         warn!(
                             "Extension '{}' has invalid preferences: {}. Skipping.",
-                            manifest.id, e
+                            dir_name, e
                         );
                         prefs_valid = false;
                     }
                 }
                 if prefs_valid {
-                    for cmd in &manifest.commands {
+                    for (cmd_idx, cmd) in manifest.commands.iter().enumerate() {
                         if let Some(prefs) = &cmd.preferences {
                             if let Err(e) = validate_preferences(prefs) {
                                 warn!(
-                                    "Extension '{}' command '{}' has invalid preferences: {}. Skipping extension.",
-                                    manifest.id, cmd.id, e
+                                    "Extension '{}' command #{} has invalid preferences: {}. Skipping extension.",
+                                    dir_name, cmd_idx, e
                                 );
                                 prefs_valid = false;
                                 break;
