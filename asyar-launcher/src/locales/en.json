@@ -1850,6 +1850,10 @@
     "title": "Got feedback? We're listening",
     "message": "Share an idea, praise, or report an issue"
   },
+  "spread_nudge": {
+    "title": "Enjoying Asyar? Tell someone.",
+    "message": "More users → more bug reports, ideas, and contributors. It all comes back as a better app."
+  },
   "recorder": {
     "aria": "Press keys to set shortcut",
     "saving": "Saving...",
