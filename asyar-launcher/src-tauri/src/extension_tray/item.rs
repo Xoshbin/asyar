@@ -14,7 +14,7 @@ pub struct StatusBarItem {
     /// top-level and non-separator children.
     #[serde(default)]
     pub id: String,
-    /// Injected by the SDK proxy on the top-level item only.
+    /// Injected by the authenticated launcher host on the top-level item only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extension_id: Option<String>,
     /// Emoji / unicode / short label fragment shown alongside `text`.
@@ -23,6 +23,9 @@ pub struct StatusBarItem {
     /// Filesystem path or `asyar-extension://` URI for the tray image.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon_path: Option<String>,
+    /// Optional text next to the tray icon, valid only at top level.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     /// Tooltip at top level; label in a submenu. Defaults to empty so
     /// separator items (which don't carry text) still deserialize.
     #[serde(default)]
@@ -48,6 +51,7 @@ impl StatusBarItem {
             extension_id: None,
             icon: None,
             icon_path: None,
+            title: None,
             text: text.to_string(),
             checked: None,
             submenu: None,
@@ -60,6 +64,21 @@ impl StatusBarItem {
 #[cfg(test)]
 mod serde_tests {
     use super::*;
+
+    #[test]
+    fn title_round_trips_camel_case() {
+        let item: StatusBarItem = serde_json::from_value(
+            serde_json::json!({"id":"timer", "title":"25:00", "iconPath":"x.png"}),
+        )
+        .unwrap();
+        assert_eq!(serde_json::to_value(item).unwrap()["title"], "25:00");
+    }
+
+    #[test]
+    fn missing_title_is_none() {
+        let item: StatusBarItem = serde_json::from_str(r#"{"id":"timer"}"#).unwrap();
+        assert!(serde_json::to_value(item).unwrap().get("title").is_none());
+    }
 
     /// Regression: the SDK proxy sends `{separator: true}` with no id/text
     /// for divider rows. Before adding `#[serde(default)]` on id/text, this

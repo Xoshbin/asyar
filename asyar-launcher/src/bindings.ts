@@ -167,6 +167,32 @@ export type ExternalSearchResult = {
 	priority?: ResultPriority | null,
 };
 
+export type FileChunk = {
+	text: string,
+	start: number,
+	end: number,
+	size: number,
+	mtimeMs: number,
+	eof: boolean,
+};
+
+export type FileGlobEntriesOptions = {
+	maxResults?: number | null,
+	sort?: GlobSort | null,
+	modifiedAfterMs?: number | null,
+	modifiedBeforeMs?: number | null,
+};
+
+export type FileGlobEntry = {
+	path: string,
+	size: number,
+	mtimeMs: number,
+};
+
+export type FileGlobOptions = {
+	maxResults?: number | null,
+};
+
 // Wire shape for one search hit.
 export type FileHit = {
 	// 16-char lowercase hex of the stable u64 file id.
@@ -193,6 +219,13 @@ export type FileIndexConfig = {
 	// Extra exclude patterns layered on top of the built-in defaults.
 	excludePatterns: string[],
 	indexHidden: boolean,
+};
+
+export type FileReadRangeOptions = {
+	maxBytes?: number | null,
+	offset?: number | null,
+	fromEnd?: boolean | null,
+	align?: ReadAlign | null,
 };
 
 export type FileSearchResponse = {
@@ -223,6 +256,8 @@ export type GeminiGrounding = {
 	sources: GroundingSource[],
 	searchSuggestionsHtml: string | null,
 };
+
+export type GlobSort = "path" | "modified-desc";
 
 export type GroundingSource = {
 	title: string,
@@ -362,6 +397,8 @@ export type RankInput = {
 	subtitle?: string | null,
 	keywords?: string[],
 };
+
+export type ReadAlign = "none" | "line";
 
 /**
  *  Result-level priority hint. `Top` pins the result above all tier 1–5

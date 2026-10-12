@@ -20,6 +20,74 @@ pub const FILES_READ_PERMISSION: &str = "files:read";
 /// a purpose-built API.
 const EXTENSION_READ_MAX_BYTES: u64 = 1_048_576;
 
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FileReadRangeOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_bytes: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_end: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub align: Option<ReadAlign>,
+}
+
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ReadAlign {
+    None,
+    #[default]
+    Line,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FileChunk {
+    pub text: String,
+    pub start: u64,
+    pub end: u64,
+    pub size: u64,
+    pub mtime_ms: i64,
+    pub eof: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FileGlobEntry {
+    pub path: String,
+    pub size: u64,
+    pub mtime_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum GlobSort {
+    #[default]
+    Path,
+    ModifiedDesc,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FileGlobOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_results: Option<u32>,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FileGlobEntriesOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_results: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sort: Option<GlobSort>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified_after_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified_before_ms: Option<i64>,
+}
+
 /// Normalizes a path by resolving `.` and `..` components without requiring the path to exist on disk.
 pub(crate) fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
     use std::path::Component;
@@ -233,7 +301,7 @@ pub async fn files_read_text<R: tauri::Runtime>(
 /// The launcher's own app-data dir (settings.dat, consent records, MCP
 /// config) joins the deny-list — a broad consented glob like `~/**` must
 /// not read the launcher's internal state.
-fn extension_scope_env<R: tauri::Runtime>(
+pub(crate) fn extension_scope_env<R: tauri::Runtime>(
     app_handle: &tauri::AppHandle<R>,
 ) -> Result<(PathBuf, Vec<PathBuf>), AppError> {
     let home = app_handle
@@ -261,6 +329,160 @@ pub(crate) fn files_read_text_inner(
         .unwrap_or(50_000)
         .min(EXTENSION_READ_MAX_BYTES);
     read_bounded(&canonical, cap)
+}
+
+/// Range reads share the existing files:read authorization, but do all
+/// validation and filesystem I/O on the blocking pool.
+#[tauri::command]
+pub async fn files_read_range<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    path_str: String,
+    opts: FileReadRangeOptions,
+) -> Result<FileChunk, AppError> {
+    // State is owned by the AppHandle; reacquire it inside the 'static job.
+    let _ = permissions;
+    tokio::task::spawn_blocking(move || {
+        if let Some(ext) = extension_id {
+            let (home, deny) = extension_scope_env(&app_handle)?;
+            files_read_range_inner(&app_handle.state(), &ext, &path_str, &opts, &home, &deny)
+        } else {
+            validate_path_allowed(&path_str, &app_handle)?;
+            read_range_bounded(Path::new(&path_str), &opts)
+        }
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("File range task failed: {e}")))?
+}
+
+pub(crate) fn files_read_range_inner(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    path_str: &str,
+    opts: &FileReadRangeOptions,
+    home: &Path,
+    extra_deny: &[PathBuf],
+) -> Result<FileChunk, AppError> {
+    let path = validate_scoped_path(permissions, extension_id, path_str, home, extra_deny)?;
+    read_range_bounded(&path, opts)
+}
+
+fn resolve_window(
+    size: u64,
+    offset: Option<u64>,
+    from_end: bool,
+    cap: u64,
+) -> Result<(u64, u64), AppError> {
+    if offset.is_some() && from_end {
+        return Err(AppError::Validation(
+            "offset and fromEnd cannot be used together".into(),
+        ));
+    }
+    let start = if from_end {
+        size.saturating_sub(cap)
+    } else {
+        offset.unwrap_or(0).min(size)
+    };
+    Ok((start, start.saturating_add(cap).min(size)))
+}
+
+/// Return byte indices into the window. The cursor still consumes a window
+/// with no complete line, preventing oversized lines from stalling callers.
+fn align_lines(
+    bytes: &[u8],
+    start: u64,
+    end: u64,
+    size: u64,
+    previous: Option<u8>,
+) -> (usize, usize) {
+    let leading = if start > 0 && previous != Some(b'\n') {
+        bytes
+            .iter()
+            .position(|b| *b == b'\n')
+            .map_or(bytes.len(), |i| i + 1)
+    } else {
+        0
+    };
+    let trailing = if end >= size {
+        bytes.len()
+    } else {
+        bytes.iter().rposition(|b| *b == b'\n').map_or(0, |i| i + 1)
+    };
+    if trailing <= leading {
+        (bytes.len(), bytes.len())
+    } else {
+        (leading, trailing)
+    }
+}
+
+/// Only strip incomplete codepoints at the edges. Invalid interior bytes
+/// retain files:read's lossy decoding semantics.
+fn align_utf8(bytes: &[u8]) -> (usize, usize) {
+    let mut start = 0;
+    while start < bytes.len() && bytes[start] & 0xc0 == 0x80 {
+        start += 1;
+    }
+    let mut end = bytes.len();
+    if start < end {
+        let mut last = end - 1;
+        while last > start && bytes[last] & 0xc0 == 0x80 {
+            last -= 1;
+        }
+        let width = match bytes[last] {
+            0xc2..=0xdf => 2,
+            0xe0..=0xef => 3,
+            0xf0..=0xf4 => 4,
+            _ => 1,
+        };
+        if end - last < width {
+            end = last;
+        }
+    }
+    (start, end)
+}
+
+fn metadata_mtime_ms(meta: &fs::Metadata) -> Result<i64, AppError> {
+    let modified = meta.modified()?;
+    Ok(match modified.duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => d.as_millis().min(i64::MAX as u128) as i64,
+        Err(e) => -(e.duration().as_millis().min(i64::MAX as u128) as i64),
+    })
+}
+
+fn read_range_bounded(path: &Path, opts: &FileReadRangeOptions) -> Result<FileChunk, AppError> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = fs::File::open(path)?;
+    let meta = file.metadata()?;
+    let size = meta.len();
+    let cap = u64::from(opts.max_bytes.unwrap_or(65_536)).min(EXTENSION_READ_MAX_BYTES);
+    let (start, end) = resolve_window(size, opts.offset, opts.from_end.unwrap_or(false), cap)?;
+    let mut previous = None;
+    if start > 0 && end > start {
+        file.seek(SeekFrom::Start(start - 1))?;
+        let mut byte = [0];
+        file.read_exact(&mut byte)?;
+        previous = Some(byte[0]);
+    }
+    file.seek(SeekFrom::Start(start))?;
+    let mut bytes = Vec::with_capacity((end - start) as usize);
+    file.take(end - start).read_to_end(&mut bytes)?;
+    let window_end = start + bytes.len() as u64;
+    let (a, b) = match opts.align.unwrap_or_default() {
+        ReadAlign::Line => align_lines(&bytes, start, window_end, size, previous),
+        ReadAlign::None => align_utf8(&bytes),
+    };
+    // A fully stripped window must advance too; otherwise a codepoint wider
+    // than maxBytes could produce an infinite retry loop.
+    let chunk_end = if a == b { window_end } else { start + b as u64 };
+    Ok(FileChunk {
+        text: String::from_utf8_lossy(&bytes[a..b]).into_owned(),
+        start: start + a as u64,
+        end: chunk_end,
+        size,
+        mtime_ms: metadata_mtime_ms(&meta)?,
+        eof: chunk_end >= size,
+    })
 }
 
 /// The full `files:read` scope check shared by every extension-facing
@@ -345,7 +567,20 @@ const GLOB_MAX_RESULTS: usize = 256;
 /// error rather than a silent truncation — which entries a cut-off walk
 /// would have covered is filesystem-order nondeterministic, so the caller
 /// must narrow the pattern's literal prefix instead.
-const GLOB_MAX_VISITS: usize = 10_000;
+const GLOB_MAX_VISITS: usize = 100_000;
+
+#[derive(Clone, Copy)]
+pub(crate) struct GlobLimits {
+    pub max_visits: usize,
+}
+
+impl Default for GlobLimits {
+    fn default() -> Self {
+        Self {
+            max_visits: GLOB_MAX_VISITS,
+        }
+    }
+}
 
 /// Scoped filename enumeration for extensions (`asyar:api:files:glob`).
 /// Complements `files:read`/`files:thumbnail`, which take exact paths the
@@ -370,25 +605,87 @@ pub async fn files_glob<R: tauri::Runtime>(
             "files:glob requires an extension caller".into(),
         ));
     };
-    let (home, extra_deny) = extension_scope_env(&app_handle)?;
-    files_glob_inner(
-        &permissions,
-        &ext,
-        &pattern,
-        max_results,
-        &home,
-        &extra_deny,
-    )
+    let _ = permissions;
+    tokio::task::spawn_blocking(move || {
+        let (home, extra_deny) = extension_scope_env(&app_handle)?;
+        files_glob_inner(
+            &app_handle.state(),
+            &ext,
+            &pattern,
+            &FileGlobOptions { max_results },
+            &home,
+            &extra_deny,
+            GlobLimits::default(),
+        )
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("File glob task failed: {e}")))?
 }
 
 pub(crate) fn files_glob_inner(
     permissions: &ExtensionPermissionRegistry,
     extension_id: &str,
     pattern_str: &str,
-    max_results: Option<u32>,
+    opts: &FileGlobOptions,
     home: &Path,
     extra_deny: &[PathBuf],
+    limits: GlobLimits,
 ) -> Result<Vec<String>, AppError> {
+    files_glob_entries_inner(
+        permissions,
+        extension_id,
+        pattern_str,
+        &FileGlobEntriesOptions {
+            max_results: opts.max_results,
+            ..Default::default()
+        },
+        home,
+        extra_deny,
+        limits,
+    )
+    .map(|entries| entries.into_iter().map(|entry| entry.path).collect())
+}
+
+/// Metadata enumeration beside the unchanged path-list API.
+#[tauri::command]
+pub async fn files_glob_entries<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    pattern: String,
+    opts: FileGlobEntriesOptions,
+) -> Result<Vec<FileGlobEntry>, AppError> {
+    let Some(ext) = extension_id else {
+        return Err(AppError::Validation(
+            "files:globEntries requires an extension caller".into(),
+        ));
+    };
+    let _ = permissions;
+    tokio::task::spawn_blocking(move || {
+        let (home, extra_deny) = extension_scope_env(&app_handle)?;
+        files_glob_entries_inner(
+            &app_handle.state(),
+            &ext,
+            &pattern,
+            &opts,
+            &home,
+            &extra_deny,
+            GlobLimits::default(),
+        )
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("File glob task failed: {e}")))?
+}
+
+pub(crate) fn files_glob_entries_inner(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    pattern_str: &str,
+    opts: &FileGlobEntriesOptions,
+    home: &Path,
+    extra_deny: &[PathBuf],
+    limits: GlobLimits,
+) -> Result<Vec<FileGlobEntry>, AppError> {
     permissions.check(&Some(extension_id.to_string()), FILES_READ_PERMISSION)?;
     // Same load-time rules as declared patterns: non-empty, no `..`, valid
     // glob syntax.
@@ -458,7 +755,8 @@ pub(crate) fn files_glob_inner(
         };
 
     let mut visited: usize = 0;
-    let mut results: Vec<String> = Vec::new();
+    let max_depth = files_scope::glob_max_depth(&expanded);
+    let mut results: Vec<FileGlobEntry> = Vec::new();
     let mut stack: Vec<PathBuf> = vec![canonical_prefix.clone()];
     while let Some(dir) = stack.pop() {
         // Unreadable directories are skipped, not fatal — a broad glob may
@@ -468,11 +766,11 @@ pub(crate) fn files_glob_inner(
         };
         for entry in read_dir.flatten() {
             visited += 1;
-            if visited > GLOB_MAX_VISITS {
+            if visited > limits.max_visits {
                 return Err(AppError::Validation(format!(
                     "files:glob visited more than {} entries under '{}' — narrow the pattern's \
                      literal prefix",
-                    GLOB_MAX_VISITS,
+                    limits.max_visits,
                     walk_root.display()
                 )));
             }
@@ -492,6 +790,9 @@ pub(crate) fn files_glob_inner(
                 // no declared pattern could match doesn't get to burn the
                 // visit budget.
                 let requested_dir = requested_form_of(&canonical_path);
+                if max_depth.is_some_and(|depth| requested_dir.components().count() >= depth) {
+                    continue;
+                }
                 if files_scope::check_path_denied(&requested_dir, home, extra_deny).is_err()
                     || files_scope::check_path_denied(
                         &canonical_path,
@@ -542,12 +843,39 @@ pub(crate) fn files_glob_inner(
             {
                 continue;
             }
-            results.push(canonical_path.to_string_lossy().into_owned());
+            let Ok(meta) = entry.metadata() else {
+                continue;
+            };
+            let Ok(mtime_ms) = metadata_mtime_ms(&meta) else {
+                continue;
+            };
+            if opts
+                .modified_after_ms
+                .is_some_and(|after| mtime_ms <= after)
+                || opts
+                    .modified_before_ms
+                    .is_some_and(|before| mtime_ms >= before)
+            {
+                continue;
+            }
+            results.push(FileGlobEntry {
+                path: canonical_path.to_string_lossy().into_owned(),
+                size: meta.len(),
+                mtime_ms,
+            });
         }
     }
     // Deterministic order and a deterministic first-N under the cap.
-    results.sort();
-    let cap = max_results
+    match opts.sort.unwrap_or_default() {
+        GlobSort::Path => results.sort_by(|a, b| a.path.cmp(&b.path)),
+        GlobSort::ModifiedDesc => results.sort_by(|a, b| {
+            b.mtime_ms
+                .cmp(&a.mtime_ms)
+                .then_with(|| a.path.cmp(&b.path))
+        }),
+    }
+    let cap = opts
+        .max_results
         .map(|n| n as usize)
         .unwrap_or(GLOB_MAX_RESULTS)
         .clamp(1, GLOB_MAX_RESULTS);
@@ -1167,6 +1495,466 @@ mod tests {
 
     // ---- files_glob (scoped enumeration) ----
 
+    #[test]
+    fn files_glob_returns_plain_sorted_paths_like_before() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        for name in ["z.jpg", "a.jpg", "m.jpg"] {
+            fs::write(root.join(name), "jpg").unwrap();
+        }
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &format!("{}/*.jpg", slashes(&root)),
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
+        let wire = serde_json::to_value(hits).unwrap();
+        assert_eq!(
+            wire,
+            serde_json::json!([
+                root.join("a.jpg").to_string_lossy(),
+                root.join("m.jpg").to_string_lossy(),
+                root.join("z.jpg").to_string_lossy(),
+            ])
+        );
+    }
+
+    fn range_read(content: &str, opts: FileReadRangeOptions) -> FileChunk {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let path = root.join("log.txt");
+        fs::write(&path, content).unwrap();
+        files_read_range_inner(&perms, "ext.a", path.to_str().unwrap(), &opts, &root, &[]).unwrap()
+    }
+
+    #[test]
+    fn resolve_window_from_offset() {
+        assert_eq!(resolve_window(10, Some(3), false, 4).unwrap(), (3, 7));
+        assert_eq!(resolve_window(10, None, false, 4).unwrap(), (0, 4));
+        assert_eq!(
+            resolve_window(u64::MAX, Some(u64::MAX - 1), false, 4).unwrap(),
+            (u64::MAX - 1, u64::MAX)
+        );
+    }
+
+    #[test]
+    fn resolve_window_from_end() {
+        assert_eq!(resolve_window(10, None, true, 4).unwrap(), (6, 10));
+        assert_eq!(resolve_window(2, None, true, 4).unwrap(), (0, 2));
+    }
+
+    #[test]
+    fn resolve_window_past_eof() {
+        assert_eq!(resolve_window(10, Some(20), false, 4).unwrap(), (10, 10));
+        assert_eq!(resolve_window(0, None, false, 4).unwrap(), (0, 0));
+    }
+
+    #[test]
+    fn resolve_window_conflicting_options() {
+        assert!(resolve_window(10, Some(0), true, 4).is_err());
+    }
+
+    #[test]
+    fn files_read_range_reads_from_offset() {
+        let c = range_read(
+            "abc\ndef\n",
+            FileReadRangeOptions {
+                offset: Some(4),
+                ..Default::default()
+            },
+        );
+        assert_eq!((c.text.as_str(), c.start, c.end), ("def\n", 4, 8));
+    }
+
+    #[test]
+    fn files_read_range_from_end_returns_tail() {
+        let c = range_read(
+            "abc\ndef\n",
+            FileReadRangeOptions {
+                from_end: Some(true),
+                max_bytes: Some(4),
+                ..Default::default()
+            },
+        );
+        assert_eq!((c.text.as_str(), c.start, c.end), ("def\n", 4, 8));
+    }
+
+    #[test]
+    fn files_read_range_offset_and_from_end_conflict_rejected() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let path = root.join("log");
+        fs::write(&path, "x").unwrap();
+        assert!(files_read_range_inner(
+            &perms,
+            "ext.a",
+            path.to_str().unwrap(),
+            &FileReadRangeOptions {
+                offset: Some(0),
+                from_end: Some(true),
+                ..Default::default()
+            },
+            &root,
+            &[]
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn files_read_range_offset_past_eof_returns_empty_eof_chunk() {
+        let c = range_read(
+            "abc",
+            FileReadRangeOptions {
+                offset: Some(99),
+                ..Default::default()
+            },
+        );
+        assert_eq!((c.text.as_str(), c.start, c.end, c.eof), ("", 3, 3, true));
+    }
+
+    #[test]
+    fn files_read_range_reports_size_mtime_and_end() {
+        let c = range_read("abc", Default::default());
+        assert_eq!((c.size, c.end, c.eof), (3, 3, true));
+        assert!(c.mtime_ms > 0);
+    }
+
+    #[test]
+    fn files_read_range_line_align_drops_leading_partial() {
+        let c = range_read(
+            "abc\ndef\n",
+            FileReadRangeOptions {
+                offset: Some(1),
+                ..Default::default()
+            },
+        );
+        assert_eq!((c.text.as_str(), c.start), ("def\n", 4));
+    }
+
+    #[test]
+    fn files_read_range_line_align_drops_trailing_partial_unless_eof() {
+        let c = range_read(
+            "abc\ndef",
+            FileReadRangeOptions {
+                max_bytes: Some(6),
+                ..Default::default()
+            },
+        );
+        assert_eq!((c.text.as_str(), c.end), ("abc\n", 4));
+        assert_eq!(range_read("abc\ndef", Default::default()).text, "abc\ndef");
+    }
+
+    #[test]
+    fn files_read_range_oversized_line_still_advances() {
+        let c = range_read(
+            "abcdefgh",
+            FileReadRangeOptions {
+                max_bytes: Some(3),
+                ..Default::default()
+            },
+        );
+        assert_eq!((c.text.as_str(), c.end), ("", 3));
+    }
+
+    #[test]
+    fn files_read_range_utf8_align_never_splits_codepoint() {
+        for offset in 0..8 {
+            for cap in 1..8 {
+                let c = range_read(
+                    "a😀éz",
+                    FileReadRangeOptions {
+                        offset: Some(offset),
+                        max_bytes: Some(cap),
+                        align: Some(ReadAlign::None),
+                        ..Default::default()
+                    },
+                );
+                assert!(!c.text.contains('\u{fffd}'), "{c:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn files_read_range_caps_at_1mib() {
+        let c = range_read(
+            &"a".repeat(2 * 1024 * 1024),
+            FileReadRangeOptions {
+                max_bytes: Some(u32::MAX),
+                align: Some(ReadAlign::None),
+                ..Default::default()
+            },
+        );
+        assert_eq!(c.text.len(), 1024 * 1024);
+        assert_eq!(
+            range_read(
+                &"a".repeat(100_000),
+                FileReadRangeOptions {
+                    align: Some(ReadAlign::None),
+                    ..Default::default()
+                }
+            )
+            .end,
+            65_536
+        );
+    }
+
+    #[test]
+    fn files_read_range_rejects_without_permission() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        assert!(files_read_range_inner(
+            &perms,
+            "ext.other",
+            root.join("x").to_str().unwrap(),
+            &Default::default(),
+            &root,
+            &[]
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn files_read_range_denies_out_of_scope_and_protected() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let outside = TempDir::new().unwrap();
+        let out = outside.path().join("x");
+        fs::write(&out, "x").unwrap();
+        assert!(files_read_range_inner(
+            &perms,
+            "ext.a",
+            out.to_str().unwrap(),
+            &Default::default(),
+            &root,
+            &[]
+        )
+        .is_err());
+        fs::create_dir(root.join(".ssh")).unwrap();
+        let key = root.join(".ssh/key");
+        fs::write(&key, "x").unwrap();
+        assert!(files_read_range_inner(
+            &perms,
+            "ext.a",
+            key.to_str().unwrap(),
+            &Default::default(),
+            &root,
+            &[]
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn files_read_range_incremental_tail_returns_only_appended_lines() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let path = root.join("log");
+        fs::write(&path, "one\n").unwrap();
+        let first = files_read_range_inner(
+            &perms,
+            "ext.a",
+            path.to_str().unwrap(),
+            &Default::default(),
+            &root,
+            &[],
+        )
+        .unwrap();
+        fs::write(&path, "one\ntwo\n").unwrap();
+        let next = files_read_range_inner(
+            &perms,
+            "ext.a",
+            path.to_str().unwrap(),
+            &FileReadRangeOptions {
+                offset: Some(first.end),
+                ..Default::default()
+            },
+            &root,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(next.text, "two\n");
+    }
+
+    fn glob_metadata(opts: &FileGlobEntriesOptions) -> Vec<FileGlobEntry> {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        for (name, ms) in [("a", 1000), ("b", 3000), ("c", 2000)] {
+            let path = root.join(name);
+            fs::write(&path, "abc").unwrap();
+            fs::File::options()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_millis(ms))
+                .unwrap();
+        }
+        let pattern = format!("{}/*", slashes(&root));
+        files_glob_entries_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            opts,
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn files_glob_entries_returns_size_and_mtime() {
+        let hits = glob_metadata(&Default::default());
+        assert_eq!(
+            hits.iter()
+                .map(|h| (h.size, h.mtime_ms))
+                .collect::<Vec<_>>(),
+            vec![(3, 1000), (3, 3000), (3, 2000)]
+        );
+    }
+
+    #[test]
+    fn files_glob_entries_sort_modified_desc_newest_first() {
+        let hits = glob_metadata(&FileGlobEntriesOptions {
+            sort: Some(GlobSort::ModifiedDesc),
+            ..Default::default()
+        });
+        assert_eq!(
+            hits.iter().map(|h| h.mtime_ms).collect::<Vec<_>>(),
+            vec![3000, 2000, 1000]
+        );
+    }
+
+    #[test]
+    fn files_glob_entries_cap_applies_after_sort() {
+        let hits = glob_metadata(&FileGlobEntriesOptions {
+            max_results: Some(1),
+            sort: Some(GlobSort::ModifiedDesc),
+            ..Default::default()
+        });
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].path.ends_with('b'));
+        assert_eq!((hits[0].size, hits[0].mtime_ms), (3, 3000));
+    }
+
+    #[test]
+    fn files_glob_entries_modified_after_filters_older() {
+        let hits = glob_metadata(&FileGlobEntriesOptions {
+            modified_after_ms: Some(1000),
+            ..Default::default()
+        });
+        assert_eq!(
+            hits.iter().map(|h| h.mtime_ms).collect::<Vec<_>>(),
+            vec![3000, 2000]
+        );
+    }
+
+    #[test]
+    fn files_glob_entries_modified_before_pages_keyset() {
+        let mut opts = FileGlobEntriesOptions {
+            max_results: Some(1),
+            sort: Some(GlobSort::ModifiedDesc),
+            ..Default::default()
+        };
+        for expected in [3000, 2000, 1000] {
+            let page = glob_metadata(&opts);
+            assert_eq!(page.len(), 1);
+            assert_eq!(page[0].mtime_ms, expected);
+            opts.modified_before_ms = Some(page[0].mtime_ms);
+        }
+        assert!(glob_metadata(&opts).is_empty());
+    }
+
+    #[test]
+    fn files_glob_depth_bounded_pattern_does_not_descend() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        fs::create_dir(root.join("dir")).unwrap();
+        fs::write(root.join("dir/deep"), "x").unwrap();
+        let pattern = format!("{}/*", slashes(&root));
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits { max_visits: 1 },
+        )
+        .unwrap();
+        assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn files_glob_visit_budget_exceeded_errors() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        assert!(files_glob_inner(
+            &perms,
+            "ext.a",
+            &format!("{}/**", slashes(&root)),
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits { max_visits: 1 }
+        )
+        .is_err());
+        assert!(files_glob_entries_inner(
+            &perms,
+            "ext.a",
+            &format!("{}/**", slashes(&root)),
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits { max_visits: 1 }
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn files_glob_entries_visit_budget_exceeded_errors() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let error = files_glob_entries_inner(
+            &perms,
+            "ext.a",
+            &format!("{}/**", slashes(&root)),
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits { max_visits: 1 },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("visited more than 1"));
+    }
+
+    #[test]
+    fn files_glob_caps_at_256_after_path_sort() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        for i in (0..300).rev() {
+            fs::write(root.join(format!("{i:03}.jpg")), "jpg").unwrap();
+        }
+        let pattern = format!("{}/*.jpg", slashes(&root));
+        for max_results in [None, Some(u32::MAX)] {
+            let paths = files_glob_inner(
+                &perms,
+                "ext.a",
+                &pattern,
+                &FileGlobOptions { max_results },
+                &root,
+                &[],
+                GlobLimits::default(),
+            )
+            .unwrap();
+            assert_eq!(paths.len(), 256);
+            assert!(paths[0].ends_with("000.jpg"));
+            assert!(paths[255].ends_with("255.jpg"));
+        }
+    }
+
     /// The motivating layout: content-addressed artwork under a per-app
     /// cache directory, unknowable in advance.
     fn glob_setup(tmp: &TempDir) -> (ExtensionPermissionRegistry, PathBuf) {
@@ -1193,7 +1981,16 @@ mod tests {
             slashes(&root),
             "?".repeat(40)
         );
-        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
         assert_eq!(hits.len(), 1);
         assert!(hits[0].ends_with("dca288f5304172c39b7fa683273a5b6e6ce16f6b.jpg"));
     }
@@ -1203,10 +2000,30 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
         let pattern = format!("{}/appcache/**", slashes(&root));
-        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
         assert_eq!(hits.len(), 2);
         assert!(hits[0] < hits[1], "expected sorted results: {hits:?}");
-        let capped = files_glob_inner(&perms, "ext.a", &pattern, Some(1), &root, &[]).unwrap();
+        let capped = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &FileGlobOptions {
+                max_results: Some(1),
+            },
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
         assert_eq!(capped, hits[..1]);
     }
 
@@ -1215,7 +2032,16 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
         let pattern = format!("{}/**", slashes(&root));
-        let err = files_glob_inner(&perms, "ext.other", &pattern, None, &root, &[]).unwrap_err();
+        let err = files_glob_inner(
+            &perms,
+            "ext.other",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap_err();
         assert!(
             format!("{err}").to_lowercase().contains("permission")
                 || format!("{err}").contains("not registered"),
@@ -1227,8 +2053,16 @@ mod tests {
     fn files_glob_rejects_unanchored_pattern() {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
-        let err = files_glob_inner(&perms, "ext.a", "**/librarycache/*.jpg", None, &root, &[])
-            .unwrap_err();
+        let err = files_glob_inner(
+            &perms,
+            "ext.a",
+            "**/librarycache/*.jpg",
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap_err();
         assert!(format!("{err}").contains("literal prefix"), "got: {err}");
     }
 
@@ -1237,7 +2071,16 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
         let pattern = format!("{}/sub/../**", slashes(&root));
-        let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
+        let err = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap_err();
         assert!(format!("{err}").contains(".."), "got: {err}");
     }
 
@@ -1248,7 +2091,16 @@ mod tests {
         let outside_tmp = TempDir::new().unwrap();
         let outside = dunce::canonicalize(outside_tmp.path()).unwrap();
         let pattern = format!("{}/**", slashes(&outside));
-        let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
+        let err = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap_err();
         assert!(
             format!("{err}").contains("outside the declared"),
             "got: {err}"
@@ -1261,7 +2113,16 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
         let pattern = format!("{}/not-mounted/**", slashes(&root));
-        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
         assert!(hits.is_empty());
     }
 
@@ -1275,7 +2136,16 @@ mod tests {
         std::fs::create_dir_all(&ssh).unwrap();
         std::fs::write(ssh.join("id_rsa.jpg"), "not really art").unwrap();
         let pattern = format!("{}/**/*.jpg", slashes(&root));
-        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
         assert!(!hits[0].contains(".ssh"));
     }
@@ -1299,7 +2169,16 @@ mod tests {
         std::fs::write(root.join("out-of-scope.jpg"), "jpg").unwrap();
 
         let pattern = format!("{}/**/*.jpg", slashes(&root));
-        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
         assert!(hits[0].ends_with("in-scope.jpg"));
     }
@@ -1315,7 +2194,16 @@ mod tests {
         std::os::unix::fs::symlink(&secret_dir, root.join("linked")).unwrap();
 
         let pattern = format!("{}/**/*.jpg", slashes(&root));
-        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
         assert!(!hits[0].contains("secret"));
     }
@@ -1335,8 +2223,16 @@ mod tests {
             .join("librarycache")
             .join("105600")
             .join("logo.png");
-        let hits =
-            files_glob_inner(&perms, "ext.a", &target.to_string_lossy(), None, &root, &[]).unwrap();
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &target.to_string_lossy(),
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
         assert_eq!(hits, vec![target.to_string_lossy().into_owned()]);
     }
 
@@ -1354,8 +2250,16 @@ mod tests {
         std::fs::write(&secret, "jpg").unwrap();
         let link = root.join("linked.jpg");
         std::os::unix::fs::symlink(&secret, &link).unwrap();
-        let hits =
-            files_glob_inner(&perms, "ext.a", &link.to_string_lossy(), None, &root, &[]).unwrap();
+        let hits = files_glob_inner(
+            &perms,
+            "ext.a",
+            &link.to_string_lossy(),
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap();
         assert!(hits.is_empty(), "got: {hits:?}");
     }
 
@@ -1369,7 +2273,16 @@ mod tests {
         std::fs::create_dir_all(&ssh).unwrap();
         std::fs::write(ssh.join("id_rsa.jpg"), "not art").unwrap();
         let pattern = format!("{}/.ssh/**", slashes(&root));
-        let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
+        let err = files_glob_inner(
+            &perms,
+            "ext.a",
+            &pattern,
+            &Default::default(),
+            &root,
+            &[],
+            GlobLimits::default(),
+        )
+        .unwrap_err();
         assert!(
             format!("{err}").contains("protected location"),
             "got: {err}"

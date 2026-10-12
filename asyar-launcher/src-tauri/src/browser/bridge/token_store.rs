@@ -2,7 +2,7 @@ use crate::browser::types::{BrowserFamily, BrowserKey};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-const KEYRING_SERVICE: &str = "asyar-browser-bridge";
+pub(crate) const KEYRING_SERVICE: &str = "asyar-browser-bridge";
 
 /// The durable secret backend behind [`KeyringTokenStore`]. Abstracted so the
 /// caching layer can be tested without touching the real OS keychain.

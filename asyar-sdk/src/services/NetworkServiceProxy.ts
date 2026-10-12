@@ -9,7 +9,10 @@ import { BaseServiceProxy } from './BaseServiceProxy';
 
 export class NetworkServiceProxy extends BaseServiceProxy implements INetworkService {
   async fetch(url: string, options?: RequestOptions): Promise<NetworkResponse> {
-    const invokePromise = this.broker.invoke('network:fetch', { url, options: options ?? {} });
+    const { secretRefs: _secretRefs, ...plainOptions } = options ?? {};
+    const invokePromise = options?.secretRefs?.length
+      ? this.broker.invoke('network:fetchWithSecrets', { url, options })
+      : this.broker.invoke('network:fetch', { url, options: plainOptions });
     const ipcTimeout = (options?.timeout ?? 25000) + 15000;
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(

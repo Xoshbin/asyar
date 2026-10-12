@@ -197,6 +197,7 @@ export const VALID_PERMISSIONS = [
   'shell:open-url',
   'shell:open-path',
   'network',
+  'network:secrets',
   'selection:read',
   'storage:read',
   'storage:write',

@@ -21,28 +21,15 @@ class StatusBarServiceClass {
   // try/catch. Without this, a Rust-side failure (e.g., validation or a
   // malformed tree) would be logged on the host and silently succeed from
   // the extension's perspective.
-  async registerItem(item: StatusBarItem): Promise<void> {
-    logService.debug(`[StatusBar] registerItem ext='${item.extensionId}' id='${item.id}'`);
-    const ok = await trayRegisterItem(item);
+  async registerItem(extensionId: string, item: StatusBarItem): Promise<void> {
+    logService.debug(`[StatusBar] registerItem ext='${extensionId}' id='${item.id}'`);
+    const ok = await trayRegisterItem({ ...item, extensionId });
     if (!ok) throw new Error('tray_register_item failed');
   }
 
-  async updateItem(
-    extensionId: string,
-    id: string,
-    updates: Partial<StatusBarItem> & { item?: StatusBarItem },
-  ): Promise<void> {
-    // The proxy always sends the full merged tree under `item` — we use
-    // that. Falling back to (extensionId, id, updates) shape lets the
-    // service stay forgiving for host-side callers.
-    const item: StatusBarItem = updates.item ?? {
-      id,
-      extensionId,
-      text: '',
-      ...updates,
-    };
+  async updateItem(extensionId: string, id: string, item: StatusBarItem): Promise<void> {
     logService.debug(`[StatusBar] updateItem ext='${extensionId}' id='${id}'`);
-    const ok = await trayUpdateItem(item);
+    const ok = await trayUpdateItem({ ...item, extensionId, id });
     if (!ok) throw new Error('tray_update_item failed');
   }
 

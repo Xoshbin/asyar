@@ -500,6 +500,20 @@ pub fn validate_permission_args(m: &ExtensionManifest) -> Result<(), AppError> {
         crate::files_scope::validate_files_read_pattern(s)
     })?;
     validate_shell_open_url_args(m)?;
+    let has = |permission: &str| {
+        m.permissions
+            .as_ref()
+            .is_some_and(|p| p.iter().any(|p| p == permission))
+    };
+    let args = m
+        .permission_args
+        .as_ref()
+        .and_then(|a| a.get("network:secrets"));
+    match (has("network:secrets"),args) {
+        (false,None)=>{},
+        (true,Some(args)) if has("network")=> { crate::network::secret_refs::validate_network_secrets_args(args)?; },
+        _=>return Err(AppError::Validation("network:secrets requires network and matching permissionArgs.network:secrets declarations".into())),
+    }
     Ok(())
 }
 
@@ -683,6 +697,33 @@ pub(crate) fn read_theme_definition(extension_dir: &Path) -> Result<ThemeDefinit
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn secret_manifest(perms: serde_json::Value, args: serde_json::Value) -> ExtensionManifest {
+        serde_json::from_value(serde_json::json!({"id":"test","name":"Test","version":"1.0.0","description":"Test","commands":[],"permissions":perms,"permissionArgs":args})).unwrap()
+    }
+    #[test]
+    fn network_without_args_still_valid() {
+        assert!(validate_permission_args(&secret_manifest(
+            serde_json::json!(["network"]),
+            serde_json::json!({})
+        ))
+        .is_ok());
+    }
+    #[test]
+    fn network_secrets_without_network_rejected() {
+        assert!(validate_permission_args(&secret_manifest(
+            serde_json::json!(["network:secrets"]),
+            serde_json::json!({"network:secrets":[]})
+        ))
+        .is_err());
+    }
+    #[test]
+    fn network_secrets_args_without_permission_rejected() {
+        assert!(validate_permission_args(&secret_manifest(
+            serde_json::json!(["network"]),
+            serde_json::json!({"network:secrets":[]})
+        ))
+        .is_err());
+    }
     use std::fs;
     use std::path::Path;
     use tempfile::TempDir;

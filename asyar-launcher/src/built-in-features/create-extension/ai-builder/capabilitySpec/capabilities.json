@@ -22,6 +22,7 @@
     "fs:watch",
     "fs:write",
     "network",
+    "network:secrets",
     "notes:read",
     "notes:write",
     "notifications:send",
@@ -65,7 +66,7 @@
     "No new global hotkeys declared in the manifest.",
     "No access to launcher components or Tier-1 internals.",
     "No capability not present in the permissions list.",
-    "Secrets must be declared as `password` preferences, never hardcoded.",
+    "Secrets must use declared network:secrets references or password preferences, never be hardcoded.",
     "No settings-window <-> extension-iframe communication (Tauri multi-webview isolation)."
   ]
 }

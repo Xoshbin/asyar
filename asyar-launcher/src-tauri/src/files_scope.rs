@@ -35,6 +35,14 @@ const HOME_RELATIVE_DENY: &[&str] = &[
     "AppData/Local/Microsoft/Credentials",
 ];
 
+pub const TOKEN_FILE_DENY: &[&str] = &[
+    ".codex/auth.json",
+    ".claude/.credentials.json",
+    ".config/gh/hosts.yml",
+    ".gemini/oauth_creds.json",
+    ".config/github-copilot",
+];
+
 /// OS locations denied outright. Unix-style entries are inert on Windows
 /// and vice versa.
 const ABSOLUTE_DENY: &[&str] = &[
@@ -144,6 +152,31 @@ pub fn glob_literal_prefix(expanded: &Path) -> PathBuf {
     prefix
 }
 
+/// Absolute component ceiling for a non-recursive pattern. Globstar is
+/// intentionally unbounded; every other pattern is pruned at its leaf depth.
+pub fn glob_max_depth(expanded: &Path) -> Option<usize> {
+    if expanded.to_string_lossy().contains("**") {
+        None
+    } else {
+        Some(expanded.components().count())
+    }
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+
+    #[test]
+    fn glob_max_depth_none_for_globstar() {
+        assert_eq!(glob_max_depth(Path::new("/tmp/**/*.log")), None);
+    }
+
+    #[test]
+    fn glob_max_depth_counts_components() {
+        assert_eq!(glob_max_depth(Path::new("/tmp/*/*.log")), Some(4));
+    }
+}
+
 /// Cheap pre-walk pruning for `files:glob`: a walk root is plausible when
 /// some declared pattern could match files under it — the pattern's own
 /// literal prefix contains, or is contained by, the walk root (or the
@@ -166,6 +199,13 @@ pub fn glob_prefix_plausibly_in_scope(prefix: &Path, patterns: &[String], home: 
 /// The full deny-list for a given home directory. Callers append any
 /// runtime-only roots (e.g. the launcher's own app-data dir) themselves.
 pub fn deny_roots(home: &Path) -> Vec<PathBuf> {
+    let mut roots = secret_source_deny_roots(home);
+    roots.extend(TOKEN_FILE_DENY.iter().map(|rel| home.join(rel)));
+    roots
+}
+
+/// Secret references may read opted-in token files, never credential stores.
+pub fn secret_source_deny_roots(home: &Path) -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = HOME_RELATIVE_DENY
         .iter()
         .map(|rel| home.join(rel))
@@ -203,7 +243,7 @@ const CASE_INSENSITIVE_FS: bool = cfg!(any(windows, target_os = "macos"));
 /// Component-wise prefix check, case-insensitive on Windows and macOS so
 /// `c:\windows\...` or `~/library/keychains/...` can't sidestep a
 /// protected root.
-fn starts_with_case_aware(path: &Path, root: &Path) -> bool {
+pub(crate) fn starts_with_case_aware(path: &Path, root: &Path) -> bool {
     if path.starts_with(root) {
         return true;
     }
@@ -218,6 +258,44 @@ fn starts_with_case_aware(path: &Path, root: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn files_read_denies_ai_cli_token_files() {
+        for p in [
+            ".codex/auth.json",
+            ".claude/.credentials.json",
+            ".config/gh/hosts.yml",
+            ".gemini/oauth_creds.json",
+            ".config/github-copilot/token.json",
+        ] {
+            assert!(
+                check_path_denied(&home().join(p), &home(), &[]).is_err(),
+                "{p}"
+            );
+        }
+    }
+    #[test]
+    fn secret_source_deny_excludes_token_files_but_keeps_credential_stores() {
+        let roots = secret_source_deny_roots(&home());
+        for p in [
+            ".codex/auth.json",
+            ".claude/.credentials.json",
+            "Library/Application Support/Google/Chrome/Default/Preferences",
+            ".mozilla/firefox/profile/prefs.js",
+        ] {
+            assert!(
+                !roots
+                    .iter()
+                    .any(|r| starts_with_case_aware(&home().join(p), r)),
+                "{p}"
+            );
+        }
+        for p in [".ssh/a.json", ".aws/a.json", "Library/Keychains/a.json"] {
+            assert!(roots
+                .iter()
+                .any(|r| starts_with_case_aware(&home().join(p), r)));
+        }
+    }
 
     fn home() -> PathBuf {
         PathBuf::from("/Users/test")

@@ -11,11 +11,13 @@ Asyar is a platform, not an app. Every decision — features, bug fixes, refacto
 
 Asyar is in Beta. This changes everything about how you approach code:
 
-- **Backward compatibility is irrelevant.** Do not write bloated code, shims, or temporary hacks to support older versions of anything — APIs, data formats, extension manifests, IPC contracts. If a clean design requires a breaking change, make the breaking change.
-- **Breaking changes are encouraged** when they result in cleaner, more scalable infrastructure. A clean break now saves years of workarounds later.
-- **Prioritize clean code over legacy API contracts.** If an existing interface is wrong, redesign it. Do not patch around it.
+- **Internals: break freely.** Internal module boundaries, Tier 1 built-ins, frontend-only Tauri commands, launcher-private stores and schemas: no shims, no legacy hacks. If a clean design requires a breaking change, make it.
+- **The third-party extension contract is protected until launcher 0.2.0.** Extensions already published in the Asyar Store must keep working. This covers the manifest schema, the public `asyar-sdk` API, host↔extension IPC wire shapes (extensions bundle their own SDK), runtime behavior, and packaging/store formats. Never break these in place. Add the clean new contract, mark the old one **deprecated** (remove in 0.2.0), and keep it alive through a single boundary adapter. Full policy: `.agents/rules/09-beta-compatibility-and-deprecation.md`.
+- **Compatibility never shapes the core.** The core sees only the new, clean design. Old shapes are normalized at ingress (manifest parsing, IPC router, SDK re-export), tested with an old-format fixture, guarded by a deadline test, and deleted before 0.2.0.
+- **Security/privacy outrank compatibility**, and if you can't stay compatible cleanly, stop and ask the user rather than silently breaking or hacking.
+- **Prioritize clean code over legacy internal contracts.** If an internal interface is wrong, redesign it. Do not patch around it.
 
-This applies everywhere: internal module boundaries, Tauri commands, frontend services, extension APIs, IPC message formats, data schemas.
+Not sure whether something is observable by a published extension? Treat it as protected and ask.
 
 ---
 
@@ -189,7 +191,7 @@ If a bug's root cause is a flaw in the infrastructure design, do not apply a loc
 
 **Example:** If an IPC message isn't reaching an extension, don't add a retry loop in the component. Trace the message through `MessageBroker` → `ExtensionIpcRouter` → permission gate → service dispatch. Find the actual failure point and fix the contract.
 
-Since Asyar is in Beta, you have full permission to make breaking changes to fix root causes. There is no excuse for symptom patching.
+Since Asyar is in Beta, you have full permission to make breaking changes to internals to fix root causes. There is no excuse for symptom patching. If the root-cause fix changes the protected third-party extension contract, redesign it cleanly and keep the old contract working as a deprecated boundary adapter until 0.2.0 (see Beta Phase Mindset).
 
 ### Never Hardcode What Should Be Registered
 
@@ -336,7 +338,7 @@ Before writing any code, verify:
 - [ ] Tier 2 extensions could use this through the existing IPC/manifest system?
 - [ ] Optional built-in features declare `"lifecycle": { "disableable": true }` and preserve underlying platform services when disabled?
 - [ ] Tauri commands are thin wrappers delegating to service modules?
-- [ ] No backward-compatibility shims, feature flags, or deprecation wrappers?
+- [ ] Could a published extension observe this change (manifest, SDK API, IPC wire shape, runtime behavior)? If yes: new contract added beside the old, old marked deprecated (remove in 0.2.0), compat confined to one boundary adapter with a fixture test and deadline guard. If no: no shims or legacy wrappers at all.
 - [ ] New UI contributions registered declaratively (manifest/registry), not hardcoded?
 - [ ] Cross-boundary data is clean serializable types (no Proxies, no class instances)?
 - [ ] Repository-wide search conducted to ensure no duplicate capabilities or split-layer registrations exist?

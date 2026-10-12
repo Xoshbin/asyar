@@ -64,6 +64,23 @@ describe('ExtensionIpcRouter — externally consumed responses', () => {
 });
 
 describe('ExtensionIpcRouter — host dispatcher integration', () => {
+  it('fetchWithSecrets_param_order', async () => {
+    const fetchWithSecrets = vi.fn();
+    const router = new ExtensionIpcRouter(
+      { network: { fetchWithSecrets } },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    const options = { secretRefs: ['cli-token'] };
+    await (router as any).dispatchApiCall(
+      'asyar:api:network:fetchWithSecrets',
+      { options, url: 'https://example.com' },
+      'ext.test',
+      false,
+    );
+    expect(fetchWithSecrets).toHaveBeenCalledWith('ext.test', 'https://example.com', options);
+  });
   beforeEach(() => {
     messageBroker.setHostDispatcher(null);
   });
@@ -173,6 +190,35 @@ describe('ExtensionIpcRouter — auto-inject extensionId for fsWatcher', () => {
 
     expect(dispose).toHaveBeenCalledWith('ext.demo', 'h-abc');
   });
+});
+
+describe('ExtensionIpcRouter — statusBar caller identity', () => {
+  it.each(['registerItem', 'updateItem', 'unregisterItem'])(
+    '%s ignores payload extensionId and injects router identity',
+    async (method) => {
+      const handler = vi.fn();
+      const router = new ExtensionIpcRouter(
+        { statusBar: { [method]: handler } } as unknown as ServiceRegistry,
+        vi.fn(),
+        vi.fn(),
+        vi.fn(),
+      );
+      const item = { id: 'timer', icon: '🍅', text: 'Focus', extensionId: 'victim' };
+      await (router as any).dispatchApiCall(
+        `asyar:api:statusBar:${method}`,
+        { extensionId: 'victim', id: 'timer', item },
+        'caller',
+        false,
+      );
+      const args =
+        method === 'registerItem'
+          ? ['caller', item]
+          : method === 'updateItem'
+            ? ['caller', 'timer', item]
+            : ['caller', 'timer'];
+      expect(handler).toHaveBeenCalledWith(...args);
+    },
+  );
 });
 
 describe('ExtensionIpcRouter — auto-inject extensionId for tools', () => {

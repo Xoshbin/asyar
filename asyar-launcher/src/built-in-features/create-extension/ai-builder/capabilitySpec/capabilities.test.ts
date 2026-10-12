@@ -42,6 +42,7 @@ const GET_REQUIRED_PERMISSIONS = [
   'fs:watch',
   'fs:write',
   'network',
+  'network:secrets',
   'notes:read',
   'notes:write',
   'notifications:send',
@@ -77,6 +78,9 @@ const VALID_PERMISSIONS = [
 ];
 
 describe('capabilities.json sync guard', () => {
+  it('includes network:secrets for secret-reference authoring', () => {
+    expect(capabilities.permissions).toContain('network:secrets');
+  });
   it('lists only permissions an extension may legally declare', () => {
     for (const p of capabilities.permissions) {
       expect(VALID_PERMISSIONS).toContain(p);

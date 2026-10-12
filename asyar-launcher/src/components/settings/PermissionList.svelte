@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from '../../services/i18n';
   import { describePermission } from '../../services/extension/permissionCatalog';
+  import { describeSecretRefs } from '../../services/extension/secretRefDisplay';
 
   let { permissions, permissionArgs = {} } = $props<{
     permissions: string[];
@@ -9,6 +10,7 @@
 
   function argsFor(permission: string): { chips: string[] | null; json: string | null } {
     const value = permissionArgs?.[permission];
+    if (permission === 'network:secrets') return { chips: null, json: null };
     if (value === undefined || value === null) return { chips: null, json: null };
     if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
       return { chips: value as string[], json: null };
@@ -32,7 +34,11 @@
           <span class="permission-caution">{t('settings.extensions.review_carefully')}</span>
         {/if}
       </p>
-      {#if args.chips}
+      {#if permission === 'network:secrets'}
+        {#each describeSecretRefs(permissionArgs?.[permission]) as line}
+          <p class="permission-desc text-caption">{line}</p>
+        {/each}
+      {:else if args.chips}
         <div class="permission-args">
           {#each args.chips as chip (chip)}
             <code class="permission-arg-chip font-mono text-xs">{chip}</code>

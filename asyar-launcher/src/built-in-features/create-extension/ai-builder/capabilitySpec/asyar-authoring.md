@@ -19,6 +19,13 @@ always-on worker; requires `background.main`).
 - Every `mode: "background"` command MUST NOT set `component`, and the manifest
   MUST set `background.main`.
 - `permissions[]` may only contain strings from `capabilities.json.permissions`.
+  For host-injected login tokens, declare both `network` and `network:secrets`,
+  define generic sources and exact HTTPS hosts in `permissionArgs["network:secrets"]`,
+  and call `network.fetch(url, { secretRefs: ["declared-name"] })`. The extension
+  never reads the token. Requests default to GET, follow no redirects, and return
+  redacted responses (10 MiB response cap, 30 s timeout cap). Do not refresh or
+  write the token; surface HTTP 401 so the user can sign in again with their CLI.
+  Secret references are not supported by WebSocket connections.
 - `preferences[].type` MUST be one of `capabilities.json.preferenceTypes`
   (note: a text input is `"textfield"`, NOT `"text"`).
 - `preferences[].name` matches `^[a-zA-Z_][a-zA-Z0-9_]*$`; `dropdown` requires `data`.

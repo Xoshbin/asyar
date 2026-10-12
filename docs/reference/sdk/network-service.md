@@ -15,6 +15,7 @@ interface RequestOptions {
   headers?: Record<string, string>;
   body?: string;
   timeout?: number; // milliseconds, default 30000
+  secretRefs?: string[]; // Names declared in permissionArgs["network:secrets"]
 }
 
 interface NetworkResponse {
@@ -67,6 +68,44 @@ if (!created.ok) {
   throw new Error(`HTTP ${created.status}: ${created.statusText}`);
 }
 ```
+
+### Secret references
+
+Declare `network` **and** `network:secrets`, with the reference definitions in
+[`permissionArgs`](../manifest.md#secret-reference-schema). Then use the same
+`fetch` API, passing reference names rather than tokens:
+
+```typescript
+const response = await network.fetch('https://api.example.com/api/usage', {
+  secretRefs: ['cli-token'],
+  timeout: 10_000,
+});
+if (response.status === 401) {
+  // Show a sign-in instruction in your UI; do not try to refresh the token.
+  throw new Error('Your login expired — sign in again with your CLI.');
+}
+```
+
+- Rust reads the declared Keychain item or JSON file and injects the token into
+  the declared header. The extension never receives the token itself.
+- Only **HTTPS** and declared exact hosts are allowed: no wildcards or implicit
+  subdomains. Hosts use their ASCII/punycode form; an optional `host:port` scopes
+  a port. Optional `pathPrefixes` further restrict request paths.
+- Methods default to `GET` only; other methods must be explicitly declared.
+- Redirects are **not followed**, preventing forwarding to another destination.
+- The response has the same `NetworkResponse` envelope as ordinary fetch, with
+  secret redaction before it crosses the host boundary. Do not rely on redaction
+  to hide partial or transformed token echoes (see the
+  [threat model](../../explanation/permission-system.md#secret-references)).
+- Secret-bearing responses are capped at **10 MiB**, and request timeouts at
+  **30 seconds**. These restrictions do not change ordinary fetch behavior.
+- Tokens are never refreshed or written by Asyar. Surface an expired token's
+  **HTTP 401** so the user can re-log in with their CLI.
+- WebSocket secret references are **unsupported**. `secretRefs` belongs only to
+  HTTP `RequestOptions`.
+
+Omitting `secretRefs`, or passing `[]`, uses ordinary `network:fetch` with no
+secret injection. Existing extensions do not need to change.
 
 **WebSocket Event Push Streaming Usage:**
 

@@ -2,7 +2,7 @@ import { invokeSafeVoid } from './invokeSafe';
 
 /**
  * Launcher-side image of the SDK's `IStatusBarItem` plus the
- * `extensionId` the proxy injects before IPC. Mirrors the Rust
+ * `extensionId` the host injects after authenticated IPC dispatch. Mirrors the Rust
  * `StatusBarItem` so we can forward verbatim to the tray manager.
  */
 export interface StatusBarItem {
@@ -10,6 +10,7 @@ export interface StatusBarItem {
   extensionId: string;
   icon?: string;
   iconPath?: string;
+  title?: string;
   text: string;
   checked?: boolean;
   submenu?: StatusBarItem[];

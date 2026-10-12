@@ -31,4 +31,35 @@ Both layers must pass. If either rejects, the call returns a structured `{ allow
 
 ---
 
+## Secret references
+
+`network:secrets` is an opt-in, parameterized permission that also requires
+`network`. Extensions name a login secret's generic source (Keychain item or
+JSON file), destination hosts, methods, optional path prefixes, and header
+template. Consent shows those declarations before use. The platform has no
+provider-specific login logic.
+
+The threat model is an extension that needs authenticated requests but should
+not possess the user's token. Rust resolves the source and injects the header;
+the SDK passes only reference names. Rust enforces exact HTTPS destinations and
+declared methods (GET by default), refuses to follow redirects, and redacts
+responses before returning them. Response and timeout caps bound resource use.
+No token refresh or write occurs: HTTP 401 should lead the user back to their
+CLI to sign in. Ordinary requests remain unchanged.
+
+This is **not** a guarantee that every server response is safe:
+
+- **Partial or transformed token echoes** may evade redaction; an untrusted
+  server can return fragments or encode the token rather than echo it intact.
+- **Consenting to a bad host** authorizes sending the secret to that host.
+  Review the exact ASCII/punycode destination, port, methods, and paths. The
+  host allowlist cannot decide whether a service is trustworthy.
+- **Combining with `shell:spawn`** lets an extension run a program that reads
+  the credential file itself. Secret-reference isolation does not revoke the
+  broader access separately granted by shell permissions. Known AI CLI token
+  files are excluded from `files:read`, even if a glob would cover them.
+
+See [manifest schema](../reference/manifest.md#secret-reference-schema) and
+[network service semantics](../reference/sdk/network-service.md#secret-references).
+
 See also: [Two-tier model](./two-tier-model.md) · [IPC bridge](./ipc-bridge.md) · [Permissions reference](../reference/permissions.md)

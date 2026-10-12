@@ -29,6 +29,78 @@ use tauri::AppHandle;
 /// forwards the inner `event` to the owning extension iframe.
 pub const TRAY_CLICK_EVENT: &str = "asyar:tray-item-click";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // All platform variants are exercised by portable tests.
+enum TitleSupport {
+    Full,
+    LabelOnly,
+    None,
+}
+
+fn title_support() -> TitleSupport {
+    #[cfg(target_os = "macos")]
+    {
+        TitleSupport::Full
+    }
+    #[cfg(target_os = "linux")]
+    {
+        TitleSupport::LabelOnly
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        TitleSupport::None
+    }
+}
+
+fn resolve_title(item: &StatusBarItem, has_image: bool, support: TitleSupport) -> Option<String> {
+    let title = item.title.as_deref().filter(|s| !s.is_empty());
+    if support == TitleSupport::None {
+        return None;
+    }
+    if support == TitleSupport::Full && !has_image {
+        if let Some(icon) = item.icon.as_deref().filter(|s| !s.is_empty()) {
+            return Some(match title {
+                Some(title) => format!("{icon} {title}"),
+                None => icon.to_string(),
+            });
+        }
+    }
+    title.map(str::to_string)
+}
+
+fn resolve_tooltip(item: &StatusBarItem, support: TitleSupport) -> Option<String> {
+    let title = item.title.as_deref().filter(|s| !s.is_empty());
+    if support == TitleSupport::None {
+        if let Some(title) = title {
+            return Some(if item.text.is_empty() {
+                title.to_string()
+            } else {
+                format!("{title} — {}", item.text)
+            });
+        }
+    }
+    (!item.text.is_empty()).then(|| item.text.clone())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum UpdatePlan {
+    TitleTooltipOnly,
+    Full,
+}
+
+fn update_plan(prev: &StatusBarItem, next: &StatusBarItem) -> UpdatePlan {
+    // Compare everything except the two presentation-only fields. New fields
+    // automatically require a full update unless explicitly excluded here.
+    let mut presentation = prev.clone();
+    presentation.title = next.title.clone();
+    presentation.text = next.text.clone();
+    if &presentation == next {
+        UpdatePlan::TitleTooltipOnly
+    } else {
+        UpdatePlan::Full
+    }
+}
+
 /// Per-leaf state the click handler needs. Keyed by the encoded menu-item id
 /// so the handler can route without walking the tree.
 #[derive(Debug, Default)]
@@ -45,6 +117,8 @@ pub struct TauriTrayBackend {
     app: AppHandle,
     extension_dirs: Arc<dyn ExtensionDirLookup + Send + Sync>,
     router: Arc<Mutex<ClickRouter>>,
+    // Cache successful native state, including whether iconPath decoded to an image.
+    last_items: Mutex<HashMap<String, (StatusBarItem, bool)>>,
 }
 
 impl TauriTrayBackend {
@@ -53,6 +127,7 @@ impl TauriTrayBackend {
             app,
             extension_dirs,
             router: Arc::new(Mutex::new(ClickRouter::default())),
+            last_items: Mutex::new(HashMap::new()),
         }
     }
 
@@ -72,21 +147,24 @@ impl TrayBackend for TauriTrayBackend {
         }
 
         let mut builder = TrayIconBuilder::with_id(tray_id.clone());
-        if let Some(image) = resolve_icon_image(&self.app, self.extension_dirs.as_ref(), item) {
+        let image = resolve_icon_image(&self.app, self.extension_dirs.as_ref(), item);
+        let has_image = image.is_some();
+        if let Some(image) = image {
             builder = builder.icon(image);
-        } else if let Some(icon) = item.icon.as_ref().filter(|s| !s.is_empty()) {
-            #[cfg(target_os = "macos")]
-            {
-                builder = builder.title(icon);
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                builder = builder.icon(blank_image());
-                let _ = icon;
-            }
         }
-        if !item.text.is_empty() {
-            builder = builder.tooltip(&item.text);
+        #[cfg(not(target_os = "macos"))]
+        if !has_image {
+            builder = builder.icon(blank_image());
+        }
+        let title = resolve_title(item, has_image, title_support());
+        #[cfg(not(target_os = "windows"))]
+        if let Some(title) = title {
+            builder = builder.title(title);
+        }
+        #[cfg(target_os = "windows")]
+        let _ = title;
+        if let Some(tip) = resolve_tooltip(item, title_support()) {
+            builder = builder.tooltip(tip);
         }
         if let Some(m) = &menu {
             builder = builder.menu(m);
@@ -123,6 +201,10 @@ impl TrayBackend for TauriTrayBackend {
         builder
             .build(&self.app)
             .map_err(|e| AppError::Platform(format!("Failed to build tray icon: {e}")))?;
+        self.last_items
+            .lock()
+            .map_err(|_| AppError::Lock)?
+            .insert(tray_id, (item.clone(), has_image));
         Ok(())
     }
 
@@ -133,42 +215,44 @@ impl TrayBackend for TauriTrayBackend {
             .tray_by_id(&tray_id)
             .ok_or_else(|| AppError::NotFound(format!("Tray '{tray_id}' is not registered")))?;
 
-        let (menu, new_check_state) = build_menu_for_item(&self.app, key, item)?;
-        {
+        let mut last_items = self.last_items.lock().map_err(|_| AppError::Lock)?;
+        let prev = last_items.get(&tray_id);
+        let plan = prev.map_or(UpdatePlan::Full, |(prev, _)| update_plan(prev, item));
+        let has_image = if plan == UpdatePlan::Full {
+            let (menu, new_check_state) = build_menu_for_item(&self.app, key, item)?;
+            let image = resolve_icon_image(&self.app, self.extension_dirs.as_ref(), item);
+            let has_image = image.is_some();
+            #[cfg(not(target_os = "macos"))]
+            let image = image.or_else(|| Some(blank_image()));
+            tray.set_icon(image)
+                .map_err(|e| AppError::Platform(format!("Failed to set tray icon: {e}")))?;
+            tray.set_menu(menu.clone())
+                .map_err(|e| AppError::Platform(format!("Failed to set tray menu: {e}")))?;
             let mut router = self.router.lock().map_err(|_| AppError::Lock)?;
             replace_check_state_for_tray(&mut router.check_state, &tray_id, new_check_state);
             router.has_menu.insert(tray_id.clone(), menu.is_some());
-        }
-
-        let image = resolve_icon_image(&self.app, self.extension_dirs.as_ref(), item);
-        tray.set_icon(image)
-            .map_err(|e| AppError::Platform(format!("Failed to set tray icon: {e}")))?;
-        #[cfg(target_os = "macos")]
-        {
-            let title_opt = if item.icon.as_ref().is_some_and(|s| !s.is_empty())
-                && item.icon_path.as_ref().is_none_or(|s| s.is_empty())
-            {
-                item.icon.clone()
-            } else {
-                None
-            };
-            tray.set_title(title_opt)
-                .map_err(|e| AppError::Platform(format!("Failed to set tray title: {e}")))?;
-        }
-        let tip: Option<&str> = if item.text.is_empty() {
-            None
+            has_image
         } else {
-            Some(&item.text)
+            prev.is_some_and(|(_, has_image)| *has_image)
         };
-        tray.set_tooltip(tip)
+        let title = resolve_title(item, has_image, title_support());
+        #[cfg(not(target_os = "windows"))]
+        tray.set_title(title)
+            .map_err(|e| AppError::Platform(format!("Failed to set tray title: {e}")))?;
+        #[cfg(target_os = "windows")]
+        let _ = title;
+        tray.set_tooltip(resolve_tooltip(item, title_support()))
             .map_err(|e| AppError::Platform(format!("Failed to set tray tooltip: {e}")))?;
-        tray.set_menu(menu)
-            .map_err(|e| AppError::Platform(format!("Failed to set tray menu: {e}")))?;
+        last_items.insert(tray_id, (item.clone(), has_image));
         Ok(())
     }
 
     fn destroy(&self, key: &TrayKey) -> Result<(), AppError> {
         let tray_id = Self::tray_id(key)?;
+        self.last_items
+            .lock()
+            .map_err(|_| AppError::Lock)?
+            .remove(&tray_id);
         {
             let mut router = self.router.lock().map_err(|_| AppError::Lock)?;
             router
@@ -414,6 +498,94 @@ fn format_label(item: &StatusBarItem) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn titled(title: &str) -> StatusBarItem {
+        serde_json::from_value(
+            serde_json::json!({"id":"timer", "icon":"🍅", "title":title, "text":"Focus"}),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn resolve_title_icon_path_uses_title() {
+        let item = titled("25:00");
+        assert_eq!(
+            resolve_title(&item, true, TitleSupport::Full).as_deref(),
+            Some("25:00")
+        );
+        assert_eq!(
+            resolve_title(&item, true, TitleSupport::LabelOnly).as_deref(),
+            Some("25:00")
+        );
+    }
+
+    #[test]
+    fn resolve_title_macos_emoji_prefixes_title() {
+        assert_eq!(
+            resolve_title(&titled("25:00"), false, TitleSupport::Full).as_deref(),
+            Some("🍅 25:00")
+        );
+        assert_eq!(
+            resolve_title(&titled("25:00"), false, TitleSupport::LabelOnly).as_deref(),
+            Some("25:00")
+        );
+    }
+
+    #[test]
+    fn resolve_title_emoji_without_title_keeps_emoji() {
+        let item = StatusBarItem {
+            icon: Some("🍅".into()),
+            ..StatusBarItem::leaf("timer", "Focus")
+        };
+        assert_eq!(
+            resolve_title(&item, false, TitleSupport::Full).as_deref(),
+            Some("🍅")
+        );
+    }
+
+    #[test]
+    fn resolve_title_empty_is_none() {
+        assert_eq!(resolve_title(&titled(""), true, TitleSupport::Full), None);
+        assert_eq!(
+            resolve_title(&titled(""), false, TitleSupport::LabelOnly),
+            None
+        );
+        assert_eq!(
+            resolve_title(&titled("25:00"), false, TitleSupport::None),
+            None
+        );
+    }
+
+    #[test]
+    fn tooltip_fallback_appends_title_when_unsupported() {
+        assert_eq!(
+            resolve_tooltip(&titled("25:00"), TitleSupport::None).as_deref(),
+            Some("25:00 — Focus")
+        );
+        assert_eq!(
+            resolve_tooltip(&titled("25:00"), TitleSupport::Full).as_deref(),
+            Some("Focus")
+        );
+        let mut item = titled("25:00");
+        item.text.clear();
+        assert_eq!(
+            resolve_tooltip(&item, TitleSupport::None).as_deref(),
+            Some("25:00")
+        );
+    }
+
+    #[test]
+    fn update_plan_title_only_skips_menu_rebuild() {
+        let prev = titled("25:00");
+        let mut next = titled("24:59");
+        next.text = "Running".into();
+        assert_eq!(update_plan(&prev, &next), UpdatePlan::TitleTooltipOnly);
+        next.icon = Some("☕".into());
+        assert_eq!(update_plan(&prev, &next), UpdatePlan::Full);
+        next = prev.clone();
+        next.submenu = Some(vec![StatusBarItem::leaf("pause", "Pause")]);
+        assert_eq!(update_plan(&prev, &next), UpdatePlan::Full);
+    }
 
     #[test]
     fn id_belongs_to_tray_matches_prefix() {

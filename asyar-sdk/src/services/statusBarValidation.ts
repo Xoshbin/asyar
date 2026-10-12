@@ -3,6 +3,9 @@ import type { IStatusBarItem } from './IStatusBarService';
 /** Maximum submenu nesting depth. Top-level items are depth 1. */
 export const MAX_STATUS_BAR_DEPTH = 4;
 
+/** Title limit in Unicode characters, not UTF-16 code units. */
+export const MAX_STATUS_BAR_TITLE_LENGTH = 32;
+
 /**
  * Validate a top-level status-bar tree client-side before sending it over
  * the broker. Mirrors the Rust `validate_top_level` rules. Throws a
@@ -19,6 +22,18 @@ export function validateTopLevelStatusBarItem(item: IStatusBarItem): void {
     throw new StatusBarValidationError(
       `Top-level status-bar item '${item.id}' requires a string 'text' field`,
     );
+  }
+  if (item.title !== undefined) {
+    if (typeof item.title !== 'string' || [...item.title].length > MAX_STATUS_BAR_TITLE_LENGTH) {
+      throw new StatusBarValidationError(
+        `Status-bar title must be a string of at most ${MAX_STATUS_BAR_TITLE_LENGTH} characters`,
+      );
+    }
+    if (/\p{Cc}|\u2028|\u2029/u.test(item.title)) {
+      throw new StatusBarValidationError(
+        'Status-bar title cannot contain control characters or newlines',
+      );
+    }
   }
   if (item.separator === true) {
     throw new StatusBarValidationError(
@@ -68,6 +83,9 @@ function validateSiblings(items: IStatusBarItem[], depth: number): void {
   for (const child of items) {
     if (!child || typeof child !== 'object') {
       throw new StatusBarValidationError('Submenu item must be an object');
+    }
+    if (child.title !== undefined) {
+      throw new StatusBarValidationError('Submenu children cannot have a title');
     }
     if (child.separator === true) {
       if (child.submenu !== undefined) {
