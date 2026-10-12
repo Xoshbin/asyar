@@ -55,6 +55,28 @@ export interface PreferenceDeclaration {
 }
 
 /**
+ * An action declared in manifest.json that surfaces in the launcher action drawer.
+ * Extension-level actions appear when any of the extension's commands is selected.
+ * Command-level actions appear only when the specific command is selected.
+ *
+ * @deprecated Manifest actions are no longer supported and are ignored; the launcher rejects the field from 0.2.0. Register actions inside your view instead (`context.actions.registerAction`), or declare another command. Remove in 0.2.0.
+ */
+export interface ManifestAction {
+  /** Unique action identifier within the extension. Must match /^[a-zA-Z][a-zA-Z0-9_-]*$/. */
+  id: string;
+  /** Display label in the action drawer. */
+  title: string;
+  /** Subtitle text shown below the title. */
+  description?: string;
+  /** Icon reference (e.g. "icon:link" or an emoji). */
+  icon?: string;
+  /** Display-only keyboard shortcut hint. */
+  shortcut?: string;
+  /** Grouping category in the action drawer. */
+  category?: string;
+}
+
+/**
  * Declares the always-on worker bundle for extensions that host background
  * work (subscriptions, schedules, timers, tray updates). Required when any
  * command declares `mode: "background"`.
@@ -117,6 +139,11 @@ export interface ExtensionManifest {
    * is rejected at discovery.
    */
   runtimes?: string[];
+  /**
+   * Extension-level actions (show when any command from this extension is selected).
+   * @deprecated Manifest actions are ignored by the launcher and rejected from 0.2.0. Register actions inside your view instead (`context.actions.registerAction`). Remove in 0.2.0.
+   */
+  actions?: ManifestAction[];
   /** Tools that this extension exposes for invocation by the launcher or other extensions. */
   tools?: ManifestTool[];
   /**
@@ -159,6 +186,11 @@ export interface ExtensionCommand {
   searchable?: boolean;
   /** Command-level preferences (apply only to this command). */
   preferences?: PreferenceDeclaration[];
+  /**
+   * Command-level actions (show when this specific command is selected).
+   * @deprecated Manifest actions are ignored by the launcher and rejected from 0.2.0. Register actions inside your view instead (`context.actions.registerAction`). Remove in 0.2.0.
+   */
+  actions?: ManifestAction[];
   /**
    * Declarative argument fields. When present, Tab on the selected command
    * promotes it into argument-entry mode; submitted values arrive under
