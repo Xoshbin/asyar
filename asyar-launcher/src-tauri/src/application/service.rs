@@ -710,28 +710,43 @@ pub fn get_linux_default_app_scan_paths() -> Vec<PathBuf> {
     paths
 }
 
+#[cfg(target_os = "macos")]
+fn get_macos_default_app_scan_paths(home: Option<&Path>) -> Vec<PathBuf> {
+    let mut paths = vec![
+        PathBuf::from("/Applications"),
+        PathBuf::from("/System/Applications"),
+        PathBuf::from("/System/Library/CoreServices/Applications"),
+        // Finder lives in neither app folder. Named as a single bundle
+        // rather than scanning its directory: /System/Library/CoreServices
+        // holds ~150 bundles, nearly all background agents and helpers no
+        // one launches (rcd, PIPAgent, liquiddetectiond, …). Filtering
+        // those by LSUIElement/LSBackgroundOnly still leaves a couple of
+        // dozen, so the whole directory is not worth its noise for the one
+        // app users actually ask for by name.
+        PathBuf::from("/System/Library/CoreServices/Finder.app"),
+    ];
+    // Installers that don't ask for admin rights write here instead of
+    // /Applications. Same rationale as the per-user locations the Linux
+    // and Windows arms below already cover.
+    if let Some(home) = home {
+        paths.push(home.join("Applications"));
+
+        // Parallels creates this sibling directory only when its macOS app
+        // sharing integration is enabled. Avoid watching a nonexistent path
+        // on hosts that do not use Parallels.
+        let parallels = home.join("Applications (Parallels)");
+        if parallels.is_dir() {
+            paths.push(parallels);
+        }
+    }
+    paths
+}
+
 pub fn get_default_app_scan_paths() -> Vec<PathBuf> {
     #[cfg(target_os = "macos")]
     {
-        let mut paths = vec![
-            PathBuf::from("/Applications"),
-            PathBuf::from("/System/Applications"),
-            // Finder lives in neither app folder. Named as a single bundle
-            // rather than scanning its directory: /System/Library/CoreServices
-            // holds ~150 bundles, nearly all background agents and helpers no
-            // one launches (rcd, PIPAgent, liquiddetectiond, …). Filtering
-            // those by LSUIElement/LSBackgroundOnly still leaves a couple of
-            // dozen, so the whole directory is not worth its noise for the one
-            // app users actually ask for by name.
-            PathBuf::from("/System/Library/CoreServices/Finder.app"),
-        ];
-        // Installers that don't ask for admin rights write here instead of
-        // /Applications. Same rationale as the per-user locations the Linux
-        // and Windows arms below already cover.
-        if let Some(home) = dirs::home_dir() {
-            paths.push(home.join("Applications"));
-        }
-        paths
+        let home = dirs::home_dir();
+        get_macos_default_app_scan_paths(home.as_deref())
     }
     #[cfg(target_os = "linux")]
     {
@@ -1190,6 +1205,31 @@ mod tests {
             get_default_app_scan_paths().contains(&home.join("Applications")),
             "macOS defaults must include the per-user ~/Applications folder"
         );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_get_default_app_scan_paths_includes_vetted_system_applications_only() {
+        let paths = get_default_app_scan_paths();
+
+        assert!(paths.contains(&PathBuf::from("/System/Library/CoreServices/Applications")));
+        assert!(!paths.contains(&PathBuf::from("/System/Library/CoreServices")));
+        assert!(!paths.contains(&PathBuf::from("/System/Library/PreferencePanes")));
+        assert!(!paths.contains(&PathBuf::from("/Library/PreferencePanes")));
+        assert!(!paths.contains(&PathBuf::from("/Library/Internet Plug-Ins")));
+        assert!(!paths.contains(&PathBuf::from("/System/Cryptexes/App/System/Applications")));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_macos_default_app_scan_paths_include_existing_parallels_applications() {
+        let home = tempfile::tempdir().expect("temporary home must be created");
+        let parallels = home.path().join("Applications (Parallels)");
+        std::fs::create_dir(&parallels).expect("Parallels applications directory must be created");
+
+        let paths = get_macos_default_app_scan_paths(Some(home.path()));
+
+        assert!(paths.contains(&parallels));
     }
 
     #[test]
