@@ -257,7 +257,7 @@ fn pinned_client(
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(timeout)
         .redirect(reqwest::redirect::Policy::none())
-        .resolve_to_addrs(&host, &addresses)
+        .resolve_to_addrs(host, addresses)
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15")
         .build()?)
 }
@@ -336,7 +336,7 @@ async fn resolve_target(host: &str, port: u16) -> Result<Vec<std::net::SocketAdd
     Ok(addresses)
 }
 
-fn authorize_resolved_target(
+pub(crate) fn authorize_resolved_target(
     host: &str,
     port: u16,
     addresses: &[std::net::SocketAddr],

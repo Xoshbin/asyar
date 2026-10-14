@@ -240,6 +240,12 @@ pub async fn ws_connect(
     app: tauri::AppHandle,
 ) -> Result<(), AppError> {
     registry.check(&request.caller_extension_id, "network")?;
+    let lan_policy = request
+        .caller_extension_id
+        .as_deref()
+        .map(|extension_id| registry.lan_policy(extension_id))
+        .transpose()?
+        .flatten();
     let ext_id = request
         .caller_extension_id
         .unwrap_or_else(|| "system".to_string());
@@ -259,6 +265,7 @@ pub async fn ws_connect(
             ext_id,
             origin_role,
             app,
+            lan_policy.as_ref(),
         )
         .await
 }
