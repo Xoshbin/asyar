@@ -147,6 +147,17 @@ export async function openerReveal(extensionId: string | null, path: string): Pr
   await invoke('opener_reveal', { extensionId, path });
 }
 
+/** Native-looking display data for a typed path (`~` expanded); `null` when
+ * the path is relative or does not exist. */
+export async function openerPathPreview(path: string): Promise<{
+  path: string;
+  name: string;
+  parent: string;
+  icon: string;
+} | null> {
+  return invokeSafe('opener_path_preview', { path }, { silent: true });
+}
+
 export async function getSystemLocale(): Promise<{
   language: string;
   script: string | null;

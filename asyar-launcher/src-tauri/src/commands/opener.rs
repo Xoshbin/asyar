@@ -51,6 +51,64 @@ pub(crate) fn resolve_path(path_str: &str) -> Result<PathBuf, AppError> {
     Ok(path)
 }
 
+/// Display data for a typed path, shaped like an application row: basename,
+/// `~`-collapsed parent dir, and the OS icon (Finder folder, file-type icon).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathPreview {
+    pub path: String,
+    pub name: String,
+    pub parent: String,
+    pub icon: String,
+}
+
+pub(crate) fn path_preview(
+    path_str: &str,
+    icon_cache_dir: &std::path::Path,
+) -> Option<PathPreview> {
+    use crate::application::service::{display_parent_dir, extract_app_icon};
+    let resolved = resolve_path(path_str).ok()?;
+    let path = resolved.to_string_lossy().to_string();
+    let name = resolved
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.clone());
+    // Linux's extractor only understands `.desktop` entries (and would read
+    // any other file whole), so other paths take the generic SVG icons.
+    let native_icon =
+        cfg!(not(target_os = "linux")) || resolved.extension().is_some_and(|e| e == "desktop");
+    let icon = native_icon
+        .then(|| extract_app_icon(&path, icon_cache_dir))
+        .flatten()
+        .unwrap_or_else(|| {
+            if resolved.is_dir() {
+                "icon:folder"
+            } else {
+                "icon:file-text"
+            }
+            .to_string()
+        });
+    Some(PathPreview {
+        parent: display_parent_dir(&path),
+        icon,
+        name,
+        path,
+    })
+}
+
+/// Host-only (frontend) lookup; `None` when the path is relative or missing.
+#[tauri::command]
+pub async fn opener_path_preview<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    path: String,
+) -> Option<PathPreview> {
+    let cache_dir = crate::application::service::get_icon_cache_dir(&app_handle);
+    tauri::async_runtime::spawn_blocking(move || path_preview(&path, &cache_dir))
+        .await
+        .ok()
+        .flatten()
+}
+
 #[tauri::command]
 pub async fn opener_open_url<R: tauri::Runtime>(
     app_handle: tauri::AppHandle<R>,
@@ -235,6 +293,24 @@ mod tests {
         std::fs::write(&file, "hello").unwrap();
         let resolved = resolve_path(file.to_str().unwrap()).unwrap();
         assert_eq!(resolved, file);
+    }
+
+    #[test]
+    fn path_preview_shapes_home_folder_and_rejects_missing() {
+        let cache = TempDir::new().unwrap();
+        let home = dirs::home_dir().unwrap();
+        let preview = path_preview("~", cache.path()).unwrap();
+        assert_eq!(preview.path, home.to_string_lossy());
+        assert_eq!(
+            preview.name,
+            home.file_name().unwrap().to_string_lossy().to_string()
+        );
+        assert!(!preview.icon.is_empty());
+        if cfg!(target_os = "linux") {
+            assert_eq!(preview.icon, "icon:folder");
+        }
+        assert!(path_preview("relative/x", cache.path()).is_none());
+        assert!(path_preview("/__asyar_nonexistent__", cache.path()).is_none());
     }
 
     #[test]

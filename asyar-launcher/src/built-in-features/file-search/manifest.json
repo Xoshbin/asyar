@@ -52,6 +52,40 @@
           }
         ]
       }
+    },
+    {
+      "id": "open-url",
+      "name": "Open URL",
+      "description": "Open a web address in your default browser",
+      "trigger": "url",
+      "icon": "icon:globe",
+      "mode": "background",
+      "arguments": [
+        {
+          "name": "url",
+          "type": "text",
+          "placeholder": "github.com",
+          "required": true,
+          "seed": "none"
+        }
+      ]
+    },
+    {
+      "id": "open-path",
+      "name": "Open Path",
+      "description": "Open a file or folder by its path",
+      "trigger": "path",
+      "icon": "icon:folder",
+      "mode": "background",
+      "arguments": [
+        {
+          "name": "path",
+          "type": "text",
+          "placeholder": "~/Downloads",
+          "required": true,
+          "seed": "none"
+        }
+      ]
     }
   ],
   "walkthrough": [

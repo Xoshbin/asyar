@@ -935,7 +935,7 @@ pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
     }
 }
 
-fn get_icon_cache_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
+pub(crate) fn get_icon_cache_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
     app.path()
         .app_data_dir()
         .map(|p| p.join("icon_cache"))

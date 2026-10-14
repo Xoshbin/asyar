@@ -17,6 +17,10 @@ function makeItem(overrides: Partial<MappedSearchItem> = {}): MappedSearchItem {
 // ── categorizeItem ────────────────────────────────────────────────────────────
 
 describe('categorizeItem', () => {
+  it('returns "files" for a typed path row from the open-url built-in', () => {
+    expect(categorizeItem(makeItem({ object_id: 'file_search_open_path' }))).toBe('files');
+  });
+
   it('returns "scripts" for a run item with typeLabel "Script"', () => {
     const item = makeItem({ type: 'run', typeLabel: 'Script' });
     expect(categorizeItem(item)).toBe('scripts');

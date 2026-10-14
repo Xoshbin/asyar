@@ -35,6 +35,19 @@ import {
 } from './state.svelte';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
+import { registerBuiltinSearchProvider } from '../../services/search/builtinSearchProviders';
+import {
+  openTarget,
+  openTypedPath,
+  openTypedUrl,
+  searchOpenTargets,
+  type OpenTarget,
+} from './openTarget';
+
+function argText(args: Record<string, unknown> | undefined, name: string): string {
+  const value = (args?.arguments as Record<string, unknown> | undefined)?.[name];
+  return typeof value === 'string' ? value : '';
+}
 
 function parentDirOf(f: FileHit): string {
   return f.isDir ? f.path : f.path.replace(/\/[^/]*$/, '');
@@ -68,6 +81,14 @@ class FileSearchExtension implements Extension {
         await runSearch();
       }
       return { type: 'view', viewPath: 'file-search/DefaultView' };
+    }
+    if (commandId === 'open-url') {
+      await openTypedUrl(argText(args, 'url'));
+      return { type: 'no-view' };
+    }
+    if (commandId === 'open-path') {
+      await openTypedPath(argText(args, 'path'));
+      return { type: 'no-view' };
     }
     return undefined;
   }
@@ -352,6 +373,13 @@ class FileSearchExtension implements Extension {
     logService.debug('[FileSearch] extension deactivated');
   }
 }
+
+// Typed URLs and paths in root search open directly (Raycast-style).
+registerBuiltinSearchProvider({
+  extensionId: 'file-search',
+  search: searchOpenTargets,
+  execute: (_id, payload) => openTarget(payload as OpenTarget),
+});
 
 export default new FileSearchExtension();
 export { DefaultView };

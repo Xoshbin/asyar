@@ -1,6 +1,6 @@
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
-export type SectionKey = 'favorites' | 'scripts' | 'agents' | 'commands';
+export type SectionKey = 'files' | 'favorites' | 'scripts' | 'agents' | 'commands';
 
 export type SectionedRow =
   | { kind: 'header'; title: string; section: SectionKey }
@@ -10,6 +10,8 @@ export function categorizeItem(item: MappedSearchItem): SectionKey {
   if (item.favorite) {
     return 'favorites';
   }
+  // Typed paths (file-search OPEN_PATH_ROW_ID) render like Finder rows under "Files".
+  if (item.object_id === 'file_search_open_path') return 'files';
   // Scripts and Agents are activity surfaces — they display run rows only.
   // Run-row variants: 'run' (live), 'run-failed' (failed-pending-dismiss),
   // 'run-done' (kept succeeded agent thread / kept script result). All three
@@ -24,9 +26,10 @@ export function categorizeItem(item: MappedSearchItem): SectionKey {
   return 'commands';
 }
 
-const SECTION_ORDER: SectionKey[] = ['favorites', 'scripts', 'agents', 'commands'];
+const SECTION_ORDER: SectionKey[] = ['files', 'favorites', 'scripts', 'agents', 'commands'];
 
 const SECTION_TITLES: Record<SectionKey, string> = {
+  files: 'Files',
   favorites: 'Favorites',
   scripts: 'Scripts',
   agents: 'Agents',
@@ -35,6 +38,7 @@ const SECTION_TITLES: Record<SectionKey, string> = {
 
 export function buildSectionedView(items: MappedSearchItem[]): SectionedRow[] {
   const buckets: Record<SectionKey, Array<{ item: MappedSearchItem; originalIndex: number }>> = {
+    files: [],
     favorites: [],
     scripts: [],
     agents: [],

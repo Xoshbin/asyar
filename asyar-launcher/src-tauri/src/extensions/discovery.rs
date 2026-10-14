@@ -2149,7 +2149,19 @@ mod manifest_schema_tests {
     #[test]
     fn test_get_builtin_records_statically_compiled() {
         let records = get_builtin_records();
-        assert_eq!(records.len(), 24, "expected 24 built-in feature records");
+        // Every built-in folder with a manifest must be compiled in here, or it
+        // silently vanishes from Settings.
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/built-in-features");
+        let mut on_disk: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().join("manifest.json").exists())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        on_disk.sort();
+        let mut compiled: Vec<String> = records.iter().map(|r| r.manifest.id.clone()).collect();
+        compiled.sort();
+        assert_eq!(compiled, on_disk, "get_builtin_records is out of sync");
         for record in &records {
             assert!(
                 record.is_built_in,
