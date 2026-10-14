@@ -293,18 +293,23 @@
             placeholder={t('settings.applications.add_path_placeholder')}
             disabled={isAddingPath}
           />
-          <Button type="submit" disabled={isAddingPath}>
+          <Button class="path-action-button" type="submit" disabled={isAddingPath}>
             {isAddingPath
               ? t('settings.applications.adding_path')
               : t('settings.applications.add_path_action')}
           </Button>
+          <Button
+            class="add-directory-btn path-action-button"
+            type="button"
+            onclick={handleAddDirectory}
+            disabled={isBrowsing}
+          >
+            <Icon name="folder" size={14} />
+            {isBrowsing
+              ? t('settings.applications.opening_picker')
+              : t('settings.applications.browse_action')}
+          </Button>
         </form>
-        <Button class="add-directory-btn" onclick={handleAddDirectory} disabled={isBrowsing}>
-          <Icon name="folder" size={14} />
-          {isBrowsing
-            ? t('settings.applications.opening_picker')
-            : t('settings.applications.browse_action')}
-        </Button>
       </li>
     </ul>
   </SettingsCard>
@@ -512,26 +517,31 @@
   }
 
   .add-directory-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
     padding: var(--space-3) var(--space-6);
   }
 
   .path-entry-form {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
     align-items: center;
-    gap: var(--space-2);
-    flex: 1;
-    min-width: 0;
+    gap: var(--space-3);
   }
 
   :global(.path-entry-input) {
     min-width: 0;
   }
 
-  :global(.add-directory-btn) {
+  :global(.path-action-button) {
+    white-space: nowrap;
+  }
+
+  :global(.path-action-button .result-title) {
+    display: inline-flex;
+    align-items: center;
     gap: var(--space-2);
+  }
+
+  :global(.add-directory-btn) {
     background: transparent;
     color: var(--accent-primary);
   }
