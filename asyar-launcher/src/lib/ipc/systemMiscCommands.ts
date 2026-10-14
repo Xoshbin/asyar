@@ -154,8 +154,18 @@ export async function openerPathPreview(path: string): Promise<{
   name: string;
   parent: string;
   icon: string;
+  size: number | null;
+  /** Unix seconds; `null` where the filesystem doesn't record it. */
+  created: number | null;
+  modified: number | null;
 } | null> {
   return invokeSafe('opener_path_preview', { path }, { silent: true });
+}
+
+/** Native file/folder icons (`asyar-icon` URLs or `icon:` fallbacks), one per
+ * path, in order. */
+export async function fileIcons(paths: string[]): Promise<string[]> {
+  return invokeSafe('file_icons', { paths }, { silent: true });
 }
 
 export async function getSystemLocale(): Promise<{

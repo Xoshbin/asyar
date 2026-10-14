@@ -18,6 +18,7 @@
     error = undefined,
     emptyMessage = 'No items found',
     listItem,
+    listHeader,
     detail,
   }: {
     items: any[];
@@ -31,6 +32,8 @@
     error?: string | null;
     emptyMessage?: string;
     listItem: Snippet<[item: any, index: number]>;
+    /** Rendered above the rows (e.g. a section title); hidden when empty. */
+    listHeader?: Snippet;
     detail: Snippet;
   } = $props();
 
@@ -68,6 +71,7 @@
       {:else if items.length === 0}
         <EmptyState message={emptyMessage} />
       {:else}
+        {@render listHeader?.()}
         {#each items as item, index (item.id)}
           {@render listItem(item, index)}
         {/each}

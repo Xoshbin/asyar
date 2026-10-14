@@ -84,6 +84,8 @@ export interface ApplicationAction {
   execute: () => Promise<void> | void;
   shortcut?: string;
   visible?: () => boolean;
+  /** Listed first in the ⌘K panel (stable among pinned actions). */
+  pinned?: boolean;
 }
 
 /**
@@ -210,6 +212,7 @@ export class ActionService implements IActionService {
       execute: action.execute,
       disabled: 'disabled' in action ? action.disabled : undefined,
       visible: 'visible' in action ? (action as any).visible : undefined,
+      pinned: 'pinned' in action ? action.pinned : undefined,
     };
 
     this.allActions.set(appAction.id, appAction); // Store in the master list
@@ -336,9 +339,9 @@ export class ActionService implements IActionService {
    * Get actions filtered by the current context
    */
   private getFilteredActions(): ApplicationAction[] {
-    const filtered = Array.from(this.allActions.values()).filter(
-      this.filterActionsByContext.bind(this),
-    );
+    const filtered = Array.from(this.allActions.values())
+      .filter(this.filterActionsByContext.bind(this))
+      .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
 
     // Log details about filtered actions
     logService.debug(

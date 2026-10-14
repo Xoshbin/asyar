@@ -364,6 +364,7 @@ macro_rules! system_commands {
                 $crate::commands::opener_open_path,
                 $crate::commands::opener_reveal,
                 $crate::commands::opener_path_preview,
+                $crate::commands::file_icons,
                 $crate::commands::get_selected_text,
                 $crate::commands::get_selected_finder_items,
                 $crate::commands::shell_spawn,

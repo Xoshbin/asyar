@@ -27,6 +27,14 @@ export function parseTarget(query: string): OpenTarget | null {
   return null;
 }
 
+let lastResolvedPath: string | null = null;
+
+/** Full path behind the current `OPEN_PATH_ROW_ID` row (there is only ever one). */
+export function currentPathRowTarget(): string | null {
+  return lastResolvedPath;
+}
+
+/** Root-search rows for a typed URL or an existing path. */
 export async function searchOpenTargets(query: string): Promise<BuiltinSearchRow[]> {
   const target = parseTarget(query);
   if (!target) return [];
@@ -46,6 +54,7 @@ export async function searchOpenTargets(query: string): Promise<BuiltinSearchRow
   }
 
   const preview = await openerPathPreview(target.path);
+  lastResolvedPath = preview?.path ?? null;
   if (!preview) return [];
   return [
     {

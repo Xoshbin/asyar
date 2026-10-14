@@ -1,14 +1,9 @@
 <script lang="ts">
-  import { stat } from '@tauri-apps/plugin-fs';
   import type { FileHit } from 'asyar-sdk/contracts';
-  import {
-    ActionFooter,
-    Badge,
-    EmptyState,
-    LauncherListRow,
-    SplitListDetail,
-  } from '../../components';
+  import { Badge, EmptyState, Icon, LauncherListRow, SplitListDetail } from '../../components';
+  import { fileIcons, openerPathPreview } from '../../lib/ipc/commands';
   import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
+  import { getBuiltInIconName, isIconImage } from '../../lib/iconUtils';
   import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { t } from '../../services/i18n';
@@ -40,15 +35,26 @@
     return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
 
-  function formatRelativeTime(modifiedAt: number): string {
-    const ageSec = Math.floor(Date.now() / 1000) - modifiedAt;
-    if (ageSec < 60) return 'just now';
-    if (ageSec < 3600) return `${Math.floor(ageSec / 60)} min ago`;
-    if (ageSec < 86400) return `${Math.floor(ageSec / 3600)} h ago`;
-    const days = Math.floor(ageSec / 86400);
-    if (days < 30) return `${days} d ago`;
-    if (days < 365) return `${Math.floor(days / 30)} mo ago`;
-    return `${Math.floor(days / 365)} y ago`;
+  const dateFormat = new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  function formatDate(d: Date | null | undefined): string {
+    return d ? dateFormat.format(d) : '—';
+  }
+
+  const TYPE_LABEL_KEYS: Record<string, string> = {
+    document: 'features.file_search.ui.kind_document',
+    image: 'features.file_search.ui.kind_image',
+    code: 'features.file_search.ui.kind_code',
+    'audio-video': 'features.file_search.ui.kind_audio_video',
+    archive: 'features.file_search.ui.kind_archive',
+  };
+  function kindOf(item: FileHit): string {
+    if (item.isDir) return t('features.file_search.ui.folder');
+    const ext = item.name.includes('.') ? item.name.split('.').pop()!.toUpperCase() : '';
+    const label = t(TYPE_LABEL_KEYS[item.type] ?? 'features.file_search.ui.kind_file');
+    return ext ? `${label} (${ext})` : label;
   }
 
   // Subscribe to the searchBarAccessory dropdown
@@ -75,6 +81,45 @@
   let selectedIndex = $derived(items.findIndex((i) => i.fileId === selectedId));
   let selected = $derived(items.find((i) => i.fileId === selectedId));
   let pinnedIds = $derived(new Set(fileSearchViewState.pinnedFiles.map((p) => p.fileId)));
+
+  // Raycast-style rows show only the name; when two visible rows share one,
+  // the parent folder is prefixed (dimmed) to tell them apart.
+  let duplicateNames = $derived.by(() => {
+    const seen = new Map<string, number>();
+    for (const i of items) seen.set(i.name, (seen.get(i.name) ?? 0) + 1);
+    return new Set([...seen].filter(([, n]) => n > 1).map(([name]) => name));
+  });
+  function prefixOf(item: FileHit): string | undefined {
+    if (!duplicateNames.has(item.name)) return undefined;
+    const parent = item.path.split(/[\\/]/).slice(-2, -1)[0];
+    return parent ? `${parent}/` : undefined;
+  }
+
+  // Native Finder/Explorer icons, keyed by path; batched + debounced like
+  // thumbnails. Rust caches plain files per extension, so this is cheap.
+  let rowIcons = $state<Record<string, string>>({});
+  let rowIconTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const missing = items.filter((i) => !(i.path in rowIcons)).map((i) => i.path);
+    clearTimeout(rowIconTimer);
+    if (missing.length === 0) return;
+    rowIconTimer = setTimeout(async () => {
+      try {
+        const icons = await fileIcons(missing);
+        missing.forEach((path, i) => (rowIcons[path] = icons[i]));
+      } catch (err) {
+        logService.warn(`[FileSearch] icon load failed: ${err}`);
+      }
+    }, 80);
+    return () => clearTimeout(rowIconTimer);
+  });
+  function iconOf(item: FileHit): string {
+    return (
+      rowThumbnails[item.fileId] ||
+      rowIcons[item.path] ||
+      (item.isDir ? 'icon:folder' : 'icon:file-text')
+    );
+  }
 
   // Row-list thumbnails: fileId -> url (present+truthy), or null (requested,
   // none available). Absence of a key means "not yet requested".
@@ -122,9 +167,15 @@
   let previewThumbUrl = $state<string | null>(null);
   let previewLoading = $state(false);
   let currentPreviewPath = $state('');
-  // `FileHit` doesn't carry size — the preview pane stats the one selected
-  // file lazily instead of keeping it in the hot per-keystroke struct.
-  let selectedSize = $state<number | null>(null);
+  // `FileHit` doesn't carry size/dates — the detail pane stats the one
+  // selected file lazily instead of keeping it in the hot per-keystroke struct.
+  let selectedMeta = $state<{
+    path: string;
+    size: number | null;
+    created: Date | null;
+    modified: Date | null;
+    where: string;
+  } | null>(null);
 
   const MAX_TEXT_PREVIEW = 50_000;
   let previewTimer: ReturnType<typeof setTimeout> | undefined;
@@ -146,11 +197,8 @@
       currentPreviewPath = '';
     }
 
-    if (item && !item.isDir) {
-      void loadSize(item.path);
-    } else {
-      selectedSize = null;
-    }
+    if (item) void loadMeta(item.path);
+    else selectedMeta = null;
 
     return () => clearTimeout(previewTimer);
   });
@@ -184,13 +232,19 @@
     }
   }
 
-  async function loadSize(path: string) {
-    try {
-      const meta = await stat(path);
-      selectedSize = meta.size;
-    } catch {
-      selectedSize = null;
-    }
+  async function loadMeta(path: string) {
+    // Rust std::fs metadata: the webview fs plugin's `stat` is scope-limited
+    // and dropped the creation date.
+    const preview = await openerPathPreview(path).catch(() => null);
+    if (selected?.path !== path) return; // superseded
+    const date = (secs: number | null | undefined) => (secs ? new Date(secs * 1000) : null);
+    selectedMeta = {
+      path,
+      size: preview?.size ?? null,
+      created: date(preview?.created),
+      modified: date(preview?.modified),
+      where: preview?.parent ?? path,
+    };
   }
 
   function onSelect(item: FileHit) {
@@ -229,80 +283,30 @@
   <SplitListDetail
     {items}
     {selectedIndex}
-    leftWidth={320}
+    leftWidth={340}
     minLeftWidth={240}
     maxLeftWidth={600}
     ariaLabel="Files"
     emptyMessage={fileSearchViewState.searchQuery ? 'No matches' : 'Start typing to search…'}
   >
+    {#snippet listHeader()}
+      <div class="section-header">
+        {fileSearchViewState.searchQuery.trim()
+          ? t('features.file_search.ui.results')
+          : t('common.pinned')}
+      </div>
+    {/snippet}
+
     {#snippet listItem(item: FileHit, index: number)}
       <LauncherListRow
         data-index={index}
         selected={selectedIndex === index}
         onclick={() => onSelect(item)}
         ondblclick={() => onActivate(item)}
+        icon={iconOf(item)}
+        titlePrefix={prefixOf(item)}
         title={item.name}
-        subtitle={item.path}
       >
-        {#snippet leading()}
-          <div class="row-icon-wrap">
-            {#if rowThumbnails[item.fileId]}
-              <img src={rowThumbnails[item.fileId]} alt="" class="row-thumb" />
-            {:else if item.type === 'image'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                ><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle
-                  cx="8.5"
-                  cy="8.5"
-                  r="1.5"
-                /><polyline points="21 15 16 10 5 21" /></svg
-              >
-            {:else if item.type === 'code'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                ><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg
-              >
-            {:else if item.type === 'audio-video'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                ><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle
-                  cx="18"
-                  cy="16"
-                  r="3"
-                /></svg
-              >
-            {:else if item.type === 'archive'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                ><polyline points="21 8 21 21 3 21 3 8" /><rect
-                  x="1"
-                  y="3"
-                  width="22"
-                  height="5"
-                /><line x1="10" y1="12" x2="14" y2="12" /></svg
-              >
-            {:else if item.type === 'folder'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                ><path
-                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                /></svg
-              >
-            {:else if item.type === 'document'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                ><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline
-                  points="14 2 14 8 20 8"
-                /><line x1="16" y1="13" x2="8" y2="13" /><line
-                  x1="16"
-                  y1="17"
-                  x2="8"
-                  y2="17"
-                /></svg
-              >
-            {:else}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                ><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline
-                  points="14 2 14 8 20 8"
-                /></svg
-              >
-            {/if}
-          </div>
-        {/snippet}
         {#snippet trailing()}
           {#if item.source === 'deep'}
             <Badge text={t('features.file_search.ui.deep')} variant="default" mono />
@@ -324,42 +328,73 @@
 
     {#snippet detail()}
       {#if selected}
-        <div class="preview-pane custom-scrollbar">
-          {#if selected.isDir}
-            <div class="text-caption opacity-70 p-4">Folder — {selected.path}</div>
-          {:else if previewLoading}
-            <div class="text-caption opacity-50">
-              {t('features.file_search.ui.loading_preview')}
-            </div>
-          {:else if previewText}
-            <div class="text-pane">
+        <div class="detail-scroll custom-scrollbar">
+          <div class="preview-card">
+            {#if selected.isDir}
+              <div class="image-pane">
+                {#if isIconImage(iconOf(selected))}
+                  <img src={iconOf(selected)} alt="" class="preview-icon" />
+                {:else}
+                  <!-- Linux has no native file icons: show the builtin glyph. -->
+                  <Icon name={getBuiltInIconName(iconOf(selected))} size={64} />
+                {/if}
+              </div>
+            {:else if previewLoading}
+              <div class="text-caption opacity-50">
+                {t('features.file_search.ui.loading_preview')}
+              </div>
+            {:else if previewText}
               <pre class="text-preview">{previewText}</pre>
-            </div>
-          {:else if previewThumbUrl}
-            <div class="image-pane">
-              <img src={previewThumbUrl} alt="" class="preview-image" />
-            </div>
-          {:else}
-            <div class="text-caption opacity-70 p-4">
-              {selected.type}{selectedSize !== null ? ` · ${formatBytes(selectedSize)}` : ''}
-            </div>
-          {/if}
-        </div>
+            {:else if previewThumbUrl}
+              <div class="image-pane">
+                <img src={previewThumbUrl} alt="" class="preview-image" />
+              </div>
+            {:else}
+              <div class="image-pane">
+                {#if isIconImage(iconOf(selected))}
+                  <img src={iconOf(selected)} alt="" class="preview-icon" />
+                {:else}
+                  <!-- Linux has no native file icons: show the builtin glyph. -->
+                  <Icon name={getBuiltInIconName(iconOf(selected))} size={64} />
+                {/if}
+              </div>
+            {/if}
+          </div>
 
-        <ActionFooter>
-          {#snippet left()}
-            <div class="flex items-center space-x-3">
-              <Badge text={selected.type} variant="default" mono />
-              {#if selectedSize !== null}
-                <span class="text-caption">{formatBytes(selectedSize)}</span>
-              {/if}
-              <span class="text-caption opacity-70">{formatRelativeTime(selected.modifiedAt)}</span>
-              <span class="text-caption opacity-50 truncate" style="max-width:300px;"
-                >{selected.path}</span
-              >
+          <div class="section-header">{t('features.file_search.ui.metadata')}</div>
+          <dl class="meta-list">
+            <div class="meta-row">
+              <dt>{t('features.file_search.ui.name')}</dt>
+              <dd>{selected.name}</dd>
             </div>
-          {/snippet}
-        </ActionFooter>
+            <div class="meta-row">
+              <dt>{t('features.file_search.ui.where')}</dt>
+              <dd title={selected.path}>
+                {selectedMeta?.path === selected.path ? selectedMeta.where : '…'}
+              </dd>
+            </div>
+            <div class="meta-row">
+              <dt>{t('features.file_search.ui.type')}</dt>
+              <dd>{kindOf(selected)}</dd>
+            </div>
+            {#if selectedMeta?.path === selected.path && selectedMeta.size !== null}
+              <div class="meta-row">
+                <dt>{t('features.file_search.ui.size')}</dt>
+                <dd>{formatBytes(selectedMeta.size)}</dd>
+              </div>
+            {/if}
+            <div class="meta-row">
+              <dt>{t('features.file_search.ui.created')}</dt>
+              <dd>
+                {formatDate(selectedMeta?.path === selected.path ? selectedMeta.created : null)}
+              </dd>
+            </div>
+            <div class="meta-row">
+              <dt>{t('features.file_search.ui.modified')}</dt>
+              <dd>{formatDate(new Date(selected.modifiedAt * 1000))}</dd>
+            </div>
+          </dl>
+        </div>
       {:else}
         <EmptyState
           message={fileSearchViewState.searchQuery
@@ -392,31 +427,6 @@
     min-height: 0;
   }
 
-  .row-icon-wrap {
-    width: var(--size-lg);
-    height: var(--size-lg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    opacity: 0.6;
-  }
-
-  .row-thumb {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
-  }
-
-  .row-icon {
-    width: 20px;
-    height: 20px;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
   .pin-badge {
     width: 12px;
     height: 12px;
@@ -435,12 +445,21 @@
     color: var(--text-tertiary);
   }
 
-  .preview-pane {
+  .detail-scroll {
     flex: 1;
-    overflow: auto;
-    padding: var(--space-6);
+    overflow-y: auto;
+    padding: var(--space-4);
     contain: layout paint;
     min-width: 0;
+  }
+
+  .preview-card {
+    height: 280px;
+    overflow: hidden;
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    margin-bottom: var(--space-3);
   }
 
   .image-pane {
@@ -456,11 +475,14 @@
     max-height: 100%;
     object-fit: contain;
     border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
   }
 
-  .text-pane {
-    width: 100%;
+  /* Natural size up to 128px: macOS icons are 128px, Windows shell icons
+     only 32px — upscaling those would blur them. */
+  .preview-icon {
+    max-width: 128px;
+    max-height: 128px;
+    object-fit: contain;
   }
 
   .text-preview {
@@ -470,5 +492,38 @@
     word-break: break-word;
     font-size: var(--font-size-sm);
     line-height: 1.6;
+    margin: 0;
+  }
+
+  .meta-list {
+    margin: 0;
+  }
+
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+  }
+
+  .meta-row:nth-child(odd) {
+    background: var(--bg-secondary);
+  }
+
+  .meta-row dt {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .meta-row dd {
+    margin: 0;
+    color: var(--text-primary);
+    text-align: right;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

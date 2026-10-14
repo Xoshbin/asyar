@@ -8,7 +8,11 @@
 use super::models::SearchResult;
 use super::ranker::Tier;
 
-pub const FILE_SEARCH_FALLBACK_OBJECT_ID: &str = "cmd_file-search_show-files";
+/// Routed by file-search's built-in dynamic dispatcher, which always seeds
+/// the view with the query. The plain "Search Files" command decides for
+/// itself (it skips seeding when the query was just its own name).
+pub const FILE_SEARCH_FALLBACK_OBJECT_ID: &str = "cmd_file-search_dyn_search-for";
+const FILE_SEARCH_COMMAND_OBJECT_ID: &str = "cmd_file-search_show-files";
 const MAX_MATCHED_TO_SHOW_FALLBACK: usize = 5;
 const MAX_QUERY_LABEL_CHARS: usize = 60;
 
@@ -33,7 +37,7 @@ pub fn append_file_search_fallback(
     }
     if results
         .iter()
-        .any(|r| r.object_id == FILE_SEARCH_FALLBACK_OBJECT_ID)
+        .any(|r| r.object_id == FILE_SEARCH_COMMAND_OBJECT_ID)
     {
         return;
     }
@@ -133,7 +137,7 @@ mod tests {
 
     #[test]
     fn no_op_when_real_file_search_command_already_matched() {
-        let mut results = vec![result(FILE_SEARCH_FALLBACK_OBJECT_ID)];
+        let mut results = vec![result(FILE_SEARCH_COMMAND_OBJECT_ID)];
         append_file_search_fallback(&mut results, "files", 1, true);
         assert_eq!(results.len(), 1, "must not duplicate the real command");
     }

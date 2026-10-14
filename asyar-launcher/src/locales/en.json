@@ -967,11 +967,28 @@
         "search_everywhere": "Search Everywhere",
         "search_everywhere_desc": "Run an OS-native deep search (Spotlight/Everything/plocate) for the current query",
         "clear_history": "Clear Search History",
-        "clear_history_desc": "Remove all per-query learning data"
+        "clear_history_desc": "Remove all per-query learning data",
+        "show_in_search": "Show in Search Files",
+        "show_in_search_desc": "Open this path in the Search Files view"
       },
       "ui": {
         "deep": "deep",
-        "loading_preview": "Loading preview…"
+        "loading_preview": "Loading preview…",
+        "results": "Results",
+        "metadata": "Metadata",
+        "name": "Name",
+        "where": "Where",
+        "type": "Type",
+        "size": "Size",
+        "created": "Created",
+        "modified": "Modified",
+        "folder": "Folder",
+        "kind_document": "Document",
+        "kind_image": "Image",
+        "kind_code": "Source Code",
+        "kind_audio_video": "Audio / Video",
+        "kind_archive": "Archive",
+        "kind_file": "File"
       }
     },
     "notes": {

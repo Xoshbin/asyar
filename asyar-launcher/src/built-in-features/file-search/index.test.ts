@@ -2,7 +2,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../services/action/actionService.svelte', () => ({
-  actionService: { registerAction: vi.fn(), unregisterAction: vi.fn() },
+  actionService: {
+    registerAction: vi.fn(),
+    unregisterAction: vi.fn(),
+    getSelectedSearchItem: vi.fn(),
+  },
 }));
 
 vi.mock('../../lib/ipc/fileSearchCommands', () => ({
@@ -64,6 +68,11 @@ vi.mock('./state.svelte', () => ({
   recordSelectionForCurrentQuery: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('./openTarget', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./openTarget')>()),
+  currentPathRowTarget: vi.fn(() => '/Users/me/src/kinds.ts'),
+}));
+
 vi.mock('svelte', () => ({
   tick: vi.fn().mockResolvedValue(undefined),
 }));
@@ -73,7 +82,8 @@ import { fileSearchClearHistory } from '../../lib/ipc/fileSearchCommands';
 import { actionService } from '../../services/action/actionService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
-import extension from './index';
+import { getBuiltinDynamicDispatcher } from '../../services/extension/builtinDynamicDispatchers';
+import extension, { isShowFilesName } from './index';
 import {
   checkDeepSearchAvailability,
   fileSearchViewState,
@@ -135,7 +145,7 @@ describe('FileSearchExtension class contract', () => {
   });
 });
 
-describe('executeCommand("show-files") with query seed', () => {
+describe('query seeding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchStores.query = '';
@@ -146,7 +156,7 @@ describe('executeCommand("show-files") with query seed', () => {
     const ctx = makeContext({ navigateToView });
     await extension.initialize(ctx as never);
 
-    await extension.executeCommand('show-files', { query: 'report' });
+    await getBuiltinDynamicDispatcher('file-search')!('search-for', { query: 'report' });
 
     expect(tick).toHaveBeenCalled();
     expect(fileSearchViewState.searchQuery).toBe('report');
@@ -158,19 +168,44 @@ describe('executeCommand("show-files") with query seed', () => {
     const ctx = makeContext({ navigateToView });
     await extension.initialize(ctx as never);
 
-    await extension.executeCommand('show-files', { query: 'invoice' });
+    await getBuiltinDynamicDispatcher('file-search')!('search-for', { query: 'invoice' });
 
     expect(searchStores.query).toBe('invoice');
   });
 
-  it('does not call runSearch when no query is provided', async () => {
+  it('opening "Search Files" by its own name starts empty', async () => {
     const navigateToView = vi.fn();
     const ctx = makeContext({ navigateToView });
     await extension.initialize(ctx as never);
 
-    await extension.executeCommand('show-files');
+    fileSearchViewState.searchQuery = '';
+    await extension.executeCommand('show-files', { query: 'sear' });
 
+    expect(navigateToView).toHaveBeenCalledWith('file-search/DefaultView');
+    expect(fileSearchViewState.searchQuery).toBe('');
     expect(runSearch).not.toHaveBeenCalled();
+  });
+
+  it('opening "Search Files" with other root text seeds it', async () => {
+    const ctx = makeContext({ navigateToView: vi.fn() });
+    await extension.initialize(ctx as never);
+
+    await extension.executeCommand('show-files', { query: 'kinds.ts' });
+
+    expect(fileSearchViewState.searchQuery).toBe('kinds.ts');
+    expect(runSearch).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['', true],
+    ['sear', true],
+    ['Search F', true],
+    ['fil', true],
+    ['files', true],
+    ['kinds', false],
+    ['search kinds', false],
+  ])('isShowFilesName(%j) = %s', (q, expected) => {
+    expect(isShowFilesName(q)).toBe(expected);
   });
 });
 
@@ -205,6 +240,36 @@ describe('FileSearchExtension lifecycle: activate and deactivate', () => {
     await extension.activate();
     expect(loadPinnedFiles).toHaveBeenCalledTimes(1);
     expect(checkDeepSearchAvailability).toHaveBeenCalledTimes(1);
+  });
+
+  it('activate() adds a ⌘K "Show in Search Files" action for typed-path rows', async () => {
+    await extension.activate();
+    const action = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.map(([a]) => a as any)
+      .find((a) => a.id === 'file-search:show-in-search');
+    expect(action).toBeDefined();
+    // Untagged, or leaving the File Search view would clear it (clearActionsForExtension).
+    expect(action.extensionId).toBeUndefined();
+    expect(action.pinned).toBe(true);
+
+    vi.mocked(actionService.getSelectedSearchItem).mockReturnValueOnce({
+      objectId: 'cmd_other',
+    } as any);
+    expect(action.visible()).toBe(false);
+    vi.mocked(actionService.getSelectedSearchItem).mockReturnValueOnce({
+      objectId: 'file_search_open_path',
+    } as any);
+    expect(action.visible()).toBe(true);
+
+    const hit = { fileId: 'f1', path: '/Users/me/src/kinds.ts' };
+    (fileSearchViewState as any).allItems = [{ fileId: 'f0', path: '/x/kinds.ts' }, hit] as any;
+    await action.execute();
+    expect(fileSearchViewState.searchQuery).toBe('kinds.ts');
+    expect(fileSearchViewState.selectedFileId).toBe('f1');
+
+    await extension.deactivate();
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:show-in-search');
   });
 
   it('activate() propagates failure when loadPinnedFiles fails', async () => {

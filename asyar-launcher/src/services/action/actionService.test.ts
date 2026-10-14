@@ -254,6 +254,18 @@ describe('setContext / getContext', () => {
     svc.setContext(ActionContext.EXTENSION_VIEW, 'ext-2');
     expect(svc.filteredActions.map((a) => a.id)).toEqual(['a2']);
   });
+
+  it('lists pinned actions first, keeping registration order otherwise', () => {
+    const svc = freshService();
+    svc.registerAction(makeAction('b1', ActionContext.EXTENSION_VIEW, 'ext-1'));
+    svc.registerAction(makeAction('b2', ActionContext.EXTENSION_VIEW, 'ext-1'));
+    svc.registerAction({
+      ...makeAction('b3', ActionContext.EXTENSION_VIEW, 'ext-1'),
+      pinned: true,
+    });
+    svc.setContext(ActionContext.EXTENSION_VIEW, 'ext-1');
+    expect(svc.filteredActions.map((a) => a.id)).toEqual(['b3', 'b1', 'b2']);
+  });
 });
 
 // ── filterActionsByContext ────────────────────────────────────────────────────

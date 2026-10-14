@@ -960,7 +960,16 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
         .replace(".app", "")
         .replace(".desktop", "")
         .replace(".exe", "");
+    extract_icon_cached(Path::new(app_path), &cache_key, cache_dir)
+}
 
+/// Extracts `source`'s OS icon into `cache_dir` under `cache_key` (or reuses
+/// a previous extraction / negative marker) and returns its `asyar-icon` URL.
+pub(crate) fn extract_icon_cached(
+    source: &Path,
+    cache_key: &str,
+    cache_dir: &Path,
+) -> Option<String> {
     let base_name = &cache_key[..cache_key.len().min(200)];
     let cache_filename_png = format!("{base_name}.png");
     let cache_file_png = cache_dir.join(&cache_filename_png);
@@ -991,7 +1000,7 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
         return None;
     }
 
-    if let Some(bytes) = crate::platform::extract_icon(Path::new(app_path)) {
+    if let Some(bytes) = crate::platform::extract_icon(source) {
         let _ = std::fs::create_dir_all(cache_dir);
         let is_svg = bytes.starts_with(b"<") || bytes.windows(4).take(32).any(|w| w == b"<svg");
         let (chosen_filename, chosen_file) = if is_svg {

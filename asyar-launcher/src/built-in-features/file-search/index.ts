@@ -35,8 +35,12 @@ import {
 } from './state.svelte';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
+import manifest from './manifest.json';
+import { registerBuiltinDynamicDispatcher } from '../../services/extension/builtinDynamicDispatchers';
 import { registerBuiltinSearchProvider } from '../../services/search/builtinSearchProviders';
 import {
+  currentPathRowTarget,
+  OPEN_PATH_ROW_ID,
   openTarget,
   openTypedPath,
   openTypedUrl,
@@ -53,6 +57,21 @@ function parentDirOf(f: FileHit): string {
   return f.isDir ? f.path : f.path.replace(/\/[^/]*$/, '');
 }
 
+const showFiles = manifest.commands.find((c) => c.id === 'show-files')!;
+const SHOW_FILES_NAMES = [showFiles.name, showFiles.trigger ?? '']
+  .map((n) => n.toLowerCase())
+  .filter(Boolean);
+
+/** True when `query` is a prefix of the command's name, any of its words, or its keyword. */
+export function isShowFilesName(query: string): boolean {
+  const q = query.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!q) return true;
+  // ponytail: prefix check only; user aliases still seed. Use the ranker's tier if that matters.
+  return SHOW_FILES_NAMES.some((n) => n.startsWith(q) || n.split(' ').some((w) => w.startsWith(q)));
+}
+
+const SHOW_IN_SEARCH_ACTION_ID = 'file-search:show-in-search';
+
 class FileSearchExtension implements Extension {
   onUnload = () => {};
   private extensionManager?: IExtensionManager;
@@ -66,21 +85,11 @@ class FileSearchExtension implements Extension {
   }
 
   async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
+    // Root-search text seeds the view, unless it was just the command's own
+    // name ("sear", "files") used to find it.
     if (commandId === 'show-files') {
-      this.extensionManager?.navigateToView('file-search/DefaultView');
-      this.registerViewActions();
-      const seedQuery = typeof args?.query === 'string' ? args.query : '';
-      if (seedQuery) {
-        await tick();
-        // Also push into the shared search bar (not just the view's own
-        // internal query) — otherwise the visible bar keeps showing
-        // whatever the user typed in root search while the view silently
-        // searches a different query underneath it.
-        searchStores.query = seedQuery;
-        fileSearchViewState.searchQuery = seedQuery;
-        await runSearch();
-      }
-      return { type: 'view', viewPath: 'file-search/DefaultView' };
+      const query = typeof args?.query === 'string' ? args.query : '';
+      return this.openView(isShowFilesName(query) ? '' : query);
     }
     if (commandId === 'open-url') {
       await openTypedUrl(argText(args, 'url'));
@@ -91,6 +100,27 @@ class FileSearchExtension implements Extension {
       return { type: 'no-view' };
     }
     return undefined;
+  }
+
+  async openView(
+    seedQuery: string,
+    selectPath?: string,
+  ): Promise<{ type: 'view'; viewPath: string }> {
+    this.extensionManager?.navigateToView('file-search/DefaultView');
+    this.registerViewActions();
+    if (seedQuery) {
+      await tick();
+      // Also push into the shared search bar (not just the view's own
+      // internal query) — otherwise the visible bar keeps showing
+      // whatever the user typed in root search while the view silently
+      // searches a different query underneath it.
+      searchStores.query = seedQuery;
+      fileSearchViewState.searchQuery = seedQuery;
+      await runSearch();
+      const hit = selectPath && fileSearchViewState.allItems.find((f) => f.path === selectPath);
+      if (hit) fileSearchViewState.selectedFileId = hit.fileId;
+    }
+    return { type: 'view', viewPath: 'file-search/DefaultView' };
   }
 
   async viewActivated(viewPath: string): Promise<void> {
@@ -350,6 +380,29 @@ class FileSearchExtension implements Extension {
   }
 
   async activate(): Promise<void> {
+    // ⌘K on a typed-path row in root search ("~/coding") → this view.
+    actionService.registerAction({
+      id: SHOW_IN_SEARCH_ACTION_ID,
+      label: t('features.file_search.act.show_in_search'),
+      description: t('features.file_search.act.show_in_search_desc'),
+      icon: 'icon:folder-search',
+      // No extensionId: leaving the File Search view clears every action
+      // tagged 'file-search', and this one belongs to root search.
+      category: 'file-action',
+      context: ActionContext.CORE,
+      pinned: true,
+      visible: () =>
+        actionService.getSelectedSearchItem()?.objectId === OPEN_PATH_ROW_ID &&
+        currentPathRowTarget() !== null,
+      execute: async () => {
+        const path = currentPathRowTarget();
+        if (!path) return;
+        // ponytail: seeds by name, so a file outside the index opens an empty
+        // search; inject a synthetic hit if that turns out to matter.
+        const name = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+        await this.openView(name, path);
+      },
+    });
     try {
       await loadPinnedFiles();
       await checkDeepSearchAvailability();
@@ -361,6 +414,7 @@ class FileSearchExtension implements Extension {
   }
 
   async deactivate(): Promise<void> {
+    actionService.unregisterAction(SHOW_IN_SEARCH_ACTION_ID);
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound);
     }
@@ -381,5 +435,13 @@ registerBuiltinSearchProvider({
   execute: (_id, payload) => openTarget(payload as OpenTarget),
 });
 
-export default new FileSearchExtension();
+const extension = new FileSearchExtension();
+
+// Rust's "Search files for “…”…" fallback row (`cmd_file-search_dyn_search-for`).
+registerBuiltinDynamicDispatcher('file-search', async (dynamicId, args) => {
+  if (dynamicId !== 'search-for') return;
+  return extension.openView(typeof args?.query === 'string' ? args.query : '');
+});
+
+export default extension;
 export { DefaultView };

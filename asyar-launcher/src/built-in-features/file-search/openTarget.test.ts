@@ -29,6 +29,9 @@ const coding = {
   name: 'coding',
   parent: '~',
   icon: 'asyar-icon://localhost/x.png',
+  size: null,
+  created: 1_700_000_000,
+  modified: 1_700_000_000,
 };
 
 describe('parseTarget', () => {

@@ -60,40 +60,89 @@ pub struct PathPreview {
     pub name: String,
     pub parent: String,
     pub icon: String,
+    /// Bytes; `None` for folders.
+    pub size: Option<u64>,
+    /// Unix seconds; `None` where the filesystem doesn't record it.
+    pub created: Option<u64>,
+    pub modified: Option<u64>,
 }
 
 pub(crate) fn path_preview(
     path_str: &str,
     icon_cache_dir: &std::path::Path,
 ) -> Option<PathPreview> {
-    use crate::application::service::{display_parent_dir, extract_app_icon};
+    use crate::application::service::display_parent_dir;
     let resolved = resolve_path(path_str).ok()?;
     let path = resolved.to_string_lossy().to_string();
     let name = resolved
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| path.clone());
-    // Linux's extractor only understands `.desktop` entries (and would read
-    // any other file whole), so other paths take the generic SVG icons.
-    let native_icon =
-        cfg!(not(target_os = "linux")) || resolved.extension().is_some_and(|e| e == "desktop");
-    let icon = native_icon
-        .then(|| extract_app_icon(&path, icon_cache_dir))
-        .flatten()
-        .unwrap_or_else(|| {
-            if resolved.is_dir() {
-                "icon:folder"
-            } else {
-                "icon:file-text"
-            }
-            .to_string()
-        });
+    let icon = native_file_icon(&resolved, icon_cache_dir);
+    let meta = std::fs::metadata(&resolved).ok();
+    let secs = |t: std::io::Result<std::time::SystemTime>| {
+        t.ok()?
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .map(|d| d.as_secs())
+    };
     Some(PathPreview {
         parent: display_parent_dir(&path),
         icon,
+        size: meta.as_ref().filter(|m| m.is_file()).map(|m| m.len()),
+        created: meta.as_ref().and_then(|m| secs(m.created())),
+        modified: meta.as_ref().and_then(|m| secs(m.modified())),
         name,
         path,
     })
+}
+
+/// Finder/Explorer-style icon for an existing path, as an `asyar-icon` URL, or
+/// a generic `icon:` fallback. Plain files share one cached icon per
+/// extension; folders and bundles/executables (which carry their own icon)
+/// are cached per path.
+pub(crate) fn native_file_icon(path: &std::path::Path, icon_cache_dir: &std::path::Path) -> String {
+    use crate::application::service::{extract_app_icon, extract_icon_cached};
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let is_dir = path.is_dir();
+    // Linux's extractor only understands `.desktop` entries (and would read
+    // any other file whole), so other paths take the generic SVG icons.
+    let icon = if cfg!(target_os = "linux") && ext != "desktop" {
+        None
+    } else if is_dir || matches!(ext.as_str(), "app" | "exe" | "lnk" | "desktop") {
+        extract_app_icon(&path.to_string_lossy(), icon_cache_dir)
+    } else {
+        let ext: String = ext.chars().filter(char::is_ascii_alphanumeric).collect();
+        extract_icon_cached(path, &format!("filetype_{ext}"), icon_cache_dir)
+    };
+    icon.unwrap_or_else(|| {
+        if is_dir {
+            "icon:folder"
+        } else {
+            "icon:file-text"
+        }
+        .to_string()
+    })
+}
+
+/// Batched [`native_file_icon`] for list rows; missing paths get the fallback.
+#[tauri::command]
+pub async fn file_icons<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    paths: Vec<String>,
+) -> Vec<String> {
+    let cache_dir = crate::application::service::get_icon_cache_dir(&app_handle);
+    tauri::async_runtime::spawn_blocking(move || {
+        paths
+            .iter()
+            .map(|p| native_file_icon(std::path::Path::new(p), &cache_dir))
+            .collect()
+    })
+    .await
+    .unwrap_or_default()
 }
 
 /// Host-only (frontend) lookup; `None` when the path is relative or missing.
@@ -306,6 +355,8 @@ mod tests {
             home.file_name().unwrap().to_string_lossy().to_string()
         );
         assert!(!preview.icon.is_empty());
+        assert!(preview.size.is_none(), "folders have no size");
+        assert!(preview.modified.is_some());
         if cfg!(target_os = "linux") {
             assert_eq!(preview.icon, "icon:folder");
         }

@@ -967,11 +967,28 @@
         "search_everywhere": "Pesquisar em todo lugar",
         "search_everywhere_desc": "Executar uma busca profunda nativa do SO (Spotlight/Everything/plocate) para a consulta atual",
         "clear_history": "Limpar histórico de busca",
-        "clear_history_desc": "Remover todos os dados de aprendizado por consulta"
+        "clear_history_desc": "Remover todos os dados de aprendizado por consulta",
+        "show_in_search": "Mostrar em Pesquisar Arquivos",
+        "show_in_search_desc": "Abrir este caminho na visualização Pesquisar Arquivos"
       },
       "ui": {
         "deep": "profunda",
-        "loading_preview": "Carregando pré-visualização…"
+        "loading_preview": "Carregando pré-visualização…",
+        "results": "Resultados",
+        "metadata": "Metadados",
+        "name": "Nome",
+        "where": "Local",
+        "type": "Tipo",
+        "size": "Tamanho",
+        "created": "Criado",
+        "modified": "Modificado",
+        "folder": "Pasta",
+        "kind_document": "Documento",
+        "kind_image": "Imagem",
+        "kind_code": "Código-fonte",
+        "kind_audio_video": "Áudio / Vídeo",
+        "kind_archive": "Arquivo compactado",
+        "kind_file": "Arquivo"
       }
     },
     "notes": {

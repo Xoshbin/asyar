@@ -967,11 +967,28 @@
         "search_everywhere": "全域搜尋",
         "search_everywhere_desc": "對目前查詢執行系統原生深度搜尋（Spotlight/Everything/plocate）",
         "clear_history": "清除搜尋歷史記錄",
-        "clear_history_desc": "移除所有依查詢學習的資料"
+        "clear_history_desc": "移除所有依查詢學習的資料",
+        "show_in_search": "在搜尋檔案中顯示",
+        "show_in_search_desc": "在「搜尋檔案」檢視中開啟此路徑"
       },
       "ui": {
         "deep": "深度",
-        "loading_preview": "正在載入預覽…"
+        "loading_preview": "正在載入預覽…",
+        "results": "結果",
+        "metadata": "中繼資料",
+        "name": "名稱",
+        "where": "位置",
+        "type": "類型",
+        "size": "大小",
+        "created": "建立時間",
+        "modified": "修改時間",
+        "folder": "資料夾",
+        "kind_document": "文件",
+        "kind_image": "影像",
+        "kind_code": "原始碼",
+        "kind_audio_video": "音訊 / 視訊",
+        "kind_archive": "封存檔",
+        "kind_file": "檔案"
       }
     },
     "notes": {
