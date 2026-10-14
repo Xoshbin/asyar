@@ -339,6 +339,7 @@ macro_rules! system_commands {
                 $crate::commands::get_frontmost_application,
                 $crate::commands::get_default_app_scan_paths,
                 $crate::commands::normalize_scan_path,
+                $crate::commands::validate_application_scan_path,
                 $crate::commands::check_path_exists,
                 $crate::commands::open_application_path,
                 $crate::commands::uninstall_application,

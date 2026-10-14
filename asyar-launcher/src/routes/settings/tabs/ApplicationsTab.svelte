@@ -2,13 +2,22 @@
   import { onMount } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { emit } from '@tauri-apps/api/event';
-  import { Icon, Toggle, KeyboardHint, EmptyState, SettingsCard } from '../../../components';
+  import {
+    Button,
+    EmptyState,
+    Icon,
+    InlineError,
+    Input,
+    KeyboardHint,
+    SettingsCard,
+    Toggle,
+  } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import {
     getDefaultAppScanPaths,
     listApplications,
-    normalizeScanPath,
     setFocusLock,
+    validateApplicationScanPath,
   } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
   import { t } from '../../../services/i18n';
@@ -30,13 +39,14 @@
   let defaultPaths = $state<string[]>([]);
   let isLoading = $state(true);
   let isBrowsing = $state(false);
+  let isAddingPath = $state(false);
+  let pathInput = $state('');
   let errorMessage = $state<string | null>(null);
   let editingApp = $state<IndexedApp | null>(null);
   let editingAliasApp = $state<IndexedApp | null>(null);
 
   let userPaths = $derived(settingsService.currentSettings.search.additionalScanPaths ?? []);
   let enabledMap = $derived(settingsService.currentSettings.search.applicationEnabled ?? {});
-  let defaultSet = $derived(new Set(defaultPaths));
 
   let shortcutsByObjectId = $derived(
     new Map<string, ItemShortcut>(shortcutStore.shortcuts.map((s) => [s.objectId, s])),
@@ -84,25 +94,90 @@
     }
   });
 
-  async function reloadApps() {
+  async function reloadApps(paths = userPaths): Promise<boolean> {
     try {
-      apps = withIds((await listApplications(userPaths)) ?? []);
+      apps = withIds((await listApplications(paths)) ?? []);
+      return true;
     } catch (err) {
       logService.warn(`Failed to reload applications: ${err}`);
+      return false;
     }
   }
 
-  async function persistPaths(paths: string[]) {
-    const ok = await settingsService.updateSettings('search', {
-      additionalScanPaths: paths,
-    });
-    if (!ok) {
-      errorMessage = 'Failed to save directory list';
-      return;
+  async function persistPaths(paths: string[]): Promise<boolean> {
+    let ok: boolean;
+    try {
+      ok = await settingsService.updateSettings('search', {
+        additionalScanPaths: paths,
+      });
+    } catch (err) {
+      logService.warn(`Failed to save application directories: ${err}`);
+      errorMessage = t('settings.applications.error_save_paths');
+      return false;
     }
+    if (!ok) {
+      errorMessage = t('settings.applications.error_save_paths');
+      return false;
+    }
+    let refreshFailed = false;
+    try {
+      await emit('asyar:app-scan-paths-changed', { additionalScanPaths: paths });
+    } catch (err) {
+      logService.warn(`Failed to notify application index watcher: ${err}`);
+      refreshFailed = true;
+    }
+    if (!(await reloadApps(paths))) refreshFailed = true;
+    errorMessage = refreshFailed ? t('settings.applications.error_refresh_paths') : null;
+    return true;
+  }
+
+  function validationErrorMessage(error: string | null, path: string): string {
+    const keys: Record<string, string> = {
+      empty: 'settings.applications.error_empty_path',
+      relative: 'settings.applications.error_relative_path',
+      tilde_unsupported: 'settings.applications.error_tilde_path',
+      file_url_unsupported: 'settings.applications.error_file_url',
+      not_found: 'settings.applications.error_not_found',
+      not_directory: 'settings.applications.error_not_directory',
+      filesystem_root: 'settings.applications.error_filesystem_root',
+      home_directory: 'settings.applications.error_home_directory',
+      duplicate: 'settings.applications.error_duplicate_path',
+    };
+    return t(keys[error ?? ''] ?? 'settings.applications.error_validate_path', { path });
+  }
+
+  async function addDirectory(path: string): Promise<boolean> {
+    const trimmed = path.trim();
+    if (!trimmed) {
+      errorMessage = t('settings.applications.error_empty_path');
+      return false;
+    }
+
+    try {
+      const validation = await validateApplicationScanPath(trimmed, userPaths);
+      if (!validation.normalizedPath) {
+        errorMessage = validationErrorMessage(validation.error, trimmed);
+        return false;
+      }
+      return persistPaths([...userPaths, validation.normalizedPath]);
+    } catch (err) {
+      logService.warn(`Failed to validate application directory: ${err}`);
+      errorMessage = t('settings.applications.error_validate_path', { path: trimmed });
+      return false;
+    }
+  }
+
+  async function handlePathSubmit(event: SubmitEvent) {
+    event.preventDefault();
+    if (isAddingPath) return;
+    isAddingPath = true;
     errorMessage = null;
-    await emit('asyar:app-scan-paths-changed', { additionalScanPaths: paths });
-    await reloadApps();
+    try {
+      const added = await addDirectory(pathInput);
+      if (added) pathInput = '';
+    } finally {
+      isAddingPath = false;
+    }
   }
 
   async function handleAddDirectory() {
@@ -118,19 +193,7 @@
       });
       if (!picked || typeof picked !== 'string') return;
 
-      const normalized = await normalizeScanPath(picked);
-      if (!normalized) return;
-
-      if (defaultSet.has(normalized)) {
-        errorMessage = `${normalized} is already scanned by default`;
-        return;
-      }
-      if (userPaths.includes(normalized)) {
-        errorMessage = `${normalized} is already in the list`;
-        return;
-      }
-
-      await persistPaths([...userPaths, normalized]);
+      await addDirectory(picked);
     } catch (err) {
       logService.warn(`Directory picker failed: ${err}`);
       errorMessage = 'Could not open directory picker';
@@ -221,20 +284,39 @@
         </li>
       {/each}
       <li class="add-directory-row">
-        <button
-          type="button"
-          class="add-directory-btn"
-          onclick={handleAddDirectory}
-          disabled={isBrowsing}
-        >
-          <Icon name="plus" size={14} />
-          {isBrowsing ? 'Opening…' : t('settings.scripts.add_directory')}
-        </button>
+        <form class="path-entry-form" onsubmit={handlePathSubmit}>
+          <Input
+            bind:value={pathInput}
+            class="path-entry-input text-mono"
+            textIntent="exact"
+            aria-label={t('settings.applications.add_path_label')}
+            placeholder={t('settings.applications.add_path_placeholder')}
+            disabled={isAddingPath}
+          />
+          <Button class="path-action-button" type="submit" disabled={isAddingPath}>
+            {isAddingPath
+              ? t('settings.applications.adding_path')
+              : t('settings.applications.add_path_action')}
+          </Button>
+          <Button
+            class="add-directory-btn path-action-button"
+            type="button"
+            onclick={handleAddDirectory}
+            disabled={isBrowsing}
+          >
+            <Icon name="folder" size={14} />
+            {isBrowsing
+              ? t('settings.applications.opening_picker')
+              : t('settings.applications.browse_action')}
+          </Button>
+        </form>
       </li>
     </ul>
   </SettingsCard>
   {#if errorMessage}
-    <div class="error" role="alert">{errorMessage}</div>
+    <div class="path-error" role="alert">
+      <InlineError message={errorMessage} />
+    </div>
   {/if}
 </div>
 
@@ -372,13 +454,8 @@
 {/if}
 
 <style>
-  .error {
+  .path-error {
     margin-top: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    color: var(--accent-danger);
   }
 
   .path-list {
@@ -440,30 +517,40 @@
   }
 
   .add-directory-row {
-    padding: 0;
+    padding: var(--space-3) var(--space-6);
   }
 
-  .add-directory-btn {
-    width: 100%;
-    display: flex;
+  .path-entry-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  :global(.path-entry-input) {
+    min-width: 0;
+  }
+
+  :global(.path-action-button) {
+    white-space: nowrap;
+  }
+
+  :global(.path-action-button .result-title) {
+    display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-4) var(--space-6);
-    background: transparent;
-    border: none;
-    color: var(--accent-primary);
-    font-size: var(--font-size-md);
-    font-weight: 600;
-    cursor: pointer;
-    text-align: left;
-    font-family: var(--font-ui);
   }
 
-  .add-directory-btn:hover {
+  :global(.add-directory-btn) {
+    background: transparent;
+    color: var(--accent-primary);
+  }
+
+  :global(.add-directory-btn:hover) {
     background: var(--bg-hover);
   }
 
-  .add-directory-btn:disabled {
+  :global(.add-directory-btn:disabled) {
     opacity: 0.6;
     cursor: not-allowed;
   }
