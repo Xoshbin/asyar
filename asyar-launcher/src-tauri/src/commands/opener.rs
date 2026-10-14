@@ -128,7 +128,7 @@ pub(crate) fn native_file_icon(path: &std::path::Path, icon_cache_dir: &std::pat
     })
 }
 
-/// Batched [`native_file_icon`] for list rows; missing paths get the fallback.
+/// Batched `native_file_icon` for list rows; missing paths get the fallback.
 #[tauri::command]
 pub async fn file_icons<R: tauri::Runtime>(
     app_handle: tauri::AppHandle<R>,
