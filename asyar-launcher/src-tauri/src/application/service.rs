@@ -639,6 +639,88 @@ pub fn normalize_scan_path(path: &str) -> String {
         .to_string()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScanPathValidationError {
+    Empty,
+    Relative,
+    TildeUnsupported,
+    FileUrlUnsupported,
+    NotFound,
+    NotDirectory,
+    FilesystemRoot,
+    HomeDirectory,
+    Duplicate,
+}
+
+impl ScanPathValidationError {
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Empty => "empty",
+            Self::Relative => "relative",
+            Self::TildeUnsupported => "tilde_unsupported",
+            Self::FileUrlUnsupported => "file_url_unsupported",
+            Self::NotFound => "not_found",
+            Self::NotDirectory => "not_directory",
+            Self::FilesystemRoot => "filesystem_root",
+            Self::HomeDirectory => "home_directory",
+            Self::Duplicate => "duplicate",
+        }
+    }
+}
+
+/// Validates a user-entered application scan directory and returns its
+/// canonical filesystem path. Text shortcuts and URLs are deliberately
+/// rejected: accepting them here would make persisted paths platform- and
+/// shell-dependent. The filesystem root and the user's home directory are
+/// too broad for recursive application discovery and are rejected as a
+/// privacy and performance safeguard.
+pub fn validate_user_scan_path(
+    path: &str,
+    existing_paths: &[String],
+) -> Result<PathBuf, ScanPathValidationError> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(ScanPathValidationError::Empty);
+    }
+    if trimmed.starts_with('~') {
+        return Err(ScanPathValidationError::TildeUnsupported);
+    }
+    if trimmed.to_ascii_lowercase().starts_with("file://") {
+        return Err(ScanPathValidationError::FileUrlUnsupported);
+    }
+
+    let candidate = Path::new(trimmed);
+    if !candidate.is_absolute() {
+        return Err(ScanPathValidationError::Relative);
+    }
+    if !candidate.exists() {
+        return Err(ScanPathValidationError::NotFound);
+    }
+    if !candidate.is_dir() {
+        return Err(ScanPathValidationError::NotDirectory);
+    }
+
+    let canonical = fs::canonicalize(candidate).map_err(|_| ScanPathValidationError::NotFound)?;
+    if canonical.parent().is_none() {
+        return Err(ScanPathValidationError::FilesystemRoot);
+    }
+    if dirs::home_dir()
+        .and_then(|home| fs::canonicalize(home).ok())
+        .is_some_and(|home| home == canonical)
+    {
+        return Err(ScanPathValidationError::HomeDirectory);
+    }
+    if existing_paths.iter().any(|existing| {
+        let normalized = normalize_scan_path(existing);
+        !normalized.is_empty()
+            && fs::canonicalize(normalized).is_ok_and(|existing| existing == canonical)
+    }) {
+        return Err(ScanPathValidationError::Duplicate);
+    }
+
+    Ok(canonical)
+}
+
 pub fn display_parent_dir(app_path: &str) -> String {
     let parent = Path::new(app_path)
         .parent()
@@ -1217,7 +1299,9 @@ mod tests {
         assert!(!paths.contains(&PathBuf::from("/System/Library/PreferencePanes")));
         assert!(!paths.contains(&PathBuf::from("/Library/PreferencePanes")));
         assert!(!paths.contains(&PathBuf::from("/Library/Internet Plug-Ins")));
-        assert!(!paths.contains(&PathBuf::from("/System/Cryptexes/App/System/Applications")));
+        assert!(!paths.contains(&PathBuf::from(
+            "/System/Volumes/Preboot/Cryptexes/App/System/Applications"
+        )));
     }
 
     #[test]
@@ -1508,6 +1592,81 @@ mod tests {
     #[test]
     fn test_normalize_scan_path_returns_empty_for_blank_input() {
         assert_eq!(normalize_scan_path("   "), "");
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_nonexistent_path() {
+        assert_eq!(
+            validate_user_scan_path("/definitely/not/an/asyar/application/path", &[]),
+            Err(ScanPathValidationError::NotFound)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_relative_and_tilde_paths() {
+        assert_eq!(
+            validate_user_scan_path("Applications", &[]),
+            Err(ScanPathValidationError::Relative)
+        );
+        assert_eq!(
+            validate_user_scan_path("~/Applications", &[]),
+            Err(ScanPathValidationError::TildeUnsupported)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_file_urls() {
+        assert_eq!(
+            validate_user_scan_path("file:///Applications", &[]),
+            Err(ScanPathValidationError::FileUrlUnsupported)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_files_and_filesystem_root() {
+        let temp = tempfile::tempdir().unwrap();
+        let file = temp.path().join("not-a-directory");
+        std::fs::write(&file, b"test").unwrap();
+
+        assert_eq!(
+            validate_user_scan_path(file.to_str().unwrap(), &[]),
+            Err(ScanPathValidationError::NotDirectory)
+        );
+        assert_eq!(
+            validate_user_scan_path(std::path::MAIN_SEPARATOR_STR, &[]),
+            Err(ScanPathValidationError::FilesystemRoot)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_home_as_overly_broad() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+        assert_eq!(
+            validate_user_scan_path(home.to_str().unwrap(), &[]),
+            Err(ScanPathValidationError::HomeDirectory)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_returns_canonical_path_and_detects_canonical_duplicate() {
+        let temp = tempfile::tempdir().unwrap();
+        let apps = temp.path().join("Applications");
+        std::fs::create_dir(&apps).unwrap();
+        let canonical = std::fs::canonicalize(&apps).unwrap();
+
+        assert_eq!(
+            validate_user_scan_path(apps.to_str().unwrap(), &[]),
+            Ok(canonical.clone())
+        );
+        assert_eq!(
+            validate_user_scan_path(
+                apps.to_str().unwrap(),
+                &[canonical.to_string_lossy().into_owned()]
+            ),
+            Err(ScanPathValidationError::Duplicate)
+        );
     }
 
     #[test]
