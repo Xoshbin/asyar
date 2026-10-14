@@ -1596,8 +1596,11 @@ mod tests {
 
     #[test]
     fn validate_user_scan_path_rejects_nonexistent_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let nonexistent = temp.path().join("missing-application-directory");
+
         assert_eq!(
-            validate_user_scan_path("/definitely/not/an/asyar/application/path", &[]),
+            validate_user_scan_path(nonexistent.to_str().unwrap(), &[]),
             Err(ScanPathValidationError::NotFound)
         );
     }
@@ -1627,13 +1630,18 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let file = temp.path().join("not-a-directory");
         std::fs::write(&file, b"test").unwrap();
+        let canonical_temp = std::fs::canonicalize(temp.path()).unwrap();
+        let mut filesystem_root = canonical_temp.as_path();
+        while let Some(parent) = filesystem_root.parent() {
+            filesystem_root = parent;
+        }
 
         assert_eq!(
             validate_user_scan_path(file.to_str().unwrap(), &[]),
             Err(ScanPathValidationError::NotDirectory)
         );
         assert_eq!(
-            validate_user_scan_path(std::path::MAIN_SEPARATOR_STR, &[]),
+            validate_user_scan_path(filesystem_root.to_str().unwrap(), &[]),
             Err(ScanPathValidationError::FilesystemRoot)
         );
     }
