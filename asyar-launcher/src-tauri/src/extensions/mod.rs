@@ -514,6 +514,22 @@ pub fn validate_permission_args(m: &ExtensionManifest) -> Result<(), AppError> {
         (true,Some(args)) if has("network")=> { crate::network::secret_refs::validate_network_secrets_args(args)?; },
         _=>return Err(AppError::Validation("network:secrets requires network and matching permissionArgs.network:secrets declarations".into())),
     }
+    let lan_args = m
+        .permission_args
+        .as_ref()
+        .and_then(|a| a.get("network:lan"));
+    match (has("network:lan"), lan_args) {
+        (false, None) => {}
+        (true, Some(args)) if has("network") => {
+            crate::network::lan_policy::LanPolicy::parse(args)?;
+        }
+        _ => {
+            return Err(AppError::Validation(
+                "network:lan requires network and matching permissionArgs.network:lan declarations"
+                    .into(),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -723,6 +739,24 @@ mod tests {
             serde_json::json!({"network:secrets":[]})
         ))
         .is_err());
+    }
+    #[test]
+    fn network_lan_requires_network_and_scoped_endpoints() {
+        assert!(validate_permission_args(&secret_manifest(
+            serde_json::json!(["network:lan"]),
+            serde_json::json!({"network:lan":["192.168.0.0/16:1400"]})
+        ))
+        .is_err());
+        assert!(validate_permission_args(&secret_manifest(
+            serde_json::json!(["network", "network:lan"]),
+            serde_json::json!({})
+        ))
+        .is_err());
+        assert!(validate_permission_args(&secret_manifest(
+            serde_json::json!(["network", "network:lan"]),
+            serde_json::json!({"network:lan":["192.168.0.0/16:1400", "speaker.local:1400"]})
+        ))
+        .is_ok());
     }
     use std::fs;
     use std::path::Path;

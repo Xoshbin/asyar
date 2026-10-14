@@ -213,15 +213,22 @@ pub async fn fetch_url(
     registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
 ) -> Result<serde_json::Value, AppError> {
     registry.check(&caller_extension_id, "network")?;
-    crate::network::service::validate_url_for_ssrf(&url)?;
+    let lan_policy = caller_extension_id
+        .as_deref()
+        .map(|extension_id| registry.lan_policy(extension_id))
+        .transpose()?
+        .flatten();
 
-    crate::network::service::fetch(crate::network::service::FetchRequest {
-        url,
-        method,
-        headers,
-        body,
-        timeout_ms,
-    })
+    crate::network::service::fetch_scoped(
+        crate::network::service::FetchRequest {
+            url,
+            method,
+            headers,
+            body,
+            timeout_ms,
+        },
+        lan_policy.as_ref(),
+    )
     .await
 }
 

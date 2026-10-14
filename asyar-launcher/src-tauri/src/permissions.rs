@@ -182,6 +182,28 @@ impl ExtensionPermissionRegistry {
             .ok_or(crate::network::secret_refs::SecretError::InvalidDeclaration)?;
         crate::network::secret_refs::validate_network_secrets_args(&value)
     }
+
+    pub fn lan_policy(
+        &self,
+        extension_id: &str,
+    ) -> Result<Option<crate::network::lan_policy::LanPolicy>, AppError> {
+        let has_lan = self
+            .inner
+            .lock()
+            .map_err(|_| AppError::Lock)?
+            .get(extension_id)
+            .is_some_and(|permissions| permissions.contains("network:lan"));
+        if !has_lan {
+            return Ok(None);
+        }
+        self.check(&Some(extension_id.into()), "network")?;
+        let value = self.args_for(extension_id, "network:lan").ok_or_else(|| {
+            AppError::Permission(format!(
+                "Extension '{extension_id}' has no network:lan endpoints declared in manifest"
+            ))
+        })?;
+        crate::network::lan_policy::LanPolicy::parse(&value).map(Some)
+    }
 }
 
 /// Maps an IPC call type string to the required permission.
