@@ -293,11 +293,9 @@ export type ItemAlias = {
 /**
  *  Where within the chosen display the launcher sits.
  * 
- *  `Free` is the drag result and stores **fractions of the monitor**, not
- *  pixels. Pixels would put the launcher off-screen the first time a display
- *  is unplugged or a resolution changes, with no way back except a reset;
- *  fractions land in the same relative spot on any display and are clamped
- *  into the work area on every reveal.
+ *  `Free` is the drag result and stores fractions of the window's available
+ *  travel inside the monitor, not pixels. The legacy monitor-fraction shape is
+ *  read separately so existing user data is never silently reinterpreted.
  */
 export type LauncherAnchor = 
 // Horizontally centred; top edge at `bias` of the monitor's height.
@@ -305,8 +303,13 @@ export type LauncherAnchor =
 // Centred on both axes.
 { kind: "centered" } | 
 /**
- *  Free position from a drag, as fractions of the monitor for the
- *  window's top-left corner.
+ *  Free position from a drag, as fractions of the window's available
+ *  travel inside the monitor.
+ */
+{ kind: "freeTravel"; x: number; y: number } | 
+/**
+ *  COMPAT(remove in 0.2.0): pre-#860 `"free"` anchors stored fractions of
+ *  the full monitor extent. Migrated to [`Self::Free`] on first reveal.
  */
 { kind: "free"; x: number; y: number };
 

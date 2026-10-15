@@ -20,7 +20,7 @@
 //!   y-down, so the conversion is an origin offset.
 
 use super::resolve;
-use super::resolve::{origin_to_fractions, resolve_origin, Rect};
+use super::resolve::{resolve_origin, Rect, TravelSpace};
 use super::store;
 use super::types::{LauncherAnchor, LauncherMonitorChoice, LauncherPlacement};
 use super::LAUNCHER_MAX_HEIGHT;
@@ -231,7 +231,8 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
     let screen = screen_containing(center_of(window_rect))?;
     let frames = macos_conv::frames(screen.frame, screen.visible);
     let offsets = macos_conv::to_offsets(screen.frame, window_rect);
-    let (x, y) = origin_to_fractions(offsets, frames.monitor);
+    let space = TravelSpace::new(frames.monitor, window_rect.width, LAUNCHER_MAX_HEIGHT);
+    let (x, y) = space.to_fractions(offsets);
 
     let default_origin = resolve_origin(
         &LauncherAnchor::default(),
@@ -240,7 +241,7 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
         window_rect.width,
         LAUNCHER_MAX_HEIGHT,
     );
-    let (default_x, default_y) = origin_to_fractions(default_origin, frames.monitor);
+    let (default_x, default_y) = space.to_fractions(default_origin);
     if is_close(x, default_x) && is_close(y, default_y) {
         return Some(LauncherAnchor::default());
     }
@@ -264,7 +265,8 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
 
     let (origin, frames) = monitor_frames(&monitor);
     let offsets = (pos.x - origin.0, pos.y - origin.1);
-    let (x, y) = origin_to_fractions(offsets, frames.monitor);
+    let space = TravelSpace::new(frames.monitor, size.width, LAUNCHER_MAX_HEIGHT);
+    let (x, y) = space.to_fractions(offsets);
 
     let default_origin = resolve_origin(
         &LauncherAnchor::default(),
@@ -273,7 +275,7 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
         size.width,
         LAUNCHER_MAX_HEIGHT,
     );
-    let (default_x, default_y) = origin_to_fractions(default_origin, frames.monitor);
+    let (default_x, default_y) = space.to_fractions(default_origin);
     if is_close(x, default_x) && is_close(y, default_y) {
         return Some(LauncherAnchor::default());
     }
@@ -342,7 +344,7 @@ pub fn adjust_for_snap<R: Runtime>(app: &AppHandle<R>, x: f64, y: f64) -> (f64, 
     // whose absolute origin isn't `(0, 0)`, so `apply_snap_absolute` adds
     // `origin` back in first — the same step `apply_placement`'s non-macOS
     // branch and `dragged_anchor`'s non-macOS branch both already take after
-    // calling `resolve_origin`/before calling `origin_to_fractions`.
+    // calling `resolve_origin`/before converting through `TravelSpace`.
     let ((snapped_x, snapped_y), state) =
         apply_snap_absolute(x, y, origin, target, SNAP_THRESHOLD_PX);
 
