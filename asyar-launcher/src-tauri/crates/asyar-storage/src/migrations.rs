@@ -55,6 +55,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "threads_is_pinned",
         up: migration_6_threads_is_pinned,
     },
+    Migration {
+        version: 7,
+        name: "lan_allowed_hosts",
+        up: |conn| super::lan_allowed_hosts::init_table(conn),
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -286,6 +291,7 @@ mod tests {
         "file_search_pinned",
         "file_search_selections",
         "item_aliases",
+        "lan_allowed_hosts",
         "mcp_audit",
         "mcp_permissions",
         "mcp_servers",

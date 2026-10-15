@@ -435,23 +435,26 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
     if (!manifest.permissions?.includes('network')) {
       errors.push({ field: 'permissions', message: '"network:lan" requires "network"' });
     }
-    if (
-      !Array.isArray(lanArgs) ||
-      lanArgs.length === 0 ||
-      !lanArgs.every((entry): entry is string => typeof entry === 'string')
-    ) {
-      errors.push({
-        field: 'permissionArgs.network:lan',
-        message: 'must be a non-empty array of host-or-CIDR:port strings',
-      });
-    } else {
-      for (const endpoint of lanArgs) {
-        const reason = validateLanEndpoint(endpoint);
-        if (reason) {
-          errors.push({
-            field: 'permissionArgs.network:lan',
-            message: `"${endpoint}" ${reason}`,
-          });
+    if (lanArgs !== undefined) {
+      // Only validate when present; absent = user manages the allowlist in Settings
+      if (
+        !Array.isArray(lanArgs) ||
+        lanArgs.length === 0 ||
+        !lanArgs.every((entry): entry is string => typeof entry === 'string')
+      ) {
+        errors.push({
+          field: 'permissionArgs.network:lan',
+          message: 'must be a non-empty array of host-or-CIDR:port strings',
+        });
+      } else {
+        for (const endpoint of lanArgs) {
+          const reason = validateLanEndpoint(endpoint);
+          if (reason) {
+            errors.push({
+              field: 'permissionArgs.network:lan',
+              message: `"${endpoint}" ${reason}`,
+            });
+          }
         }
       }
     }

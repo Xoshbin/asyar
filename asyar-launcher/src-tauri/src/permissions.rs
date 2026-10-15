@@ -183,7 +183,7 @@ impl ExtensionPermissionRegistry {
         crate::network::secret_refs::validate_network_secrets_args(&value)
     }
 
-    pub fn lan_policy(
+    pub fn lan_policy_manifest(
         &self,
         extension_id: &str,
     ) -> Result<Option<crate::network::lan_policy::LanPolicy>, AppError> {
@@ -197,12 +197,8 @@ impl ExtensionPermissionRegistry {
             return Ok(None);
         }
         self.check(&Some(extension_id.into()), "network")?;
-        let value = self.args_for(extension_id, "network:lan").ok_or_else(|| {
-            AppError::Permission(format!(
-                "Extension '{extension_id}' has no network:lan endpoints declared in manifest"
-            ))
-        })?;
-        crate::network::lan_policy::LanPolicy::parse(&value).map(Some)
+        let value = self.args_for(extension_id, "network:lan");
+        crate::network::lan_policy::LanPolicy::from_manifest(value.as_ref()).map(Some)
     }
 }
 

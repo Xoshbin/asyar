@@ -316,7 +316,8 @@
       "required_setup_mid": "para executar",
       "coming_soon": "Em breve",
       "uninstall_title": "Desinstalar extensão",
-      "uninstall_message": "Tem certeza de que deseja desinstalar \"{title}\"? Esta ação não pode ser desfeita."
+      "uninstall_message": "Tem certeza de que deseja desinstalar \"{title}\"? Esta ação não pode ser desfeita.",
+      "lan_devices": "Dispositivos de rede local"
     },
     "ai": {
       "google_search": "Pesquisa Google",

@@ -316,7 +316,8 @@
       "required_setup_mid": "to run",
       "coming_soon": "Coming soon",
       "uninstall_title": "Uninstall Extension",
-      "uninstall_message": "Are you sure you want to uninstall \"{title}\"? This action cannot be undone."
+      "uninstall_message": "Are you sure you want to uninstall \"{title}\"? This action cannot be undone.",
+      "lan_devices": "Local network devices"
     },
     "ai": {
       "google_search": "Google Search",

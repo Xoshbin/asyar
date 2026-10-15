@@ -316,7 +316,8 @@
       "required_setup_mid": "以執行",
       "coming_soon": "即將推出",
       "uninstall_title": "解除安裝擴充功能",
-      "uninstall_message": "確定要解除安裝「{title}」嗎？此操作無法復原。"
+      "uninstall_message": "確定要解除安裝「{title}」嗎？此操作無法復原。",
+      "lan_devices": "區域網路裝置"
     },
     "ai": {
       "google_search": "Google 搜尋",

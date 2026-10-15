@@ -316,7 +316,8 @@
       "required_setup_mid": "以运行",
       "coming_soon": "即将推出",
       "uninstall_title": "卸载扩展",
-      "uninstall_message": "确定要卸载“{title}”吗？此操作无法撤销。"
+      "uninstall_message": "确定要卸载“{title}”吗？此操作无法撤销。",
+      "lan_devices": "局域网设备"
     },
     "ai": {
       "google_search": "Google 搜索",
