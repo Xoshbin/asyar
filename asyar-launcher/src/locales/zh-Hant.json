@@ -317,7 +317,20 @@
       "coming_soon": "即將推出",
       "uninstall_title": "解除安裝擴充功能",
       "uninstall_message": "確定要解除安裝「{title}」嗎？此操作無法復原。",
-      "lan_devices": "區域網路裝置"
+      "lan_devices": "區域網路裝置",
+      "lan_scan_for_devices": "掃描裝置",
+      "lan_add_device": "+ 新增裝置",
+      "lan_host_placeholder": "主機或 IP",
+      "lan_port_placeholder": "連接埠",
+      "lan_invalid_host_port": "請輸入有效的主機與連接埠（1–65535）。",
+      "lan_add_error": "無法新增主機。",
+      "lan_discovered_devices": "已探索的裝置",
+      "lan_scanning": "正在掃描…",
+      "lan_scan_again": "重新掃描",
+      "lan_no_devices_found": "未在網路上探索任何裝置。",
+      "lan_os_prompt_hint": "未探索任何裝置。若出現系統提示，請允許 Asyar 存取區域網路後重新掃描。",
+      "lan_tap_to_allow": "點選以允許",
+      "lan_added": "已新增"
     },
     "ai": {
       "google_search": "Google 搜尋",

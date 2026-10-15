@@ -1,6 +1,7 @@
 <script lang="ts">
   import { scanLanDevices, lanHostsAdd } from '../../lib/ipc/lanCommands';
   import type { DiscoveredDevice, LanAllowedHost } from '../../lib/ipc/lanCommands';
+  import { t } from '../../services/i18n';
 
   interface Props {
     extensionId: string;
@@ -42,19 +43,19 @@
 
 <div class="scan-sheet">
   <div class="scan-header">
-    <span>Discovered devices</span>
-    <button class="close-btn" onclick={onClose}>Done</button>
+    <span>{t('settings.extensions.lan_discovered_devices')}</span>
+    <button class="close-btn" onclick={onClose}>{t('common.done')}</button>
   </div>
 
   {#if scanState === 'scanning'}
-    <div class="scan-status">Scanning…</div>
+    <div class="scan-status">{t('settings.extensions.lan_scanning')}</div>
   {:else if scanState === 'os-prompt'}
     <div class="scan-status">
-      <p>No devices found. If prompted, allow Asyar to access the local network and scan again.</p>
-      <button onclick={startScan}>Scan again</button>
+      <p>{t('settings.extensions.lan_os_prompt_hint')}</p>
+      <button onclick={startScan}>{t('settings.extensions.lan_scan_again')}</button>
     </div>
   {:else if scanState === 'done' && devices.length === 0}
-    <div class="scan-status">No devices found on your network.</div>
+    <div class="scan-status">{t('settings.extensions.lan_no_devices_found')}</div>
   {:else}
     {#each devices as device (`${device.host}:${device.port}`)}
       {@const key = `${device.host}:${device.port}`}
@@ -66,16 +67,18 @@
         <span class="device-name">{device.name}</span>
         <span class="device-addr">{device.host}:{device.port}</span>
         {#if addedHosts.has(key)}
-          <span class="added-badge">Added</span>
+          <span class="added-badge">{t('settings.extensions.lan_added')}</span>
         {:else}
-          <span class="add-hint">Tap to allow</span>
+          <span class="add-hint">{t('settings.extensions.lan_tap_to_allow')}</span>
         {/if}
       </button>
     {/each}
   {/if}
 
   <button class="rescan-btn" onclick={startScan} disabled={scanState === 'scanning'}>
-    {scanState === 'scanning' ? 'Scanning…' : 'Scan again'}
+    {scanState === 'scanning'
+      ? t('settings.extensions.lan_scanning')
+      : t('settings.extensions.lan_scan_again')}
   </button>
 </div>
 

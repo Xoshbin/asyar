@@ -317,7 +317,20 @@
       "coming_soon": "Em breve",
       "uninstall_title": "Desinstalar extensão",
       "uninstall_message": "Tem certeza de que deseja desinstalar \"{title}\"? Esta ação não pode ser desfeita.",
-      "lan_devices": "Dispositivos de rede local"
+      "lan_devices": "Dispositivos de rede local",
+      "lan_scan_for_devices": "Buscar dispositivos",
+      "lan_add_device": "+ Adicionar dispositivo",
+      "lan_host_placeholder": "host ou IP",
+      "lan_port_placeholder": "porta",
+      "lan_invalid_host_port": "Insira um host e uma porta válidos (1–65535).",
+      "lan_add_error": "Não foi possível adicionar o host.",
+      "lan_discovered_devices": "Dispositivos encontrados",
+      "lan_scanning": "Buscando…",
+      "lan_scan_again": "Buscar novamente",
+      "lan_no_devices_found": "Nenhum dispositivo encontrado na sua rede.",
+      "lan_os_prompt_hint": "Nenhum dispositivo encontrado. Se solicitado, permita que o Asyar acesse a rede local e busque novamente.",
+      "lan_tap_to_allow": "Toque para permitir",
+      "lan_added": "Adicionado"
     },
     "ai": {
       "google_search": "Pesquisa Google",

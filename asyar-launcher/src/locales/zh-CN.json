@@ -317,7 +317,20 @@
       "coming_soon": "即将推出",
       "uninstall_title": "卸载扩展",
       "uninstall_message": "确定要卸载“{title}”吗？此操作无法撤销。",
-      "lan_devices": "局域网设备"
+      "lan_devices": "局域网设备",
+      "lan_scan_for_devices": "扫描设备",
+      "lan_add_device": "+ 添加设备",
+      "lan_host_placeholder": "主机或 IP",
+      "lan_port_placeholder": "端口",
+      "lan_invalid_host_port": "请输入有效的主机和端口（1–65535）。",
+      "lan_add_error": "无法添加主机。",
+      "lan_discovered_devices": "已发现的设备",
+      "lan_scanning": "正在扫描…",
+      "lan_scan_again": "重新扫描",
+      "lan_no_devices_found": "未在网络上发现任何设备。",
+      "lan_os_prompt_hint": "未发现任何设备。若出现系统提示，请允许 Asyar 访问本地网络后重新扫描。",
+      "lan_tap_to_allow": "点击以允许",
+      "lan_added": "已添加"
     },
     "ai": {
       "google_search": "Google 搜索",
