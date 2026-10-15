@@ -273,11 +273,8 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                 // Mirror the macOS panel delegate: tell the frontend the
                 // launcher hid (e.g. restore-last-view reset runs while
                 // hidden, before the next reveal).
-                let _ = tauri::Emitter::emit(
-                    &handle_clone,
-                    format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL),
-                    (),
-                );
+                let resign_event = format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL);
+                let _ = tauri::Emitter::emit(&handle_clone, &resign_event, ());
             }
         });
     }
