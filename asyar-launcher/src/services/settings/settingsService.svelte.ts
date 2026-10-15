@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     showDockIcon: false,
     showTrayIcon: true,
     escapeInViewBehavior: 'go-back',
+    restoreLastView: true,
   },
   search: {
     searchApplications: true,

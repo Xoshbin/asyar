@@ -29,6 +29,7 @@ const DEFAULT: AppSettings = {
     showDockIcon: false,
     showTrayIcon: true,
     escapeInViewBehavior: 'go-back',
+    restoreLastView: true,
   },
   search: {
     searchApplications: true,
@@ -143,6 +144,23 @@ describe('mergeWithDefaults', () => {
     const result = merge({ appearance: { theme: 'dark' } });
     expect(result.appearance.theme).toBe('dark');
     expect(result.appearance.windowWidth).toBe(DEFAULT.appearance.windowWidth);
+  });
+
+  it('defaults restoreLastView to true', () => {
+    expect(DEFAULT.general.restoreLastView).toBe(true);
+    const result = merge({});
+    expect(result.general.restoreLastView).toBe(true);
+  });
+
+  it('fills restoreLastView with the default (true) for existing users whose stored settings lack the key', () => {
+    const result = merge({ general: { startAtLogin: true } });
+    expect(result.general.restoreLastView).toBe(true);
+    expect(result.general.startAtLogin).toBe(true);
+  });
+
+  it('preserves a stored restoreLastView=false', () => {
+    const result = merge({ general: { restoreLastView: false } });
+    expect(result.general.restoreLastView).toBe(false);
   });
 
   it('mergeWithDefaults fills onboarding with defaults when missing from stored settings', () => {

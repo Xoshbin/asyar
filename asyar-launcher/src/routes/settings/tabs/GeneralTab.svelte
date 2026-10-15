@@ -194,6 +194,15 @@
       />
     </SettingsRow>
     <SettingsRow
+      label={t('settings.general.restore_last_view')}
+      description={t('settings.general.restore_last_view_description')}
+    >
+      <Checkbox
+        checked={handler.settings.general.restoreLastView}
+        onchange={() => handler.handleRestoreLastViewToggle()}
+      />
+    </SettingsRow>
+    <SettingsRow
       label={t('settings.general.show_tray_icon')}
       description={handler.settings.general.showTrayIcon
         ? t('settings.general.show_tray_icon_description')

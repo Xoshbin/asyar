@@ -20,7 +20,12 @@ import type { AppSettings } from '../settings/types/AppSettingsType';
 
 function mockSettings(partial: Partial<AppSettings>): void {
   const defaults: AppSettings = {
-    general: { startAtLogin: false, showDockIcon: false, showTrayIcon: true },
+    general: {
+      startAtLogin: false,
+      showDockIcon: false,
+      showTrayIcon: true,
+      restoreLastView: true,
+    },
     search: {
       searchApplications: true,
       searchSystemPreferences: true,

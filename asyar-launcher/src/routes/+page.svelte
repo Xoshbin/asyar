@@ -33,6 +33,10 @@
   import { resolveCommandArguments } from '../lib/ipc/argumentModelCommands';
   import { commandArgDefaultsGet } from '../lib/ipc/commandArgDefaultsCommands';
   import { argumentHintVersion } from '../lib/launcher/argumentHintVersion.svelte';
+  import {
+    resetOnHideIfConfigured,
+    resetOnRestoreLastViewDisabled,
+  } from '../lib/launcher/launcherReset';
   import type { CommandArgument } from 'asyar-sdk/contracts';
   import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
   import { type UnlistenFn } from '@tauri-apps/api/event';
@@ -176,6 +180,12 @@
     let unlistenResignKey: UnlistenFn | null = null;
     let unlistenBecomeKey: UnlistenFn | null = null;
     appListen('main_panel_did_resign_key', () => {
+      // Restore Last View = off: clear the view/navigation while the window
+      // is hidden so the next normal summon shows root search with no flash.
+      // Dedicated item shortcuts are a separate path (navigate, then
+      // showWindow); they are not cleared here unless a resign event arrives
+      // after they have already navigated.
+      resetOnHideIfConfigured();
       if (isActionPanelOpen) {
         isActionPanelOpen = false;
         keyboard.restoreSearchFocus();
@@ -185,6 +195,18 @@
         unlistenResignKey = fn;
       })
       .catch((e) => logService.debug(`[+page] listen resign-key failed: ${e}`));
+
+    // Settings webview (separate JS realm) toggled Restore Last View: turning
+    // it off must clear the parked navigation stack immediately — no resign
+    // key will fire first. Turning it on keeps the stack.
+    let unlistenRestoreToggle: UnlistenFn | null = null;
+    appListen<{ value: boolean }>('asyar:restore-last-view-changed', (e) => {
+      resetOnRestoreLastViewDisabled(e.payload?.value);
+    })
+      .then((fn) => {
+        unlistenRestoreToggle = fn;
+      })
+      .catch((e) => logService.debug(`[+page] listen restore-last-view failed: ${e}`));
 
     // When the panel becomes key (e.g. after shortcut execution or window summon),
     // restore and select search focus if no modal is open.
@@ -204,6 +226,7 @@
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
       unlistenResignKey?.();
+      unlistenRestoreToggle?.();
       unlistenBecomeKey?.();
     };
   });

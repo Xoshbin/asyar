@@ -96,6 +96,8 @@
       "hotkey_placeholder": "点击设置快捷键",
       "autostart": "登录时启动",
       "autostart_description": "开机时自动启动 Asyar",
+      "restore_last_view": "恢复上次视图",
+      "restore_last_view_description": "重新打开启动器时回到上次的位置，而不是返回搜索。",
       "show_tray_icon": "在菜单栏显示图标",
       "show_tray_icon_description": "让 Asyar 常驻系统菜单栏，随时可用",
       "show_tray_icon_tip": "隐藏后，你仍可通过全局快捷键唤起 Asyar，或搜索“设置”打开。",

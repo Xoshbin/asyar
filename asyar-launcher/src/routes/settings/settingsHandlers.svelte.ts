@@ -1,6 +1,7 @@
 import { t } from '../../services/i18n';
 import { onMount } from 'svelte';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { emit } from '@tauri-apps/api/event';
 import { updateShortcut } from '../../utils/shortcutManager';
 import { goto } from '$app/navigation';
 import {
@@ -45,6 +46,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     showDockIcon: false,
     showTrayIcon: true,
     escapeInViewBehavior: 'go-back',
+    restoreLastView: true,
   },
   search: {
     searchApplications: true,
@@ -491,6 +493,33 @@ export class SettingsHandler {
       logService.error(`Failed to update dock icon setting: ${error}`);
       this.saveError = true;
       this.saveMessage = 'Failed to update dock icon setting';
+
+      setTimeout(() => {
+        this.saveMessage = '';
+        this.saveError = false;
+      }, 3000);
+    }
+  }
+
+  async handleRestoreLastViewToggle() {
+    try {
+      const newValue = !this.settings.general.restoreLastView;
+      const success = await settingsService.updateSettings('general', {
+        restoreLastView: newValue,
+      });
+
+      if (!success) {
+        throw new Error('Failed to update restore last view setting');
+      }
+
+      // Notify the launcher webview (separate JS realm): disabling Restore
+      // Last View must clear its parked navigation stack immediately, since
+      // no panel resign-key fires while Settings is open.
+      await emit('asyar:restore-last-view-changed', { value: newValue });
+    } catch (error) {
+      logService.error(`Failed to update restore last view setting: ${error}`);
+      this.saveError = true;
+      this.saveMessage = 'Failed to update restore last view setting';
 
       setTimeout(() => {
         this.saveMessage = '';
