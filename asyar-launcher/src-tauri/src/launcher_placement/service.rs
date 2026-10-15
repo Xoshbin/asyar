@@ -19,6 +19,7 @@
 //! - **Windows/Linux** use Tauri's monitor APIs, which are already top-left
 //!   y-down, so the conversion is an origin offset.
 
+use super::classify;
 use super::resolve;
 use super::resolve::{resolve_origin, Rect, TravelSpace};
 use super::store;
@@ -92,30 +93,40 @@ pub mod macos_conv {
     }
 }
 
-/// How close two 0..1 fractions must be to count as "the same point," for
-/// deciding whether a drop should persist as the named default anchor
-/// rather than `Free`. Loose enough to absorb float rounding through the
-/// fraction round-trip, tight enough that it only matches a drop that was
-/// actually snapped — `apply_snap` (see `resolve.rs`) already clamps the
-/// live position to the exact target pixel whenever it's within the much
-/// larger `SNAP_THRESHOLD_PX` magnetic radius, so a genuinely-snapped drop's
-/// final fractions land within a few thousandths of the target's.
-const FRACTION_EPSILON: f64 = 0.002;
-
-fn is_close(a: f64, b: f64) -> bool {
-    (a - b).abs() < FRACTION_EPSILON
+/// COMPAT(remove in 0.2.0): migrates a pre-#860 anchor at the only ingress
+/// that knows the selected monitor, then persists it away from the reveal's
+/// latency-sensitive path.
+fn migrate_on_reveal<R: Runtime + 'static>(
+    app: &AppHandle<R>,
+    placement: &LauncherPlacement,
+    space: TravelSpace,
+) -> LauncherAnchor {
+    let anchor = classify::migrate_anchor(placement.anchor, space);
+    if anchor != placement.anchor {
+        let app = app.clone();
+        let migrated = LauncherPlacement {
+            anchor,
+            ..*placement
+        };
+        std::mem::drop(tauri::async_runtime::spawn_blocking(move || {
+            if let Err(error) = store::save(&app, migrated) {
+                log::warn!("[launcher-placement] could not persist the migrated anchor: {error}");
+            }
+        }));
+    }
+    anchor
 }
 
 /// Positions the launcher for a reveal. Fail-soft by contract: the caller is
 /// mid-reveal and a placement problem must never stop the window appearing, so
 /// every failure path leaves the window where it was.
-pub fn apply<R: Runtime>(app: &AppHandle<R>) -> Result<(), AppError> {
+pub fn apply<R: Runtime + 'static>(app: &AppHandle<R>) -> Result<(), AppError> {
     let placement = store::load(app);
     apply_placement(app, &placement)
 }
 
 #[cfg(target_os = "macos")]
-fn apply_placement<R: Runtime>(
+fn apply_placement<R: Runtime + 'static>(
     app: &AppHandle<R>,
     placement: &LauncherPlacement,
 ) -> Result<(), AppError> {
@@ -131,8 +142,10 @@ fn apply_placement<R: Runtime>(
     let frames = macos_conv::frames(screen.frame, screen.visible);
 
     let window_frame = get_window_frame(&window);
+    let space = TravelSpace::new(frames.monitor, window_frame.size.width, LAUNCHER_MAX_HEIGHT);
+    let anchor = migrate_on_reveal(app, placement, space);
     let offsets = resolve_origin(
-        &placement.anchor,
+        &anchor,
         frames.monitor,
         frames.work,
         window_frame.size.width,
@@ -151,7 +164,7 @@ fn apply_placement<R: Runtime>(
 }
 
 #[cfg(not(target_os = "macos"))]
-fn apply_placement<R: Runtime>(
+fn apply_placement<R: Runtime + 'static>(
     app: &AppHandle<R>,
     placement: &LauncherPlacement,
 ) -> Result<(), AppError> {
@@ -171,8 +184,10 @@ fn apply_placement<R: Runtime>(
         .map_err(|e| AppError::Platform(format!("outer_size: {e}")))?
         .to_logical::<f64>(scale);
 
+    let space = TravelSpace::new(frames.monitor, window_size.width, LAUNCHER_MAX_HEIGHT);
+    let anchor = migrate_on_reveal(app, placement, space);
     let (dx, dy) = resolve_origin(
-        &placement.anchor,
+        &anchor,
         frames.monitor,
         frames.work,
         window_size.width,
@@ -232,21 +247,7 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
     let frames = macos_conv::frames(screen.frame, screen.visible);
     let offsets = macos_conv::to_offsets(screen.frame, window_rect);
     let space = TravelSpace::new(frames.monitor, window_rect.width, LAUNCHER_MAX_HEIGHT);
-    let (x, y) = space.to_fractions(offsets);
-
-    let default_origin = resolve_origin(
-        &LauncherAnchor::default(),
-        frames.monitor,
-        frames.work,
-        window_rect.width,
-        LAUNCHER_MAX_HEIGHT,
-    );
-    let (default_x, default_y) = space.to_fractions(default_origin);
-    if is_close(x, default_x) && is_close(y, default_y) {
-        return Some(LauncherAnchor::default());
-    }
-
-    Some(LauncherAnchor::Free { x, y })
+    Some(classify::classify_drop(offsets, space, frames.work))
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -266,21 +267,7 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
     let (origin, frames) = monitor_frames(&monitor);
     let offsets = (pos.x - origin.0, pos.y - origin.1);
     let space = TravelSpace::new(frames.monitor, size.width, LAUNCHER_MAX_HEIGHT);
-    let (x, y) = space.to_fractions(offsets);
-
-    let default_origin = resolve_origin(
-        &LauncherAnchor::default(),
-        frames.monitor,
-        frames.work,
-        size.width,
-        LAUNCHER_MAX_HEIGHT,
-    );
-    let (default_x, default_y) = space.to_fractions(default_origin);
-    if is_close(x, default_x) && is_close(y, default_y) {
-        return Some(LauncherAnchor::default());
-    }
-
-    Some(LauncherAnchor::Free { x, y })
+    Some(classify::classify_drop(offsets, space, frames.work))
 }
 
 /// How far (logical px) a drag must be from the snap target before it
@@ -544,16 +531,6 @@ fn monitor_frames(m: &tauri::Monitor) -> ((f64, f64), Frames) {
 #[cfg(test)]
 mod snap_persistence_tests {
     use super::*;
-
-    #[test]
-    fn is_close_accepts_tiny_float_drift() {
-        assert!(is_close(0.5000001, 0.5));
-    }
-
-    #[test]
-    fn is_close_rejects_a_real_difference() {
-        assert!(!is_close(0.51, 0.5));
-    }
 
     #[test]
     fn apply_snap_absolute_accounts_for_the_monitors_origin() {
