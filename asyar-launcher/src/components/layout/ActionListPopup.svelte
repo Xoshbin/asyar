@@ -38,6 +38,21 @@
   let flatActions = $derived(groupedActions.flatMap((g) => g.actions));
 
   let popupRef = $state<HTMLDivElement>();
+  let entering = $state(true);
+
+  $effect(() => {
+    let settleFrame: number | undefined;
+    // Force a paint of the pre-transition state before flipping to settled;
+    // cleanup also covers rapid ⌘K toggles that unmount between frames.
+    const paintFrame = requestAnimationFrame(() => {
+      settleFrame = requestAnimationFrame(() => (entering = false));
+    });
+
+    return () => {
+      cancelAnimationFrame(paintFrame);
+      if (settleFrame !== undefined) cancelAnimationFrame(settleFrame);
+    };
+  });
 
   const selection = useListSelection({ items: () => flatActions });
 
@@ -130,6 +145,7 @@
 <div
   bind:this={popupRef}
   class="action-popup launcher-popup"
+  class:entering
   tabindex="-1"
   role="dialog"
   aria-modal="true"
@@ -203,6 +219,19 @@
     overflow: hidden;
     z-index: var(--z-dropdown);
     outline: none;
+    /* The panel belongs to the ⌘K button, so it grows from that corner.
+       Reduced motion is handled globally in style.css. */
+    transform-origin: bottom right;
+    opacity: 1;
+    transform: scale(1);
+    transition:
+      opacity var(--dur-quick) var(--ease-emerge),
+      transform var(--dur-quick) var(--ease-emerge);
+  }
+
+  .action-popup.entering {
+    opacity: 0;
+    transform: scale(0.96);
   }
 
   .popup-header {
