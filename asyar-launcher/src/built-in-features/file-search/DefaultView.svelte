@@ -9,7 +9,7 @@
     SplitListDetail,
   } from '../../components';
   import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
-  import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
+  import { getFileIcon, getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { t } from '../../services/i18n';
   import { logService } from '../../services/log/logService';
@@ -79,9 +79,12 @@
   // Row-list thumbnails: fileId -> url (present+truthy), or null (requested,
   // none available). Absence of a key means "not yet requested".
   //
-  // Images only, deliberately. Anything else falls through to `qlmanage`
-  // on macOS — a real subprocess spawn that loads Quick Look generator
-  // plugins, not a cheap call. `document`/`code` are usually the majority
+  // Images get a real thumbnail; everything else gets the native OS file
+  // icon (NSWorkspace / SHGetFileInfo — cheap, cached per extension).
+  //
+  // Content thumbnails stay images-only, deliberately. Anything else falls
+  // through to `qlmanage` on macOS — a real subprocess spawn that loads
+  // Quick Look generator plugins, not a cheap call. `document`/`code` are usually the majority
   // of a $HOME result set and already have a fast text preview, so
   // blanket-requesting thumbnails for every row (as an earlier version of
   // this did) meant a `qlmanage` spawn per newly-visible non-image file on
@@ -99,16 +102,16 @@
     // for a row that's about to be replaced before the request even lands.
     rowThumbTimer = setTimeout(() => {
       for (const item of current) {
-        if (item.type !== 'image' || item.fileId in rowThumbnails) continue;
-        void requestRowThumbnail(item.fileId, item.path);
+        if (item.fileId in rowThumbnails) continue;
+        void requestRowThumbnail(item.fileId, item.path, item.type === 'image');
       }
     }, 120);
     return () => clearTimeout(rowThumbTimer);
   });
 
-  async function requestRowThumbnail(fileId: string, path: string) {
-    const url = await getFileThumbnail(path, ROW_THUMB_DIM);
-    rowThumbnails[fileId] = url;
+  async function requestRowThumbnail(fileId: string, path: string, isImage: boolean) {
+    rowThumbnails[fileId] =
+      (isImage ? await getFileThumbnail(path, ROW_THUMB_DIM) : null) ?? (await getFileIcon(path));
   }
 
   // Detail pane state — one unified preview chain, no extension lists on
@@ -247,7 +250,12 @@
         {#snippet leading()}
           <div class="row-icon-wrap">
             {#if rowThumbnails[item.fileId]}
-              <img src={rowThumbnails[item.fileId]} alt="" class="row-thumb" />
+              <img
+                src={rowThumbnails[item.fileId]}
+                alt=""
+                class="row-thumb"
+                class:native-icon={item.type !== 'image'}
+              />
             {:else if item.type === 'image'}
               <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                 ><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle
@@ -399,7 +407,6 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    opacity: 0.6;
   }
 
   .row-thumb {
@@ -409,9 +416,15 @@
     border-radius: var(--radius-sm);
   }
 
+  .row-thumb.native-icon {
+    object-fit: contain;
+    border-radius: 0;
+  }
+
   .row-icon {
     width: 20px;
     height: 20px;
+    opacity: 0.6;
     stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;

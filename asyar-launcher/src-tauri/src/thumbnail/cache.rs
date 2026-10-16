@@ -33,6 +33,22 @@ pub fn cache_key(path: &Path, mtime: u64, size: u64, max_dim: u32) -> String {
     format!("{:016x}.png", h.finish())
 }
 
+/// Cache-key filename for a path's native OS icon. Regular files share one
+/// icon per extension; directories (folders, `.app` bundles) can carry their
+/// own, so they're keyed by path.
+pub fn icon_cache_key(path: &Path, is_dir: bool) -> String {
+    let mut h = fnv::FnvHasher::default();
+    is_dir.hash(&mut h);
+    if is_dir {
+        path.to_string_lossy().hash(&mut h);
+    } else {
+        path.extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .hash(&mut h);
+    }
+    format!("icon-{:016x}.png", h.finish())
+}
+
 /// Sweeps `cache_dir` if its total size exceeds `cap_bytes`, deleting the
 /// oldest-by-mtime entries first until back under budget. `mtime` is used
 /// as the recency signal (write time doubles as "last generated") since
@@ -117,6 +133,17 @@ mod tests {
         let a = cache_key(Path::new("/tmp/a.jpg"), 1, 1, 28);
         let b = cache_key(Path::new("/tmp/b.jpg"), 1, 1, 28);
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn icon_cache_key_is_per_extension_for_files_and_per_path_for_dirs() {
+        let a = icon_cache_key(Path::new("/x/a.PDF"), false);
+        assert_eq!(a, icon_cache_key(Path::new("/y/b.pdf"), false));
+        assert_ne!(a, icon_cache_key(Path::new("/x/a.txt"), false));
+        assert_ne!(
+            icon_cache_key(Path::new("/x/A.app"), true),
+            icon_cache_key(Path::new("/x/B.app"), true)
+        );
     }
 
     #[test]

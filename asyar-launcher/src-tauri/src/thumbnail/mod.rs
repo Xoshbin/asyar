@@ -83,6 +83,36 @@ pub async fn get_or_generate(
     Some(cached)
 }
 
+/// Returns the cached path of `path`'s native OS icon (Finder / Explorer
+/// file-type icon), extracting it on first request. `None` when the
+/// platform has no per-file icon source — the frontend keeps its SVG fallback.
+pub async fn get_or_extract_icon(cache_dir: &Path, path: &Path) -> Option<PathBuf> {
+    let meta = tokio::fs::metadata(path).await.ok()?;
+    let cached = cache_dir.join(cache::icon_cache_key(path, meta.is_dir()));
+    if tokio::fs::metadata(&cached).await.is_ok() {
+        return Some(cached);
+    }
+    let src = path.to_path_buf();
+    let bytes = tokio::task::spawn_blocking(move || extract_native_icon(&src))
+        .await
+        .ok()??;
+    let _ = tokio::fs::create_dir_all(cache_dir).await;
+    tokio::fs::write(&cached, bytes).await.ok()?;
+    Some(cached)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn extract_native_icon(path: &Path) -> Option<Vec<u8>> {
+    crate::platform::extract_icon(path)
+}
+
+// Linux `extract_icon` only resolves `.desktop` entries; there's no generic
+// file-type icon lookup yet.
+#[cfg(target_os = "linux")]
+fn extract_native_icon(_path: &Path) -> Option<Vec<u8>> {
+    None
+}
+
 /// Maps a cached thumbnail path to the URL the webview loads it from —
 /// `http://asyar-thumb.localhost/` on Windows (where custom schemes are
 /// bridged through localhost), `asyar-thumb://localhost/` elsewhere.
@@ -120,4 +150,26 @@ async fn generate(path: &Path, dest: &Path, max_dim: u32) -> Option<()> {
     .await
     .ok()
     .flatten()
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    #[tokio::test]
+    async fn extracts_and_caches_a_png_icon_for_a_plain_file() {
+        let dir = std::env::temp_dir().join(format!("file_icon_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("note.txt");
+        std::fs::write(&src, "hi").unwrap();
+        let cache = dir.join("cache");
+
+        let cached = super::get_or_extract_icon(&cache, &src)
+            .await
+            .expect("icon");
+        let bytes = std::fs::read(&cached).unwrap();
+        assert_eq!(&bytes[..4], &[0x89, b'P', b'N', b'G']);
+        assert_eq!(super::get_or_extract_icon(&cache, &src).await, Some(cached));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
