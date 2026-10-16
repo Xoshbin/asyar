@@ -489,10 +489,11 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
         return;
     };
 
-    // Launcher-toggle just re-shows the last view, which the parked webview
-    // kept rendering, so the reveal is an alpha flip of an already-fresh
-    // surface. User item hotkeys (which CAN swap views) route through
-    // `user-shortcut-fired` and use prepare_show/commit_show.
+    // Launcher-toggle re-shows the parked webview with a native alpha flip.
+    // Every hide enters the shared pop-to-root state machine; the follow-up
+    // resign-key/blur callback is coalesced there. Native summons evaluate the
+    // elapsed deadline before reveal, while item shortcuts use the JS
+    // prepare_show/commit_show path and clear the deadline without evaluating.
     #[cfg(target_os = "macos")]
     {
         use tauri_nspanel::ManagerExt;
@@ -509,8 +510,9 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
             state.asyar_visible.store(false, Ordering::Relaxed);
             state.mark_interaction();
             crate::platform::macos::park_launcher_panel(&window, &panel);
+            crate::launcher::pop_to_root::on_launcher_hidden(app);
         } else {
-            reveal_launcher(&state, &window, &panel);
+            reveal_launcher(app, &state, &window, &panel);
         }
     }
 
@@ -521,6 +523,7 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
             state.asyar_visible.store(false, Ordering::Relaxed);
             state.mark_interaction();
             let _ = window.hide();
+            crate::launcher::pop_to_root::on_launcher_hidden(app);
             #[cfg(target_os = "windows")]
             if let Ok(hwnd) = state.previous_hwnd.lock() {
                 crate::platform::windows::restore_foreground_window(*hwnd);
@@ -532,7 +535,7 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
                     *hwnd = crate::platform::windows::capture_foreground_window();
                 }
             }
-            reveal_launcher(&state, &window);
+            reveal_launcher(app, &state, &window);
         }
     }
 }
@@ -552,7 +555,7 @@ pub(crate) fn show_spotlight_launcher(app: &tauri::AppHandle) {
             log::warn!("[show_spotlight_launcher] no panel labelled {SPOTLIGHT_LABEL}");
             return;
         };
-        reveal_launcher(&state, &window, &panel);
+        reveal_launcher(app, &state, &window, &panel);
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -563,16 +566,18 @@ pub(crate) fn show_spotlight_launcher(app: &tauri::AppHandle) {
                 *hwnd = crate::platform::windows::capture_foreground_window();
             }
         }
-        reveal_launcher(&state, &window);
+        reveal_launcher(app, &state, &window);
     }
 }
 
 #[cfg(target_os = "macos")]
 fn reveal_launcher(
+    app: &tauri::AppHandle,
     state: &tauri::State<'_, AppState>,
     window: &tauri::WebviewWindow,
     panel: &tauri_nspanel::Panel,
 ) {
+    crate::launcher::pop_to_root::on_native_summon(app);
     state.asyar_visible.store(true, Ordering::Relaxed);
     state.mark_interaction();
     crate::platform::macos::reveal_launcher_panel(window, panel);
@@ -580,7 +585,12 @@ fn reveal_launcher(
 }
 
 #[cfg(not(target_os = "macos"))]
-fn reveal_launcher(state: &tauri::State<'_, AppState>, window: &tauri::WebviewWindow) {
+fn reveal_launcher(
+    app: &tauri::AppHandle,
+    state: &tauri::State<'_, AppState>,
+    window: &tauri::WebviewWindow,
+) {
+    crate::launcher::pop_to_root::on_native_summon(app);
     state.asyar_visible.store(true, Ordering::Relaxed);
     state.mark_interaction();
     #[cfg(target_os = "windows")]

@@ -227,6 +227,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                     return;
                 }
                 state.asyar_visible.store(false, Ordering::Relaxed);
+                crate::launcher::pop_to_root::on_launcher_hidden(&handle_clone);
 
                 let compact_mode = read_launch_view(&handle_clone) == "compact";
                 let keep_expanded = state.launcher_keep_expanded.load(Ordering::Relaxed);
@@ -270,7 +271,16 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                 }
                 state.asyar_visible.store(false, Ordering::Relaxed);
                 let _ = window_clone.hide();
+                crate::launcher::pop_to_root::on_launcher_hidden(&handle_clone);
             }
+        });
+    }
+
+    {
+        use tauri::Listener;
+        let handle_for_listen = handle.clone();
+        handle.listen("asyar:pop-to-root-changed", move |_| {
+            crate::launcher::pop_to_root::arm(&handle_for_listen);
         });
     }
 

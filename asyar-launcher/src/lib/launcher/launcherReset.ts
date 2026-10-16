@@ -4,10 +4,10 @@ import { getCompactSyncService } from '../../services/launcher/compactSyncServic
 import { logService } from '../../services/log/logService';
 import { registerLauncherResetHook } from '../ipc/windowCommands';
 
-// Shared close-the-launcher reset (app launches, no-view commands,
-// hide-and-reset escape) so the next open starts clean regardless of how
-// the launcher was dismissed. goBack() must strictly shrink the stack; bail
-// out if it doesn't rather than spin.
+// The reset mechanism is instruction-driven: callers explicitly request root
+// search, while Rust owns the elapsed-time pop-to-root policy and deadline.
+// goBack() must strictly shrink the stack; bail out if it does not rather than
+// spin forever.
 export function resetLauncherState(): void {
   let prev = viewManager.getNavigationStackSize();
   while (prev > 0) {

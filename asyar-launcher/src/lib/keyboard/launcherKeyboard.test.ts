@@ -1254,6 +1254,7 @@ describe('launcherKeyboard characterization tests', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(hideWindow).toHaveBeenCalled();
+        expect(resetLauncherState).not.toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
@@ -1454,7 +1455,7 @@ describe('launcherKeyboard characterization tests', () => {
         expect(resetLauncherState).toHaveBeenCalledTimes(1);
       });
 
-      it('Escape in view hides when escapeInViewBehavior is "close-window"', async () => {
+      it('legacy close-window pops the view like go-back', async () => {
         viewManager.activeView = 'ext/View';
         vi.mocked(settingsService.getSettings).mockReturnValue({
           general: {
@@ -1478,9 +1479,9 @@ describe('launcherKeyboard characterization tests', () => {
         const event = createKeyEvent('Escape');
 
         handleKeydown(event);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
-        expect(hideWindow).toHaveBeenCalled();
+        expect(extensionManager.goBack).toHaveBeenCalledTimes(1);
+        expect(hideWindow).not.toHaveBeenCalled();
+        expect(resetLauncherState).not.toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
     });

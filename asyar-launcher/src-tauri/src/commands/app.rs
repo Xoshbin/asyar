@@ -33,6 +33,7 @@ pub fn prepare_show(
     app_handle: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
+    crate::launcher::pop_to_root::on_launcher_revealed(&app_handle);
     // Intentionally NOT setting asyar_visible here: the panel is mapped but
     // imperceptible until commit_show runs. A concurrent caller reading
     // is_visible during this window must still take the two-phase path,
@@ -129,6 +130,7 @@ use objc2::runtime::{AnyClass, Bool};
 /// reports true.
 #[tauri::command]
 pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
+    crate::launcher::pop_to_root::on_launcher_revealed(&app_handle);
     state.asyar_visible.store(true, Ordering::Relaxed);
     state.mark_interaction();
     #[cfg(target_os = "macos")]
@@ -180,9 +182,9 @@ pub fn is_visible(state: tauri::State<'_, AppState>) -> bool {
 
 /// Hides the launcher window. On macOS "hidden" means parked (ordered in at
 /// alpha 0, mouse-transparent; see `park_launcher_panel`), so the webview
-/// keeps rendering and the post-hide state reset the frontend performs is
-/// composited before the next reveal. Focus returns to the previous app via
-/// park's order-out/order-in pair when the panel still owns key.
+/// keeps rendering and any later pop-to-root instruction can be composited
+/// before the next reveal. Focus returns to the previous app via park's
+/// order-out/order-in pair when the panel still owns key.
 #[tauri::command]
 pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     state.asyar_visible.store(false, Ordering::Relaxed);
@@ -221,6 +223,7 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
             }
         }
     }
+    crate::launcher::pop_to_root::on_launcher_hidden(&app_handle);
     Ok(())
 }
 
@@ -387,6 +390,7 @@ pub fn set_panel_appearance(app_handle: AppHandle, pref: String) -> Result<(), A
 /// holds an `&AppHandle` but not a `State<'_, AppState>`. Accesses managed
 /// state via `app.state::<AppState>()`.
 pub fn show_launcher(app: &AppHandle) -> Result<(), AppError> {
+    crate::launcher::pop_to_root::on_launcher_revealed(app);
     let state = app.state::<AppState>();
     state.asyar_visible.store(true, Ordering::Relaxed);
     #[cfg(target_os = "macos")]

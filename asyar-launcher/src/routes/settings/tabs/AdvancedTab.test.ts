@@ -24,6 +24,7 @@ vi.mock('../../../services/settings/settingsService.svelte', () => ({
         showDockIcon: false,
         showTrayIcon: true,
         escapeInViewBehavior: 'go-back',
+        popToRootDelay: '1m',
       },
       search: {
         searchApplications: true,
@@ -111,6 +112,7 @@ function createMockHandler(overrides?: Partial<SettingsHandler>): SettingsHandle
         showDockIcon: false,
         showTrayIcon: true,
         escapeInViewBehavior: 'go-back',
+        popToRootDelay: '1m',
       },
       search: {
         searchApplications: true,
@@ -153,6 +155,7 @@ function createMockHandler(overrides?: Partial<SettingsHandler>): SettingsHandle
     handleExtensionAutoUpdateToggle: vi.fn(),
     handleDeveloperModeToggle: vi.fn(),
     updateEscapeBehavior: vi.fn(),
+    updatePopToRootDelay: vi.fn(),
     saveError: false,
     saveMessage: '',
     ...overrides,
@@ -172,6 +175,7 @@ describe('AdvancedTab', () => {
     expect(screen.getByText('Input')).toBeTruthy();
     expect(screen.getByText('Extension results in search')).toBeTruthy();
     expect(screen.getByText('Auto-update extensions')).toBeTruthy();
+    expect(screen.getByText('Pop to root search')).toBeTruthy();
     expect(screen.getByText('Escape key')).toBeTruthy();
     expect(screen.getByText('Text expansion')).toBeTruthy();
     expect(screen.getByText('Developer mode')).toBeTruthy();
@@ -199,9 +203,31 @@ describe('AdvancedTab', () => {
     const handler = createMockHandler();
     render(AdvancedTab, { props: { handler } });
 
-    const resetOption = screen.getByText('Reset Launcher');
-    await fireEvent.click(resetOption);
+    const select = screen
+      .getAllByRole('combobox')
+      .find((candidate) =>
+        Array.from((candidate as HTMLSelectElement).options).some(
+          (option) => option.value === 'hide-and-reset',
+        ),
+      ) as HTMLSelectElement;
+    await fireEvent.change(select, { target: { value: 'hide-and-reset' } });
     expect(handler.updateEscapeBehavior).toHaveBeenCalledWith('hide-and-reset');
+  });
+
+  it('updates the pop-to-root delay from the select', async () => {
+    const handler = createMockHandler();
+    render(AdvancedTab, { props: { handler } });
+
+    const select = screen
+      .getAllByRole('combobox')
+      .find((candidate) =>
+        Array.from((candidate as HTMLSelectElement).options).some(
+          (option) => option.value === 'never',
+        ),
+      ) as HTMLSelectElement;
+    expect(select.value).toBe('1m');
+    await fireEvent.change(select, { target: { value: 'never' } });
+    expect(handler.updatePopToRootDelay).toHaveBeenCalledWith('never');
   });
 
   it('toggles snippet expansion service', async () => {
@@ -209,7 +235,7 @@ describe('AdvancedTab', () => {
     render(AdvancedTab, { props: { handler } });
 
     const checkboxes = screen.getAllByRole('checkbox');
-    // Checkbox index: 0 = ext search, 1 = ext actions, 2 = auto-update, 3 = snippets, 4 = dev mode
+    // Checkbox index: 0 = ext search, 1 = auto-update, 2 = snippets, 3 = dev mode
     await fireEvent.change(checkboxes[2]);
     expect(snippetService.setEnabled).toHaveBeenCalledWith(false);
   });

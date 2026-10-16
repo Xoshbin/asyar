@@ -33,6 +33,7 @@
   import { resolveCommandArguments } from '../lib/ipc/argumentModelCommands';
   import { commandArgDefaultsGet } from '../lib/ipc/commandArgDefaultsCommands';
   import { argumentHintVersion } from '../lib/launcher/argumentHintVersion.svelte';
+  import { resetLauncherState } from '../lib/launcher/launcherReset';
   import type { CommandArgument } from 'asyar-sdk/contracts';
   import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
   import { type UnlistenFn } from '@tauri-apps/api/event';
@@ -175,7 +176,10 @@
     // and Enter on the next launcher invocation.
     let unlistenResignKey: UnlistenFn | null = null;
     let unlistenBecomeKey: UnlistenFn | null = null;
+    let unlistenPopToRoot: UnlistenFn | null = null;
     appListen('main_panel_did_resign_key', () => {
+      // The macOS panel delegate fires this even when focus_locked keeps the
+      // launcher visible behind a modal — that is not a hide.
       if (isActionPanelOpen) {
         isActionPanelOpen = false;
         keyboard.restoreSearchFocus();
@@ -185,6 +189,16 @@
         unlistenResignKey = fn;
       })
       .catch((e) => logService.debug(`[+page] listen resign-key failed: ${e}`));
+
+    // Rust owns the elapsed-time policy and emits this instruction while the
+    // launcher is parked, or immediately before a native reveal as a backstop.
+    appListen('asyar:pop-to-root', () => {
+      resetLauncherState();
+    })
+      .then((fn) => {
+        unlistenPopToRoot = fn;
+      })
+      .catch((e) => logService.debug(`[+page] listen pop-to-root failed: ${e}`));
 
     // When the panel becomes key (e.g. after shortcut execution or window summon),
     // restore and select search focus if no modal is open.
@@ -205,6 +219,7 @@
       window.removeEventListener('focus', handleFocus);
       unlistenResignKey?.();
       unlistenBecomeKey?.();
+      unlistenPopToRoot?.();
     };
   });
 

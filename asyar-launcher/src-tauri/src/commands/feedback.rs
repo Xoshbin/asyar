@@ -52,6 +52,7 @@ pub fn feedback_publish(
     let severity = draft.severity;
     let id = state.publish(draft, now_ms()).map_err(|_| AppError::Lock)?;
     if severity == FeedbackSeverity::Fatal {
+        crate::launcher::pop_to_root::on_launcher_revealed(&app);
         if let Some(window) = app.get_webview_window(crate::SPOTLIGHT_LABEL) {
             let _ = window.show();
             let _ = window.set_focus();

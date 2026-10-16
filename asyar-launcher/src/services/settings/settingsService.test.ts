@@ -29,6 +29,7 @@ const DEFAULT: AppSettings = {
     showDockIcon: false,
     showTrayIcon: true,
     escapeInViewBehavior: 'go-back',
+    popToRootDelay: '1m',
   },
   search: {
     searchApplications: true,
@@ -143,6 +144,31 @@ describe('mergeWithDefaults', () => {
     const result = merge({ appearance: { theme: 'dark' } });
     expect(result.appearance.theme).toBe('dark');
     expect(result.appearance.windowWidth).toBe(DEFAULT.appearance.windowWidth);
+  });
+
+  it('defaults popToRootDelay to one minute', () => {
+    expect(DEFAULT.general.popToRootDelay).toBe('1m');
+    const result = merge({});
+    expect(result.general.popToRootDelay).toBe('1m');
+  });
+
+  it('preserves a stored popToRootDelay', () => {
+    expect(merge({ general: { popToRootDelay: 'never' } }).general.popToRootDelay).toBe('never');
+  });
+
+  it('migrates legacy restoreLastView false to immediately', () => {
+    const result = merge({ general: { restoreLastView: false } });
+    expect(result.general.popToRootDelay).toBe('immediately');
+    expect('restoreLastView' in result.general).toBe(false);
+  });
+
+  it('migrates legacy restoreLastView true to the default', () => {
+    expect(merge({ general: { restoreLastView: true } }).general.popToRootDelay).toBe('1m');
+  });
+
+  it('prefers an explicit popToRootDelay over the legacy boolean', () => {
+    const result = merge({ general: { popToRootDelay: '5m', restoreLastView: false } });
+    expect(result.general.popToRootDelay).toBe('5m');
   });
 
   it('mergeWithDefaults fills onboarding with defaults when missing from stored settings', () => {

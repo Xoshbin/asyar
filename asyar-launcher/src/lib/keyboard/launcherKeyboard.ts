@@ -19,6 +19,7 @@ import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 import { resetLauncherState } from '../launcher/launcherReset';
+import { resolveEscapeBehavior } from './escapeBehavior';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
 /** Minimal contract the global ⌘P handler needs from the accessory dropdown. */
@@ -463,8 +464,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       if (deps.onBeforeHide) await deps.onBeforeHide();
       await commands.hideWindow();
     };
-    const escapeBehavior =
-      settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
+    // Two behaviors only, matching Raycast; the legacy `close-window` value
+    // resolves to `go-back`, whose terminal step at root is already a
+    // reset-free hide.
+    const escapeBehavior = resolveEscapeBehavior(
+      settingsService.getSettings()?.general?.escapeInViewBehavior,
+    );
 
     if (viewManager.activeView) {
       if (deps.getActiveContext()) {
@@ -481,22 +486,23 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
           extensionManager.goBack();
           restoreSearchFocus({ select: true });
         }
-      } else if (escapeBehavior === 'hide-and-reset') {
+      } else {
         // Chain after hideWindow so the reset is invisible to the user.
         void hide().then(resetLauncherState);
-      } else {
-        void hide();
       }
     } else {
       // At root: chain still applies for go-back (clear search before hiding).
-      if (escapeBehavior === 'go-back' && deps.getLocalSearchValue().trim() !== '') {
-        deps.recordQueryHistory?.(deps.getLocalSearchValue());
-        deps.setLocalSearchValue('');
-        restoreSearchFocus();
-      } else if (escapeBehavior === 'hide-and-reset') {
+      if (escapeBehavior === 'hide-and-reset') {
         void hide().then(resetLauncherState);
       } else {
-        void hide();
+        const query = deps.getLocalSearchValue();
+        if (query.trim() !== '') {
+          deps.recordQueryHistory?.(query);
+          deps.setLocalSearchValue('');
+          restoreSearchFocus();
+        } else {
+          void hide();
+        }
       }
     }
     return true;
