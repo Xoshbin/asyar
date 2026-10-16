@@ -2,7 +2,7 @@
 //! macOS platform integration, split by concern:
 //! - `appearance` — theme resolution + panel appearance/material
 //! - `display_name` — the localized name a bundle presents to the user
-//! - `dock`       — activation policy (Dock / ⌘-Tab presence)
+//! - `dock`       — activation policy (Dock / Cmd+Tab presence)
 //! - `window`     — spotlight/HUD/sticky panels, geometry, resize, WebKit tuning
 //! - `icon`       — app-icon extraction (.icns fast path + NSWorkspace fallback)
 //! - `haptics`    — trackpad haptic feedback (drag-to-snap)

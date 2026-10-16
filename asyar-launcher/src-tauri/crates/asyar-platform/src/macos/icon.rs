@@ -169,8 +169,8 @@ fn extract_icon_via_nsworkspace(path: &Path) -> Option<Vec<u8>> {
 }
 
 /// Sets the macOS Dock icon image explicitly. `dock.png` is the app icon on
-/// Apple's icon grid (824px artwork centred on a 1024px canvas); the
-/// full-bleed `icon.png` renders oversized next to other Dock icons.
+/// Apple's icon grid (824px artwork centred on a 1024px canvas);
+/// 10% empty space around the artwork
 pub fn set_dock_icon_image() {
     use objc2_foundation::NSData;
 
