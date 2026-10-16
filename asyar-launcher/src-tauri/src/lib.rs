@@ -2,13 +2,18 @@
 use tauri::{Emitter, Listener, Manager};
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::Mutex;
 
 use crate::extensions::extension_runtime::{ExtensionRuntimeManager, RuntimeConfig};
 
 const LOG_MAX_FILE_SIZE_BYTES: u128 = 2_000_000;
 const LOG_FILES_TO_KEEP: usize = 2;
+
+pub struct HideStamp {
+    pub mono: std::time::Instant,
+    pub wall: std::time::SystemTime,
+}
 
 /// Shared application state managed by Tauri's state system.
 pub struct AppState {
@@ -22,6 +27,8 @@ pub struct AppState {
     pub snippets_enabled: AtomicBool,
     /// Tracks whether the launcher window is currently visible.
     pub asyar_visible: AtomicBool,
+    pub last_hidden_at: Mutex<Option<HideStamp>>,
+    pub pop_to_root_generation: AtomicU64,
     /// Mirrors `!isCompactIdle` from the TS side — true whenever the launcher
     /// is in an expanded state the user has committed to (typed query, active
     /// extension view, active context chip, Show More click). Read by the
@@ -438,6 +445,8 @@ pub fn run() {
             launcher_shortcut: Mutex::new(String::from("Alt+Space")),
             snippets_enabled: AtomicBool::new(false),
             asyar_visible: AtomicBool::new(false),
+            last_hidden_at: Mutex::new(None),
+            pop_to_root_generation: AtomicU64::new(0),
             launcher_keep_expanded: AtomicBool::new(false),
             active_snippets: Mutex::new(HashMap::new()),
             contributed_snippets: Mutex::new(HashMap::new()),

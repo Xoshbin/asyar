@@ -2,6 +2,7 @@ import type { ProviderId, ProviderConfig } from '../../ai/IProviderPlugin';
 
 // Re-export for consumers that import from here
 export type { ProviderId, ProviderConfig };
+export type PopToRootDelay = 'immediately' | '10s' | '1m' | '5m' | 'never';
 
 // Define settings structure
 export interface AppSettings {
@@ -9,9 +10,12 @@ export interface AppSettings {
     startAtLogin: boolean;
     showDockIcon: boolean;
     showTrayIcon: boolean;
+    /**
+     * @deprecated `'close-window'` resolves to `'go-back'`; remove in 0.2.0.
+     * Still accepted for stored and synchronized settings from older versions.
+     */
     escapeInViewBehavior?: 'go-back' | 'close-window' | 'hide-and-reset';
-    /** Reopen the launcher where the user left off instead of root search. */
-    restoreLastView?: boolean;
+    popToRootDelay?: PopToRootDelay;
   };
   search: {
     searchApplications: boolean;

@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     showDockIcon: false,
     showTrayIcon: true,
     escapeInViewBehavior: 'go-back',
-    restoreLastView: true,
+    popToRootDelay: '1m',
   },
   search: {
     searchApplications: true,
@@ -104,6 +104,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
 };
 
+/** Returns the canonical settings store path shared by every window. */
+export async function settingsStorePath(): Promise<string> {
+  return join(await appDataDir(), 'settings.dat');
+}
+
 // Settings service implementation
 class SettingsService implements ISettingsService {
   private store: Store | null = null;
@@ -131,8 +136,7 @@ class SettingsService implements ISettingsService {
       // to `<identifier>settings.dat` at the parent dir while Rust reads the
       // canonical `<appDir>/settings.dat` — two sides, two files.
       try {
-        const appDirPath = await appDataDir();
-        this.storeFilePath = await join(appDirPath, 'settings.dat');
+        this.storeFilePath = await settingsStorePath();
         this.store = await load(this.storeFilePath);
       } catch (storeError) {
         logService.error(`Failed to create store: ${storeError}`);
@@ -383,9 +387,16 @@ class SettingsService implements ISettingsService {
       }
 
       const typedStored = stored as Partial<AppSettings>;
+      const storedGeneral = typedStored.general as
+        (Partial<AppSettings['general']> & { restoreLastView?: boolean }) | undefined;
+      const general = { ...DEFAULT_SETTINGS.general, ...storedGeneral };
+      if (storedGeneral?.popToRootDelay === undefined && storedGeneral?.restoreLastView === false) {
+        general.popToRootDelay = 'immediately';
+      }
+      delete (general as { restoreLastView?: boolean }).restoreLastView;
 
       return {
-        general: { ...DEFAULT_SETTINGS.general, ...typedStored?.general },
+        general,
         search: {
           ...DEFAULT_SETTINGS.search,
           ...typedStored?.search,

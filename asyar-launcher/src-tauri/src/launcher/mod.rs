@@ -1,4 +1,5 @@
 mod coordinator;
+pub(crate) mod pop_to_root;
 
 pub(crate) use coordinator::{LauncherAction, LauncherCoordinator};
 

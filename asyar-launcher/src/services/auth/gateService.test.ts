@@ -24,7 +24,7 @@ function mockSettings(partial: Partial<AppSettings>): void {
       startAtLogin: false,
       showDockIcon: false,
       showTrayIcon: true,
-      restoreLastView: true,
+      popToRootDelay: '1m',
     },
     search: {
       searchApplications: true,

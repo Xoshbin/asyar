@@ -13,7 +13,8 @@ import { extensionStateManager } from '../../services/extension/extensionStateMa
 import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
-import type { AppSettings } from '../../services/settings/types/AppSettingsType';
+import type { AppSettings, PopToRootDelay } from '../../services/settings/types/AppSettingsType';
+import type { EscapeBehavior } from '../../lib/keyboard/escapeBehavior';
 import { logService } from '../../services/log/logService';
 import { agentService } from '../../built-in-features/agents/agentService.svelte';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
@@ -46,7 +47,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     showDockIcon: false,
     showTrayIcon: true,
     escapeInViewBehavior: 'go-back',
-    restoreLastView: true,
+    popToRootDelay: '1m',
   },
   search: {
     searchApplications: true,
@@ -501,25 +502,21 @@ export class SettingsHandler {
     }
   }
 
-  async handleRestoreLastViewToggle() {
+  async updatePopToRootDelay(value: PopToRootDelay) {
     try {
-      const newValue = !this.settings.general.restoreLastView;
       const success = await settingsService.updateSettings('general', {
-        restoreLastView: newValue,
+        popToRootDelay: value,
       });
 
       if (!success) {
-        throw new Error('Failed to update restore last view setting');
+        throw new Error('Failed to update pop-to-root delay');
       }
 
-      // Notify the launcher webview (separate JS realm): disabling Restore
-      // Last View must clear its parked navigation stack immediately, since
-      // no panel resign-key fires while Settings is open.
-      await emit('asyar:restore-last-view-changed', { value: newValue });
+      await emit('asyar:pop-to-root-changed', { value });
     } catch (error) {
-      logService.error(`Failed to update restore last view setting: ${error}`);
+      logService.error(`Failed to update pop-to-root delay: ${error}`);
       this.saveError = true;
-      this.saveMessage = 'Failed to update restore last view setting';
+      this.saveMessage = 'Failed to update setting';
 
       setTimeout(() => {
         this.saveMessage = '';
@@ -591,7 +588,7 @@ export class SettingsHandler {
     }
   }
 
-  async updateEscapeBehavior(behavior: 'go-back' | 'close-window' | 'hide-and-reset') {
+  async updateEscapeBehavior(behavior: EscapeBehavior) {
     try {
       const success = await settingsService.updateSettings('general', {
         escapeInViewBehavior: behavior,

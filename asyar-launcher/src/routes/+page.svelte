@@ -33,10 +33,7 @@
   import { resolveCommandArguments } from '../lib/ipc/argumentModelCommands';
   import { commandArgDefaultsGet } from '../lib/ipc/commandArgDefaultsCommands';
   import { argumentHintVersion } from '../lib/launcher/argumentHintVersion.svelte';
-  import {
-    resetOnHideIfConfigured,
-    resetOnRestoreLastViewDisabled,
-  } from '../lib/launcher/launcherReset';
+  import { resetLauncherState } from '../lib/launcher/launcherReset';
   import type { CommandArgument } from 'asyar-sdk/contracts';
   import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
   import { type UnlistenFn } from '@tauri-apps/api/event';
@@ -179,12 +176,10 @@
     // and Enter on the next launcher invocation.
     let unlistenResignKey: UnlistenFn | null = null;
     let unlistenBecomeKey: UnlistenFn | null = null;
-    let unlistenHide: UnlistenFn | null = null;
+    let unlistenPopToRoot: UnlistenFn | null = null;
     appListen('main_panel_did_resign_key', () => {
       // The macOS panel delegate fires this even when focus_locked keeps the
-      // launcher visible behind a modal — that is not a hide, so restoring
-      // last view must not reset here. Actual hides emit
-      // `asyar:launcher-did-hide` (below) after the focus-lock check.
+      // launcher visible behind a modal — that is not a hide.
       if (isActionPanelOpen) {
         isActionPanelOpen = false;
         keyboard.restoreSearchFocus();
@@ -195,29 +190,15 @@
       })
       .catch((e) => logService.debug(`[+page] listen resign-key failed: ${e}`));
 
-    // The launcher actually parked/hid (hotkey, click outside, blur) — the
-    // host emits this only when the window is no longer visible. Restore
-    // Last View = off: clear the view/navigation while hidden so the next
-    // normal summon shows root search with no flash.
-    appListen('asyar:launcher-did-hide', () => {
-      resetOnHideIfConfigured();
+    // Rust owns the elapsed-time policy and emits this instruction while the
+    // launcher is parked, or immediately before a native reveal as a backstop.
+    appListen('asyar:pop-to-root', () => {
+      resetLauncherState();
     })
       .then((fn) => {
-        unlistenHide = fn;
+        unlistenPopToRoot = fn;
       })
-      .catch((e) => logService.debug(`[+page] listen launcher-did-hide failed: ${e}`));
-
-    // Settings webview (separate JS realm) toggled Restore Last View: turning
-    // it off must clear the parked navigation stack immediately — no resign
-    // key will fire first. Turning it on keeps the stack.
-    let unlistenRestoreToggle: UnlistenFn | null = null;
-    appListen<{ value: boolean }>('asyar:restore-last-view-changed', (e) => {
-      resetOnRestoreLastViewDisabled(e.payload?.value);
-    })
-      .then((fn) => {
-        unlistenRestoreToggle = fn;
-      })
-      .catch((e) => logService.debug(`[+page] listen restore-last-view failed: ${e}`));
+      .catch((e) => logService.debug(`[+page] listen pop-to-root failed: ${e}`));
 
     // When the panel becomes key (e.g. after shortcut execution or window summon),
     // restore and select search focus if no modal is open.
@@ -237,9 +218,8 @@
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
       unlistenResignKey?.();
-      unlistenRestoreToggle?.();
       unlistenBecomeKey?.();
-      unlistenHide?.();
+      unlistenPopToRoot?.();
     };
   });
 
