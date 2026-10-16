@@ -678,6 +678,10 @@ export class ExtensionManager implements IExtensionManager {
     return extensionSearchAggregator.searchAll(query);
   }
 
+  cancelPendingSearchRequests(): void {
+    extensionIframeManager.cancelPendingSearchRequests();
+  }
+
   public getLoadedManifests(): ExtensionManifest[] {
     return Array.from(this.manifestsById.values());
   }

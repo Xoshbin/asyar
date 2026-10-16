@@ -87,6 +87,7 @@ export function setupSearchEffects(state: LauncherState) {
 export function createSearchHandlers(state: LauncherState) {
   return {
     handleSearchInput(event: Event) {
+      if ((event as InputEvent).isComposing) return;
       const value = (event.target as HTMLInputElement).value;
       state.localSearchValue = value;
       searchStores.query = value;

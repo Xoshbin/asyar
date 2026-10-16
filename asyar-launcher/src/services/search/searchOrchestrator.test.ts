@@ -81,6 +81,7 @@ vi.mock('./builtinSearchProviders', () => ({
 
 describe('searchOrchestrator characterization tests', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     searchOrchestrator.items = [];
     viewManager.activeView = null;
@@ -94,6 +95,35 @@ describe('searchOrchestrator characterization tests', () => {
     vi.mocked(executeBuiltinSearchResult).mockResolvedValue(true);
     vi.mocked(extensionManager.isExtensionEnabled).mockReturnValue(true);
     vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
+  });
+
+  it('publishes local results before debounced extension fan-out', async () => {
+    vi.useFakeTimers();
+    vi.mocked(searchBuiltinProviders).mockResolvedValue([
+      { extensionId: 'calculator', id: 'local', title: 'Local', score: 1 },
+    ]);
+    vi.mocked(commands.mergedSearch).mockImplementation(async (_query, rows) => ({
+      results: rows.map((row: any) => ({
+        objectId: row.objectId,
+        name: row.name,
+        type: 'command',
+        score: row.score,
+        tier: 0,
+      })),
+      aliasMatch: null,
+    }));
+
+    const pending = searchOrchestrator.handleSearch('second');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(searchOrchestrator.items).toEqual([expect.objectContaining({ name: 'Local' })]);
+    expect(extensionManager.searchAll).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(100);
+    await pending;
+    expect(extensionManager.searchAll).toHaveBeenCalledWith('second');
+    vi.useRealTimers();
   });
 
   it('returns empty and DOES NOT set loading states when app not initialized', async () => {
@@ -274,7 +304,7 @@ describe('searchOrchestrator characterization tests', () => {
 
     await searchOrchestrator.handleSearch('6 * 7');
 
-    const callArgs = vi.mocked(commands.mergedSearch).mock.calls[0];
+    const callArgs = vi.mocked(commands.mergedSearch).mock.calls.at(-1)!;
     const externalResults: any[] = callArgs[1];
     expect(externalResults).toEqual(
       expect.arrayContaining([expect.objectContaining({ priority: 'top' })]),
@@ -296,7 +326,7 @@ describe('searchOrchestrator characterization tests', () => {
 
     await searchOrchestrator.handleSearch('something');
 
-    const callArgs = vi.mocked(commands.mergedSearch).mock.calls[0];
+    const callArgs = vi.mocked(commands.mergedSearch).mock.calls.at(-1)!;
     const externalResults: any[] = callArgs[1];
     expect(externalResults[0].priority).toBeUndefined();
   });
@@ -481,6 +511,7 @@ describe('searchOrchestrator characterization tests', () => {
       }),
     );
     const stale = searchOrchestrator.handleSearch('stale');
+    await new Promise((resolve) => setTimeout(resolve, 100));
     searchOrchestrator.tryExecuteResultAction('row');
     expect(old).toHaveBeenCalledOnce();
     vi.mocked(extensionManager.searchAll).mockResolvedValueOnce([

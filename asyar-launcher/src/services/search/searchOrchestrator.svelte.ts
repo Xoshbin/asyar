@@ -43,6 +43,7 @@ export function warmIfTier2(
 }
 
 class SearchOrchestratorClass {
+  static readonly EXTENSION_DEBOUNCE_MS = 90;
   items = $state<SearchResult[]>([]);
   // Query that produced the current `items` — compact-launch expand gate reads
   // this to avoid flashing the previous query's results.
@@ -72,14 +73,42 @@ class SearchOrchestratorClass {
       { extensionId: string; actionId: string; actionPayload: unknown }
     >();
     const directActions = new Map<string, () => void | Promise<void>>();
+    extensionManager.cancelPendingSearchRequests?.();
     searchStores.isLoading = true;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
-      // Collect extension results (these run in JS, can't move to Rust)
-      const [resultsFromExtensions, builtinRows] = await Promise.all([
-        extensionManager.searchAll(query),
-        searchBuiltinProviders(query, (id) => extensionManager.isExtensionEnabled(id)),
-      ]);
+      const builtinRows = await searchBuiltinProviders(query, (id) =>
+        extensionManager.isExtensionEnabled(id),
+      );
+      if (token !== this.#searchToken) return;
+
+      const shouldDebounceExtensions = query.trim().length > 1;
+      let localResponse: Awaited<ReturnType<typeof commands.mergedSearch>> | null = null;
+      if (shouldDebounceExtensions) {
+        const localRows = builtinRows.map((row) => ({
+          objectId: row.id,
+          name: row.title,
+          description: row.subtitle,
+          type: 'command',
+          score: row.score ?? 0.5,
+          icon: row.icon,
+          extensionId: row.extensionId,
+          category: 'builtin',
+          style: row.style,
+          priority: row.priority,
+        }));
+        localResponse = await commands.mergedSearch(query, localRows, 10);
+        if (token !== this.#searchToken) return;
+        this.items = localResponse.results as SearchResult[];
+        this.lastCompletedQuery = query;
+        await new Promise((resolve) =>
+          setTimeout(resolve, SearchOrchestratorClass.EXTENSION_DEBOUNCE_MS),
+        );
+        if (token !== this.#searchToken) return;
+      }
+
+      const resultsFromExtensions = await extensionManager.searchAll(query);
+      if (token !== this.#searchToken) return;
       const builtinById = new Map(builtinRows.map((row) => [row.id, row]));
 
       // Map extension results to serializable format for Rust
@@ -131,7 +160,10 @@ class SearchOrchestratorClass {
           priority: row.priority,
         })),
       );
-      const resp = await commands.mergedSearch(query, externalResults, 10);
+      const resp =
+        resultsFromExtensions.length === 0 && localResponse
+          ? localResponse
+          : await commands.mergedSearch(query, externalResults, 10);
       const combinedResults: SearchResult[] = resp.results as SearchResult[];
       const aliasMatch = resp.aliasMatch ?? null;
       if (token !== this.#searchToken) return;
