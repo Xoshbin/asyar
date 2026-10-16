@@ -89,22 +89,17 @@ fn identity(flavor: Flavor) -> Identity {
 
 #[cfg(target_os = "linux")]
 fn identities(flavor: Flavor) -> Vec<Identity> {
+    let primary = identity(flavor);
     match flavor {
         Flavor::Production => vec![
-            Identity {
-                bus_name: "org.asyar.Launcher",
-                object_path: "/org/asyar/Launcher",
-            },
+            primary,
             // COMPAT(remove in 0.2.0): fallback to legacy bus name for partially upgraded systems
             Identity {
                 bus_name: "org.asyar.app.Launcher",
                 object_path: "/org/asyar/app/Launcher",
             },
         ],
-        Flavor::Development => vec![Identity {
-            bus_name: "org.asyar.dev.Launcher",
-            object_path: "/org/asyar/dev/Launcher",
-        }],
+        Flavor::Development => vec![primary],
     }
 }
 
