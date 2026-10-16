@@ -509,6 +509,7 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
             state.asyar_visible.store(false, Ordering::Relaxed);
             state.mark_interaction();
             crate::platform::macos::park_launcher_panel(&window, &panel);
+            crate::event_bridge::bridge_emit(app, "asyar:launcher-did-hide", ());
         } else {
             reveal_launcher(&state, &window, &panel);
         }
@@ -521,6 +522,7 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
             state.asyar_visible.store(false, Ordering::Relaxed);
             state.mark_interaction();
             let _ = window.hide();
+            crate::event_bridge::bridge_emit(app, "asyar:launcher-did-hide", ());
             #[cfg(target_os = "windows")]
             if let Ok(hwnd) = state.previous_hwnd.lock() {
                 crate::platform::windows::restore_foreground_window(*hwnd);

@@ -11,7 +11,7 @@ export interface AppSettings {
     showTrayIcon: boolean;
     escapeInViewBehavior?: 'go-back' | 'close-window' | 'hide-and-reset';
     /** Reopen the launcher where the user left off instead of root search. */
-    restoreLastView: boolean;
+    restoreLastView?: boolean;
   };
   search: {
     searchApplications: boolean;

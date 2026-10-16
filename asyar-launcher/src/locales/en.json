@@ -97,7 +97,7 @@
       "autostart": "Launch at Login",
       "autostart_description": "Automatically start Asyar when your computer boots",
       "restore_last_view": "Restore Last View",
-      "restore_last_view_description": "Reopen the launcher where you left off instead of returning to search.",
+      "restore_last_view_description": "When off, hiding the launcher returns to search. Does not change what Escape does.",
       "show_tray_icon": "Show icon in menu bar",
       "show_tray_icon_description": "Keep Asyar accessible from the system menu bar",
       "show_tray_icon_tip": "When hidden, you can still open Asyar with your global hotkey or search for Settings.",

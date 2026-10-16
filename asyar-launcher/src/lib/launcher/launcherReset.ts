@@ -24,7 +24,8 @@ export function resetLauncherState(): void {
   getCompactSyncService()?.resetToCompactIfConfigured();
 }
 
-// Reset driven by the hide itself (panel resign-key / blur) when the user
+// Reset driven by the launcher actually parking/hiding (`asyar:launcher-did-hide`,
+// emitted by the host only after focus-lock checks) when the user
 // disabled Restore Last View. Runs while the window is hidden — the parked
 // webview keeps rendering (see `hide` in src-tauri commands/app.rs), so the
 // reset is composited before the next reveal and the next normal summon

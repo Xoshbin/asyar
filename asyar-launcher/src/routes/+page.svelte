@@ -179,13 +179,12 @@
     // and Enter on the next launcher invocation.
     let unlistenResignKey: UnlistenFn | null = null;
     let unlistenBecomeKey: UnlistenFn | null = null;
+    let unlistenHide: UnlistenFn | null = null;
     appListen('main_panel_did_resign_key', () => {
-      // Restore Last View = off: clear the view/navigation while the window
-      // is hidden so the next normal summon shows root search with no flash.
-      // Dedicated item shortcuts are a separate path (navigate, then
-      // showWindow); they are not cleared here unless a resign event arrives
-      // after they have already navigated.
-      resetOnHideIfConfigured();
+      // The macOS panel delegate fires this even when focus_locked keeps the
+      // launcher visible behind a modal — that is not a hide, so restoring
+      // last view must not reset here. Actual hides emit
+      // `asyar:launcher-did-hide` (below) after the focus-lock check.
       if (isActionPanelOpen) {
         isActionPanelOpen = false;
         keyboard.restoreSearchFocus();
@@ -195,6 +194,18 @@
         unlistenResignKey = fn;
       })
       .catch((e) => logService.debug(`[+page] listen resign-key failed: ${e}`));
+
+    // The launcher actually parked/hid (hotkey, click outside, blur) — the
+    // host emits this only when the window is no longer visible. Restore
+    // Last View = off: clear the view/navigation while hidden so the next
+    // normal summon shows root search with no flash.
+    appListen('asyar:launcher-did-hide', () => {
+      resetOnHideIfConfigured();
+    })
+      .then((fn) => {
+        unlistenHide = fn;
+      })
+      .catch((e) => logService.debug(`[+page] listen launcher-did-hide failed: ${e}`));
 
     // Settings webview (separate JS realm) toggled Restore Last View: turning
     // it off must clear the parked navigation stack immediately — no resign
@@ -228,6 +239,7 @@
       unlistenResignKey?.();
       unlistenRestoreToggle?.();
       unlistenBecomeKey?.();
+      unlistenHide?.();
     };
   });
 

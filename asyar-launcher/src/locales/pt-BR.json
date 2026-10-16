@@ -97,7 +97,7 @@
       "autostart": "Iniciar ao Entrar",
       "autostart_description": "Iniciar o Asyar automaticamente quando o computador inicializar",
       "restore_last_view": "Restaurar última visualização",
-      "restore_last_view_description": "Reabrir o launcher onde você parou em vez de voltar à busca.",
+      "restore_last_view_description": "Quando desativada, ocultar o launcher volta à busca. Não altera o que o Escape faz.",
       "show_tray_icon": "Mostrar ícone na barra de menus",
       "show_tray_icon_description": "Manter o Asyar acessível a partir da barra de menus do sistema",
       "show_tray_icon_tip": "Quando oculto, você ainda pode abrir o Asyar com o atalho global ou pesquisar por Preferências.",

@@ -97,7 +97,7 @@
       "autostart": "登入時啟動",
       "autostart_description": "開機時自動啟動 Asyar",
       "restore_last_view": "恢復上次檢視",
-      "restore_last_view_description": "重新開啟啟動器時回到上次的位置，而不是返回搜尋。",
+      "restore_last_view_description": "關閉時，隱藏啟動器後會返回搜尋。不改變 Escape 鍵的行為。",
       "show_tray_icon": "在選單欄顯示圖示",
       "show_tray_icon_description": "讓 Asyar 常駐系統選單欄，隨時可用",
       "show_tray_icon_tip": "隱藏後，你仍可透過全域快速鍵喚起 Asyar，或搜尋「設定」開啟。",

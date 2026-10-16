@@ -206,6 +206,9 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         } else {
             let _ = app_handle.run_on_main_thread(park);
         }
+        // Explicit hide parks the panel without necessarily running the resign
+        // listener; tell the frontend the launcher hid.
+        crate::event_bridge::bridge_emit(&app_handle, "asyar:launcher-did-hide", ());
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -214,6 +217,7 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         if window.is_visible().unwrap_or(false) {
             let _ = window.hide();
+            crate::event_bridge::bridge_emit(&app_handle, "asyar:launcher-did-hide", ());
             #[cfg(target_os = "windows")]
             {
                 let prev = *state.previous_hwnd.lock().map_err(|_| AppError::Lock)?;

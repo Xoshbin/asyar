@@ -227,6 +227,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                     return;
                 }
                 state.asyar_visible.store(false, Ordering::Relaxed);
+                crate::event_bridge::bridge_emit(&handle_clone, "asyar:launcher-did-hide", ());
 
                 let compact_mode = read_launch_view(&handle_clone) == "compact";
                 let keep_expanded = state.launcher_keep_expanded.load(Ordering::Relaxed);
@@ -270,11 +271,11 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                 }
                 state.asyar_visible.store(false, Ordering::Relaxed);
                 let _ = window_clone.hide();
-                // Mirror the macOS panel delegate: tell the frontend the
-                // launcher hid (e.g. restore-last-view reset runs while
-                // hidden, before the next reveal).
-                let resign_event = format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL);
-                let _ = tauri::Emitter::emit(&handle_clone, &resign_event, ());
+                // Tell the frontend the launcher hid (e.g. restore-last-view
+                // reset runs while hidden, before the next reveal). Emitted
+                // only after the focus_locked / spurious-blur returns; a
+                // focus-locked blur (modal, file picker) does not hide.
+                crate::event_bridge::bridge_emit(&handle_clone, "asyar:launcher-did-hide", ());
             }
         });
     }
