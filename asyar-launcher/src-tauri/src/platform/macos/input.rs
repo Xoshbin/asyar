@@ -10,6 +10,7 @@ pub fn register_cmdq_monitor(app_handle: AppHandle) {
         if let Some(sw) = app.get_webview_window("settings") {
             if sw.is_visible().unwrap_or(false) && sw.is_focused().unwrap_or(false) {
                 let _ = sw.hide();
+                super::sync_activation_policy(&app);
                 return true;
             }
         }

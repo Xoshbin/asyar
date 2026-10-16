@@ -2,6 +2,7 @@
 //! macOS platform integration, split by concern:
 //! - `appearance` — theme resolution + panel appearance/material
 //! - `display_name` — the localized name a bundle presents to the user
+//! - `dock`       — activation policy (Dock / ⌘-Tab presence)
 //! - `window`     — spotlight/HUD/sticky panels, geometry, resize, WebKit tuning
 //! - `icon`       — app-icon extraction (.icns fast path + NSWorkspace fallback)
 //! - `haptics`    — trackpad haptic feedback (drag-to-snap)
@@ -22,6 +23,7 @@ pub enum ResolvedTheme {
 
 mod appearance;
 mod display_name;
+mod dock;
 mod haptics;
 mod icon;
 mod input;
@@ -31,6 +33,7 @@ mod window;
 
 pub use appearance::*;
 pub use display_name::*;
+pub use dock::*;
 pub use haptics::*;
 pub use icon::*;
 pub use input::*;

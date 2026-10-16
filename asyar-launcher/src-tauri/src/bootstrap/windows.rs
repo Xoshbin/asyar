@@ -358,8 +358,12 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = sw.hide();
+                #[cfg(target_os = "macos")]
+                crate::platform::macos::sync_activation_policy(sw.app_handle());
             }
         });
+        #[cfg(target_os = "macos")]
+        crate::platform::macos::track_app_window(&settings_window);
     }
 
     setup_global_shortcut(handle);

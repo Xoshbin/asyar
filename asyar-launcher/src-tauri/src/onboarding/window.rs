@@ -70,7 +70,10 @@ pub fn open(app: &AppHandle) -> Result<(), AppError> {
     .map_err(|e| AppError::Other(format!("create onboarding: {e}")))?;
 
     #[cfg(target_os = "macos")]
-    crate::platform::macos::reveal_window_after_first_paint(&_window, REVEAL_FALLBACK_MS);
+    {
+        crate::platform::macos::track_app_window(&_window);
+        crate::platform::macos::reveal_window_after_first_paint(&_window, REVEAL_FALLBACK_MS);
+    }
 
     #[cfg(target_os = "windows")]
     {
