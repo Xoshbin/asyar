@@ -64,6 +64,37 @@ describe('manifest validation', () => {
       validateManifest({ ...backgroundOnly, permissions: ['network', 'network:secrets'] }, './'),
     ).toEqual([]);
   });
+  it('accepts scoped network:lan alongside network', () => {
+    expect(
+      validateManifest(
+        {
+          ...backgroundOnly,
+          permissions: ['network', 'network:lan'],
+          permissionArgs: { 'network:lan': ['192.168.0.0/16:1400'] },
+        },
+        './',
+      ),
+    ).toEqual([]);
+  });
+  it.each([
+    ['missing port', ['speaker.local']],
+    ['public literal', ['8.8.8.8:53']],
+    ['non-canonical CIDR', ['192.168.1.5/24:1400']],
+    ['loopback', ['127.0.0.1:1400']],
+    ['link-local', ['169.254.1.2:1400']],
+    ['metadata', ['100.100.100.200:80']],
+    ['multicast', ['239.255.255.250:1900']],
+  ])('rejects invalid network:lan scope: %s', (_label, endpoints) => {
+    const errors = validateManifest(
+      {
+        ...backgroundOnly,
+        permissions: ['network', 'network:lan'],
+        permissionArgs: { 'network:lan': endpoints },
+      },
+      './',
+    );
+    expect(errors.some((error) => error.field === 'permissionArgs.network:lan')).toBe(true);
+  });
   it('accepts a background-only extension with background.main', () => {
     const errors = validateManifest(backgroundOnly, './');
     expect(errors).toEqual([]);

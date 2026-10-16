@@ -69,6 +69,25 @@ if (!created.ok) {
 }
 ```
 
+### Local-network HTTP
+
+The ordinary `fetch()` method can reach a local device when the extension also
+declares `network:lan` and the exact endpoint scope:
+
+```json
+{
+  "permissions": ["network", "network:lan"],
+  "permissionArgs": {
+    "network:lan": ["speaker.local:1400", "192.168.0.0/16:1400"]
+  }
+}
+```
+
+No SDK method changes are needed. Rust resolves and pins the target, checks all
+DNS answers against the declared host/CIDR and port, and repeats validation for
+redirects. Loopback, link-local, and cloud metadata targets stay blocked.
+UDP/multicast discovery and WebSocket LAN access are not included.
+
 ### Secret references
 
 Declare `network` **and** `network:secrets`, with the reference definitions in
@@ -139,7 +158,11 @@ await socket.send(JSON.stringify({ id: 1, type: 'subscribe_events', event_type: 
 await socket.close(1000, 'User navigated away');
 ```
 
-> ⚠️ **Never use `window.fetch()`, `XMLHttpRequest`, or `new WebSocket()` directly inside your extension.** The iframe's Content Security Policy blocks external network connections (`default-src asyar-extension: 'self'`). Always route HTTP and WebSocket calls through `NetworkService`. Declare `"network"` in your `manifest.json` permissions.
+> ⚠️ **Use `NetworkService` for reviewable, permission-scoped network access.**
+> Direct browser networking is outside this Rust policy path; worker/view CSP
+> hardening is tracked separately and should not be treated as an enforcement
+> substitute. Declare `"network"` in your manifest and `"network:lan"` for
+> scoped local HTTP endpoints.
 
 **Timeout & Lifecycle behaviour:**
 

@@ -322,7 +322,21 @@
       "required_setup_mid": "to run",
       "coming_soon": "Coming soon",
       "uninstall_title": "Uninstall Extension",
-      "uninstall_message": "Are you sure you want to uninstall \"{title}\"? This action cannot be undone."
+      "uninstall_message": "Are you sure you want to uninstall \"{title}\"? This action cannot be undone.",
+      "lan_devices": "Local network devices",
+      "lan_scan_for_devices": "Scan for devices",
+      "lan_add_device": "+ Add device",
+      "lan_host_placeholder": "host or IP",
+      "lan_port_placeholder": "port",
+      "lan_invalid_host_port": "Enter a valid host and port (1–65535).",
+      "lan_add_error": "Could not add host.",
+      "lan_discovered_devices": "Discovered devices",
+      "lan_scanning": "Scanning…",
+      "lan_scan_again": "Scan again",
+      "lan_no_devices_found": "No devices found on your network.",
+      "lan_os_prompt_hint": "No devices found. If prompted, allow Asyar to access the local network and scan again.",
+      "lan_tap_to_allow": "Tap to allow",
+      "lan_added": "Added"
     },
     "ai": {
       "google_search": "Google Search",

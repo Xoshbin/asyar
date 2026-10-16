@@ -5,6 +5,7 @@
 use crate::error::AppError;
 use std::collections::HashMap;
 use std::net::IpAddr;
+use url::Url;
 
 /// Inputs for [`fetch`]. Mirrors the Tauri command parameters minus
 /// the `tauri::State` registry handle, so this is callable from any
@@ -30,13 +31,14 @@ fn plain_redirect_policy() -> reqwest::redirect::Policy {
 }
 
 /// Evaluates whether an IP address belongs to loopback, private, link-local,
-/// CGNAT, documentation, IPv4-mapped IPv6, or unspecified restricted network ranges.
+/// multicast, CGNAT, documentation, IPv4-mapped IPv6, or unspecified restricted ranges.
 pub fn is_restricted_ip(ip: &IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
             v4.is_loopback()
                 || v4.is_private()
                 || v4.is_link_local()
+                || v4.is_multicast()
                 || v4.is_broadcast()
                 || v4.is_documentation()
                 || v4.is_unspecified()
@@ -51,6 +53,7 @@ pub fn is_restricted_ip(ip: &IpAddr) -> bool {
             }
             v6.is_loopback()
                 || v6.is_unspecified()
+                || v6.is_multicast()
                 // Link-local fe80::/10
                 || (v6.segments()[0] & 0xffc0) == 0xfe80
                 // Unique local fc00::/7
@@ -171,10 +174,295 @@ pub async fn fetch(req: FetchRequest) -> Result<serde_json::Value, AppError> {
     }))
 }
 
+/// Fetches for an extension after resolving and pinning every destination.
+/// Public destinations retain the existing `network` behavior. Restricted LAN
+/// destinations additionally require a matching `network:lan` endpoint.
+pub async fn fetch_scoped(
+    req: FetchRequest,
+    lan_policy: Option<&crate::network::lan_policy::LanPolicy>,
+) -> Result<serde_json::Value, AppError> {
+    let mut url =
+        Url::parse(&req.url).map_err(|_| AppError::Other(format!("Invalid URL: {}", req.url)))?;
+    let mut method = request_method(req.method.as_deref());
+    let mut headers = req.headers.unwrap_or_default();
+    let mut send_body = true;
+
+    for redirect_count in 0..=10 {
+        url = canonicalize_request_url(url)?;
+        validate_url_for_ssrf_scheme_and_host(&url)?;
+        let host = url
+            .host_str()
+            .ok_or_else(|| AppError::Other("URL has no host".to_string()))?
+            .trim_end_matches('.')
+            .to_string();
+        let port = url
+            .port_or_known_default()
+            .ok_or_else(|| AppError::Other("URL has no port".to_string()))?;
+        let addresses = resolve_target(&host, port).await?;
+        authorize_resolved_target(&host, port, &addresses, lan_policy)?;
+
+        let timeout = std::time::Duration::from_millis(req.timeout_ms.unwrap_or(20000));
+        let client = pinned_client(&host, &addresses, timeout)?;
+        let mut request = client.request(method.clone(), url.clone());
+        for (key, value) in &headers {
+            request = request.header(key, value);
+        }
+        if send_body {
+            if let Some(body) = &req.body {
+                request = request.body(body.clone());
+            }
+        }
+        let response = request.send().await?;
+
+        if response.status().is_redirection() {
+            if redirect_count == 10 {
+                return Err(AppError::Other("Too many redirects".into()));
+            }
+            let location = response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .ok_or_else(|| AppError::Other("Redirect response has no Location header".into()))?
+                .to_str()
+                .map_err(|_| AppError::Other("Redirect Location is not valid UTF-8".into()))?;
+            let next_url = url
+                .join(location)
+                .map_err(|_| AppError::Other("Redirect Location is invalid".into()))?;
+            strip_sensitive_redirect_headers(&url, &next_url, &mut headers);
+            url = next_url;
+            if matches!(response.status().as_u16(), 301..=303)
+                && method != reqwest::Method::GET
+                && method != reqwest::Method::HEAD
+            {
+                method = reqwest::Method::GET;
+                send_body = false;
+            }
+            continue;
+        }
+
+        return response_envelope(response).await;
+    }
+    unreachable!("redirect loop returns at its configured limit")
+}
+
+fn pinned_client(
+    host: &str,
+    addresses: &[std::net::SocketAddr],
+    timeout: std::time::Duration,
+) -> Result<reqwest::Client, AppError> {
+    Ok(reqwest::Client::builder()
+        // A forward proxy resolves and dials the target itself, defeating
+        // the host-side authorization and address pin. The extension
+        // transport therefore intentionally bypasses environment proxies.
+        .no_proxy()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(timeout)
+        .redirect(reqwest::redirect::Policy::none())
+        .resolve_to_addrs(host, addresses)
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15")
+        .build()?)
+}
+
+fn strip_sensitive_redirect_headers(
+    current: &Url,
+    next: &Url,
+    headers: &mut HashMap<String, String>,
+) {
+    if current.origin() != next.origin() {
+        headers.retain(|key, _| {
+            !matches!(
+                key.to_ascii_lowercase().as_str(),
+                "authorization" | "cookie" | "proxy-authorization"
+            )
+        });
+    }
+}
+
+fn canonicalize_request_url(mut url: Url) -> Result<Url, AppError> {
+    let host = url
+        .host_str()
+        .ok_or_else(|| AppError::Other("URL has no host".to_string()))?;
+    let canonical = host.trim_end_matches('.').to_ascii_lowercase();
+    if canonical != host {
+        url.set_host(Some(&canonical))
+            .map_err(|_| AppError::Other("URL host is invalid".into()))?;
+    }
+    Ok(url)
+}
+
+fn request_method(method: Option<&str>) -> reqwest::Method {
+    match method.unwrap_or("GET") {
+        "POST" => reqwest::Method::POST,
+        "PUT" => reqwest::Method::PUT,
+        "DELETE" => reqwest::Method::DELETE,
+        "PATCH" => reqwest::Method::PATCH,
+        "HEAD" => reqwest::Method::HEAD,
+        "OPTIONS" => reqwest::Method::OPTIONS,
+        _ => reqwest::Method::GET,
+    }
+}
+
+fn validate_url_for_ssrf_scheme_and_host(url: &Url) -> Result<(), AppError> {
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(AppError::Other(format!(
+            "URL scheme '{}' is not allowed. Only http and https are permitted.",
+            url.scheme()
+        )));
+    }
+    let host = url
+        .host_str()
+        .ok_or_else(|| AppError::Other("URL has no host".to_string()))?
+        .trim_end_matches('.');
+    if host.eq_ignore_ascii_case("localhost") {
+        return Err(AppError::Other(
+            "Requests to localhost are not allowed".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+async fn resolve_target(host: &str, port: u16) -> Result<Vec<std::net::SocketAddr>, AppError> {
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return Ok(vec![std::net::SocketAddr::new(ip, port)]);
+    }
+    let addresses: Vec<_> = tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|_| AppError::Other(format!("DNS resolution failed for '{host}'")))?
+        .collect();
+    if addresses.is_empty() {
+        return Err(AppError::Other(format!(
+            "DNS resolution returned no addresses for '{host}'"
+        )));
+    }
+    Ok(addresses)
+}
+
+pub(crate) fn authorize_resolved_target(
+    host: &str,
+    port: u16,
+    addresses: &[std::net::SocketAddr],
+    lan_policy: Option<&crate::network::lan_policy::LanPolicy>,
+) -> Result<(), AppError> {
+    let ips: Vec<_> = addresses.iter().map(std::net::SocketAddr::ip).collect();
+    if ips.iter().any(crate::network::lan_policy::is_never_allowed) {
+        return Err(AppError::Permission(format!(
+            "Requests to loopback, link-local, or metadata address '{host}' are not allowed"
+        )));
+    }
+    if ips.iter().any(is_restricted_ip) {
+        return lan_policy
+            .ok_or_else(|| {
+                AppError::Permission(format!(
+                    "Requests to private address '{host}' require network:lan"
+                ))
+            })?
+            .authorize(host, port, &ips);
+    }
+    Ok(())
+}
+
+async fn response_envelope(response: reqwest::Response) -> Result<serde_json::Value, AppError> {
+    let status = response.status().as_u16();
+    let status_text = response
+        .status()
+        .canonical_reason()
+        .unwrap_or("")
+        .to_string();
+    let ok = response.status().is_success();
+    let mut headers = serde_json::Map::new();
+    for (key, value) in response.headers() {
+        if let Ok(value) = value.to_str() {
+            headers.insert(
+                key.as_str().to_string(),
+                serde_json::Value::String(value.into()),
+            );
+        }
+    }
+    let body = response.text().await?;
+    Ok(serde_json::json!({
+        "status": status,
+        "statusText": status_text,
+        "headers": headers,
+        "body": body,
+        "ok": ok,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mockito::Server;
+
+    #[test]
+    fn dotted_hostname_is_canonicalized_before_transport() {
+        let url = Url::parse("http://speaker.local.:1400/status").unwrap();
+        let canonical = canonicalize_request_url(url).unwrap();
+        assert_eq!(canonical.as_str(), "http://speaker.local:1400/status");
+    }
+
+    #[tokio::test]
+    async fn dotted_hostname_uses_the_preauthorized_pinned_tcp_peer() {
+        let mut server = Server::new_async().await;
+        let reached = server
+            .mock("GET", "/status")
+            .with_body("speaker")
+            .create_async()
+            .await;
+        let url = canonicalize_request_url(
+            Url::parse(&format!(
+                "http://speaker.local.:{}/status",
+                server.socket_address().port()
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        let client = pinned_client(
+            "speaker.local",
+            &[server.socket_address()],
+            std::time::Duration::from_secs(2),
+        )
+        .unwrap();
+
+        let response = client.get(url).send().await.unwrap();
+
+        assert_eq!(response.text().await.unwrap(), "speaker");
+        reached.assert_async().await;
+    }
+
+    #[test]
+    fn resolved_target_requires_lan_scope_and_rejects_public_lan_mixes() {
+        let private = ["192.168.1.20:1400".parse().unwrap()];
+        assert!(authorize_resolved_target("speaker.local", 1400, &private, None).is_err());
+        let policy = crate::network::lan_policy::LanPolicy::parse(&serde_json::json!([
+            "speaker.local:1400"
+        ]))
+        .unwrap();
+        assert!(authorize_resolved_target("speaker.local", 1400, &private, Some(&policy)).is_ok());
+        let mixed = [
+            "192.168.1.20:1400".parse().unwrap(),
+            "8.8.8.8:1400".parse().unwrap(),
+        ];
+        assert!(authorize_resolved_target("speaker.local", 1400, &mixed, Some(&policy)).is_err());
+        let public = ["8.8.8.8:443".parse().unwrap()];
+        assert!(authorize_resolved_target("example.com", 443, &public, Some(&policy)).is_ok());
+    }
+
+    #[test]
+    fn cross_origin_redirect_strips_sensitive_headers_only() {
+        let current = Url::parse("https://public.example/start").unwrap();
+        let next = Url::parse("http://speaker.local:1400/status").unwrap();
+        let mut headers = HashMap::from([
+            ("Authorization".into(), "Bearer token".into()),
+            ("COOKIE".into(), "session=secret".into()),
+            ("X-Request-Id".into(), "safe".into()),
+        ]);
+
+        strip_sensitive_redirect_headers(&current, &next, &mut headers);
+
+        assert_eq!(
+            headers,
+            HashMap::from([("X-Request-Id".into(), "safe".into())])
+        );
+    }
 
     #[tokio::test]
     async fn plain_fetch_unknown_methods_still_fall_back_to_get() {

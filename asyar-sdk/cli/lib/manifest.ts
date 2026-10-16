@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as semver from 'semver';
+import { isIP } from 'node:net';
 import { KNOWN_RUNTIMES } from './knownRuntimes';
 import { manifestActionsWarning } from './manifestActionsCompat';
 
@@ -13,6 +14,7 @@ export interface AsyarManifest {
   description: string;
   author: string;
   permissions?: string[];
+  permissionArgs?: Record<string, unknown>;
   commands: ManifestCommand[];
   minAppVersion?: string;
   asyarSdk?: string;
@@ -197,6 +199,7 @@ export const VALID_PERMISSIONS = [
   'shell:open-url',
   'shell:open-path',
   'network',
+  'network:lan',
   'network:secrets',
   'selection:read',
   'storage:read',
@@ -260,6 +263,120 @@ export function readManifest(cwd: string): AsyarManifest {
   }
 }
 
+function parseIpv4(value: string): bigint | null {
+  const parts = value.split('.');
+  if (parts.length !== 4) return null;
+  const octets = parts.map((part) => (/^(0|[1-9]\d{0,2})$/.test(part) ? Number(part) : -1));
+  if (octets.some((part) => part < 0 || part > 255)) return null;
+  return octets.reduce((result, part) => (result << 8n) | BigInt(part), 0n);
+}
+
+function parseIpv6(value: string): bigint | null {
+  if (value.includes('.') || value.includes('%') || value.split('::').length > 2) return null;
+  const [leftRaw, rightRaw] = value.split('::');
+  const left = leftRaw ? leftRaw.split(':') : [];
+  const right = rightRaw ? rightRaw.split(':') : [];
+  if (!value.includes('::') && left.length !== 8) return null;
+  if (value.includes('::') && left.length + right.length >= 8) return null;
+  const groups = [...left, ...Array(8 - left.length - right.length).fill('0'), ...right];
+  if (groups.length !== 8 || groups.some((group) => !/^[0-9a-fA-F]{1,4}$/.test(group))) {
+    return null;
+  }
+  return groups.reduce((result, group) => (result << 16n) | BigInt(`0x${group}`), 0n);
+}
+
+function parsedIp(value: string): { bits: 32 | 128; number: bigint } | null {
+  const version = isIP(value);
+  if (version === 4) return { bits: 32, number: parseIpv4(value)! };
+  if (version === 6) return { bits: 128, number: parseIpv6(value)! };
+  return null;
+}
+
+function inCidr(value: bigint, network: bigint, bits: number, prefix: number): boolean {
+  const mask = prefix === 0 ? 0n : ((1n << BigInt(bits)) - 1n) << BigInt(bits - prefix);
+  return (value & mask) === (network & mask);
+}
+
+function unsafeOrNonLanIp(ip: { bits: 32 | 128; number: bigint }): boolean {
+  if (ip.bits === 32) {
+    const isPrivate =
+      inCidr(ip.number, 0x0a000000n, 32, 8) ||
+      inCidr(ip.number, 0xac100000n, 32, 12) ||
+      inCidr(ip.number, 0xc0a80000n, 32, 16) ||
+      inCidr(ip.number, 0x64400000n, 32, 10);
+    const unsafe =
+      inCidr(ip.number, 0x7f000000n, 32, 8) ||
+      inCidr(ip.number, 0xa9fe0000n, 32, 16) ||
+      inCidr(ip.number, 0xe0000000n, 32, 4) ||
+      ip.number === 0x646464c8n;
+    return !isPrivate || unsafe;
+  }
+  const uniqueLocal = inCidr(ip.number, 0xfc00n << 112n, 128, 7);
+  const unsafe =
+    ip.number === 1n ||
+    inCidr(ip.number, 0xfe80n << 112n, 128, 10) ||
+    inCidr(ip.number, 0xff00n << 112n, 128, 8) ||
+    ip.number === parseIpv6('fd00:ec2::254');
+  return !uniqueLocal || unsafe;
+}
+
+function validateLanEndpoint(endpoint: string): string | null {
+  let target: string;
+  let portText: string;
+  if (endpoint.startsWith('[')) {
+    const close = endpoint.indexOf(']');
+    if (close < 0 || endpoint[close + 1] !== ':') return 'must use [address/prefix]:port';
+    target = endpoint.slice(1, close);
+    portText = endpoint.slice(close + 2);
+  } else {
+    const colon = endpoint.lastIndexOf(':');
+    if (colon < 1) return 'must include a port';
+    target = endpoint.slice(0, colon);
+    portText = endpoint.slice(colon + 1);
+  }
+  if (!/^\d+$/.test(portText) || Number(portText) < 1 || Number(portText) > 65535) {
+    return 'has an invalid port';
+  }
+  const slash = target.indexOf('/');
+  if (slash >= 0) {
+    const address = target.slice(0, slash);
+    const prefixText = target.slice(slash + 1);
+    const ip = parsedIp(address);
+    if (!ip || !/^\d+$/.test(prefixText)) return 'has an invalid CIDR';
+    const prefix = Number(prefixText);
+    if (prefix > ip.bits || !inCidr(ip.number, ip.number, ip.bits, prefix)) {
+      return 'has an invalid CIDR';
+    }
+    const mask = prefix === 0 ? 0n : ((1n << BigInt(ip.bits)) - 1n) << BigInt(ip.bits - prefix);
+    if ((ip.number & mask) !== ip.number) return 'CIDR must use its canonical network address';
+    if (unsafeOrNonLanIp(ip)) return 'must be a private LAN CIDR';
+    const unsafeProbes =
+      ip.bits === 32
+        ? [0x7f000001n, 0xa9fea9fen, 0x646464c8n, 0xeffffffan]
+        : [1n, 0xfe80n << 112n, 0xff00n << 112n, parseIpv6('fd00:ec2::254')!];
+    if (unsafeProbes.some((probe) => inCidr(probe, ip.number, ip.bits, prefix))) {
+      return 'CIDR includes a blocked loopback, link-local, multicast, or metadata address';
+    }
+    return null;
+  }
+  const ip = parsedIp(target);
+  if (ip) return unsafeOrNonLanIp(ip) ? 'must be a private LAN address' : null;
+  try {
+    const parsed = new URL(`http://${target}:1`);
+    if (
+      !parsed.hostname ||
+      parsed.username ||
+      parsed.password ||
+      target.toLowerCase() === 'localhost'
+    ) {
+      return 'has an invalid host';
+    }
+  } catch {
+    return 'has an invalid host';
+  }
+  return null;
+}
+
 export function validateManifest(manifest: AsyarManifest, cwd: string): ValidationError[] {
   const errors: ValidationError[] = [];
   const asUnknown = manifest as unknown as Record<string, unknown>;
@@ -309,6 +426,42 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
           }`,
         });
       }
+    });
+  }
+
+  const lanArgs = manifest.permissionArgs?.['network:lan'];
+  const declaresLan = manifest.permissions?.includes('network:lan') ?? false;
+  if (declaresLan) {
+    if (!manifest.permissions?.includes('network')) {
+      errors.push({ field: 'permissions', message: '"network:lan" requires "network"' });
+    }
+    if (lanArgs !== undefined) {
+      // Only validate when present; absent = user manages the allowlist in Settings
+      if (
+        !Array.isArray(lanArgs) ||
+        lanArgs.length === 0 ||
+        !lanArgs.every((entry): entry is string => typeof entry === 'string')
+      ) {
+        errors.push({
+          field: 'permissionArgs.network:lan',
+          message: 'must be a non-empty array of host-or-CIDR:port strings',
+        });
+      } else {
+        for (const endpoint of lanArgs) {
+          const reason = validateLanEndpoint(endpoint);
+          if (reason) {
+            errors.push({
+              field: 'permissionArgs.network:lan',
+              message: `"${endpoint}" ${reason}`,
+            });
+          }
+        }
+      }
+    }
+  } else if (lanArgs !== undefined) {
+    errors.push({
+      field: 'permissionArgs.network:lan',
+      message: 'requires "network:lan" in permissions',
     });
   }
 

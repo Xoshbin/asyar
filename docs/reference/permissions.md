@@ -14,9 +14,25 @@ Declare every permission your extension needs in `manifest.json`:
 
 ### Full permissions table
 
-| Permission        | What it unlocks                                                                                               | SDK methods that require it                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `network:secrets` | Host-injected login secrets from declared sources, sent only to declared HTTPS hosts. Requires `network` too. | `NetworkService.fetch()` with non-empty `secretRefs` |
+| Permission        | What it unlocks                                                                                                                     | SDK methods that require it                          |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `network:lan`     | HTTP access to declared LAN host/CIDR and port scopes. Requires `network`; loopback, link-local, and cloud metadata remain blocked. | `NetworkService.fetch()` for matching LAN URLs       |
+| `network:secrets` | Host-injected login secrets from declared sources, sent only to declared HTTPS hosts. Requires `network` too.                       | `NetworkService.fetch()` with non-empty `secretRefs` |
+
+Declare LAN endpoints in `permissionArgs["network:lan"]`. Each entry is an
+exact `host:port` or canonical `CIDR:port`; IPv6 entries use
+`[address/prefix]:port`. DNS answers are checked and pinned for each request and
+redirect, and every answer must match the declaration. This capability covers
+HTTP device control but not UDP/multicast discovery or WebSockets.
+
+```json
+{
+  "permissions": ["network", "network:lan"],
+  "permissionArgs": {
+    "network:lan": ["speaker.local:1400", "192.168.0.0/16:1400"]
+  }
+}
+```
 
 Define references in `permissionArgs["network:secrets"]`, an array of objects
 with `name`, `sources`, `hosts`, `header`, and `template`. Sources are generic

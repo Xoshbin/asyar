@@ -18,6 +18,12 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     title: 'Network access',
     description: 'Make outbound HTTP requests.',
   },
+  'network:lan': {
+    title: 'Local network access',
+    description:
+      'Connect to local-network devices you approve in Settings. ' +
+      'Loopback, link-local, and cloud metadata addresses are always blocked.',
+  },
   'network:secrets': {
     title: 'Send secret references',
     description:
