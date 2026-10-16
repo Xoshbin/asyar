@@ -493,6 +493,13 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
     // kept rendering, so the reveal is an alpha flip of an already-fresh
     // surface. User item hotkeys (which CAN swap views) route through
     // `user-shortcut-fired` and use prepare_show/commit_show.
+    //
+    // Deliberately does NOT emit `asyar:launcher-did-hide`: parking resigns key
+    // (macOS) / drops focus (Windows/Linux), so the lifecycle listeners in
+    // `bootstrap/windows.rs` own that emit — and only they apply the
+    // `focus_locked` and spurious-blur guards. Emitting here too would
+    // double-fire the Restore-Last-View reset and wipe the view on a
+    // focus-locked hide.
     #[cfg(target_os = "macos")]
     {
         use tauri_nspanel::ManagerExt;
@@ -509,7 +516,6 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
             state.asyar_visible.store(false, Ordering::Relaxed);
             state.mark_interaction();
             crate::platform::macos::park_launcher_panel(&window, &panel);
-            crate::event_bridge::bridge_emit(app, "asyar:launcher-did-hide", ());
         } else {
             reveal_launcher(&state, &window, &panel);
         }
@@ -522,7 +528,6 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
             state.asyar_visible.store(false, Ordering::Relaxed);
             state.mark_interaction();
             let _ = window.hide();
-            crate::event_bridge::bridge_emit(app, "asyar:launcher-did-hide", ());
             #[cfg(target_os = "windows")]
             if let Ok(hwnd) = state.previous_hwnd.lock() {
                 crate::platform::windows::restore_foreground_window(*hwnd);

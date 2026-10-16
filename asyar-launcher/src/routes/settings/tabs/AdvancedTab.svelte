@@ -60,6 +60,15 @@
 <SettingsCard>
   <div id="advanced-input">
     <SettingsRow
+      label={t('settings.advanced.restore_last_view')}
+      description={t('settings.advanced.restore_last_view_description')}
+    >
+      <Toggle
+        checked={handler.settings.general?.restoreLastView !== false}
+        onchange={() => handler.handleRestoreLastViewToggle()}
+      />
+    </SettingsRow>
+    <SettingsRow
       label={t('settings.advanced.escape_key')}
       description={t('settings.advanced.escape_key_description')}
     >

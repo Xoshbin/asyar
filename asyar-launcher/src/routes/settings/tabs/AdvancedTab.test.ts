@@ -24,6 +24,7 @@ vi.mock('../../../services/settings/settingsService.svelte', () => ({
         showDockIcon: false,
         showTrayIcon: true,
         escapeInViewBehavior: 'go-back',
+        restoreLastView: true,
       },
       search: {
         searchApplications: true,
@@ -111,6 +112,7 @@ function createMockHandler(overrides?: Partial<SettingsHandler>): SettingsHandle
         showDockIcon: false,
         showTrayIcon: true,
         escapeInViewBehavior: 'go-back',
+        restoreLastView: true,
       },
       search: {
         searchApplications: true,
@@ -153,6 +155,7 @@ function createMockHandler(overrides?: Partial<SettingsHandler>): SettingsHandle
     handleExtensionAutoUpdateToggle: vi.fn(),
     handleDeveloperModeToggle: vi.fn(),
     updateEscapeBehavior: vi.fn(),
+    handleRestoreLastViewToggle: vi.fn(),
     saveError: false,
     saveMessage: '',
     ...overrides,
@@ -172,6 +175,7 @@ describe('AdvancedTab', () => {
     expect(screen.getByText('Input')).toBeTruthy();
     expect(screen.getByText('Extension results in search')).toBeTruthy();
     expect(screen.getByText('Auto-update extensions')).toBeTruthy();
+    expect(screen.getByText('Restore Last View')).toBeTruthy();
     expect(screen.getByText('Escape key')).toBeTruthy();
     expect(screen.getByText('Text expansion')).toBeTruthy();
     expect(screen.getByText('Developer mode')).toBeTruthy();
@@ -204,13 +208,23 @@ describe('AdvancedTab', () => {
     expect(handler.updateEscapeBehavior).toHaveBeenCalledWith('hide-and-reset');
   });
 
+  it('calls handleRestoreLastViewToggle when toggling restore last view', async () => {
+    const handler = createMockHandler();
+    render(AdvancedTab, { props: { handler } });
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    await fireEvent.change(checkboxes[2]);
+    expect(handler.handleRestoreLastViewToggle).toHaveBeenCalledTimes(1);
+  });
+
   it('toggles snippet expansion service', async () => {
     const handler = createMockHandler();
     render(AdvancedTab, { props: { handler } });
 
     const checkboxes = screen.getAllByRole('checkbox');
-    // Checkbox index: 0 = ext search, 1 = ext actions, 2 = auto-update, 3 = snippets, 4 = dev mode
-    await fireEvent.change(checkboxes[2]);
+    // Checkbox index: 0 = ext search, 1 = auto-update, 2 = restore last view,
+    // 3 = snippets, 4 = dev mode
+    await fireEvent.change(checkboxes[3]);
     expect(snippetService.setEnabled).toHaveBeenCalledWith(false);
   });
 
@@ -219,7 +233,7 @@ describe('AdvancedTab', () => {
     render(AdvancedTab, { props: { handler } });
 
     const checkboxes = screen.getAllByRole('checkbox');
-    await fireEvent.change(checkboxes[3]);
+    await fireEvent.change(checkboxes[4]);
     expect(handler.handleDeveloperModeToggle).toHaveBeenCalledTimes(1);
   });
 
