@@ -433,9 +433,12 @@ mod tests {
 
     #[test]
     fn extra_deny_roots_are_enforced() {
-        let extra = vec![PathBuf::from("/Users/test/AppData/Roaming/org.asyar.app")];
+        let extra = vec![
+            PathBuf::from("/Users/test/AppData/Roaming/org.asyar"),
+            PathBuf::from("/Users/test/AppData/Roaming/org.asyar.app"),
+        ];
         let err = check_path_denied(
-            Path::new("/Users/test/AppData/Roaming/org.asyar.app/settings.dat"),
+            Path::new("/Users/test/AppData/Roaming/org.asyar/settings.dat"),
             &home(),
             &extra,
         )
@@ -443,6 +446,16 @@ mod tests {
         assert!(
             format!("{err}").contains("protected location"),
             "got: {err}"
+        );
+        let legacy_err = check_path_denied(
+            Path::new("/Users/test/AppData/Roaming/org.asyar.app/settings.dat"),
+            &home(),
+            &extra,
+        )
+        .unwrap_err();
+        assert!(
+            format!("{legacy_err}").contains("protected location"),
+            "got: {legacy_err}"
         );
     }
 
