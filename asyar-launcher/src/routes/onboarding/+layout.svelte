@@ -53,10 +53,20 @@
   function handleClose() {
     void onboardingService.dismiss();
   }
+
+  // Cmd/Ctrl+W closes the tour
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w') {
+      e.preventDefault();
+      handleClose();
+    }
+  }
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <div class="onboarding-frame">
-  <header class="onboarding-frame__header">
+  <header class="onboarding-frame__header" data-tauri-drag-region>
     <button
       type="button"
       class="onboarding-frame__close"
@@ -112,6 +122,7 @@
   .onboarding-frame__header {
     position: absolute;
     top: 0;
+    left: 0;
     right: 0;
     z-index: var(--z-raised);
     display: flex;
