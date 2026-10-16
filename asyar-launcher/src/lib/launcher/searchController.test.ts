@@ -140,6 +140,21 @@ describe('createSearchHandlers', () => {
     } as any;
   }
 
+  it('does not publish an intermediate IME composition value', () => {
+    const state = makeMockState();
+    state.localSearchValue = 'before';
+    searchStores.query = 'before';
+
+    createSearchHandlers(state).handleSearchInput({
+      target: { value: '中' },
+      isComposing: true,
+    } as unknown as InputEvent);
+
+    expect(state.localSearchValue).toBe('before');
+    expect(searchStores.query).toBe('before');
+    expect(state.queryHistory.reset).not.toHaveBeenCalled();
+  });
+
   it('typing cancels a pending recall through the real input handler', async () => {
     let resolve!: (entries: string[]) => void;
     const history = new QueryHistory({

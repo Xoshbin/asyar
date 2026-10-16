@@ -41,30 +41,51 @@ impl BrowserService {
         let browsers = self.list_available_browsers();
         let target = filter.browser.as_ref();
         let mut out = Vec::new();
+        let mut attempted = 0usize;
+        let mut errors = Vec::new();
         for b in browsers {
             if let Some(t) = target {
                 if !browser_matches(t, &b) {
                     continue;
                 }
             }
-            match b.family {
+            attempted += 1;
+            let result = match b.family {
                 BrowserFamily::Chromium => {
                     let path = paths::chromium_user_data_root(&self.home, &b.variant)
                         .join(&b.profile_id)
                         .join("Bookmarks");
-                    out.extend(readers::chromium::read_bookmarks_file(&path, &b)?);
+                    readers::chromium::read_bookmarks_file(&path, &b)
                 }
                 BrowserFamily::Firefox => {
                     let path = paths::firefox_profiles_dir(&self.home, &b.variant)
                         .join(&b.profile_id)
                         .join("places.sqlite");
-                    out.extend(readers::firefox::read_bookmarks_file(&path, &b)?);
+                    readers::firefox::read_bookmarks_file(&path, &b)
                 }
                 BrowserFamily::Safari => {
                     let path = paths::safari_root(&self.home).join("Bookmarks.plist");
-                    out.extend(readers::safari::read_bookmarks_file(&path, &b)?);
+                    readers::safari::read_bookmarks_file(&path, &b)
+                }
+            };
+            match result {
+                Ok(bookmarks) => out.extend(bookmarks),
+                Err(error) => {
+                    log::debug!(
+                        "Skipping unreadable bookmarks for {}/{}: {}",
+                        b.variant,
+                        b.profile_id,
+                        error
+                    );
+                    errors.push(error);
                 }
             }
+        }
+        if attempted > 0 && errors.len() == attempted {
+            return Err(format!(
+                "failed to read bookmarks from all discovered browsers: {}",
+                errors.join("; ")
+            ));
         }
         if let Some(q) = filter.query.as_deref() {
             let q = q.to_lowercase();
@@ -82,26 +103,45 @@ impl BrowserService {
     ) -> Result<Vec<HistoryEntry>, String> {
         let browsers = self.list_available_browsers();
         let mut out = Vec::new();
+        let attempted = browsers.len();
+        let mut errors = Vec::new();
         for b in browsers {
-            let entries = match b.family {
+            let result = match b.family {
                 BrowserFamily::Chromium => {
                     let path = paths::chromium_user_data_root(&self.home, &b.variant)
                         .join(&b.profile_id)
                         .join("History");
-                    readers::chromium::read_history_file(&path, &b, query, opts.limit)?
+                    readers::chromium::read_history_file(&path, &b, query, opts.limit)
                 }
                 BrowserFamily::Firefox => {
                     let path = paths::firefox_profiles_dir(&self.home, &b.variant)
                         .join(&b.profile_id)
                         .join("places.sqlite");
-                    readers::firefox::read_history_file(&path, &b, query, opts.limit)?
+                    readers::firefox::read_history_file(&path, &b, query, opts.limit)
                 }
                 BrowserFamily::Safari => {
                     let path = paths::safari_root(&self.home).join("History.db");
-                    readers::safari::read_history_file(&path, &b, query, opts.limit)?
+                    readers::safari::read_history_file(&path, &b, query, opts.limit)
                 }
             };
-            out.extend(entries);
+            match result {
+                Ok(entries) => out.extend(entries),
+                Err(error) => {
+                    log::debug!(
+                        "Skipping unreadable history for {}/{}: {}",
+                        b.variant,
+                        b.profile_id,
+                        error
+                    );
+                    errors.push(error);
+                }
+            }
+        }
+        if attempted > 0 && errors.len() == attempted {
+            return Err(format!(
+                "failed to read history from all discovered browsers: {}",
+                errors.join("; ")
+            ));
         }
         if let Some(since) = opts.since_ms {
             out.retain(|e| e.last_visit_at >= since);
@@ -468,6 +508,24 @@ mod tests {
         }"#
     }
 
+    fn write_chromium_history(home: &Path, profile: &str, valid: bool) {
+        let profile_dir = paths::chromium_user_data_root(home, "chrome").join(profile);
+        std::fs::create_dir_all(&profile_dir).unwrap();
+        let path = profile_dir.join("History");
+        if !valid {
+            std::fs::write(path, b"not sqlite").unwrap();
+            return;
+        }
+        let conn = rusqlite::Connection::open(path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE urls (
+                url TEXT, title TEXT, visit_count INTEGER, last_visit_time INTEGER, hidden INTEGER
+             );
+             INSERT INTO urls VALUES ('https://valid.test', 'Valid', 1, 13350000000000000, 0);",
+        )
+        .unwrap();
+    }
+
     #[test]
     fn list_bookmarks_aggregates_across_installed_chromium_profiles() {
         let dir = tempfile::tempdir().unwrap();
@@ -491,6 +549,63 @@ mod tests {
             })
             .unwrap();
         assert_eq!(bookmarks.len(), 2);
+    }
+
+    #[test]
+    fn list_bookmarks_keeps_other_profiles_when_one_read_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        write_chromium_bookmarks(dir.path(), "chrome", "Default", "not json");
+        write_chromium_bookmarks(
+            dir.path(),
+            "chrome",
+            "Profile 1",
+            minimal_chrome_bookmarks_json(),
+        );
+
+        let bookmarks = BrowserService::with_home(dir.path().to_path_buf())
+            .list_bookmarks(ListBookmarksFilter {
+                browser: None,
+                query: None,
+            })
+            .unwrap();
+
+        assert_eq!(bookmarks.len(), 1);
+        assert_eq!(bookmarks[0].browser.profile_id, "Profile 1");
+    }
+
+    #[test]
+    fn list_bookmarks_errors_when_every_discovered_profile_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        write_chromium_bookmarks(dir.path(), "chrome", "Default", "not json");
+
+        let result = BrowserService::with_home(dir.path().to_path_buf()).list_bookmarks(
+            ListBookmarksFilter {
+                browser: None,
+                query: None,
+            },
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn search_history_keeps_other_profiles_when_one_read_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        write_chromium_history(dir.path(), "Default", false);
+        write_chromium_history(dir.path(), "Profile 1", true);
+
+        let history = BrowserService::with_home(dir.path().to_path_buf())
+            .search_history(
+                "valid",
+                SearchHistoryOptions {
+                    limit: Some(20),
+                    since_ms: None,
+                },
+            )
+            .unwrap();
+
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].browser.profile_id, "Profile 1");
     }
 
     #[test]
