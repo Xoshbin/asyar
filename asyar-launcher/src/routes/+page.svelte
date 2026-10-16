@@ -266,10 +266,10 @@
   // Usage heartbeat: record an active day on startup and whenever the window
   // regains focus. Rust dedupes to one heartbeat/day, so this is cheap.
   $effect(() => {
-    void recordActiveDay();
+    void recordActiveDay().catch(() => {});
     const promise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
       if (focused) {
-        void recordActiveDay();
+        void recordActiveDay().catch(() => {});
         if (!isAnyModalOpen(document) && !isActionPanelOpen) {
           keyboard.restoreSearchFocus({ select: true });
         }

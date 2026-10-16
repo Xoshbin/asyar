@@ -97,6 +97,15 @@ pub fn sync_shortcode_triggers(app: &tauri::AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Initializes local-first usage recording early so it is managed before windows mount.
+pub fn init_usage(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    if app.try_state::<Arc<crate::usage::UsageState>>().is_none() {
+        let usage_state = crate::usage::initialize_usage_state(app.handle())?;
+        app.manage(Arc::new(usage_state));
+    }
+    Ok(())
+}
+
 /// Initializes core services, registers builtin tools, and sets up state stores.
 pub fn init_services(
     app: &mut tauri::App,
@@ -106,8 +115,7 @@ pub fn init_services(
     register_builtin_tools(app.handle(), search_state.clone())?;
 
     // Local-first usage recording
-    let usage_state = crate::usage::initialize_usage_state(app.handle())?;
-    app.manage(Arc::new(usage_state));
+    init_usage(app)?;
 
     // Walkthrough task registry
     app.manage(Arc::new(
