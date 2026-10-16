@@ -312,7 +312,14 @@ pub(crate) fn extension_scope_env<R: tauri::Runtime>(
         .path()
         .app_data_dir()
         .map_err(|e| AppError::Other(format!("Cannot resolve app data dir: {}", e)))?;
-    Ok((home, vec![normalize_path(&app_data)]))
+    let mut extra = vec![normalize_path(&app_data)];
+    if let Some(parent) = app_data.parent() {
+        let legacy = parent.join("org.asyar.app");
+        if legacy.exists() {
+            extra.push(normalize_path(&legacy));
+        }
+    }
+    Ok((home, extra))
 }
 
 pub(crate) fn files_read_text_inner(

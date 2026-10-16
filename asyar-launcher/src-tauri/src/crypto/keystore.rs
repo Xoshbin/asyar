@@ -22,6 +22,11 @@ use zeroize::Zeroizing;
 /// account name is versioned (`data-encryption-v1`) so a future key
 /// rotation can use a separate identifier without colliding with the
 /// current one.
+///
+/// NOTE: This deliberately remains `"org.asyar.app"` even after the app's
+/// bundle identifier was updated to `"org.asyar"` to resolve macOS folder
+/// bundle classification (issue #870). Changing this would orphan existing
+/// users' master keys and sync seeds, rendering at-rest encrypted data unreadable.
 pub const KEYCHAIN_SERVICE: &str = match option_env!("ASYAR_KEYCHAIN_SERVICE") {
     Some(service) => service,
     None => "org.asyar.app",

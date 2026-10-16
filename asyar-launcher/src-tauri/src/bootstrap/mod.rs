@@ -1,6 +1,7 @@
 //! Application bootstrap lifecycle orchestrator.
 //!
 //! Decomposes host setup into discrete, verified lifecycle phases:
+//! 0. Legacy application data adoption & migration
 //! 1. Pending factory reset
 //! 2. Early platform initialization & coordinator attachment
 //! 3. System tray setup
@@ -16,6 +17,7 @@
 //! 13. Background daemons, watchers, schedulers, and browser bridge
 //! 14. Final platform coordination (mark coordinator ready)
 
+pub mod identity_migration;
 pub mod platform;
 pub mod search;
 pub mod services;
@@ -23,7 +25,10 @@ pub mod storage;
 pub mod windows;
 
 pub fn init(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Pending factory reset check FIRST
+    // 0. Adopt legacy application data before anything touches storage
+    identity_migration::adopt_legacy_data(app.handle());
+
+    // 1. Pending factory reset check
     storage::perform_pending_factory_reset_if_marked(app.handle());
 
     // 2. Early platform hooks & coordinator attachment

@@ -6,7 +6,7 @@ export function getExtensionsDir(isDevFlavor = false): string {
 }
 
 export function getAppDataDir(isDevFlavor = false): string {
-  const bundleId = isDevFlavor ? 'org.asyar.dev' : 'org.asyar.app';
+  const bundleId = isDevFlavor ? 'org.asyar.dev' : 'org.asyar';
   switch (process.platform) {
     case 'darwin':
       return path.join(os.homedir(), 'Library', 'Application Support', bundleId);

@@ -21,7 +21,24 @@ use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 fn default_db_path() -> PathBuf {
-    if cfg!(target_os = "macos") {
+    let canonical = if cfg!(target_os = "macos") {
+        let home = std::env::var("HOME").expect("HOME not set");
+        PathBuf::from(home).join("Library/Application Support/org.asyar/asyar_data.db")
+    } else if cfg!(target_os = "linux") {
+        let home = std::env::var("HOME").expect("HOME not set");
+        PathBuf::from(home).join(".local/share/org.asyar/asyar_data.db")
+    } else if cfg!(target_os = "windows") {
+        let appdata = std::env::var("APPDATA").expect("APPDATA not set");
+        PathBuf::from(appdata).join("org.asyar/asyar_data.db")
+    } else {
+        panic!("unsupported platform");
+    };
+
+    if canonical.exists() {
+        return canonical;
+    }
+
+    let legacy = if cfg!(target_os = "macos") {
         let home = std::env::var("HOME").expect("HOME not set");
         PathBuf::from(home).join("Library/Application Support/org.asyar.app/asyar_data.db")
     } else if cfg!(target_os = "linux") {
@@ -32,6 +49,12 @@ fn default_db_path() -> PathBuf {
         PathBuf::from(appdata).join("org.asyar.app/asyar_data.db")
     } else {
         panic!("unsupported platform");
+    };
+
+    if legacy.exists() {
+        legacy
+    } else {
+        canonical
     }
 }
 
