@@ -136,6 +136,59 @@ describe('LauncherPlacementService', () => {
     });
   });
 
+  it('treats a pre-#860 dragged anchor as dragged', async () => {
+    vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
+      monitor: 'cursor',
+      anchor: { kind: 'free', x: 0.3, y: 0.4 },
+      snapEnabled: true,
+    });
+    const svc = new LauncherPlacementService();
+    await svc.load();
+
+    expect(svc.isDragged).toBe(true);
+    expect(svc.vertical).toBeNull();
+  });
+
+  it('treats a travel-space dragged anchor as dragged', async () => {
+    vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
+      monitor: 'cursor',
+      anchor: { kind: 'freeTravel', x: 0.5, y: 0.5 },
+      snapEnabled: true,
+    });
+    const svc = new LauncherPlacementService();
+    await svc.load();
+
+    expect(svc.isDragged).toBe(true);
+    expect(svc.vertical).toBeNull();
+  });
+
+  it('shows the custom segment for a center-snapped drag', async () => {
+    vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
+      monitor: 'cursor',
+      anchor: { kind: 'topWeighted', bias: 0.2777 },
+      snapEnabled: true,
+    });
+    const svc = new LauncherPlacementService();
+    await svc.load();
+
+    expect(svc.vertical).toBe('custom');
+    expect(svc.isDragged).toBe(false);
+    expect(svc.biasPercent).toBe(28);
+  });
+
+  it('shows the center segment for a drop on the centered position', async () => {
+    vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
+      monitor: 'cursor',
+      anchor: { kind: 'centered' },
+      snapEnabled: true,
+    });
+    const svc = new LauncherPlacementService();
+    await svc.load();
+
+    expect(svc.vertical).toBe('center');
+    expect(svc.isDragged).toBe(false);
+  });
+
   it('reset returns the whole placement to the default', async () => {
     vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
       monitor: 'primary',
