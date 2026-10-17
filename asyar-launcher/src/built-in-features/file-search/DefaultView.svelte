@@ -10,12 +10,14 @@
   } from '../../components';
   import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
   import { getFileIcon, getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
+  import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { t } from '../../services/i18n';
   import { logService } from '../../services/log/logService';
   import { openerService } from '../../services/opener/openerService';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
   import { primeAiChipForFile } from './aiChipBridge';
+  import { createRowThumbnailLoader, type RowThumbnail } from './rowThumbnailLoader';
   import {
     fileSearchViewState,
     recordSelectionForCurrentQuery,
@@ -80,7 +82,8 @@
   // none available). Absence of a key means "not yet requested".
   //
   // Images get a real thumbnail; everything else gets the native OS file
-  // icon (NSWorkspace / SHGetFileInfo — cheap, cached per extension).
+  // icon (NSWorkspace / SHGetFileInfo — cached per extension where icons are
+  // file-type-wide, and per path for directories or formats with embedded icons).
   //
   // Content thumbnails stay images-only, deliberately. Anything else falls
   // through to `qlmanage` on macOS — a real subprocess spawn that loads
@@ -91,8 +94,14 @@
   // every keystroke — the actual source of the CPU/heat this was causing.
   // The detail pane still gets the richer qlmanage-backed preview, but
   // only for the one currently-selected file, not up to 50 rows at once.
-  let rowThumbnails = $state<Record<string, string | null>>({});
+  let rowThumbnails = $state<Record<string, RowThumbnail>>({});
   let rowThumbTimer: ReturnType<typeof setTimeout> | undefined;
+  const rowThumbnailLoader = createRowThumbnailLoader({
+    platform: getHostPlatform(),
+    getThumbnail: getFileThumbnail,
+    getIcon: getFileIcon,
+    thumbnailDimension: ROW_THUMB_DIM,
+  });
 
   $effect(() => {
     const current = items;
@@ -102,16 +111,20 @@
     // for a row that's about to be replaced before the request even lands.
     rowThumbTimer = setTimeout(() => {
       for (const item of current) {
-        if (item.fileId in rowThumbnails) continue;
-        void requestRowThumbnail(item.fileId, item.path, item.type === 'image');
+        if (item.fileId in rowThumbnails || rowThumbnailLoader.isInFlight(item.fileId)) continue;
+        void requestRowThumbnail(item.fileId, item.path, item.type === 'image', item.isDir);
       }
     }, 120);
     return () => clearTimeout(rowThumbTimer);
   });
 
-  async function requestRowThumbnail(fileId: string, path: string, isImage: boolean) {
-    rowThumbnails[fileId] =
-      (isImage ? await getFileThumbnail(path, ROW_THUMB_DIM) : null) ?? (await getFileIcon(path));
+  async function requestRowThumbnail(
+    fileId: string,
+    path: string,
+    isImage: boolean,
+    isDir: boolean,
+  ) {
+    rowThumbnails[fileId] = await rowThumbnailLoader.load(fileId, path, isImage, isDir);
   }
 
   // Detail pane state — one unified preview chain, no extension lists on
@@ -249,12 +262,12 @@
       >
         {#snippet leading()}
           <div class="row-icon-wrap">
-            {#if rowThumbnails[item.fileId]}
+            {#if rowThumbnails[item.fileId]?.url}
               <img
-                src={rowThumbnails[item.fileId]}
+                src={rowThumbnails[item.fileId].url}
                 alt=""
                 class="row-thumb"
-                class:native-icon={item.type !== 'image'}
+                class:native-icon={rowThumbnails[item.fileId].kind === 'icon'}
               />
             {:else if item.type === 'image'}
               <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"

@@ -97,8 +97,29 @@ pub async fn get_or_extract_icon(cache_dir: &Path, path: &Path) -> Option<PathBu
         .await
         .ok()??;
     let _ = tokio::fs::create_dir_all(cache_dir).await;
-    tokio::fs::write(&cached, bytes).await.ok()?;
-    Some(cached)
+    write_icon_atomically(cache_dir, &cached, bytes)
+        .await
+        .then_some(cached)
+}
+
+async fn write_icon_atomically(cache_dir: &Path, cached: &Path, bytes: Vec<u8>) -> bool {
+    let tmp = cache_dir.join(format!(
+        ".tmp-icon-{}-{:x}.png",
+        std::process::id(),
+        uuid::Uuid::new_v4().as_u128()
+    ));
+    if tokio::fs::write(&tmp, bytes).await.is_err() {
+        return false;
+    }
+    if tokio::fs::rename(&tmp, cached).await.is_ok() {
+        return true;
+    }
+
+    // Windows does not replace an existing destination. A racing writer may
+    // have won between the cache check and rename, which is still success.
+    let published = tokio::fs::metadata(cached).await.is_ok();
+    let _ = tokio::fs::remove_file(&tmp).await;
+    published
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -169,6 +190,34 @@ mod tests {
         let bytes = std::fs::read(&cached).unwrap();
         assert_eq!(&bytes[..4], &[0x89, b'P', b'N', b'G']);
         assert_eq!(super::get_or_extract_icon(&cache, &src).await, Some(cached));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod atomic_write_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn concurrent_icon_writes_publish_one_complete_file_without_temp_leaks() {
+        let dir = std::env::temp_dir().join(format!(
+            "atomic_icon_write_test_{}_{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let cached = dir.join("icon.png");
+
+        let (first, second) = tokio::join!(
+            write_icon_atomically(&dir, &cached, vec![1; 4096]),
+            write_icon_atomically(&dir, &cached, vec![2; 4096])
+        );
+
+        assert!(first || second);
+        let bytes = std::fs::read(&cached).unwrap();
+        assert!(bytes == vec![1; 4096] || bytes == vec![2; 4096]);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

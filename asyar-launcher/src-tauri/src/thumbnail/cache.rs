@@ -33,18 +33,20 @@ pub fn cache_key(path: &Path, mtime: u64, size: u64, max_dim: u32) -> String {
     format!("{:016x}.png", h.finish())
 }
 
-/// Cache-key filename for a path's native OS icon. Regular files share one
-/// icon per extension; directories (folders, `.app` bundles) can carry their
-/// own, so they're keyed by path.
+/// Cache-key filename for a path's native OS icon. Ordinary file types share
+/// one icon per extension. Directories, extensionless files, and formats that
+/// can embed a per-file icon are keyed by path instead.
 pub fn icon_cache_key(path: &Path, is_dir: bool) -> String {
     let mut h = fnv::FnvHasher::default();
     is_dir.hash(&mut h);
-    if is_dir {
+    let extension = path
+        .extension()
+        .map(|ext| ext.to_string_lossy().to_lowercase());
+    let has_per_file_icon = matches!(extension.as_deref(), Some("exe" | "lnk" | "ico" | "icns"));
+    if is_dir || extension.is_none() || has_per_file_icon {
         path.to_string_lossy().hash(&mut h);
     } else {
-        path.extension()
-            .map(|e| e.to_string_lossy().to_lowercase())
-            .hash(&mut h);
+        extension.hash(&mut h);
     }
     format!("icon-{:016x}.png", h.finish())
 }
@@ -143,6 +145,38 @@ mod tests {
         assert_ne!(
             icon_cache_key(Path::new("/x/A.app"), true),
             icon_cache_key(Path::new("/x/B.app"), true)
+        );
+    }
+
+    #[test]
+    fn extensionless_icon_cache_keys_are_per_path() {
+        assert_ne!(
+            icon_cache_key(Path::new("/project/Makefile"), false),
+            icon_cache_key(Path::new("/project/Dockerfile"), false)
+        );
+    }
+
+    #[test]
+    fn executable_icon_cache_keys_are_per_path() {
+        assert_ne!(
+            icon_cache_key(Path::new("C:/Program Files/Chrome/chrome.exe"), false),
+            icon_cache_key(Path::new("C:/Windows/System32/calc.exe"), false)
+        );
+    }
+
+    #[test]
+    fn shortcut_icon_cache_keys_are_per_path() {
+        assert_ne!(
+            icon_cache_key(Path::new("C:/Users/me/Desktop/shortcut1.lnk"), false),
+            icon_cache_key(Path::new("C:/Users/me/Desktop/shortcut2.lnk"), false)
+        );
+    }
+
+    #[test]
+    fn document_icon_cache_keys_are_shared_case_insensitively() {
+        assert_eq!(
+            icon_cache_key(Path::new("/one/report.PDF"), false),
+            icon_cache_key(Path::new("/two/other.pdf"), false)
         );
     }
 
