@@ -7,6 +7,7 @@
   import { applyTheme } from '../../services/theme/themeService';
   import { logService } from '../../services/log/logService';
   import { initProviders } from '../../services/ai/initProviders';
+  import { handleOnboardingKeydown } from './onboardingKeydown';
   import '../../resources/styles/style.css';
 
   // The onboarding window is a separate Tauri webview and does not run the
@@ -56,10 +57,7 @@
 
   // Cmd/Ctrl+W closes the tour
   function handleKeydown(e: KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w') {
-      e.preventDefault();
-      handleClose();
-    }
+    handleOnboardingKeydown(e, { onClose: handleClose });
   }
 </script>
 
@@ -128,6 +126,8 @@
     display: flex;
     justify-content: flex-end;
     padding: var(--space-3);
+    user-select: none;
+    -webkit-user-select: none;
   }
   .onboarding-frame__close {
     background: var(--bg-secondary);
