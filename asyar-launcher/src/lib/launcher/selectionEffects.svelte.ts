@@ -18,6 +18,7 @@ import {
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { aliasStore } from '../../built-in-features/aliases/aliasStore.svelte';
 import { runService } from '../../services/run/runService.svelte';
+import { untrack } from 'svelte';
 
 export function setupSelectionEffects(state: LauncherState) {
   // Effect 6: Reset selected index when search items change.
@@ -117,28 +118,77 @@ export function setupSelectionEffects(state: LauncherState) {
     );
   });
 
+  const shortcutsKey = $derived.by(() => {
+    const item = state.currentSelectedItemOriginal;
+    if (!item) return null;
+    const hasShortcut = state.shortcuts.some(
+      (shortcut: ItemShortcut) => shortcut.objectId === item.objectId,
+    );
+    return `${item.objectId}:${hasShortcut}`;
+  });
+
+  const runsKey = $derived.by(() => {
+    const items = state.searchResultItemsMapped;
+    const idx = state.selectedIndexVal;
+    const item = idx >= 0 && idx < items.length ? items[idx] : null;
+    if (!item) return null;
+
+    const runId = item.object_id.replace(/^run_/, '');
+    if (item.type === 'run') {
+      const run = runService.active.find((candidate) => candidate.id === runId);
+      return run?.cancellable ? `cancel:${runId}` : null;
+    }
+    if (item.type === 'run-failed') return `dismiss-failed:${runId}`;
+    if (item.type === 'run-done') {
+      const matchingRun =
+        runService.unacknowledgedScriptResults.find((candidate) => candidate.id === runId) ??
+        runService.keptAgents.find((candidate) => candidate.id === runId);
+      return `dismiss-done:${runId}:${matchingRun?.kind === 'shell-script'}`;
+    }
+    return null;
+  });
+
+  const aliasesKey = $derived.by(() => {
+    const item = state.currentSelectedItemOriginal;
+    if (!item || (item.type !== 'application' && item.type !== 'command')) return null;
+    return `${item.objectId}:${aliasStore.byObjectId.has(item.objectId)}`;
+  });
+
+  const favoriteKey = $derived.by(() => {
+    const item = state.currentSelectedItemOriginal;
+    if (
+      !item ||
+      (item.type !== 'application' && item.type !== 'command') ||
+      (!item.objectId.startsWith('app_') && !item.objectId.startsWith('cmd_'))
+    ) {
+      return null;
+    }
+    return `${item.objectId}:${item.favorite === true}`;
+  });
+
   // Effect 9: Shortcut action registration for selected item
   $effect(() => {
-    if (state.currentSelectedItemOriginal) {
-      const item = state.currentSelectedItemOriginal;
-      actionService.registerAction({
-        id: 'shortcuts:assign',
-        label: state.shortcuts.some((s: ItemShortcut) => s.objectId === item.objectId)
-          ? t('selection_actions.change_shortcut')
-          : t('selection_actions.assign_shortcut'),
-        icon: 'icon:keyboard',
-        description: t('selection_actions.assign_shortcut_desc'),
-        category: t('categories.shortcuts'),
-        extensionId: 'shortcuts',
-        context: ActionContext.CORE,
-        execute: async () => {
-          state.assignShortcutTarget = item;
-          state.getBottomBar()?.closeActionList();
-        },
-      });
-    } else {
-      actionService.unregisterAction('shortcuts:assign');
-    }
+    const key = shortcutsKey;
+    if (key === null) return;
+    const item = untrack(() => state.currentSelectedItemOriginal);
+    if (!item) return;
+    actionService.registerAction({
+      id: 'shortcuts:assign',
+      label: untrack(() => state.shortcuts).some(
+        (shortcut: ItemShortcut) => shortcut.objectId === item.objectId,
+      )
+        ? t('selection_actions.change_shortcut')
+        : t('selection_actions.assign_shortcut'),
+      icon: 'icon:keyboard',
+      description: t('selection_actions.assign_shortcut_desc'),
+      category: t('categories.shortcuts'),
+      extensionId: 'shortcuts',
+      context: ActionContext.CORE,
+      execute: async () => {
+        state.assignShortcutTarget = item;
+        state.getBottomBar()?.closeActionList();
+      },
+    });
     return () => {
       actionService.unregisterAction('shortcuts:assign');
     };
@@ -148,8 +198,10 @@ export function setupSelectionEffects(state: LauncherState) {
   // Runs aren't backed by SearchResult entries (currentSelectedItemOriginal is
   // null for run rows), so we look up the run from the mapped item's object_id.
   $effect(() => {
-    const items = state.searchResultItemsMapped;
-    const idx = state.selectedIndexVal;
+    const key = runsKey;
+    if (key === null) return;
+    const items = untrack(() => state.searchResultItemsMapped);
+    const idx = untrack(() => state.selectedIndexVal);
     const item = idx >= 0 && idx < items.length ? items[idx] : null;
 
     if (item && item.type === 'run') {
@@ -224,13 +276,6 @@ export function setupSelectionEffects(state: LauncherState) {
         actionService.unregisterAction('runs:dismiss');
       };
     }
-
-    actionService.unregisterAction('runs:cancel');
-    actionService.unregisterAction('runs:dismiss');
-    return () => {
-      actionService.unregisterAction('runs:cancel');
-      actionService.unregisterAction('runs:dismiss');
-    };
   });
 
   // Effect 10: Alias action registration for selected item.
@@ -238,25 +283,24 @@ export function setupSelectionEffects(state: LauncherState) {
   // results). Reads aliasStore.byObjectId reactively so the label flips to
   // "Change Alias" the moment a registration completes.
   $effect(() => {
-    const item = state.currentSelectedItemOriginal;
-    if (item && (item.type === 'application' || item.type === 'command')) {
-      const hasAlias = aliasStore.byObjectId.has(item.objectId);
-      actionService.registerAction({
-        id: 'aliases:assign',
-        label: hasAlias ? t('selection_actions.change_alias') : t('selection_actions.assign_alias'),
-        icon: 'icon:tag',
-        description: t('selection_actions.assign_alias_desc'),
-        category: t('categories.aliases'),
-        extensionId: 'aliases',
-        context: ActionContext.CORE,
-        execute: async () => {
-          state.assignAliasTarget = item;
-          state.getBottomBar()?.closeActionList();
-        },
-      });
-    } else {
-      actionService.unregisterAction('aliases:assign');
-    }
+    const key = aliasesKey;
+    if (key === null) return;
+    const item = untrack(() => state.currentSelectedItemOriginal);
+    if (!item) return;
+    const hasAlias = untrack(() => aliasStore.byObjectId.has(item.objectId));
+    actionService.registerAction({
+      id: 'aliases:assign',
+      label: hasAlias ? t('selection_actions.change_alias') : t('selection_actions.assign_alias'),
+      icon: 'icon:tag',
+      description: t('selection_actions.assign_alias_desc'),
+      category: t('categories.aliases'),
+      extensionId: 'aliases',
+      context: ActionContext.CORE,
+      execute: async () => {
+        state.assignAliasTarget = item;
+        state.getBottomBar()?.closeActionList();
+      },
+    });
     return () => {
       actionService.unregisterAction('aliases:assign');
     };
@@ -265,56 +309,31 @@ export function setupSelectionEffects(state: LauncherState) {
   // Effect 10b: Favorite / unfavorite action registration for selected item.
   // Favorites apply only to indexed applications and commands.
   $effect(() => {
-    const item = state.currentSelectedItemOriginal;
-    const isEligible =
-      item &&
-      (item.type === 'application' || item.type === 'command') &&
-      (item.objectId.startsWith('app_') || item.objectId.startsWith('cmd_'));
-
-    if (isEligible) {
-      if (item.favorite) {
-        actionService.unregisterAction('favorite_item');
-        actionService.registerAction({
-          id: 'unfavorite_item',
-          label: t('selection_actions.unfavorite'),
-          icon: 'icon:star',
-          description: t('selection_actions.unfavorite_desc'),
-          category: t('categories.item'),
-          context: ActionContext.CORE,
-          execute: async () => {
-            const updated = await commands.setItemFavorite(item.objectId, false);
-            if (!updated) return;
-            invalidateTopItemsCache();
-            await searchOrchestrator.handleSearch(searchStores.query || '');
-            state.getBottomBar()?.closeActionList();
-          },
-        });
-      } else {
-        actionService.unregisterAction('unfavorite_item');
-        actionService.registerAction({
-          id: 'favorite_item',
-          label: t('selection_actions.favorite'),
-          icon: 'icon:star',
-          description: t('selection_actions.favorite_desc'),
-          category: t('categories.item'),
-          context: ActionContext.CORE,
-          execute: async () => {
-            const updated = await commands.setItemFavorite(item.objectId, true);
-            if (!updated) return;
-            invalidateTopItemsCache();
-            await searchOrchestrator.handleSearch(searchStores.query || '');
-            state.getBottomBar()?.closeActionList();
-          },
-        });
-      }
-    } else {
-      actionService.unregisterAction('favorite_item');
-      actionService.unregisterAction('unfavorite_item');
-    }
+    const key = favoriteKey;
+    if (key === null) return;
+    const item = untrack(() => state.currentSelectedItemOriginal);
+    if (!item) return;
+    const actionId = item.favorite ? 'unfavorite_item' : 'favorite_item';
+    actionService.registerAction({
+      id: actionId,
+      label: item.favorite ? t('selection_actions.unfavorite') : t('selection_actions.favorite'),
+      icon: 'icon:star',
+      description: item.favorite
+        ? t('selection_actions.unfavorite_desc')
+        : t('selection_actions.favorite_desc'),
+      category: t('categories.item'),
+      context: ActionContext.CORE,
+      execute: async () => {
+        const updated = await commands.setItemFavorite(item.objectId, !item.favorite);
+        if (!updated) return;
+        invalidateTopItemsCache();
+        await searchOrchestrator.handleSearch(searchStores.query || '');
+        state.getBottomBar()?.closeActionList();
+      },
+    });
 
     return () => {
-      actionService.unregisterAction('favorite_item');
-      actionService.unregisterAction('unfavorite_item');
+      actionService.unregisterAction(actionId);
     };
   });
 }
