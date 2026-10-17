@@ -193,4 +193,33 @@ describe('log level methods', () => {
   it('trackExtensionUsage formats and logs without throwing', () => {
     expect(() => makeSvc().trackExtensionUsage('my-ext', 'opened', { key: 'val' })).not.toThrow();
   });
+
+  it('does not format or emit debug logs until verbose logging is enabled', () => {
+    const svc = makeSvc();
+    const formatSpy = vi.spyOn(svc, 'format');
+    vi.mocked(tauriLog.debug).mockClear();
+
+    svc.debug('hidden');
+
+    expect(formatSpy).not.toHaveBeenCalled();
+    expect(tauriLog.debug).not.toHaveBeenCalled();
+    expect(svc.isVerboseLogging()).toBe(false);
+
+    svc.setVerboseLogging(true);
+    svc.debug('visible');
+
+    expect(svc.isVerboseLogging()).toBe(true);
+    expect(formatSpy).toHaveBeenCalledOnce();
+    expect(tauriLog.debug).toHaveBeenCalledOnce();
+  });
+
+  it('routes warnings to the Tauri warning sink', () => {
+    vi.mocked(tauriLog.info).mockClear();
+    vi.mocked(tauriLog.warn).mockClear();
+
+    makeSvc().warn('careful');
+
+    expect(tauriLog.warn).toHaveBeenCalledOnce();
+    expect(tauriLog.info).not.toHaveBeenCalled();
+  });
 });

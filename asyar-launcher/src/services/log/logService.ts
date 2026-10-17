@@ -1,5 +1,10 @@
-import { info, error, debug, attachConsole } from '@tauri-apps/plugin-log';
+import { info, error, debug, warn as tauriWarn, attachConsole } from '@tauri-apps/plugin-log';
 import type { ILogService } from 'asyar-sdk/contracts';
+
+export interface IHostLogService extends ILogService {
+  setVerboseLogging(enabled: boolean): void;
+  isVerboseLogging(): boolean;
+}
 
 /**
  * Color codes for terminal output
@@ -34,10 +39,19 @@ const colors = {
 /**
  * Service for logging application events with enhanced formatting
  */
-export class LogService implements ILogService {
+export class LogService implements IHostLogService {
   private appName = 'Asyar';
   private useColors = true; // Can be toggled for environments without color support
   private useFrames = false; // Can be toggled for environments without box drawing support
+  private verbose = false;
+
+  setVerboseLogging(enabled: boolean): void {
+    this.verbose = enabled;
+  }
+
+  isVerboseLogging(): boolean {
+    return this.verbose;
+  }
 
   /**
    * Initialize the logger
@@ -193,13 +207,14 @@ export class LogService implements ILogService {
       `${colors.bright}${colors.yellow}`,
       colors.yellow,
     );
-    this.tryLog(info, console.warn, formattedMessage); // plugin-log uses info for warnings sometimes if warn isn't exported
+    this.tryLog(tauriWarn, console.warn, formattedMessage);
   }
 
   /**
    * Log debug message
    */
   debug(msg: string): void {
+    if (!this.verbose) return;
     const formattedMessage = this.format(msg, 'DEBUG', `${colors.cyan}`, colors.cyan);
     this.tryLog(debug, console.debug, formattedMessage);
   }
@@ -248,4 +263,4 @@ export class LogService implements ILogService {
 }
 
 // Export singleton instance with the extended interface
-export const logService: ILogService = new LogService();
+export const logService: IHostLogService = new LogService();
