@@ -6,7 +6,7 @@
 use crate::error::AppError;
 use tauri::{AppHandle, Manager};
 
-const WINDOW_LABEL: &str = "onboarding";
+pub const WINDOW_LABEL: &str = "onboarding";
 const WINDOW_URL: &str = "/onboarding";
 // Roomier than the launcher panel: the guided tour is a two-column stage —
 // instruction/setup content on one side, a vibrant tilted feature image on the
@@ -70,7 +70,10 @@ pub fn open(app: &AppHandle) -> Result<(), AppError> {
     .map_err(|e| AppError::Other(format!("create onboarding: {e}")))?;
 
     #[cfg(target_os = "macos")]
-    crate::platform::macos::reveal_window_after_first_paint(&_window, REVEAL_FALLBACK_MS);
+    {
+        crate::platform::macos::track_app_window(&_window);
+        crate::platform::macos::reveal_window_after_first_paint(&_window, REVEAL_FALLBACK_MS);
+    }
 
     #[cfg(target_os = "windows")]
     {

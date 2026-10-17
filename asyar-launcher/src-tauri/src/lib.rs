@@ -220,6 +220,7 @@ pub mod window_drag;
 pub mod window_management;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
+pub const SETTINGS_LABEL: &str = "settings";
 
 /// Pure decision logic for the Linux WebKitGTK DMA-BUF workaround (issue
 /// #435): returns the (key, value) env var to set when `is_linux`, or

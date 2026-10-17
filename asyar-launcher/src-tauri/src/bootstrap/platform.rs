@@ -224,18 +224,7 @@ pub fn init_deeplinks(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Er
     }
 
     #[cfg(target_os = "macos")]
-    {
-        let show_dock = crate::bootstrap::windows::read_show_dock_icon(app.app_handle());
-        let policy = if show_dock {
-            tauri::ActivationPolicy::Regular
-        } else {
-            tauri::ActivationPolicy::Accessory
-        };
-        app.set_activation_policy(policy);
-        if show_dock {
-            crate::platform::macos::set_dock_icon_image();
-        }
-    }
+    crate::platform::macos::sync_activation_policy(app.app_handle());
 
     Ok(())
 }
