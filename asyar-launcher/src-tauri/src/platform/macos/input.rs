@@ -7,7 +7,7 @@ pub use asyar_platform::macos::input::disable_press_and_hold;
 pub fn register_cmdq_monitor(app_handle: AppHandle) {
     let app = app_handle.clone();
     asyar_platform::macos::input::register_cmdq_monitor(move || {
-        if let Some(sw) = app.get_webview_window("settings") {
+        if let Some(sw) = app.get_webview_window(crate::SETTINGS_LABEL) {
             if sw.is_visible().unwrap_or(false) && sw.is_focused().unwrap_or(false) {
                 let _ = sw.hide();
                 super::sync_activation_policy(&app);

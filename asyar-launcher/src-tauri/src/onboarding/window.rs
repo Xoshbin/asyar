@@ -6,7 +6,7 @@
 use crate::error::AppError;
 use tauri::{AppHandle, Manager};
 
-const WINDOW_LABEL: &str = "onboarding";
+pub const WINDOW_LABEL: &str = "onboarding";
 const WINDOW_URL: &str = "/onboarding";
 // Roomier than the launcher panel: the guided tour is a two-column stage —
 // instruction/setup content on one side, a vibrant tilted feature image on the
