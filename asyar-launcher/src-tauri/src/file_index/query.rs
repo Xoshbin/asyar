@@ -577,6 +577,7 @@ mod tests {
             // hidden detection stays on the unix spelling (rsplit '/').
             path: PathBuf::from(np(path)),
             kind,
+            file_id: None,
             mtime,
             hidden: path.rsplit('/').next().unwrap_or("").starts_with('.'),
             placeholder: false,

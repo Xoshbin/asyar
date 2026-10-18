@@ -9,6 +9,20 @@ use crate::extensions::extension_runtime::{ExtensionRuntimeManager, RuntimeConfi
 
 const LOG_MAX_FILE_SIZE_BYTES: u128 = 2_000_000;
 const LOG_FILES_TO_KEEP: usize = 2;
+const NOISY_LOG_CRATES: &[&str] = &[
+    "axum",
+    "hyper",
+    "hyper_util",
+    "tower_http",
+    "tokio_tungstenite",
+    "tungstenite",
+    "keyring",
+    "mio",
+    "notify",
+    "notify_debouncer_full",
+    "ignore",
+    "globset",
+];
 
 pub struct HideStamp {
     pub mono: std::time::Instant,
@@ -332,33 +346,32 @@ pub fn run() {
             // server, the WebSocket layer, hyper, the keychain, and the notify
             // file-watcher behind the file index) so a busy companion or a burst
             // of filesystem events does not flood the log with TRACE lines.
+            // `ignore` logs per excluded walk entry and `globset` logs per
+            // match candidate on the watcher's per-event hot path.
             // The file sink keeps two rotated 2 MB files plus the active file,
             // preserving useful diagnostic history with bounded disk usage.
             // Asyar's own logs are unaffected.
-            tauri_plugin_log::Builder::new()
-                .targets([
-                    #[cfg(debug_assertions)]
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
-                        file_name: None,
-                    }),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
-                ])
-                .max_file_size(LOG_MAX_FILE_SIZE_BYTES)
-                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(
-                    LOG_FILES_TO_KEEP,
-                ))
-                .level_for("axum", log::LevelFilter::Warn)
-                .level_for("hyper", log::LevelFilter::Warn)
-                .level_for("hyper_util", log::LevelFilter::Warn)
-                .level_for("tower_http", log::LevelFilter::Warn)
-                .level_for("tokio_tungstenite", log::LevelFilter::Warn)
-                .level_for("tungstenite", log::LevelFilter::Warn)
-                .level_for("keyring", log::LevelFilter::Warn)
-                .level_for("mio", log::LevelFilter::Warn)
-                .level_for("notify", log::LevelFilter::Warn)
-                .level_for("notify_debouncer_full", log::LevelFilter::Warn)
-                .build(),
+            {
+                let builder = tauri_plugin_log::Builder::new()
+                    .targets([
+                        #[cfg(debug_assertions)]
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                            file_name: None,
+                        }),
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                    ])
+                    .max_file_size(LOG_MAX_FILE_SIZE_BYTES)
+                    .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(
+                        LOG_FILES_TO_KEEP,
+                    ));
+                NOISY_LOG_CRATES
+                    .iter()
+                    .fold(builder, |builder, crate_name| {
+                        builder.level_for(*crate_name, log::LevelFilter::Warn)
+                    })
+                    .build()
+            },
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -585,12 +598,41 @@ mod link_audit_tests {
 
 #[cfg(test)]
 mod log_retention_tests {
-    use super::{LOG_FILES_TO_KEEP, LOG_MAX_FILE_SIZE_BYTES};
+    use super::{LOG_FILES_TO_KEEP, LOG_MAX_FILE_SIZE_BYTES, NOISY_LOG_CRATES};
 
     #[test]
     fn retains_two_rotated_two_megabyte_log_files() {
         assert_eq!(LOG_MAX_FILE_SIZE_BYTES, 2_000_000);
         assert_eq!(LOG_FILES_TO_KEEP, 2);
+    }
+
+    #[test]
+    fn clamps_the_walker_and_glob_crates_that_log_per_entry() {
+        assert!(NOISY_LOG_CRATES.contains(&"ignore"));
+        assert!(NOISY_LOG_CRATES.contains(&"globset"));
+    }
+
+    #[test]
+    fn noisy_log_crate_list_keeps_prior_clamps_and_has_no_duplicates() {
+        for prior in [
+            "axum",
+            "hyper",
+            "hyper_util",
+            "tower_http",
+            "tokio_tungstenite",
+            "tungstenite",
+            "keyring",
+            "mio",
+            "notify",
+            "notify_debouncer_full",
+        ] {
+            assert!(NOISY_LOG_CRATES.contains(&prior), "lost clamp for {prior}");
+        }
+        let mut sorted = NOISY_LOG_CRATES.to_vec();
+        sorted.sort_unstable();
+        let before = sorted.len();
+        sorted.dedup();
+        assert_eq!(sorted.len(), before, "duplicate entry in NOISY_LOG_CRATES");
     }
 }
 
