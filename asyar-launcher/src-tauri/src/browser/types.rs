@@ -8,6 +8,17 @@ pub enum BrowserFamily {
     Safari,
 }
 
+/// Wire/log spelling of a family — the same lowercase form `serde` emits.
+/// Exists so diagnostics and event payloads don't each re-derive it from
+/// `format!("{:?}", …).to_lowercase()`.
+pub fn family_wire(family: BrowserFamily) -> &'static str {
+    match family {
+        BrowserFamily::Chromium => "chromium",
+        BrowserFamily::Firefox => "firefox",
+        BrowserFamily::Safari => "safari",
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BrowserId {
     pub family: BrowserFamily,

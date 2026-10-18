@@ -223,3 +223,74 @@ describe('log level methods', () => {
     expect(tauriLog.info).not.toHaveBeenCalled();
   });
 });
+
+// ── debug ring buffer ────────────────────────────────────────────────────────
+//
+// #901 gated logService.debug() behind developer.verboseLogging to kill a
+// ~26-log-line-per-keystroke IPC storm, but that also means the DEBUG output
+// that diagnosed #876/#877/#878 is no longer producible by default — a user
+// would have to know to turn verbose logging on *before* the bug happens. The
+// buffer captures every debug() call unconditionally and cheaply (no ANSI
+// formatting, no plugin-log IPC call) so a "Copy diagnostics" action can still
+// recover recent debug history after the fact, without paying per-keystroke
+// IPC cost.
+
+describe('debug ring buffer', () => {
+  beforeEach(() => {
+    vi.mocked(tauriLog.debug).mockClear();
+  });
+
+  it('records every debug call even while verbose logging is off', () => {
+    const svc = makeSvc();
+    expect(svc.isVerboseLogging()).toBe(false);
+
+    svc.debug('first');
+    svc.debug('second');
+    svc.debug('third');
+
+    expect(tauriLog.debug).not.toHaveBeenCalled();
+    expect(svc.getDebugBuffer()).toEqual(['first', 'second', 'third']);
+  });
+
+  it('stores the raw message with no ANSI formatting and no JSON.stringify', () => {
+    const svc = makeSvc();
+    svc.debug('plain diagnostic line');
+
+    const [entry] = svc.getDebugBuffer();
+    expect(entry).toBe('plain diagnostic line');
+    expect(entry).not.toMatch(/\x1b\[/);
+    expect(entry.startsWith('{')).toBe(false);
+    expect(entry.startsWith('"')).toBe(false);
+  });
+
+  it('continues to buffer once verbose logging is on, alongside the plugin-log sink', () => {
+    const svc = makeSvc();
+    svc.setVerboseLogging(true);
+
+    svc.debug('visible one');
+    svc.debug('visible two');
+
+    expect(tauriLog.debug).toHaveBeenCalledTimes(2);
+    expect(svc.getDebugBuffer()).toEqual(['visible one', 'visible two']);
+  });
+
+  it('caps the buffer at 500 entries and drops the oldest first', () => {
+    const svc = makeSvc();
+    for (let i = 0; i < 501; i++) {
+      svc.debug(`line-${i}`);
+    }
+
+    const buffer = svc.getDebugBuffer();
+    expect(buffer.length).toBe(500);
+    expect(buffer[0]).toBe('line-1');
+    expect(buffer[buffer.length - 1]).toBe('line-500');
+  });
+
+  it('returns entries in chronological order, oldest first', () => {
+    const svc = makeSvc();
+    svc.debug('a');
+    svc.debug('b');
+    svc.debug('c');
+    expect(svc.getDebugBuffer()).toEqual(['a', 'b', 'c']);
+  });
+});

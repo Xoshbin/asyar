@@ -496,6 +496,7 @@
     {argumentCommandName}
     onArgHintClick={handleArgHintClick}
     oninput={(e) => controller.handleSearchInput(e)}
+    oncompositionend={(e) => controller.handleSearchCompositionEnd(e)}
     onkeydown={keyboard.handleKeydown}
     onclick={() => controller.handleBackClick()}
     oncontextDismiss={() => controller.handleChipDismiss()}

@@ -45,9 +45,14 @@ struct Subscription<K> {
     kinds: HashSet<K>,
 }
 
+/// A core (non-extension) reaction to every dispatch, independent of the
+/// subscription registry. See [`EventHub::observe`].
+type ObserverFn<E> = Box<dyn Fn(&E) + Send + Sync>;
+
 pub struct EventHub<E: HubEvent> {
     subscriptions: Mutex<HashMap<String, Subscription<E::Kind>>>,
     emit: Mutex<Option<EmitFn<E>>>,
+    observers: Mutex<Vec<ObserverFn<E>>>,
 }
 
 impl<E: HubEvent> Default for EventHub<E> {
@@ -61,6 +66,7 @@ impl<E: HubEvent> EventHub<E> {
         Self {
             subscriptions: Mutex::new(HashMap::new()),
             emit: Mutex::new(None),
+            observers: Mutex::new(Vec::new()),
         }
     }
 
@@ -69,6 +75,20 @@ impl<E: HubEvent> EventHub<E> {
     pub fn set_emitter(&self, f: EmitFn<E>) {
         if let Ok(mut guard) = self.emit.lock() {
             *guard = Some(f);
+        }
+    }
+
+    /// Register a core (non-extension) reaction that runs on EVERY dispatch
+    /// of this hub, regardless of the subscription registry. The normal
+    /// extension fan-out in [`Self::dispatch`] only reaches extensions that
+    /// hold a matching subscription and returns early otherwise, so it alone
+    /// can never drive a reaction that must fire whether or not any extension
+    /// cares — e.g. resetting a rescan cooldown on `SystemEvent::Wake`.
+    /// Observers cannot unsubscribe; this is for process-lifetime core wiring
+    /// set up once in `bootstrap`, not a per-session registration.
+    pub fn observe(&self, f: impl Fn(&E) + Send + Sync + 'static) {
+        if let Ok(mut guard) = self.observers.lock() {
+            guard.push(Box::new(f));
         }
     }
 
@@ -115,11 +135,18 @@ impl<E: HubEvent> EventHub<E> {
         Ok(before - guard.len())
     }
 
-    /// Invoked by platform watchers when a concrete event fires. Dedupes
+    /// Invoked by platform watchers when a concrete event fires. Runs every
+    /// registered [`Self::observe`] callback unconditionally, THEN dedupes
     /// per-extension and invokes the emitter once per unique extension that
-    /// has a matching subscription. Silent no-op if no subscriptions match
-    /// or the emitter was never installed.
+    /// has a matching subscription. The extension fan-out is still a no-op
+    /// when no subscriptions match or the emitter was never installed —
+    /// observers do not change that.
     pub fn dispatch(&self, event: E) {
+        if let Ok(guard) = self.observers.lock() {
+            for observer in guard.iter() {
+                observer(&event);
+            }
+        }
         let kind = event.kind();
         let targets: HashSet<String> = match self.subscriptions.lock() {
             Ok(guard) => guard
@@ -201,6 +228,7 @@ pub mod fake {
 
 #[cfg(test)]
 mod tests {
+    use super::fake::RecordingEmitter;
     use super::*;
 
     // A tiny event type defined here so the hub's tests don't depend on any
@@ -229,6 +257,62 @@ mod tests {
 
     fn kinds(ks: &[TestKind]) -> HashSet<TestKind> {
         ks.iter().copied().collect()
+    }
+
+    // ---- observe ----
+    //
+    // Core (non-extension) Rust code sometimes needs to react to every
+    // dispatch of a hub regardless of whether any extension has subscribed —
+    // e.g. file_index resetting its rescan cooldown on SystemEvent::Wake even
+    // when no extension cares about wake events. `dispatch`'s existing
+    // extension fan-out returns early when there are no matching
+    // subscriptions, so that path alone can never drive a core reaction.
+    // `observe` registers a callback that always runs, independent of the
+    // subscription registry and the installed `EmitFn`.
+
+    #[test]
+    fn observer_runs_even_with_no_matching_subscription() {
+        let hub: EventHub<TestEvent> = EventHub::new();
+        let seen = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let seen_clone = seen.clone();
+        hub.observe(move |event| seen_clone.lock().unwrap().push(event.clone()));
+
+        hub.dispatch(TestEvent::A);
+
+        assert_eq!(*seen.lock().unwrap(), vec![TestEvent::A]);
+    }
+
+    #[test]
+    fn observer_runs_for_every_dispatch_alongside_extension_fanout() {
+        let hub: EventHub<TestEvent> = EventHub::new();
+        let rec = RecordingEmitter::<TestEvent>::new();
+        hub.set_emitter(rec.clone().into_emit_fn());
+        hub.subscribe("ext-a", kinds(&[TestKind::A])).unwrap();
+
+        let seen = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let seen_clone = seen.clone();
+        hub.observe(move |event| seen_clone.lock().unwrap().push(event.clone()));
+
+        hub.dispatch(TestEvent::A);
+
+        assert_eq!(*seen.lock().unwrap(), vec![TestEvent::A]);
+        assert_eq!(rec.snapshot(), vec![("ext-a".to_string(), TestEvent::A)]);
+    }
+
+    #[test]
+    fn multiple_observers_all_run() {
+        let hub: EventHub<TestEvent> = EventHub::new();
+        let count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        for _ in 0..3 {
+            let count_clone = count.clone();
+            hub.observe(move |_event| {
+                count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            });
+        }
+
+        hub.dispatch(TestEvent::B);
+
+        assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 3);
     }
 
     #[test]

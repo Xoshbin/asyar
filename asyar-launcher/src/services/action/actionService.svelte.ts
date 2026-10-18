@@ -312,10 +312,18 @@ export class ActionService implements IActionService {
    */
   unregisterAction(actionId: string): void {
     const hadAction = this.allActions.delete(actionId);
-    this.handlerRoles.delete(actionId);
+    const hadRole = this.handlerRoles.delete(actionId);
     if (hadAction) {
       logService.debug(`Unregistered action: ${actionId}`);
       this.updateState();
+    } else if (!hadRole && developerSettingsService.verboseLogging) {
+      // #901 made this path a silent no-op — idempotent re-registration
+      // effects were spamming it on every keystroke. Unconditionally missing
+      // both the action AND its handler role, though, is a real bug class
+      // (typo'd id, double-unregister, extension lifecycle race) rather than
+      // idempotent churn, so it still deserves a warning — just confined to
+      // verbose logging, where it's near-silent for everyone else.
+      logService.warn(`Attempted to unregister non-existent action: ${actionId}`);
     }
   }
 

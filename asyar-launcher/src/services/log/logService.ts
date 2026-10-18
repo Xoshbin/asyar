@@ -4,7 +4,18 @@ import type { ILogService } from 'asyar-sdk/contracts';
 export interface IHostLogService extends ILogService {
   setVerboseLogging(enabled: boolean): void;
   isVerboseLogging(): boolean;
+  /** Snapshot of the debug ring buffer, oldest entry first. */
+  getDebugBuffer(): string[];
 }
+
+/**
+ * Cap on the debug ring buffer. #901 gated `debug()` behind verbose logging
+ * to kill a per-keystroke IPC storm, which also made the DEBUG trail that
+ * diagnosed #876/#877/#878 unavailable unless verbose logging was already on
+ * *before* the bug happened. 500 entries is enough history to cover a bug
+ * report without the buffer itself becoming a memory concern.
+ */
+const DEBUG_BUFFER_CAPACITY = 500;
 
 /**
  * Color codes for terminal output
@@ -44,6 +55,11 @@ export class LogService implements IHostLogService {
   private useColors = true; // Can be toggled for environments without color support
   private useFrames = false; // Can be toggled for environments without box drawing support
   private verbose = false;
+  // Raw debug messages only — no ANSI codes, no frame, no JSON.stringify, and
+  // nothing ever sent over the Tauri IPC bridge. Written on every debug()
+  // call regardless of the verbose gate below, so "Copy diagnostics" has
+  // something to recover even when verbose logging was never turned on.
+  private debugBuffer: string[] = [];
 
   setVerboseLogging(enabled: boolean): void {
     this.verbose = enabled;
@@ -211,12 +227,23 @@ export class LogService implements IHostLogService {
   }
 
   /**
-   * Log debug message
+   * Log debug message. Always records the raw message into the bounded ring
+   * buffer; only formats and reaches the plugin-log sink when verbose logging
+   * is on (unchanged from #901 — this gate stays exactly as it was).
    */
   debug(msg: string): void {
+    this.debugBuffer.push(msg);
+    if (this.debugBuffer.length > DEBUG_BUFFER_CAPACITY) {
+      this.debugBuffer.shift();
+    }
     if (!this.verbose) return;
     const formattedMessage = this.format(msg, 'DEBUG', `${colors.cyan}`, colors.cyan);
     this.tryLog(debug, console.debug, formattedMessage);
+  }
+
+  /** Snapshot of the debug ring buffer, oldest entry first. */
+  getDebugBuffer(): string[] {
+    return [...this.debugBuffer];
   }
 
   /**
