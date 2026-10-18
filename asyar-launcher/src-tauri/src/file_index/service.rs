@@ -27,6 +27,10 @@ pub struct FileIndexState {
     learning: RwLock<LearningCache>,
     config: RwLock<FileIndexConfig>,
     status: Mutex<IndexStatus>,
+    /// When the last full scan finished: the rescan cooldown reference point.
+    /// `Instant` is monotonic; on macOS it excludes sleep, so a wake may keep
+    /// a deferred rescan waiting for at most one additional cooldown window.
+    last_scan_completed: Mutex<Option<std::time::Instant>>,
     /// Bumped on every `search()` call; a query's abort check compares its
     /// captured token against the live value, so a newer keystroke's call
     /// cancels an older in-flight scan instead of racing it to completion.
@@ -63,6 +67,7 @@ impl FileIndexState {
                 snapshot_loaded: false,
                 cap_reached: false,
             }),
+            last_scan_completed: Mutex::new(None),
             query_epoch: AtomicU64::new(0),
         }
     }
@@ -83,6 +88,13 @@ impl FileIndexState {
 
     pub fn status(&self) -> IndexStatus {
         self.status.lock().expect("status lock").clone()
+    }
+
+    pub fn last_scan_completed(&self) -> Option<std::time::Instant> {
+        *self
+            .last_scan_completed
+            .lock()
+            .expect("last scan completed lock")
     }
 
     pub fn learning_boost(&self, query: &str, file_id: u64, now: i64) -> f32 {
@@ -254,9 +266,10 @@ impl FileIndexState {
             cap_reached |= outcome.cap_reached;
             entries.extend(outcome.entries);
         }
-        let scan_ms = start.elapsed().as_millis() as u64;
-
         let index = FileIndex::build(roots, entries, now);
+        // Include index construction: this is where the former serial
+        // per-entry file-id stat pass made rebuilds appear artificially cheap.
+        let scan_ms = start.elapsed().as_millis() as u64;
         let entry_count = index.live_count() as u64;
         *self.index.write().expect("index lock") = index;
         *self.query_cache.lock().expect("query cache lock") = None;
@@ -271,6 +284,10 @@ impl FileIndexState {
             IndexStateKind::Ready
         };
         drop(status);
+        *self
+            .last_scan_completed
+            .lock()
+            .expect("last scan completed lock") = Some(std::time::Instant::now());
 
         WalkOutcome {
             entries: Vec::new(),
@@ -301,6 +318,7 @@ mod tests {
         ScannedEntry {
             path: PathBuf::from(path),
             kind: EntryKind::File,
+            file_id: None,
             mtime,
             hidden: false,
             placeholder: false,
@@ -486,11 +504,29 @@ mod tests {
         assert!(!outcome.cap_reached);
         assert_eq!(state.status().state, IndexStateKind::Ready);
         assert!(state.status().entry_count >= 1);
+        assert!(state.status().last_scan_ms < 60_000);
 
         let r = state.search("hello", &QueryOptions::default(), NOW);
         assert!(r.hits.iter().any(|h| h.name == "hello.txt"));
 
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn run_full_scan_records_its_completion_instant() {
+        let root =
+            std::env::temp_dir().join(format!("fi_service_completed_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("hello.txt"), "hi").unwrap();
+
+        let state = FileIndexState::new(FileIndexConfig::default());
+        assert!(state.last_scan_completed().is_none());
+        state.run_full_scan(vec![root.clone()], vec![], walker::HARD_CAP, NOW);
+        let done = state.last_scan_completed().expect("recorded");
+        assert!(done.elapsed() < std::time::Duration::from_secs(60));
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

@@ -27,6 +27,7 @@ use std::time::Duration;
 use globset::{Glob, GlobBuilder, GlobSet, GlobSetBuilder};
 use notify::{EventKind, RecursiveMode, Watcher};
 
+use super::file_id;
 use super::index::{IndexUpdate, ScannedEntry};
 use super::ranking::now_seconds;
 use super::service::FileIndexState;
@@ -86,6 +87,17 @@ pub fn is_excluded(set: &GlobSet, path: &Path) -> bool {
 pub struct Drained {
     pub paths: Vec<PathBuf>,
     pub rescan: bool,
+}
+
+/// Result of asking the file-index service to handle a full-rescan request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RescanOutcome {
+    /// A scan is now running; clear the coalesced request.
+    Started,
+    /// The request is valid but temporarily rate-limited or already in flight.
+    Deferred,
+    /// File search is disabled; drop the request permanently.
+    Rejected,
 }
 
 /// Pure coalescing core, kept thread-free so the policy is unit-testable:
@@ -149,6 +161,11 @@ impl Coalescer {
         }
     }
 
+    /// Re-arms a drained full-rescan request for the next coalesce window.
+    pub fn requeue_rescan(&mut self) {
+        self.flip_to_rescan();
+    }
+
     /// Replaces (not clears) the set so a storm's capacity is released.
     fn flip_to_rescan(&mut self) {
         self.rescan = true;
@@ -185,6 +202,7 @@ pub fn resolve(path: &Path) -> IndexUpdate {
     IndexUpdate::Upserted(ScannedEntry {
         path: path.to_path_buf(),
         kind,
+        file_id: Some(file_id::derive_from_metadata(path, &meta)),
         mtime,
         hidden: name.starts_with('.'),
         placeholder: false,
@@ -198,6 +216,27 @@ pub struct FileIndexWatcher {
     _watcher: notify::RecommendedWatcher,
     stop_tx: mpsc::Sender<()>,
     flusher: Option<JoinHandle<()>>,
+}
+
+fn flush_once<F, R>(coalescer: &Mutex<Coalescer>, on_updates: &mut F, on_rescan: &R)
+where
+    F: FnMut(Vec<IndexUpdate>),
+    R: Fn() -> RescanOutcome,
+{
+    let drained = match coalescer.lock() {
+        Ok(mut coalescer) => coalescer.drain(),
+        Err(_) => Drained::default(),
+    };
+    if drained.rescan && matches!(on_rescan(), RescanOutcome::Deferred) {
+        if let Ok(mut coalescer) = coalescer.lock() {
+            // A concurrent ingest between drain and requeue is superseded by
+            // the pending full scan, so replacing its paths is intentional.
+            coalescer.requeue_rescan();
+        }
+    }
+    if !drained.paths.is_empty() {
+        on_updates(drained.paths.iter().map(|path| resolve(path)).collect());
+    }
 }
 
 impl Drop for FileIndexWatcher {
@@ -220,7 +259,7 @@ pub fn start_watcher<F, R>(
 ) -> notify::Result<FileIndexWatcher>
 where
     F: FnMut(Vec<IndexUpdate>) + Send + 'static,
-    R: Fn() + Send + 'static,
+    R: Fn() -> RescanOutcome + Send + 'static,
 {
     let coalescer = Arc::new(Mutex::new(Coalescer::new(exclusions)));
     let ingest_side = Arc::clone(&coalescer);
@@ -241,17 +280,7 @@ where
             // Timeout = one coalesce window elapsed → flush; a stop signal
             // (or the sender dropping) ends the thread.
             while let Err(RecvTimeoutError::Timeout) = stop_rx.recv_timeout(COALESCE_WINDOW) {
-                let drained = match coalescer.lock() {
-                    Ok(mut c) => c.drain(),
-                    Err(_) => Drained::default(),
-                };
-                if drained.rescan {
-                    on_rescan();
-                }
-                if drained.paths.is_empty() {
-                    continue;
-                }
-                on_updates(drained.paths.iter().map(|p| resolve(p)).collect());
+                flush_once(&coalescer, &mut on_updates, &on_rescan);
             }
         })
         .map_err(|e| notify::Error::generic(&e.to_string()))?;
@@ -294,7 +323,7 @@ impl FileIndexWatcherHandle {
         state: Arc<FileIndexState>,
         on_rescan: R,
     ) where
-        R: Fn() + Send + 'static,
+        R: Fn() -> RescanOutcome + Send + 'static,
     {
         let mut guard = self.watcher.lock().expect("watcher lock");
         *guard = None;
@@ -533,6 +562,76 @@ mod tests {
     }
 
     #[test]
+    fn requeue_rescan_makes_the_next_drain_report_the_rescan_again() {
+        let mut coalescer = Coalescer::new(build_exclusion_set(&[]));
+        coalescer.ingest(&notify::Event::new(EventKind::Other).set_flag(Flag::Rescan));
+        assert!(coalescer.drain().rescan);
+        coalescer.requeue_rescan();
+        let again = coalescer.drain();
+        assert!(
+            again.rescan,
+            "a requeued rescan survives to the next window"
+        );
+        assert!(again.paths.is_empty());
+    }
+
+    fn pending_rescan() -> Mutex<Coalescer> {
+        let coalescer = Mutex::new(Coalescer::new(build_exclusion_set(&[])));
+        coalescer
+            .lock()
+            .unwrap()
+            .ingest(&notify::Event::new(EventKind::Other).set_flag(Flag::Rescan));
+        coalescer
+    }
+
+    #[test]
+    fn flush_once_requeues_a_deferred_rescan_so_it_retries_next_window() {
+        let coalescer = pending_rescan();
+        let mut noop = |_: Vec<IndexUpdate>| {};
+        flush_once(&coalescer, &mut noop, &|| RescanOutcome::Deferred);
+        assert!(coalescer.lock().unwrap().drain().rescan);
+    }
+
+    #[test]
+    fn flush_once_clears_a_started_rescan() {
+        let coalescer = pending_rescan();
+        let mut noop = |_: Vec<IndexUpdate>| {};
+        flush_once(&coalescer, &mut noop, &|| RescanOutcome::Started);
+        assert!(!coalescer.lock().unwrap().drain().rescan);
+    }
+
+    #[test]
+    fn flush_once_drops_a_rejected_rescan_so_a_disarmed_watcher_cannot_spin() {
+        let coalescer = pending_rescan();
+        let mut noop = |_: Vec<IndexUpdate>| {};
+        flush_once(&coalescer, &mut noop, &|| RescanOutcome::Rejected);
+        assert!(!coalescer.lock().unwrap().drain().rescan);
+    }
+
+    #[test]
+    fn flush_once_still_delivers_resolved_paths() {
+        let root =
+            std::env::temp_dir().join(format!("fi_watcher_flush_once_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("created.txt");
+        fs::write(&path, "x").unwrap();
+        let coalescer = Mutex::new(Coalescer::new(no_exclusions()));
+        coalescer.lock().unwrap().ingest(&create_ev(&path));
+        let mut delivered = Vec::new();
+        flush_once(
+            &coalescer,
+            &mut |updates| delivered.extend(updates),
+            &|| RescanOutcome::Started,
+        );
+        assert!(matches!(
+            delivered.as_slice(),
+            [IndexUpdate::Upserted(entry)] if entry.path == path
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn resolve_existing_file_yields_upserted_with_metadata() {
         let id = std::process::id();
         let p = std::env::temp_dir().join(format!("fi_watcher_resolve_{id}.txt"));
@@ -543,6 +642,7 @@ mod tests {
                 assert!(matches!(e.kind, EntryKind::File));
                 assert!(e.mtime > 0);
                 assert!(!e.hidden);
+                assert_eq!(e.file_id, Some(crate::file_index::file_id::derive_u64(&p)));
             }
             IndexUpdate::Removed(_) => panic!("existing file must upsert"),
         }
@@ -570,11 +670,17 @@ mod tests {
         let link = dir.join("link");
         std::os::unix::fs::symlink(&target, &link).unwrap();
         match resolve(&link) {
-            IndexUpdate::Upserted(e) => assert!(
-                matches!(e.kind, EntryKind::Symlink),
-                "symlink must keep Symlink kind (walker parity), got {:?}",
-                e.kind
-            ),
+            IndexUpdate::Upserted(e) => {
+                assert!(
+                    matches!(e.kind, EntryKind::Symlink),
+                    "symlink must keep Symlink kind (walker parity), got {:?}",
+                    e.kind
+                );
+                assert_eq!(
+                    e.file_id,
+                    Some(crate::file_index::file_id::derive_u64(&link))
+                );
+            }
             IndexUpdate::Removed(_) => panic!("symlink exists"),
         }
         let _ = fs::remove_dir_all(&dir);
@@ -599,6 +705,7 @@ mod tests {
             move |updates| received_cb.lock().unwrap().extend(updates),
             move || {
                 rescans_cb.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                RescanOutcome::Started
             },
         )
         .expect("watcher starts");
@@ -657,7 +764,7 @@ mod tests {
             std::slice::from_ref(&root),
             no_exclusions(),
             move |updates| received_cb.lock().unwrap().extend(updates),
-            || {},
+            || RescanOutcome::Started,
         )
         .expect("watcher starts");
         await_armed(&root, &received);
@@ -704,7 +811,9 @@ mod tests {
     fn rearm_with_empty_roots_disarms() {
         let handle = FileIndexWatcherHandle::new();
         let state = Arc::new(FileIndexState::new(FileIndexConfig::default()));
-        handle.rearm(Vec::new(), build_exclusion_set(&[]), state, || {});
+        handle.rearm(Vec::new(), build_exclusion_set(&[]), state, || {
+            RescanOutcome::Rejected
+        });
         assert!(handle.watcher.lock().unwrap().is_none());
     }
 }
