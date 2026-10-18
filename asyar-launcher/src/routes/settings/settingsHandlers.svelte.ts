@@ -16,6 +16,7 @@ import { permissionConsentService } from '../../services/extension/permissionCon
 import type { AppSettings, PopToRootDelay } from '../../services/settings/types/AppSettingsType';
 import type { EscapeBehavior } from '../../lib/keyboard/escapeBehavior';
 import { logService } from '../../services/log/logService';
+import { initVerboseLoggingSync } from '../../services/log/verboseLoggingSync.svelte';
 import { agentService } from '../../built-in-features/agents/agentService.svelte';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
 import type { ExtensionCommand, PreferenceDeclaration } from 'asyar-sdk/contracts';
@@ -169,6 +170,7 @@ export class SettingsHandler {
 
       // Initialize settings service
       const success = await settingsService.init();
+      initVerboseLoggingSync();
 
       if (!success) {
         logService.error('Settings initialization failed');
