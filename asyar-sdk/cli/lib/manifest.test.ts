@@ -738,7 +738,7 @@ describe('manifest validation — permissions', () => {
     it(`accepts the launcher-gated permission "${perm}"`, () => {
       const m: AsyarManifest = {
         ...viewOnly,
-        permissions: [perm],
+        permissions: perm === 'network:lan' ? ['network', perm] : [perm],
       };
       const errors = validateManifest(m, './');
       expect(

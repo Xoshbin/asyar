@@ -336,7 +336,9 @@
       "lan_no_devices_found": "No devices found on your network.",
       "lan_os_prompt_hint": "No devices found. If prompted, allow Asyar to access the local network and scan again.",
       "lan_tap_to_allow": "Tap to allow",
-      "lan_added": "Added"
+      "lan_added": "Added",
+      "lan_via_ssdp": "via SSDP",
+      "lan_via_mdns": "via mDNS"
     },
     "ai": {
       "google_search": "Google Search",

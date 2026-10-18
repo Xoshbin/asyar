@@ -14,6 +14,13 @@ export interface DiscoveredDevice {
   host: string;
   port: number;
   protocol: 'ssdp' | 'mdns';
+  serviceType: string;
+}
+
+export interface LanDevice {
+  host: string;
+  port: number;
+  label: string;
 }
 
 export async function lanHostsList(extensionId: string): Promise<LanAllowedHost[]> {
@@ -39,4 +46,8 @@ export async function lanHostsRemove(
 
 export async function scanLanDevices(): Promise<DiscoveredDevice[]> {
   return invokeRaw<DiscoveredDevice[]>('scan_lan_devices');
+}
+
+export async function lanDevicesForCaller(callerExtensionId: string | null): Promise<LanDevice[]> {
+  return invokeRaw<LanDevice[]>('lan_devices_for_caller', { callerExtensionId });
 }

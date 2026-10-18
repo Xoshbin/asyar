@@ -41,6 +41,16 @@ function firePush(eventListeners: Map<string, Set<(payload: any) => void>>, payl
 }
 
 describe('NetworkServiceProxy', () => {
+  it('listLanDevices invokes the approved-device route', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    mockInvoke.mockResolvedValueOnce([{ host: '192.168.1.50', port: 1400, label: 'Living Room' }]);
+
+    await expect(proxy.listLanDevices()).resolves.toEqual([
+      { host: '192.168.1.50', port: 1400, label: 'Living Room' },
+    ]);
+    expect(mockInvoke.mock.calls[0].slice(0, 2)).toEqual(['network:listLanDevices', {}]);
+  });
+
   it('routes_secretRefs_to_fetchWithSecrets', async () => {
     const { proxy, mockInvoke } = makeProxy();
     const options = {

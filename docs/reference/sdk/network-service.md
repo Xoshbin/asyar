@@ -69,10 +69,10 @@ if (!created.ok) {
 }
 ```
 
-### Local-network HTTP
+### Local-network access
 
 The ordinary `fetch()` method can reach a local device when the extension also
-declares `network:lan` and the exact endpoint scope:
+declares `network:lan`. Endpoint scopes may be declared in the manifest:
 
 ```json
 {
@@ -86,7 +86,25 @@ declares `network:lan` and the exact endpoint scope:
 No SDK method changes are needed. Rust resolves and pins the target, checks all
 DNS answers against the declared host/CIDR and port, and repeats validation for
 redirects. Loopback, link-local, and cloud metadata targets stay blocked.
-UDP/multicast discovery and WebSocket LAN access are not included.
+The `permissionArgs["network:lan"]` entry is optional. Users can instead approve
+endpoints in Settings → Extensions → Local network devices. HTTP and WebSocket
+access to approved endpoints is included. Raw UDP/multicast discovery is not;
+discovery is performed by the launcher, not by extensions.
+
+#### List user-approved LAN devices
+
+```typescript
+const devices = await network.listLanDevices();
+for (const device of devices) {
+  await network.fetch(`http://${device.host}:${device.port}/status`);
+}
+```
+
+`listLanDevices(): Promise<LanDevice[]>` requires `network:lan` and returns the
+`{ host, port, label }` endpoints the user approved in Settings → Extensions →
+Local network devices. Manifest `permissionArgs` entries are not included,
+because the extension already owns its manifest. The method returns `[]` when
+nothing has been approved. Extensions cannot trigger a LAN scan.
 
 ### Secret references
 

@@ -227,6 +227,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'network:wsConnect': ['socketId', 'url', 'headers'],
   'network:wsSend': ['socketId', 'message'],
   'network:wsClose': ['socketId', 'code', 'reason'],
+  'network:listLanDevices': [],
 
   // files
   'files:search': ['query', 'opts'],

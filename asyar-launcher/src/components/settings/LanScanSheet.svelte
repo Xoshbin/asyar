@@ -2,6 +2,8 @@
   import { scanLanDevices, lanHostsAdd } from '../../lib/ipc/lanCommands';
   import type { DiscoveredDevice, LanAllowedHost } from '../../lib/ipc/lanCommands';
   import { t } from '../../services/i18n';
+  import Badge from '../base/Badge.svelte';
+  import { serviceTypeLabel } from './serviceTypeLabel';
 
   interface Props {
     extensionId: string;
@@ -59,13 +61,26 @@
   {:else}
     {#each devices as device (`${device.host}:${device.port}`)}
       {@const key = `${device.host}:${device.port}`}
+      {@const typeLabel = serviceTypeLabel(device.protocol, device.serviceType)}
       <button
         class="device-row"
         onclick={() => selectDevice(device)}
         disabled={addedHosts.has(key)}
       >
-        <span class="device-name">{device.name}</span>
-        <span class="device-addr">{device.host}:{device.port}</span>
+        <span class="device-details">
+          <span class="device-name">{device.name}</span>
+          <span class="device-meta">
+            <Badge
+              text={t(
+                device.protocol === 'ssdp'
+                  ? 'settings.extensions.lan_via_ssdp'
+                  : 'settings.extensions.lan_via_mdns',
+              )}
+            />
+            {#if typeLabel}<Badge text={typeLabel} mono />{/if}
+            <span class="device-addr">{device.host}:{device.port}</span>
+          </span>
+        </span>
         {#if addedHosts.has(key)}
           <span class="added-badge">{t('settings.extensions.lan_added')}</span>
         {:else}
@@ -106,8 +121,20 @@
     text-align: left;
   }
   .device-name {
-    flex: 1;
     font-weight: 500;
+  }
+  .device-details {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .device-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
   }
   .device-addr {
     font-family: var(--font-mono);

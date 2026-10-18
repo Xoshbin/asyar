@@ -1,8 +1,13 @@
 import { fetchUrl, fetchUrlWithSecrets, wsConnect, wsSend, wsClose } from '../../lib/ipc/commands';
+import { lanDevicesForCaller, type LanDevice } from '../../lib/ipc/lanCommands';
 
 type IframeRole = 'view' | 'worker';
 
 export class NetworkService {
+  async listLanDevices(callerExtensionId: string | null): Promise<LanDevice[]> {
+    return lanDevicesForCaller(callerExtensionId);
+  }
+
   async fetch(
     callerExtensionId: string | null,
     url: string,

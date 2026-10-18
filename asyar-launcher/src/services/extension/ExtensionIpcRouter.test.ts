@@ -474,6 +474,16 @@ describe('ExtensionIpcRouter — originRole injection for WebSocket pushes', () 
       'worker',
     );
   });
+
+  it('injects the caller id into network.listLanDevices', async () => {
+    const listLanDevices = vi.fn().mockResolvedValue([]);
+    const registry = { network: { listLanDevices } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)('asyar:api:network:listLanDevices', {}, 'org.test', false, 'worker');
+
+    expect(listLanDevices).toHaveBeenCalledWith('org.test');
+  });
 });
 
 describe('ExtensionIpcRouter — originRole injection for AI streams', () => {

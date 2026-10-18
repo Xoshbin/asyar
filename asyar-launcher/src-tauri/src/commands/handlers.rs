@@ -435,6 +435,7 @@ macro_rules! system_commands {
                 $crate::network::commands::lan_hosts_add,
                 $crate::network::commands::lan_hosts_remove,
                 $crate::network::commands::scan_lan_devices,
+                $crate::network::commands::lan_devices_for_caller,
             )
         )
     };

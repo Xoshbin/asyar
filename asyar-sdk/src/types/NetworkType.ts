@@ -22,6 +22,12 @@ export interface NetworkResponse {
   ok: boolean;
 }
 
+export interface LanDevice {
+  host: string;
+  port: number;
+  label: string;
+}
+
 export interface WebSocketOptions {
   headers?: Record<string, string>;
 }
@@ -37,6 +43,7 @@ export interface IWebSocketHandle {
 }
 
 export interface INetworkService {
+  listLanDevices(): Promise<LanDevice[]>;
   fetch(url: string, options?: RequestOptions): Promise<NetworkResponse>;
   connectWebSocket(url: string, options?: WebSocketOptions): Promise<IWebSocketHandle>;
 }

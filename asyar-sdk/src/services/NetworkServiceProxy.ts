@@ -4,10 +4,15 @@ import type {
   NetworkResponse,
   WebSocketOptions,
   IWebSocketHandle,
+  LanDevice,
 } from '../types/NetworkType';
 import { BaseServiceProxy } from './BaseServiceProxy';
 
 export class NetworkServiceProxy extends BaseServiceProxy implements INetworkService {
+  async listLanDevices(): Promise<LanDevice[]> {
+    return this.broker.invoke('network:listLanDevices', {}) as Promise<LanDevice[]>;
+  }
+
   async fetch(url: string, options?: RequestOptions): Promise<NetworkResponse> {
     const { secretRefs: _secretRefs, ...plainOptions } = options ?? {};
     const invokePromise = options?.secretRefs?.length

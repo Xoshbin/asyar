@@ -71,7 +71,7 @@
         onclick={() => handleRemove(h.host, h.port)}
         aria-label={t('common.delete')}
       >
-        <Icon name="close" size={12} />
+        <Icon name="trash" size={14} />
       </button>
     </div>
   {/each}

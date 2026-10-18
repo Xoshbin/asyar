@@ -1,8 +1,42 @@
 use crate::error::AppError;
 use crate::network::discovery::DiscoveredDevice;
+use crate::permissions::ExtensionPermissionRegistry;
 use crate::storage::lan_allowed_hosts::{self, LanAllowedHost};
 use crate::storage::DataStore;
 use tauri::State;
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LanDeviceRef {
+    pub host: String,
+    pub port: u16,
+    pub label: String,
+}
+
+fn project_lan_devices(rows: &[LanAllowedHost]) -> Vec<LanDeviceRef> {
+    rows.iter()
+        .map(|row| LanDeviceRef {
+            host: row.host.clone(),
+            port: row.port,
+            label: row.label.clone(),
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn lan_devices_for_caller(
+    caller_extension_id: Option<String>,
+    registry: State<'_, ExtensionPermissionRegistry>,
+    store: State<'_, DataStore>,
+) -> Result<Vec<LanDeviceRef>, AppError> {
+    registry.check(&caller_extension_id, "network:lan")?;
+    let Some(extension_id) = caller_extension_id else {
+        return Ok(Vec::new());
+    };
+    let conn = store.conn()?;
+    let rows = lan_allowed_hosts::list(&conn, &extension_id)?;
+    Ok(project_lan_devices(&rows))
+}
 
 /// List user-approved LAN hosts for an extension.
 /// Called only from the Settings window (trusted Tauri window).
@@ -63,6 +97,40 @@ pub async fn scan_lan_devices() -> Result<Vec<DiscoveredDevice>, AppError> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn lan_device_ref_serialises_only_host_port_label() {
+        let json = serde_json::to_value(LanDeviceRef {
+            host: "192.168.1.50".into(),
+            port: 1400,
+            label: "Living Room".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({ "host": "192.168.1.50", "port": 1400, "label": "Living Room" })
+        );
+    }
+
+    #[test]
+    fn lan_device_refs_are_projected_from_storage_rows() {
+        let rows = vec![LanAllowedHost {
+            id: "row-1".into(),
+            extension_id: "org.test".into(),
+            host: "192.168.1.50".into(),
+            port: 1400,
+            label: "Living Room".into(),
+            created_at: 1_700_000_000,
+        }];
+        let refs = project_lan_devices(&rows);
+        assert_eq!(refs.len(), 1);
+        assert_eq!(
+            (refs[0].host.as_str(), refs[0].port),
+            ("192.168.1.50", 1400)
+        );
+    }
+
     #[tokio::test]
     async fn add_valid_hostname_succeeds() {
         let result =

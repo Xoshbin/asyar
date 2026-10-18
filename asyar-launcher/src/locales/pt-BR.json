@@ -336,7 +336,9 @@
       "lan_no_devices_found": "Nenhum dispositivo encontrado na sua rede.",
       "lan_os_prompt_hint": "Nenhum dispositivo encontrado. Se solicitado, permita que o Asyar acesse a rede local e busque novamente.",
       "lan_tap_to_allow": "Toque para permitir",
-      "lan_added": "Adicionado"
+      "lan_added": "Adicionado",
+      "lan_via_ssdp": "via SSDP",
+      "lan_via_mdns": "via mDNS"
     },
     "ai": {
       "google_search": "Pesquisa Google",

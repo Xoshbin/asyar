@@ -336,7 +336,9 @@
       "lan_no_devices_found": "未在網路上探索任何裝置。",
       "lan_os_prompt_hint": "未探索任何裝置。若出現系統提示，請允許 Asyar 存取區域網路後重新掃描。",
       "lan_tap_to_allow": "點選以允許",
-      "lan_added": "已新增"
+      "lan_added": "已新增",
+      "lan_via_ssdp": "透過 SSDP",
+      "lan_via_mdns": "透過 mDNS"
     },
     "ai": {
       "google_search": "Google 搜尋",
