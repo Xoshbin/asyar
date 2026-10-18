@@ -9,6 +9,7 @@ const items = vi.hoisted((): Record<string, any> => ({
   text: { id: 'text', type: 'text', content: 'hello', createdAt: 0 },
   img: { id: 'img', type: 'image', content: '/cache/big.png', createdAt: 0 },
   img2: { id: 'img2', type: 'image', content: '/cache/other.png', createdAt: 0 },
+  url: { id: 'url', type: 'text', content: 'https://example.com/page', createdAt: 0 },
 }));
 
 const pendingReads = new Map<string, (data: Uint8Array) => void>();
@@ -68,6 +69,10 @@ vi.mock('../../lib/ipc/bridgeEvents', () => ({
   appListen: vi.fn().mockResolvedValue(() => {}),
 }));
 
+vi.mock('./urlFetcher', () => ({
+  fetchRawHtml: vi.fn().mockResolvedValue({ status: 'ok', html: '<html>preview</html>' }),
+}));
+
 import DefaultView from './DefaultView.svelte';
 import { clipboardViewState } from './state.svelte';
 
@@ -90,23 +95,29 @@ async function finishRead(path: string) {
   await flush();
 }
 
+class MockURL extends URL {
+  static createObjectURL = vi.fn();
+  static revokeObjectURL = vi.fn();
+}
+
 describe('DefaultView image preview', () => {
   let urlCount = 0;
-  const createObjectURL = vi.fn(() => `blob:test/${++urlCount}`);
-  const revokeObjectURL = vi.fn();
 
   beforeEach(() => {
     urlCount = 0;
-    pendingReads.clear();
     mockReadFile.mockClear();
-    createObjectURL.mockClear();
-    revokeObjectURL.mockClear();
-    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }));
-    clipboardViewState.selectedItemId = null as any;
+    MockURL.createObjectURL.mockReset().mockImplementation(() => `blob:test/${++urlCount}`);
+    MockURL.revokeObjectURL.mockReset();
+    vi.stubGlobal('URL', MockURL);
+    clipboardViewState.reset();
+    pendingReads.clear();
   });
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
+    clipboardViewState.reset();
+    pendingReads.clear();
   });
 
   it('ignores an image read that finishes after the selection moved on', async () => {
@@ -117,7 +128,7 @@ describe('DefaultView image preview', () => {
     await select('text');
     await finishRead('/cache/big.png');
 
-    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(MockURL.createObjectURL).not.toHaveBeenCalled();
   });
 
   it('only shows the latest of two overlapping image reads', async () => {
@@ -128,7 +139,7 @@ describe('DefaultView image preview', () => {
     await finishRead('/cache/other.png');
     await finishRead('/cache/big.png');
 
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(MockURL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(container.querySelector('img[src="blob:test/1"]')).not.toBeNull();
   });
 
@@ -136,11 +147,11 @@ describe('DefaultView image preview', () => {
     const { unmount } = render(DefaultView);
     await select('img');
     await finishRead('/cache/big.png');
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(MockURL.createObjectURL).toHaveBeenCalledTimes(1);
 
     unmount();
 
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:test/1');
+    expect(MockURL.revokeObjectURL).toHaveBeenCalledWith('blob:test/1');
   });
 
   it('does not create a blob URL for a read that finishes after unmount', async () => {
@@ -150,6 +161,21 @@ describe('DefaultView image preview', () => {
 
     await finishRead('/cache/big.png');
 
-    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(MockURL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('revokes the rendered URL blob URL on unmount', async () => {
+    clipboardViewState.showRenderedHtml = true;
+    clipboardViewState.networkService = { fetch: vi.fn() } as any;
+    const { unmount } = render(DefaultView);
+
+    await select('url');
+
+    expect(MockURL.createObjectURL).toHaveBeenCalledTimes(1);
+    const urlBlobUrl = MockURL.createObjectURL.mock.results[0].value;
+
+    unmount();
+
+    expect(MockURL.revokeObjectURL).toHaveBeenCalledWith(urlBlobUrl);
   });
 });

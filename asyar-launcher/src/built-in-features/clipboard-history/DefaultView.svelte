@@ -270,6 +270,8 @@
     if (urlBlobUrl) URL.revokeObjectURL(urlBlobUrl);
     currentImagePath = '';
     currentFetchedUrl = '';
+    fileThumbnails = {};
+    currentFilesContent = '';
   });
 
   // Fetch URL content when a URL item is selected
