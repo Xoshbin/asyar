@@ -357,6 +357,23 @@ pub fn init_daemons(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         let app_handle_for_events = app.handle().clone();
         let hub: tauri::State<'_, Arc<crate::system_events::SystemEventsHub>> = app.state();
         let hub_arc: Arc<crate::system_events::SystemEventsHub> = hub.inner().clone();
+
+        // Core reaction to wake, independent of whether any extension has
+        // subscribed to wake events (the per-extension fan-out below is a
+        // no-op with zero subscribers, so it alone could never drive this).
+        // `Instant` excludes sleep on macOS, so without this the file index's
+        // rescan cooldown can look unexpired right after a long sleep —
+        // exactly when the index is most stale and a rescan matters most.
+        let file_index_state_for_wake = app
+            .state::<Arc<crate::file_index::service::FileIndexState>>()
+            .inner()
+            .clone();
+        hub_arc.observe(move |event| {
+            if matches!(event, crate::system_events::SystemEvent::Wake) {
+                file_index_state_for_wake.clear_last_scan_completed();
+            }
+        });
+
         hub_arc.set_emitter(Box::new(move |extension_id, event| {
             let payload = serde_json::json!({
                 "extensionId": extension_id,

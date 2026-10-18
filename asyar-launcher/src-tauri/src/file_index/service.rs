@@ -97,6 +97,22 @@ impl FileIndexState {
             .expect("last scan completed lock")
     }
 
+    /// Reset to "never scanned" so `should_start_rescan`'s cooldown check
+    /// (file_index/commands.rs) starts the next rescan immediately instead of
+    /// waiting out whatever's left of the 30 s cooldown window.
+    ///
+    /// `Instant` is monotonic and excludes sleep on macOS, so after an
+    /// overnight sleep this field still looks recent in `Instant` terms even
+    /// though real time moved far more — exactly when the index is most
+    /// stale. Called from the `SystemEvent::Wake` observer wired in
+    /// `bootstrap::services`.
+    pub fn clear_last_scan_completed(&self) {
+        *self
+            .last_scan_completed
+            .lock()
+            .expect("last scan completed lock") = None;
+    }
+
     pub fn learning_boost(&self, query: &str, file_id: u64, now: i64) -> f32 {
         self.learning
             .read()
@@ -525,6 +541,32 @@ mod tests {
         state.run_full_scan(vec![root.clone()], vec![], walker::HARD_CAP, NOW);
         let done = state.last_scan_completed().expect("recorded");
         assert!(done.elapsed() < std::time::Duration::from_secs(60));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn clear_last_scan_completed_resets_to_none() {
+        // `Instant` is monotonic and excludes sleep on macOS, so after an
+        // overnight sleep `last_scan_completed` still looks recent even though
+        // wall-clock time has moved far more. That lets a post-wake rescan sit
+        // in the cooldown window when the index is at its most stale. Clearing
+        // the field on wake forces `should_start_rescan`'s cooldown check
+        // (file_index/commands.rs) to treat it as "never scanned" and start
+        // immediately.
+        let root =
+            std::env::temp_dir().join(format!("fi_service_wake_reset_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("hello.txt"), "hi").unwrap();
+
+        let state = FileIndexState::new(FileIndexConfig::default());
+        state.run_full_scan(vec![root.clone()], vec![], walker::HARD_CAP, NOW);
+        assert!(state.last_scan_completed().is_some());
+
+        state.clear_last_scan_completed();
+
+        assert!(state.last_scan_completed().is_none());
 
         let _ = std::fs::remove_dir_all(root);
     }

@@ -155,6 +155,69 @@ describe('createSearchHandlers', () => {
     expect(state.queryHistory.reset).not.toHaveBeenCalled();
   });
 
+  // IME commit. `handleSearchInput` drops any event carrying
+  // `isComposing: true` so intermediate composition state never reaches the
+  // search, but WebKit is inconsistent about the COMMITTING event: where it
+  // sets `isComposing: true` on it (or emits no trailing `input` at all), the
+  // committed text would never be published. zh-CN and Japanese are shipped
+  // locales, so `compositionend` is the backstop. Both orderings must work.
+
+  function compositionEvent(value: string) {
+    return { target: { value } } as unknown as CompositionEvent;
+  }
+
+  it('publishes the committed IME text when no trailing input event follows', () => {
+    const state = makeMockState();
+    state.localSearchValue = '';
+    searchStores.query = '';
+    const handlers = createSearchHandlers(state);
+
+    // The committing input event itself carries isComposing: true, so the
+    // input handler correctly ignores it...
+    handlers.handleSearchInput({
+      target: { value: '中文' },
+      isComposing: true,
+    } as unknown as InputEvent);
+    expect(state.localSearchValue).toBe('');
+
+    // ...and compositionend is the only thing that can publish it.
+    handlers.handleSearchCompositionEnd(compositionEvent('中文'));
+
+    expect(state.localSearchValue).toBe('中文');
+    expect(searchStores.query).toBe('中文');
+  });
+
+  it('does not re-publish when a trailing non-composing input already committed', () => {
+    const state = makeMockState();
+    state.localSearchValue = '';
+    searchStores.query = '';
+    const handlers = createSearchHandlers(state);
+
+    handlers.handleSearchInput({
+      target: { value: '中文' },
+      isComposing: false,
+    } as unknown as InputEvent);
+    expect(state.localSearchValue).toBe('中文');
+    const resetCalls = state.queryHistory.reset.mock.calls.length;
+
+    handlers.handleSearchCompositionEnd(compositionEvent('中文'));
+
+    expect(state.localSearchValue).toBe('中文');
+    expect(searchStores.query).toBe('中文');
+    expect(state.queryHistory.reset.mock.calls.length).toBe(resetCalls);
+  });
+
+  it('publishes an IME commit that clears the box', () => {
+    const state = makeMockState();
+    state.localSearchValue = 'draft';
+    searchStores.query = 'draft';
+
+    createSearchHandlers(state).handleSearchCompositionEnd(compositionEvent(''));
+
+    expect(state.localSearchValue).toBe('');
+    expect(searchStores.query).toBe('');
+  });
+
   it('typing cancels a pending recall through the real input handler', async () => {
     let resolve!: (entries: string[]) => void;
     const history = new QueryHistory({

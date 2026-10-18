@@ -48,6 +48,7 @@
     onArgExit,
     onkeydown,
     oninput,
+    oncompositionend,
   }: {
     value?: string;
     showBack?: boolean;
@@ -89,6 +90,8 @@
     onArgExit?: () => void;
     onkeydown?: (e: KeyboardEvent) => void;
     oninput?: (e: Event) => void;
+    /** IME commit backstop — `oninput` alone can miss the committed text. */
+    oncompositionend?: (e: CompositionEvent) => void;
   } = $props();
 
   let prevContextId = $state<string | null>(null);
@@ -341,6 +344,7 @@
           unstyled
           class="search-input-clean"
           {oninput}
+          {oncompositionend}
           onkeydown={handleQueryKeydown}
           onfocus={() => onArgFieldsBlur?.()}
         />

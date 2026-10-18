@@ -252,7 +252,7 @@ impl BrowserService {
             .map(crate::browser::types::BrowserKey::from_id);
         let connected = bridge.connections.list_connected().await;
 
-        match resolve_open_strategy(target_key, &connected) {
+        match resolve_open_strategy(target_key.clone(), &connected) {
             OpenStrategy::Companion(key) => {
                 bridge
                     .connections
@@ -266,7 +266,10 @@ impl BrowserService {
                         std::time::Duration::from_secs(5),
                     )
                     .await?;
-                crate::browser::activation::activate(&key);
+                crate::browser::activation::activate(&resolve_activation_key(
+                    target_key.as_ref(),
+                    &key,
+                ));
                 Ok(())
             }
             OpenStrategy::OsDefault => {
@@ -278,6 +281,18 @@ impl BrowserService {
                     .map_err(|e| format!("OS opener failed: {}", e))
             }
             OpenStrategy::ErrorTargetUnreachable => {
+                // Diagnostic (see docs/superpowers/plans/
+                // browser-companion-and-search-hardening.md, T1): the target key
+                // comes from a disk-scanned bookmark/history row while the
+                // connected keys are client-supplied at the companion handshake,
+                // so the two label sets can disagree (e.g. Arc reporting
+                // `chrome`). Printing both makes that mismatch visible in a
+                // user-pasted log instead of only surfacing the generic error.
+                log::warn!(
+                    "[browser] open_url target unreachable: requested {}, connected [{}]",
+                    describe_target(target_key.as_ref()),
+                    describe_keys(&connected),
+                );
                 Err("requested browser has no connected companion".to_string())
             }
         }
@@ -365,15 +380,34 @@ impl BrowserService {
         text: String,
         target: Option<crate::browser::types::BrowserId>,
     ) -> Result<(), String> {
-        let key = match target {
-            Some(id) => crate::browser::types::BrowserKey::from_id(&id),
-            None => bridge
-                .connections
-                .list_connected()
-                .await
-                .into_iter()
-                .next()
-                .ok_or_else(|| "no companion connected".to_string())?,
+        // Same variant-compatibility routing as `open_url` (T2): a target's
+        // variant comes from the disk-scanned profile or the paired-browser
+        // setting, while a connected key's variant is the companion's
+        // self-reported label, which Arc masks as Chrome's. Building the key
+        // directly from `target` and handing it to `send_req` — the previous
+        // behaviour here — skipped that reconciliation entirely, so an Arc
+        // target was routed to a connection that was never registered under
+        // that label and failed beneath this function instead of through the
+        // same diagnosable `ErrorTargetUnreachable` path.
+        let target_key = target
+            .as_ref()
+            .map(crate::browser::types::BrowserKey::from_id);
+        let connected = bridge.connections.list_connected().await;
+        let key = match resolve_open_strategy(target_key.clone(), &connected) {
+            OpenStrategy::Companion(key) => key,
+            OpenStrategy::OsDefault => {
+                // No target requested and nothing connected — search has no
+                // OS-default fallback the way opening a URL does.
+                return Err("no companion connected".to_string());
+            }
+            OpenStrategy::ErrorTargetUnreachable => {
+                log::warn!(
+                    "[browser] search_web target unreachable: requested {}, connected [{}]",
+                    describe_target(target_key.as_ref()),
+                    describe_keys(&connected),
+                );
+                return Err("requested browser has no connected companion".to_string());
+            }
         };
         bridge
             .connections
@@ -384,7 +418,7 @@ impl BrowserService {
                 std::time::Duration::from_secs(5),
             )
             .await?;
-        crate::browser::activation::activate(&key);
+        crate::browser::activation::activate(&resolve_activation_key(target_key.as_ref(), &key));
         Ok(())
     }
 
@@ -434,8 +468,44 @@ pub enum OpenStrategy {
     ErrorTargetUnreachable,
 }
 
+/// `family/variant` rendering of a browser key, for diagnostics.
+pub fn describe_key(key: &crate::browser::types::BrowserKey) -> String {
+    format!(
+        "{}/{}",
+        crate::browser::types::family_wire(key.family),
+        key.variant
+    )
+}
+
+/// `describe_key` over a slice, comma-separated. Empty slice renders as `""`.
+pub fn describe_keys(keys: &[crate::browser::types::BrowserKey]) -> String {
+    keys.iter().map(describe_key).collect::<Vec<_>>().join(", ")
+}
+
+/// `describe_key` for an optional target; `None` renders as `<none>`.
+fn describe_target(key: Option<&crate::browser::types::BrowserKey>) -> String {
+    key.map(describe_key)
+        .unwrap_or_else(|| "<none>".to_string())
+}
+
 /// Decide how to open a URL given the requested target (if any) and the set of
 /// currently-connected companion browsers. Pure — no I/O, fully unit-testable.
+///
+/// The two sides of the comparison are labelled by different authorities, so
+/// exact `(family, variant)` equality is too strict. A target key's variant is
+/// the on-disk profile scanner's label (`paths.rs` — Arc profiles are `"arc"`),
+/// while a connected key's variant is client-supplied at the companion
+/// handshake. The Chromium companion derives it from the User-Agent, which Arc
+/// masks as Chrome's exactly, and its Arc marker probe is best-effort: it fails
+/// open to `"chrome"` whenever no scriptable http(s) page is available
+/// (`browser-companions/chromium/src/variant.ts`). Matching on equality alone
+/// therefore stranded every disk-sourced Arc row on `ErrorTargetUnreachable`.
+///
+/// So: an exact match wins; otherwise a *sole* connected companion in the same
+/// family takes the request, which is unambiguous because only one browser of
+/// that family has a live connection. Two or more same-family companions with
+/// no variant match is genuinely ambiguous — error rather than open the URL in
+/// a browser the user did not ask for. The family boundary is never crossed.
 pub fn resolve_open_strategy(
     target: Option<crate::browser::types::BrowserKey>,
     connected: &[crate::browser::types::BrowserKey],
@@ -443,15 +513,38 @@ pub fn resolve_open_strategy(
     match target {
         Some(key) => {
             if connected.contains(&key) {
-                OpenStrategy::Companion(key)
-            } else {
-                OpenStrategy::ErrorTargetUnreachable
+                return OpenStrategy::Companion(key);
+            }
+            let mut same_family = connected.iter().filter(|k| k.family == key.family);
+            match (same_family.next(), same_family.next()) {
+                (Some(only), None) => OpenStrategy::Companion(only.clone()),
+                _ => OpenStrategy::ErrorTargetUnreachable,
             }
         }
         None => match connected.first() {
             Some(k) => OpenStrategy::Companion(k.clone()),
             None => OpenStrategy::OsDefault,
         },
+    }
+}
+
+/// Which browser application to bring to the macOS foreground once a companion
+/// has handled the open. Pure, so the policy is unit-testable.
+///
+/// When the caller named a target in the same family, that variant wins: it
+/// came from the on-disk profile scan, whereas the companion's own variant is
+/// the self-reported label that can be wrong in exactly the Arc-masked-as-
+/// Chrome case [`resolve_open_strategy`] compensates for. Without this, an Arc
+/// row routed through a `"chrome"`-labelled companion would raise Chrome.
+/// `activation::choose_app_to_activate` still refuses to launch anything that
+/// is not already running, so a wrong guess here degrades to doing nothing.
+pub fn resolve_activation_key(
+    target: Option<&crate::browser::types::BrowserKey>,
+    companion: &crate::browser::types::BrowserKey,
+) -> crate::browser::types::BrowserKey {
+    match target {
+        Some(t) if t.family == companion.family => t.clone(),
+        _ => companion.clone(),
     }
 }
 
@@ -1005,6 +1098,104 @@ mod tests {
         assert!(matches!(strat, OpenStrategy::ErrorTargetUnreachable));
     }
 
+    // ---- variant-compatibility routing ----
+    //
+    // A target key's variant comes from the on-disk profile scan ("arc"), while
+    // a connected key's variant is client-supplied at the companion handshake.
+    // The Chromium companion derives it from the User-Agent, which Arc masks as
+    // Chrome's exactly; its Arc probe is best-effort and fails open to "chrome"
+    // (browser-companions/chromium/src/variant.ts). Exact-equality routing
+    // therefore stranded every disk-sourced Arc row on
+    // ErrorTargetUnreachable.
+
+    fn chromium_key(variant: &str) -> BrowserKey {
+        BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: variant.to_string(),
+        }
+    }
+
+    #[test]
+    fn open_strategy_prefers_exact_variant_match_over_family_fallback() {
+        let connected = vec![chromium_key("chrome"), chromium_key("arc")];
+        let strat = resolve_open_strategy(Some(chromium_key("arc")), &connected);
+        assert!(
+            matches!(strat, OpenStrategy::Companion(ref k) if k.variant == "arc"),
+            "got {strat:?}"
+        );
+    }
+
+    #[test]
+    fn open_strategy_routes_arc_target_to_the_sole_chromium_companion() {
+        // The reported regression: Arc's companion registered itself as
+        // "chrome", so an Arc bookmark/history row could never be opened.
+        let connected = vec![chromium_key("chrome")];
+        let strat = resolve_open_strategy(Some(chromium_key("arc")), &connected);
+        assert!(
+            matches!(strat, OpenStrategy::Companion(ref k) if k.variant == "chrome"),
+            "got {strat:?}"
+        );
+    }
+
+    #[test]
+    fn open_strategy_errors_for_arc_target_when_nothing_is_connected() {
+        let strat = resolve_open_strategy(Some(chromium_key("arc")), &[]);
+        assert!(matches!(strat, OpenStrategy::ErrorTargetUnreachable));
+    }
+
+    #[test]
+    fn open_strategy_never_crosses_the_family_boundary() {
+        let connected = vec![chromium_key("chrome")];
+        let target = BrowserKey {
+            family: BrowserFamily::Firefox,
+            variant: "firefox".to_string(),
+        };
+        let strat = resolve_open_strategy(Some(target), &connected);
+        assert!(
+            matches!(strat, OpenStrategy::ErrorTargetUnreachable),
+            "a Firefox target must never be routed to a Chromium companion, got {strat:?}"
+        );
+    }
+
+    #[test]
+    fn open_strategy_refuses_to_guess_between_two_chromium_companions() {
+        // Two connected Chromium companions and neither matches the variant:
+        // genuinely ambiguous, so error rather than open in the wrong browser.
+        let connected = vec![chromium_key("chrome"), chromium_key("brave")];
+        let strat = resolve_open_strategy(Some(chromium_key("arc")), &connected);
+        assert!(
+            matches!(strat, OpenStrategy::ErrorTargetUnreachable),
+            "got {strat:?}"
+        );
+    }
+
+    // ---- activation key ----
+
+    #[test]
+    fn activation_prefers_the_requested_variant_over_the_companions_label() {
+        // Routed to the "chrome"-labelled companion for an "arc" target: the
+        // target variant came from the disk scan and is authoritative, so Arc
+        // is the app to foreground — not Chrome.
+        let chosen = resolve_activation_key(Some(&chromium_key("arc")), &chromium_key("chrome"));
+        assert_eq!(chosen.variant, "arc");
+    }
+
+    #[test]
+    fn activation_falls_back_to_the_companion_when_no_target_was_requested() {
+        let chosen = resolve_activation_key(None, &chromium_key("chrome"));
+        assert_eq!(chosen.variant, "chrome");
+    }
+
+    #[test]
+    fn activation_ignores_a_cross_family_target() {
+        let firefox = BrowserKey {
+            family: BrowserFamily::Firefox,
+            variant: "firefox".to_string(),
+        };
+        let chosen = resolve_activation_key(Some(&firefox), &chromium_key("chrome"));
+        assert_eq!(chosen, chromium_key("chrome"));
+    }
+
     #[tokio::test]
     async fn search_web_routes_to_target_companion() {
         let svc = BrowserService::new();
@@ -1055,6 +1246,47 @@ mod tests {
         };
         let result = svc.search_web(&bridge, "q".to_string(), Some(target)).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn search_web_routes_an_arc_target_to_the_sole_chromium_companion() {
+        // Same regression as open_url: the paired-browser target says "arc"
+        // (from the on-disk scan / paired-browser setting) but the only
+        // connected companion registered itself as "chrome". Building the
+        // routing key straight from the target, bypassing
+        // `resolve_open_strategy`, stranded this exactly like open_url did
+        // before T2.
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let connected_key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let (tx, mut rx) =
+            tokio::sync::mpsc::channel::<crate::browser::bridge::protocol::ServerMessage>(8);
+        bridge.connections.register(connected_key.clone(), tx).await;
+
+        let target = BrowserId {
+            family: BrowserFamily::Chromium,
+            variant: "arc".to_string(),
+            profile_id: "Default".to_string(),
+        };
+        let bridge_clone = bridge.clone();
+        let task = tokio::spawn(async move {
+            svc.search_web(&bridge_clone, "react hooks".to_string(), Some(target))
+                .await
+        });
+
+        let req = rx.recv().await.unwrap();
+        let id = match req {
+            crate::browser::bridge::protocol::ServerMessage::Req { id, .. } => id,
+        };
+        bridge
+            .connections
+            .deliver_response(&id, Ok(serde_json::Value::Null))
+            .await
+            .unwrap();
+        task.await.unwrap().unwrap();
     }
 
     #[tokio::test]
