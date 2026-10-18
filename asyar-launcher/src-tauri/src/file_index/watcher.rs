@@ -616,7 +616,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let path = root.join("created.txt");
         fs::write(&path, "x").unwrap();
-        let coalescer = Mutex::new(Coalescer::new(build_exclusion_set(&[])));
+        let coalescer = Mutex::new(Coalescer::new(no_exclusions()));
         coalescer.lock().unwrap().ingest(&create_ev(&path));
         let mut delivered = Vec::new();
         flush_once(
