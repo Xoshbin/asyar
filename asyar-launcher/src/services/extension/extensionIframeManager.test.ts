@@ -178,6 +178,25 @@ describe('ExtensionIframeManager', () => {
   });
 
   describe('sendSearchRequestToExtension', () => {
+    it('settles and drops pending requests when a query is superseded', async () => {
+      vi.useFakeTimers();
+      const first = manager.sendSearchRequestToExtension('org.asyar.tauri-docs', 'old');
+      const firstMessageId = mockPostMessage.mock.calls[0][0].messageId;
+
+      manager.cancelPendingSearchRequests();
+
+      await expect(first).resolves.toEqual([]);
+      manager.handleSearchResponse({
+        data: {
+          type: 'asyar:search:response',
+          messageId: firstMessageId,
+          result: [{ id: 'late' }],
+        },
+      } as MessageEvent);
+      expect(vi.getTimerCount()).toBe(0);
+      vi.useRealTimers();
+    });
+
     it('sends asyar:search:request and resolves empty when no iframe', async () => {
       const result = await manager.sendSearchRequestToExtension('nonexistent-ext', 'query');
 

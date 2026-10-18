@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ActionService, type ApplicationAction } from './actionService.svelte';
 import { ActionContext } from 'asyar-sdk/contracts';
+import { logService } from '../log/logService';
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -78,6 +79,7 @@ const mockDeveloperSettingsService = vi.hoisted(() => ({
   isVerboseLoggingEnabled: false,
   isTracingEnabled: false,
   isSideloadingAllowed: false,
+  verboseLogging: false,
 }));
 vi.mock('../settings/developerSettingsService.svelte', () => ({
   developerSettingsService: mockDeveloperSettingsService,
@@ -196,6 +198,48 @@ describe('unregisterAction', () => {
   it('does not throw when removing a non-existent action', () => {
     const svc = freshService();
     expect(() => svc.unregisterAction('ghost')).not.toThrow();
+  });
+
+  // #901 made unregisterAction's missing-action path a silent no-op to kill
+  // action-churn log spam from idempotent effect re-runs. That also hid a
+  // genuine bug class: an extension unregistering an action id it never
+  // registered (typo, double-unregister, lifecycle race). Warn again, but
+  // only when verbose logging is on — now that the common idempotent case is
+  // silent by default, the warning should be near-silent too and only surface
+  // for someone actively debugging.
+  it('does not warn on a missing action when verbose logging is off', () => {
+    mockDeveloperSettingsService.verboseLogging = false;
+    const svc = freshService();
+    vi.mocked(logService.warn).mockClear();
+
+    svc.unregisterAction('ghost');
+
+    expect(logService.warn).not.toHaveBeenCalled();
+  });
+
+  it('warns about a missing action when verbose logging is on', () => {
+    mockDeveloperSettingsService.verboseLogging = true;
+    const svc = freshService();
+    vi.mocked(logService.warn).mockClear();
+
+    svc.unregisterAction('ghost');
+
+    expect(logService.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Attempted to unregister non-existent action: ghost'),
+    );
+    mockDeveloperSettingsService.verboseLogging = false;
+  });
+
+  it('does not warn when the action existed', () => {
+    mockDeveloperSettingsService.verboseLogging = true;
+    const svc = freshService();
+    svc.registerAction(makeAction('to-remove'));
+    vi.mocked(logService.warn).mockClear();
+
+    svc.unregisterAction('to-remove');
+
+    expect(logService.warn).not.toHaveBeenCalled();
+    mockDeveloperSettingsService.verboseLogging = false;
   });
 });
 

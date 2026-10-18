@@ -16,6 +16,7 @@
 //! on drop [`service::persist_dragged`] turns the landing spot back into
 //! monitor fractions.
 
+pub mod classify;
 pub mod commands;
 pub mod resolve;
 pub mod service;

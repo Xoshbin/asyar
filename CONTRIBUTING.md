@@ -9,6 +9,7 @@ Thank you for your interest in contributing to Asyar! Whether you're fixing a bu
 - **Discord**: Join our [Discord Server](https://discord.gg/vvYRXrs7Xa) for live discussions, brainstorming, and developer support.
 - **GitHub Discussions**: Use [Discussions](https://github.com/Xoshbin/asyar/discussions) for Q&A, general inquiries, and feature proposals.
 - **GitHub Issues**: Use [Issues](https://github.com/Xoshbin/asyar/issues) to report bugs and track roadmap items.
+- **Code of Conduct**: We expect all community members to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 
@@ -145,15 +146,27 @@ If you want to contribute but aren't sure where to start:
 
 ---
 
+## Proposing Features & UI Changes
+
+1. **Discuss Before Implementing**:
+   - For any new feature, major architectural change, or cross-cutting functionality, open a [GitHub Issue](https://github.com/Xoshbin/asyar/issues) or [Discussion](https://github.com/Xoshbin/asyar/discussions) first to agree on scope and direction.
+2. **Prototype-First for UI & View Changes**:
+   - If you are proposing a redesign, new layout, or visual change to an existing view, share a mockup, wireframe, or prototype first. Aligning on UX upfront ensures the design fits Asyar's design system before anyone spends time writing code.
+
+---
+
 ## Guidelines for Pull Requests
 
-1. **Branching**: Create a feature branch off `main` (e.g. `feat/my-feature` or `fix/issue-description`).
-2. **Testing & Verification**:
+1. **Keep PRs Small & Single-Topic**:
+   - Every pull request must address **exactly one feature or bug fix**.
+   - Do not bundle unrelated changes together (e.g., pairing a UI redesign with search ranking tweaks and action service modifications). Small, focused PRs are much easier to review, test, and merge quickly. Large, multi-concern PRs will be asked to be split.
+2. **Branching**: Create a feature branch off `main` (e.g. `feat/my-feature` or `fix/issue-description`).
+3. **Testing & Verification**:
    - Write automated unit tests for new logic or bug fixes.
    - Run the full local CI verification matrix: `pnpm check:ci` (ensures Prettier formatting, design token compliance, frontend tests, i18n enforcement, cargo fmt, clippy, and Rust tests all pass).
-3. **Code Style & Formatting**:
+4. **Code Style & Formatting**:
    - Run `pnpm format` before opening a pull request.
    - Use Svelte 5 runes (`$state`, `$derived`, `$props`, `$effect`) exclusively. Svelte 4 syntax (`export let`, `$:`) is not accepted.
-4. **Pull Request Description**:
+5. **Pull Request Description**:
    - Describe the problem being solved and how your changes address it.
    - Link related issue numbers (e.g., `Fixes #123`).

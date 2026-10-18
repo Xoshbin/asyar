@@ -87,7 +87,7 @@ mod tests {
     }
 
     #[test]
-    fn reads_a_free_anchor() {
+    fn reads_a_pre_860_free_anchor_as_the_legacy_variant() {
         let v = json!({
             "monitor": "primary",
             "anchor": { "kind": "free", "x": 0.2, "y": 0.7 },
@@ -96,9 +96,22 @@ mod tests {
             parse_placement(Some(&v)),
             LauncherPlacement {
                 monitor: LauncherMonitorChoice::Primary,
-                anchor: LauncherAnchor::Free { x: 0.2, y: 0.7 },
+                anchor: LauncherAnchor::LegacyFree { x: 0.2, y: 0.7 },
                 snap_enabled: true,
             }
+        );
+    }
+
+    #[test]
+    fn reads_a_travel_space_free_anchor() {
+        let v = json!({
+            "monitor": "primary",
+            "anchor": { "kind": "freeTravel", "x": 0.5, "y": 0.5 },
+            "snapEnabled": true,
+        });
+        assert_eq!(
+            parse_placement(Some(&v)).anchor,
+            LauncherAnchor::Free { x: 0.5, y: 0.5 }
         );
     }
 

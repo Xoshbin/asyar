@@ -31,6 +31,14 @@ export class ExtensionIframeManager {
     this.viewManagerInstance = viewManagerInstance;
   }
 
+  public cancelPendingSearchRequests(): void {
+    for (const [messageId, pending] of pendingSearchRequests) {
+      clearTimeout(pending.timer);
+      pending.resolve([]);
+      pendingSearchRequests.delete(messageId);
+    }
+  }
+
   forwardKeyToActiveView(keyEvent: {
     key: string;
     shiftKey: boolean;

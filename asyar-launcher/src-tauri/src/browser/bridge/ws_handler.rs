@@ -64,11 +64,27 @@ async fn dispatch_message<R: tauri::Runtime>(
 ) {
     use tauri::Emitter;
     match msg {
-        CompanionMessage::Hello { .. } => {
+        CompanionMessage::Hello { version, browser } => {
+            // Diagnostic (see docs/superpowers/plans/
+            // browser-companion-and-search-hardening.md, T1): `key` is the
+            // (family, variant) the companion put in its /bridge query string —
+            // the identity every later route lookup is keyed by — while
+            // `browser` is what it says about itself in the hello payload. A
+            // WebExtension inside Arc may not be able to tell itself apart from
+            // Chrome, so both are logged to make any disagreement with the
+            // disk scanner's labels visible.
+            log::info!(
+                "[browser] companion connected: registered key {}, hello browser {}/{} (v{}, profiles [{}])",
+                crate::browser::service::describe_key(key),
+                browser.family,
+                browser.variant,
+                version,
+                browser.profiles.join(", "),
+            );
             let _ = state.app_handle.emit(
                 "browser:companion-connected",
                 serde_json::json!({
-                    "family": format!("{:?}", key.family).to_lowercase(),
+                    "family": crate::browser::types::family_wire(key.family),
                     "variant": key.variant,
                 }),
             );

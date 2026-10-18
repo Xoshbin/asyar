@@ -33,6 +33,24 @@ pub fn cache_key(path: &Path, mtime: u64, size: u64, max_dim: u32) -> String {
     format!("{:016x}.png", h.finish())
 }
 
+/// Cache-key filename for a path's native OS icon. Ordinary file types share
+/// one icon per extension. Directories, extensionless files, and formats that
+/// can embed a per-file icon are keyed by path instead.
+pub fn icon_cache_key(path: &Path, is_dir: bool) -> String {
+    let mut h = fnv::FnvHasher::default();
+    is_dir.hash(&mut h);
+    let extension = path
+        .extension()
+        .map(|ext| ext.to_string_lossy().to_lowercase());
+    let has_per_file_icon = matches!(extension.as_deref(), Some("exe" | "lnk" | "ico" | "icns"));
+    if is_dir || extension.is_none() || has_per_file_icon {
+        path.to_string_lossy().hash(&mut h);
+    } else {
+        extension.hash(&mut h);
+    }
+    format!("icon-{:016x}.png", h.finish())
+}
+
 /// Sweeps `cache_dir` if its total size exceeds `cap_bytes`, deleting the
 /// oldest-by-mtime entries first until back under budget. `mtime` is used
 /// as the recency signal (write time doubles as "last generated") since
@@ -117,6 +135,49 @@ mod tests {
         let a = cache_key(Path::new("/tmp/a.jpg"), 1, 1, 28);
         let b = cache_key(Path::new("/tmp/b.jpg"), 1, 1, 28);
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn icon_cache_key_is_per_extension_for_files_and_per_path_for_dirs() {
+        let a = icon_cache_key(Path::new("/x/a.PDF"), false);
+        assert_eq!(a, icon_cache_key(Path::new("/y/b.pdf"), false));
+        assert_ne!(a, icon_cache_key(Path::new("/x/a.txt"), false));
+        assert_ne!(
+            icon_cache_key(Path::new("/x/A.app"), true),
+            icon_cache_key(Path::new("/x/B.app"), true)
+        );
+    }
+
+    #[test]
+    fn extensionless_icon_cache_keys_are_per_path() {
+        assert_ne!(
+            icon_cache_key(Path::new("/project/Makefile"), false),
+            icon_cache_key(Path::new("/project/Dockerfile"), false)
+        );
+    }
+
+    #[test]
+    fn executable_icon_cache_keys_are_per_path() {
+        assert_ne!(
+            icon_cache_key(Path::new("C:/Program Files/Chrome/chrome.exe"), false),
+            icon_cache_key(Path::new("C:/Windows/System32/calc.exe"), false)
+        );
+    }
+
+    #[test]
+    fn shortcut_icon_cache_keys_are_per_path() {
+        assert_ne!(
+            icon_cache_key(Path::new("C:/Users/me/Desktop/shortcut1.lnk"), false),
+            icon_cache_key(Path::new("C:/Users/me/Desktop/shortcut2.lnk"), false)
+        );
+    }
+
+    #[test]
+    fn document_icon_cache_keys_are_shared_case_insensitively() {
+        assert_eq!(
+            icon_cache_key(Path::new("/one/report.PDF"), false),
+            icon_cache_key(Path::new("/two/other.pdf"), false)
+        );
     }
 
     #[test]

@@ -130,7 +130,7 @@ describe('FeaturedExtensions step', () => {
 
   it('detects installed status from full filesystem directory paths', async () => {
     listInstalledExtensions.mockResolvedValueOnce([
-      '/Users/test/Library/Application Support/org.asyar.app/extensions/org.example.github',
+      '/Users/test/Library/Application Support/org.asyar/extensions/org.example.github',
     ]);
     fetchTopExtensions.mockResolvedValueOnce([
       {
@@ -161,7 +161,7 @@ describe('FeaturedExtensions step', () => {
     listInstalledExtensions
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
-        '/Users/test/Library/Application Support/org.asyar.app/extensions/org.example.github',
+        '/Users/test/Library/Application Support/org.asyar/extensions/org.example.github',
       ]);
     fetchTopExtensions.mockResolvedValueOnce([
       {

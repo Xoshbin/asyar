@@ -244,6 +244,7 @@ macro_rules! search_commands {
                 $crate::file_index::commands::deep_search_availability,
                 $crate::file_index::commands::deep_search,
                 $crate::thumbnail::commands::get_file_thumbnail,
+                $crate::thumbnail::commands::get_file_icon,
             )
         )
     };

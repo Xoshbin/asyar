@@ -98,6 +98,8 @@ export class LauncherController {
   // Search handlers (created once)
   #searchHandlers = createSearchHandlers(this.state);
   handleSearchInput = (event: Event) => this.#searchHandlers.handleSearchInput(event);
+  handleSearchCompositionEnd = (event: CompositionEvent) =>
+    this.#searchHandlers.handleSearchCompositionEnd(event);
   handleBackClick = () => this.#searchHandlers.handleBackClick();
   handleContextDismiss = (clearAll = false) => this.#searchHandlers.handleContextDismiss(clearAll);
   handleChipDismiss = () => this.#searchHandlers.handleChipDismiss();

@@ -85,15 +85,39 @@ export function setupSearchEffects(state: LauncherState) {
 
 /** Handler methods that operate on search/context state */
 export function createSearchHandlers(state: LauncherState) {
+  /** Publish a new query value — the single path into search. */
+  function publishQuery(value: string) {
+    state.localSearchValue = value;
+    searchStores.query = value;
+    state.queryHistory?.reset();
+    feedbackService.dismiss();
+    const listContainer = state.getListContainer();
+    if (listContainer) resetListScroll(listContainer);
+  }
+
   return {
     handleSearchInput(event: Event) {
-      const value = (event.target as HTMLInputElement).value;
-      state.localSearchValue = value;
-      searchStores.query = value;
-      state.queryHistory?.reset();
-      feedbackService.dismiss();
-      const listContainer = state.getListContainer();
-      if (listContainer) resetListScroll(listContainer);
+      if ((event as InputEvent).isComposing) return;
+      publishQuery((event.target as HTMLInputElement).value);
+    },
+
+    /**
+     * Backstop for IME commits. `handleSearchInput` drops every event with
+     * `isComposing: true` so half-composed text never reaches search, but
+     * WebKit is inconsistent about the event that COMMITS a composition: it
+     * may carry `isComposing: true`, or there may be no trailing `input` at
+     * all. In those cases the committed text would never be published and the
+     * search would silently ignore everything a zh-CN or Japanese user typed.
+     *
+     * `compositionend` always fires on commit, so publishing from here covers
+     * both orderings. When a trailing non-composing `input` already published
+     * the same value this is a no-op, so the common ordering costs nothing and
+     * does not reset query-history recall or dismiss feedback twice.
+     */
+    handleSearchCompositionEnd(event: CompositionEvent) {
+      const value = (event.target as HTMLInputElement | null)?.value ?? '';
+      if (value === state.localSearchValue) return;
+      publishQuery(value);
     },
 
     handleContextDismiss(_clearAll = false) {

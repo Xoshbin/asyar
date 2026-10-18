@@ -1,6 +1,7 @@
 import { t } from '../../services/i18n';
 import { onMount } from 'svelte';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { emit } from '@tauri-apps/api/event';
 import { updateShortcut } from '../../utils/shortcutManager';
 import { goto } from '$app/navigation';
 import {
@@ -12,8 +13,10 @@ import { extensionStateManager } from '../../services/extension/extensionStateMa
 import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
-import type { AppSettings } from '../../services/settings/types/AppSettingsType';
+import type { AppSettings, PopToRootDelay } from '../../services/settings/types/AppSettingsType';
+import type { EscapeBehavior } from '../../lib/keyboard/escapeBehavior';
 import { logService } from '../../services/log/logService';
+import { initVerboseLoggingSync } from '../../services/log/verboseLoggingSync.svelte';
 import { agentService } from '../../built-in-features/agents/agentService.svelte';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
 import type { ExtensionCommand, PreferenceDeclaration } from 'asyar-sdk/contracts';
@@ -45,6 +48,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     showDockIcon: false,
     showTrayIcon: true,
     escapeInViewBehavior: 'go-back',
+    popToRootDelay: '1m',
   },
   search: {
     searchApplications: true,
@@ -166,6 +170,7 @@ export class SettingsHandler {
 
       // Initialize settings service
       const success = await settingsService.init();
+      initVerboseLoggingSync();
 
       if (!success) {
         logService.error('Settings initialization failed');
@@ -499,6 +504,29 @@ export class SettingsHandler {
     }
   }
 
+  async updatePopToRootDelay(value: PopToRootDelay) {
+    try {
+      const success = await settingsService.updateSettings('general', {
+        popToRootDelay: value,
+      });
+
+      if (!success) {
+        throw new Error('Failed to update pop-to-root delay');
+      }
+
+      await emit('asyar:pop-to-root-changed', { value });
+    } catch (error) {
+      logService.error(`Failed to update pop-to-root delay: ${error}`);
+      this.saveError = true;
+      this.saveMessage = 'Failed to update setting';
+
+      setTimeout(() => {
+        this.saveMessage = '';
+        this.saveError = false;
+      }, 3000);
+    }
+  }
+
   async handleTrayIconToggle() {
     try {
       const success = await settingsService.updateSettings('general', {
@@ -562,7 +590,7 @@ export class SettingsHandler {
     }
   }
 
-  async updateEscapeBehavior(behavior: 'go-back' | 'close-window' | 'hide-and-reset') {
+  async updateEscapeBehavior(behavior: EscapeBehavior) {
     try {
       const success = await settingsService.updateSettings('general', {
         escapeInViewBehavior: behavior,

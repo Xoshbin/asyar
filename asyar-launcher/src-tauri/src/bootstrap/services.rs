@@ -97,6 +97,15 @@ pub fn sync_shortcode_triggers(app: &tauri::AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Initializes local-first usage recording early so it is managed before windows mount.
+pub fn init_usage(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    if app.try_state::<Arc<crate::usage::UsageState>>().is_none() {
+        let usage_state = crate::usage::initialize_usage_state(app.handle())?;
+        app.manage(Arc::new(usage_state));
+    }
+    Ok(())
+}
+
 /// Initializes core services, registers builtin tools, and sets up state stores.
 pub fn init_services(
     app: &mut tauri::App,
@@ -106,8 +115,7 @@ pub fn init_services(
     register_builtin_tools(app.handle(), search_state.clone())?;
 
     // Local-first usage recording
-    let usage_state = crate::usage::initialize_usage_state(app.handle())?;
-    app.manage(Arc::new(usage_state));
+    init_usage(app)?;
 
     // Walkthrough task registry
     app.manage(Arc::new(
@@ -349,6 +357,23 @@ pub fn init_daemons(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         let app_handle_for_events = app.handle().clone();
         let hub: tauri::State<'_, Arc<crate::system_events::SystemEventsHub>> = app.state();
         let hub_arc: Arc<crate::system_events::SystemEventsHub> = hub.inner().clone();
+
+        // Core reaction to wake, independent of whether any extension has
+        // subscribed to wake events (the per-extension fan-out below is a
+        // no-op with zero subscribers, so it alone could never drive this).
+        // `Instant` excludes sleep on macOS, so without this the file index's
+        // rescan cooldown can look unexpired right after a long sleep —
+        // exactly when the index is most stale and a rescan matters most.
+        let file_index_state_for_wake = app
+            .state::<Arc<crate::file_index::service::FileIndexState>>()
+            .inner()
+            .clone();
+        hub_arc.observe(move |event| {
+            if matches!(event, crate::system_events::SystemEvent::Wake) {
+                file_index_state_for_wake.clear_last_scan_completed();
+            }
+        });
+
         hub_arc.set_emitter(Box::new(move |extension_id, event| {
             let payload = serde_json::json!({
                 "extensionId": extension_id,

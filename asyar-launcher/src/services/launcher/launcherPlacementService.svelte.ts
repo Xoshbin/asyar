@@ -47,7 +47,10 @@ export class LauncherPlacementService {
   }
 
   get isDragged(): boolean {
-    return this.placement.anchor.kind === 'free';
+    const kind: string = this.placement.anchor.kind;
+    // COMPAT(remove in 0.2.0): `free` is the pre-#860 monitor-fraction anchor.
+    // Rust rewrites it to `freeTravel` on the first reveal.
+    return kind === 'freeTravel' || kind === 'free';
   }
 
   /** The custom slider's value, as a whole percentage. */

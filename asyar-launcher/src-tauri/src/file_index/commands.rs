@@ -20,7 +20,12 @@ use super::types::{
     FileHit, FileIndexConfig, FileSearchResponse, FileType, HitSource, IndexStateKind, IndexStatus,
 };
 use super::walker::HARD_CAP;
-use super::watcher::{self, FileIndexWatcherHandle};
+use super::watcher::{self, FileIndexWatcherHandle, RescanOutcome};
+
+/// Minimum delay between watcher-triggered full scans. Active filesystem
+/// churn can overflow every 500 ms window; 30 seconds bounds repeated walks.
+/// `Instant` excludes sleep on macOS, so retries may wait up to 30 s after wake.
+const RESCAN_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(30);
 
 pub fn managed_file_index_state<'a, R: tauri::Runtime>(
     app: &'a impl Manager<R>,
@@ -140,8 +145,14 @@ fn spawn_rescan(app: AppHandle, state: Arc<FileIndexState>) {
 /// `true` when a watcher rescan signal should start a scan now. `Building`
 /// and `Rescanning` mean one is already running (stacking a second wastes
 /// a full walk); `Disabled` means never.
-fn should_start_rescan(state: IndexStateKind) -> bool {
+fn should_start_rescan(
+    state: IndexStateKind,
+    last_completed: Option<std::time::Instant>,
+    now: std::time::Instant,
+) -> bool {
     matches!(state, IndexStateKind::Ready | IndexStateKind::CapReached)
+        && last_completed
+            .is_none_or(|completed| now.saturating_duration_since(completed) >= RESCAN_COOLDOWN)
 }
 
 /// Handler for the watcher's rescan signal (kernel dropped events, or the
@@ -151,14 +162,23 @@ fn should_start_rescan(state: IndexStateKind) -> bool {
 pub(crate) fn make_on_rescan(
     app: AppHandle,
     state: Arc<FileIndexState>,
-) -> impl Fn() + Send + 'static {
+) -> impl Fn() -> RescanOutcome + Send + 'static {
     move || {
-        if !should_start_rescan(state.status().state) {
-            return;
+        let current = state.status().state;
+        if current == IndexStateKind::Disabled {
+            return RescanOutcome::Rejected;
+        }
+        if !should_start_rescan(
+            current,
+            state.last_scan_completed(),
+            std::time::Instant::now(),
+        ) {
+            return RescanOutcome::Deferred;
         }
         state.mark_rescanning();
         crate::event_bridge::bridge_emit(&app, "asyar:file-index-status", state.status());
         spawn_rescan(app.clone(), state.clone());
+        RescanOutcome::Started
     }
 }
 
@@ -199,7 +219,7 @@ pub async fn file_index_set_config(
                 Vec::new(),
                 watcher::build_exclusion_set(&[]),
                 state.inner().clone(),
-                || {},
+                || RescanOutcome::Rejected,
             );
         }
     }
@@ -366,6 +386,7 @@ mod tests {
             .map(|p| ScannedEntry {
                 path: PathBuf::from(p),
                 kind: EntryKind::File,
+                file_id: None,
                 mtime: NOW as u32,
                 hidden: false,
                 placeholder: false,
@@ -507,18 +528,48 @@ mod tests {
     }
 
     #[test]
-    fn rescan_signal_only_fires_from_stable_states() {
-        assert!(should_start_rescan(IndexStateKind::Ready));
-        assert!(should_start_rescan(IndexStateKind::CapReached));
-        assert!(
-            !should_start_rescan(IndexStateKind::Building),
-            "startup scan already running"
-        );
-        assert!(
-            !should_start_rescan(IndexStateKind::Rescanning),
-            "never stack a second scan on a running one"
-        );
-        assert!(!should_start_rescan(IndexStateKind::Disabled));
+    fn rescan_signal_fires_from_stable_states_when_no_scan_has_completed_yet() {
+        let now = std::time::Instant::now();
+        assert!(should_start_rescan(IndexStateKind::Ready, None, now));
+        assert!(should_start_rescan(IndexStateKind::CapReached, None, now));
+    }
+
+    #[test]
+    fn rescan_signal_never_fires_from_in_flight_or_disabled_states() {
+        let now = std::time::Instant::now();
+        let long_ago = now - RESCAN_COOLDOWN * 10;
+        for state in [
+            IndexStateKind::Building,
+            IndexStateKind::Rescanning,
+            IndexStateKind::Disabled,
+        ] {
+            assert!(!should_start_rescan(state, None, now), "{state:?}");
+            assert!(
+                !should_start_rescan(state, Some(long_ago), now),
+                "{state:?} with elapsed cooldown"
+            );
+        }
+    }
+
+    #[test]
+    fn rescan_signal_is_suppressed_until_the_cooldown_elapses() {
+        let now = std::time::Instant::now();
+        assert!(!should_start_rescan(IndexStateKind::Ready, Some(now), now));
+        assert!(!should_start_rescan(
+            IndexStateKind::Ready,
+            Some(now - (RESCAN_COOLDOWN - std::time::Duration::from_secs(1))),
+            now
+        ));
+        assert!(should_start_rescan(
+            IndexStateKind::Ready,
+            Some(now - RESCAN_COOLDOWN),
+            now
+        ));
+        assert!(should_start_rescan(
+            IndexStateKind::Ready,
+            Some(now - RESCAN_COOLDOWN * 2),
+            now
+        ));
     }
 
     #[tokio::test]

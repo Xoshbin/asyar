@@ -1,5 +1,4 @@
-// asyar-launcher/src/lib/ipc/usageCommands.ts
-// Tauri command wrappers, re-exported through ./commands (the barrel).
+import { logService } from '../../services/log/logService';
 import { invokeSafe } from './invokeSafe';
 
 // ── Usage insights ────────────────────────────────────────────────────────────
@@ -18,7 +17,11 @@ export async function getUsageStats(): Promise<UsageStats> {
   return invokeSafe('get_usage_stats');
 }
 export async function recordActiveDay(): Promise<void> {
-  await invokeSafe('record_active_day', undefined, { silent: true });
+  try {
+    await invokeSafe('record_active_day', undefined, { silent: true });
+  } catch (err) {
+    logService.debug(`[usage] recordActiveDay failed silently: ${err}`);
+  }
 }
 export async function getUsageAnonId(): Promise<string> {
   return invokeSafe('get_usage_anon_id');
@@ -36,5 +39,9 @@ export async function sendUsageNow(): Promise<number> {
 
 /** Local daily compatibility counts; never included in usage network payloads. */
 export async function recordWorkerFallback(extensionId: string): Promise<void> {
-  await invokeSafe('record_worker_fallback', { extensionId }, { silent: true });
+  try {
+    await invokeSafe('record_worker_fallback', { extensionId }, { silent: true });
+  } catch (err) {
+    logService.debug(`[usage] recordWorkerFallback failed silently: ${err}`);
+  }
 }

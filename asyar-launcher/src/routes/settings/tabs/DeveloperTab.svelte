@@ -14,6 +14,7 @@
   import { logService } from '../../../services/log/logService';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { t } from '../../../services/i18n';
+  import { copyText } from '../../../utils/copyText';
 
   let { handler }: { handler: SettingsHandler } = $props();
 
@@ -97,6 +98,14 @@
   }
 
   const devExtEntries = $derived(Object.entries(devExtensions));
+
+  // The buffer records raw debug() calls unconditionally (see
+  // services/log/logService.ts), so there's history to copy even when
+  // verbose logging was never turned on before the bug happened.
+  async function copyDiagnostics() {
+    const lines = logService.getDebugBuffer();
+    await copyText(lines.length > 0 ? lines.join('\n') : t('settings.developer.diagnostics_empty'));
+  }
 </script>
 
 <div class="developer-tab">
@@ -157,6 +166,17 @@
             checked={handler.settings.developer?.allowSideloading ?? false}
             onchange={() => handler.handleDeveloperSettingToggle('allowSideloading')}
           />
+        {/snippet}
+      </SettingsRow>
+
+      <SettingsRow
+        label={t('settings.developer.copy_diagnostics')}
+        description={t('settings.developer.copy_diagnostics_description')}
+      >
+        {#snippet children()}
+          <Button onclick={copyDiagnostics}
+            >{t('settings.developer.copy_diagnostics_button')}</Button
+          >
         {/snippet}
       </SettingsRow>
     </SettingsCard>

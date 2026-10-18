@@ -23,20 +23,28 @@ pub async fn browser_is_companion_installed(
 }
 
 #[tauri::command]
-pub fn browser_list_bookmarks(
+pub async fn browser_list_bookmarks(
     browser: Option<BrowserId>,
     query: Option<String>,
 ) -> Result<Vec<Bookmark>, String> {
-    BrowserService::new().list_bookmarks(ListBookmarksFilter { browser, query })
+    tokio::task::spawn_blocking(move || {
+        BrowserService::new().list_bookmarks(ListBookmarksFilter { browser, query })
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-pub fn browser_search_history(
+pub async fn browser_search_history(
     query: String,
     limit: Option<u32>,
     since_ms: Option<i64>,
 ) -> Result<Vec<HistoryEntry>, String> {
-    BrowserService::new().search_history(&query, SearchHistoryOptions { limit, since_ms })
+    tokio::task::spawn_blocking(move || {
+        BrowserService::new().search_history(&query, SearchHistoryOptions { limit, since_ms })
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]

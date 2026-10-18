@@ -27,7 +27,7 @@ describe('isExtensionInstalled', () => {
       manifest: { id: 'org.asyar.browser' },
     };
     const paths = [
-      '/Users/khoshbin/Library/Application Support/org.asyar.app/extensions/org.asyar.browser',
+      '/Users/khoshbin/Library/Application Support/org.asyar/extensions/org.asyar.browser',
     ];
     expect(isExtensionInstalled(ext, paths)).toBe(true);
   });
@@ -38,9 +38,7 @@ describe('isExtensionInstalled', () => {
       slug: 'browser',
       manifest: { id: 'org.asyar.browser' },
     };
-    const paths = [
-      'C:\\Users\\User\\AppData\\Roaming\\org.asyar.app\\extensions\\org.asyar.browser',
-    ];
+    const paths = ['C:\\Users\\User\\AppData\\Roaming\\org.asyar\\extensions\\org.asyar.browser'];
     expect(isExtensionInstalled(ext, paths)).toBe(true);
   });
 
@@ -51,7 +49,7 @@ describe('isExtensionInstalled', () => {
       manifest: { id: 'org.asyar.coffee' },
     };
     const paths = [
-      '/Users/khoshbin/Library/Application Support/org.asyar.app/extensions/org.asyar.coffee/',
+      '/Users/khoshbin/Library/Application Support/org.asyar/extensions/org.asyar.coffee/',
     ];
     expect(isExtensionInstalled(ext, paths)).toBe(true);
   });

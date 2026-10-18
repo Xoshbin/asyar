@@ -18,6 +18,7 @@
 //!   removed directory linger until the next rescan diff — accepted
 //!   staleness, corrected in the background.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -33,6 +34,10 @@ pub const NAME_SEPARATOR: u8 = 0xFF;
 pub struct ScannedEntry {
     pub path: PathBuf,
     pub kind: EntryKind,
+    /// Pre-derived by producers that already hold filesystem metadata.
+    /// `None` derives during build. `Option<u64>` costs 16 bytes per entry
+    /// (up to 16 MB at `HARD_CAP`) to remove the serial re-stat pass.
+    pub file_id: Option<u64>,
     /// Unix mtime seconds (truncated).
     pub mtime: u32,
     /// Dotfile / OS-hidden.
@@ -97,7 +102,7 @@ impl FileIndex {
         };
 
         // Dir path → final entry index, so children can resolve `parent`.
-        let mut dir_map: HashMap<PathBuf, u32> = HashMap::new();
+        let mut dir_map: HashMap<&Path, u32> = HashMap::new();
 
         for root in &roots {
             let idx = index.entries.len() as u32;
@@ -117,26 +122,28 @@ impl FileIndex {
             index.lc_arena.push(NAME_SEPARATOR);
             index.file_ids.push(file_id::derive_u64(root));
             index.path_hashes.push(file_id::hash_path(root));
-            dir_map.insert(root.clone(), idx);
+            dir_map.insert(root.as_path(), idx);
         }
 
         // Static-rank ordering: rank desc, name asc for determinism.
-        struct Ranked {
+        struct Ranked<'a> {
             item: usize,
             rank: f32,
-            name: String,
+            name: Cow<'a, str>,
+            ft: FileType,
         }
         let mut ranked: Vec<Ranked> = items
             .iter()
             .enumerate()
             .map(|(i, it)| {
-                let name = entry_name(&it.path);
+                let name = entry_name_ref(&it.path);
                 let depth = relative_depth(&it.path, &roots);
                 let ft = classify(it);
                 Ranked {
                     item: i,
                     rank: ranking::static_rank(it.mtime, now, depth, ft, &name),
                     name,
+                    ft,
                 }
             })
             .collect();
@@ -152,7 +159,7 @@ impl FileIndex {
         for (pos, r) in ranked.iter().enumerate() {
             let it = &items[r.item];
             if matches!(it.kind, EntryKind::Dir) {
-                dir_map.insert(it.path.clone(), (roots.len() + pos) as u32);
+                dir_map.insert(it.path.as_path(), (roots.len() + pos) as u32);
             }
         }
 
@@ -163,7 +170,7 @@ impl FileIndex {
                 .parent()
                 .and_then(|p| dir_map.get(p).copied())
                 .unwrap_or(NO_PARENT);
-            index.emit_entry(it, &r.name, parent);
+            index.emit_entry(it, &r.name, r.ft, parent);
         }
 
         index.sealed = index.entries.len();
@@ -173,24 +180,33 @@ impl FileIndex {
 
     /// Writes one entry's metadata + arena bytes. Assumes `entries`,
     /// `file_ids`, `path_hashes` stay parallel and `lc_off` stays monotonic.
-    fn emit_entry(&mut self, it: &ScannedEntry, name: &str, parent: u32) {
-        let lc = name.to_lowercase();
+    fn emit_entry(&mut self, it: &ScannedEntry, name: &str, ft: FileType, parent: u32) {
         let lc_off = self.lc_arena.len() as u32;
         let disp_off = self.disp_arena.len() as u32;
-        self.lc_arena.extend_from_slice(lc.as_bytes());
+        let lc_len = if name.is_ascii() {
+            self.lc_arena
+                .extend(name.bytes().map(|byte| byte.to_ascii_lowercase()));
+            name.len()
+        } else {
+            let lowercase = name.to_lowercase();
+            let len = lowercase.len();
+            self.lc_arena.extend_from_slice(lowercase.as_bytes());
+            len
+        };
         self.lc_arena.push(NAME_SEPARATOR);
         self.disp_arena.extend_from_slice(name.as_bytes());
         self.entries.push(EntryMeta {
             lc_off,
             disp_off,
-            lc_len: lc.len().min(u16::MAX as usize) as u16,
+            lc_len: lc_len.min(u16::MAX as usize) as u16,
             name_len: name.len().min(u16::MAX as usize) as u16,
             parent,
             mtime: it.mtime,
             flags: pack_flags(it.kind, it.hidden, it.placeholder),
-            ext_class: classify(it) as u8,
+            ext_class: ft as u8,
         });
-        self.file_ids.push(file_id::derive_u64(&it.path));
+        self.file_ids
+            .push(it.file_id.unwrap_or_else(|| file_id::derive_u64(&it.path)));
         self.path_hashes.push(file_id::hash_path(&it.path));
     }
 
@@ -417,6 +433,8 @@ impl FileIndex {
         let dir = ScannedEntry {
             path: parent_path.to_path_buf(),
             kind: EntryKind::Dir,
+            // This ancestor was synthesized without a stat.
+            file_id: None,
             mtime: 0,
             hidden: entry_name(parent_path).starts_with('.'),
             placeholder: false,
@@ -429,7 +447,7 @@ impl FileIndex {
     /// lookup. Returns its index.
     fn push_tail(&mut self, se: &ScannedEntry, name: &str, parent: u32) -> u32 {
         let idx = self.entries.len() as u32;
-        self.emit_entry(se, name, parent);
+        self.emit_entry(se, name, classify(se), parent);
         let hash = self.path_hashes[idx as usize];
         self.tail_by_hash.insert(hash, idx);
         // Keep the bitset covering every entry.
@@ -522,8 +540,13 @@ impl FileIndex {
 
 /// File name component as an owned string (empty for `/`-like paths).
 fn entry_name(path: &Path) -> String {
+    entry_name_ref(path).into_owned()
+}
+
+/// File name component, borrowing whenever it is valid UTF-8.
+fn entry_name_ref(path: &Path) -> Cow<'_, str> {
     path.file_name()
-        .map(|s| s.to_string_lossy().into_owned())
+        .map(|name| name.to_string_lossy())
         .unwrap_or_default()
 }
 
@@ -577,6 +600,7 @@ mod tests {
         ScannedEntry {
             path: PathBuf::from(np(path)),
             kind,
+            file_id: None,
             mtime,
             hidden: false,
             placeholder: false,
@@ -584,6 +608,34 @@ mod tests {
     }
 
     const NOW: i64 = 100_000_000;
+
+    #[test]
+    fn build_uses_the_precollected_file_id_instead_of_stat_ing_the_path() {
+        const SENTINEL: u64 = 0xdead_beef_cafe_f00d;
+        let path = np("/nonexistent-root/ghost.txt");
+        let mut entry = scanned(&path, EntryKind::File, 1);
+        entry.file_id = Some(SENTINEL);
+        let index = FileIndex::build(
+            vec![PathBuf::from(np("/nonexistent-root"))],
+            vec![entry],
+            NOW,
+        );
+        let found = index.lookup_path(Path::new(&path)).expect("entry present");
+        assert_eq!(index.file_id(found), SENTINEL);
+    }
+
+    #[test]
+    fn build_falls_back_to_deriving_when_no_file_id_was_collected() {
+        let path = np("/nonexistent-root/ghost.txt");
+        let entry = scanned(&path, EntryKind::File, 1);
+        let index = FileIndex::build(
+            vec![PathBuf::from(np("/nonexistent-root"))],
+            vec![entry],
+            NOW,
+        );
+        let found = index.lookup_path(Path::new(&path)).unwrap();
+        assert_eq!(index.file_id(found), file_id::derive_u64(Path::new(&path)));
+    }
 
     /// A small realistic tree under one root.
     fn small_index() -> FileIndex {
@@ -635,6 +687,46 @@ mod tests {
             .unwrap();
         assert_eq!(idx.lc_name(file_idx), b"myfile.txt");
         assert_eq!(idx.disp_name(file_idx), "MyFile.TXT");
+    }
+
+    #[test]
+    fn lowercase_name_matches_full_unicode_to_lowercase_for_non_ascii_names() {
+        let name = "ΟΔΟΣ.txt";
+        let path = np(&format!("/nonexistent-root/{name}"));
+        let index = FileIndex::build(
+            vec![PathBuf::from(np("/nonexistent-root"))],
+            vec![scanned(&path, EntryKind::File, 1)],
+            NOW,
+        );
+        let found = index.lookup_path(Path::new(&path)).unwrap();
+        assert_eq!(index.lc_name(found), name.to_lowercase().as_bytes());
+        assert_eq!(index.disp_name(found), name);
+    }
+
+    #[test]
+    fn lowercase_name_lowers_ascii_names() {
+        let name = "MiXeD-Case.TXT";
+        let path = np(&format!("/nonexistent-root/{name}"));
+        let index = FileIndex::build(
+            vec![PathBuf::from(np("/nonexistent-root"))],
+            vec![scanned(&path, EntryKind::File, 1)],
+            NOW,
+        );
+        let found = index.lookup_path(Path::new(&path)).unwrap();
+        assert_eq!(index.lc_name(found), name.to_lowercase().as_bytes());
+    }
+
+    #[test]
+    fn build_orders_entries_by_rank_then_name_after_the_borrowed_sort_key() {
+        let root = np("/nonexistent-root");
+        let entries = ["charlie.txt", "alpha.txt", "bravo.txt"]
+            .map(|name| scanned(&np(&format!("{root}/{name}")), EntryKind::File, 1))
+            .to_vec();
+        let index = FileIndex::build(vec![PathBuf::from(root)], entries, NOW);
+        let names: Vec<_> = (1..index.entries_len() as u32)
+            .map(|i| index.disp_name(i))
+            .collect();
+        assert_eq!(names, ["alpha.txt", "bravo.txt", "charlie.txt"]);
     }
 
     #[test]

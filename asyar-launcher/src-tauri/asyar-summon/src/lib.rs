@@ -77,13 +77,29 @@ where
 fn identity(flavor: Flavor) -> Identity {
     match flavor {
         Flavor::Production => Identity {
-            bus_name: "org.asyar.app.Launcher",
-            object_path: "/org/asyar/app/Launcher",
+            bus_name: "org.asyar.Launcher",
+            object_path: "/org/asyar/Launcher",
         },
         Flavor::Development => Identity {
             bus_name: "org.asyar.dev.Launcher",
             object_path: "/org/asyar/dev/Launcher",
         },
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn identities(flavor: Flavor) -> Vec<Identity> {
+    let primary = identity(flavor);
+    match flavor {
+        Flavor::Production => vec![
+            primary,
+            // COMPAT(remove in 0.2.0): fallback to legacy bus name for partially upgraded systems
+            Identity {
+                bus_name: "org.asyar.app.Launcher",
+                object_path: "/org/asyar/app/Launcher",
+            },
+        ],
+        Flavor::Development => vec![primary],
     }
 }
 
@@ -148,20 +164,37 @@ fn summon_linux(flavor: Flavor) -> Result<(), SummonError> {
 
 #[cfg(target_os = "linux")]
 fn call_launcher(flavor: Flavor) -> Result<(), SummonError> {
-    let identity = identity(flavor);
     let connection = zbus::blocking::Connection::session()
         .map_err(|error| SummonError::BusUnavailable(error.to_string()))?;
-    let proxy = zbus::blocking::Proxy::new(
-        &connection,
-        identity.bus_name,
-        identity.object_path,
-        "org.asyar.Launcher1",
-    )
-    .map_err(|error| SummonError::CallFailed(error.to_string()))?;
 
-    proxy
-        .call::<_, _, ()>("Toggle", &())
-        .map_err(classify_call_error)
+    let mut last_error = SummonError::ServiceUnavailable;
+    for id in identities(flavor) {
+        let proxy = match zbus::blocking::Proxy::new(
+            &connection,
+            id.bus_name,
+            id.object_path,
+            "org.asyar.Launcher1",
+        ) {
+            Ok(p) => p,
+            Err(e) => {
+                last_error = SummonError::CallFailed(e.to_string());
+                continue;
+            }
+        };
+
+        match proxy.call::<_, _, ()>("Toggle", &()) {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                let err = classify_call_error(error);
+                if err != SummonError::ServiceUnavailable {
+                    return Err(err);
+                }
+                last_error = err;
+            }
+        }
+    }
+
+    Err(last_error)
 }
 
 #[cfg(target_os = "linux")]
@@ -381,8 +414,8 @@ mod tests {
         assert_eq!(
             identity(Flavor::Production),
             Identity {
-                bus_name: "org.asyar.app.Launcher",
-                object_path: "/org/asyar/app/Launcher",
+                bus_name: "org.asyar.Launcher",
+                object_path: "/org/asyar/Launcher",
             }
         );
         assert_eq!(

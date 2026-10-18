@@ -86,6 +86,23 @@ export interface ApplicationAction {
   visible?: () => boolean;
 }
 
+function sameActionMetadata(a: ApplicationAction, b: ApplicationAction): boolean {
+  if (a.visible || b.visible) return false;
+  return (
+    a.id === b.id &&
+    a.label === b.label &&
+    a.icon === b.icon &&
+    a.description === b.description &&
+    a.category === b.category &&
+    a.extensionId === b.extensionId &&
+    a.context === b.context &&
+    a.confirm === b.confirm &&
+    a.destructive === b.destructive &&
+    a.shortcut === b.shortcut &&
+    a.disabled === b.disabled
+  );
+}
+
 /**
  * ActionService implementation for the main application
  * Connects extension actions to the application UI
@@ -212,6 +229,13 @@ export class ActionService implements IActionService {
       visible: 'visible' in action ? (action as any).visible : undefined,
     };
 
+    const prev = this.allActions.get(appAction.id);
+    if (prev && sameActionMetadata(prev, appAction)) {
+      prev.execute = appAction.execute;
+      prev.visible = appAction.visible;
+      return;
+    }
+
     this.allActions.set(appAction.id, appAction); // Store in the master list
     logService.debug(
       `Registered action: ${appAction.id} from ${
@@ -292,7 +316,13 @@ export class ActionService implements IActionService {
     if (hadAction) {
       logService.debug(`Unregistered action: ${actionId}`);
       this.updateState();
-    } else if (!hadRole) {
+    } else if (!hadRole && developerSettingsService.verboseLogging) {
+      // #901 made this path a silent no-op — idempotent re-registration
+      // effects were spamming it on every keystroke. Unconditionally missing
+      // both the action AND its handler role, though, is a real bug class
+      // (typo'd id, double-unregister, extension lifecycle race) rather than
+      // idempotent churn, so it still deserves a warning — just confined to
+      // verbose logging, where it's near-silent for everyone else.
       logService.warn(`Attempted to unregister non-existent action: ${actionId}`);
     }
   }

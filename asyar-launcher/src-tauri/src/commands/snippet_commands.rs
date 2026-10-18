@@ -126,7 +126,7 @@ mod contribute_tests {
     use super::*;
     use crate::AppState;
     use std::collections::HashMap;
-    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::{AtomicBool, AtomicU64};
     use std::sync::Mutex;
 
     fn fresh_state() -> AppState {
@@ -136,6 +136,8 @@ mod contribute_tests {
             launcher_shortcut: Mutex::new(String::from("Alt+Space")),
             snippets_enabled: AtomicBool::new(false),
             asyar_visible: AtomicBool::new(false),
+            last_hidden_at: Mutex::new(None),
+            pop_to_root_generation: AtomicU64::new(0),
             launcher_keep_expanded: AtomicBool::new(false),
             active_snippets: Mutex::new(HashMap::new()),
             contributed_snippets: Mutex::new(HashMap::new()),
