@@ -6,9 +6,12 @@ order: 4
 
 Actions are keyboard-accessible commands that appear in Asyar's Action Drawer when the user presses **⌘K**. They are **contextual** — what appears depends on where the user is and what your extension has registered.
 
-Actions are registered in code with `actionService.registerAction()` and appear while your extension panel is open. Asyar has no manifest-declared actions on root-search rows: to expose something without opening a view, declare another **command** (a `background` command runs immediately and can show a HUD or toast); for anything view-specific, register an action inside the view.
+There are two ways to contribute actions:
 
-> **Deprecated: manifest `actions`.** Earlier versions let `manifest.json` declare `actions` (extension- and command-level) that showed on the root-search row. That feature was removed. Manifests that still declare them keep loading — the field is ignored and the launcher logs a notice — but it is rejected from launcher 0.2.0, and `asyar build` / `asyar validate` warn about it now. Move those actions into your view with `registerAction`, or declare another command.
+| Approach                      | When to use                                                                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Manifest-declared actions** | Root search — appear when the user selects your command in the main launcher, before opening any view. Declared in `manifest.json`. |
+| **Programmatic actions**      | View-level — appear while your extension panel is open. Registered in code via `actionService.registerAction()`.                    |
 
 ### What actions are for
 

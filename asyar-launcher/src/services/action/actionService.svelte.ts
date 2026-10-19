@@ -764,6 +764,23 @@ export class ActionService implements IActionService {
   }
 
   /**
+   * Wire an execute callback into an already-registered action without
+   * overwriting its other fields (visible, label, context, etc.).
+   *
+   * Use this for Tier 1 built-in extensions that want to respond to
+   * manifest-declared actions: the host registers the action metadata +
+   * visible() callback; the extension calls setActionExecutor() in
+   * initialize() to supply the actual handler.
+   *
+   * No-op if the action does not exist yet.
+   */
+  setActionExecutor(actionId: string, executor: () => Promise<void> | void): void {
+    const action = this.allActions.get(actionId);
+    if (!action) return;
+    action.execute = executor;
+  }
+
+  /**
    * Public trigger for re-filtering actions.
    * Call when external state (e.g. selected search result) changes
    * and visible() callbacks need re-evaluation.

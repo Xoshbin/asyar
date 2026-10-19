@@ -1054,6 +1054,7 @@ mod onboarding_dispatch_tests {
                     schedule: None,
                     searchable: None,
                     preferences: None,
+                    actions: None,
                     arguments: None,
                     require_any_of: None,
                     search_bar_accessory: None,
@@ -1069,6 +1070,7 @@ mod onboarding_dispatch_tests {
                     schedule: None,
                     searchable: None,
                     preferences: None,
+                    actions: None,
                     arguments: None,
                     require_any_of: None,
                     search_bar_accessory: None,
@@ -1080,6 +1082,7 @@ mod onboarding_dispatch_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
+            actions: None,
             onboarding: Some(OnboardingDecl {
                 command: "setup".into(),
             }),

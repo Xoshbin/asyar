@@ -763,6 +763,7 @@ mod tests {
                 asyar_sdk: None,
                 platforms: None,
                 preferences: None,
+                actions: None,
                 onboarding: None,
                 tools: None,
                 runtimes: None,

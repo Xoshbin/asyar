@@ -1,5 +1,5 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { ExtensionBridge } from 'asyar-sdk/contracts';
+import { ExtensionBridge, ActionContext } from 'asyar-sdk/contracts';
 import type { Extension, ExtensionManifest, ExtensionCommand } from 'asyar-sdk/contracts';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from '../log/logService';
@@ -12,6 +12,7 @@ import { onboardingViewInterception } from './onboardingViewInterception';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { permissionConsentService } from './permissionConsentService.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
+import { actionService } from '../action/actionService.svelte';
 import { searchStores } from '../search/stores/search.svelte';
 
 /**
@@ -216,6 +217,11 @@ export class ExtensionLoader {
 
       // Initialize and activate extensions via the bridge *after* processing all loaded ones
       if (enabledCount > 0) {
+        // Register manifest-declared actions BEFORE initializeExtensions() so that
+        // Tier 1 built-ins can call actionService.setActionExecutor() in initialize()
+        // to attach an execute callback to an already-registered manifest action.
+        this.registerManifestActions();
+
         performanceService.startTiming('extension-initialization-activation');
         await this.bridge.initializeExtensions();
         await this.bridge.activateExtensions();
@@ -400,6 +406,79 @@ export class ExtensionLoader {
       }
     });
     logService.info(`Finished registering command handlers for enabled extensions.`);
+  }
+
+  /**
+   * Register manifest-declared actions from all loaded extensions.
+   * Extension-level actions appear when any command from that extension is selected.
+   * Command-level actions appear only when the specific command is selected.
+   */
+  registerManifestActions(): void {
+    const seenExtensions = new Set<string>();
+
+    for (const { cmd, manifest } of this.allLoadedCommands) {
+      const extensionId = manifest.id;
+
+      // Register extension-level actions once per extension
+      if (!seenExtensions.has(extensionId)) {
+        if (manifest.actions?.length) {
+          for (const action of manifest.actions) {
+            const fullActionId = `act_${extensionId}_${action.id}`;
+            actionService.registerAction({
+              id: fullActionId,
+              label: action.title,
+              description: action.description,
+              icon: action.icon,
+              shortcut: action.shortcut,
+              category: action.category,
+              extensionId,
+              context: ActionContext.CORE,
+              visible: () => {
+                const item = actionService.getSelectedSearchItem();
+                return item?.type === 'command' && item.extensionId === extensionId;
+              },
+              // execute intentionally omitted — triggers sendToExtension fallback
+            } as any);
+          }
+        }
+      }
+      seenExtensions.add(extensionId);
+
+      // Register command-level actions
+      if (cmd.actions?.length) {
+        const cmdObjectId = this.getCmdObjectId(cmd, manifest);
+        for (const action of cmd.actions) {
+          const fullActionId = `act_${extensionId}_${action.id}`;
+          actionService.registerAction({
+            id: fullActionId,
+            label: action.title,
+            description: action.description,
+            icon: action.icon,
+            shortcut: action.shortcut,
+            category: action.category,
+            extensionId,
+            context: ActionContext.CORE,
+            visible: () => {
+              const item = actionService.getSelectedSearchItem();
+              return item?.objectId === cmdObjectId;
+            },
+          } as any);
+        }
+      }
+    }
+
+    const actionCount = Array.from(seenExtensions).reduce((sum, extId) => {
+      return (
+        sum +
+        actionService
+          .getAllActions()
+          .filter((a) => a.extensionId === extId && a.id.startsWith('act_')).length
+      );
+    }, 0);
+
+    if (actionCount > 0) {
+      logService.info(`Registered ${actionCount} manifest-declared actions from extensions.`);
+    }
   }
 
   async syncCommandIndex(

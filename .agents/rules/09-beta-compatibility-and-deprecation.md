@@ -68,8 +68,7 @@ Add each new deprecation to the ledger in §5 in the same change.
 
 ### Active deprecation ledger
 
-| Deprecated item                                                                     | Replacement                                                   | Location                                                                                                         | Remove in |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------- |
-| Iframe compatibility fallback for published HTML-built worker bundles               | JS-entry worker bundles (Web Worker)                          | `services/extension/workerHost.svelte.ts`                                                                        | 0.2.0     |
-| Manifest-declared actions (`ManifestAction`, `manifest.actions`, `command.actions`) | In-view registered actions (`context.actions.registerAction`) | `asyar-sdk/src/types/ExtensionType.ts`, `discovery.rs`                                                           | 0.2.0     |
-| Pre-#860 `free` launcher anchor (fractions of the monitor's extent)                 | `freeTravel` anchor (fractions of available window travel)    | `launcher_placement/{types,resolve,classify,service}.rs`, `services/launcher/launcherPlacementService.svelte.ts` | 0.2.0     |
+| Deprecated item                                                       | Replacement                                                | Location                                                                                                         | Remove in |
+| --------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------- |
+| Iframe compatibility fallback for published HTML-built worker bundles | JS-entry worker bundles (Web Worker)                       | `services/extension/workerHost.svelte.ts`                                                                        | 0.2.0     |
+| Pre-#860 `free` launcher anchor (fractions of the monitor's extent)   | `freeTravel` anchor (fractions of available window travel) | `launcher_placement/{types,resolve,classify,service}.rs`, `services/launcher/launcherPlacementService.svelte.ts` | 0.2.0     |
