@@ -225,6 +225,7 @@ export type FileHit = {
  */
 export type FileIndexConfig = {
 	enabled: boolean,
+	rootSearchEnabled: boolean,
 	// Absolute paths to index. Empty ⇒ `$HOME`.
 	includeRoots: string[],
 	// Extra exclude patterns layered on top of the built-in defaults.
@@ -435,7 +436,7 @@ export type SearchResult = {
 	style?: string | null,
 	alias?: string | null,
 	/**
-	 *  Tier ordinal from `ranker::Tier` (0=Pinned .. 5=FrecencyOnly), computed
+	 *  Tier ordinal from `ranker::Tier` (0=Pinned, 5=Files, 6=FrecencyOnly), computed
 	 *  by `merged_search`'s classify pass. Lets the frontend consume Rust's
 	 *  tier directly instead of re-deriving it with its own approximation.
 	 */

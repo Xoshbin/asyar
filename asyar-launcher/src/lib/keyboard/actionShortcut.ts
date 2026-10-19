@@ -46,7 +46,6 @@ export const RESERVED_ACTION_SHORTCUTS: ReadonlyMap<string, string> = new Map([
   ['Mod+V', 'is paste in text fields'],
   ['Mod+X', 'is cut in text fields'],
   ['Mod+Z', 'is undo in text fields'],
-  ['Mod+Y', 'is redo in text fields'],
   ['Mod+Shift+Z', 'is redo in text fields'],
 ]);
 

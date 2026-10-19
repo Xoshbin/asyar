@@ -48,7 +48,13 @@ function mockSettings(partial: Partial<AppSettings>): void {
       tabContinuesLastThread: false,
       historyRetentionCap: 100,
     },
-    fileSearch: { enabled: true, includeRoots: [], excludePatterns: [], indexHidden: false },
+    fileSearch: {
+      enabled: true,
+      rootSearchEnabled: true,
+      includeRoots: [],
+      excludePatterns: [],
+      indexHidden: false,
+    },
   };
   vi.mocked(settingsService.getSettings).mockReturnValue({
     ...defaults,

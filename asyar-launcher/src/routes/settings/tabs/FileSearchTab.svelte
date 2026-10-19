@@ -22,6 +22,7 @@
   let roots = $derived(settingsService.currentSettings.fileSearch.includeRoots ?? []);
   let excludePatterns = $derived(settingsService.currentSettings.fileSearch.excludePatterns ?? []);
   let enabled = $derived(settingsService.currentSettings.fileSearch.enabled);
+  let rootSearchEnabled = $derived(settingsService.currentSettings.fileSearch.rootSearchEnabled);
 
   let isBrowsing = $state(false);
   let newExcludePattern = $state('');
@@ -57,6 +58,7 @@
   async function persistFileSearch(
     patch: Partial<{
       enabled: boolean;
+      rootSearchEnabled: boolean;
       includeRoots: string[];
       excludePatterns: string[];
       indexHidden: boolean;
@@ -72,6 +74,10 @@
 
   async function handleToggleEnabled() {
     await persistFileSearch({ enabled: !enabled });
+  }
+
+  async function handleToggleRootSearch() {
+    await persistFileSearch({ rootSearchEnabled: !rootSearchEnabled });
   }
 
   async function handleAddRoot() {
@@ -145,6 +151,12 @@
       description={t('settings.file_search.file_search_description')}
     >
       <Toggle checked={enabled} onchange={handleToggleEnabled} />
+    </SettingsRow>
+    <SettingsRow
+      label={t('settings.file_search.root_search_title')}
+      description={t('settings.file_search.root_search_description')}
+    >
+      <Toggle checked={rootSearchEnabled} onchange={handleToggleRootSearch} disabled={!enabled} />
     </SettingsRow>
   </SettingsCard>
 

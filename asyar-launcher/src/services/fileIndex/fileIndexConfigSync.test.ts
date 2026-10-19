@@ -16,6 +16,7 @@ const settingsStateHolder = {
   current: {
     fileSearch: {
       enabled: true,
+      rootSearchEnabled: true,
       includeRoots: [] as string[],
       excludePatterns: [] as string[],
       indexHidden: false,
@@ -53,6 +54,7 @@ async function flush(): Promise<void> {
 function cfg(overrides: Partial<typeof settingsStateHolder.current.fileSearch> = {}) {
   return {
     enabled: true,
+    rootSearchEnabled: true,
     includeRoots: [],
     excludePatterns: [],
     indexHidden: false,

@@ -19,8 +19,11 @@ import { feedbackService } from '../../services/feedback/feedbackService.svelte'
 import { aliasStore } from '../../built-in-features/aliases/aliasStore.svelte';
 import { runService } from '../../services/run/runService.svelte';
 import { untrack } from 'svelte';
+import { createRootFileIconCache } from './rootFileIcons.svelte';
+import { buildFileActions } from '../../built-in-features/file-search/fileActions';
 
 export function setupSelectionEffects(state: LauncherState) {
+  const rootFileIcons = createRootFileIconCache();
   // Effect 6: Reset selected index when search items change.
   //
   // Compact idle has no visible list, so it has no selection either: a
@@ -107,6 +110,15 @@ export function setupSelectionEffects(state: LauncherState) {
     state.currentSelectedItemOriginal = selectedOriginal;
   });
 
+  $effect(() => {
+    const fileRows = state.searchResultItemsMapped.filter((item) => item.type === 'file');
+    for (const row of fileRows) {
+      const icon = rootFileIcons.iconFor(row.object_id);
+      if (icon) row.icon = icon;
+    }
+    rootFileIcons.request(fileRows);
+  });
+
   // Effect 8b: Predictive warm — when a Tier 2 command row becomes selected,
   // fire a predictiveWarm dispatch so its iframe is cold-loading in parallel
   // with the user deciding to press Enter. warmIfTier2 is a no-op for
@@ -166,6 +178,14 @@ export function setupSelectionEffects(state: LauncherState) {
     return `${item.objectId}:${item.favorite === true}`;
   });
 
+  const rootFileActionsKey = $derived.by(() => {
+    if (state.activeViewVal) return null;
+    const items = state.searchResultItemsMapped;
+    const index = state.selectedIndexVal;
+    const item = index >= 0 && index < items.length ? items[index] : null;
+    return item?.type === 'file' && item.path ? item.object_id : null;
+  });
+
   // Effect 9: Shortcut action registration for selected item
   $effect(() => {
     const key = shortcutsKey;
@@ -191,6 +211,31 @@ export function setupSelectionEffects(state: LauncherState) {
     });
     return () => {
       actionService.unregisterAction('shortcuts:assign');
+    };
+  });
+
+  // Effect 9c: The root file row uses the same action descriptors as the
+  // dedicated File Search view. Cleanup is context-aware so a root effect
+  // teardown cannot unregister actions the view has just registered.
+  $effect(() => {
+    const key = rootFileActionsKey;
+    if (key === null) return;
+    const getFile = () => {
+      const items = state.searchResultItemsMapped;
+      const index = state.selectedIndexVal;
+      const item = index >= 0 && index < items.length ? items[index] : null;
+      if (!item || item.type !== 'file' || !item.path) return null;
+      return {
+        fileId: item.object_id.replace(/^file_/, ''),
+        path: item.path,
+        name: item.title,
+      };
+    };
+    const actions = buildFileActions({ getFile, context: ActionContext.CORE });
+    for (const action of actions) actionService.registerAction(action);
+    return () => {
+      if (actionService.getContext() !== ActionContext.CORE) return;
+      for (const action of actions) actionService.unregisterAction(action.id);
     };
   });
 

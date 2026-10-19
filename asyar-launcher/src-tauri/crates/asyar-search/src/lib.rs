@@ -16,7 +16,8 @@ pub enum Tier {
     TitlePrefix = 2,
     TitleFuzzy = 3,
     SubtitleOrKeyword = 4,
-    FrecencyOnly = 5,
+    Files = 5,
+    FrecencyOnly = 6,
 }
 
 #[derive(Clone, Debug)]
@@ -386,7 +387,10 @@ mod tests {
         assert!(Tier::ExactTitle < Tier::TitlePrefix);
         assert!(Tier::TitlePrefix < Tier::TitleFuzzy);
         assert!(Tier::TitleFuzzy < Tier::SubtitleOrKeyword);
-        assert!(Tier::SubtitleOrKeyword < Tier::FrecencyOnly);
+        assert!(Tier::SubtitleOrKeyword < Tier::Files);
+        assert!(Tier::Files < Tier::FrecencyOnly);
+        assert_eq!(Tier::Files as u8, 5);
+        assert_eq!(Tier::FrecencyOnly as u8, 6);
     }
 
     #[test]

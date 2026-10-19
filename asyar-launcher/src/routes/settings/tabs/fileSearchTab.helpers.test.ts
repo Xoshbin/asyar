@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canAddRoot, canAddExcludePattern } from './fileSearchTab.helpers';
+import { canAddRoot, canAddExcludePattern, withRootSearchEnabled } from './fileSearchTab.helpers';
 
 describe('canAddRoot', () => {
   it('rejects empty input', () => {
@@ -13,6 +13,23 @@ describe('canAddRoot', () => {
 
   it('accepts a new, non-empty, non-duplicate path', () => {
     expect(canAddRoot('/data', ['/other'])).toBe(true);
+  });
+});
+
+describe('withRootSearchEnabled', () => {
+  it('flips the root-search toggle without changing any other field', () => {
+    const config = {
+      enabled: true,
+      rootSearchEnabled: true,
+      includeRoots: ['/data'],
+      excludePatterns: ['*.tmp'],
+      indexHidden: false,
+    };
+
+    expect(withRootSearchEnabled(config, false)).toEqual({
+      ...config,
+      rootSearchEnabled: false,
+    });
   });
 });
 

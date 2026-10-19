@@ -207,6 +207,7 @@ pub async fn file_index_set_config(
         config.include_roots.clone(),
         config.exclude_patterns.clone(),
     );
+    state.set_root_search_enabled(config.root_search_enabled);
     state.set_enabled(config.enabled);
 
     if config.enabled && (roots_changed || !was_enabled) {

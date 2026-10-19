@@ -15,6 +15,7 @@ import { contextModeService } from '../context/contextModeService.svelte';
 import { actionService, setSelectedItemProvider } from '../action/actionService.svelte';
 
 export { invalidateTopItemsCache };
+export const MIN_FILE_QUERY_CHARS = 3;
 
 /**
  * Fire a predictive warm dispatch when the user highlights a Tier 2
@@ -97,7 +98,7 @@ class SearchOrchestratorClass {
           style: row.style,
           priority: row.priority,
         }));
-        localResponse = await commands.mergedSearch(query, localRows, 10);
+        localResponse = await commands.mergedSearch(query, localRows, 10, false);
         if (token !== this.#searchToken) return;
         this.items = localResponse.results as SearchResult[];
         this.lastCompletedQuery = query;
@@ -161,9 +162,13 @@ class SearchOrchestratorClass {
         })),
       );
       const resp =
-        resultsFromExtensions.length === 0 && localResponse
+        resultsFromExtensions.length === 0 &&
+        localResponse &&
+        Array.from(query.trim()).length < MIN_FILE_QUERY_CHARS
           ? localResponse
-          : await commands.mergedSearch(query, externalResults, 10);
+          : Array.from(query.trim()).length >= MIN_FILE_QUERY_CHARS
+            ? await commands.mergedSearch(query, externalResults, 10, true)
+            : await commands.mergedSearch(query, externalResults, 10);
       const combinedResults: SearchResult[] = resp.results as SearchResult[];
       const aliasMatch = resp.aliasMatch ?? null;
       if (token !== this.#searchToken) return;

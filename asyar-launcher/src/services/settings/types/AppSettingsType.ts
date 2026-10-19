@@ -78,6 +78,7 @@ export interface FeedbackSettings {
 
 export interface FileSearchSettings {
   enabled: boolean;
+  rootSearchEnabled: boolean;
   /** Absolute paths to index. Empty ⇒ Rust defaults to $HOME. */
   includeRoots: string[];
   /** Extra exclude patterns layered on top of the built-in defaults. */

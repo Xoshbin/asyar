@@ -90,6 +90,11 @@ impl FileIndexState {
         self.status.lock().expect("status lock").clone()
     }
 
+    pub fn primary_root(&self) -> Option<String> {
+        let index = self.index.read().expect("index lock");
+        (index.roots_len() > 0).then(|| index.disp_name(0).to_string())
+    }
+
     pub fn last_scan_completed(&self) -> Option<std::time::Instant> {
         *self
             .last_scan_completed
@@ -179,6 +184,13 @@ impl FileIndexState {
             *self.index.write().expect("index lock") = FileIndex::empty();
             *self.query_cache.lock().expect("query cache lock") = None;
         }
+    }
+
+    pub fn set_root_search_enabled(&self, enabled: bool) {
+        self.config
+            .write()
+            .expect("config lock")
+            .root_search_enabled = enabled;
     }
 
     /// Pure config setter. Returns `true` when the include/exclude sets

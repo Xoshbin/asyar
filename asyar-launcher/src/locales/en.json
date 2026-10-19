@@ -254,6 +254,8 @@
       "section_status": "Status",
       "file_search_title": "File search",
       "file_search_description": "Indexing runs in the background and excludes caches, dependency folders, and system directories by default.",
+      "root_search_title": "Include Files in Root Search",
+      "root_search_description": "Show matching files alongside apps and commands while you type.",
       "restored_snapshot": "restored from snapshot",
       "index_size_warning": "The index hit its size cap — some files may not be searchable. Add exclude patterns to narrow the scan, or reduce your search roots.",
       "search_roots": "Search roots",

@@ -73,6 +73,7 @@ const DEFAULT: AppSettings = {
   },
   fileSearch: {
     enabled: true,
+    rootSearchEnabled: true,
     includeRoots: [],
     excludePatterns: [],
     indexHidden: false,

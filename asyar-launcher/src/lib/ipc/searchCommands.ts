@@ -37,8 +37,14 @@ export async function mergedSearch(
   query: string,
   externalResults: ExternalSearchResult[],
   minResults?: number,
+  includeFiles?: boolean,
 ): Promise<MergedSearchResponse> {
-  return invokeSafe<MergedSearchResponse>('merged_search', { query, externalResults, minResults });
+  return invokeSafe<MergedSearchResponse>('merged_search', {
+    query,
+    externalResults,
+    minResults,
+    includeFiles,
+  });
 }
 
 // ── Aliases ───────────────────────────────────────────────────────────────────

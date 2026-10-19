@@ -21,6 +21,8 @@ import { searchBarAccessoryService } from '../../services/search/searchBarAccess
 import { resetLauncherState } from '../launcher/launcherReset';
 import { resolveEscapeBehavior } from './escapeBehavior';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
+import { quickLookPath } from '../ipc/fileSearchCommands';
+import { openerService } from '../../services/opener/openerService';
 
 /** Minimal contract the global ⌘P handler needs from the accessory dropdown. */
 export interface AccessoryRefHandle {
@@ -305,6 +307,26 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return deps.handleActionShortcut?.(event) ?? false;
   }
 
+  function tryQuickLookSelectedFile(event: KeyboardEvent): boolean {
+    if (
+      viewManager.activeView ||
+      !(event.metaKey || event.ctrlKey) ||
+      event.shiftKey ||
+      event.altKey ||
+      event.key.toLowerCase() !== 'y'
+    ) {
+      return false;
+    }
+    const item = deps.getSelectedItem?.();
+    if (item?.type !== 'file' || !item.path) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    void quickLookPath(item.path).then((ok) => {
+      if (!ok) return openerService.openPath(null, item.path!);
+    });
+    return true;
+  }
+
   // Route keyboard events to the active extension view
   function tryRouteToActiveView(event: KeyboardEvent): boolean {
     if (!viewManager.activeView) return false;
@@ -390,6 +412,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (tryToggleAccessoryPopover(event)) return;
     if (tryToggleActionPanel(event)) return;
     if (tryCloseActionPanel(event)) return;
+    if (tryQuickLookSelectedFile(event)) return;
     if (tryRunActionShortcut(event)) return;
     tryRouteToActiveView(event);
   }

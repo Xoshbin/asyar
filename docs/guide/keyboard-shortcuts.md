@@ -96,16 +96,17 @@ A few built-in features add extra shortcuts while their view is active. Each one
 
 **File Search**
 
-| Shortcut     | What it does                              |
-| ------------ | ----------------------------------------- |
-| `Space`      | Quick Look preview of the selected file   |
-| `⌘R`         | Reveal in Finder                          |
-| `⌘⇧C`        | Copy Path                                 |
-| `⌘⌥C`        | Copy Name                                 |
-| `⌘T`         | Open in Terminal                          |
-| `⌘⇧P`        | Toggle Pin                                |
-| `Tab` / `⌘I` | Send to Asyar AI                          |
-| `⌘⇧F`        | Search Everywhere (deep OS-native search) |
+| Shortcut     | What it does                                                           |
+| ------------ | ---------------------------------------------------------------------- |
+| `⌘Y`         | Quick Look preview of selected file in main search (preserves `Space`) |
+| `Space`      | Quick Look preview of selected file (in dedicated File Search view)    |
+| `⌘R`         | Reveal in Finder                                                       |
+| `⌘⇧C`        | Copy Path                                                              |
+| `⌘⌥C`        | Copy Name                                                              |
+| `⌘T`         | Open in Terminal                                                       |
+| `⌘⇧P`        | Toggle Pin                                                             |
+| `Tab` / `⌘I` | Send to Asyar AI                                                       |
+| `⌘⇧F`        | Search Everywhere (deep OS-native search)                              |
 
 **Screen OCR**
 
