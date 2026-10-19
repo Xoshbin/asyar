@@ -514,23 +514,22 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                 // Validate action declarations
                 let mut actions_valid = true;
                 if let Some(actions) = &manifest.actions {
-                    if let Err(e) = validate_actions(actions, "extension") {
+                    if validate_actions(actions, "extension").is_err() {
                         warn!(
-                            "Extension '{}' has invalid actions: {}. Skipping.",
-                            dir_name, e
+                            "Extension '{}' has invalid actions declaration. Skipping.",
+                            dir_name
                         );
                         actions_valid = false;
                     }
                 }
                 if actions_valid {
-                    for cmd in &manifest.commands {
+                    for (cmd_idx, cmd) in manifest.commands.iter().enumerate() {
                         if let Some(actions) = &cmd.actions {
-                            if let Err(e) =
-                                validate_actions(actions, &format!("command '{}'", cmd.id))
-                            {
+                            let scope = format!("command #{}", cmd_idx);
+                            if validate_actions(actions, &scope).is_err() {
                                 warn!(
-                                    "Extension '{}' command '{}' has invalid actions: {}. Skipping extension.",
-                                    dir_name, cmd.id, e
+                                    "Extension '{}' command #{} has invalid actions declaration. Skipping extension.",
+                                    dir_name, cmd_idx
                                 );
                                 actions_valid = false;
                                 break;
@@ -546,10 +545,10 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                         .iter()
                         .filter_map(|c| c.actions.as_deref())
                         .collect();
-                    if let Err(e) = validate_actions_cross_scope(ext_actions, &cmd_action_groups) {
+                    if validate_actions_cross_scope(ext_actions, &cmd_action_groups).is_err() {
                         warn!(
-                            "Extension '{}' has conflicting action IDs: {}. Skipping.",
-                            dir_name, e
+                            "Extension '{}' has conflicting action IDs across extension and command declarations. Skipping.",
+                            dir_name
                         );
                         actions_valid = false;
                     }
