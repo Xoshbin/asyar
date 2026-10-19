@@ -48,6 +48,7 @@ vi.mock('../../services/clipboard/stores/clipboardHistoryStore.svelte', () => ({
     loadOlder: vi.fn().mockResolvedValue(undefined),
     search: vi.fn().mockResolvedValue(undefined),
     clearSearch: vi.fn(),
+    subscribe: vi.fn(() => () => {}),
     fetchFullItem: vi.fn((id: string) => Promise.resolve(items[id] ?? null)),
     deleteHistoryItem: vi.fn().mockResolvedValue({ imageContentPath: undefined }),
   },
