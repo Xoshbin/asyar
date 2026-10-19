@@ -64,7 +64,7 @@ pub async fn scan_streaming(
 /// Rank a record when both protocols report the same `(host, port)`, so the
 /// surviving row does not depend on which answer arrives first. mDNS carries
 /// the user-set device name in its `fn` TXT record ("Family Room TV"); SSDP
-/// only has the `Server` header ("Linux/5.4.284+, UPnP/1.0, Chromecast/1.6.18")
+/// only has a generic `Server` header while mDNS can carry a friendly name.
 /// and falls back to the bare IP when even that is missing.
 fn name_rank(device: &DiscoveredDevice) -> u8 {
     if device.name == device.host {
@@ -232,36 +232,19 @@ fn extract_ssdp_header(response: &str, header: &str) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-const SONOS_SERVICE: &str = "_sonos._tcp.local.";
-const GOOGLECAST_SERVICE: &str = "_googlecast._tcp.local.";
-
-/// Google Cast's SRV record points at the binary protobuf/TLS control socket,
-/// which closes the connection on a plain HTTP request. The device's HTTP
-/// surface — the DIAL API at `/setup/eureka_info` and `/ssdp/device-desc.xml` —
-/// is fixed at 8008 by the Cast spec and is not advertised in TXT, so the
-/// translation is a constant rather than a lookup.
-const GOOGLECAST_HTTP_PORT: u16 = 8008;
-
-/// Report the port a device actually serves HTTP on, not the control port it
-/// advertises. Sonos publishes its SOAP/UPnP port in the `location` TXT record
-/// (:1400, not the TLS :1443); Google Cast has a fixed HTTP port.
+/// Prefer an explicit HTTP(S) endpoint advertised by DNS-SD TXT metadata.
+///
+/// The platform makes no assumptions about service vendors or protocols: a
+/// companion endpoint is used only when the device itself advertises it.
 fn resolve_mdns_port(info: &mdns_sd::ServiceInfo) -> (u16, Option<String>) {
     let service_type = (!info.get_type().is_empty()).then(|| info.get_type().to_string());
-    let advertised = info.get_type();
-    let port = if advertised.eq_ignore_ascii_case(SONOS_SERVICE) {
-        info.get_properties()
-            .get_property_val_str("location")
-            .and_then(parse_location_url)
-            .map(|(_, port)| port)
-            .unwrap_or_else(|| info.get_port())
-    } else if advertised.eq_ignore_ascii_case(GOOGLECAST_SERVICE) {
-        // Unconditional: a Cast group advertises a dynamic high port for the
-        // same physical device, and 8008 is the only HTTP endpoint that host
-        // exposes, so every Cast record on a host lands on one usable row.
-        GOOGLECAST_HTTP_PORT
-    } else {
-        info.get_port()
-    };
+    let port = ["location", "url"]
+        .into_iter()
+        .filter_map(|key| info.get_properties().get_property_val_str(key))
+        .filter_map(parse_location_url)
+        .find(|(ip, _)| info.get_addresses().contains(ip))
+        .map(|(_, port)| port)
+        .unwrap_or_else(|| info.get_port());
     (port, service_type)
 }
 
@@ -299,20 +282,8 @@ async fn scan_mdns(
         });
     };
 
-    // Phase A: browse seeds + custom_services immediately
-    let seeds = [
-        SONOS_SERVICE,
-        "_hap._tcp.local.",
-        "_home-assistant._tcp.local.",
-        GOOGLECAST_SERVICE,
-        "_ipp._tcp.local.",
-        "_http._tcp.local.",
-    ];
-    for seed in seeds {
-        if browsed_types.insert(seed.to_string()) {
-            spawn_browse(seed.to_string(), &mdns, tx.clone());
-        }
-    }
+    // Phase A: extension-declared types start immediately. The host otherwise
+    // remains vendor-neutral and discovers all available types through DNS-SD.
     for custom in custom_services {
         if browsed_types.insert(custom.clone()) {
             spawn_browse(custom, &mdns, tx.clone());
@@ -459,35 +430,35 @@ mod tests {
     #[test]
     fn mdns_device_from_info_surfaces_private_ipv4_and_friendly_name() {
         let info = mdns_sd::ServiceInfo::new(
-            "_googlecast._tcp.local.",
-            "Chromecast-ABC",
+            "_example-device._tcp.local.",
+            "Example-ABC",
             "cast.local.",
             "192.168.1.172",
             8009,
             HashMap::from([("fn".to_string(), "Family Room TV".to_string())]),
         )
         .unwrap();
-        let device = mdns_device_from_info(&info, "_googlecast._tcp.local.")
+        let device = mdns_device_from_info(&info, "_example-device._tcp.local.")
             .expect("should surface valid device");
         assert_eq!(device.name, "Family Room TV");
         assert_eq!(device.host, "192.168.1.172");
-        assert_eq!(device.port, 8008);
+        assert_eq!(device.port, 8009);
         assert_eq!(device.protocol, "mdns");
-        assert_eq!(device.service_type, "_googlecast._tcp.local.");
+        assert_eq!(device.service_type, "_example-device._tcp.local.");
     }
 
     #[test]
     fn mdns_device_from_info_prefers_private_ipv4_over_link_local_ipv6() {
         let info = mdns_sd::ServiceInfo::new(
-            "_googlecast._tcp.local.",
-            "Chromecast-ABC",
+            "_example-device._tcp.local.",
+            "Example-ABC",
             "cast.local.",
             &["192.168.1.172", "fe80::de0f:abda:8b5f:81db"][..],
             8009,
             HashMap::from([("fn".to_string(), "Family Room TV".to_string())]),
         )
         .unwrap();
-        let device = mdns_device_from_info(&info, "_googlecast._tcp.local.")
+        let device = mdns_device_from_info(&info, "_example-device._tcp.local.")
             .expect("should surface device even if link-local IPv6 is present");
         assert_eq!(device.host, "192.168.1.172");
     }
@@ -496,8 +467,8 @@ mod tests {
     fn mdns_device_from_info_drops_device_with_only_unsafe_addresses() {
         for unsafe_ip in ["127.0.0.1", "169.254.1.1", "8.8.8.8", "fe80::1"] {
             let info = mdns_sd::ServiceInfo::new(
-                "_googlecast._tcp.local.",
-                "Chromecast-ABC",
+                "_example-device._tcp.local.",
+                "Example-ABC",
                 "cast.local.",
                 unsafe_ip,
                 8009,
@@ -505,7 +476,7 @@ mod tests {
             )
             .unwrap();
             assert!(
-                mdns_device_from_info(&info, "_googlecast._tcp.local.").is_none(),
+                mdns_device_from_info(&info, "_example-device._tcp.local.").is_none(),
                 "unsafe ip {unsafe_ip} must not be surfaced"
             );
         }
@@ -514,15 +485,15 @@ mod tests {
     #[test]
     fn mdns_device_from_info_falls_back_to_hostname_when_fn_txt_missing() {
         let info = mdns_sd::ServiceInfo::new(
-            "_googlecast._tcp.local.",
-            "Chromecast-ABC",
+            "_example-device._tcp.local.",
+            "Example-ABC",
             "cast.local.",
             "192.168.1.172",
             8009,
             HashMap::<String, String>::new(),
         )
         .unwrap();
-        let device = mdns_device_from_info(&info, "_googlecast._tcp.local.")
+        let device = mdns_device_from_info(&info, "_example-device._tcp.local.")
             .expect("should surface valid device");
         assert_eq!(device.name, "cast.local");
     }
@@ -566,11 +537,11 @@ mod tests {
     fn ssdp_response_reports_the_location_port_not_the_source_port() {
         let text = "HTTP/1.1 200 OK\r\n\
                     LOCATION: http://192.168.1.50:1400/xml/device_description.xml\r\n\
-                    SERVER: Linux UPnP/1.0 Sonos/84.1\r\n\
+                    SERVER: Linux UPnP/1.0 Example/84.1\r\n\
                     ST: urn:schemas-upnp-org:device:ZonePlayer:1\r\n\
                     USN: uuid:RINCON_ABC::urn:schemas-upnp-org:device:ZonePlayer:1\r\n\r\n";
         let device = ssdp_device_from_response(text, "192.168.1.50".parse().unwrap())
-            .expect("a well-formed Sonos reply must be surfaced");
+            .expect("a well-formed SSDP reply must be surfaced");
         assert_eq!(device.host, "192.168.1.50");
         assert_eq!(device.port, 1400);
         assert_eq!(device.protocol, "ssdp");
@@ -578,7 +549,7 @@ mod tests {
             device.service_type,
             "urn:schemas-upnp-org:device:ZonePlayer:1"
         );
-        assert_eq!(device.name, "Linux UPnP/1.0 Sonos/84.1");
+        assert_eq!(device.name, "Linux UPnP/1.0 Example/84.1");
     }
 
     #[test]
@@ -602,7 +573,7 @@ mod tests {
         mdns_sd::ServiceInfo::new(
             service_type,
             "Living Room",
-            "sonos.local.",
+            "example.local.",
             "192.168.1.50",
             port,
             properties,
@@ -611,15 +582,15 @@ mod tests {
     }
 
     #[test]
-    fn mdns_sonos_location_resolves_http_port_and_service_type() {
+    fn mdns_location_txt_resolves_http_port_for_any_service_type() {
         let info = mdns_info(
-            "_sonos._tcp.local.",
+            "_vendor-device._tcp.local.",
             1443,
             Some("http://192.168.1.50:1400/xml/device_description.xml"),
         );
         assert_eq!(
             resolve_mdns_port(&info),
-            (1400, Some("_sonos._tcp.local.".to_string()))
+            (1400, Some("_vendor-device._tcp.local.".to_string()))
         );
     }
 
@@ -631,35 +602,18 @@ mod tests {
             Some("not-a-url"),
             Some("rtsp://192.168.1.50:554/s"),
         ] {
-            let info = mdns_info("_sonos._tcp.local.", 1443, location);
+            let info = mdns_info("_vendor-device._tcp.local.", 1443, location);
             assert_eq!(
                 resolve_mdns_port(&info),
-                (1443, Some("_sonos._tcp.local.".to_string()))
+                (1443, Some("_vendor-device._tcp.local.".to_string()))
             );
         }
     }
 
     #[test]
-    fn mdns_googlecast_resolves_to_the_dial_http_port() {
-        let info = mdns_info("_googlecast._tcp.local.", 8009, None);
-        assert_eq!(
-            resolve_mdns_port(&info),
-            (8008, Some("_googlecast._tcp.local.".to_string()))
-        );
-    }
-
-    #[test]
-    fn mdns_googlecast_group_on_a_dynamic_port_also_resolves_to_the_dial_http_port() {
-        let info = mdns_info("_googlecast._tcp.local.", 32775, None);
-        assert_eq!(resolve_mdns_port(&info).0, 8008);
-    }
-
-    #[test]
-    fn mdns_other_service_types_keep_their_srv_port() {
-        for stype in ["_hap._tcp.local.", "_http._tcp.local.", "_ipp._tcp.local."] {
-            let info = mdns_info(stype, 8009, None);
-            assert_eq!(resolve_mdns_port(&info).0, 8009, "{stype}");
-        }
+    fn mdns_without_generic_endpoint_metadata_keeps_srv_port() {
+        let info = mdns_info("_vendor-device._tcp.local.", 8009, None);
+        assert_eq!(resolve_mdns_port(&info).0, 8009);
     }
 
     fn device(protocol: &str, name: &str, port: u16) -> DiscoveredDevice {
@@ -682,7 +636,7 @@ mod tests {
 
     #[test]
     fn dedup_prefers_the_mdns_friendly_name_regardless_of_arrival_order() {
-        let ssdp = device("ssdp", "Linux/5.4.284+, UPnP/1.0, Chromecast/1.6.18", 8008);
+        let ssdp = device("ssdp", "Linux/5.4.284+, UPnP/1.0, Example/1.6.18", 8008);
         let mdns = device("mdns", "Family Room TV", 8008);
         for order in [
             vec![ssdp.clone(), mdns.clone()],
@@ -701,33 +655,33 @@ mod tests {
     fn dedup_prefers_a_named_record_over_the_bare_ip_fallback() {
         let devices = collect(vec![
             device("ssdp", "192.168.1.172", 8008),
-            device("ssdp", "Linux UPnP/1.0 Sonos/84.1", 8008),
+            device("ssdp", "Linux UPnP/1.0 Example/84.1", 8008),
         ]);
         assert_eq!(
             devices[&("192.168.1.172".to_string(), 8008)].name,
-            "Linux UPnP/1.0 Sonos/84.1"
+            "Linux UPnP/1.0 Example/84.1"
         );
     }
 
     #[test]
     fn dedup_keeps_ssdp_only_devices_and_distinct_ports_as_separate_rows() {
         let devices = collect(vec![
-            device("ssdp", "Linux UPnP/1.0 Sonos/84.1", 1400),
+            device("ssdp", "Linux UPnP/1.0 Example/84.1", 1400),
             device("mdns", "Family Room TV", 8008),
         ]);
         assert_eq!(devices.len(), 2);
         assert_eq!(
             devices[&("192.168.1.172".to_string(), 1400)].name,
-            "Linux UPnP/1.0 Sonos/84.1"
+            "Linux UPnP/1.0 Example/84.1"
         );
     }
 
     #[test]
     fn extract_ssdp_server_header() {
         let response =
-            "HTTP/1.1 200 OK\r\nSERVER: Linux/4.9 UPnP/1.1 Sonos/58.1\r\nUSN: uuid:abc\r\n\r\n";
+            "HTTP/1.1 200 OK\r\nSERVER: Linux/4.9 UPnP/1.1 Example/58.1\r\nUSN: uuid:abc\r\n\r\n";
         let server = extract_ssdp_header(response, "Server");
-        assert_eq!(server.as_deref(), Some("Linux/4.9 UPnP/1.1 Sonos/58.1"));
+        assert_eq!(server.as_deref(), Some("Linux/4.9 UPnP/1.1 Example/58.1"));
     }
 
     #[test]
