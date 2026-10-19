@@ -46,8 +46,10 @@ pub fn append_inline_file_results(
         },
         now,
     );
-    let existing_paths: HashSet<String> =
-        results.iter().filter_map(|row| row.path.clone()).collect();
+    let existing_paths: HashSet<String> = results
+        .iter()
+        .filter_map(|row| row.path.as_deref().map(normalize_path_for_dedup))
+        .collect();
     let indexed_root = config
         .include_roots
         .is_empty()
@@ -57,7 +59,7 @@ pub fn append_inline_file_results(
     let mut rows: Vec<SearchResult> = response
         .hits
         .into_iter()
-        .filter(|hit| !existing_paths.contains(&hit.path))
+        .filter(|hit| !existing_paths.contains(&normalize_path_for_dedup(&hit.path)))
         .take(ROOT_FILE_ROW_CAP)
         .map(|hit| {
             let description = parent_description(&hit.path, home_root);
@@ -89,16 +91,30 @@ pub fn append_inline_file_results(
     inserted
 }
 
+fn normalize_path_for_dedup(path: &str) -> String {
+    let trimmed = path.trim_end_matches(['/', '\\']);
+    let s = trimmed.replace('\\', "/");
+    if cfg!(windows) {
+        s.to_lowercase()
+    } else {
+        s
+    }
+}
+
 fn parent_description(path: &str, home_root: Option<&str>) -> Option<String> {
-    let parent = Path::new(path).parent()?.to_string_lossy();
-    if parent.is_empty() {
+    let parent = Path::new(path).parent()?;
+    if parent.as_os_str().is_empty() {
         return None;
     }
-    Some(match home_root {
-        Some(home) if parent == home => "~".to_string(),
-        Some(home) if parent.starts_with(home) => format!("~{}", &parent[home.len()..]),
-        _ => parent.into_owned(),
-    })
+    if let Some(home) = home_root.map(Path::new) {
+        if let Ok(rest) = parent.strip_prefix(home) {
+            if rest.as_os_str().is_empty() {
+                return Some("~".to_string());
+            }
+            return Some(format!("~{}{}", std::path::MAIN_SEPARATOR, rest.display()));
+        }
+    }
+    Some(parent.to_string_lossy().into_owned())
 }
 
 fn drill_down_row(query: &str) -> SearchResult {
@@ -229,5 +245,12 @@ mod tests {
         );
         assert_eq!(rows[1].tier, Tier::Files as u8);
         assert_eq!(rows[1].description.as_deref(), Some("~"));
+
+        // Windows-style backslashes in existing row deduplicate against forward-slash indexed paths
+        let mut rows_win = vec![row("app_safari", Some(r"\home\me\Safari.app"), 1.0)];
+        assert_eq!(
+            append_inline_file_results(&mut rows_win, "safari", 1, &index, 100),
+            0
+        );
     }
 }
