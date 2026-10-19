@@ -8,7 +8,14 @@ File Search indexes your home folder in the background and lets you find any fil
 
 The detail pane on the right shows a real preview: images render as thumbnails, text and code files show their content, and (on macOS) other file types — PDFs, videos, archives — get a Quick Look-style preview too. The list itself shows small thumbnails for images so you can spot the file you want without opening the preview.
 
-Everywhere else in the app, typing a search that doesn't match many apps or commands shows a "Search files for…" row — press `Enter` on it to jump straight into File Search with your query already filled in.
+### Inline results in Root Search
+
+You don't always need to enter File Search to find a document. As you type queries in Asyar's main search bar, top matching files appear directly inline below apps and commands:
+
+- Up to 4 relevant file results are displayed with native OS file icons and parent-folder paths (e.g., `~/Documents/Projects`).
+- When more matches exist, a **Search files for “…”…** row appears at the bottom of the file block. Press `Enter` on it to jump straight into the full File Search view with your query preserved.
+- On file rows in root search, press `⌘Y` to open Quick Look preview (leaving `Space` free for typing multi-word search queries), or press `⌘K` to open the full file Action Panel.
+- If you prefer root search to only show apps, commands, and extensions, you can disable inline file results anytime in **Settings → File Search → Show in Root Search**.
 
 ## How to use it
 
@@ -21,18 +28,18 @@ Everywhere else in the app, typing a search that doesn't match many apps or comm
 
 ## Shortcuts & actions
 
-| Action                          | How                     |
-| ------------------------------- | ----------------------- |
-| Open file                       | `Enter` or double-click |
-| Quick Look preview              | `Space`                 |
-| Reveal in Finder                | `⌘R`                    |
-| Copy Path                       | `⌘⇧C`                   |
-| Copy Name                       | `⌘⌥C`                   |
-| Open in Terminal                | `⌘T`                    |
-| Toggle Pin                      | `⌘P`                    |
-| Send to Asyar AI                | `Tab` or `⌘I`           |
-| Search Everywhere (Deep Search) | `⌘⇧F`                   |
-| Open action panel               | `⌘K`                    |
+| Action                          | How                                                    |
+| ------------------------------- | ------------------------------------------------------ |
+| Open file                       | `Enter` or double-click                                |
+| Quick Look preview              | `Space` (in File Search view) or `⌘Y` (in root search) |
+| Reveal in Finder                | `⌘R`                                                   |
+| Copy Path                       | `⌘⇧C`                                                  |
+| Copy Name                       | `⌘⌥C`                                                  |
+| Open in Terminal                | `⌘T`                                                   |
+| Toggle Pin                      | `⌘P`                                                   |
+| Send to Asyar AI                | `Tab` or `⌘I`                                          |
+| Search Everywhere (Deep Search) | `⌘⇧F`                                                  |
+| Open action panel               | `⌘K`                                                   |
 
 **Action panel (⌘K) entries while the list is open:**
 

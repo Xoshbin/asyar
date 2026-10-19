@@ -249,26 +249,23 @@ milestones are the synchronous `Rescanning` flip and the final
 TS wrappers: `src/lib/ipc/fileSearchCommands.ts`,
 `src/lib/ipc/thumbnailCommands.ts`.
 
-## 9. Root-search fallback row
+## 9. Root-search integration (inline results & fallback row)
 
-`search_engine/file_search_fallback.rs::append_file_search_fallback` is the
-**only** touch point on the root-search hot path — everything else about
-file search is fully decoupled from `SearchState`. Called from
-`search_engine/commands.rs::merged_search` after the normal ranking result
-is computed:
+File search integrates with root search through a decoupled two-pass architecture:
 
-```rust
-if file_search_available && query.trim().chars().count() >= 2 && matched_count < 5 {
-    append_file_search_fallback(&mut results, query, matched_count, file_search_available);
-}
-```
+1. **Two-Pass Orchestration (`searchOrchestrator.svelte.ts`)**:
+   - **Pass 1 (Immediate)**: Runs immediately with `include_files: false`. Apps, commands, bookmarks, and extensions return with zero latency, keeping search input and animations responsive.
+   - **Pass 2 (Debounced 75 ms)**: Runs with `include_files: true` once keystrokes pause. Rust queries the in-memory `FileIndexState` and inserts $\le 4$ file matches directly after the matched apps/commands block without displacing primary matches.
 
-`file_search_available` is one atomic-ish read (`FileIndexState::config()`
-via `try_state`) — no file-index data is touched on this path. The
-synthetic row shares the real "Search Files" command's object id
-(`cmd_file-search_show-files`), so it's deduplicated automatically if the
-real command already matched, and the existing command-dispatch mapper
-handles navigation with no file-search-specific frontend code.
+2. **Bounded Inline Merging (`search_engine/file_search_inline.rs`)**:
+   - `append_inline_file_results` checks `FileIndexConfig::root_search_enabled` and requires a $\ge 3$ character query.
+   - Candidates are queried from the in-memory index, capped at 4 results, and assigned `Tier::Files` (tier 5).
+   - Normalized cross-platform path deduplication prevents file hits from duplicating `.app` bundles or executables already returned by application search.
+   - If more matching files exist in the index (`response.truncated`), a drill-down row (`Search files for “…”…`) is appended at the bottom of the file block. Pressing `Enter` opens the dedicated File Search view with the query pre-filled.
+   - On the frontend, file rows display parent-folder subtitles (`~/Documents`), render native OS icons via `asyar-thumb://`, and support `⌘Y` Quick Look and `⌘K` file actions.
+
+3. **Fallback row (`search_engine/file_search_fallback.rs`)**:
+   - When `root_search_enabled` is false, or on short queries (2 chars) with few results, `append_file_search_fallback` appends an $O(1)$ synthetic command row sharing the real `cmd_file-search_show-files` ID to navigate directly to the dedicated view.
 
 `FileSearchExtension.executeCommand` (in
 `src/built-in-features/file-search/index.ts`) seeds **both** the view's
@@ -283,6 +280,7 @@ root search even though results have already updated underneath it.
 ```ts
 AppSettings.fileSearch: {
   enabled: boolean;           // default true
+  rootSearchEnabled: boolean; // default true: inlines top file matches in main launcher search
   includeRoots: string[];     // default [] ⇒ $HOME
   excludePatterns: string[];  // layered on top of the built-in list, never replacing it
   indexHidden: boolean;       // default false
