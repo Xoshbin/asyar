@@ -3,7 +3,17 @@
   import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
   import ConfirmDialog from '../base/ConfirmDialog.svelte';
   import PermissionConsentDialog from './PermissionConsentDialog.svelte';
+  import LanDevicePickerDialog from './LanDevicePickerDialog.svelte';
+  import { lanDevicePickerService } from '../../services/network/lanDevicePickerService.svelte';
 </script>
+
+{#if lanDevicePickerService.activePicker}
+  <LanDevicePickerDialog
+    request={lanDevicePickerService.activePicker}
+    onPicked={(d) => lanDevicePickerService.onPicked(d)}
+    onCancel={() => lanDevicePickerService.onCancelled()}
+  />
+{/if}
 
 {#if permissionConsentService.activeRequest}
   <PermissionConsentDialog

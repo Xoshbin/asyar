@@ -1953,5 +1953,20 @@
     "alias": "別名：",
     "non_standard": "非標準路徑：",
     "non_standard_desc": "此執行檔位於標準系統路徑之外。"
+  },
+  "lan_picker": {
+    "title": "{extensionName} 請求連線到您區域網路上的裝置",
+    "subtitle_reason": "{reason}",
+    "tab_discovered": "已探索的裝置",
+    "tab_manual": "手動輸入 IP 與連接埠",
+    "manual_host": "主機或 IP 位址",
+    "manual_port": "連接埠",
+    "manual_label": "標籤（選填）",
+    "invalid_endpoint": "請輸入有效的區域網路 IP 或主機名稱及連接埠。",
+    "allow": "允許",
+    "cancel": "取消",
+    "direct_subtitle": "{extensionName} 請求存取 {host}:{port}",
+    "scanning": "正在掃描區域網路…",
+    "no_devices": "未在區域網路上找到任何裝置。"
   }
 }

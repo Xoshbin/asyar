@@ -255,4 +255,62 @@ describe('NetworkServiceProxy', () => {
 
     expect(onMessageCb).not.toHaveBeenCalled();
   });
+
+  describe('requestLanDevice and requestLanHost', () => {
+    it('requestLanDevice sends options key present even when options omitted', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockResolvedValueOnce({ host: '192.168.1.10', port: 80, label: 'Router' });
+
+      const device = await proxy.requestLanDevice();
+
+      expect(device).toEqual({ host: '192.168.1.10', port: 80, label: 'Router' });
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'network:requestLanDevice',
+        { options: {} },
+        'ext.test',
+        300000,
+      );
+    });
+
+    it('requestLanDevice forwards options and 5-minute timeout', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockResolvedValueOnce(null);
+
+      const res = await proxy.requestLanDevice({
+        reason: 'Pairing smart light',
+        serviceTypes: ['_hap._tcp.local.'],
+        allowManualEntry: false,
+      });
+
+      expect(res).toBeNull();
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'network:requestLanDevice',
+        {
+          options: {
+            reason: 'Pairing smart light',
+            serviceTypes: ['_hap._tcp.local.'],
+            allowManualEntry: false,
+          },
+        },
+        'ext.test',
+        300000,
+      );
+    });
+
+    it('requestLanHost sends target and 5-minute timeout', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      const target = { host: '192.168.1.200', port: 8123, label: 'Home Assistant' };
+      mockInvoke.mockResolvedValueOnce(target);
+
+      const res = await proxy.requestLanHost(target);
+
+      expect(res).toEqual(target);
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'network:requestLanHost',
+        { target },
+        'ext.test',
+        300000,
+      );
+    });
+  });
 });

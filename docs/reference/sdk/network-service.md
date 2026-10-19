@@ -91,6 +91,16 @@ endpoints in Settings → Extensions → Local network devices. HTTP and WebSock
 access to approved endpoints is included. Raw UDP/multicast discovery is not;
 discovery is performed by the launcher, not by extensions.
 
+Discovery reports the port a device serves HTTP on, not the control port it
+advertises. A Sonos speaker appears on `:1400` (its SOAP/UPnP endpoint) rather
+than the TLS `:1443` in its SRV record, and a Google Cast device appears on
+`:8008` (the HTTP/DIAL API, for example `/setup/eureka_info`) rather than the
+binary Cast socket on `:8009`, which closes the connection on an HTTP request.
+Approving a device grants exactly the `host:port` shown in the scan, so an
+endpoint approved before this translation existed still points at the old port
+— remove it in Settings → Extensions → Local network devices, rescan, and
+approve the device again.
+
 #### List user-approved LAN devices
 
 ```typescript

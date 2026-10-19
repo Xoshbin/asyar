@@ -1953,5 +1953,20 @@
     "alias": "别名：",
     "non_standard": "非标准路径：",
     "non_standard_desc": "此可执行文件位于标准系统路径之外。"
+  },
+  "lan_picker": {
+    "title": "{extensionName} 请求连接到您本地网络上的设备",
+    "subtitle_reason": "{reason}",
+    "tab_discovered": "已发现的设备",
+    "tab_manual": "手动输入 IP 与端口",
+    "manual_host": "主机或 IP 地址",
+    "manual_port": "端口",
+    "manual_label": "标签（可选）",
+    "invalid_endpoint": "请输入有效的局域网 IP 或主机名及端口。",
+    "allow": "允许",
+    "cancel": "取消",
+    "direct_subtitle": "{extensionName} 请求访问 {host}:{port}",
+    "scanning": "正在扫描局域网…",
+    "no_devices": "未在局域网上发现任何设备。"
   }
 }

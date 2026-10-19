@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::net::IpAddr;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -18,7 +18,21 @@ pub struct DiscoveredDevice {
 /// Scan for LAN devices via SSDP and mDNS concurrently.
 /// Runs for `timeout_secs` seconds then returns deduplicated results.
 /// Results whose source address fails `is_restricted_ip` are dropped.
+pub const DEFAULT_SCAN_SECS: u64 = 8;
+const MAX_CUSTOM_SERVICES: usize = 8;
+const MAX_DISCOVERED_TYPES: usize = 64;
+const META_QUERY: &str = "_services._dns-sd._udp.local.";
+
 pub async fn scan(timeout_secs: u64) -> Result<Vec<DiscoveredDevice>, AppError> {
+    scan_streaming(timeout_secs, &[], |_| {}).await
+}
+
+pub async fn scan_streaming(
+    timeout_secs: u64,
+    custom_services: &[String],
+    on_accept: impl Fn(&DiscoveredDevice) + Send + Sync + 'static,
+) -> Result<Vec<DiscoveredDevice>, AppError> {
+    let custom_services = normalize_custom_services(custom_services)?;
     let timeout = Duration::from_secs(timeout_secs);
     let (tx, mut rx) = mpsc::channel::<DiscoveredDevice>(64);
 
@@ -27,7 +41,7 @@ pub async fn scan(timeout_secs: u64) -> Result<Vec<DiscoveredDevice>, AppError> 
     drop(tx);
 
     let ssdp_handle = tokio::spawn(scan_ssdp(ssdp_tx, timeout));
-    let mdns_handle = tokio::spawn(scan_mdns(mdns_tx, timeout));
+    let mdns_handle = tokio::spawn(scan_mdns(mdns_tx, timeout, custom_services));
 
     let collect_deadline = tokio::time::sleep(timeout + Duration::from_millis(200));
     tokio::pin!(collect_deadline);
@@ -36,9 +50,7 @@ pub async fn scan(timeout_secs: u64) -> Result<Vec<DiscoveredDevice>, AppError> 
 
     loop {
         tokio::select! {
-            Some(device) = rx.recv() => {
-                devices.entry((device.host.clone(), device.port)).or_insert(device);
-            }
+            Some(device) = rx.recv() => if insert_device(&mut devices, device.clone()) { on_accept(&device) },
             _ = &mut collect_deadline => break,
         }
     }
@@ -47,6 +59,86 @@ pub async fn scan(timeout_secs: u64) -> Result<Vec<DiscoveredDevice>, AppError> 
     mdns_handle.abort();
 
     Ok(devices.into_values().collect())
+}
+
+/// Rank a record when both protocols report the same `(host, port)`, so the
+/// surviving row does not depend on which answer arrives first. mDNS carries
+/// the user-set device name in its `fn` TXT record ("Family Room TV"); SSDP
+/// only has the `Server` header ("Linux/5.4.284+, UPnP/1.0, Chromecast/1.6.18")
+/// and falls back to the bare IP when even that is missing.
+fn name_rank(device: &DiscoveredDevice) -> u8 {
+    if device.name == device.host {
+        0
+    } else if device.protocol == "mdns" {
+        2
+    } else {
+        1
+    }
+}
+
+/// Insert `device`, keeping the better-named record when a `(host, port)` is
+/// already present. Ties keep the incumbent.
+fn insert_device(
+    devices: &mut HashMap<(String, u16), DiscoveredDevice>,
+    device: DiscoveredDevice,
+) -> bool {
+    match devices.entry((device.host.clone(), device.port)) {
+        Entry::Occupied(mut slot) => {
+            if name_rank(&device) > name_rank(slot.get()) {
+                slot.insert(device);
+                true
+            } else {
+                false
+            }
+        }
+        Entry::Vacant(slot) => {
+            slot.insert(device);
+            true
+        }
+    }
+}
+
+fn normalize_service_type(raw: &str) -> Option<String> {
+    let value = format!("{}.", raw.trim().trim_end_matches('.').to_ascii_lowercase());
+    if value == META_QUERY {
+        return None;
+    }
+    let parts: Vec<_> = value.split('.').collect();
+    if parts.len() != 4
+        || parts[2] != "local"
+        || !parts[3].is_empty()
+        || !matches!(parts[1], "_tcp" | "_udp")
+    {
+        return None;
+    }
+    let label = parts[0];
+    if !label.starts_with('_') || !(2..=16).contains(&label.len()) {
+        return None;
+    }
+    label[1..]
+        .bytes()
+        .enumerate()
+        .all(|(i, b)| b.is_ascii_lowercase() || b.is_ascii_digit() || (b == b'-' && i > 0))
+        .then_some(value)
+}
+
+fn normalize_custom_services(custom_services: &[String]) -> Result<Vec<String>, AppError> {
+    if custom_services.is_empty() {
+        return Ok(vec![]);
+    }
+    let services = custom_services
+        .iter()
+        .filter_map(|s| normalize_service_type(s))
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .take(MAX_CUSTOM_SERVICES)
+        .collect::<Vec<_>>();
+    if services.is_empty() {
+        return Err(AppError::Validation(
+            "No valid DNS-SD service types supplied".into(),
+        ));
+    }
+    Ok(services)
 }
 
 async fn scan_ssdp(tx: mpsc::Sender<DiscoveredDevice>, timeout: Duration) {
@@ -140,84 +232,300 @@ fn extract_ssdp_header(response: &str, header: &str) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
+const SONOS_SERVICE: &str = "_sonos._tcp.local.";
+const GOOGLECAST_SERVICE: &str = "_googlecast._tcp.local.";
+
+/// Google Cast's SRV record points at the binary protobuf/TLS control socket,
+/// which closes the connection on a plain HTTP request. The device's HTTP
+/// surface — the DIAL API at `/setup/eureka_info` and `/ssdp/device-desc.xml` —
+/// is fixed at 8008 by the Cast spec and is not advertised in TXT, so the
+/// translation is a constant rather than a lookup.
+const GOOGLECAST_HTTP_PORT: u16 = 8008;
+
+/// Report the port a device actually serves HTTP on, not the control port it
+/// advertises. Sonos publishes its SOAP/UPnP port in the `location` TXT record
+/// (:1400, not the TLS :1443); Google Cast has a fixed HTTP port.
 fn resolve_mdns_port(info: &mdns_sd::ServiceInfo) -> (u16, Option<String>) {
     let service_type = (!info.get_type().is_empty()).then(|| info.get_type().to_string());
-    let port = if info.get_type().eq_ignore_ascii_case("_sonos._tcp.local.") {
+    let advertised = info.get_type();
+    let port = if advertised.eq_ignore_ascii_case(SONOS_SERVICE) {
         info.get_properties()
             .get_property_val_str("location")
             .and_then(parse_location_url)
             .map(|(_, port)| port)
             .unwrap_or_else(|| info.get_port())
+    } else if advertised.eq_ignore_ascii_case(GOOGLECAST_SERVICE) {
+        // Unconditional: a Cast group advertises a dynamic high port for the
+        // same physical device, and 8008 is the only HTTP endpoint that host
+        // exposes, so every Cast record on a host lands on one usable row.
+        GOOGLECAST_HTTP_PORT
     } else {
         info.get_port()
     };
     (port, service_type)
 }
 
-async fn scan_mdns(tx: mpsc::Sender<DiscoveredDevice>, timeout: Duration) {
+async fn scan_mdns(
+    tx: mpsc::Sender<DiscoveredDevice>,
+    timeout: Duration,
+    custom_services: Vec<String>,
+) {
     use mdns_sd::{ServiceDaemon, ServiceEvent};
 
     let Ok(mdns) = ServiceDaemon::new() else {
         return;
     };
 
-    let service_types = [
-        "_sonos._tcp.local.",
-        "_hap._tcp.local.",
-        "_home-assistant._tcp.local.",
-        "_googlecast._tcp.local.",
-        "_ipp._tcp.local.",
-        "_http._tcp.local.",
-    ];
-
     let deadline = tokio::time::Instant::now() + timeout;
+    let mut browsed_types: HashSet<String> = HashSet::new();
 
-    for stype in &service_types {
-        let Ok(receiver) = mdns.browse(stype) else {
-            continue;
+    let spawn_browse = |stype: String,
+                        daemon: &ServiceDaemon,
+                        sender: mpsc::Sender<DiscoveredDevice>| {
+        let Ok(receiver) = daemon.browse(&stype) else {
+            return;
         };
-        let tx = tx.clone();
-        let stype = stype.to_string();
-
+        let stype_name = stype.clone();
         tokio::spawn(async move {
-            while let Ok(Ok(ServiceEvent::ServiceResolved(info))) =
-                tokio::time::timeout_at(deadline, receiver.recv_async()).await
+            while let Ok(Ok(event)) = tokio::time::timeout_at(deadline, receiver.recv_async()).await
             {
-                let hostname = info.get_hostname().trim_end_matches('.').to_string();
-                let (port, service_type) = resolve_mdns_port(&info);
-                // get_addresses() returns &HashSet<IpAddr> in mdns-sd 0.11
-                let addrs = info.get_addresses();
-                let all_restricted = addrs.iter().all(|ip| {
-                    crate::network::service::is_restricted_ip(ip)
-                        && !crate::network::lan_policy::is_never_allowed(ip)
-                });
-                if all_restricted && !addrs.is_empty() {
-                    let name = info
-                        .get_properties()
-                        .get_property_val_str("fn")
-                        .map(str::to_string)
-                        .unwrap_or_else(|| hostname.clone());
-                    let _ = tx
-                        .send(DiscoveredDevice {
-                            name,
-                            host: hostname,
-                            port,
-                            protocol: "mdns".to_string(),
-                            service_type: service_type.unwrap_or_else(|| stype.clone()),
-                        })
-                        .await;
+                let ServiceEvent::ServiceResolved(info) = event else {
+                    continue;
+                };
+                if let Some(device) = mdns_device_from_info(&info, &stype_name) {
+                    let _ = sender.send(device).await;
                 }
             }
         });
+    };
+
+    // Phase A: browse seeds + custom_services immediately
+    let seeds = [
+        SONOS_SERVICE,
+        "_hap._tcp.local.",
+        "_home-assistant._tcp.local.",
+        GOOGLECAST_SERVICE,
+        "_ipp._tcp.local.",
+        "_http._tcp.local.",
+    ];
+    for seed in seeds {
+        if browsed_types.insert(seed.to_string()) {
+            spawn_browse(seed.to_string(), &mdns, tx.clone());
+        }
+    }
+    for custom in custom_services {
+        if browsed_types.insert(custom.clone()) {
+            spawn_browse(custom, &mdns, tx.clone());
+        }
     }
 
-    tokio::time::sleep(timeout).await;
+    // Phase B: browse META_QUERY on parent task
+    if let Ok(meta_receiver) = mdns.browse(META_QUERY) {
+        while let Ok(Ok(event)) =
+            tokio::time::timeout_at(deadline, meta_receiver.recv_async()).await
+        {
+            if let ServiceEvent::ServiceFound(_service_name, alias) = event {
+                // Phase C: for each newly-seen type (re-validated, capped at MAX_DISCOVERED_TYPES)
+                if let Some(normalized) = normalize_service_type(&alias) {
+                    if browsed_types.len() < MAX_DISCOVERED_TYPES
+                        && browsed_types.insert(normalized.clone())
+                    {
+                        spawn_browse(normalized, &mdns, tx.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    let now = tokio::time::Instant::now();
+    if now < deadline {
+        tokio::time::sleep(deadline - now).await;
+    }
     let _ = mdns.shutdown();
+}
+
+fn mdns_device_from_info(
+    info: &mdns_sd::ServiceInfo,
+    default_service_type: &str,
+) -> Option<DiscoveredDevice> {
+    let hostname = info.get_hostname().trim_end_matches('.').to_string();
+    let (port, service_type) = resolve_mdns_port(info);
+    let addrs = info.get_addresses();
+
+    let valid_ip = addrs
+        .iter()
+        .filter(|ip| {
+            crate::network::service::is_restricted_ip(ip)
+                && !crate::network::lan_policy::is_never_allowed(ip)
+        })
+        .max_by_key(|ip| match ip {
+            IpAddr::V4(_) => 2,
+            IpAddr::V6(_) => 1,
+        })?;
+
+    let name = info
+        .get_properties()
+        .get_property_val_str("fn")
+        .map(str::to_string)
+        .unwrap_or_else(|| hostname.clone());
+
+    Some(DiscoveredDevice {
+        name,
+        host: valid_ip.to_string(),
+        port,
+        protocol: "mdns".to_string(),
+        service_type: service_type.unwrap_or_else(|| default_service_type.to_string()),
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalizes_and_rejects_untrusted_service_types() {
+        assert_eq!(
+            normalize_service_type("_MQTT._TCP.local"),
+            Some("_mqtt._tcp.local.".to_string())
+        );
+        assert_eq!(
+            normalize_service_type("_mqtt._tcp.local."),
+            Some("_mqtt._tcp.local.".to_string())
+        );
+        assert_eq!(
+            normalize_service_type("_airplay._tcp.local"),
+            Some("_airplay._tcp.local.".to_string())
+        );
+        for invalid in [
+            "",
+            "http",
+            "..",
+            "../x",
+            "_x._sctp.local.",
+            "_services._dns-sd._udp.local.",
+            "_a-very-long-label-exceeding-fifteen-chars._tcp.local.",
+            "_-invalidstart._tcp.local.",
+        ] {
+            assert_eq!(normalize_service_type(invalid), None, "{invalid}");
+        }
+    }
+
+    #[test]
+    fn normalize_custom_services_dedupes_caps_and_validates() {
+        assert_eq!(
+            normalize_custom_services(&[]).unwrap(),
+            Vec::<String>::new()
+        );
+
+        let input = vec![
+            "_mqtt._tcp.local".to_string(),
+            "_MQTT._tcp.local.".to_string(),
+            "_airplay._tcp.local".to_string(),
+        ];
+        let normalized = normalize_custom_services(&input).unwrap();
+        assert_eq!(normalized.len(), 2);
+        assert!(normalized.contains(&"_mqtt._tcp.local.".to_string()));
+        assert!(normalized.contains(&"_airplay._tcp.local.".to_string()));
+
+        let invalid = vec!["invalid".to_string(), "".to_string()];
+        assert!(normalize_custom_services(&invalid).is_err());
+    }
+
+    #[test]
+    fn insert_device_returns_true_only_on_insert_or_upgrade() {
+        let mut devices = HashMap::new();
+        let dev1 = device("ssdp", "192.168.1.50", 80);
+        assert!(insert_device(&mut devices, dev1));
+
+        // Same device, no rank change -> false
+        let dev1_dup = device("ssdp", "192.168.1.50", 80);
+        assert!(!insert_device(&mut devices, dev1_dup));
+
+        // Upgraded name rank (mdns friendly name) -> true
+        let dev1_upgrade = DiscoveredDevice {
+            name: "Smart Bulb".to_string(),
+            host: "192.168.1.50".to_string(),
+            port: 80,
+            protocol: "mdns".to_string(),
+            service_type: "_http._tcp.local.".to_string(),
+        };
+        assert!(insert_device(&mut devices, dev1_upgrade));
+
+        // Lower or equal rank -> false
+        let dev1_lower = device("ssdp", "Linux UPnP", 80);
+        assert!(!insert_device(&mut devices, dev1_lower));
+    }
+
+    #[test]
+    fn mdns_device_from_info_surfaces_private_ipv4_and_friendly_name() {
+        let info = mdns_sd::ServiceInfo::new(
+            "_googlecast._tcp.local.",
+            "Chromecast-ABC",
+            "cast.local.",
+            "192.168.1.172",
+            8009,
+            HashMap::from([("fn".to_string(), "Family Room TV".to_string())]),
+        )
+        .unwrap();
+        let device = mdns_device_from_info(&info, "_googlecast._tcp.local.")
+            .expect("should surface valid device");
+        assert_eq!(device.name, "Family Room TV");
+        assert_eq!(device.host, "192.168.1.172");
+        assert_eq!(device.port, 8008);
+        assert_eq!(device.protocol, "mdns");
+        assert_eq!(device.service_type, "_googlecast._tcp.local.");
+    }
+
+    #[test]
+    fn mdns_device_from_info_prefers_private_ipv4_over_link_local_ipv6() {
+        let info = mdns_sd::ServiceInfo::new(
+            "_googlecast._tcp.local.",
+            "Chromecast-ABC",
+            "cast.local.",
+            &["192.168.1.172", "fe80::de0f:abda:8b5f:81db"][..],
+            8009,
+            HashMap::from([("fn".to_string(), "Family Room TV".to_string())]),
+        )
+        .unwrap();
+        let device = mdns_device_from_info(&info, "_googlecast._tcp.local.")
+            .expect("should surface device even if link-local IPv6 is present");
+        assert_eq!(device.host, "192.168.1.172");
+    }
+
+    #[test]
+    fn mdns_device_from_info_drops_device_with_only_unsafe_addresses() {
+        for unsafe_ip in ["127.0.0.1", "169.254.1.1", "8.8.8.8", "fe80::1"] {
+            let info = mdns_sd::ServiceInfo::new(
+                "_googlecast._tcp.local.",
+                "Chromecast-ABC",
+                "cast.local.",
+                unsafe_ip,
+                8009,
+                HashMap::<String, String>::new(),
+            )
+            .unwrap();
+            assert!(
+                mdns_device_from_info(&info, "_googlecast._tcp.local.").is_none(),
+                "unsafe ip {unsafe_ip} must not be surfaced"
+            );
+        }
+    }
+
+    #[test]
+    fn mdns_device_from_info_falls_back_to_hostname_when_fn_txt_missing() {
+        let info = mdns_sd::ServiceInfo::new(
+            "_googlecast._tcp.local.",
+            "Chromecast-ABC",
+            "cast.local.",
+            "192.168.1.172",
+            8009,
+            HashMap::<String, String>::new(),
+        )
+        .unwrap();
+        let device = mdns_device_from_info(&info, "_googlecast._tcp.local.")
+            .expect("should surface valid device");
+        assert_eq!(device.name, "cast.local");
+    }
 
     #[test]
     fn location_url_yields_host_and_explicit_port() {
@@ -329,6 +637,89 @@ mod tests {
                 (1443, Some("_sonos._tcp.local.".to_string()))
             );
         }
+    }
+
+    #[test]
+    fn mdns_googlecast_resolves_to_the_dial_http_port() {
+        let info = mdns_info("_googlecast._tcp.local.", 8009, None);
+        assert_eq!(
+            resolve_mdns_port(&info),
+            (8008, Some("_googlecast._tcp.local.".to_string()))
+        );
+    }
+
+    #[test]
+    fn mdns_googlecast_group_on_a_dynamic_port_also_resolves_to_the_dial_http_port() {
+        let info = mdns_info("_googlecast._tcp.local.", 32775, None);
+        assert_eq!(resolve_mdns_port(&info).0, 8008);
+    }
+
+    #[test]
+    fn mdns_other_service_types_keep_their_srv_port() {
+        for stype in ["_hap._tcp.local.", "_http._tcp.local.", "_ipp._tcp.local."] {
+            let info = mdns_info(stype, 8009, None);
+            assert_eq!(resolve_mdns_port(&info).0, 8009, "{stype}");
+        }
+    }
+
+    fn device(protocol: &str, name: &str, port: u16) -> DiscoveredDevice {
+        DiscoveredDevice {
+            name: name.to_string(),
+            host: "192.168.1.172".to_string(),
+            port,
+            protocol: protocol.to_string(),
+            service_type: String::new(),
+        }
+    }
+
+    fn collect(records: Vec<DiscoveredDevice>) -> HashMap<(String, u16), DiscoveredDevice> {
+        let mut devices = HashMap::new();
+        for record in records {
+            insert_device(&mut devices, record);
+        }
+        devices
+    }
+
+    #[test]
+    fn dedup_prefers_the_mdns_friendly_name_regardless_of_arrival_order() {
+        let ssdp = device("ssdp", "Linux/5.4.284+, UPnP/1.0, Chromecast/1.6.18", 8008);
+        let mdns = device("mdns", "Family Room TV", 8008);
+        for order in [
+            vec![ssdp.clone(), mdns.clone()],
+            vec![mdns.clone(), ssdp.clone()],
+        ] {
+            let devices = collect(order);
+            assert_eq!(devices.len(), 1);
+            assert_eq!(
+                devices[&("192.168.1.172".to_string(), 8008)].name,
+                "Family Room TV"
+            );
+        }
+    }
+
+    #[test]
+    fn dedup_prefers_a_named_record_over_the_bare_ip_fallback() {
+        let devices = collect(vec![
+            device("ssdp", "192.168.1.172", 8008),
+            device("ssdp", "Linux UPnP/1.0 Sonos/84.1", 8008),
+        ]);
+        assert_eq!(
+            devices[&("192.168.1.172".to_string(), 8008)].name,
+            "Linux UPnP/1.0 Sonos/84.1"
+        );
+    }
+
+    #[test]
+    fn dedup_keeps_ssdp_only_devices_and_distinct_ports_as_separate_rows() {
+        let devices = collect(vec![
+            device("ssdp", "Linux UPnP/1.0 Sonos/84.1", 1400),
+            device("mdns", "Family Room TV", 8008),
+        ]);
+        assert_eq!(devices.len(), 2);
+        assert_eq!(
+            devices[&("192.168.1.172".to_string(), 1400)].name,
+            "Linux UPnP/1.0 Sonos/84.1"
+        );
     }
 
     #[test]

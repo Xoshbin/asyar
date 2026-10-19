@@ -235,6 +235,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:network:wsSend" => Some("network"),
         "asyar:api:network:wsClose" => Some("network"),
         "asyar:api:network:listLanDevices" => Some("network:lan"),
+        "asyar:api:network:requestLanDevice" => Some("network:lan"),
+        "asyar:api:network:requestLanHost" => Some("network:lan"),
         // Opener
         "asyar:api:opener:open" => Some("shell:open-url"),
         "asyar:api:opener:openPath" => Some("shell:open-path"),
@@ -728,6 +730,14 @@ mod tests {
     fn list_lan_devices_requires_network_lan() {
         assert_eq!(
             get_required_permission("asyar:api:network:listLanDevices"),
+            Some("network:lan")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:network:requestLanDevice"),
+            Some("network:lan")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:network:requestLanHost"),
             Some("network:lan")
         );
     }

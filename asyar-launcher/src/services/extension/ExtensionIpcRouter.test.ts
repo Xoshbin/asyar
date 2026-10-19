@@ -484,6 +484,39 @@ describe('ExtensionIpcRouter — originRole injection for WebSocket pushes', () 
 
     expect(listLanDevices).toHaveBeenCalledWith('org.test');
   });
+
+  it('marshals network:requestLanDevice correctly with trusted caller and originRole', async () => {
+    const requestLanDevice = vi.fn().mockResolvedValue(null);
+    const registry = { network: { requestLanDevice } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:network:requestLanDevice',
+      { options: {} },
+      'org.test',
+      false,
+      'view',
+    );
+
+    expect(requestLanDevice).toHaveBeenCalledWith('org.test', {}, 'view');
+  });
+
+  it('marshals network:requestLanHost correctly with trusted caller and originRole', async () => {
+    const requestLanHost = vi.fn().mockResolvedValue(null);
+    const registry = { network: { requestLanHost } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+    const target = { host: '192.168.1.50', port: 8080, label: 'Camera' };
+
+    await dispatchAs(router)(
+      'asyar:api:network:requestLanHost',
+      { target },
+      'org.test',
+      false,
+      'view',
+    );
+
+    expect(requestLanHost).toHaveBeenCalledWith('org.test', target, 'view');
+  });
 });
 
 describe('ExtensionIpcRouter — originRole injection for AI streams', () => {

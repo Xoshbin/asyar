@@ -71,6 +71,7 @@ export { default as WindowModeSelector } from './settings/WindowModeSelector.sve
 export { default as ExtensionDetailPanel } from './settings/ExtensionDetailPanel.svelte';
 export { default as ExtensionPreferencesForm } from './settings/ExtensionPreferencesForm.svelte';
 export { default as LanHostList } from './settings/LanHostList.svelte';
+export { default as LanDeviceBrowser } from './settings/LanDeviceBrowser.svelte';
 export { default as LanScanSheet } from './settings/LanScanSheet.svelte';
 
 // Form
@@ -103,6 +104,7 @@ export { default as Spinner } from './base/Spinner.svelte';
 // Feedback
 export { default as CrashReportPrompt } from './feedback/CrashReportPrompt.svelte';
 export { default as PermissionConsentDialog } from './feedback/PermissionConsentDialog.svelte';
+export { default as LanDevicePickerDialog } from './feedback/LanDevicePickerDialog.svelte';
 export { default as UsageSharePrompt } from './feedback/UsageSharePrompt.svelte';
 
 // Layout

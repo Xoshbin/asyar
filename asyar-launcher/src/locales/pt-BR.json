@@ -1953,5 +1953,20 @@
     "alias": "Alias:",
     "non_standard": "Fora do padrão:",
     "non_standard_desc": "Este binário é executado fora dos caminhos padrão do sistema."
+  },
+  "lan_picker": {
+    "title": "{extensionName} deseja se conectar a um dispositivo na sua rede",
+    "subtitle_reason": "{reason}",
+    "tab_discovered": "Dispositivos descobertos",
+    "tab_manual": "IP e porta manual",
+    "manual_host": "Host ou endereço IP",
+    "manual_port": "Porta",
+    "manual_label": "Rótulo (opcional)",
+    "invalid_endpoint": "Insira um IP ou hostname local válido e uma porta.",
+    "allow": "Permitir",
+    "cancel": "Cancelar",
+    "direct_subtitle": "{extensionName} está solicitando acesso a {host}:{port}",
+    "scanning": "Buscando na rede local…",
+    "no_devices": "Nenhum dispositivo encontrado na rede local."
   }
 }

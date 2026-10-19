@@ -23,6 +23,12 @@ export interface LanDevice {
   label: string;
 }
 
+export const LAN_DEVICE_DISCOVERED_EVENT = 'asyar:lan-device-discovered';
+export interface LanDeviceDiscoveredPayload {
+  scanId: string;
+  device: DiscoveredDevice;
+}
+
 export async function lanHostsList(extensionId: string): Promise<LanAllowedHost[]> {
   return invokeRaw<LanAllowedHost[]>('lan_hosts_list', { extensionId });
 }
@@ -44,8 +50,15 @@ export async function lanHostsRemove(
   return invokeRaw<boolean>('lan_hosts_remove', { extensionId, host, port });
 }
 
-export async function scanLanDevices(): Promise<DiscoveredDevice[]> {
-  return invokeRaw<DiscoveredDevice[]>('scan_lan_devices');
+export async function scanLanDevices(
+  scanId: string,
+  customServices?: string[],
+): Promise<DiscoveredDevice[]> {
+  return invokeRaw<DiscoveredDevice[]>('scan_lan_devices', { scanId, customServices });
+}
+
+export async function lanHostValidate(host: string, port: number): Promise<void> {
+  return invokeRaw<void>('lan_host_validate', { host, port });
 }
 
 export async function lanDevicesForCaller(callerExtensionId: string | null): Promise<LanDevice[]> {

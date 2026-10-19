@@ -3,7 +3,7 @@ use crate::network::discovery::DiscoveredDevice;
 use crate::permissions::ExtensionPermissionRegistry;
 use crate::storage::lan_allowed_hosts::{self, LanAllowedHost};
 use crate::storage::DataStore;
-use tauri::State;
+use tauri::{Emitter, State};
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,11 +88,33 @@ pub async fn lan_hosts_remove(
     )?)
 }
 
-/// Scan for LAN devices via SSDP and mDNS concurrently (3-second timeout).
+/// Scan for LAN devices via SSDP and mDNS, streaming accepted rows to the caller.
 /// Settings-window only — must NOT be reachable by extensions.
 #[tauri::command]
-pub async fn scan_lan_devices() -> Result<Vec<DiscoveredDevice>, AppError> {
-    crate::network::discovery::scan(3).await
+pub async fn scan_lan_devices(
+    app: tauri::AppHandle,
+    scan_id: String,
+    custom_services: Option<Vec<String>>,
+) -> Result<Vec<DiscoveredDevice>, AppError> {
+    crate::network::discovery::scan_streaming(
+        crate::network::discovery::DEFAULT_SCAN_SECS,
+        &custom_services.unwrap_or_default(),
+        move |device| {
+            let _ = app.emit(
+                "asyar:lan-device-discovered",
+                serde_json::json!({ "scanId": scan_id, "device": device }),
+            );
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn lan_host_validate(host: String, port: u16) -> Result<(), AppError> {
+    crate::network::lan_policy::LanPolicy::from_manifest(Some(&serde_json::json!([format!(
+        "{host}:{port}"
+    )])))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -168,5 +190,16 @@ mod tests {
                 "8.8.8.8:53"
             ])));
         assert!(result.is_err(), "public IP must be rejected");
+    }
+
+    #[tokio::test]
+    async fn lan_host_validate_enforces_policy() {
+        assert!(lan_host_validate("192.168.1.50".into(), 8080).await.is_ok());
+        assert!(lan_host_validate("ha.local".into(), 8123).await.is_ok());
+        assert!(lan_host_validate("127.0.0.1".into(), 80).await.is_err());
+        assert!(lan_host_validate("169.254.169.254".into(), 80)
+            .await
+            .is_err());
+        assert!(lan_host_validate("8.8.8.8".into(), 53).await.is_err());
     }
 }

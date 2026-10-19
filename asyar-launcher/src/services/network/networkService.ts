@@ -1,11 +1,54 @@
 import { fetchUrl, fetchUrlWithSecrets, wsConnect, wsSend, wsClose } from '../../lib/ipc/commands';
-import { lanDevicesForCaller, type LanDevice } from '../../lib/ipc/lanCommands';
+import { lanDevicesForCaller, lanHostValidate, type LanDevice } from '../../lib/ipc/lanCommands';
+import { lanDevicePickerService } from './lanDevicePickerService.svelte';
+import { resolveExtensionName } from '../extension/extensionDispatcher.svelte';
 
 type IframeRole = 'view' | 'worker';
 
 export class NetworkService {
   async listLanDevices(callerExtensionId: string | null): Promise<LanDevice[]> {
     return lanDevicesForCaller(callerExtensionId);
+  }
+
+  async requestLanDevice(
+    callerExtensionId: string | null,
+    options?: { reason?: string; serviceTypes?: string[]; allowManualEntry?: boolean } | IframeRole,
+    originRole?: IframeRole,
+  ): Promise<LanDevice | null> {
+    const isRoleSecondArg = typeof options === 'string';
+    const effectiveRole = isRoleSecondArg ? (options as IframeRole) : originRole;
+    const effectiveOptions = !isRoleSecondArg && options ? options : {};
+    const extensionId = this.requirePickerCaller(callerExtensionId, effectiveRole);
+    return lanDevicePickerService.request({
+      extensionId,
+      extensionName: resolveExtensionName(extensionId),
+      mode: 'discover',
+      reason: effectiveOptions.reason,
+      serviceTypes: effectiveOptions.serviceTypes,
+      allowManualEntry: effectiveOptions.allowManualEntry ?? true,
+    });
+  }
+
+  async requestLanHost(
+    callerExtensionId: string | null,
+    target: LanDevice,
+    originRole?: IframeRole,
+  ): Promise<LanDevice | null> {
+    const extensionId = this.requirePickerCaller(callerExtensionId, originRole);
+    await lanHostValidate(target.host, target.port);
+    return lanDevicePickerService.request({
+      extensionId,
+      extensionName: resolveExtensionName(extensionId),
+      mode: 'direct',
+      allowManualEntry: false,
+      target,
+    });
+  }
+
+  private requirePickerCaller(callerExtensionId: string | null, originRole?: IframeRole): string {
+    if (!callerExtensionId) throw new Error('LAN_PICKER_REQUIRES_EXTENSION_CALLER');
+    if (originRole === 'worker') throw new Error('LAN_PICKER_REQUIRES_VIEW');
+    return callerExtensionId;
   }
 
   async fetch(
