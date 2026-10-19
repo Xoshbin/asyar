@@ -1,6 +1,7 @@
 // asyar-launcher/src/lib/ipc/clipboardHistoryCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
 import { invokeSafe } from './invokeSafe';
+import type { CaptureResult } from '../../bindings';
 
 // ── Storage: Clipboard ───────────────────────────────────────────────────────
 
@@ -58,10 +59,7 @@ export interface ClipboardCount {
   favorites: number;
 }
 
-export interface ClipboardCaptureResult {
-  insertedId: string;
-  evictedIds: string[];
-}
+export type ClipboardCaptureResult = CaptureResult;
 
 export interface ClipboardDeleteResult {
   imageContentPath?: string;

@@ -142,7 +142,12 @@ describe('clipboardHistoryStore', () => {
       recent: [{ id: 'old', type: 'text', createdAt: 50, favorite: false }],
       nextCursor: undefined,
     });
-    mockCapture.mockResolvedValue({ insertedId: 'new', evictedIds: [] });
+    mockCapture.mockResolvedValue({
+      insertedId: 'new',
+      replacedId: null,
+      favorite: false,
+      evictedIds: [],
+    });
     await clipboardHistoryStore.loadInitial(10);
 
     const events: { type: string; id: string }[] = [];
@@ -164,6 +169,60 @@ describe('clipboardHistoryStore', () => {
     expect(mockCapture).toHaveBeenCalledWith(expect.anything(), 90 * 24 * 60 * 60 * 1000);
     unsub();
   });
+
+  it.each([
+    { searching: false, favorite: false },
+    { searching: false, favorite: true },
+    { searching: true, favorite: false },
+    { searching: true, favorite: true },
+  ])(
+    'reconciles replaced duplicate and search ranking (search=$searching, favorite=$favorite)',
+    async ({ searching, favorite }) => {
+      const old = { id: 'old', type: 'text', preview: 'body', createdAt: 50, favorite };
+      const other = { id: 'other', type: 'text', preview: 'other', createdAt: 40, favorite: true };
+      clipboardHistoryStore.favorites = favorite ? [other, old] : [other];
+      clipboardHistoryStore.recent = [
+        ...(favorite ? [] : [old]),
+        { id: 'expired', type: 'text', createdAt: 1, favorite: false },
+      ];
+      if (searching) clipboardHistoryStore.searchResults = [other, old];
+
+      const events: any[] = [];
+      const unsub = clipboardHistoryStore.subscribe((e) => events.push(e));
+
+      mockCapture.mockResolvedValue({
+        insertedId: 'new',
+        replacedId: old.id,
+        favorite,
+        evictedIds: ['expired'],
+      });
+
+      await clipboardHistoryStore.addHistoryItem({
+        id: 'new',
+        type: 'text',
+        content: 'body',
+        preview: 'body',
+        createdAt: 100,
+        favorite: false,
+      } as any);
+
+      const visible = clipboardHistoryStore.searchResults ?? [
+        ...clipboardHistoryStore.favorites,
+        ...clipboardHistoryStore.recent,
+      ];
+      expect(visible.map((item) => item.id)).not.toContain(old.id);
+      expect(clipboardHistoryStore.recent.map((item) => item.id)).toEqual(favorite ? [] : ['new']);
+      expect(visible.find((item) => item.id === 'new')?.favorite).toBe(favorite);
+      if (searching) {
+        expect(clipboardHistoryStore.searchResults?.map((item) => item.id)).toEqual([
+          'other',
+          'new',
+        ]);
+      }
+      expect(events).toEqual([{ type: 'upsert', itemId: 'new', replacedItemId: 'old' }]);
+      unsub();
+    },
+  );
 
   it('toggleFavorite moves between recent and favorites', async () => {
     mockListInitial.mockResolvedValue({

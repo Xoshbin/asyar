@@ -18,7 +18,7 @@ import {
 import { settingsService } from '../../settings/settingsService.svelte';
 
 export type ClipboardStoreChangeEvent =
-  { type: 'upsert'; itemId: string } | { type: 'delete'; itemId: string };
+  { type: 'upsert'; itemId: string; replacedItemId?: string } | { type: 'delete'; itemId: string };
 
 type ListItem = StoredClipboardListItem;
 
@@ -116,27 +116,43 @@ export class ClipboardHistoryStoreClass {
     const stored = item as unknown as StoredClipboardItem;
     const retentionMs = settingsService.currentSettings.clipboardHistory?.retentionMs;
     const res = await clipboardRecordCapture(stored, retentionMs);
-    if (res.evictedIds.length > 0) {
-      const evicted = new Set(res.evictedIds);
-      this.recent = this.recent.filter((i) => !evicted.has(i.id));
-      this.favorites = this.favorites.filter((i) => !evicted.has(i.id));
-    }
+    // Rust owns content deduplication. Its replaced id must disappear from
+    // every loaded window, otherwise a selected row can point at deleted data.
+    const removed = new Set(res.evictedIds);
+    if (res.replacedId) removed.add(res.replacedId);
+    removed.add(res.insertedId);
+    this.recent = this.recent.filter((i) => !removed.has(i.id));
+    this.favorites = this.favorites.filter((i) => !removed.has(i.id));
     const newRow: ListItem = {
-      id: stored.id,
+      id: res.insertedId,
       type: stored.type,
       preview: stored.preview,
       createdAt: stored.createdAt,
-      favorite: stored.favorite,
+      favorite: res.favorite,
       metadata: stored.metadata,
       sourceApp: stored.sourceApp,
       redactedKinds: stored.redactedKinds,
     };
-    if (newRow.favorite) {
-      this.favorites = [newRow, ...this.favorites.filter((i) => i.id !== newRow.id)];
-    } else {
-      this.recent = [newRow, ...this.recent.filter((i) => i.id !== newRow.id)];
+    const evicted = new Set(res.evictedIds);
+    if (!evicted.has(newRow.id)) {
+      if (newRow.favorite) {
+        this.favorites = [newRow, ...this.favorites];
+      } else {
+        this.recent = [newRow, ...this.recent];
+      }
     }
-    this.#notify({ type: 'upsert', itemId: stored.id });
+    if (this.searchResults !== null) {
+      // A replacement still matches the same query. Keep its rank; unrelated
+      // captures must not be injected into an active Rust-FTS result window.
+      this.searchResults = this.searchResults
+        .map((i) => (i.id === res.replacedId || i.id === newRow.id ? newRow : i))
+        .filter((i) => !evicted.has(i.id));
+    }
+    this.#notify({
+      type: 'upsert',
+      itemId: newRow.id,
+      ...(res.replacedId ? { replacedItemId: res.replacedId } : {}),
+    });
   }
 
   async toggleFavorite(id: string): Promise<void> {
