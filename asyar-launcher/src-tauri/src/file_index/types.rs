@@ -229,12 +229,18 @@ pub struct IndexStatus {
     pub cap_reached: bool,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 /// User-configurable index settings, pushed from TS via
 /// `file_index_set_config` (mirror of the applications scan-paths bridge).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FileIndexConfig {
     pub enabled: bool,
+    #[serde(default = "default_true")]
+    pub root_search_enabled: bool,
     /// Absolute paths to index. Empty ⇒ `$HOME`.
     pub include_roots: Vec<String>,
     /// Extra exclude patterns layered on top of the built-in defaults.
@@ -246,6 +252,7 @@ impl Default for FileIndexConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            root_search_enabled: true,
             include_roots: Vec::new(),
             exclude_patterns: Vec::new(),
             index_hidden: false,
@@ -256,6 +263,16 @@ impl Default for FileIndexConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn config_defaults_root_search_enabled_true_for_legacy_json() {
+        let cfg: FileIndexConfig = serde_json::from_str(
+            r#"{"enabled":true,"includeRoots":[],"excludePatterns":[],"indexHidden":false}"#,
+        )
+        .unwrap();
+        assert!(cfg.root_search_enabled);
+        assert!(FileIndexConfig::default().root_search_enabled);
+    }
 
     #[test]
     fn file_type_from_extension_recognises_document() {

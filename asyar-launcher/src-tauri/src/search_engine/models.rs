@@ -92,7 +92,7 @@ pub struct SearchResult {
     pub style: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alias: Option<String>,
-    /// Tier ordinal from `ranker::Tier` (0=Pinned .. 5=FrecencyOnly), computed
+    /// Tier ordinal from `ranker::Tier` (0=Pinned, 5=Files, 6=FrecencyOnly), computed
     /// by `merged_search`'s classify pass. Lets the frontend consume Rust's
     /// tier directly instead of re-deriving it with its own approximation.
     pub tier: u8,

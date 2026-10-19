@@ -8,12 +8,13 @@ export type MappedSearchItem = {
   subtitle?: string;
   /** Internal type used for action filtering (e.g. "command" vs "application") */
   type?: string;
+  path?: string;
   typeLabel?: string;
   /** The selected row shows the search bar's "Input" hint when true. */
   hasArguments?: boolean;
   icon?: string;
   score: number;
-  /** Tier ordinal from Rust's `ranker::Tier` (0=Pinned .. 5=FrecencyOnly). */
+  /** Tier ordinal from Rust's `ranker::Tier` (0=Pinned, 5=Files, 6=FrecencyOnly). */
   tier?: number;
   style?: 'default' | 'large';
   shortcut?: string;

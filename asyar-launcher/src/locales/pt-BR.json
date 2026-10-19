@@ -254,6 +254,8 @@
       "section_status": "Status",
       "file_search_title": "Busca de arquivos",
       "file_search_description": "A indexação é executada em segundo plano e ignora caches, pastas de dependências e diretórios do sistema por padrão.",
+      "root_search_title": "Incluir arquivos na busca principal",
+      "root_search_description": "Mostre arquivos correspondentes junto com aplicativos e comandos enquanto você digita.",
       "restored_snapshot": "restaurado a partir do instantâneo",
       "index_size_warning": "O índice atingiu o limite de tamanho — alguns arquivos podem não ser localizáveis. Adicione padrões de exclusão para filtrar a busca ou reduza as pastas raiz.",
       "search_roots": "Diretórios de busca",

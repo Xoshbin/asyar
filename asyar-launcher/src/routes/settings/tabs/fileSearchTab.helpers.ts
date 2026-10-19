@@ -9,3 +9,10 @@ export function canAddExcludePattern(pattern: string, existing: string[]): boole
   if (!trimmed) return false;
   return !existing.includes(trimmed);
 }
+
+export function withRootSearchEnabled<T extends { rootSearchEnabled: boolean }>(
+  config: T,
+  rootSearchEnabled: boolean,
+): T {
+  return { ...config, rootSearchEnabled };
+}

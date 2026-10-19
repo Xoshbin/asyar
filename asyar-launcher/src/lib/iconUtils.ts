@@ -8,6 +8,7 @@ export function isIconImage(icon: string | undefined | null): boolean {
   return (
     icon.startsWith('data:image') ||
     icon.startsWith('asyar-icon://') ||
+    icon.startsWith('asyar-thumb://') ||
     icon.startsWith('asyar-extension://') ||
     icon.startsWith('http://') ||
     icon.startsWith('https://') ||

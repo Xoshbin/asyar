@@ -254,6 +254,8 @@
       "section_status": "状态",
       "file_search_title": "文件搜索",
       "file_search_description": "索引在后台运行，默认排除缓存、依赖目录和系统目录。",
+      "root_search_title": "在主搜索中包含文件",
+      "root_search_description": "输入时在应用和命令旁显示匹配的文件。",
       "restored_snapshot": "已从快照恢复",
       "index_size_warning": "索引已达容量上限 —— 部分文件可能无法被搜索到。请添加排除规则以缩小扫描范围，或减少搜索根目录。",
       "search_roots": "搜索根目录",

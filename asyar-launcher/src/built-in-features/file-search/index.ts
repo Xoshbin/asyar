@@ -1,44 +1,24 @@
-import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import type {
-  Extension,
-  ExtensionAction,
-  ExtensionContext,
-  FileHit,
-  IExtensionManager,
-} from 'asyar-sdk/contracts';
+import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { tick } from 'svelte';
-import { writeText } from 'tauri-plugin-clipboard-x-api';
-import {
-  fileSearchClearHistory,
-  openInTerminal,
-  quickLookPath,
-} from '../../lib/ipc/fileSearchCommands';
+import { quickLookPath } from '../../lib/ipc/fileSearchCommands';
 import { actionService } from '../../services/action/actionService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
-import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-import { fileManagerService } from '../../services/fileManager/fileManagerService';
 import { t } from '../../services/i18n';
 import { logService } from '../../services/log/logService';
 import { openerService } from '../../services/opener/openerService';
 import { searchStores } from '../../services/search/stores/search.svelte';
-import { primeAiChipForFile } from './aiChipBridge';
+import { buildFileActions } from './fileActions';
 import {
   checkDeepSearchAvailability,
   fileSearchViewState,
   getSelectedFile,
   loadPinnedFiles,
   recordSelectionForCurrentQuery,
-  runDeepSearch,
   runSearch,
-  togglePin,
 } from './state.svelte';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
-
-function parentDirOf(f: FileHit): string {
-  return f.isDir ? f.path : f.path.replace(/\/[^/]*$/, '');
-}
 
 class FileSearchExtension implements Extension {
   onUnload = () => {};
@@ -127,170 +107,19 @@ class FileSearchExtension implements Extension {
   }
 
   private registerViewActions(): void {
-    const actions: ExtensionAction[] = [
-      {
-        id: 'file-search:reveal-in-finder',
-        title: t('features.file_search.act.reveal'),
-        description: t('features.file_search.act.reveal_desc'),
-        icon: 'icon:folder',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Mod+R',
-        execute: async () => {
-          const f = getSelectedFile();
-          if (!f) return;
-          await revealItemInDir(f.path);
-        },
+    const actions = buildFileActions({
+      getFile: getSelectedFile,
+      context: ActionContext.EXTENSION_VIEW,
+      include: { deepSearch: true, clearHistory: true },
+      onRemoved: (fileId) => {
+        fileSearchViewState.results = fileSearchViewState.results.filter(
+          (r) => r.fileId !== fileId,
+        );
+        fileSearchViewState.deepResults = fileSearchViewState.deepResults.filter(
+          (r) => r.fileId !== fileId,
+        );
       },
-      {
-        id: 'file-search:copy-path',
-        title: t('features.file_search.act.copy_path'),
-        description: t('features.file_search.act.copy_path_desc'),
-        icon: 'icon:clipboard',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Mod+Shift+C',
-        execute: async () => {
-          const f = getSelectedFile();
-          if (!f) return;
-          await writeText(f.path);
-        },
-      },
-      {
-        id: 'file-search:copy-name',
-        title: t('features.file_search.act.copy_name'),
-        description: t('features.file_search.act.copy_name_desc'),
-        icon: 'icon:clipboard',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Mod+Alt+C',
-        execute: async () => {
-          const f = getSelectedFile();
-          if (!f) return;
-          await writeText(f.name);
-        },
-      },
-      {
-        id: 'file-search:open-in-terminal',
-        title: t('features.file_search.act.open_terminal'),
-        description: t('features.file_search.act.open_terminal_desc'),
-        icon: 'icon:terminal',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Mod+T',
-        execute: async () => {
-          const f = getSelectedFile();
-          if (!f) return;
-          await openInTerminal(parentDirOf(f));
-        },
-      },
-      {
-        id: 'file-search:toggle-pin',
-        title: t('features.file_search.act.toggle_pin'),
-        description: t('features.file_search.act.toggle_pin_desc'),
-        icon: 'icon:bookmark',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Mod+Shift+P',
-        execute: async () => {
-          const f = getSelectedFile();
-          if (!f) return;
-          await togglePin(f.fileId, f.path);
-        },
-      },
-      {
-        id: 'file-search:move-to-trash',
-        title: t('features.file_search.act.trash'),
-        description: t('features.file_search.act.trash_desc'),
-        icon: 'icon:trash',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        destructive: true,
-        execute: async () => {
-          const f = getSelectedFile();
-          if (!f) return;
-          try {
-            await fileManagerService.trash(f.path);
-            fileSearchViewState.results = fileSearchViewState.results.filter(
-              (r) => r.fileId !== f.fileId,
-            );
-            fileSearchViewState.deepResults = fileSearchViewState.deepResults.filter(
-              (r) => r.fileId !== f.fileId,
-            );
-          } catch (err) {
-            feedbackService.report({
-              source: 'frontend',
-              kind: 'file-search/trash-failed',
-              severity: 'error',
-              retryable: false,
-              developerDetail: String(err),
-            });
-          }
-        },
-      },
-      {
-        id: 'file-search:quick-look',
-        title: t('features.file_search.act.quick_look'),
-        description: t('features.file_search.act.quick_look_desc'),
-        icon: 'icon:eye',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        execute: async () => {
-          const f = getSelectedFile();
-          if (!f) return;
-          const ok = await quickLookPath(f.path);
-          if (!ok) await openerService.openPath(null, f.path);
-        },
-      },
-      {
-        id: 'file-search:send-to-ai',
-        title: t('features.file_search.act.send_ai'),
-        description: t('features.file_search.act.send_ai_desc'),
-        icon: 'icon:sparkles',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Mod+I',
-        execute: async () => {
-          const f = getSelectedFile();
-          if (!f) return;
-          await primeAiChipForFile(f);
-        },
-      },
-      {
-        id: 'file-search:clear-history',
-        title: t('features.file_search.act.clear_history'),
-        description: t('features.file_search.act.clear_history_desc'),
-        icon: 'icon:trash',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        destructive: true,
-        execute: async () => {
-          await fileSearchClearHistory();
-        },
-      },
-      {
-        id: 'file-search:deep-search',
-        title: t('features.file_search.act.search_everywhere'),
-        description: t('features.file_search.act.search_everywhere_desc'),
-        icon: 'icon:globe',
-        extensionId: 'file-search',
-        category: 'file-action',
-        context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Mod+Shift+F',
-        execute: async () => {
-          await runDeepSearch();
-        },
-      },
-    ];
+    });
 
     for (const action of actions) {
       actionService.registerAction(action);
@@ -298,16 +127,13 @@ class FileSearchExtension implements Extension {
   }
 
   private unregisterViewActions(): void {
-    actionService.unregisterAction('file-search:reveal-in-finder');
-    actionService.unregisterAction('file-search:copy-path');
-    actionService.unregisterAction('file-search:copy-name');
-    actionService.unregisterAction('file-search:open-in-terminal');
-    actionService.unregisterAction('file-search:toggle-pin');
-    actionService.unregisterAction('file-search:move-to-trash');
-    actionService.unregisterAction('file-search:quick-look');
-    actionService.unregisterAction('file-search:send-to-ai');
-    actionService.unregisterAction('file-search:deep-search');
-    actionService.unregisterAction('file-search:clear-history');
+    for (const action of buildFileActions({
+      getFile: getSelectedFile,
+      context: ActionContext.EXTENSION_VIEW,
+      include: { deepSearch: true, clearHistory: true },
+    })) {
+      actionService.unregisterAction(action.id);
+    }
   }
 
   async viewDeactivated(viewPath: string): Promise<void> {

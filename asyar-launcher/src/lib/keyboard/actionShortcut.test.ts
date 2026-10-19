@@ -66,11 +66,14 @@ describe('validateActionShortcut', () => {
     'Mod+V',
     'Mod+X',
     'Mod+Z',
-    'Mod+Y',
     'Mod+Shift+Z',
   ])('rejects reserved %s', (s) => {
     expect(RESERVED_ACTION_SHORTCUTS.has(s)).toBe(true);
     expect(validateActionShortcut(s)).toMatch(/reserved/i);
+  });
+
+  it('allows Mod+Y for root file Quick Look', () => {
+    expect(validateActionShortcut('Mod+Y')).toBeNull();
   });
 
   it('assertActionShortcut throws with the offending value', () => {

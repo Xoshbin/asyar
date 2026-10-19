@@ -12,6 +12,8 @@ import { viewManager } from '../services/extension/viewManager.svelte';
 import { openAgentRunInChat } from '../built-in-features/agents/runNavigation';
 import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
 import { windowService } from '../services/window/windowService';
+import { fileSearchRecordSelection } from './ipc/fileSearchCommands';
+import { openerService } from '../services/opener/openerService';
 
 export type ResolvedItemMeta = {
   objectId: string;
@@ -34,6 +36,7 @@ export function resolveItemMeta(
   if (!result.icon) {
     if (type === 'application') icon = '🖥️';
     else if (type === 'command') icon = '❯_';
+    else if (type === 'file') icon = 'icon:file';
   }
 
   // --- TypeLabel resolution ---
@@ -49,6 +52,8 @@ export function resolveItemMeta(
     if (manifest?.name) {
       typeLabel = manifest.name;
     }
+  } else if (type === 'file') {
+    typeLabel = undefined;
   }
 
   // --- ObjectId fallback ---
@@ -176,7 +181,7 @@ function buildRunMappedItem(run: Run): MappedSearchItem {
 // missing from `runTiers`, or a mappedItem whose SearchResult lacks `tier`).
 // Mirrors Rust's `Tier::FrecencyOnly` ordinal (search_engine/ranker.rs) — the
 // "no match" tier, so untiered items sink to the bottom rather than guessing.
-const NO_MATCH_TIER = 5;
+const NO_MATCH_TIER = 6;
 
 function getSectionWeight(item: MappedSearchItem): number {
   // Section Order: favorites (0), scripts (1), agents (2), commands (3)
@@ -253,7 +258,7 @@ export function buildMappedItems({
     const name = result.name || 'Unknown Item';
     const type = result.type || 'unknown';
     const score = result.score || 0;
-    const path = result.path;
+    const path = result.path ?? undefined;
     const extensionAction = result.action;
 
     let actionFunction: () => Promise<any>;
@@ -337,6 +342,20 @@ export function buildMappedItems({
           throw err;
         }
       };
+    } else if (type === 'file' && path) {
+      actionFunction = async () => {
+        const fileId = objectId.startsWith('file_') ? objectId.slice('file_'.length) : objectId;
+        void fileSearchRecordSelection(localSearchValue, fileId).catch((err) => {
+          logService.warn(`Failed to record file selection: ${err}`);
+        });
+        try {
+          await openerService.openPath(null, path);
+        } catch (err) {
+          logService.error(`openerService.openPath failed: ${err}`);
+          onError(`Failed to open ${name}`);
+          throw err;
+        }
+      };
     } else {
       actionFunction = async () => {
         logService.debug(`No valid action for item: ${name} (${type})`);
@@ -355,6 +374,7 @@ export function buildMappedItems({
       title: name,
       subtitle,
       type,
+      path,
       typeLabel,
       hasArguments:
         type === 'command' &&

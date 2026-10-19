@@ -148,7 +148,7 @@ class ShortcutService {
           path: shortcutInfo.itemPath || '',
           type: 'application',
           score: 1,
-          tier: 5, // untiered: opened directly from a shortcut binding, not search results
+          tier: 6, // untiered: opened directly from a shortcut binding, not search results
           icon: '', // Not used by opening logic
         });
       } catch (e) {

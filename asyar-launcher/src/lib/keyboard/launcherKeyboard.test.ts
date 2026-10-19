@@ -137,6 +137,13 @@ vi.mock('../../lib/ipc/commands', () => ({
   hideWindow: vi.fn(),
 }));
 
+const { quickLookPath, openPath } = vi.hoisted(() => ({
+  quickLookPath: vi.fn(),
+  openPath: vi.fn(),
+}));
+vi.mock('../ipc/fileSearchCommands', () => ({ quickLookPath }));
+vi.mock('../../services/opener/openerService', () => ({ openerService: { openPath } }));
+
 vi.mock('../../services/search/commandArguments', () => ({
   commandArgumentsService: {
     active: null as null | { commandId: string },
@@ -254,6 +261,43 @@ describe('launcherKeyboard characterization tests', () => {
       calculator: { refreshInterval: 6 },
     } as any);
     (document as any).activeElement = null;
+  });
+
+  it('previews a selected root file on Mod+Y and falls back to opening', async () => {
+    quickLookPath.mockResolvedValue(false);
+    const deps = createMockDeps({
+      getSelectedItem: () => ({
+        object_id: 'file_abc',
+        title: 'report.txt',
+        type: 'file',
+        path: '/tmp/report.txt',
+        score: 1,
+        action: vi.fn(),
+      }),
+    });
+    const event = createKeyEvent('y', { metaKey: true });
+    createKeyboardHandlers(deps).handleGlobalKeydown(event);
+    await vi.waitFor(() => expect(openPath).toHaveBeenCalledWith(null, '/tmp/report.txt'));
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it('leaves Mod+Y and bare Space alone for non-file root rows', () => {
+    const deps = createMockDeps({
+      getSelectedItem: () => ({
+        object_id: 'app_safari',
+        title: 'Safari',
+        type: 'application',
+        score: 1,
+        action: vi.fn(),
+      }),
+    });
+    const handlers = createKeyboardHandlers(deps);
+    const modY = createKeyEvent('y', { metaKey: true });
+    const space = createKeyEvent(' ');
+    handlers.handleGlobalKeydown(modY);
+    handlers.handleGlobalKeydown(space);
+    expect(modY.preventDefault).not.toHaveBeenCalled();
+    expect(space.preventDefault).not.toHaveBeenCalled();
   });
 
   describe('handleGlobalKeydown', () => {

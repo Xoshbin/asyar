@@ -11,10 +11,12 @@ pub async fn search_items(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn merged_search(
     query: String,
     external_results: Vec<super::models::ExternalSearchResult>,
     min_results: Option<usize>,
+    include_files: Option<bool>,
     app_handle: tauri::AppHandle,
     state: State<'_, std::sync::Arc<SearchState>>,
     alias_state: State<'_, crate::aliases::AliasState>,
@@ -41,20 +43,40 @@ pub async fn merged_search(
     // The only file-search touch point on the root-search hot path: an O(1)
     // check (one Arc + one RwLock read, no file-index data touched) plus a
     // bounded Vec insert. See `file_search_fallback` for the full contract.
+    let file_index =
+        app_handle.try_state::<std::sync::Arc<crate::file_index::service::FileIndexState>>();
     let file_search_available = !disabled_extensions.iter().any(|id| id == "file-search")
-        && app_handle
-            .try_state::<std::sync::Arc<crate::file_index::service::FileIndexState>>()
+        && file_index
+            .as_ref()
             .map(|s| s.config().enabled)
             .unwrap_or(false);
     // Backfilled suggestions are marked `score == -1.0` by
     // `SearchState::merged_search`; everything else is a real match.
     let matched_count = response.results.iter().filter(|r| r.score != -1.0).count();
+    let inserted = if include_files.unwrap_or(false) && file_search_available && matched_count < 20
+    {
+        file_index
+            .as_ref()
+            .map(|file_index| {
+                super::file_search_inline::append_inline_file_results(
+                    &mut response.results,
+                    &query,
+                    matched_count,
+                    file_index,
+                    crate::file_index::ranking::now_seconds(),
+                )
+            })
+            .unwrap_or(0)
+    } else {
+        0
+    };
     super::file_search_fallback::append_file_search_fallback(
         &mut response.results,
         &query,
-        matched_count,
+        matched_count + inserted,
         file_search_available,
     );
+    response.results.truncate(20);
     if response.alias_match.as_ref().is_some_and(|alias| {
         !response
             .results

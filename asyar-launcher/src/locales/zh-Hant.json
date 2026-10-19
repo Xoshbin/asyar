@@ -254,6 +254,8 @@
       "section_status": "狀態",
       "file_search_title": "檔案搜尋",
       "file_search_description": "索引在背景執行，預設排除快取、依賴目錄和系統目錄。",
+      "root_search_title": "在主搜尋中包含檔案",
+      "root_search_description": "輸入時在應用程式和指令旁顯示符合的檔案。",
       "restored_snapshot": "已從快照恢復",
       "index_size_warning": "索引已達容量上限 —— 部分檔案可能無法被搜尋到。請新增排除規則以縮小掃描範圍，或減少搜尋根目錄。",
       "search_roots": "搜尋根目錄",
