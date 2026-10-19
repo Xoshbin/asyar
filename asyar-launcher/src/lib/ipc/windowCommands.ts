@@ -1,6 +1,26 @@
 // asyar-launcher/src/lib/ipc/windowCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
 import { invokeSafe } from './invokeSafe';
+
+async function emitExtensionDeeplink(extensionId: string, commandId: string): Promise<void> {
+  const { emit } = await import('@tauri-apps/api/event');
+  await emit('asyar:deeplink:extension', { extensionId, commandId, args: {} });
+}
+
+/** Request the main launcher window to open the built-in Store view. */
+export async function openStore(): Promise<void> {
+  await emitExtensionDeeplink('store', 'browse');
+}
+
+/** Request the main launcher window to open the AI extension builder. */
+export async function openCreateExtensionWithAi(): Promise<void> {
+  await emitExtensionDeeplink('create-extension', 'build-with-ai');
+}
+
+/** Request the main launcher window to open the extension scaffolder. */
+export async function openCreateExtension(): Promise<void> {
+  await emitExtensionDeeplink('create-extension', 'open');
+}
 import type { AppWindowInfo, LauncherPlacement } from '../../bindings';
 
 // ── Window ────────────────────────────────────────────────────────────────────
