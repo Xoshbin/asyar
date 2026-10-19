@@ -83,6 +83,17 @@ export type CalcResult = {
 	kind: CalcKind,
 };
 
+/**
+ *  Capture delta: the inserted identity and effective favorite state, the
+ *  duplicate it replaced, and any subsequent age/count cleanup evictions.
+ */
+export type CaptureResult = {
+	insertedId: string,
+	replacedId: string | null,
+	favorite: boolean,
+	evictedIds: string[],
+};
+
 export type ChatMessage = {
 	id: string,
 	role: string,

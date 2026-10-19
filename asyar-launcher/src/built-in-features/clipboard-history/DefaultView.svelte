@@ -82,6 +82,8 @@
 
   let showRenderedHtml = $derived(clipboardViewState.showRenderedHtml);
 
+  $effect(() => clipboardViewState.subscribeToHistoryChanges());
+
   // Mirror the store's currently-visible window (searchResults ?? favorites
   // + recent) into clipboardViewState.items so the existing filteredItems
   // derivation and the keyboard handler in index.ts always see the same

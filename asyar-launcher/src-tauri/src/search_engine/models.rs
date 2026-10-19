@@ -476,6 +476,7 @@ mod bindings_export {
     #[ignore = "Only run manually to regenerate TypeScript bindings"]
     fn export_bindings() {
         let types = specta::TypeCollection::default()
+            .register::<crate::storage::clipboard::CaptureResult>()
             .register::<Application>()
             .register::<Command>()
             .register::<SearchableItem>()

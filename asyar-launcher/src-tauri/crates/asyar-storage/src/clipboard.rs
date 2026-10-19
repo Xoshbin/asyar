@@ -135,12 +135,14 @@ pub struct ClearResult {
     pub removed_image_paths: Vec<String>,
 }
 
-/// Return type for [`record_capture`]: the id of the newly inserted item and
-/// the ids of any items evicted by the age/count cleanup that followed.
-#[derive(Debug, Clone, Serialize)]
+/// Capture delta: the inserted identity and effective favorite state, the
+/// duplicate it replaced, and any subsequent age/count cleanup evictions.
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureResult {
     pub inserted_id: String,
+    pub replaced_id: Option<String>,
+    pub favorite: bool,
     pub evicted_ids: Vec<String>,
 }
 
@@ -1005,6 +1007,7 @@ pub fn record_capture(
         &new_item.id,
         master_key,
     )?;
+    let replaced_id = duplicate.as_ref().map(|dup| dup.id.clone());
     if let Some(dup) = duplicate {
         if dup.favorite {
             new_item.favorite = true;
@@ -1021,6 +1024,8 @@ pub fn record_capture(
 
     Ok(CaptureResult {
         inserted_id: new_item.id,
+        replaced_id,
+        favorite: new_item.favorite,
         evicted_ids,
     })
 }
@@ -1535,6 +1540,9 @@ mod tests {
 
         // The inserted id is the new item
         assert_eq!(result.inserted_id, "2");
+        let response = serde_json::to_value(&result).unwrap();
+        assert_eq!(response["replacedId"], "1");
+        assert_eq!(response["favorite"], true);
         // Only one item in history (duplicate was replaced)
         assert_eq!(items.len(), 1);
         // The new item is at the top (newest)
@@ -1562,6 +1570,9 @@ mod tests {
 
         // The inserted id is the new item
         assert_eq!(result.inserted_id, "2");
+        let response = serde_json::to_value(&result).unwrap();
+        assert_eq!(response["replacedId"], "1");
+        assert_eq!(response["favorite"], false);
         // Only one item — the duplicate was removed and the new one inserted
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, "2");

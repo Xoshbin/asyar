@@ -85,6 +85,20 @@ export class ClipboardViewStateClass {
     this.networkService = context.getService<INetworkService>('network');
   }
 
+  /** Follow a recaptured item's identity without moving the cursor to an
+   * unrelated row. The mounted view owns this subscription's lifetime. */
+  subscribeToHistoryChanges(): () => void {
+    return clipboardHistoryStore.subscribe((event) => {
+      if (event.type !== 'upsert' || !event.replacedItemId) return;
+      if (this.selectedItemId === event.replacedItemId) {
+        this.selectedItemId = event.itemId;
+      }
+      this.selectedIds = [
+        ...new Set(this.selectedIds.map((id) => (id === event.replacedItemId ? event.itemId : id))),
+      ];
+    });
+  }
+
   setSearch(query: string) {
     this.searchQuery = query;
     this.lastSearch = Date.now();
