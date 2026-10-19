@@ -188,8 +188,9 @@ Some permissions need a value in addition to being declared. Those values live i
 
 Declare both `network` and `network:lan`. The `permissionArgs["network:lan"]`
 entry is optional: omit it when users will manage the allowlist in Settings →
-Extensions → Local network devices. When present, it must be a non-empty array
-of exact LAN endpoints. Entries use `host:port` or canonical `CIDR:port`;
+Extensions → Local network devices or when the extension prompts for devices in-flow
+using `network.requestLanDevice()` or `network.requestLanHost()`. When present, it must be
+a non-empty array of exact LAN endpoints. Entries use `host:port` or canonical `CIDR:port`;
 bracket IPv6 and IPv6 CIDRs, for example `[fd00::/8]:8123`.
 
 ```json
@@ -211,9 +212,10 @@ The Rust host resolves and pins the destination on every request and redirect.
 All DNS answers must match the declared endpoint. Loopback, link-local, and
 cloud metadata targets remain unavailable even if listed. `network:lan` applies
 to HTTP and WebSocket connections. It does not grant raw UDP/multicast
-discovery or runtime process execution.
+sockets directly to the extension sandbox; discovery is user-mediated through
+the launcher's in-flow device picker dialog (`network.requestLanDevice()`) or Settings UI.
 
-See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime surface.
+See [`NetworkService`](./sdk/network-service.md#local-network-access) for the runtime surface.
 
 #### Secret reference schema
 
