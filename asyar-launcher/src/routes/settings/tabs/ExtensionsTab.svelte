@@ -11,7 +11,13 @@
   import type { SettingsHandler, ExtensionItem } from '../settingsHandlers.svelte';
   import { extensionStateManager } from '../../../services/extension/extensionStateManager.svelte';
   import { extensionUpdateService } from '../../../services/extension/extensionUpdateService.svelte';
-  import { showOpenExtensionDialog, installExtensionFromFile } from '../../../lib/ipc/commands';
+  import {
+    showOpenExtensionDialog,
+    installExtensionFromFile,
+    openStore,
+    openCreateExtensionWithAi,
+    openCreateExtension,
+  } from '../../../lib/ipc/commands';
   import { filterExtensions, type ExtensionFilter } from './extensionFilters';
   import type { ExtensionCommand } from 'asyar-sdk/contracts';
   import { onMount } from 'svelte';
@@ -28,7 +34,6 @@
   import { toDisplayString } from '../../../built-in-features/shortcuts/shortcutFormatter';
   import KeyboardHint from '../../../components/base/KeyboardHint.svelte';
   import { logService } from '../../../services/log/logService';
-  import { developerSettingsService } from '../../../services/settings/developerSettingsService.svelte';
   import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../../lib/iconUtils';
   type AliasEditTarget = {
     objectId: string;
@@ -619,31 +624,78 @@
 {#if plusOpen}
   <div class="plus-dropdown" style="top: {dropdownPos.top}px; right: {dropdownPos.right}px;">
     <div class="dd-section-label">{t('settings.extensions.filter_extensions')}</div>
-    {#if developerSettingsService.allowSideloading}
-      <button
-        class="dd-item"
-        onclick={() => {
-          plusOpen = false;
-          handleInstallFromFile();
-        }}
-        disabled={isInstallingFromFile}
+    <button
+      class="dd-item"
+      onclick={() => {
+        plusOpen = false;
+        void openStore();
+      }}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-        >
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-        </svg>
-        {isInstallingFromFile ? 'Installing…' : 'Install from File…'}
-      </button>
-      <div class="dd-separator"></div>
-    {/if}
-    <div class="dd-section-label">{t('settings.developer.section_tools')}</div>
-    <button class="dd-item dd-item-disabled" disabled title={t('settings.extensions.coming_soon')}>
+        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <path d="M16 10a4 4 0 0 1-8 0" />
+      </svg>
+      {t('settings.extensions.browse_store')}
+    </button>
+    <button
+      class="dd-item"
+      onclick={() => {
+        plusOpen = false;
+        void handleInstallFromFile();
+      }}
+      disabled={isInstallingFromFile}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+      </svg>
+      {isInstallingFromFile ? 'Installing…' : t('settings.extensions.install_from_file')}
+    </button>
+    <div class="dd-separator"></div>
+    <div class="dd-section-label">{t('settings.extensions.section_create')}</div>
+    <button
+      class="dd-item"
+      onclick={() => {
+        plusOpen = false;
+        void openCreateExtensionWithAi();
+      }}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"
+        />
+      </svg>
+      {t('settings.extensions.create_with_ai')}
+    </button>
+    <button
+      class="dd-item"
+      onclick={() => {
+        plusOpen = false;
+        void openCreateExtension();
+      }}
+    >
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -883,15 +935,6 @@
     height: 13px;
     color: var(--text-secondary);
     flex-shrink: 0;
-  }
-
-  .dd-item-disabled {
-    color: var(--text-tertiary);
-    cursor: not-allowed;
-  }
-
-  .dd-item-disabled:hover {
-    background: none;
   }
 
   .dd-separator {
