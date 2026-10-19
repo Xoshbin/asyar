@@ -11,10 +11,19 @@
  * orchestrator.
  */
 
+/**
+ * Returned by a dispatcher that wants the launcher left as it is, so the
+ * caller skips its usual hide + reset. `view`: the dispatcher navigated to
+ * one of its views. `keep-open`: the dispatcher already restored the
+ * launcher itself (e.g. `showWindow()` after a failed OS action), and a
+ * hide would undo that.
+ */
+export type BuiltinDispatchResult = { type: 'view'; viewPath: string } | { type: 'keep-open' };
+
 export type BuiltinDynamicDispatcher = (
   dynamicId: string,
   args?: Record<string, unknown>,
-) => Promise<void>;
+) => Promise<void | BuiltinDispatchResult>;
 
 const dispatchers = new Map<string, BuiltinDynamicDispatcher>();
 

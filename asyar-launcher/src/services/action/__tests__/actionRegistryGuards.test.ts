@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ActionService } from '../actionService.svelte';
 import { ExtensionLoader } from '../../extension/ExtensionLoader';
 import { ActionContext } from 'asyar-sdk/contracts';
+import { validateActionShortcut } from '../../../lib/keyboard/actionShortcut';
 
 // ---------- Hoisted Mocks ----------
 
@@ -49,7 +50,7 @@ vi.mock('../../settings/developerSettingsService.svelte', () => ({
 
 vi.mock('../../settings/settingsService.svelte', () => ({
   settingsService: {
-    getSettings: vi.fn().mockReturnValue({ search: { allowExtensionActions: true } }),
+    getSettings: vi.fn().mockReturnValue({ search: {} }),
     isInitialized: vi.fn().mockReturnValue(true),
     isExtensionEnabled: vi.fn().mockReturnValue(true),
   },
@@ -84,7 +85,7 @@ describe('Action & Shortcut Registry Integrity Guard', () => {
     expect(shortcuts.length).toBe(uniqueShortcuts.size);
 
     for (const shortcut of shortcuts) {
-      expect(shortcut).toMatch(/^(Super|Ctrl|Alt|Shift)(\+[A-Za-z0-9,]+)+$/);
+      expect(validateActionShortcut(shortcut), shortcut).toBeNull();
     }
   });
 
@@ -109,7 +110,7 @@ describe('Action & Shortcut Registry Integrity Guard', () => {
           title: 'Copy Custom Payload',
           description: 'Copy custom payload',
           icon: 'icon:copy',
-          shortcut: 'Super+Shift+X',
+          shortcut: 'Mod+Shift+X',
         },
       ],
     };

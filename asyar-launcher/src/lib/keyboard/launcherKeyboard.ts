@@ -19,6 +19,7 @@ import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 import { resetLauncherState } from '../launcher/launcherReset';
+import { resolveEscapeBehavior } from './escapeBehavior';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
 /** Minimal contract the global ⌘P handler needs from the accessory dropdown. */
@@ -53,6 +54,12 @@ export interface KeyboardDeps {
   onBeforeHide?: () => Promise<void>; // optional: called before invoke('hide')
   isCompactIdle?: () => boolean;
   onCompactExpand?: () => void;
+  /**
+   * The action shortcut dispatcher: returns true when the event was a declared
+   * action shortcut and has been run. Owned by `ActionService`'s dispatcher so
+   * this module stays a router and never learns which actions exist.
+   */
+  handleActionShortcut?: (event: KeyboardEvent) => boolean;
   navigateQueryHistory?: (direction: -1 | 1, selectedIndex: number) => boolean;
   recordQueryHistory?: (query: string) => void;
 }
@@ -289,6 +296,15 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return true;
   }
 
+  // A declared action shortcut (manifest, built-in view, core or Tier 2).
+  // Runs after every launcher-reserved chord above so those can never be
+  // shadowed, and before view routing so a view's own actions win over its
+  // forwarded keys. Compact idle has no action panel and so no actions.
+  function tryRunActionShortcut(event: KeyboardEvent): boolean {
+    if (deps.isCompactIdle?.()) return false;
+    return deps.handleActionShortcut?.(event) ?? false;
+  }
+
   // Route keyboard events to the active extension view
   function tryRouteToActiveView(event: KeyboardEvent): boolean {
     if (!viewManager.activeView) return false;
@@ -374,6 +390,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (tryToggleAccessoryPopover(event)) return;
     if (tryToggleActionPanel(event)) return;
     if (tryCloseActionPanel(event)) return;
+    if (tryRunActionShortcut(event)) return;
     tryRouteToActiveView(event);
   }
 
@@ -447,8 +464,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       if (deps.onBeforeHide) await deps.onBeforeHide();
       await commands.hideWindow();
     };
-    const escapeBehavior =
-      settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
+    // Two behaviors only, matching Raycast; the legacy `close-window` value
+    // resolves to `go-back`, whose terminal step at root is already a
+    // reset-free hide.
+    const escapeBehavior = resolveEscapeBehavior(
+      settingsService.getSettings()?.general?.escapeInViewBehavior,
+    );
 
     if (viewManager.activeView) {
       if (deps.getActiveContext()) {
@@ -465,22 +486,23 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
           extensionManager.goBack();
           restoreSearchFocus({ select: true });
         }
-      } else if (escapeBehavior === 'hide-and-reset') {
+      } else {
         // Chain after hideWindow so the reset is invisible to the user.
         void hide().then(resetLauncherState);
-      } else {
-        void hide();
       }
     } else {
       // At root: chain still applies for go-back (clear search before hiding).
-      if (escapeBehavior === 'go-back' && deps.getLocalSearchValue().trim() !== '') {
-        deps.recordQueryHistory?.(deps.getLocalSearchValue());
-        deps.setLocalSearchValue('');
-        restoreSearchFocus();
-      } else if (escapeBehavior === 'hide-and-reset') {
+      if (escapeBehavior === 'hide-and-reset') {
         void hide().then(resetLauncherState);
       } else {
-        void hide();
+        const query = deps.getLocalSearchValue();
+        if (query.trim() !== '') {
+          deps.recordQueryHistory?.(query);
+          deps.setLocalSearchValue('');
+          restoreSearchFocus();
+        } else {
+          void hide();
+        }
       }
     }
     return true;

@@ -151,47 +151,9 @@
     if ((event.target as HTMLElement | null)?.closest?.('.action-popup')) return;
     if (filteredWindows.length === 0) return;
 
-    // Direct shortcuts while inside the window switcher view
-    if (event.metaKey || event.ctrlKey) {
-      // ⌘⇧C: Copy Window Title
-      if (event.shiftKey && (event.key === 'c' || event.key === 'C')) {
-        if (selectedWindow) {
-          event.preventDefault();
-          event.stopPropagation();
-          const text = (selectedWindow.title?.trim() || selectedWindow.appName || '').trim();
-          void handleCopyTitle(text);
-        }
-        return;
-      }
-      // ⌘W: Close Window
-      if (!event.shiftKey && (event.key === 'w' || event.key === 'W')) {
-        if (selectedWindow) {
-          event.preventDefault();
-          event.stopPropagation();
-          void handleClose(selectedWindow.id);
-        }
-        return;
-      }
-      // ⌘C: Copy title if user is not selecting text inside an input
-      if (!event.shiftKey && (event.key === 'c' || event.key === 'C')) {
-        const active = document.activeElement;
-        const hasSelection =
-          active instanceof HTMLInputElement &&
-          active.selectionStart !== null &&
-          active.selectionEnd !== null &&
-          active.selectionStart !== active.selectionEnd;
-        if (!hasSelection && selectedWindow) {
-          event.preventDefault();
-          event.stopPropagation();
-          const text = (selectedWindow.title?.trim() || selectedWindow.appName || '').trim();
-          void handleCopyTitle(text);
-        }
-        return;
-      }
-      return;
-    }
-
-    if (event.altKey) return;
+    // Modifier chords are action shortcuts (Close Window, Copy Title), owned by
+    // the action shortcut dispatcher; only plain-key list navigation lives here.
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
@@ -228,7 +190,6 @@
       id: 'window-management:focus-window',
       title: t('features.window_management.focus_window'),
       icon: 'icon:window',
-      shortcut: '↵',
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,
@@ -239,7 +200,7 @@
       id: 'window-management:close-window',
       title: t('features.window_management.close_window'),
       icon: 'icon:x',
-      shortcut: 'Super+W',
+      shortcut: 'Mod+W',
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,
@@ -250,7 +211,7 @@
       id: 'window-management:copy-title',
       title: t('features.window_management.copy_title'),
       icon: 'icon:copy',
-      shortcut: 'Super+Shift+C',
+      shortcut: 'Mod+Shift+C',
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,

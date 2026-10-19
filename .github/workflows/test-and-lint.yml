@@ -96,7 +96,7 @@ jobs:
         working-directory: asyar-launcher/src-tauri
 
       - name: Verify generated TypeScript bindings are up to date
-        run: git diff --exit-code -- asyar-launcher/src/bindings.ts asyar-sdk/src/generated/calculator.ts
+        run: git diff --exit-code -- asyar-launcher/src/bindings.ts asyar-sdk/src/generated/calculator.ts asyar-sdk/src/generated/files.ts
 
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings

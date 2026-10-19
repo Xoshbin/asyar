@@ -17,10 +17,37 @@ use std::path::Path;
 /// correct degradation.
 pub fn derive_u64(path: &Path) -> u64 {
     let (volume_id, inode) = inode_for(path).unwrap_or((0, hash_path(path)));
+    derive_from_parts(volume_id, inode)
+}
+
+/// Hashes an already-resolved `(volume, inode)` pair using the canonical
+/// file-id composition.
+pub fn derive_from_parts(volume_id: u64, inode: u64) -> u64 {
     let mut h = FnvHasher::default();
     h.write_u64(volume_id);
     h.write_u64(inode);
     h.finish()
+}
+
+/// Derives the canonical file id from metadata already loaded by a walker.
+/// Symlinks deliberately retain `derive_u64` semantics, which follow the
+/// target and use the path-hash fallback for a broken link.
+#[cfg(unix)]
+pub fn derive_from_metadata(path: &Path, meta: &std::fs::Metadata) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+
+    if meta.file_type().is_symlink() {
+        return derive_u64(path);
+    }
+    derive_from_parts(meta.dev(), meta.ino())
+}
+
+/// Derives the canonical file id on platforms where stable `Metadata` does
+/// not expose the required identity. Windows' relevant metadata APIs remain
+/// nightly-only, so the portable path delegates to the `file-id` crate.
+#[cfg(not(unix))]
+pub fn derive_from_metadata(path: &Path, _meta: &std::fs::Metadata) -> u64 {
+    derive_u64(path)
 }
 
 /// 16-char lowercase hex wire/SQL form.
@@ -75,6 +102,94 @@ fn inode_for(path: &Path) -> Option<(u64, u64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fixture_dir(label: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("file_id_{label}_{}_{}", std::process::id(), nanos))
+    }
+
+    #[test]
+    fn derive_from_parts_matches_derive_u64_composition() {
+        let root = fixture_dir("parts");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("file.txt");
+        std::fs::write(&path, "x").unwrap();
+        let (volume_id, inode) = inode_for(&path).expect("stat succeeds");
+        assert_eq!(derive_from_parts(volume_id, inode), derive_u64(&path));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn derive_from_metadata_matches_derive_u64_for_a_regular_file() {
+        let root = fixture_dir("metadata_file");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("file.txt");
+        std::fs::write(&path, "x").unwrap();
+        let meta = std::fs::symlink_metadata(&path).unwrap();
+        assert_eq!(derive_from_metadata(&path, &meta), derive_u64(&path));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn derive_from_metadata_matches_derive_u64_for_a_directory() {
+        let root = fixture_dir("metadata_dir");
+        std::fs::create_dir_all(&root).unwrap();
+        let meta = std::fs::symlink_metadata(&root).unwrap();
+        assert_eq!(derive_from_metadata(&root, &meta), derive_u64(&root));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn derive_from_metadata_on_a_symlink_resolves_to_the_target_not_the_link() {
+        let root = fixture_dir("symlink");
+        std::fs::create_dir_all(&root).unwrap();
+        let target = root.join("target.txt");
+        let link = root.join("link.txt");
+        std::fs::write(&target, "x").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let meta = std::fs::symlink_metadata(&link).unwrap();
+        assert!(meta.file_type().is_symlink(), "fixture must be a symlink");
+        assert_eq!(derive_from_metadata(&link, &meta), derive_u64(&target));
+        assert_eq!(derive_from_metadata(&link, &meta), derive_u64(&link));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn derive_from_metadata_on_a_broken_symlink_uses_the_path_hash_fallback() {
+        let root = fixture_dir("broken_symlink");
+        std::fs::create_dir_all(&root).unwrap();
+        let link = root.join("link.txt");
+        std::os::unix::fs::symlink(root.join("missing.txt"), &link).unwrap();
+        let meta = std::fs::symlink_metadata(&link).unwrap();
+        assert_eq!(derive_from_metadata(&link, &meta), derive_u64(&link));
+        assert_eq!(
+            derive_from_metadata(&link, &meta),
+            derive_from_parts(0, hash_path(&link))
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hardlinks_share_one_file_id() {
+        let root = fixture_dir("hardlinks");
+        std::fs::create_dir_all(&root).unwrap();
+        let first = root.join("first.txt");
+        let second = root.join("second.txt");
+        std::fs::write(&first, "x").unwrap();
+        std::fs::hard_link(&first, &second).unwrap();
+        assert_eq!(derive_u64(&first), derive_u64(&second));
+        assert_eq!(
+            derive_from_metadata(&second, &std::fs::symlink_metadata(&second).unwrap()),
+            derive_u64(&first)
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     #[test]
     fn derive_is_deterministic_for_same_path() {

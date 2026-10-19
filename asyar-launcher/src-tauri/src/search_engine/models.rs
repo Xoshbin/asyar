@@ -498,6 +498,13 @@ mod bindings_export {
             .register::<crate::file_index::types::HitSource>()
             .register::<crate::file_index::types::IndexStateKind>()
             .register::<crate::file_index::types::WorkMeter>()
+            .register::<crate::commands::files::FileReadRangeOptions>()
+            .register::<crate::commands::files::ReadAlign>()
+            .register::<crate::commands::files::FileChunk>()
+            .register::<crate::commands::files::FileGlobOptions>()
+            .register::<crate::commands::files::FileGlobEntriesOptions>()
+            .register::<crate::commands::files::FileGlobEntry>()
+            .register::<crate::commands::files::GlobSort>()
             .register::<crate::calculator::CalcResult>()
             .register::<crate::calculator::CalcKind>()
             .register::<crate::ai::types::ChatMessage>()
@@ -538,6 +545,23 @@ mod bindings_export {
                 &calculator_types,
             )
             .expect("Failed to export SDK calculator bindings");
+
+        let files_types = specta::TypeCollection::default()
+            .register::<crate::commands::files::FileReadRangeOptions>()
+            .register::<crate::commands::files::ReadAlign>()
+            .register::<crate::commands::files::FileChunk>()
+            .register::<crate::commands::files::FileGlobOptions>()
+            .register::<crate::commands::files::FileGlobEntriesOptions>()
+            .register::<crate::commands::files::FileGlobEntry>()
+            .register::<crate::commands::files::GlobSort>();
+
+        Typescript::default()
+            .bigint(BigIntExportBehavior::Number)
+            .export_to(
+                std::path::PathBuf::from("../../asyar-sdk/src/generated/files.ts"),
+                &files_types,
+            )
+            .expect("Failed to export SDK files bindings");
     }
 
     #[test]
@@ -546,5 +570,22 @@ mod bindings_export {
             .expect("SDK calculator bindings are missing; run the export_bindings test");
         assert!(bindings.contains("export type CalcResult"));
         assert!(bindings.contains("export type CalcKind"));
+    }
+
+    #[test]
+    fn sdk_files_bindings_are_generated_from_rust() {
+        let bindings = std::fs::read_to_string("../../asyar-sdk/src/generated/files.ts")
+            .expect("SDK files bindings are missing; run the export_bindings test");
+        for name in [
+            "FileReadRangeOptions",
+            "ReadAlign",
+            "FileChunk",
+            "FileGlobOptions",
+            "FileGlobEntriesOptions",
+            "FileGlobEntry",
+            "GlobSort",
+        ] {
+            assert!(bindings.contains(&format!("export type {name}")));
+        }
     }
 }

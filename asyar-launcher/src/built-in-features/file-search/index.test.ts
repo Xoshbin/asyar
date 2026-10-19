@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../services/action/actionService.svelte', () => ({
-  actionService: { setActionExecutor: vi.fn(), registerAction: vi.fn(), unregisterAction: vi.fn() },
+  actionService: { registerAction: vi.fn(), unregisterAction: vi.fn() },
 }));
 
 vi.mock('../../lib/ipc/fileSearchCommands', () => ({
@@ -112,23 +112,20 @@ describe('FileSearchExtension class contract', () => {
     expect(checkDeepSearchAvailability).toHaveBeenCalled();
   });
 
-  it('initialize registers clear-history action with the full prefixed id', async () => {
+  it('registers Clear Search History as an in-view destructive action', async () => {
     const ctx = makeContext({ navigateToView: vi.fn() });
     await extension.initialize(ctx as never);
+    await extension.viewActivated?.('file-search/DefaultView');
 
-    expect(actionService.setActionExecutor).toHaveBeenCalledWith(
-      'act_file-search_clear-history',
-      expect.any(Function),
-    );
-  });
+    const action = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.map(([a]) => a as any)
+      .find((a) => a.id === 'file-search:clear-history');
+    expect(action).toBeDefined();
+    expect(action.destructive).toBe(true);
+    expect(action.shortcut).toBeUndefined();
 
-  it('clear-history executor invokes fileSearchClearHistory', async () => {
-    const ctx = makeContext({ navigateToView: vi.fn() });
-    await extension.initialize(ctx as never);
-
-    const [, executor] = vi.mocked(actionService.setActionExecutor).mock.calls[0];
-    await executor();
-
+    await action.execute();
     expect(fileSearchClearHistory).toHaveBeenCalled();
   });
 

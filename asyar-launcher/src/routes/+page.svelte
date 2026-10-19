@@ -28,10 +28,12 @@
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
+  import { actionShortcuts } from '../services/action/actionShortcuts';
   import { commandArgumentsService } from '../services/search/commandArguments';
   import { resolveCommandArguments } from '../lib/ipc/argumentModelCommands';
   import { commandArgDefaultsGet } from '../lib/ipc/commandArgDefaultsCommands';
   import { argumentHintVersion } from '../lib/launcher/argumentHintVersion.svelte';
+  import { resetLauncherState } from '../lib/launcher/launcherReset';
   import type { CommandArgument } from 'asyar-sdk/contracts';
   import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
   import { type UnlistenFn } from '@tauri-apps/api/event';
@@ -135,6 +137,7 @@
     onBeforeHide: async () => {
       await searchService.saveIndex();
     },
+    handleActionShortcut: (event) => actionShortcuts.handle(event),
     isCompactIdle: () => isCompactIdle,
     onCompactExpand: () => {
       compactSync.compactExpanded = true;
@@ -173,7 +176,10 @@
     // and Enter on the next launcher invocation.
     let unlistenResignKey: UnlistenFn | null = null;
     let unlistenBecomeKey: UnlistenFn | null = null;
+    let unlistenPopToRoot: UnlistenFn | null = null;
     appListen('main_panel_did_resign_key', () => {
+      // The macOS panel delegate fires this even when focus_locked keeps the
+      // launcher visible behind a modal — that is not a hide.
       if (isActionPanelOpen) {
         isActionPanelOpen = false;
         keyboard.restoreSearchFocus();
@@ -183,6 +189,16 @@
         unlistenResignKey = fn;
       })
       .catch((e) => logService.debug(`[+page] listen resign-key failed: ${e}`));
+
+    // Rust owns the elapsed-time policy and emits this instruction while the
+    // launcher is parked, or immediately before a native reveal as a backstop.
+    appListen('asyar:pop-to-root', () => {
+      resetLauncherState();
+    })
+      .then((fn) => {
+        unlistenPopToRoot = fn;
+      })
+      .catch((e) => logService.debug(`[+page] listen pop-to-root failed: ${e}`));
 
     // When the panel becomes key (e.g. after shortcut execution or window summon),
     // restore and select search focus if no modal is open.
@@ -203,6 +219,7 @@
       window.removeEventListener('focus', handleFocus);
       unlistenResignKey?.();
       unlistenBecomeKey?.();
+      unlistenPopToRoot?.();
     };
   });
 
@@ -264,10 +281,10 @@
   // Usage heartbeat: record an active day on startup and whenever the window
   // regains focus. Rust dedupes to one heartbeat/day, so this is cheap.
   $effect(() => {
-    void recordActiveDay();
+    void recordActiveDay().catch(() => {});
     const promise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
       if (focused) {
-        void recordActiveDay();
+        void recordActiveDay().catch(() => {});
         if (!isAnyModalOpen(document) && !isActionPanelOpen) {
           keyboard.restoreSearchFocus({ select: true });
         }
@@ -479,6 +496,7 @@
     {argumentCommandName}
     onArgHintClick={handleArgHintClick}
     oninput={(e) => controller.handleSearchInput(e)}
+    oncompositionend={(e) => controller.handleSearchCompositionEnd(e)}
     onkeydown={keyboard.handleKeydown}
     onclick={() => controller.handleBackClick()}
     oncontextDismiss={() => controller.handleChipDismiss()}

@@ -71,7 +71,7 @@ vi.mock('../settings/settingsService.svelte', () => ({
     subscribe: vi.fn().mockReturnValue(() => {}),
     isExtensionEnabled: vi.fn().mockReturnValue(true),
     getSettings: vi.fn().mockReturnValue({
-      search: { enableExtensionSearch: false, allowExtensionActions: true },
+      search: { enableExtensionSearch: false },
     }),
     updateSettings: vi.fn(),
     updateExtensionState: vi.fn(),
@@ -167,6 +167,9 @@ vi.mock('./extensionIframeManager.svelte', () => ({
 vi.mock('../../lib/ipc/extensionOrigin', () => ({
   getExtensionFrameOrigin: vi.fn((id: string) => `asyar-extension://${id}`),
 }));
+vi.mock('../../lib/launcher/launcherReset', () => ({
+  resetLauncherState: vi.fn(),
+}));
 vi.mock('../notification/notificationService', () => ({
   notificationService: { notify: vi.fn() },
 }));
@@ -201,6 +204,7 @@ import { listen } from '@tauri-apps/api/event';
 import { extensionLoaderService } from '../extensionLoaderService';
 import { commandService } from './commandService.svelte';
 import { dispatch } from './extensionDispatcher.svelte';
+import { resetLauncherState } from '../../lib/launcher/launcherReset';
 import { viewManager } from './viewManager.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { actionService } from '../action/actionService.svelte';
@@ -500,6 +504,35 @@ describe('ExtensionManager Characterization Tests', () => {
         await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-2', args);
 
         expect(agentDispatchMock).toHaveBeenCalledWith('uuid-2', args);
+      });
+
+      it('keeps the launcher open when a built-in dynamic command opens a view', async () => {
+        agentDispatchMock.mockResolvedValueOnce({
+          type: 'view',
+          viewPath: 'agents/AgentChatView',
+        });
+
+        const result = await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-1');
+
+        expect(result).toEqual({ type: 'view', viewPath: 'agents/AgentChatView' });
+        expect(commands.hideWindow).not.toHaveBeenCalled();
+      });
+
+      it('leaves the launcher alone when a built-in dispatcher returns keep-open', async () => {
+        agentDispatchMock.mockResolvedValueOnce({ type: 'keep-open' });
+
+        const result = await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-1');
+
+        expect(result).toEqual({ type: 'no-view' });
+        expect(commands.hideWindow).not.toHaveBeenCalled();
+        expect(resetLauncherState).not.toHaveBeenCalled();
+        expect(commands.recordItemUsage).toHaveBeenCalledWith('cmd_agents_dyn_uuid-1');
+      });
+
+      it('still hides the launcher when a built-in dispatcher returns void', async () => {
+        await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-1');
+
+        expect(commands.hideWindow).toHaveBeenCalledTimes(1);
       });
 
       it('routes any built-in dynamic extension via the registered dispatcher (no hardcoded id list)', async () => {

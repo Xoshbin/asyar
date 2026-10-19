@@ -2,6 +2,7 @@ import type { ProviderId, ProviderConfig } from '../../ai/IProviderPlugin';
 
 // Re-export for consumers that import from here
 export type { ProviderId, ProviderConfig };
+export type PopToRootDelay = 'immediately' | '10s' | '1m' | '5m' | 'never';
 
 // Define settings structure
 export interface AppSettings {
@@ -9,14 +10,18 @@ export interface AppSettings {
     startAtLogin: boolean;
     showDockIcon: boolean;
     showTrayIcon: boolean;
+    /**
+     * @deprecated `'close-window'` resolves to `'go-back'`; remove in 0.2.0.
+     * Still accepted for stored and synchronized settings from older versions.
+     */
     escapeInViewBehavior?: 'go-back' | 'close-window' | 'hide-and-reset';
+    popToRootDelay?: PopToRootDelay;
   };
   search: {
     searchApplications: boolean;
     searchSystemPreferences: boolean;
     fuzzySearch: boolean;
     enableExtensionSearch: boolean;
-    allowExtensionActions: boolean;
     additionalScanPaths: string[];
     applicationEnabled: Record<string, boolean>;
   };
@@ -68,6 +73,7 @@ export interface ClipboardHistorySettings {
 export interface FeedbackSettings {
   promptSeen?: boolean;
   firstLaunchDate?: string;
+  spreadPromptSeen?: boolean;
 }
 
 export interface FileSearchSettings {

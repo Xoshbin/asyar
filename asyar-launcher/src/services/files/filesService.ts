@@ -2,10 +2,21 @@ import {
   fileSearch,
   fileIndexStatus,
   filesReadText,
+  filesReadRange,
   filesGlob,
+  filesGlobEntries,
   filesThumbnail,
 } from '../../lib/ipc/fileSearchCommands';
-import type { FileHit, FileSearchOptions, IndexStatus } from 'asyar-sdk/contracts';
+import type {
+  FileHit,
+  FileSearchOptions,
+  IndexStatus,
+  FileReadRangeOptions,
+  FileChunk,
+  FileGlobOptions,
+  FileGlobEntry,
+  FileGlobEntriesOptions,
+} from 'asyar-sdk/contracts';
 
 const DISABLED_STATUS: IndexStatus = {
   state: 'disabled',
@@ -54,9 +65,25 @@ export class FilesService {
   async glob(
     callerExtensionId: string | null,
     pattern: string,
-    opts?: { maxResults?: number } | null,
+    opts?: FileGlobOptions | null,
   ): Promise<string[]> {
-    return filesGlob(callerExtensionId, pattern, opts?.maxResults);
+    return filesGlob(callerExtensionId, pattern, opts?.maxResults ?? undefined);
+  }
+
+  async globEntries(
+    callerExtensionId: string | null,
+    pattern: string,
+    opts?: FileGlobEntriesOptions | null,
+  ): Promise<FileGlobEntry[]> {
+    return filesGlobEntries(callerExtensionId, pattern, opts);
+  }
+
+  async readRange(
+    callerExtensionId: string | null,
+    path: string,
+    opts?: FileReadRangeOptions | null,
+  ): Promise<FileChunk> {
+    return filesReadRange(callerExtensionId, path, opts);
   }
 
   async thumbnail(

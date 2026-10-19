@@ -1,6 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 import type { FileHit, FileIndexConfig, FileSearchResponse, IndexStatus } from '../../bindings';
+import type {
+  FileChunk,
+  FileReadRangeOptions,
+  FileGlobEntriesOptions,
+  FileGlobEntry,
+} from 'asyar-sdk/contracts';
 
 export async function fileSearch(
   query: string,
@@ -97,6 +103,22 @@ export async function filesGlob(
   maxResults?: number,
 ): Promise<string[]> {
   return invoke<string[]>('files_glob', { extensionId, pattern, maxResults });
+}
+
+export async function filesGlobEntries(
+  extensionId: string | null,
+  pattern: string,
+  opts?: FileGlobEntriesOptions | null,
+): Promise<FileGlobEntry[]> {
+  return invoke<FileGlobEntry[]>('files_glob_entries', { extensionId, pattern, opts: opts ?? {} });
+}
+
+export async function filesReadRange(
+  extensionId: string | null,
+  pathStr: string,
+  opts?: FileReadRangeOptions | null,
+): Promise<FileChunk> {
+  return invoke<FileChunk>('files_read_range', { extensionId, pathStr, opts: opts ?? {} });
 }
 
 /** Extension-scoped thumbnail generation (`asyar:api:files:thumbnail` →

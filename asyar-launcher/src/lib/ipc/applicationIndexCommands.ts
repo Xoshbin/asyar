@@ -30,3 +30,18 @@ export async function getDefaultAppScanPaths(): Promise<string[]> {
 export async function normalizeScanPath(path: string): Promise<string> {
   return invokeSafe<string>('normalize_scan_path', { path });
 }
+
+export interface ScanPathValidation {
+  normalizedPath: string | null;
+  error: string | null;
+}
+
+export async function validateApplicationScanPath(
+  path: string,
+  existingPaths: string[],
+): Promise<ScanPathValidation> {
+  return invokeSafe<ScanPathValidation>('validate_application_scan_path', {
+    path,
+    existingPaths,
+  });
+}

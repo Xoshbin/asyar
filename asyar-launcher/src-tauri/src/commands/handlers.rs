@@ -244,6 +244,7 @@ macro_rules! search_commands {
                 $crate::file_index::commands::deep_search_availability,
                 $crate::file_index::commands::deep_search,
                 $crate::thumbnail::commands::get_file_thumbnail,
+                $crate::thumbnail::commands::get_file_icon,
             )
         )
     };
@@ -339,6 +340,7 @@ macro_rules! system_commands {
                 $crate::commands::get_frontmost_application,
                 $crate::commands::get_default_app_scan_paths,
                 $crate::commands::normalize_scan_path,
+                $crate::commands::validate_application_scan_path,
                 $crate::commands::check_path_exists,
                 $crate::commands::open_application_path,
                 $crate::commands::uninstall_application,
@@ -351,7 +353,9 @@ macro_rules! system_commands {
                 $crate::commands::read_text_file_absolute,
                 $crate::commands::read_text_preview,
                 $crate::commands::files_read_text,
+                $crate::commands::files_read_range,
                 $crate::commands::files_glob,
+                $crate::commands::files_glob_entries,
                 $crate::commands::files_thumbnail,
                 $crate::commands::mkdir_absolute,
                 $crate::commands::show_in_file_manager,
@@ -381,6 +385,7 @@ macro_rules! system_commands {
                 $crate::commands::power_list,
                 $crate::commands::system_actions_supported,
                 $crate::commands::system_action_run,
+                $crate::commands::open_settings_pane,
                 $crate::commands::system_events_subscribe,
                 $crate::commands::system_events_unsubscribe,
                 $crate::commands::app_events_subscribe,
@@ -422,6 +427,7 @@ macro_rules! system_commands {
                 $crate::commands::templating::resolve_template,
                 $crate::commands::templating::get_available_placeholders,
                 $crate::commands::fetch_url,
+                $crate::commands::fetch_url_with_secrets,
                 $crate::commands::ws_connect,
                 $crate::commands::ws_send,
                 $crate::commands::ws_close,

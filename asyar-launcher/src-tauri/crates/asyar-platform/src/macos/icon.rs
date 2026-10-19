@@ -168,7 +168,9 @@ fn extract_icon_via_nsworkspace(path: &Path) -> Option<Vec<u8>> {
     }
 }
 
-/// Sets the macOS Dock icon image explicitly from the bundled application icon.
+/// Sets the macOS Dock icon image explicitly. `dock.png` is the app icon on
+/// Apple's icon grid (824px artwork centred on a 1024px canvas);
+/// 10% empty space around the artwork
 pub fn set_dock_icon_image() {
     use objc2_foundation::NSData;
 
@@ -183,7 +185,7 @@ pub fn set_dock_icon_image() {
         let Some(ns_image_cls) = AnyClass::get("NSImage") else {
             return;
         };
-        const ICON_BYTES: &[u8] = include_bytes!("../../../../icons/icon.png");
+        const ICON_BYTES: &[u8] = include_bytes!("../../../../icons/dock.png");
         let data = NSData::with_bytes(ICON_BYTES);
         let image: *mut AnyObject = msg_send![ns_image_cls, alloc];
         let image: *mut AnyObject = msg_send![image, initWithData: &*data];

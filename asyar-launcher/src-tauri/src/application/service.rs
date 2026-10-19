@@ -639,6 +639,88 @@ pub fn normalize_scan_path(path: &str) -> String {
         .to_string()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScanPathValidationError {
+    Empty,
+    Relative,
+    TildeUnsupported,
+    FileUrlUnsupported,
+    NotFound,
+    NotDirectory,
+    FilesystemRoot,
+    HomeDirectory,
+    Duplicate,
+}
+
+impl ScanPathValidationError {
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Empty => "empty",
+            Self::Relative => "relative",
+            Self::TildeUnsupported => "tilde_unsupported",
+            Self::FileUrlUnsupported => "file_url_unsupported",
+            Self::NotFound => "not_found",
+            Self::NotDirectory => "not_directory",
+            Self::FilesystemRoot => "filesystem_root",
+            Self::HomeDirectory => "home_directory",
+            Self::Duplicate => "duplicate",
+        }
+    }
+}
+
+/// Validates a user-entered application scan directory and returns its
+/// canonical filesystem path. Text shortcuts and URLs are deliberately
+/// rejected: accepting them here would make persisted paths platform- and
+/// shell-dependent. The filesystem root and the user's home directory are
+/// too broad for recursive application discovery and are rejected as a
+/// privacy and performance safeguard.
+pub fn validate_user_scan_path(
+    path: &str,
+    existing_paths: &[String],
+) -> Result<PathBuf, ScanPathValidationError> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(ScanPathValidationError::Empty);
+    }
+    if trimmed.starts_with('~') {
+        return Err(ScanPathValidationError::TildeUnsupported);
+    }
+    if trimmed.to_ascii_lowercase().starts_with("file://") {
+        return Err(ScanPathValidationError::FileUrlUnsupported);
+    }
+
+    let candidate = Path::new(trimmed);
+    if !candidate.is_absolute() {
+        return Err(ScanPathValidationError::Relative);
+    }
+    if !candidate.exists() {
+        return Err(ScanPathValidationError::NotFound);
+    }
+    if !candidate.is_dir() {
+        return Err(ScanPathValidationError::NotDirectory);
+    }
+
+    let canonical = fs::canonicalize(candidate).map_err(|_| ScanPathValidationError::NotFound)?;
+    if canonical.parent().is_none() {
+        return Err(ScanPathValidationError::FilesystemRoot);
+    }
+    if dirs::home_dir()
+        .and_then(|home| fs::canonicalize(home).ok())
+        .is_some_and(|home| home == canonical)
+    {
+        return Err(ScanPathValidationError::HomeDirectory);
+    }
+    if existing_paths.iter().any(|existing| {
+        let normalized = normalize_scan_path(existing);
+        !normalized.is_empty()
+            && fs::canonicalize(normalized).is_ok_and(|existing| existing == canonical)
+    }) {
+        return Err(ScanPathValidationError::Duplicate);
+    }
+
+    Ok(canonical)
+}
+
 pub fn display_parent_dir(app_path: &str) -> String {
     let parent = Path::new(app_path)
         .parent()
@@ -710,28 +792,43 @@ pub fn get_linux_default_app_scan_paths() -> Vec<PathBuf> {
     paths
 }
 
+#[cfg(target_os = "macos")]
+fn get_macos_default_app_scan_paths(home: Option<&Path>) -> Vec<PathBuf> {
+    let mut paths = vec![
+        PathBuf::from("/Applications"),
+        PathBuf::from("/System/Applications"),
+        PathBuf::from("/System/Library/CoreServices/Applications"),
+        // Finder lives in neither app folder. Named as a single bundle
+        // rather than scanning its directory: /System/Library/CoreServices
+        // holds ~150 bundles, nearly all background agents and helpers no
+        // one launches (rcd, PIPAgent, liquiddetectiond, …). Filtering
+        // those by LSUIElement/LSBackgroundOnly still leaves a couple of
+        // dozen, so the whole directory is not worth its noise for the one
+        // app users actually ask for by name.
+        PathBuf::from("/System/Library/CoreServices/Finder.app"),
+    ];
+    // Installers that don't ask for admin rights write here instead of
+    // /Applications. Same rationale as the per-user locations the Linux
+    // and Windows arms below already cover.
+    if let Some(home) = home {
+        paths.push(home.join("Applications"));
+
+        // Parallels creates this sibling directory only when its macOS app
+        // sharing integration is enabled. Avoid watching a nonexistent path
+        // on hosts that do not use Parallels.
+        let parallels = home.join("Applications (Parallels)");
+        if parallels.is_dir() {
+            paths.push(parallels);
+        }
+    }
+    paths
+}
+
 pub fn get_default_app_scan_paths() -> Vec<PathBuf> {
     #[cfg(target_os = "macos")]
     {
-        let mut paths = vec![
-            PathBuf::from("/Applications"),
-            PathBuf::from("/System/Applications"),
-            // Finder lives in neither app folder. Named as a single bundle
-            // rather than scanning its directory: /System/Library/CoreServices
-            // holds ~150 bundles, nearly all background agents and helpers no
-            // one launches (rcd, PIPAgent, liquiddetectiond, …). Filtering
-            // those by LSUIElement/LSBackgroundOnly still leaves a couple of
-            // dozen, so the whole directory is not worth its noise for the one
-            // app users actually ask for by name.
-            PathBuf::from("/System/Library/CoreServices/Finder.app"),
-        ];
-        // Installers that don't ask for admin rights write here instead of
-        // /Applications. Same rationale as the per-user locations the Linux
-        // and Windows arms below already cover.
-        if let Some(home) = dirs::home_dir() {
-            paths.push(home.join("Applications"));
-        }
-        paths
+        let home = dirs::home_dir();
+        get_macos_default_app_scan_paths(home.as_deref())
     }
     #[cfg(target_os = "linux")]
     {
@@ -1194,6 +1291,33 @@ mod tests {
 
     #[test]
     #[cfg(target_os = "macos")]
+    fn test_get_default_app_scan_paths_includes_vetted_system_applications_only() {
+        let paths = get_default_app_scan_paths();
+
+        assert!(paths.contains(&PathBuf::from("/System/Library/CoreServices/Applications")));
+        assert!(!paths.contains(&PathBuf::from("/System/Library/CoreServices")));
+        assert!(!paths.contains(&PathBuf::from("/System/Library/PreferencePanes")));
+        assert!(!paths.contains(&PathBuf::from("/Library/PreferencePanes")));
+        assert!(!paths.contains(&PathBuf::from("/Library/Internet Plug-Ins")));
+        assert!(!paths.contains(&PathBuf::from(
+            "/System/Volumes/Preboot/Cryptexes/App/System/Applications"
+        )));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_macos_default_app_scan_paths_include_existing_parallels_applications() {
+        let home = tempfile::tempdir().expect("temporary home must be created");
+        let parallels = home.path().join("Applications (Parallels)");
+        std::fs::create_dir(&parallels).expect("Parallels applications directory must be created");
+
+        let paths = get_macos_default_app_scan_paths(Some(home.path()));
+
+        assert!(paths.contains(&parallels));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
     fn test_is_default_app_location_macos_matches_applications_dir() {
         // Not Finder.app — no such path exists. Finder has its own tests below.
         assert!(is_default_app_location("/Applications/Safari.app"));
@@ -1468,6 +1592,89 @@ mod tests {
     #[test]
     fn test_normalize_scan_path_returns_empty_for_blank_input() {
         assert_eq!(normalize_scan_path("   "), "");
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_nonexistent_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let nonexistent = temp.path().join("missing-application-directory");
+
+        assert_eq!(
+            validate_user_scan_path(nonexistent.to_str().unwrap(), &[]),
+            Err(ScanPathValidationError::NotFound)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_relative_and_tilde_paths() {
+        assert_eq!(
+            validate_user_scan_path("Applications", &[]),
+            Err(ScanPathValidationError::Relative)
+        );
+        assert_eq!(
+            validate_user_scan_path("~/Applications", &[]),
+            Err(ScanPathValidationError::TildeUnsupported)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_file_urls() {
+        assert_eq!(
+            validate_user_scan_path("file:///Applications", &[]),
+            Err(ScanPathValidationError::FileUrlUnsupported)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_files_and_filesystem_root() {
+        let temp = tempfile::tempdir().unwrap();
+        let file = temp.path().join("not-a-directory");
+        std::fs::write(&file, b"test").unwrap();
+        let canonical_temp = std::fs::canonicalize(temp.path()).unwrap();
+        let mut filesystem_root = canonical_temp.as_path();
+        while let Some(parent) = filesystem_root.parent() {
+            filesystem_root = parent;
+        }
+
+        assert_eq!(
+            validate_user_scan_path(file.to_str().unwrap(), &[]),
+            Err(ScanPathValidationError::NotDirectory)
+        );
+        assert_eq!(
+            validate_user_scan_path(filesystem_root.to_str().unwrap(), &[]),
+            Err(ScanPathValidationError::FilesystemRoot)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_rejects_home_as_overly_broad() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+        assert_eq!(
+            validate_user_scan_path(home.to_str().unwrap(), &[]),
+            Err(ScanPathValidationError::HomeDirectory)
+        );
+    }
+
+    #[test]
+    fn validate_user_scan_path_returns_canonical_path_and_detects_canonical_duplicate() {
+        let temp = tempfile::tempdir().unwrap();
+        let apps = temp.path().join("Applications");
+        std::fs::create_dir(&apps).unwrap();
+        let canonical = std::fs::canonicalize(&apps).unwrap();
+
+        assert_eq!(
+            validate_user_scan_path(apps.to_str().unwrap(), &[]),
+            Ok(canonical.clone())
+        );
+        assert_eq!(
+            validate_user_scan_path(
+                apps.to_str().unwrap(),
+                &[canonical.to_string_lossy().into_owned()]
+            ),
+            Err(ScanPathValidationError::Duplicate)
+        );
     }
 
     #[test]

@@ -25,11 +25,9 @@ pub enum LauncherMonitorChoice {
 
 /// Where within the chosen display the launcher sits.
 ///
-/// `Free` is the drag result and stores **fractions of the monitor**, not
-/// pixels. Pixels would put the launcher off-screen the first time a display
-/// is unplugged or a resolution changes, with no way back except a reset;
-/// fractions land in the same relative spot on any display and are clamped
-/// into the work area on every reveal.
+/// `Free` is the drag result and stores fractions of the window's available
+/// travel inside the monitor, not pixels. The legacy monitor-fraction shape is
+/// read separately so existing user data is never silently reinterpreted.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum LauncherAnchor {
@@ -37,9 +35,14 @@ pub enum LauncherAnchor {
     TopWeighted { bias: f64 },
     /// Centred on both axes.
     Centered,
-    /// Free position from a drag, as fractions of the monitor for the
-    /// window's top-left corner.
+    /// Free position from a drag, as fractions of the window's available
+    /// travel inside the monitor.
+    #[serde(rename = "freeTravel")]
     Free { x: f64, y: f64 },
+    /// COMPAT(remove in 0.2.0): pre-#860 `"free"` anchors stored fractions of
+    /// the full monitor extent. Migrated to [`Self::Free`] on first reveal.
+    #[serde(rename = "free")]
+    LegacyFree { x: f64, y: f64 },
 }
 
 impl Default for LauncherAnchor {
@@ -62,6 +65,10 @@ impl LauncherAnchor {
             Self::Centered => Self::Centered,
             Self::Free { x, y } => match (sanitize_fraction(x), sanitize_fraction(y)) {
                 (Some(x), Some(y)) => Self::Free { x, y },
+                _ => Self::default(),
+            },
+            Self::LegacyFree { x, y } => match (sanitize_fraction(x), sanitize_fraction(y)) {
+                (Some(x), Some(y)) => Self::LegacyFree { x, y },
                 _ => Self::default(),
             },
         }
@@ -158,6 +165,40 @@ mod tests {
         }
         .sanitized();
         assert_eq!(a, LauncherAnchor::default());
+    }
+
+    #[test]
+    fn a_free_anchor_serializes_under_its_own_tag() {
+        let json = serde_json::to_value(LauncherAnchor::Free { x: 0.5, y: 0.5 }).unwrap();
+        assert_eq!(json["kind"], "freeTravel");
+    }
+
+    #[test]
+    fn the_legacy_tag_still_deserializes_into_the_legacy_variant() {
+        let value = serde_json::json!({ "kind": "free", "x": 0.34375, "y": 0.25 });
+        assert_eq!(
+            serde_json::from_value::<LauncherAnchor>(value).unwrap(),
+            LauncherAnchor::LegacyFree {
+                x: 0.34375,
+                y: 0.25
+            }
+        );
+    }
+
+    #[test]
+    fn sanitize_clamps_a_legacy_anchor_without_promoting_it() {
+        let anchor = LauncherAnchor::LegacyFree { x: -0.5, y: 1.5 }.sanitized();
+        assert_eq!(anchor, LauncherAnchor::LegacyFree { x: 0.0, y: 1.0 });
+    }
+
+    #[test]
+    fn sanitize_replaces_a_non_finite_legacy_anchor_with_the_default() {
+        let anchor = LauncherAnchor::LegacyFree {
+            x: f64::NAN,
+            y: 0.5,
+        }
+        .sanitized();
+        assert_eq!(anchor, LauncherAnchor::default());
     }
 
     #[test]

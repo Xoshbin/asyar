@@ -41,6 +41,39 @@ function firePush(eventListeners: Map<string, Set<(payload: any) => void>>, payl
 }
 
 describe('NetworkServiceProxy', () => {
+  it('routes_secretRefs_to_fetchWithSecrets', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    const options = {
+      secretRefs: ['cli-token'],
+      timeout: 1234,
+      headers: { Accept: 'application/json' },
+    };
+    await proxy.fetch('https://api.example.com', options);
+    expect(mockInvoke.mock.calls[0].slice(0, 2)).toEqual([
+      'network:fetchWithSecrets',
+      { url: 'https://api.example.com', options },
+    ]);
+  });
+
+  it('plain_fetch_never_sends_secretRefs', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    await proxy.fetch('https://example.com', { secretRefs: [], timeout: 1234 });
+    expect(mockInvoke.mock.calls[0].slice(0, 2)).toEqual([
+      'network:fetch',
+      { url: 'https://example.com', options: { timeout: 1234 } },
+    ]);
+  });
+
+  it('fetch_without_secretRefs_unchanged', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    const options = { method: 'POST' as const, body: '{}', timeout: 1234 };
+    const result = await proxy.fetch('https://example.com', options);
+    expect(result).toEqual({ status: 200, body: 'ok' });
+    expect(mockInvoke.mock.calls[0].slice(0, 2)).toEqual([
+      'network:fetch',
+      { url: 'https://example.com', options },
+    ]);
+  });
   beforeEach(() => vi.clearAllMocks());
 
   it('fetch → "network:fetch" with url and default options', async () => {

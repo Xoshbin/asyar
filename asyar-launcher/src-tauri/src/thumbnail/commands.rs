@@ -30,6 +30,22 @@ pub async fn get_file_thumbnail<R: tauri::Runtime>(
     super::thumb_url(&cached_path).map(Some)
 }
 
+/// Returns the `asyar-thumb://` URL of `path`'s native OS file icon, or
+/// `None` when the platform has no per-file icon source.
+#[tauri::command]
+pub async fn get_file_icon<R: tauri::Runtime>(
+    path: String,
+    app: AppHandle<R>,
+) -> Result<Option<String>, String> {
+    let cache_dir = get_thumbnail_cache_dir(&app);
+    let Some(cached_path) =
+        super::get_or_extract_icon(&cache_dir, std::path::Path::new(&path)).await
+    else {
+        return Ok(None);
+    };
+    super::thumb_url(&cached_path).map(Some)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

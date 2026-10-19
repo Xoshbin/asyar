@@ -86,8 +86,9 @@ describe('dispatchAgentCommand — non-silent agents (default)', () => {
     vi.mocked(commands.agentsThreadsList).mockResolvedValueOnce([] as never);
     await service.init();
 
-    await dispatchAgentCommand('agent-1', undefined);
+    const result = await dispatchAgentCommand('agent-1', undefined);
 
+    expect(result).toEqual({ type: 'view', viewPath: 'agents/AgentChatView' });
     expect(viewManager.navigateToView).toHaveBeenCalledWith('agents/AgentChatView');
     expect(agentsManager.currentAgentId).toBe('agent-1');
     expect(dispatchSilentAgentCommand).not.toHaveBeenCalled();

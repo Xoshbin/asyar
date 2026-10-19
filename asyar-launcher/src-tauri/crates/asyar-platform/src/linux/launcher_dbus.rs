@@ -20,6 +20,11 @@ struct LauncherDbusIdentity {
 impl LauncherDbusIdentity {
     fn resolve(identifier: &str) -> Result<Self, LauncherDbusError> {
         match identifier {
+            "org.asyar" => Ok(Self {
+                bus_name: "org.asyar.Launcher",
+                object_path: "/org/asyar/Launcher",
+            }),
+            // COMPAT(remove in 0.2.0): legacy bundle identifier before macOS .app folder fix
             "org.asyar.app" => Ok(Self {
                 bus_name: "org.asyar.app.Launcher",
                 object_path: "/org/asyar/app/Launcher",
@@ -121,10 +126,14 @@ mod tests {
 
     #[test]
     fn production_identity_uses_production_bus_and_path() {
-        let identity = LauncherDbusIdentity::resolve("org.asyar.app").unwrap();
+        let identity = LauncherDbusIdentity::resolve("org.asyar").unwrap();
 
-        assert_eq!(identity.bus_name, "org.asyar.app.Launcher");
-        assert_eq!(identity.object_path, "/org/asyar/app/Launcher");
+        assert_eq!(identity.bus_name, "org.asyar.Launcher");
+        assert_eq!(identity.object_path, "/org/asyar/Launcher");
+
+        let legacy_identity = LauncherDbusIdentity::resolve("org.asyar.app").unwrap();
+        assert_eq!(legacy_identity.bus_name, "org.asyar.app.Launcher");
+        assert_eq!(legacy_identity.object_path, "/org/asyar/app/Launcher");
     }
 
     #[test]

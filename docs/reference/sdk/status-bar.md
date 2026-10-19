@@ -28,6 +28,7 @@ interface IStatusBarItem {
   id: string;
   icon?: string; // Emoji / unicode / label prefix
   iconPath?: string; // Absolute path or asyar-extension://{id}/path.png
+  title?: string; // Optional visible title — top level only, max 32 characters
   text: string; // Tooltip at top level; label in submenus
   checked?: boolean; // ✓ state — submenu only
   submenu?: IStatusBarItem[];
@@ -53,6 +54,8 @@ interface IStatusBarService {
   tray has no visual — registration is rejected.
 - `separator`, `checked`, `enabled: false` are **not allowed** at the top
   level (they only make sense inside a submenu).
+- Optional `title` is capped at **32 Unicode characters**, not UTF-16 code units.
+  Control characters and newlines are rejected. Empty string means no title.
 - `onClick` at the top level fires when the tray icon itself is clicked
   **and there is no submenu**. If a submenu is present, clicking the icon
   opens the dropdown natively and `onClick` does not fire.
@@ -63,6 +66,7 @@ interface IStatusBarService {
 - Sibling ids must be unique, except `separator: true` rows (id-less).
 - Item ids must not contain `:`.
 - `checked`, `enabled`, `separator` are only valid here.
+- `title` is **not allowed**, including on separator rows.
 
 ### Icon paths
 
@@ -84,6 +88,7 @@ statusBar.registerItem({
   id: 'spotify-now-playing',
   iconPath: 'asyar-extension://com.example.spotify/assets/icon-16.png',
   text: '♪ In Rainbows', // tooltip
+  title: 'In Rainbows', // visible menu-bar title where supported
   submenu: [
     {
       id: 'play',
@@ -116,17 +121,25 @@ appear independently in the menu bar alongside Asyar's own tray.
 ## Updating state
 
 ```typescript
-// Re-register with the toggled state after a check-item fires.
+// Omitted iconPath and submenu (including their callbacks) are preserved.
 statusBar.updateItem('spotify-now-playing', {
-  id: 'spotify-now-playing',
-  iconPath: '...',
+  title: 'Song B',
   text: '♪ Song B',
-  submenu: [...],
 });
+
+statusBar.updateItem('spotify-now-playing', { title: '' }); // clear visible title
 ```
 
-`updateItem` is shorthand for "replace the tree for this id". The proxy
-validates the merged result with the same rules above.
+`updateItem` **shallow-merges** `{ ...registeredItem, ...updates, id }` and
+validates the merged result with the same rules above. Omitted fields and
+callbacks are retained; a supplied `submenu` replaces the old tree wholesale
+(it is not recursively merged). `title: ''` or `title: undefined` clears the
+title. Updating an unknown or unregistered id throws. Item ids cannot be
+changed by an update. Title/text-only native updates skip icon replacement
+and menu rebuilding, avoiding flicker during timer ticks.
+
+The host injects the authenticated caller's extension identity for registration,
+updates and removal. Extensions never supply `extensionId` in status-bar payloads.
 
 ## Click payload wire format
 
@@ -154,14 +167,15 @@ path, the click is a no-op.
 
 ## Platform matrix
 
-| Capability                      | macOS         | Windows     | Linux (GTK)     |
-| ------------------------------- | ------------- | ----------- | --------------- |
-| `iconPath` image in menu bar    | ✅            | ✅          | ✅              |
-| `icon` emoji with no `iconPath` | ✅ text label | ⚠ 1×1 stub¹ | ⚠ 1×1 stub¹     |
-| Submenus (click opens dropdown) | ✅            | ✅          | ⚠ Varies by DE² |
-| `checked` rendering             | ✅            | ✅          | ⚠ Varies by DE² |
-| `separator` rendering           | ✅            | ✅          | ✅              |
-| `enabled: false` greying        | ✅            | ✅          | ✅              |
+| Capability                      | macOS                  | Windows                 | Linux (GTK)         |
+| ------------------------------- | ---------------------- | ----------------------- | ------------------- |
+| `iconPath` image in menu bar    | ✅                     | ✅                      | ✅                  |
+| `icon` emoji with no `iconPath` | ✅ text label          | ⚠ 1×1 stub¹             | ⚠ 1×1 stub¹         |
+| `title`                         | ✅ text right of icon³ | Tooltip: `title — text` | AppIndicator label⁴ |
+| Submenus (click opens dropdown) | ✅                     | ✅                      | ⚠ Varies by DE²     |
+| `checked` rendering             | ✅                     | ✅                      | ⚠ Varies by DE²     |
+| `separator` rendering           | ✅                     | ✅                      | ✅                  |
+| `enabled: false` greying        | ✅                     | ✅                      | ✅                  |
 
 ¹ Windows/Linux trays need a bitmap. When the extension supplies only an
 emoji via `icon`, Asyar attaches a 1×1 transparent PNG so the tray still
@@ -171,6 +185,12 @@ to avoid this.
 ² Linux tray fidelity depends on the desktop environment's GTK / libayatana
 implementation. Submenu images are frequently stripped; checkbox items may
 render as plain rows.
+
+³ With an image from `iconPath`, only the title is rendered alongside it.
+Emoji-only `icon` renders as `icon title`, or just the emoji when title is absent.
+
+⁴ Linux labels may be hidden by the desktop environment; GNOME generally needs
+a tray/AppIndicator extension. Emoji is not included in the Linux title label.
 
 ## Migration
 

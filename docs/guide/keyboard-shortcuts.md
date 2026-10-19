@@ -29,7 +29,7 @@ The show/hide hotkey is user-configurable in **Settings → Shortcuts**.
 
 With an empty search field and the first result selected, press `↑` to recall the most recent query. Keep pressing `↑` for older queries and `↓` to move back toward an empty field. Asyar saves a query when you use a result or clear the field with `Esc`.
 
-**Windows & Linux:** Asyar's shortcut display uses macOS symbols (⌘, ⌥, ⌃, ⇧). On Windows and Linux, use **Ctrl** wherever **⌘** is shown, and use the **Windows/Super** key where a Super-key shortcut is shown.
+**Windows & Linux:** Action shortcuts (everything listed under _In a view_ and _Per-feature_, and the hints in the `⌘K` panel) adapt to your platform: **⌘** on macOS is **Ctrl** on Windows and Linux, so `⌘N` is `Ctrl+N` there. The tables below are written with the macOS symbols. Global hotkeys you record yourself keep the exact keys you pressed.
 
 **Linux on Wayland:** Because Wayland protocol security blocks background hotkey grabs, assign your shortcut inside your desktop compositor settings to run the `asyar` command. Executing `asyar` while the daemon is running acts as a toggle.
 
@@ -51,7 +51,13 @@ You can change what `Esc` does when a view is open in **Settings → Advanced �
 
 ## Per-feature
 
-A few built-in features add extra shortcuts while their view is active.
+A few built-in features add extra shortcuts while their view is active. Each one is declared on an action, so the same key is shown next to the action in the `⌘K` panel and pressing it runs the action. Shortcuts do nothing while the `⌘K` panel or a dialog is open, and they never take text-editing keys such as `⌘A`, `⌘C`, `⌘V`, `⌘X`, `⌘Z` or `⌘⌫`. Destructive actions (delete, trash, uninstall) have no direct shortcut and live in the `⌘K` panel only.
+
+**Notes**
+
+| Shortcut | What it does  |
+| -------- | ------------- |
+| `⌘N`     | Create a note |
 
 **Snippets**
 
@@ -70,19 +76,23 @@ A few built-in features add extra shortcuts while their view is active.
 
 **AI & Agents (Chat View)**
 
-| Shortcut                  | What it does                             |
-| ------------------------- | ---------------------------------------- |
-| `Enter`                   | Send user message or follow-up prompt    |
-| `⌘K` → Copy Last Response | Copy the assistant's last reply directly |
-| `⌘K` → New Thread         | Start a clean conversation thread        |
-| `⌘K` → Cancel Run         | Abort an active streaming response       |
+| Shortcut          | What it does                             |
+| ----------------- | ---------------------------------------- |
+| `Enter`           | Send user message or follow-up prompt    |
+| `⌘⇧C`             | Copy the assistant's last reply directly |
+| `⌘N`              | Start a clean conversation thread        |
+| `⌘K` → Cancel Run | Abort an active streaming response       |
 
 **Window Management (Switch Windows View)**
 
-| Shortcut | What it does                                   |
-| -------- | ---------------------------------------------- |
-| `Enter`  | Switch immediately to the selected window      |
-| `⌘K`     | Open actions for the selected window or layout |
+| Shortcut | What it does                                    |
+| -------- | ----------------------------------------------- |
+| `Enter`  | Switch immediately to the selected window       |
+| `⌘W`     | Close the selected window                       |
+| `⌘⇧C`    | Copy the window title                           |
+| `⌘N`     | Save the current window layout (Manage Layouts) |
+| `⌘R`     | Rename the selected layout                      |
+| `⌘K`     | Open actions for the selected window or layout  |
 
 **File Search**
 
@@ -93,7 +103,7 @@ A few built-in features add extra shortcuts while their view is active.
 | `⌘⇧C`        | Copy Path                                 |
 | `⌘⌥C`        | Copy Name                                 |
 | `⌘T`         | Open in Terminal                          |
-| `⌘P`         | Toggle Pin                                |
+| `⌘⇧P`        | Toggle Pin                                |
 | `Tab` / `⌘I` | Send to Asyar AI                          |
 | `⌘⇧F`        | Search Everywhere (deep OS-native search) |
 

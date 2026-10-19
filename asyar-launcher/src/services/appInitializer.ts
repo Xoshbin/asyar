@@ -45,6 +45,7 @@ import { networkWsPushBridge } from './network/networkWsPushBridge.svelte';
 import { stateChangedBridge } from './extensionState/stateChangedBridge.svelte';
 import { rpcReplyBridge } from './extensionState/rpcReplyBridge.svelte';
 import { initScanPathsSync } from './application/scanPathsSync.svelte';
+import { initVerboseLoggingSync } from './log/verboseLoggingSync.svelte';
 import { initFileIndexConfigSync } from './fileIndex/fileIndexConfigSync.svelte';
 import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
 import { viewRegistry } from './extension/viewRegistry.svelte';
@@ -146,6 +147,7 @@ export const appInitializer = {
 
       // Must precede applicationService.init() — its first scan reads additionalScanPaths.
       await settingsService.init();
+      initVerboseLoggingSync();
 
       // Application scanning should never block extension loading or app startup if
       // disk I/O is slow or an external volume takes time to respond.
@@ -288,9 +290,12 @@ export const appInitializer = {
             await checkAndNotifyWhatsNew();
             logService.info("What's New check complete.");
 
-            const { checkAndNotifyFeedback } = await import('./feedback/feedbackNotifier');
+            const { checkAndNotifyFeedback, checkAndNotifySpread } =
+              await import('./feedback/feedbackNotifier');
             await checkAndNotifyFeedback();
             logService.info('Feedback nudge check complete.');
+            await checkAndNotifySpread();
+            logService.info('Spread nudge check complete.');
           })();
         },
         { timeout: 4000 },

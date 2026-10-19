@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { portalStore, type Portal } from './portalStore.svelte';
   import { portalsUiState } from './index.svelte';
   import { syncPortalToIndex, removePortalFromIndex, deletePortal } from './portalLifecycle';
@@ -24,8 +24,12 @@
 
   $effect(() => {
     if (portalsUiState.openMode === 'new') {
-      mode = 'create';
-      editingPortal = null;
+      // A second "New Portal" (⌘N) while the form is open must not reset the
+      // draft the user is typing.
+      if (untrack(() => mode) === 'view') {
+        mode = 'create';
+        editingPortal = null;
+      }
       portalsUiState.openMode = 'list';
     }
   });
@@ -184,17 +188,7 @@
     const idx = portalStore.portals.findIndex((p) => p.id === dup.id);
     if (idx >= 0) portalsUiState.selectedIndex = idx;
   }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (mode !== 'view') return;
-    if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-      e.preventDefault();
-      startCreate();
-    }
-  }
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 <div class="view-container">
   <SplitListDetail

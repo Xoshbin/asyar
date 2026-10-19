@@ -48,7 +48,6 @@ mod lifecycle_tools_tests {
             asyar_sdk: None,
             platforms: None,
             preferences: None,
-            actions: None,
             onboarding: None,
             tools: if tools.is_empty() { None } else { Some(tools) },
             runtimes: None,

@@ -108,7 +108,6 @@ This section is split across two related tabs.
 **Advanced** tab:
 
 - **Extension Search** — Toggle whether installed extensions can contribute results to the main search bar.
-- **Extension Actions** — Toggle whether extensions can add actions to the main action panel (`⌘K`). When off, only Asyar's built-in actions appear.
 - **Escape Key** — Choose how `Esc` behaves when a view is open: Step Backwards (default), Hide Window, or Reset Launcher.
 - **Auto Updates** — Extensions update silently in the background when this is on.
 - **Text Expansion** — Enable or disable snippet text expansion. Requires Accessibility permission on macOS (macOS only).

@@ -78,6 +78,7 @@ mod tests {
             ScannedEntry {
                 path: PathBuf::from(np("/tmp/rootA/docs")),
                 kind: EntryKind::Dir,
+                file_id: None,
                 mtime: NOW as u32 - 86_400,
                 hidden: false,
                 placeholder: false,
@@ -85,6 +86,7 @@ mod tests {
             ScannedEntry {
                 path: PathBuf::from(np("/tmp/rootA/docs/Report.pdf")),
                 kind: EntryKind::File,
+                file_id: None,
                 mtime: NOW as u32,
                 hidden: false,
                 placeholder: false,
@@ -96,6 +98,7 @@ mod tests {
             vec![IndexUpdate::Upserted(ScannedEntry {
                 path: PathBuf::from(np("/tmp/rootA/tail.txt")),
                 kind: EntryKind::File,
+                file_id: None,
                 mtime: NOW as u32,
                 hidden: false,
                 placeholder: false,

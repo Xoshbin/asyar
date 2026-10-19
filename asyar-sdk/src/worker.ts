@@ -104,9 +104,9 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     ai: new AiServiceProxy(),
     mcp: new McpServiceProxy(),
     // Role-neutral: pure postMessage forwarder. Exposes registerAction,
-    // unregisterAction, and registerActionHandler so manifest root actions
-    // (send-notification, show-hud, notification callbacks) can register
-    // from the worker and survive view Dormant.
+    // unregisterAction, and registerActionHandler so handlers for
+    // notification callbacks and search-result actions can register from the
+    // worker and survive view Dormant.
     actions: new ActionServiceProxy(),
   };
 }

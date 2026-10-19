@@ -22,6 +22,7 @@ interface TrayClickPushPayload {
  * IPC round-trip.
  */
 export class StatusBarServiceProxy extends BaseServiceProxy implements IStatusBarService {
+  private itemsByTop = new Map<string, IStatusBarItem>();
   /** Top-level id → flat map of `'topId[:...]' -> onClick handler`. */
   private handlersByTop = new Map<string, Map<string, (ctx: StatusBarClickContext) => void>>();
 
@@ -29,32 +30,29 @@ export class StatusBarServiceProxy extends BaseServiceProxy implements IStatusBa
 
   registerItem(item: IStatusBarItem): void {
     validateTopLevelStatusBarItem(item);
+    this.itemsByTop.set(item.id!, { ...item });
     // `id` is guaranteed non-empty after validation above.
     this.handlersByTop.set(item.id!, collectHandlers(item));
     this.ensureClickListener();
 
-    const fullItem = { ...stripHandlers(item), extensionId: this.extensionId };
+    const fullItem = stripHandlers(item);
     this.broker
       .invoke('statusBar:registerItem', { item: fullItem })
       .catch((err) => console.warn('[StatusBarServiceProxy] registerItem failed:', err));
   }
 
   updateItem(id: string, updates: Partial<IStatusBarItem>): void {
-    // `updates` is merged with the existing item on the extension side; the
-    // host rebuilds the tray from scratch with the merged tree, so we
-    // validate the merge result shape here too.
-    const merged: IStatusBarItem = { id, text: '', ...updates };
-    if (typeof merged.id !== 'string' || merged.id.trim() === '') {
-      throw new Error('updateItem requires a non-empty id');
-    }
+    const prev = this.itemsByTop.get(id);
+    if (!prev) throw new Error(`Unknown status-bar item '${id}'`);
+    const merged: IStatusBarItem = { ...prev, ...updates, id };
     validateTopLevelStatusBarItem(merged);
+    this.itemsByTop.set(id, merged);
     this.handlersByTop.set(merged.id!, collectHandlers(merged));
     this.ensureClickListener();
 
-    const fullItem = { ...stripHandlers(merged), extensionId: this.extensionId };
+    const fullItem = stripHandlers(merged);
     this.broker
       .invoke('statusBar:updateItem', {
-        extensionId: this.extensionId,
         id,
         item: fullItem,
       })
@@ -62,9 +60,10 @@ export class StatusBarServiceProxy extends BaseServiceProxy implements IStatusBa
   }
 
   unregisterItem(id: string): void {
+    this.itemsByTop.delete(id);
     this.handlersByTop.delete(id);
     this.broker
-      .invoke('statusBar:unregisterItem', { extensionId: this.extensionId, id })
+      .invoke('statusBar:unregisterItem', { id })
       .catch((err) => console.warn('[StatusBarServiceProxy] unregisterItem failed:', err));
   }
 

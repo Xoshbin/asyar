@@ -166,6 +166,7 @@ mod tests {
             extension_id: Some(ext.to_string()),
             icon: Some("☕".into()),
             icon_path: None,
+            title: None,
             text: "Coffee".to_string(),
             checked: None,
             submenu: None,

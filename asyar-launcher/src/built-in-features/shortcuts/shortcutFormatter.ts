@@ -1,3 +1,5 @@
+import { getHostPlatform, type HostPlatform } from '../../lib/keyboard/hostPlatform';
+
 export const MODIFIER_KEYS = ['Meta', 'Shift', 'Alt', 'Control'];
 
 export const DOM_TO_MODIFIER: Record<string, string> = {
@@ -177,8 +179,17 @@ export function toDisplayString(s: string): string {
     .replace(/\+/g, '');
 }
 
-/** Splits a `Super+Shift+K` shortcut into per-chip glyphs: `['⌘', '⇧', 'K']`. */
-export function toDisplayKeys(s: string): string[] {
+/** Modifier keycaps on platforms where ⌘/⌥/⇧ glyphs are not the convention. */
+const PLAIN_MODIFIER_LABEL: Record<string, string> = { Mod: 'Ctrl', Alt: 'Alt', Shift: 'Shift' };
+
+/**
+ * Splits a `Super+Shift+K` shortcut into per-chip glyphs: `['⌘', '⇧', 'K']`.
+ *
+ * An action shortcut written with the platform-neutral `Mod` modifier renders
+ * for `platform`: ⌘⌥⇧ glyphs on macOS, `Ctrl`/`Alt`/`Shift` keycaps elsewhere.
+ * Physical-modifier shortcuts (user-assigned global hotkeys) are unaffected.
+ */
+export function toDisplayKeys(s: string, platform: HostPlatform = getHostPlatform()): string[] {
   if (!s) return [];
   const parts = s.split('+');
   if (parts.length === 1) {
@@ -190,7 +201,25 @@ export function toDisplayKeys(s: string): string[] {
   if (isHyperModifier(modifiers)) {
     return [HYPER_SYMBOL, KEY_SYMBOL[key] ?? key];
   }
+  if (modifiers.includes('Mod')) {
+    const glyphs = platform === 'macos';
+    const caps = modifiers.map((m) =>
+      glyphs ? (m === 'Mod' ? '⌘' : (MODIFIER_SYMBOL[m] ?? m)) : (PLAIN_MODIFIER_LABEL[m] ?? m),
+    );
+    return [...caps, KEY_SYMBOL[key] ?? key];
+  }
   return s.split('+').map((part) => MODIFIER_SYMBOL[part] ?? KEY_SYMBOL[part] ?? part);
+}
+
+/** The physical key of a keydown event, unaffected by Shift/Alt. */
+export function keyFromEvent(e: KeyboardEvent): string {
+  // Use event.code for physical key mapping (unaffected by Shift)
+  const mapped = e.code ? CODE_TO_KEY[e.code] : undefined;
+  if (mapped) return mapped;
+  let key = e.key;
+  if (key === ' ' || key === 'Spacebar') key = 'Space';
+  else if (key.length === 1) key = key.toUpperCase();
+  return key;
 }
 
 export function fromKeyboardEvent(e: KeyboardEvent): string | null {
@@ -204,15 +233,7 @@ export function fromKeyboardEvent(e: KeyboardEvent): string | null {
   if (e.altKey) parts.push('Alt');
   if (e.shiftKey) parts.push('Shift');
 
-  // Use event.code for physical key mapping (unaffected by Shift)
-  let key = CODE_TO_KEY[e.code] ?? null;
-  if (!key) {
-    key = e.key;
-    if (key === ' ' || key === 'Spacebar') key = 'Space';
-    else if (key.length === 1) key = key.toUpperCase();
-  }
-
-  parts.push(key);
+  parts.push(keyFromEvent(e));
   return parts.join('+');
 }
 

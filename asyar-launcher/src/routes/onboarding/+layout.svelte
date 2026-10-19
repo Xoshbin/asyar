@@ -7,6 +7,7 @@
   import { applyTheme } from '../../services/theme/themeService';
   import { logService } from '../../services/log/logService';
   import { initProviders } from '../../services/ai/initProviders';
+  import { handleOnboardingKeydown } from './onboardingKeydown';
   import '../../resources/styles/style.css';
 
   // The onboarding window is a separate Tauri webview and does not run the
@@ -53,10 +54,17 @@
   function handleClose() {
     void onboardingService.dismiss();
   }
+
+  // Cmd/Ctrl+W closes the tour
+  function handleKeydown(e: KeyboardEvent) {
+    handleOnboardingKeydown(e, { onClose: handleClose });
+  }
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <div class="onboarding-frame">
-  <header class="onboarding-frame__header">
+  <header class="onboarding-frame__header" data-tauri-drag-region>
     <button
       type="button"
       class="onboarding-frame__close"
@@ -112,11 +120,14 @@
   .onboarding-frame__header {
     position: absolute;
     top: 0;
+    left: 0;
     right: 0;
     z-index: var(--z-raised);
     display: flex;
     justify-content: flex-end;
     padding: var(--space-3);
+    user-select: none;
+    -webkit-user-select: none;
   }
   .onboarding-frame__close {
     background: var(--bg-secondary);

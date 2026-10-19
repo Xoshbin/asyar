@@ -1,4 +1,4 @@
-import { fetchUrl, wsConnect, wsSend, wsClose } from '../../lib/ipc/commands';
+import { fetchUrl, fetchUrlWithSecrets, wsConnect, wsSend, wsClose } from '../../lib/ipc/commands';
 
 type IframeRole = 'view' | 'worker';
 
@@ -26,6 +26,28 @@ export class NetworkService {
       body: options?.body,
       timeoutMs: options?.timeout ?? 20000,
       callerExtensionId,
+    });
+  }
+
+  async fetchWithSecrets(
+    callerExtensionId: string | null,
+    url: string,
+    options: {
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+      timeout?: number;
+      secretRefs: string[];
+    },
+  ): ReturnType<typeof fetchUrl> {
+    return fetchUrlWithSecrets({
+      url,
+      method: options?.method ?? 'GET',
+      headers: options?.headers,
+      body: options?.body,
+      timeoutMs: options?.timeout ?? 20000,
+      callerExtensionId,
+      secretRefs: options?.secretRefs,
     });
   }
 

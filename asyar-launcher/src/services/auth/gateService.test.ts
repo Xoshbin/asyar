@@ -20,13 +20,17 @@ import type { AppSettings } from '../settings/types/AppSettingsType';
 
 function mockSettings(partial: Partial<AppSettings>): void {
   const defaults: AppSettings = {
-    general: { startAtLogin: false, showDockIcon: false, showTrayIcon: true },
+    general: {
+      startAtLogin: false,
+      showDockIcon: false,
+      showTrayIcon: true,
+      popToRootDelay: '1m',
+    },
     search: {
       searchApplications: true,
       searchSystemPreferences: true,
       fuzzySearch: true,
       enableExtensionSearch: false,
-      allowExtensionActions: false,
       additionalScanPaths: [],
       applicationEnabled: {},
     },

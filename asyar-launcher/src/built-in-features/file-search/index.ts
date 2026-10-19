@@ -50,13 +50,6 @@ class FileSearchExtension implements Extension {
 
     await loadPinnedFiles();
     await checkDeepSearchAvailability();
-
-    // Wire executor for the manifest-declared "clear-history" action only.
-    // The host registered this action from manifest.json before initialize()
-    // was called. setActionExecutor patches only the execute field.
-    actionService.setActionExecutor('act_file-search_clear-history', async () => {
-      await fileSearchClearHistory();
-    });
   }
 
   async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
@@ -143,7 +136,7 @@ class FileSearchExtension implements Extension {
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Super+R',
+        shortcut: 'Mod+R',
         execute: async () => {
           const f = getSelectedFile();
           if (!f) return;
@@ -158,7 +151,7 @@ class FileSearchExtension implements Extension {
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Super+Shift+C',
+        shortcut: 'Mod+Shift+C',
         execute: async () => {
           const f = getSelectedFile();
           if (!f) return;
@@ -173,7 +166,7 @@ class FileSearchExtension implements Extension {
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Super+Alt+C',
+        shortcut: 'Mod+Alt+C',
         execute: async () => {
           const f = getSelectedFile();
           if (!f) return;
@@ -188,7 +181,7 @@ class FileSearchExtension implements Extension {
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Super+T',
+        shortcut: 'Mod+T',
         execute: async () => {
           const f = getSelectedFile();
           if (!f) return;
@@ -203,7 +196,7 @@ class FileSearchExtension implements Extension {
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Super+P',
+        shortcut: 'Mod+Shift+P',
         execute: async () => {
           const f = getSelectedFile();
           if (!f) return;
@@ -246,7 +239,6 @@ class FileSearchExtension implements Extension {
         title: t('features.file_search.act.quick_look'),
         description: t('features.file_search.act.quick_look_desc'),
         icon: 'icon:eye',
-        shortcut: 'Space',
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
@@ -265,11 +257,24 @@ class FileSearchExtension implements Extension {
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Super+I',
+        shortcut: 'Mod+I',
         execute: async () => {
           const f = getSelectedFile();
           if (!f) return;
           await primeAiChipForFile(f);
+        },
+      },
+      {
+        id: 'file-search:clear-history',
+        title: t('features.file_search.act.clear_history'),
+        description: t('features.file_search.act.clear_history_desc'),
+        icon: 'icon:trash',
+        extensionId: 'file-search',
+        category: 'file-action',
+        context: ActionContext.EXTENSION_VIEW,
+        destructive: true,
+        execute: async () => {
+          await fileSearchClearHistory();
         },
       },
       {
@@ -280,7 +285,7 @@ class FileSearchExtension implements Extension {
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Super+Shift+F',
+        shortcut: 'Mod+Shift+F',
         execute: async () => {
           await runDeepSearch();
         },
@@ -302,6 +307,7 @@ class FileSearchExtension implements Extension {
     actionService.unregisterAction('file-search:quick-look');
     actionService.unregisterAction('file-search:send-to-ai');
     actionService.unregisterAction('file-search:deep-search');
+    actionService.unregisterAction('file-search:clear-history');
   }
 
   async viewDeactivated(viewPath: string): Promise<void> {

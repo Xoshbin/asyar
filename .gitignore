@@ -6,16 +6,18 @@
 
 # Workspace dependencies
 node_modules/
+.pnpm-store/
 
 # Only the workspace root lockfile is real; nested ones are stray artifacts of
 # running install inside a package directory.
 pnpm-lock.yaml
 !/pnpm-lock.yaml
 
-# Local-only Claude config — never tracked, anywhere in the tree
+# Local-only agent & assistant configs/scratchpads — never tracked, anywhere in the tree
 .claude/
 .superpowers/
 docs/superpowers/
+.remember/
 
 # Dogfood extensions live in their own repos; setup.mjs clones them here
 /extensions/
@@ -26,6 +28,7 @@ docs/superpowers/
 # Build artifacts (subpackages have their own .gitignore too — this is belt + suspenders)
 dist/
 build/
+build-backup/
 .svelte-kit/
 target/
 
@@ -35,6 +38,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Ephemeral PR drafts and review notes
+.pr-draft*
+*.pr-draft*
+.pr-*.md
+pr-draft*
+*-pr-draft.md
 
 # Environment files
 .env

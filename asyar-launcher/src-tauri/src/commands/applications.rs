@@ -68,6 +68,39 @@ pub fn normalize_scan_path(path: String) -> String {
     service::normalize_scan_path(&path)
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanPathValidation {
+    normalized_path: Option<String>,
+    error: Option<&'static str>,
+}
+
+/// Validates a path entered in Settings before it is persisted as an
+/// application scan root. Default roots participate in canonical duplicate
+/// detection so aliases and symlinks cannot add the same tree twice.
+#[tauri::command]
+pub fn validate_application_scan_path(
+    path: String,
+    existing_paths: Vec<String>,
+) -> ScanPathValidation {
+    let mut all_existing: Vec<String> = service::get_default_app_scan_paths()
+        .into_iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
+    all_existing.extend(existing_paths);
+
+    match service::validate_user_scan_path(&path, &all_existing) {
+        Ok(path) => ScanPathValidation {
+            normalized_path: Some(path.to_string_lossy().into_owned()),
+            error: None,
+        },
+        Err(error) => ScanPathValidation {
+            normalized_path: None,
+            error: Some(error.code()),
+        },
+    }
+}
+
 /// Pushes the user-configured `additionalScanPaths` down to the Rust
 /// index watcher. Called by `applicationService` whenever the TS settings
 /// service reports a change to `search.additionalScanPaths`.

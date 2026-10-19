@@ -6,12 +6,9 @@ order: 4
 
 Actions are keyboard-accessible commands that appear in Asyar's Action Drawer when the user presses **⌘K**. They are **contextual** — what appears depends on where the user is and what your extension has registered.
 
-There are two ways to contribute actions:
+Actions are registered in code with `actionService.registerAction()` and appear while your extension panel is open. Asyar has no manifest-declared actions on root-search rows: to expose something without opening a view, declare another **command** (a `background` command runs immediately and can show a HUD or toast); for anything view-specific, register an action inside the view.
 
-| Approach                      | When to use                                                                                                                         |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Manifest-declared actions** | Root search — appear when the user selects your command in the main launcher, before opening any view. Declared in `manifest.json`. |
-| **Programmatic actions**      | View-level — appear while your extension panel is open. Registered in code via `actionService.registerAction()`.                    |
+> **Deprecated: manifest `actions`.** Earlier versions let `manifest.json` declare `actions` (extension- and command-level) that showed on the root-search row. That feature was removed. Manifests that still declare them keep loading — the field is ignored and the launcher logs a notice — but it is rejected from launcher 0.2.0, and `asyar build` / `asyar validate` warn about it now. Move those actions into your view with `registerAction`, or declare another command.
 
 ### What actions are for
 
@@ -97,16 +94,17 @@ actionService.registerAction(refreshAction);
 
 ### Action field reference
 
-| Field         | Type                          | Required | Description                                                                       |
-| ------------- | ----------------------------- | -------- | --------------------------------------------------------------------------------- |
-| `id`          | `string`                      | ✅       | Globally unique. Namespace with your extension ID: `com.yourname.ext:action-name` |
-| `title`       | `string`                      | ✅       | Label shown in the Action Drawer.                                                 |
-| `extensionId` | `string`                      | ✅       | Your extension's `id` from `manifest.json`.                                       |
-| `execute`     | `() => void \| Promise<void>` | ✅       | Called when the user activates the action.                                        |
-| `description` | `string`                      | ❌       | Secondary text shown below the title.                                             |
-| `icon`        | `string`                      | ❌       | Emoji or `"icon:<name>"` shown next to the title.                                 |
-| `category`    | `string`                      | ❌       | Group label. Use `ActionCategory` constants for standard groups.                  |
-| `context`     | `ActionContext`               | ❌       | When this action is visible. Default: always visible.                             |
+| Field         | Type                          | Required | Description                                                                                  |
+| ------------- | ----------------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `id`          | `string`                      | ✅       | Globally unique. Namespace with your extension ID: `com.yourname.ext:action-name`            |
+| `title`       | `string`                      | ✅       | Label shown in the Action Drawer.                                                            |
+| `extensionId` | `string`                      | ✅       | Your extension's `id` from `manifest.json`.                                                  |
+| `execute`     | `() => void \| Promise<void>` | ✅       | Called when the user activates the action.                                                   |
+| `description` | `string`                      | ❌       | Secondary text shown below the title.                                                        |
+| `icon`        | `string`                      | ❌       | Emoji or `"icon:<name>"` shown next to the title.                                            |
+| `category`    | `string`                      | ❌       | Group label. Use `ActionCategory` constants for standard groups.                             |
+| `context`     | `ActionContext`               | ❌       | When this action is visible. Default: always visible.                                        |
+| `shortcut`    | `string`                      | ❌       | Keyboard shortcut, shown in the drawer and bound. See [Action shortcuts](#action-shortcuts). |
 
 ### Action context reference
 
@@ -121,106 +119,24 @@ actionService.registerAction(refreshAction);
 
 ---
 
-## Manifest-declared actions
+### Action shortcuts
 
-Manifest-declared actions let your extension contribute entries to the ⌘K drawer directly from the **root search** — without the user opening your extension view first. This is unique to Asyar: Raycast confines extension actions to their own command views.
+A `shortcut` is a declaration, not just a hint: the launcher shows it next to the action in the ⌘K drawer **and** runs the action when the user presses it. This works for actions you register at runtime with `registerAction`, including while your view iframe has focus — the launcher tells your iframe which chords are live and the SDK forwards exactly those key presses to it. You do not add a `keydown` listener for them.
 
-### How it works
+**Format:** `Mod[+Alt][+Shift]+Key`, or a bare function key `F1`–`F24`.
 
-1. Declare actions in `manifest.json` under the root `actions` array (extension-level) or inside an individual command's `actions` array (command-level).
-2. Register a handler in your extension code using `context.actions.registerActionHandler(actionId, handler)`.
-3. When the user highlights your command in the main search list and presses ⌘K, the declared actions appear automatically.
-4. When the user selects an action, Asyar relays the request to your extension. The registered handler runs in your extension context.
+- `Mod` is the platform's primary modifier: ⌘ on macOS, Ctrl on Windows and Linux. The hint is rendered per platform (`Mod+N` shows `⌘N` on macOS and `Ctrl N` elsewhere), so write it once.
+- Modifiers go in the order `Mod`, `Alt`, `Shift`. The key is an uppercase letter or digit, one of ``, . / ; ' [ ] \ - = ` ``, `Space` or `Enter`.
+- Examples: `Mod+N`, `Mod+Shift+C`, `Mod+Alt+Shift+F`, `Mod+Shift+,`, `F5`.
 
-### Visibility rules
+**Rules**
 
-| Declaration                 | Visible when                                                      |
-| --------------------------- | ----------------------------------------------------------------- |
-| Extension-level `actions[]` | Any command from your extension is highlighted in the root search |
-| Command-level `actions[]`   | That specific command is highlighted                              |
-
-Both levels combine when the highlighted command has its own `actions` — the user sees extension-level actions plus that command's actions together.
-
-### Declaring actions in manifest.json
-
-```json
-{
-  "id": "com.example.github",
-  "name": "GitHub",
-  "actions": [
-    {
-      "id": "open-settings",
-      "title": "Extension Settings",
-      "icon": "icon:settings",
-      "shortcut": "⌘,",
-      "category": "System"
-    }
-  ],
-  "commands": [
-    {
-      "id": "search-repos",
-      "name": "Search Repositories",
-      "description": "Find GitHub repositories",
-      "mode": "view",
-      "component": "RepoSearch",
-      "actions": [
-        {
-          "id": "clone-repo",
-          "title": "Clone Repository",
-          "icon": "icon:download",
-          "shortcut": "⌘⇧C",
-          "category": "Primary"
-        }
-      ]
-    }
-  ]
-}
-```
-
-### Registering handlers in code
-
-Register handlers in your extension's `initialize()` or `activate()` method:
-
-```typescript
-import type { Extension, ExtensionContext } from 'asyar-sdk';
-
-class GitHubExtension implements Extension {
-  async initialize(context: ExtensionContext): Promise<void> {
-    // Extension-level action — runs whenever user selects any GitHub command
-    context.actions.registerActionHandler('open-settings', async () => {
-      // Open settings panel, navigate, etc.
-    });
-
-    // Command-level action — runs when user selects "search-repos" and activates "clone-repo"
-    context.actions.registerActionHandler('clone-repo', async () => {
-      // Clone the currently-relevant repository
-    });
-  }
-
-  // ...
-}
-```
-
-`registerActionHandler(actionId, handler)` — `actionId` is the short local ID you declared in `manifest.json` (e.g. `"clone-repo"`), **not** the full internal ID. The host constructs the full ID as `act_{extensionId}_{actionId}` internally.
-
-### Validation
-
-The Rust extension loader validates action declarations at discovery time. Invalid extensions are skipped with a warning:
-
-- **ID regex:** `/^[a-zA-Z][a-zA-Z0-9_-]*$/` — must start with a letter, contain only letters, digits, underscores, or hyphens
-- **Non-empty title:** Every declared action must have a non-empty `title`
-- **Unique IDs within extension:** Action IDs must be unique across both extension-level and command-level declarations in the same extension (no cross-scope duplicates)
-
-### ManifestAction field reference
-
-| Field         | Type     | Required | Description                                            |
-| ------------- | -------- | -------- | ------------------------------------------------------ |
-| `id`          | `string` | ✅       | Local identifier. Must be unique within the extension. |
-| `title`       | `string` | ✅       | Label shown in the ⌘K action drawer.                   |
-| `description` | `string` | ❌       | Secondary text below the title.                        |
-| `icon`        | `string` | ❌       | Emoji or `"icon:<name>"`.                              |
-| `shortcut`    | `string` | ❌       | Keyboard hint displayed in the drawer (display-only).  |
-| `category`    | `string` | ❌       | Groups related actions under a heading.                |
+- **Plain keys are not bindable.** `Enter`, arrows, `Space`, `Tab`, `Esc`, `Backspace` and Shift/Alt-only chords belong to typing and list navigation. A shortcut must include `Mod` (function keys excepted).
+- **Reserved:** `Mod+K`, `Mod+,`, `Mod+P`, `Mod+Q` (launcher) and `Mod+A`, `Mod+C`, `Mod+V`, `Mod+X`, `Mod+Z`, `Mod+Y`, `Mod+Shift+Z` (text editing).
+- **Destructive actions get no shortcut.** An action with `destructive: true` that declares one keeps working, but its shortcut is ignored; it stays in the ⌘K drawer.
+- **Only visible actions fire.** A runtime action fires while the extension's view is the active one. Shortcuts do nothing while the ⌘K drawer or a dialog is open.
+- **No collisions.** Two actions that are visible together must not share a chord; the second always-visible action registered with the same chord keeps working without its shortcut. If a tie still happens the view's own action wins, then registration order, and the launcher logs a warning.
+- Old formats (`"⌘N"`, `"Ctrl+N"`, `"Super+N"`) are not accepted: the action still registers, but its shortcut is ignored and the launcher logs why. Rewrite it as `Mod+N`.
 
 ---
 

@@ -6,7 +6,7 @@ vi.mock('../../services/log/logService', () => ({
 }));
 
 vi.mock('../../services/action/actionService.svelte', () => ({
-  actionService: { registerAction: vi.fn(), unregisterAction: vi.fn(), setActionExecutor: vi.fn() },
+  actionService: { registerAction: vi.fn(), unregisterAction: vi.fn() },
 }));
 
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }));

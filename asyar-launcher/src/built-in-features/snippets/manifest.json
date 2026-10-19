@@ -4,7 +4,9 @@
   "icon": "icon:snippets",
   "description": "Text expansion — type a keyword, get the full text",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "author": "Asyar",
   "type": "extension",
   "searchable": true,
@@ -15,16 +17,6 @@
       "icon": "icon:snippets",
       "trigger": "snippets",
       "description": "Manage text expansion snippets",
-      "actions": [
-        {
-          "id": "add",
-          "title": "Add Snippet",
-          "description": "Create a new text expansion snippet",
-          "icon": "icon:plus",
-          "shortcut": "⌘N",
-          "category": "Snippets"
-        }
-      ],
       "mode": "view",
       "component": "DefaultView"
     }

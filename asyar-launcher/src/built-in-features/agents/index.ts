@@ -37,25 +37,6 @@ class AgentsExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('extensions');
 
-    // Manifest-declared action executors. These show in Cmd+K when "Manage
-    // Agents" is highlighted in launcher search results (manifest-action
-    // visibility model — see ExtensionLoader.registerManifestActions).
-    actionService.setActionExecutor('act_agents_new-agent', async () => {
-      this.runNewAgent();
-    });
-    actionService.setActionExecutor('act_agents_edit-agent', async () => {
-      this.runEditAgent();
-    });
-    actionService.setActionExecutor('act_agents_delete-agent', async () => {
-      await this.runDeleteAgent();
-    });
-    actionService.setActionExecutor('act_agents_new-thread', async () => {
-      await this.runNewThread();
-    });
-    actionService.setActionExecutor('act_agents_delete-thread', async () => {
-      await this.runDeleteThread();
-    });
-
     this.registerContextMode();
   }
 
@@ -148,6 +129,9 @@ class AgentsExtension implements Extension {
     if (!agentId) return;
     try {
       const thread = await agentService.createThread(agentId, '');
+      // The user may have switched agent while the thread was being created;
+      // selecting it then would point the new agent at a foreign thread.
+      if (agentsManager.currentAgentId !== agentId) return;
       agentsManager.currentThreadId = thread.id;
     } catch (err) {
       logService.warn(`[agents] new-thread action failed: ${err}`);
@@ -221,6 +205,7 @@ class AgentsExtension implements Extension {
       id: ACTION_NEW_THREAD,
       label: t('features.agents.act.new_thread'),
       icon: '💬',
+      shortcut: 'Mod+N',
       description: t('features.agents.act.new_thread_desc'),
       category: t('categories.agents'),
       extensionId: 'agents',
@@ -256,7 +241,7 @@ class AgentsExtension implements Extension {
       category: t('categories.agents'),
       extensionId: 'agents',
       context: ActionContext.EXTENSION_VIEW,
-      shortcut: 'Super+Shift+C',
+      shortcut: 'Mod+Shift+C',
       visible: () => !agentsManager.sending && !!agentsManager.lastAssistantMessageText,
       execute: async () => this.runCopyLastResponse(),
     });

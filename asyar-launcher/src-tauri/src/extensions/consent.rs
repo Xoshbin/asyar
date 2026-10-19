@@ -534,6 +534,32 @@ pub fn revoke_extension_consent(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn changed_secret_ref_source_or_host_requires_reconsent() {
+        let original = serde_json::json!({"network:secrets":[{"name":"token","sources":[{"type":"jsonFile","path":"~/.cli/a.json","pointer":"/token"}],"hosts":["api.example.com"],"header":"Authorization","template":"Bearer {secret}"}]});
+        let consent = record_with(&["network", "network:secrets"], original.clone());
+        let permissions = vec!["network".into(), "network:secrets".into()];
+        assert!(consent_covers(
+            &consent,
+            &permissions,
+            original.as_object().unwrap()
+        ));
+        for field in ["sources", "hosts", "header"] {
+            let mut changed = original.clone();
+            changed["network:secrets"][0][field] = match field {
+                "sources" => {
+                    serde_json::json!([{"type":"jsonFile","path":"~/.other/a.json","pointer":"/token"}])
+                }
+                "hosts" => serde_json::json!(["other.example.com"]),
+                _ => serde_json::json!("X-Token"),
+            };
+            assert!(!consent_covers(
+                &consent,
+                &permissions,
+                changed.as_object().unwrap()
+            ));
+        }
+    }
     use crate::extensions::{CompatibilityStatus, ExtensionManifest};
 
     fn record_with(permissions: &[&str], args: serde_json::Value) -> ConsentRecord {
@@ -737,7 +763,6 @@ mod tests {
                 asyar_sdk: None,
                 platforms: None,
                 preferences: None,
-                actions: None,
                 onboarding: None,
                 tools: None,
                 runtimes: None,

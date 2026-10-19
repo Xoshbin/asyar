@@ -120,9 +120,7 @@ export function registerLauncherResetHook(fn: LauncherResetHandler): void {
 }
 
 export async function showSettingsWindow(tab?: string, extensionId?: string): Promise<void> {
-  // Direct callers bypass the no-view command hide path, so reset here too.
   await hideWindow();
-  launcherResetHandler?.();
   const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
   const settingsWindow = await WebviewWindow.getByLabel('settings');
   if (settingsWindow) {

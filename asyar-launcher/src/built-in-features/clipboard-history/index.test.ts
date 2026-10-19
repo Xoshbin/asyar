@@ -447,6 +447,36 @@ describe('Action registration', () => {
     expect(actionIds).toContain('clipboard-history:clear-multi-selection');
   });
 
+  it('registers Clear Clipboard History as an in-view destructive action', async () => {
+    const clearNonFavorites = vi.fn().mockResolvedValue(undefined);
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'extensions') {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === 'clipboard') {
+          return { getRecentItems: vi.fn().mockResolvedValue([]), clearNonFavorites };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    await extension.initialize(mockContext as any);
+    await extension.executeCommand('show-clipboard');
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const action = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.map((c) => c[0] as any)
+      .find((a) => a.id === 'clipboard-history:clear-history');
+    expect(action).toBeDefined();
+    expect(action.destructive).toBe(true);
+    expect(action.shortcut).toBeUndefined();
+
+    await action.execute();
+    expect(clearNonFavorites).toHaveBeenCalled();
+  });
+
   it('clear-multi-selection action is only visible when a selection exists, and clears it on execute', async () => {
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {

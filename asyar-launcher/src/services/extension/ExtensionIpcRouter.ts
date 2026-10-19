@@ -48,6 +48,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'appEvents',
   'timers',
   'fsWatcher',
+  'statusBar',
   'state',
   'searchBar',
   'feedback',
@@ -222,6 +223,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
 
   // network
   'network:fetch': ['url', 'options'],
+  'network:fetchWithSecrets': ['url', 'options'],
   'network:wsConnect': ['socketId', 'url', 'headers'],
   'network:wsSend': ['socketId', 'message'],
   'network:wsClose': ['socketId', 'code', 'reason'],
@@ -230,7 +232,9 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'files:search': ['query', 'opts'],
   'files:status': [],
   'files:read': ['path', 'opts'],
+  'files:readRange': ['path', 'opts'],
   'files:glob': ['pattern', 'opts'],
+  'files:globEntries': ['pattern', 'opts'],
   'files:thumbnail': ['path', 'opts'],
 
   // opener
@@ -324,9 +328,9 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
 
   // statusBar
   'statusBar:registerItem': ['item'],
-  'statusBar:updateItem': ['extensionId', 'id', 'item'],
-  'statusBar:unregisterItem': ['extensionId', 'id'],
-  'statusBar:clearItemsForExtension': ['extensionId'],
+  'statusBar:updateItem': ['id', 'item'],
+  'statusBar:unregisterItem': ['id'],
+  'statusBar:clearItemsForExtension': [],
 
   // window
   'window:getWindowBounds': [],

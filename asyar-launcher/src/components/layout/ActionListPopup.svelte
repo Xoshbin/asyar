@@ -5,9 +5,8 @@
   import Icon from '../base/Icon.svelte';
   import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../lib/iconUtils';
   import EmptyState from '../feedback/EmptyState.svelte';
-  import { actionService } from '../../services/action/actionService.svelte';
+  import { invokeAction } from '../../services/action/invokeAction';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
-  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { filterActions } from './actionFilter';
   import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { useListSelection } from '../../lib/listSelection.svelte';
@@ -39,6 +38,21 @@
   let flatActions = $derived(groupedActions.flatMap((g) => g.actions));
 
   let popupRef = $state<HTMLDivElement>();
+  let entering = $state(true);
+
+  $effect(() => {
+    let settleFrame: number | undefined;
+    // Force a paint of the pre-transition state before flipping to settled;
+    // cleanup also covers rapid ⌘K toggles that unmount between frames.
+    const paintFrame = requestAnimationFrame(() => {
+      settleFrame = requestAnimationFrame(() => (entering = false));
+    });
+
+    return () => {
+      cancelAnimationFrame(paintFrame);
+      if (settleFrame !== undefined) cancelAnimationFrame(settleFrame);
+    };
+  });
 
   const selection = useListSelection({ items: () => flatActions });
 
@@ -107,36 +121,7 @@
     // by the global DialogHost; it doesn't need this popup to stay open.
     closePopup();
 
-    if (action.confirm) {
-      const confirmed = await feedbackService.confirmAlert({
-        title: t('dialogs.confirm.title'),
-        message: t('launcher_errors.confirm_run', { label: action.label }),
-        confirmText: t('common.confirm'),
-        variant: 'danger',
-      });
-      if (!confirmed) return;
-    }
-
-    try {
-      await actionService.executeAction(actionId);
-      await feedbackService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'success',
-        retryable: false,
-        context: { message: action.label },
-      });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      logService.error(`[ActionListPopup] Failed to execute action ${actionId}: ${error}`);
-      await feedbackService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'error',
-        retryable: false,
-        context: { message: t('launcher_errors.action_failed', { message: msg }) },
-      });
-    }
+    await invokeAction(action);
   }
 
   function closePopup() {
@@ -160,6 +145,7 @@
 <div
   bind:this={popupRef}
   class="action-popup launcher-popup"
+  class:entering
   tabindex="-1"
   role="dialog"
   aria-modal="true"
@@ -233,6 +219,19 @@
     overflow: hidden;
     z-index: var(--z-dropdown);
     outline: none;
+    /* The panel belongs to the ⌘K button, so it grows from that corner.
+       Reduced motion is handled globally in style.css. */
+    transform-origin: bottom right;
+    opacity: 1;
+    transform: scale(1);
+    transition:
+      opacity var(--dur-quick) var(--ease-emerge),
+      transform var(--dur-quick) var(--ease-emerge);
+  }
+
+  .action-popup.entering {
+    opacity: 0;
+    transform: scale(0.96);
   }
 
   .popup-header {

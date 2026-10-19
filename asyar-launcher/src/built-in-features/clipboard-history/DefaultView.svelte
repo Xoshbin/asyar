@@ -264,7 +264,17 @@
     }, 150);
   });
 
-  onDestroy(() => clearTimeout(fileThumbTimer));
+  onDestroy(() => {
+    clearTimeout(fileThumbTimer);
+    // Blob URLs keep their data alive until revoked. Clearing the current
+    // path/url also makes any load still in flight drop its result.
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    if (urlBlobUrl) URL.revokeObjectURL(urlBlobUrl);
+    currentImagePath = '';
+    currentFetchedUrl = '';
+    fileThumbnails = {};
+    currentFilesContent = '';
+  });
 
   // Fetch URL content when a URL item is selected
   $effect(() => {
@@ -318,16 +328,19 @@
     currentImagePath = path;
     try {
       const data = await readFile(path);
+      // Selection may have moved on while the file was being read.
+      if (currentImagePath !== path) return;
       const blob = new Blob([data], { type: 'image/png' });
       // Revoke previous URL
       if (imageUrl) URL.revokeObjectURL(imageUrl);
       imageUrl = URL.createObjectURL(blob);
     } catch (e) {
+      if (currentImagePath !== path) return;
       logService.warn(`[ClipboardHistory] Failed to load image: ${e}`);
       if (imageUrl) URL.revokeObjectURL(imageUrl);
       imageUrl = '';
     } finally {
-      imageLoading = false;
+      if (currentImagePath === path) imageLoading = false;
     }
   }
 

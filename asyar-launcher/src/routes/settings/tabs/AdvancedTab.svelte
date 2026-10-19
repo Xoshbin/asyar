@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { SettingsCard, SettingsRow, Toggle, SegmentedControl } from '../../../components';
+  import { SettingsCard, SettingsRow, Toggle, Select } from '../../../components';
+  import type { PopToRootDelay } from '../../../services/settings/types/AppSettingsType';
+  import { resolveEscapeBehavior, type EscapeBehavior } from '../../../lib/keyboard/escapeBehavior';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import ScheduledTasksSection from '../../../components/settings/ScheduledTasksSection.svelte';
   import RuntimesSection from '../../../components/settings/RuntimesSection.svelte';
@@ -29,7 +31,19 @@
     }
   }
 
-  type EscapeBehavior = 'hide-and-reset' | 'go-back' | 'close-window';
+  // Order matches Raycast: navigate-back first, pop-to-root second.
+  const escapeOptions = $derived([
+    { value: 'go-back', label: t('settings.advanced.escape_back') },
+    { value: 'hide-and-reset', label: t('settings.advanced.escape_reset') },
+  ]);
+
+  const popToRootOptions = $derived([
+    { value: 'immediately', label: t('settings.advanced.pop_to_root_immediately') },
+    { value: '10s', label: t('settings.advanced.pop_to_root_10s') },
+    { value: '1m', label: t('settings.advanced.pop_to_root_1min') },
+    { value: '5m', label: t('settings.advanced.pop_to_root_5min') },
+    { value: 'never', label: t('settings.advanced.pop_to_root_never') },
+  ]);
 </script>
 
 <div class="section-header">{t('settings.advanced.section_extension_surface')}</div>
@@ -42,15 +56,6 @@
       <Toggle
         checked={handler.settings.search?.enableExtensionSearch ?? false}
         onchange={() => handler.handleExtensionSearchToggle()}
-      />
-    </SettingsRow>
-    <SettingsRow
-      label={t('settings.advanced.extension_actions')}
-      description={t('settings.advanced.extension_actions_description')}
-    >
-      <Toggle
-        checked={handler.settings.search?.allowExtensionActions ?? false}
-        onchange={() => handler.handleExtensionActionsToggle()}
       />
     </SettingsRow>
     <SettingsRow
@@ -69,16 +74,22 @@
 <SettingsCard>
   <div id="advanced-input">
     <SettingsRow
+      label={t('settings.advanced.pop_to_root')}
+      description={t('settings.advanced.pop_to_root_description')}
+    >
+      <Select
+        value={handler.settings.general?.popToRootDelay ?? '1m'}
+        options={popToRootOptions}
+        onchange={(value) => handler.updatePopToRootDelay(value as PopToRootDelay)}
+      />
+    </SettingsRow>
+    <SettingsRow
       label={t('settings.advanced.escape_key')}
       description={t('settings.advanced.escape_key_description')}
     >
-      <SegmentedControl
-        options={[
-          { value: 'hide-and-reset', label: t('settings.advanced.escape_reset') },
-          { value: 'go-back', label: t('settings.advanced.escape_back') },
-          { value: 'close-window', label: t('settings.advanced.escape_hide') },
-        ]}
-        value={handler.settings.general?.escapeInViewBehavior ?? 'go-back'}
+      <Select
+        value={resolveEscapeBehavior(handler.settings.general?.escapeInViewBehavior)}
+        options={escapeOptions}
         onchange={(v) => handler.updateEscapeBehavior(v as EscapeBehavior)}
       />
     </SettingsRow>

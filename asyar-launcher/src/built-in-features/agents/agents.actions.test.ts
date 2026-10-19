@@ -18,7 +18,6 @@ vi.mock('../../services/action/actionService.svelte', () => ({
   actionService: {
     registerAction: vi.fn(),
     unregisterAction: vi.fn(),
-    setActionExecutor: vi.fn(),
   },
 }));
 
@@ -96,6 +95,7 @@ import agentsExtension from './index';
 import { actionService } from '../../services/action/actionService.svelte';
 import { agentsManager } from './agentsManager.svelte';
 import { copyText } from '../../utils/copyText';
+import { agentService } from './agentService.svelte';
 
 type RegisteredAction = {
   id: string;
@@ -125,7 +125,7 @@ describe('agents:copy-last-response action', () => {
       await agentsExtension.viewActivated?.('agents/AgentChatView');
 
       expect(actionService.registerAction).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'agents:copy-last-response', shortcut: 'Super+Shift+C' }),
+        expect.objectContaining({ id: 'agents:copy-last-response', shortcut: 'Mod+Shift+C' }),
       );
     });
 
@@ -188,5 +188,51 @@ describe('agents:copy-last-response action', () => {
 
       expect(copyText).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('agents:new-thread action', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    agentsManager.currentAgentId = 'agent-1';
+    agentsManager.currentThreadId = 'thread-old';
+  });
+
+  it('declares the shortcut once, on the action, with no hand-written handler', async () => {
+    await agentsExtension.viewActivated?.('agents/AgentChatView');
+    expect(getRegisteredAction('agents:new-thread')).toEqual(
+      expect.objectContaining({ shortcut: 'Mod+N' }),
+    );
+  });
+
+  it('creates a thread and selects it', async () => {
+    vi.mocked(agentService.createThread).mockResolvedValueOnce({ id: 'thread-new' } as never);
+    await agentsExtension.viewActivated?.('agents/AgentChatView');
+    await getRegisteredAction('agents:new-thread').execute();
+    expect(agentService.createThread).toHaveBeenCalledWith('agent-1', '');
+    expect(agentsManager.currentThreadId).toBe('thread-new');
+  });
+
+  it('does not select the new thread if the user switched agent while it was created', async () => {
+    let resolve!: (t: { id: string }) => void;
+    vi.mocked(agentService.createThread).mockReturnValueOnce(
+      new Promise((r) => (resolve = r)) as never,
+    );
+    await agentsExtension.viewActivated?.('agents/AgentChatView');
+    const pending = getRegisteredAction('agents:new-thread').execute();
+
+    agentsManager.currentAgentId = 'agent-2';
+    agentsManager.currentThreadId = 'agent-2-thread';
+    resolve({ id: 'thread-new' });
+    await pending;
+
+    expect(agentsManager.currentThreadId).toBe('agent-2-thread');
+  });
+
+  it('does nothing without a current agent', async () => {
+    agentsManager.currentAgentId = null;
+    await agentsExtension.viewActivated?.('agents/AgentChatView');
+    await getRegisteredAction('agents:new-thread').execute();
+    expect(agentService.createThread).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,13 @@
+{
+  "id": "system-settings",
+  "name": "System Settings",
+  "icon": "icon:settings",
+  "version": "1.0.0",
+  "lifecycle": {
+    "disableable": true
+  },
+  "description": "Search and open macOS System Settings panes (Sound, Displays, Wi-Fi…)",
+  "type": "extension",
+  "searchable": false,
+  "commands": []
+}

@@ -178,6 +178,32 @@ export type ExternalSearchResult = {
 	priority?: ResultPriority | null,
 };
 
+export type FileChunk = {
+	text: string,
+	start: number,
+	end: number,
+	size: number,
+	mtimeMs: number,
+	eof: boolean,
+};
+
+export type FileGlobEntriesOptions = {
+	maxResults?: number | null,
+	sort?: GlobSort | null,
+	modifiedAfterMs?: number | null,
+	modifiedBeforeMs?: number | null,
+};
+
+export type FileGlobEntry = {
+	path: string,
+	size: number,
+	mtimeMs: number,
+};
+
+export type FileGlobOptions = {
+	maxResults?: number | null,
+};
+
 // Wire shape for one search hit.
 export type FileHit = {
 	// 16-char lowercase hex of the stable u64 file id.
@@ -204,6 +230,13 @@ export type FileIndexConfig = {
 	// Extra exclude patterns layered on top of the built-in defaults.
 	excludePatterns: string[],
 	indexHidden: boolean,
+};
+
+export type FileReadRangeOptions = {
+	maxBytes?: number | null,
+	offset?: number | null,
+	fromEnd?: boolean | null,
+	align?: ReadAlign | null,
 };
 
 export type FileSearchResponse = {
@@ -234,6 +267,8 @@ export type GeminiGrounding = {
 	sources: GroundingSource[],
 	searchSuggestionsHtml: string | null,
 };
+
+export type GlobSort = "path" | "modified-desc";
 
 export type GroundingSource = {
 	title: string,
@@ -269,11 +304,9 @@ export type ItemAlias = {
 /**
  *  Where within the chosen display the launcher sits.
  * 
- *  `Free` is the drag result and stores **fractions of the monitor**, not
- *  pixels. Pixels would put the launcher off-screen the first time a display
- *  is unplugged or a resolution changes, with no way back except a reset;
- *  fractions land in the same relative spot on any display and are clamped
- *  into the work area on every reveal.
+ *  `Free` is the drag result and stores fractions of the window's available
+ *  travel inside the monitor, not pixels. The legacy monitor-fraction shape is
+ *  read separately so existing user data is never silently reinterpreted.
  */
 export type LauncherAnchor = 
 // Horizontally centred; top edge at `bias` of the monitor's height.
@@ -281,8 +314,13 @@ export type LauncherAnchor =
 // Centred on both axes.
 { kind: "centered" } | 
 /**
- *  Free position from a drag, as fractions of the monitor for the
- *  window's top-left corner.
+ *  Free position from a drag, as fractions of the window's available
+ *  travel inside the monitor.
+ */
+{ kind: "freeTravel"; x: number; y: number } | 
+/**
+ *  COMPAT(remove in 0.2.0): pre-#860 `"free"` anchors stored fractions of
+ *  the full monitor extent. Migrated to [`Self::Free`] on first reveal.
  */
 { kind: "free"; x: number; y: number };
 
@@ -373,6 +411,8 @@ export type RankInput = {
 	subtitle?: string | null,
 	keywords?: string[],
 };
+
+export type ReadAlign = "none" | "line";
 
 /**
  *  Result-level priority hint. `Top` pins the result above all tier 1–5

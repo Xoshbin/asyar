@@ -1,7 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ExtensionLoader } from './ExtensionLoader';
-import { ActionContext } from 'asyar-sdk/contracts';
 import { permissionConsentService } from './permissionConsentService.svelte';
 
 // ---------- hoisted mocks ----------
@@ -17,9 +16,7 @@ vi.mock('../search/stores/search.svelte', () => ({
 }));
 
 const mockSettingsGetSettings = vi.hoisted(() =>
-  vi
-    .fn()
-    .mockReturnValue({ search: { enableExtensionSearch: false, allowExtensionActions: true } }),
+  vi.fn().mockReturnValue({ search: { enableExtensionSearch: false } }),
 );
 vi.mock('../settings/settingsService.svelte', () => ({
   settingsService: {
@@ -45,7 +42,6 @@ vi.mock('../action/actionService.svelte', () => ({
     unregisterAction: vi.fn(),
     clearActionsForExtension: vi.fn(),
     setContext: vi.fn(),
-    setActionExecutor: vi.fn(),
     refreshFiltered: vi.fn(),
     filteredActions: [],
     getSelectedSearchItem: vi.fn(() => {
@@ -106,7 +102,7 @@ vi.mock('./extensionPreferencesService.svelte', () => ({
 
 // ---------- helpers ----------
 
-function makeManifest(extensionId: string, actions: any[] = [], commands: any[] = []) {
+function makeManifest(extensionId: string, commands: any[] = []) {
   return {
     id: extensionId,
     name: extensionId,
@@ -114,13 +110,12 @@ function makeManifest(extensionId: string, actions: any[] = [], commands: any[] 
     description: '',
     type: 'extension' as const,
     permissions: [],
-    actions,
     commands,
   };
 }
 
-function makeCommand(cmdId: string, actions: any[] = []) {
-  return { id: cmdId, name: cmdId, description: '', trigger: cmdId, actions };
+function makeCommand(cmdId: string) {
+  return { id: cmdId, name: cmdId, description: '', trigger: cmdId };
 }
 
 function makeLoader(loadedCommands: { cmd: any; manifest: any; isBuiltIn: boolean }[]) {
@@ -135,158 +130,6 @@ function makeLoader(loadedCommands: { cmd: any; manifest: any; isBuiltIn: boolea
 }
 
 // ---------- tests ----------
-
-describe('ExtensionLoader.registerManifestActions', () => {
-  beforeEach(() => {
-    registeredActions.length = 0;
-    vi.clearAllMocks();
-    // Reset getSettings to default (allowExtensionActions = true)
-    mockSettingsGetSettings.mockReturnValue({
-      search: { enableExtensionSearch: false, allowExtensionActions: true },
-    });
-  });
-
-  describe('when allowExtensionActions = true', () => {
-    it('registers extension-level actions with a visible() that returns true when the correct extension command is selected', () => {
-      const manifest = makeManifest('test-ext', [{ id: 'open', title: 'Open', category: 'Test' }]);
-      const cmd = makeCommand('do-thing');
-      const loader = makeLoader([{ cmd, manifest, isBuiltIn: true }]);
-
-      loader.registerManifestActions();
-
-      const action = registeredActions.find((a) => a.id === 'act_test-ext_open');
-      expect(action).toBeDefined();
-      expect(action.extensionId).toBe('test-ext');
-      expect(action.context).toBe(ActionContext.CORE);
-
-      // Simulate item selected = command from this extension
-      mockSearchStores.selectedIndex = 0;
-      mockSearchOrchestrator.items = [
-        { type: 'command', extensionId: 'test-ext', objectId: 'cmd_test-ext_do-thing' },
-      ];
-      expect(action.visible()).toBe(true);
-    });
-
-    it('extension-level visible() returns false when a different extension is selected', () => {
-      const manifest = makeManifest('test-ext', [{ id: 'open', title: 'Open' }]);
-      const loader = makeLoader([{ cmd: makeCommand('do-thing'), manifest, isBuiltIn: true }]);
-
-      loader.registerManifestActions();
-
-      const action = registeredActions.find((a) => a.id === 'act_test-ext_open');
-      mockSearchStores.selectedIndex = 0;
-      mockSearchOrchestrator.items = [
-        { type: 'command', extensionId: 'other-ext', objectId: 'cmd_other-ext_cmd' },
-      ];
-      expect(action.visible()).toBe(false);
-    });
-
-    it('registers command-level actions with a visible() that returns true only for that command', () => {
-      const cmdActions = [{ id: 'copy', title: 'Copy Result' }];
-      const manifest = makeManifest('test-ext', [], []);
-      const cmd = makeCommand('search-cmd', cmdActions);
-      const loader = makeLoader([{ cmd, manifest, isBuiltIn: true }]);
-
-      loader.registerManifestActions();
-
-      const action = registeredActions.find((a) => a.id === 'act_test-ext_copy');
-      expect(action).toBeDefined();
-
-      // Exact command selected
-      mockSearchStores.selectedIndex = 0;
-      mockSearchOrchestrator.items = [{ objectId: 'cmd_test-ext_search-cmd' }];
-      expect(action.visible()).toBe(true);
-
-      // Different command selected
-      mockSearchOrchestrator.items = [{ objectId: 'cmd_test-ext_other-cmd' }];
-      expect(action.visible()).toBe(false);
-    });
-
-    it('registers extension-level actions once per extension even with multiple commands', () => {
-      const manifest = makeManifest('multi-ext', [{ id: 'settings', title: 'Settings' }]);
-      const cmd1 = makeCommand('cmd-a');
-      const cmd2 = makeCommand('cmd-b');
-      const loader = makeLoader([
-        { cmd: cmd1, manifest, isBuiltIn: true },
-        { cmd: cmd2, manifest, isBuiltIn: true },
-      ]);
-
-      loader.registerManifestActions();
-
-      const settingsActions = registeredActions.filter((a) => a.id === 'act_multi-ext_settings');
-      expect(settingsActions).toHaveLength(1);
-    });
-  });
-
-  describe('when allowExtensionActions = false', () => {
-    beforeEach(() => {
-      mockSettingsGetSettings.mockReturnValue({
-        search: { enableExtensionSearch: false, allowExtensionActions: false },
-      });
-    });
-
-    it('extension-level action visible() returns false even when the correct command is selected', () => {
-      const manifest = makeManifest('test-ext', [{ id: 'open', title: 'Open' }]);
-      const loader = makeLoader([{ cmd: makeCommand('do-thing'), manifest, isBuiltIn: true }]);
-
-      loader.registerManifestActions();
-
-      const action = registeredActions.find((a) => a.id === 'act_test-ext_open');
-      expect(action).toBeDefined();
-
-      mockSearchStores.selectedIndex = 0;
-      mockSearchOrchestrator.items = [
-        { type: 'command', extensionId: 'test-ext', objectId: 'cmd_test-ext_do-thing' },
-      ];
-      // Setting is OFF → must return false regardless of selection
-      expect(action.visible()).toBe(false);
-    });
-
-    it('command-level action visible() returns false even when the exact command is selected', () => {
-      const cmdActions = [{ id: 'copy', title: 'Copy Result' }];
-      const loader = makeLoader([
-        {
-          cmd: makeCommand('search-cmd', cmdActions),
-          manifest: makeManifest('test-ext'),
-          isBuiltIn: true,
-        },
-      ]);
-
-      loader.registerManifestActions();
-
-      const action = registeredActions.find((a) => a.id === 'act_test-ext_copy');
-      expect(action).toBeDefined();
-
-      mockSearchStores.selectedIndex = 0;
-      mockSearchOrchestrator.items = [{ objectId: 'cmd_test-ext_search-cmd' }];
-      // Setting is OFF → must return false
-      expect(action.visible()).toBe(false);
-    });
-  });
-
-  describe('when allowExtensionActions is undefined (older settings.dat)', () => {
-    beforeEach(() => {
-      // Simulate missing key (undefined) — should be treated as ON
-      mockSettingsGetSettings.mockReturnValue({
-        search: { enableExtensionSearch: false },
-      });
-    });
-
-    it('extension-level action visible() returns true (undefined treated as ON via !== false)', () => {
-      const manifest = makeManifest('test-ext', [{ id: 'open', title: 'Open' }]);
-      const loader = makeLoader([{ cmd: makeCommand('do-thing'), manifest, isBuiltIn: true }]);
-
-      loader.registerManifestActions();
-
-      const action = registeredActions.find((a) => a.id === 'act_test-ext_open');
-      mockSearchStores.selectedIndex = 0;
-      mockSearchOrchestrator.items = [
-        { type: 'command', extensionId: 'test-ext', objectId: 'cmd_test-ext_do-thing' },
-      ];
-      expect(action.visible()).toBe(true);
-    });
-  });
-});
 
 describe('ExtensionLoader Tier 2 no-view handler routes through dispatcher', () => {
   beforeEach(() => {

@@ -13,6 +13,7 @@ use std::sync::Mutex;
 
 use ignore::{WalkBuilder, WalkState};
 
+use super::file_id;
 use super::index::ScannedEntry;
 use super::types::EntryKind;
 
@@ -178,6 +179,7 @@ pub(crate) fn walk_root_with_threads(
             entries.lock().unwrap().push(ScannedEntry {
                 path: path.to_path_buf(),
                 kind,
+                file_id: Some(file_id::derive_from_metadata(path, &meta)),
                 mtime,
                 hidden,
                 placeholder: false,
@@ -203,6 +205,24 @@ pub(crate) fn walk_root_with_threads(
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn walk_collects_a_file_id_for_every_entry_matching_the_slow_path() {
+        let root = fixture_root();
+        touch(&root, "a.txt");
+        touch(&root, "sub/b.pdf");
+        let outcome = walk(&root);
+        assert!(!outcome.entries.is_empty());
+        for entry in &outcome.entries {
+            assert_eq!(
+                entry.file_id,
+                Some(crate::file_index::file_id::derive_u64(&entry.path)),
+                "{:?}",
+                entry.path
+            );
+        }
+        let _ = fs::remove_dir_all(root);
+    }
     use std::path::PathBuf;
 
     fn fixture_root() -> PathBuf {

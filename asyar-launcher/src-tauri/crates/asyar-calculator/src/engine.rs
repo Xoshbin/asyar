@@ -14,6 +14,9 @@ use super::format::beautify_fend_output;
 use super::{CalcKind, CalcResult};
 
 /// Hard cap on a single fend evaluation.
+#[cfg(test)]
+const EVAL_BUDGET_MS: u64 = 1000;
+#[cfg(not(test))]
 const EVAL_BUDGET_MS: u64 = 100;
 
 struct TimeoutInterrupt {

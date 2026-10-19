@@ -1,6 +1,6 @@
 {
   "name": "asyar",
-  "version": "0.1.1-50",
+  "version": "0.1.1-51",
   "description": "A fast, open-source launcher for macOS, Windows, and Linux.",
   "type": "module",
   "scripts": {
@@ -26,7 +26,7 @@
   "license": "GPL-3.0-only",
   "dependencies": {
     "@tailwindcss/vite": "^4.0.6",
-    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-autostart": "~2.5.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "~2.5.1",
@@ -39,7 +39,7 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-store": "~2.4.2",
     "@tauri-apps/plugin-updater": "~2.10.0",
-    "asyar-sdk": "^4.14.1",
+    "asyar-sdk": "^4.15.0",
     "date-fns": "^4.1.0",
     "katex": "^0.18.2",
     "marked": "^17.0.5",
@@ -55,8 +55,8 @@
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.70.2",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
-    "@tauri-apps/cli": "^2.12.1",
-    "@tauri-apps/cli-win32-arm64-msvc": "^2.12.1",
+    "@tauri-apps/cli": "^2.12.3",
+    "@tauri-apps/cli-win32-arm64-msvc": "^2.12.3",
     "@testing-library/svelte": "^5.3.1",
     "@types/katex": "^0.16.8",
     "@types/node": "^22.14.1",

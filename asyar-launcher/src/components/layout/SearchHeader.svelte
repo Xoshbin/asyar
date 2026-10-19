@@ -48,6 +48,7 @@
     onArgExit,
     onkeydown,
     oninput,
+    oncompositionend,
   }: {
     value?: string;
     showBack?: boolean;
@@ -89,6 +90,8 @@
     onArgExit?: () => void;
     onkeydown?: (e: KeyboardEvent) => void;
     oninput?: (e: Event) => void;
+    /** IME commit backstop — `oninput` alone can miss the committed text. */
+    oncompositionend?: (e: CompositionEvent) => void;
   } = $props();
 
   let prevContextId = $state<string | null>(null);
@@ -171,9 +174,12 @@
   const argLeadText = $derived(
     value || ((argumentHint || argumentMode) && argumentCommandName) || '',
   );
+  const isPortalHint = $derived(contextHint?.type === 'prefix');
   $effect(() => {
     void argLeadText;
-    if ((argumentHint || argumentMode) && argMeasureEl) argHintTextW = argMeasureEl.offsetWidth;
+    if ((argumentHint || argumentMode || isPortalHint) && argMeasureEl) {
+      argHintTextW = argMeasureEl.offsetWidth;
+    }
   });
 
   let argRowRef = $state<ReturnType<typeof ArgumentChipRow> | null>(null);
@@ -338,10 +344,11 @@
           unstyled
           class="search-input-clean"
           {oninput}
+          {oncompositionend}
           onkeydown={handleQueryKeydown}
           onfocus={() => onArgFieldsBlur?.()}
         />
-        {#if argumentHint || argumentMode}
+        {#if argumentHint || argumentMode || isPortalHint}
           <span
             class="arg-measure"
             class:arg-measure--placeholder={!value}
@@ -387,6 +394,23 @@
                 onClick={() => onArgHintClick?.(i)}
               />
             {/each}
+          </div>
+        {:else if isPortalHint}
+          <div
+            class="arg-hint-row"
+            style:left="min({argHintTextW + ARG_HINT_GAP}px, calc(100% - 60px))"
+            style:max-width="max(60px, calc(100% - {argHintTextW + ARG_HINT_GAP}px))"
+          >
+            <CommandArgInput
+              arg={FALLBACK_HINT_FIELDS[0].arg}
+              value=""
+              touched={false}
+              needsValue={false}
+              focused={false}
+              readonly
+              onInput={() => {}}
+              onKeydown={() => {}}
+            />
           </div>
         {:else if isScopedCommandSearch}
           <span class="context-hint">

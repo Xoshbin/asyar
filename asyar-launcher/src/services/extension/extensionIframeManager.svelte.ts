@@ -31,6 +31,14 @@ export class ExtensionIframeManager {
     this.viewManagerInstance = viewManagerInstance;
   }
 
+  public cancelPendingSearchRequests(): void {
+    for (const [messageId, pending] of pendingSearchRequests) {
+      clearTimeout(pending.timer);
+      pending.resolve([]);
+      pendingSearchRequests.delete(messageId);
+    }
+  }
+
   forwardKeyToActiveView(keyEvent: {
     key: string;
     shiftKey: boolean;
@@ -46,6 +54,22 @@ export class ExtensionIframeManager {
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:view:keydown', payload: keyEvent },
+        getExtensionFrameOrigin(extensionId),
+      );
+    }
+  }
+
+  /**
+   * Announce the physical chords of the action shortcuts live in the extension's
+   * view iframe, so the SDK forwarder knows which key presses to hand to the
+   * launcher. Uses the `asyar:event:*` namespace the iframe's MessageBroker
+   * routes to listeners. `chords` must be plain strings (structured clone).
+   */
+  sendActionShortcuts(extensionId: string, chords: string[]): void {
+    const iframe = pickExtensionIframe(extensionId, 'view');
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:event:actions:shortcuts', payload: { chords } },
         getExtensionFrameOrigin(extensionId),
       );
     }
