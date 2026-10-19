@@ -1318,3 +1318,31 @@ describe('send_feedback built-in action', () => {
     await expect(svc.executeAction('send_feedback')).resolves.not.toThrow();
   });
 });
+
+// ── setActionExecutor ─────────────────────────────────────────────────────────
+
+describe('setActionExecutor', () => {
+  it('assigns execute callback to an already registered action', async () => {
+    const svc = freshService();
+    const actionId = 'test_custom_action';
+    svc.registerAction({
+      id: actionId,
+      label: 'Custom Action',
+      icon: 'icon:gear',
+      context: ActionContext.EXTENSION_VIEW,
+      extensionId: 'my-ext',
+      execute: undefined as any,
+    });
+
+    const mockExecutor = vi.fn().mockResolvedValue(undefined);
+    svc.setActionExecutor(actionId, mockExecutor);
+
+    await svc.executeAction(actionId);
+    expect(mockExecutor).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing gracefully if action does not exist', () => {
+    const svc = freshService();
+    expect(() => svc.setActionExecutor('non_existent_action', vi.fn())).not.toThrow();
+  });
+});

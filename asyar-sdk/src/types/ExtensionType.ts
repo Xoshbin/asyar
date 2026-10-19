@@ -58,8 +58,6 @@ export interface PreferenceDeclaration {
  * An action declared in manifest.json that surfaces in the launcher action drawer.
  * Extension-level actions appear when any of the extension's commands is selected.
  * Command-level actions appear only when the specific command is selected.
- *
- * @deprecated Manifest actions are no longer supported and are ignored; the launcher rejects the field from 0.2.0. Register actions inside your view instead (`context.actions.registerAction`), or declare another command. Remove in 0.2.0.
  */
 export interface ManifestAction {
   /** Unique action identifier within the extension. Must match /^[a-zA-Z][a-zA-Z0-9_-]*$/. */
@@ -141,7 +139,6 @@ export interface ExtensionManifest {
   runtimes?: string[];
   /**
    * Extension-level actions (show when any command from this extension is selected).
-   * @deprecated Manifest actions are ignored by the launcher and rejected from 0.2.0. Register actions inside your view instead (`context.actions.registerAction`). Remove in 0.2.0.
    */
   actions?: ManifestAction[];
   /** Tools that this extension exposes for invocation by the launcher or other extensions. */
@@ -188,7 +185,6 @@ export interface ExtensionCommand {
   preferences?: PreferenceDeclaration[];
   /**
    * Command-level actions (show when this specific command is selected).
-   * @deprecated Manifest actions are ignored by the launcher and rejected from 0.2.0. Register actions inside your view instead (`context.actions.registerAction`). Remove in 0.2.0.
    */
   actions?: ManifestAction[];
   /**

@@ -358,11 +358,9 @@ Distributed under the AGPLv3 License. See LICENSE.md for more information.
 
 ## Actions — The ⌘K Panel
 
-Actions are registered in code, inside your extension view, and appear in the ⌘K panel while that view is open. There are no manifest-declared actions on root-search rows; to offer something without opening a view, declare another command.
+Actions are registered either via `manifest.json` (for root-search actions when your extension's command is highlighted) or in code inside your extension view (via `context.actions.registerAction` / `actionService.registerAction`) while that view is open.
 
-### Registering actions
-
-Register actions in code from your extension view components. These appear while your extension panel is open.
+### Registering actions in views
 
 ```typescript
 import { ActionContext, ActionCategory } from 'asyar-sdk/view';
