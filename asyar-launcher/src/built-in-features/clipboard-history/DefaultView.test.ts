@@ -76,6 +76,7 @@ vi.mock('./urlFetcher', () => ({
 
 import DefaultView from './DefaultView.svelte';
 import { clipboardViewState } from './state.svelte';
+import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
 
 // Let the selection effect fetch the item and kick off loadImage.
 async function flush() {
@@ -178,5 +179,16 @@ describe('DefaultView image preview', () => {
     unmount();
 
     expect(MockURL.revokeObjectURL).toHaveBeenCalledWith(urlBlobUrl);
+  });
+
+  it('subscribes to clipboardHistoryStore on mount and cleans up on unmount', () => {
+    const mockUnsub = vi.fn();
+    vi.mocked(clipboardHistoryStore.subscribe).mockReturnValueOnce(mockUnsub);
+
+    const { unmount } = render(DefaultView);
+    expect(clipboardHistoryStore.subscribe).toHaveBeenCalled();
+
+    unmount();
+    expect(mockUnsub).toHaveBeenCalled();
   });
 });

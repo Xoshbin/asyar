@@ -1042,19 +1042,11 @@ pub fn record_capture_with_fts(
     fts: &ClipboardFts,
     retention_ms: Option<f64>,
 ) -> Result<CaptureResult, AppError> {
-    // Look up the dup id (if any) BEFORE record_capture deletes it, so
-    // we can drop its FTS row.
-    let dup = find_duplicate(
-        conn,
-        &item.item_type,
-        item.content.as_deref(),
-        &item.id,
-        master_key,
-    )?;
-    if let Some(d) = &dup {
-        fts.delete(&d.id)?;
-    }
     let res = record_capture(conn, item, icon_resolver, master_key, retention_ms)?;
+    // Drop the dedup-replaced row from FTS (if any).
+    if let Some(replaced_id) = &res.replaced_id {
+        fts.delete(replaced_id)?;
+    }
     // New row is in the DB now — index it.
     fts.upsert(
         &res.inserted_id,

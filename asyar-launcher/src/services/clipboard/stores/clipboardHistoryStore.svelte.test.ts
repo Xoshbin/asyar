@@ -28,7 +28,6 @@ vi.mock('../../log/logService', () => ({
 }));
 
 import { clipboardHistoryStore } from './clipboardHistoryStore.svelte';
-import { ClipboardViewStateClass } from '../../../built-in-features/clipboard-history/state.svelte';
 import * as ipc from '../../../lib/ipc/commands';
 
 const mockListInitial = ipc.clipboardListInitial as unknown as ReturnType<typeof vi.fn>;
@@ -177,7 +176,7 @@ describe('clipboardHistoryStore', () => {
     { searching: true, favorite: false },
     { searching: true, favorite: true },
   ])(
-    'keeps a recaptured selection pasteable (search=$searching, favorite=$favorite)',
+    'reconciles replaced duplicate and search ranking (search=$searching, favorite=$favorite)',
     async ({ searching, favorite }) => {
       const old = { id: 'old', type: 'text', preview: 'body', createdAt: 50, favorite };
       const other = { id: 'other', type: 'text', preview: 'other', createdAt: 40, favorite: true };
@@ -187,63 +186,41 @@ describe('clipboardHistoryStore', () => {
         { id: 'expired', type: 'text', createdAt: 1, favorite: false },
       ];
       if (searching) clipboardHistoryStore.searchResults = [other, old];
-      const state = new ClipboardViewStateClass();
-      const pasteItem = vi.fn().mockResolvedValue(undefined);
-      state.initializeServices({
-        getService: (name: string) => (name === 'clipboard' ? { pasteItem } : undefined),
-      } as any);
-      state.selectedItemId = old.id;
-      state.selectedIds = ['other', old.id];
-      const unsubscribe = state.subscribeToHistoryChanges();
-      try {
-        state.items = [other, old] as any;
-        mockGetItem.mockResolvedValueOnce({ ...old, content: 'body' });
-        await state.handleItemAction(state.selectedItem!, 'paste');
-        expect(pasteItem).toHaveBeenCalledTimes(1);
-        mockCapture.mockResolvedValue({
-          insertedId: 'new',
-          replacedId: old.id,
-          favorite,
-          evictedIds: ['expired'],
-        });
-        await clipboardHistoryStore.addHistoryItem({
-          id: 'new',
-          type: 'text',
-          content: 'body',
-          preview: 'body',
-          createdAt: 100,
-          favorite: false,
-        } as any);
 
-        const visible = clipboardHistoryStore.searchResults ?? [
-          ...clipboardHistoryStore.favorites,
-          ...clipboardHistoryStore.recent,
-        ];
-        expect(visible.map((item) => item.id)).not.toContain(old.id);
-        expect(clipboardHistoryStore.recent.map((item) => item.id)).toEqual(
-          favorite ? [] : ['new'],
-        );
-        expect(visible.find((item) => item.id === 'new')?.favorite).toBe(favorite);
-        expect(state.selectedItemId).toBe('new');
-        expect(state.selectedIds).toEqual(['other', 'new']);
-        state.items = visible as any;
-        mockGetItem.mockImplementation(async (id: string) =>
-          id === 'new'
-            ? {
-                id,
-                type: 'text',
-                content: 'body',
-                createdAt: 100,
-                favorite,
-              }
-            : null,
-        );
-        await state.handleItemAction(state.selectedItem!, 'paste');
-        expect(pasteItem).toHaveBeenCalledTimes(2);
-        expect(mockGetItem).toHaveBeenLastCalledWith('new');
-      } finally {
-        unsubscribe();
+      const events: any[] = [];
+      const unsub = clipboardHistoryStore.subscribe((e) => events.push(e));
+
+      mockCapture.mockResolvedValue({
+        insertedId: 'new',
+        replacedId: old.id,
+        favorite,
+        evictedIds: ['expired'],
+      });
+
+      await clipboardHistoryStore.addHistoryItem({
+        id: 'new',
+        type: 'text',
+        content: 'body',
+        preview: 'body',
+        createdAt: 100,
+        favorite: false,
+      } as any);
+
+      const visible = clipboardHistoryStore.searchResults ?? [
+        ...clipboardHistoryStore.favorites,
+        ...clipboardHistoryStore.recent,
+      ];
+      expect(visible.map((item) => item.id)).not.toContain(old.id);
+      expect(clipboardHistoryStore.recent.map((item) => item.id)).toEqual(favorite ? [] : ['new']);
+      expect(visible.find((item) => item.id === 'new')?.favorite).toBe(favorite);
+      if (searching) {
+        expect(clipboardHistoryStore.searchResults?.map((item) => item.id)).toEqual([
+          'other',
+          'new',
+        ]);
       }
+      expect(events).toEqual([{ type: 'upsert', itemId: 'new', replacedItemId: 'old' }]);
+      unsub();
     },
   );
 

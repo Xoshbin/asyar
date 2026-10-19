@@ -16,6 +16,7 @@ vi.mock('../../services/clipboard/stores/clipboardHistoryStore.svelte', () => ({
     search: vi.fn().mockResolvedValue(undefined),
     clearSearch: vi.fn(),
     fetchFullItem: vi.fn().mockResolvedValue(null),
+    subscribe: vi.fn(() => () => {}),
     deleteHistoryItem: vi.fn().mockResolvedValue({ imageContentPath: undefined }),
   },
 }));
@@ -835,5 +836,87 @@ describe('pasteMergedSelection', () => {
     expect(mockClipboardService.pasteItem).not.toHaveBeenCalled();
     expect(state.selectedIds).toEqual(['1', '2']);
     expect(feedbackService.report).toHaveBeenCalled();
+  });
+});
+
+describe('subscribeToHistoryChanges', () => {
+  let state: ClipboardViewStateClass;
+  let subscriberCallback: ((event: any) => void) | null = null;
+  const mockUnsubscribe = vi.fn();
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+    subscriberCallback = null;
+    mockUnsubscribe.mockClear();
+    vi.mocked(clipboardHistoryStore.subscribe).mockImplementation((cb: any) => {
+      subscriberCallback = cb;
+      return mockUnsubscribe;
+    });
+  });
+
+  it('updates selectedItemId and selectedIds when replacedItemId matches', () => {
+    state.selectedItemId = 'old-item';
+    state.selectedIds = ['first', 'old-item'];
+
+    const unsub = state.subscribeToHistoryChanges();
+    expect(clipboardHistoryStore.subscribe).toHaveBeenCalled();
+    expect(subscriberCallback).not.toBeNull();
+
+    subscriberCallback!({
+      type: 'upsert',
+      itemId: 'new-item',
+      replacedItemId: 'old-item',
+    });
+
+    expect(state.selectedItemId).toBe('new-item');
+    expect(state.selectedIds).toEqual(['first', 'new-item']);
+
+    unsub();
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('deduplicates selectedIds if new itemId is already in multi-selection', () => {
+    state.selectedItemId = 'old-item';
+    state.selectedIds = ['existing-item', 'old-item'];
+
+    state.subscribeToHistoryChanges();
+
+    subscriberCallback!({
+      type: 'upsert',
+      itemId: 'existing-item',
+      replacedItemId: 'old-item',
+    });
+
+    expect(state.selectedItemId).toBe('existing-item');
+    expect(state.selectedIds).toEqual(['existing-item']);
+  });
+
+  it('does not update selectedItemId or selectedIds when replacedItemId does not match', () => {
+    state.selectedItemId = 'kept-item';
+    state.selectedIds = ['kept-item', 'other-item'];
+
+    state.subscribeToHistoryChanges();
+
+    subscriberCallback!({
+      type: 'upsert',
+      itemId: 'new-unrelated',
+      replacedItemId: 'different-old',
+    });
+
+    expect(state.selectedItemId).toBe('kept-item');
+    expect(state.selectedIds).toEqual(['kept-item', 'other-item']);
+  });
+
+  it('ignores non-upsert events and upsert events without replacedItemId', () => {
+    state.selectedItemId = 'item-1';
+    state.selectedIds = ['item-1'];
+
+    state.subscribeToHistoryChanges();
+
+    subscriberCallback!({ type: 'delete', itemId: 'item-1' });
+    expect(state.selectedItemId).toBe('item-1');
+
+    subscriberCallback!({ type: 'upsert', itemId: 'brand-new-item' });
+    expect(state.selectedItemId).toBe('item-1');
   });
 });
