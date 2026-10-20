@@ -36,6 +36,12 @@ describe('externalBin', () => {
     expect(conf.build?.beforeBuildCommand).toBe('node scripts/build-linux.mjs');
     expect(conf.build?.beforeBundleCommand).toBeUndefined();
   });
+
+  it('declares libxdo3 in Linux deb dependencies', () => {
+    const conf = JSON.parse(readFileSync(TAURI_LINUX_CONF, 'utf8'));
+
+    expect(conf.bundle?.linux?.deb?.depends).toEqual(['libxdo3']);
+  });
 });
 
 describe('asyar-summon provisioning', () => {
@@ -171,5 +177,20 @@ describe('Linux AppImage graphics ABI', () => {
     expect(workflow).toContain(
       "find squashfs-root \\( -type f -o -type l \\) -name 'libwayland-client.so*'",
     );
+  });
+});
+
+describe('Linux Debian package verification', () => {
+  const workflow = readFileSync(RELEASE_WORKFLOW, 'utf8');
+
+  it('verifies that .deb dependencies include libxdo3 before uploading artifacts', () => {
+    const buildStep = workflow.indexOf('- name: Build Linux ${{ matrix.arch }}');
+    const verifyStep = workflow.indexOf('- name: Verify Debian package dependencies');
+    const uploadStep = workflow.indexOf('- name: Upload Linux ${{ matrix.arch }} Artifacts');
+
+    expect(verifyStep).toBeGreaterThan(buildStep);
+    expect(uploadStep).toBeGreaterThan(verifyStep);
+    expect(workflow).toContain('dpkg-deb -I "$deb_path"');
+    expect(workflow).toContain('grep -q "libxdo3"');
   });
 });

@@ -4,6 +4,11 @@
     "beforeBuildCommand": "node scripts/build-linux.mjs"
   },
   "bundle": {
-    "externalBin": ["binaries/asyar-summon"]
+    "externalBin": ["binaries/asyar-summon"],
+    "linux": {
+      "deb": {
+        "depends": ["libxdo3"]
+      }
+    }
   }
 }
