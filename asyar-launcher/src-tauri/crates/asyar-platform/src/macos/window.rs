@@ -265,6 +265,20 @@ pub unsafe fn reseat_first_responder(ns_window: *mut AnyObject) {
 
 pub const LAUNCHER_MAX_HEIGHT: f64 = 480.0;
 pub const LAUNCHER_COMPACT_HEIGHT: f64 = 96.0;
+static LAUNCHER_ACTIVE_MAX_HEIGHT: AtomicU64 = AtomicU64::new(0);
+
+pub fn set_active_max_height(height: f64) {
+    LAUNCHER_ACTIVE_MAX_HEIGHT.store(height.to_bits(), Ordering::Release);
+}
+
+pub fn active_max_height() -> f64 {
+    let bits = LAUNCHER_ACTIVE_MAX_HEIGHT.load(Ordering::Acquire);
+    if bits == 0 {
+        LAUNCHER_MAX_HEIGHT
+    } else {
+        f64::from_bits(bits)
+    }
+}
 
 const VIBRANCY_VIEW_TAG: i64 = 91376254;
 
@@ -313,7 +327,7 @@ pub unsafe fn pin_launcher_webview(ns_window: *mut AnyObject) {
         origin: NSPoint { x: 0.0, y: 0.0 },
         size: NSSize {
             width: content_frame.size.width,
-            height: LAUNCHER_MAX_HEIGHT,
+            height: active_max_height(),
         },
     };
     let webview = find_webview(content_view);
@@ -540,7 +554,7 @@ unsafe fn apply_window_height_commit(ns_window: *mut AnyObject, height: f64, gen
     let _: () = msg_send![ns_window, setFrame: new_frame display: Bool::YES animate: Bool::NO];
 
     let content_view: *mut AnyObject = msg_send![ns_window, contentView];
-    let new_origin_y = height - LAUNCHER_MAX_HEIGHT;
+    let new_origin_y = height - active_max_height();
 
     for view in [find_webview(content_view), find_vibrancy_view(content_view)] {
         if view.is_null() {
@@ -636,6 +650,27 @@ pub fn activate_app() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ACTIVE_MAX_HEIGHT_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn active_max_height_defaults_to_base() {
+        let _guard = ACTIVE_MAX_HEIGHT_TEST_LOCK.lock().unwrap();
+        set_active_max_height(0.0);
+
+        assert_eq!(active_max_height(), LAUNCHER_MAX_HEIGHT);
+    }
+
+    #[test]
+    fn active_max_height_round_trips() {
+        let _guard = ACTIVE_MAX_HEIGHT_TEST_LOCK.lock().unwrap();
+        set_active_max_height(672.0);
+
+        assert_eq!(active_max_height(), 672.0);
+
+        set_active_max_height(0.0);
+    }
 
     #[test]
     fn hud_panel_flags_include_fullscreen_auxiliary_and_can_join_all_spaces() {

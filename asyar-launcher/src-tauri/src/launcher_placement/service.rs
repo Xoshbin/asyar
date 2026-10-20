@@ -26,8 +26,16 @@ use super::store;
 use super::types::{LauncherAnchor, LauncherMonitorChoice, LauncherPlacement};
 use super::LAUNCHER_MAX_HEIGHT;
 use crate::error::AppError;
-use crate::SPOTLIGHT_LABEL;
+use crate::{AppState, SPOTLIGHT_LABEL};
 use tauri::{AppHandle, Manager, Runtime};
+
+fn reserve_height_for_scale(scale: f64) -> f64 {
+    LAUNCHER_MAX_HEIGHT * scale
+}
+
+fn reserve_height<R: Runtime>(app: &AppHandle<R>) -> f64 {
+    reserve_height_for_scale(app.state::<AppState>().ui_scale())
+}
 
 /// A monitor and its usable area, both monitor-relative and y-down, as
 /// [`resolve_origin`] wants them.
@@ -142,14 +150,15 @@ fn apply_placement<R: Runtime + 'static>(
     let frames = macos_conv::frames(screen.frame, screen.visible);
 
     let window_frame = get_window_frame(&window);
-    let space = TravelSpace::new(frames.monitor, window_frame.size.width, LAUNCHER_MAX_HEIGHT);
+    let reserve_height = reserve_height(app);
+    let space = TravelSpace::new(frames.monitor, window_frame.size.width, reserve_height);
     let anchor = migrate_on_reveal(app, placement, space);
     let offsets = resolve_origin(
         &anchor,
         frames.monitor,
         frames.work,
         window_frame.size.width,
-        LAUNCHER_MAX_HEIGHT,
+        reserve_height,
     );
     let (x, y) = macos_conv::to_appkit_origin(screen.frame, offsets, window_frame.size.height);
 
@@ -184,14 +193,15 @@ fn apply_placement<R: Runtime + 'static>(
         .map_err(|e| AppError::Platform(format!("outer_size: {e}")))?
         .to_logical::<f64>(scale);
 
-    let space = TravelSpace::new(frames.monitor, window_size.width, LAUNCHER_MAX_HEIGHT);
+    let reserve_height = reserve_height(app);
+    let space = TravelSpace::new(frames.monitor, window_size.width, reserve_height);
     let anchor = migrate_on_reveal(app, placement, space);
     let (dx, dy) = resolve_origin(
         &anchor,
         frames.monitor,
         frames.work,
         window_size.width,
-        LAUNCHER_MAX_HEIGHT,
+        reserve_height,
     );
 
     window
@@ -246,7 +256,8 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
     let screen = screen_containing(center_of(window_rect))?;
     let frames = macos_conv::frames(screen.frame, screen.visible);
     let offsets = macos_conv::to_offsets(screen.frame, window_rect);
-    let space = TravelSpace::new(frames.monitor, window_rect.width, LAUNCHER_MAX_HEIGHT);
+    let reserve_height = reserve_height(app);
+    let space = TravelSpace::new(frames.monitor, window_rect.width, reserve_height);
     Some(classify::classify_drop(offsets, space, frames.work))
 }
 
@@ -266,7 +277,8 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
 
     let (origin, frames) = monitor_frames(&monitor);
     let offsets = (pos.x - origin.0, pos.y - origin.1);
-    let space = TravelSpace::new(frames.monitor, size.width, LAUNCHER_MAX_HEIGHT);
+    let reserve_height = reserve_height(app);
+    let space = TravelSpace::new(frames.monitor, size.width, reserve_height);
     Some(classify::classify_drop(offsets, space, frames.work))
 }
 
@@ -317,13 +329,13 @@ pub fn adjust_for_snap<R: Runtime>(app: &AppHandle<R>, x: f64, y: f64) -> (f64, 
         return (x, y);
     };
     let (origin, frames) = monitor_frames(&monitor);
+    let reserve_height = reserve_height(app);
 
     // Monitor-relative, per `monitor_frames`'s own contract (`frames.monitor`
     // is always 0-based) — matches the guide window's own local coordinates,
     // since the guide window is positioned at absolute `origin` and sized to
     // the monitor.
-    let target =
-        resolve::snap_targets(frames.monitor, frames.work, size.width, LAUNCHER_MAX_HEIGHT);
+    let target = resolve::snap_targets(frames.monitor, frames.work, size.width, reserve_height);
     // `x, y` are absolute desktop coordinates — `window_drag_move` keeps the
     // live drag in Tauri's own absolute logical space the whole time (see
     // the coordinate-space note above). Comparing that directly against the
@@ -531,6 +543,23 @@ fn monitor_frames(m: &tauri::Monitor) -> ((f64, f64), Frames) {
 #[cfg(test)]
 mod snap_persistence_tests {
     use super::*;
+
+    #[test]
+    fn reserve_height_scales_the_base() {
+        let monitor = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        let scaled_reserve = reserve_height_for_scale(1.4);
+
+        let (_, y) = resolve_origin(
+            &LauncherAnchor::Centered,
+            monitor,
+            monitor,
+            750.0,
+            scaled_reserve,
+        );
+
+        assert_eq!(scaled_reserve, LAUNCHER_MAX_HEIGHT * 1.4);
+        assert_eq!(y, (monitor.height - LAUNCHER_MAX_HEIGHT * 1.4) / 2.0);
+    }
 
     #[test]
     fn apply_snap_absolute_accounts_for_the_monitors_origin() {

@@ -87,6 +87,10 @@ export async function setLauncherHeight(
   });
 }
 
+export async function setUiScale(scale: number): Promise<void> {
+  await invokeSafe('set_ui_scale', { scale });
+}
+
 export async function confirmLauncherPaint(): Promise<void> {
   await invokeSafe('confirm_launcher_paint');
 }

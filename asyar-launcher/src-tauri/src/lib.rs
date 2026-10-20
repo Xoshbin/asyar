@@ -2,7 +2,7 @@
 use tauri::{Emitter, Listener, Manager};
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 
 use crate::extensions::extension_runtime::{ExtensionRuntimeManager, RuntimeConfig};
@@ -31,6 +31,8 @@ pub struct HideStamp {
 
 /// Shared application state managed by Tauri's state system.
 pub struct AppState {
+    /// Active launcher UI scale encoded as f64 bits.
+    pub ui_scale: AtomicU64,
     /// When `true`, prevents the launcher window from losing keyboard focus.
     pub focus_locked: AtomicBool,
     /// Maps shortcut strings (e.g. `"Alt+Space"`) to the object ID they activate.
@@ -79,6 +81,14 @@ pub struct AppState {
 }
 
 impl AppState {
+    pub fn ui_scale(&self) -> f64 {
+        f64::from_bits(self.ui_scale.load(Ordering::Acquire))
+    }
+
+    pub fn set_ui_scale(&self, scale: f64) {
+        self.ui_scale.store(scale.to_bits(), Ordering::Release);
+    }
+
     pub fn mark_interaction(&self) {
         if let Ok(mut last) = self.last_interaction.lock() {
             *last = std::time::Instant::now();
@@ -454,6 +464,7 @@ pub fn run() {
         .manage(launcher_coordinator)
         .manage(crate::agents::cache::AgentResponseCache::default())
         .manage(AppState {
+            ui_scale: AtomicU64::new(1.0f64.to_bits()),
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
             launcher_shortcut: Mutex::new(String::from("Alt+Space")),

@@ -38,6 +38,7 @@ macro_rules! app_commands {
                 $crate::commands::feedback_accept_announcement,
                 $crate::commands::set_launcher_keep_expanded,
                 $crate::commands::set_launcher_height,
+                $crate::commands::set_ui_scale,
                 $crate::commands::confirm_launcher_paint,
                 $crate::commands::cancel_launcher_resize,
                 $crate::commands::set_panel_appearance,

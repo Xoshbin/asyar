@@ -132,6 +132,7 @@
       "use_default": "Use default",
       "error_revert_default": "Could not revert to default theme",
       "error_save_display": "Could not save the launcher display",
+      "error_save_interface_size": "Could not save the interface size",
       "error_save_position": "Could not save the launcher position",
       "error_save_snap": "Could not save the launcher snap setting"
     },
@@ -145,6 +146,11 @@
       "compact_mode_description": "Reduce spacing and padding across the launcher",
       "window_mode": "Window mode",
       "window_mode_description": "How much of the launcher is visible before you type.",
+      "interface_size_label": "Interface Size",
+      "interface_size_hint": "Make text, controls, and the launcher window larger.",
+      "interface_size_default": "Default",
+      "interface_size_large": "Large",
+      "interface_size_larger": "Larger",
       "theme_aria": "Appearance theme",
       "window_mode_aria": "Window mode"
     },

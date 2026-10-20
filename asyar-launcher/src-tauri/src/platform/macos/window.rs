@@ -120,6 +120,18 @@ pub fn set_window_frame<R: Runtime>(window: &WebviewWindow<R>, rect: NSRect) {
     unsafe { asyar_platform::macos::set_window_frame(ns_window, rect) };
 }
 
+/// Resizes only the native window width without assuming the NSWindow handle
+/// is available. Callers that operate fail-soft can log the returned error.
+pub fn set_window_width<R: Runtime>(window: &WebviewWindow<R>, width: f64) -> tauri::Result<()> {
+    let ns_window = window.ns_window()? as *mut AnyObject;
+    // SAFETY: ns_window() returned a valid NSWindow pointer on success.
+    let mut frame = unsafe { asyar_platform::macos::get_window_frame(ns_window) };
+    frame.size.width = width;
+    // SAFETY: the same valid NSWindow pointer remains live for this synchronous call.
+    unsafe { asyar_platform::macos::set_window_frame(ns_window, frame) };
+    Ok(())
+}
+
 pub fn set_window_alpha<R: Runtime>(window: &WebviewWindow<R>, alpha: f64) {
     if let Ok(ptr) = window.ns_window() {
         // SAFETY: ns_window() returns a valid NSWindow pointer on success.
