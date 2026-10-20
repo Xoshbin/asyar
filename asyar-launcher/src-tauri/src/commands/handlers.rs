@@ -431,6 +431,12 @@ macro_rules! system_commands {
                 $crate::commands::ws_connect,
                 $crate::commands::ws_send,
                 $crate::commands::ws_close,
+                $crate::network::commands::lan_hosts_list,
+                $crate::network::commands::lan_hosts_add,
+                $crate::network::commands::lan_hosts_remove,
+                $crate::network::commands::scan_lan_devices,
+                $crate::network::commands::lan_host_validate,
+                $crate::network::commands::lan_devices_for_caller,
             )
         )
     };

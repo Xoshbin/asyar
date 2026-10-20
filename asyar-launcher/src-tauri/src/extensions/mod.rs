@@ -534,6 +534,24 @@ pub fn validate_permission_args(m: &ExtensionManifest) -> Result<(), AppError> {
         (true,Some(args)) if has("network")=> { crate::network::secret_refs::validate_network_secrets_args(args)?; },
         _=>return Err(AppError::Validation("network:secrets requires network and matching permissionArgs.network:secrets declarations".into())),
     }
+    let lan_args = m
+        .permission_args
+        .as_ref()
+        .and_then(|a| a.get("network:lan"));
+    match (has("network:lan"), lan_args) {
+        (false, None) => {}
+        (true, Some(args)) if has("network") => {
+            crate::network::lan_policy::LanPolicy::from_manifest(Some(args))?;
+        }
+        (true, None) if has("network") => {
+            // Bare network:lan — user manages the allowlist in Settings; no manifest args required
+        }
+        _ => {
+            return Err(AppError::Validation(
+                "network:lan requires the network permission to be declared".into(),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -743,6 +761,27 @@ mod tests {
             serde_json::json!({"network:secrets":[]})
         ))
         .is_err());
+    }
+    #[test]
+    fn network_lan_requires_network_and_scoped_endpoints() {
+        // network:lan without the network base permission is always rejected.
+        assert!(validate_permission_args(&secret_manifest(
+            serde_json::json!(["network:lan"]),
+            serde_json::json!({"network:lan":["192.168.0.0/16:1400"]})
+        ))
+        .is_err());
+        // Bare network:lan (no permissionArgs) is now valid: user manages hosts in Settings.
+        assert!(validate_permission_args(&secret_manifest(
+            serde_json::json!(["network", "network:lan"]),
+            serde_json::json!({})
+        ))
+        .is_ok());
+        // network:lan with explicit CIDR args is still valid.
+        assert!(validate_permission_args(&secret_manifest(
+            serde_json::json!(["network", "network:lan"]),
+            serde_json::json!({"network:lan":["192.168.0.0/16:1400", "speaker.local:1400"]})
+        ))
+        .is_ok());
     }
     use std::fs;
     use std::path::Path;

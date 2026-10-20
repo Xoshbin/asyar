@@ -24,6 +24,7 @@ const root = resolve(__dirname, '..');
 const SRC = resolve(root, 'asyar-launcher/src');
 const TOKENS_FILE = resolve(SRC, 'resources/styles/style.css');
 const BARREL = resolve(SRC, 'components/index.ts');
+const ICON_DATA_FILE = resolve(root, 'asyar-sdk/src/icons/iconData.ts');
 
 /* ── File discovery ─────────────────────────────────────────────────────── */
 
@@ -42,6 +43,10 @@ function walk(dir, out = []) {
 /* ── Known-good token set ───────────────────────────────────────────────── */
 
 const tokensCss = readFileSync(TOKENS_FILE, 'utf8');
+const iconData = readFileSync(ICON_DATA_FILE, 'utf8');
+const KNOWN_ICONS = new Set(
+  [...iconData.matchAll(/^\s*'?([A-Za-z0-9_-]+)'?\s*:\s*/gm)].map((match) => match[1]),
+);
 const DEFINED_TOKENS = new Set(
   [...tokensCss.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
 );
@@ -387,6 +392,27 @@ for (const file of files) {
     },
     '',
   );
+}
+
+// Literal Icon names are statically checkable. Unknown values render an empty
+// placeholder, so catch them before the component reaches a window.
+for (const file of files) {
+  if (!file.endsWith('.svelte')) continue;
+  const text = readFileSync(file, 'utf8');
+  for (const match of text.matchAll(/<Icon\b[^>]*\bname=["']([^"']+)["']/g)) {
+    if (KNOWN_ICONS.has(match[1])) continue;
+    const line = text.slice(0, match.index).split('\n').length;
+    record(
+      file,
+      line,
+      {
+        id: 'unknown-icon',
+        message: 'Icon name is not in ICON_DATA — it renders as a blank placeholder',
+        fix: 'Use a name exported from asyar-sdk/src/icons/iconData.ts, or add the icon there.',
+      },
+      match[1],
+    );
+  }
 }
 
 /* ── Report ─────────────────────────────────────────────────────────────── */

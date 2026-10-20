@@ -10,6 +10,12 @@ describe('permissionCatalog', () => {
     });
     expect(describePermission('network').description).toBe('Make outbound HTTP requests.');
   });
+  it('describes scoped LAN access separately from public network access', () => {
+    expect(describePermission('network:lan')).toMatchObject({
+      known: true,
+      title: 'Local network access',
+    });
+  });
   it('describes a known permission with catalog metadata', () => {
     const info = describePermission('fs:watch');
     expect(info.known).toBe(true);

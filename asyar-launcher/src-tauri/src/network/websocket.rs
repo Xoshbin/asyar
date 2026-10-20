@@ -91,6 +91,7 @@ pub struct WebSocketManager {
 async fn connect_ws_stream(
     url_str: &str,
     headers: Option<HashMap<String, String>>,
+    lan_policy: Option<&crate::network::lan_policy::LanPolicy>,
 ) -> Result<WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, AppError> {
     let url = Url::parse(url_str)
         .map_err(|e| AppError::Other(format!("Invalid WebSocket URL '{url_str}': {e}")))?;
@@ -132,14 +133,12 @@ async fn connect_ws_stream(
         )));
     }
 
-    for addr in &addrs {
-        if crate::network::service::is_restricted_ip(&addr.ip()) {
-            return Err(AppError::Other(format!(
-                "Requests to local or private IP address '{}' are not allowed",
-                addr.ip()
-            )));
-        }
-    }
+    // Public destinations keep the existing `network` behavior; restricted LAN
+    // destinations additionally require a matching `network:lan` endpoint. The
+    // same authorizer guards the HTTP `fetch` path, so the LAN rules, the
+    // never-allowed blocklist, and the all-addresses rebinding defense cannot
+    // drift between the two transports.
+    crate::network::service::authorize_resolved_target(host, port, &addrs, lan_policy)?;
 
     // Connect TcpStream directly to the pre-validated SocketAddr (DNS-rebinding safe)
     let tcp_stream = tokio::net::TcpStream::connect(addrs[0])
@@ -186,6 +185,7 @@ impl WebSocketManager {
         }
     }
 
+    #[allow(clippy::too_many_arguments)] // Dial inputs plus the optional LAN policy mirror the ws_connect wire payload.
     pub async fn connect<R: tauri::Runtime>(
         &self,
         socket_id: String,
@@ -194,8 +194,9 @@ impl WebSocketManager {
         caller_extension_id: String,
         origin_role: String,
         app: AppHandle<R>,
+        lan_policy: Option<&crate::network::lan_policy::LanPolicy>,
     ) -> Result<(), AppError> {
-        let ws_stream = connect_ws_stream(&url_str, headers).await?;
+        let ws_stream = connect_ws_stream(&url_str, headers, lan_policy).await?;
         self.connect_stream(socket_id, ws_stream, caller_extension_id, origin_role, app)
     }
 
@@ -503,19 +504,51 @@ mod tests {
 
     #[tokio::test]
     async fn ws_ssrf_validation_blocks_loopback_private_and_ipv4_mapped() {
-        assert!(connect_ws_stream("ws://localhost:8080", None)
+        assert!(connect_ws_stream("ws://localhost:8080", None, None)
             .await
             .is_err());
-        assert!(connect_ws_stream("ws://127.0.0.1:8080", None)
+        assert!(connect_ws_stream("ws://127.0.0.1:8080", None, None)
             .await
             .is_err());
-        assert!(connect_ws_stream("ws://192.168.1.1:8080", None)
+        assert!(connect_ws_stream("ws://192.168.1.1:8080", None, None)
             .await
             .is_err());
-        assert!(connect_ws_stream("ws://[::ffff:127.0.0.1]:8080", None)
+        assert!(
+            connect_ws_stream("ws://[::ffff:127.0.0.1]:8080", None, None)
+                .await
+                .is_err()
+        );
+        assert!(connect_ws_stream("http://example.com", None, None)
             .await
             .is_err());
-        assert!(connect_ws_stream("http://example.com", None).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn ws_private_target_without_lan_policy_requires_declaration() {
+        let err = connect_ws_stream("ws://192.168.1.50:1400", None, None)
+            .await
+            .expect_err("a private LAN target must be rejected without network:lan");
+        assert!(
+            format!("{err:?}").contains("network:lan"),
+            "expected the shared network:lan requirement, got: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn ws_never_allowed_target_stays_blocked_even_with_lan_policy() {
+        let policy =
+            crate::network::lan_policy::LanPolicy::from_manifest(Some(&serde_json::json!([
+                "192.168.0.0/16:1400"
+            ])))
+            .expect("valid LAN policy");
+        let err = connect_ws_stream("ws://169.254.169.254:1400", None, Some(&policy))
+            .await
+            .expect_err("a metadata address must stay blocked even with a policy present");
+        let rendered = format!("{err:?}");
+        assert!(
+            rendered.contains("link-local") || rendered.contains("metadata"),
+            "expected a never-allowed rejection, got: {rendered}"
+        );
     }
 
     #[tokio::test]

@@ -19,6 +19,10 @@ export function registerExtensionNameResolver(resolver: ExtensionNameResolver): 
   extensionNameResolver = resolver;
 }
 
+export function resolveExtensionName(extensionId: string): string {
+  return extensionNameResolver?.(extensionId) ?? extensionId;
+}
+
 export interface DispatchRequest {
   extensionId: string;
   kind: DispatchMessageKind;

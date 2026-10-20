@@ -328,7 +328,23 @@
       "required_setup_mid": "to run",
       "coming_soon": "Coming soon",
       "uninstall_title": "Uninstall Extension",
-      "uninstall_message": "Are you sure you want to uninstall \"{title}\"? This action cannot be undone."
+      "uninstall_message": "Are you sure you want to uninstall \"{title}\"? This action cannot be undone.",
+      "lan_devices": "Local network devices",
+      "lan_scan_for_devices": "Scan for devices",
+      "lan_add_device": "+ Add device",
+      "lan_host_placeholder": "host or IP",
+      "lan_port_placeholder": "port",
+      "lan_invalid_host_port": "Enter a valid host and port (1–65535).",
+      "lan_add_error": "Could not add host.",
+      "lan_discovered_devices": "Discovered devices",
+      "lan_scanning": "Scanning…",
+      "lan_scan_again": "Scan again",
+      "lan_no_devices_found": "No devices found on your network.",
+      "lan_os_prompt_hint": "No devices found. If prompted, allow Asyar to access the local network and scan again.",
+      "lan_tap_to_allow": "Tap to allow",
+      "lan_added": "Added",
+      "lan_via_ssdp": "via SSDP",
+      "lan_via_mdns": "via mDNS"
     },
     "ai": {
       "google_search": "Google Search",
@@ -1943,5 +1959,20 @@
     "alias": "Alias:",
     "non_standard": "Non-standard:",
     "non_standard_desc": "This binary runs outside standard system paths."
+  },
+  "lan_picker": {
+    "title": "{extensionName} wants to connect to a device on your network",
+    "subtitle_reason": "{reason}",
+    "tab_discovered": "Discovered devices",
+    "tab_manual": "Manual IP & port",
+    "manual_host": "Host or IP address",
+    "manual_port": "Port",
+    "manual_label": "Label (optional)",
+    "invalid_endpoint": "Enter a valid local IP or hostname and port.",
+    "allow": "Allow",
+    "cancel": "Cancel",
+    "direct_subtitle": "{extensionName} is requesting access to {host}:{port}",
+    "scanning": "Scanning local network…",
+    "no_devices": "No devices found on the local network."
   }
 }

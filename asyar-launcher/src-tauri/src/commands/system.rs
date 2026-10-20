@@ -4,6 +4,7 @@
 //! platform integrations. Notifications moved to `crate::notifications`.
 
 use crate::error::AppError;
+use crate::storage::DataStore;
 use log::info;
 use std::collections::HashMap;
 use tauri::AppHandle;
@@ -199,10 +200,28 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, AppErro
     }
 }
 
+fn build_lan_policy(
+    registry: &crate::permissions::ExtensionPermissionRegistry,
+    store: &DataStore,
+    extension_id: Option<&str>,
+) -> Result<Option<crate::network::lan_policy::LanPolicy>, AppError> {
+    let Some(id) = extension_id else {
+        return Ok(None);
+    };
+    let Some(mut policy) = registry.lan_policy_manifest(id)? else {
+        return Ok(None);
+    };
+    let conn = store.conn()?;
+    let user_hosts = crate::storage::lan_allowed_hosts::list(&conn, id)?;
+    policy.merge_user_hosts(&user_hosts);
+    Ok(Some(policy))
+}
+
 /// Performs an outbound HTTP request and returns the JSON response body.
 /// Thin wrapper: enforces the per-extension `network` permission and the
 /// SSRF guard, then delegates to `network::service::fetch`.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn fetch_url(
     url: String,
     method: Option<String>,
@@ -211,17 +230,22 @@ pub async fn fetch_url(
     timeout_ms: Option<u64>,
     caller_extension_id: Option<String>,
     registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    store: tauri::State<'_, DataStore>,
 ) -> Result<serde_json::Value, AppError> {
     registry.check(&caller_extension_id, "network")?;
-    crate::network::service::validate_url_for_ssrf(&url)?;
+    let lan_policy = build_lan_policy(&registry, &store, caller_extension_id.as_deref())?;
 
-    crate::network::service::fetch(crate::network::service::FetchRequest {
-        url,
-        method,
-        headers,
-        body,
-        timeout_ms,
-    })
+    crate::network::service::fetch_scoped(
+        crate::network::service::FetchRequest {
+            url,
+            method,
+            headers,
+            body,
+            timeout_ms,
+        },
+        lan_policy.as_ref(),
+        caller_extension_id.as_deref(),
+    )
     .await
 }
 
@@ -229,10 +253,12 @@ pub async fn fetch_url(
 pub async fn ws_connect(
     request: WebSocketConnectRequest,
     registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    store: tauri::State<'_, DataStore>,
     ws_manager: tauri::State<'_, crate::network::websocket::WebSocketManager>,
     app: tauri::AppHandle,
 ) -> Result<(), AppError> {
     registry.check(&request.caller_extension_id, "network")?;
+    let lan_policy = build_lan_policy(&registry, &store, request.caller_extension_id.as_deref())?;
     let ext_id = request
         .caller_extension_id
         .unwrap_or_else(|| "system".to_string());
@@ -252,6 +278,7 @@ pub async fn ws_connect(
             ext_id,
             origin_role,
             app,
+            lan_policy.as_ref(),
         )
         .await
 }
@@ -281,4 +308,83 @@ pub async fn ws_close(
     registry.check(&caller_extension_id, "network")?;
     let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
     ws_manager.close(&socket_id, code, reason, &ext_id).await
+}
+
+#[cfg(test)]
+mod lan_policy_tests {
+    use super::*;
+    use crate::{permissions::ExtensionPermissionRegistry, storage::DataStore};
+
+    fn make_registry_with_lan() -> ExtensionPermissionRegistry {
+        let r = ExtensionPermissionRegistry::new();
+        r.register(
+            "org.test",
+            std::collections::HashSet::from(["network".to_string(), "network:lan".to_string()]),
+            std::collections::HashMap::new(),
+        );
+        r
+    }
+
+    #[test]
+    fn bare_lan_extension_with_no_user_hosts_returns_empty_policy() {
+        let registry = make_registry_with_lan();
+        let store = DataStore::in_memory().unwrap();
+        let policy = build_lan_policy(&registry, &store, Some("org.test"))
+            .expect("build must succeed")
+            .expect("bare lan extension must return Some policy");
+        let err = policy.authorize(
+            "192.168.1.50",
+            8123,
+            &[std::net::IpAddr::V4(std::net::Ipv4Addr::new(
+                192, 168, 1, 50,
+            ))],
+        );
+        assert!(err.is_err(), "empty policy must deny");
+    }
+
+    #[test]
+    fn extension_without_lan_permission_returns_none() {
+        let r = ExtensionPermissionRegistry::new();
+        r.register(
+            "org.nolan",
+            std::collections::HashSet::from(["network".to_string()]),
+            std::collections::HashMap::new(),
+        );
+        let store = DataStore::in_memory().unwrap();
+        let policy = build_lan_policy(&r, &store, Some("org.nolan")).unwrap();
+        assert!(policy.is_none());
+    }
+
+    #[test]
+    fn user_host_added_to_store_is_reflected_in_policy() {
+        let registry = make_registry_with_lan();
+        let store = DataStore::in_memory().unwrap();
+        {
+            let conn = store.conn().unwrap();
+            crate::storage::lan_allowed_hosts::init_table(&conn).unwrap();
+            crate::storage::lan_allowed_hosts::add(&conn, "org.test", "ha.local", 8123, "HA")
+                .unwrap();
+        }
+        let policy = build_lan_policy(&registry, &store, Some("org.test"))
+            .unwrap()
+            .unwrap();
+        assert!(policy
+            .authorize(
+                "ha.local",
+                8123,
+                &[std::net::IpAddr::V4(std::net::Ipv4Addr::new(
+                    192, 168, 1, 50
+                ))]
+            )
+            .is_ok());
+        assert!(policy
+            .authorize(
+                "ha.local",
+                9999,
+                &[std::net::IpAddr::V4(std::net::Ipv4Addr::new(
+                    192, 168, 1, 50
+                ))]
+            )
+            .is_err());
+    }
 }

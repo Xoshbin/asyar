@@ -1,13 +1,34 @@
 ### 8.4 `NetworkService` — Outbound HTTP requests & WebSocket streaming
 
-**Runs in:** both worker and view.
+**Runs in:** both worker and view (note: `requestLanDevice` and `requestLanHost` require user interaction and must be called from a view; calling them from a worker rejects with `LAN_PICKER_REQUIRES_VIEW`).
 
-**Permission required:** `network`
+**Permission required:** `network` (`network:lan` for local network access and device discovery)
 
 ```typescript
 interface INetworkService {
   fetch(url: string, options?: RequestOptions): Promise<NetworkResponse>;
   connectWebSocket(url: string, options?: WebSocketOptions): Promise<IWebSocketHandle>;
+  listLanDevices(): Promise<LanDevice[]>;
+  requestLanDevice(options?: RequestLanDeviceOptions): Promise<LanDevice | null>;
+  requestLanHost(target: RequestLanHostTarget): Promise<LanDevice | null>;
+}
+
+interface LanDevice {
+  host: string;
+  port: number;
+  label: string;
+}
+
+interface RequestLanDeviceOptions {
+  serviceTypes?: string[];
+  reason?: string;
+  allowManualEntry?: boolean;
+}
+
+interface RequestLanHostTarget {
+  host: string;
+  port: number;
+  label?: string;
 }
 
 interface RequestOptions {
@@ -68,6 +89,119 @@ if (!created.ok) {
   throw new Error(`HTTP ${created.status}: ${created.statusText}`);
 }
 ```
+
+### Local-network access
+
+The ordinary `fetch()` method can reach a local device when the extension also
+declares `network:lan`. Endpoint scopes may be declared in the manifest:
+
+```json
+{
+  "permissions": ["network", "network:lan"],
+  "permissionArgs": {
+    "network:lan": ["speaker.local:1400", "192.168.0.0/16:1400"]
+  }
+}
+```
+
+No SDK method changes are needed for `fetch()` or `connectWebSocket()`. Rust
+resolves and pins the target, checks all DNS answers against the declared
+host/CIDR and port, and repeats validation for redirects. Loopback, link-local,
+and cloud metadata targets stay blocked.
+
+> **Deprecated, removed in 0.2.0:** extensions that don't declare `network:lan`
+> can still `fetch()` a **hostname** that resolves to a private or Tailscale
+> address (for example a self-hosted server URL a user typed in), and Asyar logs
+> a deprecation warning. Private IP literals are blocked as before. From 0.2.0
+> these requests require `network:lan`, so add it now if your extension talks to
+> self-hosted or home-network services.
+
+The `permissionArgs["network:lan"]` entry is optional. Endpoints can be approved
+in three ways:
+
+1. **Pre-declared in manifest**: Defined in `permissionArgs["network:lan"]` at install time.
+2. **In-flow device picker**: Requested dynamically via `network.requestLanDevice()`.
+3. **In-flow direct host confirmation**: Requested dynamically via `network.requestLanHost()`.
+4. **Settings UI**: Managed by the user in Settings → Extensions → Local network devices.
+
+Discovery reports the port a device serves HTTP on, not the control port it
+advertises. For example, a Sonos speaker appears on `:1400` (its SOAP/UPnP
+endpoint) rather than the TLS `:1443` in its SRV record, and a Google Cast
+device appears on `:8008` (the HTTP/DIAL API) rather than the binary Cast socket
+on `:8009`. Approving a device grants exactly the `host:port` shown in the scan.
+
+#### Request a LAN device (in-flow picker)
+
+`requestLanDevice(options?: RequestLanDeviceOptions): Promise<LanDevice | null>`
+prompts the user with a native launcher modal to discover and pick a device on
+the local network:
+
+```typescript
+// Open the in-flow device picker
+const device = await network.requestLanDevice({
+  reason: 'Select your smart speaker to control playback',
+  serviceTypes: ['_sonos._tcp.local.', '_googlecast._tcp.local.'], // optional custom types
+  allowManualEntry: true, // allow manual IP & port entry tab (default true)
+});
+
+if (device) {
+  console.log(`Approved: ${device.label} at ${device.host}:${device.port}`);
+  const res = await network.fetch(`http://${device.host}:${device.port}/status`);
+} else {
+  console.log('User dismissed the picker');
+}
+```
+
+- **Interactive UI**: Must be called from an extension view (`role: 'view'`).
+  Calling it from a worker iframe rejects with `LAN_PICKER_REQUIRES_VIEW`.
+- **Universal Discovery**: Runs 3-phase mDNS discovery (seed presets + any
+  custom `serviceTypes` + dynamic DNS-SD service enumeration via
+  `_services._dns-sd._udp.local.`) alongside wildcard SSDP (`ssdp:all`).
+- **Manual Tab**: Includes a manual IP & port entry tab so users can enter
+  devices on separate subnets or VLANs where multicast traffic is restricted.
+- **Grant Persistence**: Once selected, the device's `host:port` is persisted in
+  the extension's approved LAN hosts and returned as `{ host, port, label }`.
+  Returns `null` if the user cancels or closes the dialog.
+
+#### Request a custom LAN host (direct confirmation)
+
+`requestLanHost(target: RequestLanHostTarget): Promise<LanDevice | null>` prompts
+the user to approve a specific host and port without opening a full scan sheet:
+
+```typescript
+const approved = await network.requestLanHost({
+  host: '192.168.1.50',
+  port: 8123,
+  label: 'Home Assistant',
+});
+
+if (approved) {
+  const socket = await network.connectWebSocket(
+    `ws://${approved.host}:${approved.port}/api/websocket`,
+  );
+}
+```
+
+- **SSRF Validation**: Rust pre-validates `host` and `port` against SSRF rules
+  before showing the confirmation dialog. Loopback (`127.0.0.1`, `::1`),
+  link-local metadata (`169.254.169.254`), and invalid ports are rejected
+  immediately before prompting.
+- **Interactive UI**: Must be called from an extension view (`role: 'view'`).
+  Calling it from a worker rejects with `LAN_PICKER_REQUIRES_VIEW`.
+
+#### List user-approved LAN devices
+
+```typescript
+const devices = await network.listLanDevices();
+for (const device of devices) {
+  await network.fetch(`http://${device.host}:${device.port}/status`);
+}
+```
+
+`listLanDevices(): Promise<LanDevice[]>` requires `network:lan` and returns the
+`{ host, port, label }` endpoints the user approved via Settings or the in-flow
+picker. Manifest `permissionArgs` entries are not included, because the extension
+already owns its manifest. The method returns `[]` when nothing has been approved.
 
 ### Secret references
 
@@ -139,7 +273,11 @@ await socket.send(JSON.stringify({ id: 1, type: 'subscribe_events', event_type: 
 await socket.close(1000, 'User navigated away');
 ```
 
-> ⚠️ **Never use `window.fetch()`, `XMLHttpRequest`, or `new WebSocket()` directly inside your extension.** The iframe's Content Security Policy blocks external network connections (`default-src asyar-extension: 'self'`). Always route HTTP and WebSocket calls through `NetworkService`. Declare `"network"` in your `manifest.json` permissions.
+> ⚠️ **Use `NetworkService` for reviewable, permission-scoped network access.**
+> Direct browser networking is outside this Rust policy path; worker/view CSP
+> hardening is tracked separately and should not be treated as an enforcement
+> substitute. Declare `"network"` in your manifest and `"network:lan"` for
+> scoped local HTTP endpoints.
 
 **Timeout & Lifecycle behaviour:**
 

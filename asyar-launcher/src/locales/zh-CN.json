@@ -328,7 +328,23 @@
       "required_setup_mid": "以运行",
       "coming_soon": "即将推出",
       "uninstall_title": "卸载扩展",
-      "uninstall_message": "确定要卸载“{title}”吗？此操作无法撤销。"
+      "uninstall_message": "确定要卸载“{title}”吗？此操作无法撤销。",
+      "lan_devices": "局域网设备",
+      "lan_scan_for_devices": "扫描设备",
+      "lan_add_device": "+ 添加设备",
+      "lan_host_placeholder": "主机或 IP",
+      "lan_port_placeholder": "端口",
+      "lan_invalid_host_port": "请输入有效的主机和端口（1–65535）。",
+      "lan_add_error": "无法添加主机。",
+      "lan_discovered_devices": "已发现的设备",
+      "lan_scanning": "正在扫描…",
+      "lan_scan_again": "重新扫描",
+      "lan_no_devices_found": "未在网络上发现任何设备。",
+      "lan_os_prompt_hint": "未发现任何设备。若出现系统提示，请允许 Asyar 访问本地网络后重新扫描。",
+      "lan_tap_to_allow": "点击以允许",
+      "lan_added": "已添加",
+      "lan_via_ssdp": "通过 SSDP",
+      "lan_via_mdns": "通过 mDNS"
     },
     "ai": {
       "google_search": "Google 搜索",
@@ -1943,5 +1959,20 @@
     "alias": "别名：",
     "non_standard": "非标准路径：",
     "non_standard_desc": "此可执行文件位于标准系统路径之外。"
+  },
+  "lan_picker": {
+    "title": "{extensionName} 请求连接到您本地网络上的设备",
+    "subtitle_reason": "{reason}",
+    "tab_discovered": "已发现的设备",
+    "tab_manual": "手动输入 IP 与端口",
+    "manual_host": "主机或 IP 地址",
+    "manual_port": "端口",
+    "manual_label": "标签（可选）",
+    "invalid_endpoint": "请输入有效的局域网 IP 或主机名及端口。",
+    "allow": "允许",
+    "cancel": "取消",
+    "direct_subtitle": "{extensionName} 请求访问 {host}:{port}",
+    "scanning": "正在扫描局域网…",
+    "no_devices": "未在局域网上发现任何设备。"
   }
 }

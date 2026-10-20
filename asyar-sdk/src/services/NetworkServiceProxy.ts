@@ -4,10 +4,34 @@ import type {
   NetworkResponse,
   WebSocketOptions,
   IWebSocketHandle,
+  LanDevice,
+  RequestLanDeviceOptions,
+  RequestLanHostTarget,
 } from '../types/NetworkType';
 import { BaseServiceProxy } from './BaseServiceProxy';
 
 export class NetworkServiceProxy extends BaseServiceProxy implements INetworkService {
+  private static readonly PICKER_TIMEOUT_MS = 5 * 60 * 1000;
+  async listLanDevices(): Promise<LanDevice[]> {
+    return this.broker.invoke('network:listLanDevices', {}) as Promise<LanDevice[]>;
+  }
+
+  async requestLanDevice(options?: RequestLanDeviceOptions): Promise<LanDevice | null> {
+    return this.invoke<LanDevice | null>(
+      'network:requestLanDevice',
+      { options: options ?? {} },
+      NetworkServiceProxy.PICKER_TIMEOUT_MS,
+    );
+  }
+
+  async requestLanHost(target: RequestLanHostTarget): Promise<LanDevice | null> {
+    return this.invoke<LanDevice | null>(
+      'network:requestLanHost',
+      { target },
+      NetworkServiceProxy.PICKER_TIMEOUT_MS,
+    );
+  }
+
   async fetch(url: string, options?: RequestOptions): Promise<NetworkResponse> {
     const { secretRefs: _secretRefs, ...plainOptions } = options ?? {};
     const invokePromise = options?.secretRefs?.length
