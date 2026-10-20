@@ -62,7 +62,7 @@ struct PinnedClientPoolState {
 
 /// Bounded reusable reqwest clients for pre-authorized, DNS-pinned targets.
 ///
-/// Callers must resolve and authorize every target before calling [`Self::acquire`].
+/// Callers must resolve and authorize every target before calling `acquire`.
 /// The pool only retains clients; it never caches authorization or DNS answers.
 pub struct PinnedHttpClientPool {
     state: Mutex<PinnedClientPoolState>,
