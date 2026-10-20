@@ -407,6 +407,21 @@ pub(crate) async fn uninstall(
         }
     }
 
+    // Evict HTTP clients owned by this extension before releasing the rest of
+    // its transport resources. Authorization is still checked for every fetch,
+    // but eviction returns idle sockets promptly after uninstall.
+    if let Some(client_pool) =
+        app_handle.try_state::<crate::network::service::PinnedHttpClientPool>()
+    {
+        let n = client_pool.evict_extension(extension_id);
+        if n > 0 {
+            info!(
+                "Evicted {} HTTP client pool entry(s) for extension '{}'",
+                n, extension_id
+            );
+        }
+    }
+
     // Close all active WebSockets owned by this extension.
     if let Some(ws_manager) = app_handle.try_state::<crate::network::websocket::WebSocketManager>()
     {
@@ -1267,6 +1282,21 @@ pub(crate) async fn set_enabled(
                     "Failed to close filesystem watchers for disabled '{}': {}",
                     extension_id, e
                 ),
+            }
+        }
+
+        // Evict cached HTTP clients. Re-enable starts the extension with a
+        // fresh transport scope instead of retaining idle sockets while it is
+        // disabled.
+        if let Some(client_pool) =
+            app_handle.try_state::<crate::network::service::PinnedHttpClientPool>()
+        {
+            let n = client_pool.evict_extension(extension_id);
+            if n > 0 {
+                info!(
+                    "Evicted {} HTTP client pool entry(s) for disabled extension '{}'",
+                    n, extension_id
+                );
             }
         }
 
