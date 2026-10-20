@@ -390,6 +390,29 @@ jobs:
             fi
           )
 
+      - name: Verify Debian package dependencies
+        run: |
+          set -euo pipefail
+          deb_dir="src-tauri/target/${{ matrix.rust-target }}/release/bundle/deb"
+          deb_path="$(find "$deb_dir" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          if [ -z "$deb_path" ]; then
+            echo "No .deb package found in ${deb_dir}" >&2
+            exit 1
+          fi
+          echo "Inspecting control metadata for: ${deb_path}"
+          control_info="$(dpkg-deb -I "$deb_path")"
+          echo "$control_info" | grep -E '^ Depends:' || {
+            echo "Error: Generated .deb package is missing Depends line:" >&2
+            echo "$control_info" >&2
+            exit 1
+          }
+          if ! echo "$control_info" | grep -E '^ Depends:' | grep -q "libxdo3"; then
+            echo "Error: Generated .deb package Depends does not contain libxdo3:" >&2
+            echo "$control_info" | grep -E '^ Depends:' >&2
+            exit 1
+          fi
+          echo "Debian package dependencies verified successfully."
+
       - name: Upload Linux ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
         with:
