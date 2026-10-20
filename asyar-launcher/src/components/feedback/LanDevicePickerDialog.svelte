@@ -125,10 +125,11 @@
     }
   }
 
+  // Granting access is never a keyboard default: an extension can open this
+  // dialog at any moment, and an Enter meant for its own view must not approve
+  // a device. Direct-mode consent needs a deliberate click on Allow.
   function handleEnter() {
-    if (request.mode === 'direct') {
-      allowDirect();
-    } else if (activeTab === 'manual' && isValidManual && !busy) {
+    if (request.mode === 'discover' && activeTab === 'manual' && isValidManual && !busy) {
       handleManualSubmit();
     }
   }
@@ -205,9 +206,9 @@
   {/snippet}
 
   {#snippet actions()}
-    <Button onclick={onCancel}>{t('lan_picker.cancel')}</Button>
+    <Button autofocus onclick={onCancel}>{t('lan_picker.cancel')}</Button>
     {#if request.mode === 'direct'}
-      <Button autofocus onclick={allowDirect} disabled={busy} class="btn-consent-primary">
+      <Button onclick={allowDirect} disabled={busy} class="btn-consent-primary">
         {t('lan_picker.allow')}
       </Button>
     {:else if activeTab === 'manual'}

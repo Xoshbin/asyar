@@ -182,6 +182,22 @@ pub(crate) async fn uninstall(
                     ),
                 }
 
+                // A reinstall must ask the user again before reaching LAN devices.
+                match crate::storage::lan_allowed_hosts::clear_for_extension(&conn, extension_id) {
+                    Ok(count) => {
+                        if count > 0 {
+                            info!(
+                                "Cleared {} approved LAN hosts for extension '{}'",
+                                count, extension_id
+                            );
+                        }
+                    }
+                    Err(e) => warn!(
+                        "Failed to clear approved LAN hosts for '{}': {}",
+                        extension_id, e
+                    ),
+                }
+
                 match crate::extensions::onboarding_state::clear(&conn, extension_id) {
                     Ok(_) => {
                         info!("Cleared onboarding state for extension '{}'", extension_id);
@@ -404,21 +420,6 @@ pub(crate) async fn uninstall(
                 "Failed to close filesystem watchers for '{}': {}",
                 extension_id, e
             ),
-        }
-    }
-
-    // Evict HTTP clients owned by this extension before releasing the rest of
-    // its transport resources. Authorization is still checked for every fetch,
-    // but eviction returns idle sockets promptly after uninstall.
-    if let Some(client_pool) =
-        app_handle.try_state::<crate::network::service::PinnedHttpClientPool>()
-    {
-        let n = client_pool.evict_extension(extension_id);
-        if n > 0 {
-            info!(
-                "Evicted {} HTTP client pool entry(s) for extension '{}'",
-                n, extension_id
-            );
         }
     }
 
@@ -1282,21 +1283,6 @@ pub(crate) async fn set_enabled(
                     "Failed to close filesystem watchers for disabled '{}': {}",
                     extension_id, e
                 ),
-            }
-        }
-
-        // Evict cached HTTP clients. Re-enable starts the extension with a
-        // fresh transport scope instead of retaining idle sockets while it is
-        // disabled.
-        if let Some(client_pool) =
-            app_handle.try_state::<crate::network::service::PinnedHttpClientPool>()
-        {
-            let n = client_pool.evict_extension(extension_id);
-            if n > 0 {
-                info!(
-                    "Evicted {} HTTP client pool entry(s) for disabled extension '{}'",
-                    n, extension_id
-                );
             }
         }
 

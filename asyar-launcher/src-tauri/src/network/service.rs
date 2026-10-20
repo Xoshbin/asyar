@@ -4,191 +4,8 @@
 
 use crate::error::AppError;
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::net::IpAddr;
 use url::Url;
-
-const PINNED_CLIENT_POOL_MAX_ENTRIES: usize = 64;
-const PINNED_CLIENT_POOL_ENTRY_TTL: Duration = Duration::from_secs(120);
-const PINNED_CLIENT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
-const PINNED_CLIENT_POOL_MAX_IDLE_PER_HOST: usize = 4;
-
-fn normalize_addresses(addresses: &[SocketAddr]) -> Vec<SocketAddr> {
-    let mut addrs = addresses.to_vec();
-    addrs.sort_unstable();
-    addrs.dedup();
-    addrs
-}
-
-/// Identity partition for pooled extension HTTP clients. Clients never cross an
-/// extension boundary, even though reqwest has no cookie store enabled.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum ClientScope {
-    Host,
-    Extension(String),
-}
-
-impl ClientScope {
-    fn from_caller(caller_extension_id: Option<&str>) -> Self {
-        match caller_extension_id.filter(|id| !id.is_empty() && *id != "asyar") {
-            Some(extension_id) => Self::Extension(extension_id.to_string()),
-            None => Self::Host,
-        }
-    }
-}
-
-/// An authorized pin set is part of the key. Reusing a client for a changed DNS
-/// result would reuse a socket that was authorized under an old answer.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-struct PinnedClientKey {
-    scope: ClientScope,
-    scheme: String,
-    host: String,
-    port: u16,
-    addresses: Vec<SocketAddr>,
-}
-
-struct PinnedClientEntry {
-    client: reqwest::Client,
-    last_used: Instant,
-    last_used_sequence: u64,
-}
-
-struct PinnedClientPoolState {
-    entries: HashMap<PinnedClientKey, PinnedClientEntry>,
-    next_sequence: u64,
-}
-
-/// Bounded reusable reqwest clients for pre-authorized, DNS-pinned targets.
-///
-/// Callers must resolve and authorize every target before calling `acquire`.
-/// The pool only retains clients; it never caches authorization or DNS answers.
-pub struct PinnedHttpClientPool {
-    state: Mutex<PinnedClientPoolState>,
-    max_entries: usize,
-    entry_ttl: Duration,
-}
-
-impl Default for PinnedHttpClientPool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PinnedHttpClientPool {
-    pub(crate) fn new() -> Self {
-        Self::with_limits(PINNED_CLIENT_POOL_MAX_ENTRIES, PINNED_CLIENT_POOL_ENTRY_TTL)
-    }
-
-    fn with_limits(max_entries: usize, entry_ttl: Duration) -> Self {
-        Self {
-            state: Mutex::new(PinnedClientPoolState {
-                entries: HashMap::new(),
-                next_sequence: 0,
-            }),
-            max_entries: max_entries.max(1),
-            entry_ttl,
-        }
-    }
-
-    fn acquire(
-        &self,
-        scope: ClientScope,
-        scheme: &str,
-        host: &str,
-        port: u16,
-        addresses: &[SocketAddr],
-    ) -> Result<reqwest::Client, AppError> {
-        let normalized_addresses = normalize_addresses(addresses);
-        let key = PinnedClientKey {
-            scope,
-            scheme: scheme.to_string(),
-            host: host.to_string(),
-            port,
-            addresses: normalized_addresses.clone(),
-        };
-        let now = Instant::now();
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| AppError::Other("Pinned HTTP client pool lock failed".into()))?;
-        state
-            .entries
-            .retain(|_, entry| now.duration_since(entry.last_used) <= self.entry_ttl);
-        state.next_sequence = state.next_sequence.wrapping_add(1);
-        let sequence = state.next_sequence;
-
-        if let Some(entry) = state.entries.get_mut(&key) {
-            entry.last_used = now;
-            entry.last_used_sequence = sequence;
-            return Ok(entry.client.clone());
-        }
-
-        if state.entries.len() >= self.max_entries {
-            if let Some(lru_key) = state
-                .entries
-                .iter()
-                .min_by_key(|(_, entry)| entry.last_used_sequence)
-                .map(|(key, _)| key.clone())
-            {
-                state.entries.remove(&lru_key);
-            }
-        }
-
-        let client = pinned_client(host, &normalized_addresses)?;
-        state.entries.insert(
-            key,
-            PinnedClientEntry {
-                client: client.clone(),
-                last_used: now,
-                last_used_sequence: sequence,
-            },
-        );
-        Ok(client)
-    }
-
-    /// Evicts every cached client owned by an extension during disable or uninstall.
-    pub(crate) fn evict_extension(&self, extension_id: &str) -> usize {
-        let Ok(mut state) = self.state.lock() else {
-            return 0;
-        };
-        let before = state.entries.len();
-        state.entries.retain(
-            |key, _| !matches!(&key.scope, ClientScope::Extension(scope) if scope == extension_id),
-        );
-        before - state.entries.len()
-    }
-
-    #[cfg(test)]
-    fn len(&self) -> usize {
-        self.state
-            .lock()
-            .map(|state| state.entries.len())
-            .unwrap_or(0)
-    }
-
-    #[cfg(test)]
-    fn contains(
-        &self,
-        extension_id: &str,
-        host: &str,
-        port: u16,
-        addresses: &[SocketAddr],
-    ) -> bool {
-        let key = PinnedClientKey {
-            scope: ClientScope::Extension(extension_id.to_string()),
-            scheme: "http".to_string(),
-            host: host.to_string(),
-            port,
-            addresses: normalize_addresses(addresses),
-        };
-        self.state
-            .lock()
-            .map(|state| state.entries.contains_key(&key))
-            .unwrap_or(false)
-    }
-}
 
 /// Inputs for [`fetch`]. Mirrors the Tauri command parameters minus
 /// the `tauri::State` registry handle, so this is callable from any
@@ -360,18 +177,16 @@ pub async fn fetch(req: FetchRequest) -> Result<serde_json::Value, AppError> {
 /// Fetches for an extension after resolving and pinning every destination.
 /// Public destinations retain the existing `network` behavior. Restricted LAN
 /// destinations additionally require a matching `network:lan` endpoint.
-pub(crate) async fn fetch_scoped(
+pub async fn fetch_scoped(
     req: FetchRequest,
-    caller_extension_id: Option<&str>,
     lan_policy: Option<&crate::network::lan_policy::LanPolicy>,
-    client_pool: &PinnedHttpClientPool,
+    caller_extension_id: Option<&str>,
 ) -> Result<serde_json::Value, AppError> {
     let mut url =
         Url::parse(&req.url).map_err(|_| AppError::Other(format!("Invalid URL: {}", req.url)))?;
     let mut method = request_method(req.method.as_deref());
     let mut headers = req.headers.unwrap_or_default();
     let mut send_body = true;
-    let scope = ClientScope::from_caller(caller_extension_id);
 
     for redirect_count in 0..=10 {
         url = canonicalize_request_url(url)?;
@@ -385,11 +200,18 @@ pub(crate) async fn fetch_scoped(
             .port_or_known_default()
             .ok_or_else(|| AppError::Other("URL has no port".to_string()))?;
         let addresses = resolve_target(&host, port).await?;
-        authorize_resolved_target(&host, port, &addresses, lan_policy)?;
+        authorize_fetch_target(&host, port, &addresses, lan_policy, caller_extension_id)?;
 
-        let timeout = Duration::from_millis(req.timeout_ms.unwrap_or(20000));
-        let client = client_pool.acquire(scope.clone(), url.scheme(), &host, port, &addresses)?;
-        let mut request = client.request(method.clone(), url.clone()).timeout(timeout);
+        // Only public destinations may go through a configured proxy: a proxy
+        // dials the target itself, so a LAN destination must stay pinned.
+        let route = if addresses.iter().any(|addr| is_restricted_ip(&addr.ip())) {
+            Route::Pinned
+        } else {
+            Route::ProxyAllowed
+        };
+        let timeout = std::time::Duration::from_millis(req.timeout_ms.unwrap_or(20000));
+        let client = pinned_client(&host, &prefer_ipv4(&addresses), timeout, route)?;
+        let mut request = client.request(method.clone(), url.clone());
         for (key, value) in &headers {
             request = request.header(key, value);
         }
@@ -430,19 +252,43 @@ pub(crate) async fn fetch_scoped(
     unreachable!("redirect loop returns at its configured limit")
 }
 
-fn pinned_client(host: &str, addresses: &[SocketAddr]) -> Result<reqwest::Client, AppError> {
-    Ok(reqwest::Client::builder()
-        // A forward proxy resolves and dials the target itself, defeating
-        // the host-side authorization and address pin. The extension
-        // transport therefore intentionally bypasses environment proxies.
-        .no_proxy()
-        .connect_timeout(Duration::from_secs(10))
-        .pool_idle_timeout(PINNED_CLIENT_POOL_IDLE_TIMEOUT)
-        .pool_max_idle_per_host(PINNED_CLIENT_POOL_MAX_IDLE_PER_HOST)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Route {
+    /// Dial only the authorized, pinned addresses.
+    Pinned,
+    /// Public destination: honor the user's system or environment proxy, as
+    /// the plain `network` transport always has.
+    ProxyAllowed,
+}
+
+fn pinned_client(
+    host: &str,
+    addresses: &[std::net::SocketAddr],
+    timeout: std::time::Duration,
+    route: Route,
+) -> Result<reqwest::Client, AppError> {
+    let mut builder = reqwest::Client::builder();
+    if route == Route::Pinned {
+        builder = builder.no_proxy();
+    }
+    Ok(builder
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(timeout)
         .redirect(reqwest::redirect::Policy::none())
         .resolve_to_addrs(host, addresses)
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15")
         .build()?)
+}
+
+/// The extension transport has always dialed IPv4 only. Every resolved address
+/// is still authorized; this only narrows which of them get dialed.
+fn prefer_ipv4(addresses: &[std::net::SocketAddr]) -> Vec<std::net::SocketAddr> {
+    let ipv4: Vec<_> = addresses.iter().copied().filter(|a| a.is_ipv4()).collect();
+    if ipv4.is_empty() {
+        addresses.to_vec()
+    } else {
+        ipv4
+    }
 }
 
 fn strip_sensitive_redirect_headers(
@@ -543,6 +389,36 @@ pub(crate) fn authorize_resolved_target(
     Ok(())
 }
 
+/// COMPAT(remove in 0.2.0): before `network:lan`, `fetch` only blocked private
+/// IP literals, so published extensions without `network:lan` reach hostnames
+/// that resolve to private or Tailscale addresses (e.g. a self-hosted Mealie
+/// URL). Keep allowing that, with a deprecation warning, so they don't break.
+/// Never-allowed addresses (loopback, link-local, metadata) and private IP
+/// literals stay blocked. Extensions that declare `network:lan` opt into the
+/// strict policy. Fetch only: the WebSocket transport always blocked these.
+fn authorize_fetch_target(
+    host: &str,
+    port: u16,
+    addresses: &[std::net::SocketAddr],
+    lan_policy: Option<&crate::network::lan_policy::LanPolicy>,
+    caller_extension_id: Option<&str>,
+) -> Result<(), AppError> {
+    let result = authorize_resolved_target(host, port, addresses, lan_policy);
+    let legacy_hostname = lan_policy.is_none()
+        && host.parse::<IpAddr>().is_err()
+        && !addresses
+            .iter()
+            .any(|addr| crate::network::lan_policy::is_never_allowed(&addr.ip()));
+    if result.is_err() && legacy_hostname {
+        log::warn!(
+            "[deprecated] Extension '{}' fetched '{host}', which resolves to a private address, without declaring network:lan. This will be blocked in Asyar 0.2.0; add network:lan to the manifest.",
+            caller_extension_id.unwrap_or("asyar")
+        );
+        return Ok(());
+    }
+    result
+}
+
 async fn response_envelope(response: reqwest::Response) -> Result<serde_json::Value, AppError> {
     let status = response.status().as_u16();
     let status_text = response
@@ -574,10 +450,6 @@ async fn response_envelope(response: reqwest::Response) -> Result<serde_json::Va
 mod tests {
     use super::*;
     use mockito::Server;
-    use std::sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    };
 
     #[test]
     fn dotted_hostname_is_canonicalized_before_transport() {
@@ -602,7 +474,13 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        let client = pinned_client("speaker.local", &[server.socket_address()]).unwrap();
+        let client = pinned_client(
+            "speaker.local",
+            &[server.socket_address()],
+            std::time::Duration::from_secs(2),
+            Route::Pinned,
+        )
+        .unwrap();
 
         let response = client.get(url).send().await.unwrap();
 
@@ -610,176 +488,15 @@ mod tests {
         reached.assert_async().await;
     }
 
-    #[tokio::test]
-    async fn pinned_client_pool_reuses_a_keep_alive_connection_for_the_same_pin_set() {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let accepted = Arc::new(AtomicUsize::new(0));
-        let accepted_server = Arc::clone(&accepted);
-        let server = tokio::spawn(async move {
-            let (stream, _) = listener.accept().await.unwrap();
-            accepted_server.fetch_add(1, Ordering::SeqCst);
-            let (reader, mut writer) = stream.into_split();
-            let mut reader = tokio::io::BufReader::new(reader);
-            for _ in 0..2 {
-                let mut request = String::new();
-                tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut request)
-                    .await
-                    .unwrap();
-                loop {
-                    let mut header = String::new();
-                    tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut header)
-                        .await
-                        .unwrap();
-                    if header == "\r\n" {
-                        break;
-                    }
-                }
-                tokio::io::AsyncWriteExt::write_all(
-                    &mut writer,
-                    b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok",
-                )
-                .await
-                .unwrap();
-            }
-        });
-
-        let pool = PinnedHttpClientPool::new();
-        let client = pool
-            .acquire(
-                ClientScope::Extension("org.asyar.pool-test".into()),
-                "http",
-                "speaker.local",
-                address.port(),
-                &[address],
-            )
-            .unwrap();
-        let url = format!("http://speaker.local:{}/status", address.port());
-        assert_eq!(
-            client.get(&url).send().await.unwrap().text().await.unwrap(),
-            "ok"
-        );
-
-        let reused = pool
-            .acquire(
-                ClientScope::Extension("org.asyar.pool-test".into()),
-                "http",
-                "speaker.local",
-                address.port(),
-                &[address],
-            )
-            .unwrap();
-        assert_eq!(
-            reused.get(&url).send().await.unwrap().text().await.unwrap(),
-            "ok"
-        );
-        server.await.unwrap();
-
-        assert_eq!(accepted.load(Ordering::SeqCst), 1);
-        assert_eq!(pool.len(), 1);
-    }
-
-    #[test]
-    fn pinned_client_pool_partitions_extensions_and_exact_address_lists() {
-        let pool = PinnedHttpClientPool::new();
-        let first = ["192.168.1.20:1400".parse().unwrap()];
-        let second = ["192.168.1.21:1400".parse().unwrap()];
-
-        pool.acquire(
-            ClientScope::Extension("org.asyar.alpha".into()),
-            "http",
-            "speaker.local",
-            1400,
-            &first,
-        )
-        .unwrap();
-        pool.acquire(
-            ClientScope::Extension("org.asyar.beta".into()),
-            "http",
-            "speaker.local",
-            1400,
-            &first,
-        )
-        .unwrap();
-        pool.acquire(
-            ClientScope::Extension("org.asyar.alpha".into()),
-            "http",
-            "speaker.local",
-            1400,
-            &second,
-        )
-        .unwrap();
-
-        assert_eq!(pool.len(), 3);
-        assert_eq!(pool.evict_extension("org.asyar.alpha"), 2);
-        assert_eq!(pool.len(), 1);
-    }
-
-    #[test]
-    fn pinned_client_pool_normalizes_shuffled_round_robin_addresses() {
-        let pool = PinnedHttpClientPool::new();
-        let addr1: SocketAddr = "52.21.224.34:443".parse().unwrap();
-        let addr2: SocketAddr = "184.194.160.148:443".parse().unwrap();
-        let scope = ClientScope::Extension("org.asyar.playground".into());
-
-        pool.acquire(scope.clone(), "https", "httpbin.org", 443, &[addr1, addr2])
-            .unwrap();
-        // Subsequent lookup returns the same set of IPs in reverse/shuffled order (round-robin DNS)
-        pool.acquire(scope.clone(), "https", "httpbin.org", 443, &[addr2, addr1])
-            .unwrap();
-
-        assert_eq!(pool.len(), 1);
-    }
-
-    #[test]
-    fn pinned_client_pool_evicts_least_recently_used_entries_at_capacity() {
-        let pool = PinnedHttpClientPool::with_limits(2, std::time::Duration::from_secs(60));
-        let first = ["192.168.1.20:1400".parse().unwrap()];
-        let second = ["192.168.1.21:1400".parse().unwrap()];
-        let third = ["192.168.1.22:1400".parse().unwrap()];
-        let scope = ClientScope::Extension("org.asyar.alpha".into());
-
-        pool.acquire(scope.clone(), "http", "one.local", 1400, &first)
-            .unwrap();
-        pool.acquire(scope.clone(), "http", "two.local", 1400, &second)
-            .unwrap();
-        pool.acquire(scope.clone(), "http", "one.local", 1400, &first)
-            .unwrap();
-        pool.acquire(scope, "http", "three.local", 1400, &third)
-            .unwrap();
-
-        assert_eq!(pool.len(), 2);
-        assert!(pool.contains("org.asyar.alpha", "one.local", 1400, &first));
-        assert!(!pool.contains("org.asyar.alpha", "two.local", 1400, &second));
-        assert!(pool.contains("org.asyar.alpha", "three.local", 1400, &third));
-    }
-
-    #[test]
-    fn pinned_client_pool_expires_inactive_entries() {
-        let pool = PinnedHttpClientPool::with_limits(2, std::time::Duration::from_millis(1));
-        let first = ["192.168.1.20:1400".parse().unwrap()];
-        let second = ["192.168.1.21:1400".parse().unwrap()];
-        let scope = ClientScope::Extension("org.asyar.alpha".into());
-
-        pool.acquire(scope.clone(), "http", "one.local", 1400, &first)
-            .unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(5));
-        pool.acquire(scope, "http", "two.local", 1400, &second)
-            .unwrap();
-
-        assert_eq!(pool.len(), 1);
-        assert!(!pool.contains("org.asyar.alpha", "one.local", 1400, &first));
-        assert!(pool.contains("org.asyar.alpha", "two.local", 1400, &second));
-    }
-
     #[test]
     fn resolved_target_requires_lan_scope_and_rejects_public_lan_mixes() {
         let private = ["192.168.1.20:1400".parse().unwrap()];
         assert!(authorize_resolved_target("speaker.local", 1400, &private, None).is_err());
-        let policy = crate::network::lan_policy::LanPolicy::parse(&serde_json::json!([
-            "speaker.local:1400"
-        ]))
-        .unwrap();
+        let policy =
+            crate::network::lan_policy::LanPolicy::from_manifest(Some(&serde_json::json!([
+                "speaker.local:1400"
+            ])))
+            .unwrap();
         assert!(authorize_resolved_target("speaker.local", 1400, &private, Some(&policy)).is_ok());
         let mixed = [
             "192.168.1.20:1400".parse().unwrap(),
@@ -788,6 +505,55 @@ mod tests {
         assert!(authorize_resolved_target("speaker.local", 1400, &mixed, Some(&policy)).is_err());
         let public = ["8.8.8.8:443".parse().unwrap()];
         assert!(authorize_resolved_target("example.com", 443, &public, Some(&policy)).is_ok());
+    }
+
+    #[test]
+    fn legacy_extension_without_lan_keeps_reaching_private_hostnames() {
+        let private = ["192.168.1.20:9000".parse().unwrap()];
+        assert!(authorize_fetch_target("mealie.home", 9000, &private, None, Some("org.x")).is_ok());
+        let tailscale = ["100.101.102.103:443".parse().unwrap()];
+        assert!(
+            authorize_fetch_target("mealie.tail1234.ts.net", 443, &tailscale, None, None).is_ok()
+        );
+    }
+
+    #[test]
+    fn legacy_compat_never_opens_literals_or_never_allowed_addresses() {
+        let private = ["192.168.1.20:9000".parse().unwrap()];
+        assert!(authorize_fetch_target("192.168.1.20", 9000, &private, None, None).is_err());
+        let loopback = ["127.0.0.1:80".parse().unwrap()];
+        assert!(authorize_fetch_target("evil.example", 80, &loopback, None, None).is_err());
+        let metadata = ["169.254.169.254:80".parse().unwrap()];
+        assert!(authorize_fetch_target("evil.example", 80, &metadata, None, None).is_err());
+    }
+
+    #[test]
+    fn extensions_declaring_network_lan_get_the_strict_policy() {
+        let policy = crate::network::lan_policy::LanPolicy::from_manifest(None).unwrap();
+        let private = ["192.168.1.20:9000".parse().unwrap()];
+        assert!(
+            authorize_fetch_target("mealie.home", 9000, &private, Some(&policy), None).is_err()
+        );
+    }
+
+    #[test]
+    fn legacy_private_hostname_compat_is_removed_before_0_2_0() {
+        let current =
+            semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("package version must parse");
+        let deadline = semver::Version::parse("0.2.0").unwrap();
+        assert!(
+            current < deadline,
+            "launcher is at {current}: remove authorize_fetch_target's legacy hostname compat"
+        );
+        assert!(include_str!("service.rs").contains("COMPAT(remove in 0.2.0)"));
+    }
+
+    #[test]
+    fn fetch_dials_ipv4_when_available() {
+        let v4: std::net::SocketAddr = "192.168.1.20:80".parse().unwrap();
+        let v6: std::net::SocketAddr = "[fd00::20]:80".parse().unwrap();
+        assert_eq!(prefer_ipv4(&[v6, v4]), vec![v4]);
+        assert_eq!(prefer_ipv4(&[v6]), vec![v6]);
     }
 
     #[test]

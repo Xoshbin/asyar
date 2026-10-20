@@ -169,12 +169,19 @@ async fn scan_ssdp(tx: mpsc::Sender<DiscoveredDevice>, timeout: Duration) {
         "\r\n"
     );
 
-    if socket
-        .send_to(msearch.as_bytes(), "239.255.255.250:1900")
-        .await
-        .is_err()
-    {
-        return;
+    // SSDP runs over lossy multicast UDP; the UPnP spec recommends sending the
+    // search more than once so a single dropped datagram doesn't hide devices.
+    for attempt in 0..3 {
+        if attempt > 0 {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+        }
+        if socket
+            .send_to(msearch.as_bytes(), "239.255.255.250:1900")
+            .await
+            .is_err()
+        {
+            return;
+        }
     }
 
     let deadline = tokio::time::Instant::now() + timeout;

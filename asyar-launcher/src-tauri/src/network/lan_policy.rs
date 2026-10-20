@@ -19,8 +19,8 @@ enum Target {
 }
 
 impl LanPolicy {
-    /// Replaces `parse()` as the public entry point. Tolerates `None` (bare
-    /// `network:lan` with no manifest CIDR) and empty arrays.
+    /// Parses `permissionArgs["network:lan"]`. Tolerates `None` (bare
+    /// `network:lan`, user-managed hosts only) and empty arrays.
     pub fn from_manifest(value: Option<&serde_json::Value>) -> Result<Self, AppError> {
         let Some(value) = value else {
             return Ok(Self { endpoints: vec![] });
@@ -54,25 +54,6 @@ impl LanPolicy {
                 self.endpoints.push(ep);
             }
         }
-    }
-
-    pub fn parse(value: &serde_json::Value) -> Result<Self, AppError> {
-        let entries = value
-            .as_array()
-            .ok_or_else(|| invalid("must be an array"))?;
-        if entries.is_empty() {
-            return Err(invalid("must contain at least one endpoint"));
-        }
-        let endpoints = entries
-            .iter()
-            .map(|entry| {
-                let entry = entry
-                    .as_str()
-                    .ok_or_else(|| invalid("entries must be strings"))?;
-                parse_endpoint(entry)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self { endpoints })
     }
 
     pub fn authorize(&self, host: &str, port: u16, addresses: &[IpAddr]) -> Result<(), AppError> {
@@ -286,8 +267,8 @@ mod tests {
 
     #[test]
     fn declared_host_and_port_authorize_only_that_endpoint() {
-        let policy =
-            LanPolicy::parse(&serde_json::json!(["speaker.local:1400"])).expect("valid LAN policy");
+        let policy = LanPolicy::from_manifest(Some(&serde_json::json!(["speaker.local:1400"])))
+            .expect("valid LAN policy");
 
         assert!(policy
             .authorize(
@@ -314,7 +295,7 @@ mod tests {
 
     #[test]
     fn declared_cidr_and_port_authorize_only_addresses_inside_the_range() {
-        let policy = LanPolicy::parse(&serde_json::json!(["192.168.0.0/16:1400"]))
+        let policy = LanPolicy::from_manifest(Some(&serde_json::json!(["192.168.0.0/16:1400"])))
             .expect("valid LAN policy");
 
         assert!(policy
@@ -340,7 +321,7 @@ mod tests {
             "239.255.255.250:1900",
         ] {
             assert!(
-                LanPolicy::parse(&serde_json::json!([target])).is_err(),
+                LanPolicy::from_manifest(Some(&serde_json::json!([target]))).is_err(),
                 "{target}"
             );
         }
@@ -440,8 +421,8 @@ mod tests {
 
     #[test]
     fn every_dns_answer_must_be_authorized_to_prevent_rebinding() {
-        let policy =
-            LanPolicy::parse(&serde_json::json!(["speaker.local:1400"])).expect("valid LAN policy");
+        let policy = LanPolicy::from_manifest(Some(&serde_json::json!(["speaker.local:1400"])))
+            .expect("valid LAN policy");
         let mixed = [
             IpAddr::V4(Ipv4Addr::new(192, 168, 1, 9)),
             IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),

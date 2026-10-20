@@ -58,6 +58,9 @@ pub async fn lan_hosts_add(
     label: String,
     store: State<'_, DataStore>,
 ) -> Result<LanAllowedHost, AppError> {
+    // Store the canonical form the policy matches against, so `HA.local` and
+    // `ha.local.` can't become two separate approvals of the same device.
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
     crate::network::lan_policy::LanPolicy::from_manifest(Some(&serde_json::json!([format!(
         "{host}:{port}"
     )])))?;

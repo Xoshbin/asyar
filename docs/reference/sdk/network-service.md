@@ -109,6 +109,13 @@ resolves and pins the target, checks all DNS answers against the declared
 host/CIDR and port, and repeats validation for redirects. Loopback, link-local,
 and cloud metadata targets stay blocked.
 
+> **Deprecated, removed in 0.2.0:** extensions that don't declare `network:lan`
+> can still `fetch()` a **hostname** that resolves to a private or Tailscale
+> address (for example a self-hosted server URL a user typed in), and Asyar logs
+> a deprecation warning. Private IP literals are blocked as before. From 0.2.0
+> these requests require `network:lan`, so add it now if your extension talks to
+> self-hosted or home-network services.
+
 The `permissionArgs["network:lan"]` entry is optional. Endpoints can be approved
 in three ways:
 

@@ -536,10 +536,11 @@ mod tests {
 
     #[tokio::test]
     async fn ws_never_allowed_target_stays_blocked_even_with_lan_policy() {
-        let policy = crate::network::lan_policy::LanPolicy::parse(&serde_json::json!([
-            "192.168.0.0/16:1400"
-        ]))
-        .expect("valid LAN policy");
+        let policy =
+            crate::network::lan_policy::LanPolicy::from_manifest(Some(&serde_json::json!([
+                "192.168.0.0/16:1400"
+            ])))
+            .expect("valid LAN policy");
         let err = connect_ws_stream("ws://169.254.169.254:1400", None, Some(&policy))
             .await
             .expect_err("a metadata address must stay blocked even with a policy present");
