@@ -437,10 +437,10 @@ html[data-platform='macos'] .app-root {
     --bg-secondary: rgba(40, 40, 42, 0.65);
     --bg-tertiary: rgba(50, 50, 52, 0.65);
     --bg-hover: rgba(64, 64, 66, 0.55);
-    /* Selection carries chroma; hover does not. That difference is what keeps
-       the two apart at a glance, and it is the only surface token with any
-       chroma in it (Principle III — one candidate). */
-    --bg-selected: rgba(74, 74, 76, 0.6);
+    /* Selection is the only chromatic surface. Its pale blue source preserves
+       a luminance step as vibrancy brightens over light desktop content, while
+       remaining translucent enough for the material to adapt underneath. */
+    --bg-selected: rgba(120, 150, 245, 0.24);
     --bg-secondary-full-opacity: rgba(40, 40, 42);
     --bg-popup: rgb(30, 30, 32);
 
@@ -518,7 +518,7 @@ html[data-platform='macos'] .app-root {
   --bg-secondary: rgba(40, 40, 42, 0.65);
   --bg-tertiary: rgba(50, 50, 52, 0.65);
   --bg-hover: rgba(64, 64, 66, 0.55);
-  --bg-selected: rgba(74, 74, 76, 0.6);
+  --bg-selected: rgba(120, 150, 245, 0.24);
   --bg-secondary-full-opacity: rgba(40, 40, 42);
   --bg-popup: rgb(30, 30, 32);
 
@@ -585,7 +585,7 @@ html[data-platform='macos'] .app-root {
     --bg-secondary: rgba(230, 230, 235, 0.65);
     --bg-tertiary: rgba(245, 245, 247, 0.65);
     --bg-hover: rgba(220, 220, 225, 0.5);
-    --bg-selected: rgba(140, 140, 148, 0.22);
+    --bg-selected: rgba(42, 85, 214, 0.13);
     --bg-secondary-full-opacity: rgb(230, 230, 235);
     --bg-popup: rgb(240, 240, 245);
 
@@ -651,7 +651,7 @@ html[data-platform='macos'] .app-root {
   --bg-secondary: rgba(230, 230, 235, 0.65);
   --bg-tertiary: rgba(245, 245, 247, 0.65);
   --bg-hover: rgba(220, 220, 225, 0.5);
-  --bg-selected: rgba(140, 140, 148, 0.22);
+  --bg-selected: rgba(42, 85, 214, 0.13);
   --bg-secondary-full-opacity: rgb(230, 230, 235);
   --bg-popup: rgb(240, 240, 245);
 
