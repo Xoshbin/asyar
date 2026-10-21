@@ -73,15 +73,17 @@ const PALETTES = [
     mode: 'dark',
     tracking: /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme\]\)/,
     forced: /^:root\[data-theme='dark'\]\s*(?=\{)/m,
+    selected: 'rgba(120, 150, 245, 0.24)',
   },
   {
     mode: 'light',
     tracking: /@media \(prefers-color-scheme: light\)\s*\{\s*:root:not\(\[data-theme\]\)/,
     forced: /^:root\[data-theme='light'\]\s*(?=\{)/m,
+    selected: 'rgba(42, 85, 214, 0.13)',
   },
 ] as const;
 
-describe.each(PALETTES)('$mode palette', ({ tracking, forced }) => {
+describe.each(PALETTES)('$mode palette', ({ tracking, forced, selected }) => {
   const osTracking = tokens(block(tracking));
   const userForced = tokens(block(forced));
 
@@ -99,23 +101,66 @@ describe.each(PALETTES)('$mode palette', ({ tracking, forced }) => {
       expect(`${name}: ${userForced[name]}`).toBe(`${name}: ${value}`);
     }
   });
+
+  it('keeps selection accent-tinted instead of neutral gray', () => {
+    expect(osTracking['--bg-selected']).toBe(selected);
+    expect(userForced['--bg-selected']).toBe(selected);
+  });
 });
 
 /* ── Contrast ───────────────────────────────────────────────────────────── */
 
-function relativeLuminance(hex: string): number {
+type Rgb = readonly [number, number, number];
+
+function rgb(hex: string): Rgb {
   const n = hex.replace('#', '');
-  const channels = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16) / 255);
+  return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+}
+
+function rgba(value: string): readonly [...Rgb, number] {
+  const match = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0(?:\.\d+)?|1(?:\.0+)?)\s*\)$/.exec(
+    value,
+  );
+  if (!match) throw new Error(`expected rgba() colour, received ${value}`);
+  return [Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4])];
+}
+
+function composite([r, g, b, alpha]: readonly [...Rgb, number], backdrop: Rgb): Rgb {
+  const blend = (channel: number, backdropChannel: number) =>
+    Math.round(channel * alpha + backdropChannel * (1 - alpha));
+  return [blend(r, backdrop[0]), blend(g, backdrop[1]), blend(b, backdrop[2])];
+}
+
+function relativeLuminance(value: string | Rgb): number {
+  const channels = (typeof value === 'string' ? rgb(value) : value).map((channel) => channel / 255);
   const [r, g, b] = channels.map((c) =>
     c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4),
   );
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-function contrast(a: string, b: string): number {
+function contrast(a: string | Rgb, b: string | Rgb): number {
   const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 }
+
+describe('the selected surface stays visible as dark vibrancy adapts', () => {
+  const selected = rgba(tokens(block(PALETTES[0].forced))['--bg-selected']);
+
+  // Measured from the unselected launcher surface in the issue reproductions:
+  // the same dark material over black and white content, respectively.
+  const materialSamples = [
+    { backdrop: 'black', surface: [47, 48, 49] },
+    { backdrop: 'white', surface: [92, 92, 93] },
+  ] as const satisfies ReadonlyArray<{ backdrop: string; surface: Rgb }>;
+
+  it.each(materialSamples)('keeps a luminance step over a $backdrop backdrop', ({ surface }) => {
+    const compositedSelection = composite(selected, surface);
+
+    expect(relativeLuminance(compositedSelection)).toBeGreaterThan(relativeLuminance(surface));
+    expect(contrast(compositedSelection, surface)).toBeGreaterThanOrEqual(1.2);
+  });
+});
 
 const ON_ACCENT = /--text-on-accent:\s*(#[0-9a-f]{6})/i.exec(STYLE)?.[1] ?? '';
 
