@@ -21,6 +21,7 @@ pub mod display_name;
 pub mod haptics;
 pub mod icon;
 pub mod input;
+pub mod launcher_resize;
 pub mod quicklook;
 pub mod system;
 pub mod window;

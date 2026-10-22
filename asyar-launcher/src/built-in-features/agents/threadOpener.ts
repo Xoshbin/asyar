@@ -14,20 +14,22 @@ export async function openAgentForTab(
   continueLastThread: boolean,
 ): Promise<void> {
   agentsManager.currentAgentId = agentId;
+  agentsManager.currentThreadId = null;
+
+  // Navigation must stay synchronous with the context-mode activation. Compact
+  // mode expands as soon as that context is committed, so awaiting persistence
+  // first would paint one expanded root-launcher frame before this view appears.
+  viewManager.navigateToView('agents/AgentChatView');
+
   if (!agentId) {
-    agentsManager.currentThreadId = null;
-    viewManager.navigateToView('agents/AgentChatView');
     return;
   }
 
   if (continueLastThread) {
     const threads = await agentService.listThreads(agentId);
+    if (agentsManager.currentAgentId !== agentId) return;
     agentsManager.currentThreadId = threads.length > 0 ? threads[0].id : null;
-  } else {
-    agentsManager.currentThreadId = null;
   }
-
-  viewManager.navigateToView('agents/AgentChatView');
 
   if (initialQuery && submitHandler) {
     await submitHandler(initialQuery);

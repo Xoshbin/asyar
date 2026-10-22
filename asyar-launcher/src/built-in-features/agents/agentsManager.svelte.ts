@@ -3,6 +3,7 @@ import { agentsBackfillThreadTitles, replaceDynamicCommandsBuiltin } from '../..
 import { logService } from '../../services/log/logService';
 import type { DynamicCommandRegistration } from 'asyar-sdk/contracts';
 import type { AgentService } from './agentService.svelte';
+import type { ThreadDef } from './types';
 import { agentService as defaultAgentService } from './agentService.svelte';
 import type { ChatStreamStatus } from '../../services/ai/IProviderPlugin';
 import { appListen } from '../../lib/ipc/bridgeEvents';
@@ -36,6 +37,12 @@ export class AgentsManager {
    * via the abortSignal arg.
    */
   activeAbortController = $state<AbortController | null>(null);
+  /**
+   * The thread list each agent last loaded. The chat view mounts fresh on
+   * every open, so it renders this until its own load lands rather than an
+   * empty sidebar that claims there are no threads.
+   */
+  private knownThreads = new Map<string, ThreadDef[]>();
   private service: AgentService;
   private started = false;
   private agentsChangedUnlisten: UnlistenFn | null = null;
@@ -106,6 +113,14 @@ export class AgentsManager {
       this.agentsChangedUnlisten = null;
     }
     await replaceDynamicCommandsBuiltin(AGENTS_EXTENSION_ID, []);
+  }
+
+  threadsFor(agentId: string): ThreadDef[] | undefined {
+    return this.knownThreads.get(agentId);
+  }
+
+  rememberThreads(agentId: string, threads: ThreadDef[]): void {
+    this.knownThreads.set(agentId, threads);
   }
 
   async refresh(): Promise<void> {
