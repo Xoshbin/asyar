@@ -135,6 +135,32 @@ describe('AgentChatView', () => {
     await waitFor(() => expect(screen.queryByText(thread.title)).toBeNull());
   });
 
+  it('does not claim there are no threads before the list has loaded', async () => {
+    // An agent this suite has never loaded, so nothing is remembered for it.
+    agentsManager.currentAgentId = 'agent-not-yet-loaded';
+    const pending = deferred<(typeof thread)[]>();
+    mockedAgentService.listThreads.mockReturnValue(pending.promise);
+
+    render(AgentChatView);
+    await waitFor(() => expect(mockedAgentService.listThreads).toHaveBeenCalled());
+    expect(screen.queryByText('No threads')).toBeNull();
+
+    pending.resolve([thread]);
+    await screen.findByText(thread.title);
+  });
+
+  it('shows the last known threads at once when the view opens again', async () => {
+    const first = render(AgentChatView);
+    await screen.findByText(thread.title);
+    first.unmount();
+
+    mockedAgentService.listThreads.mockReturnValue(new Promise(() => {}));
+    render(AgentChatView);
+
+    expect(screen.getByText(thread.title)).toBeTruthy();
+    expect(screen.queryByText('No threads')).toBeNull();
+  });
+
   it('fetches the initial thread list only once', async () => {
     render(AgentChatView);
 

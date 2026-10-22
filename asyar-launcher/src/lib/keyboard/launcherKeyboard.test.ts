@@ -498,6 +498,24 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
+      it('dismisses a compact context view synchronously on Backspace', () => {
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          appearance: { launchView: 'compact' },
+        } as any);
+        viewManager.activeView = 'agents/AgentChatView';
+        const deps = createMockDeps({
+          getActiveContext: vi.fn(() => ({ provider: { id: 'agents:default' }, query: '' }) as any),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Backspace');
+
+        handleGlobalKeydown(event);
+
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(deps.handleContextDismiss).toHaveBeenCalledWith(true);
+        expect(extensionManager.goBack).toHaveBeenCalledTimes(1);
+      });
+
       it('Backspace does NOT exit context when query is non-empty', () => {
         const deps = createMockDeps({
           getActiveContext: vi.fn(() => ({ provider: { id: 'google' }, query: 'hello' }) as any),

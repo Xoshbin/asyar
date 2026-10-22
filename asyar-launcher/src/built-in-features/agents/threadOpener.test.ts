@@ -86,6 +86,43 @@ describe('openAgentForTab', () => {
     expect(viewManager.navigateToView).toHaveBeenCalledWith('agents/AgentChatView');
   });
 
+  it('navigates before waiting for the previous thread to load', async () => {
+    let resolveThreads!: (threads: (typeof thread1)[]) => void;
+    agentsManager.currentThreadId = 'stale-thread';
+    vi.mocked(agentService.listThreads).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveThreads = resolve;
+        }),
+    );
+
+    const opening = openAgentForTab('agent-a', '', true);
+
+    expect(agentsManager.currentThreadId).toBeNull();
+    expect(viewManager.navigateToView).toHaveBeenCalledWith('agents/AgentChatView');
+
+    resolveThreads([thread1]);
+    await opening;
+    expect(agentsManager.currentThreadId).toBe('thread-1');
+  });
+
+  it('ignores a delayed thread result after the active agent changes', async () => {
+    let resolveThreads!: (threads: (typeof thread1)[]) => void;
+    vi.mocked(agentService.listThreads).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveThreads = resolve;
+        }),
+    );
+
+    const opening = openAgentForTab('agent-a', '', true);
+    agentsManager.currentAgentId = 'agent-b';
+    resolveThreads([thread1]);
+
+    await opening;
+    expect(agentsManager.currentThreadId).toBeNull();
+  });
+
   it('dispatches the initial query via onViewSubmit', async () => {
     vi.mocked(agentService.listThreads).mockResolvedValue([]);
     await openAgentForTab('agent-a', 'hello world', false);
