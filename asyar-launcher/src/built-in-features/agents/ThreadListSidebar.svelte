@@ -37,7 +37,7 @@
     {:else}
       {#each threads as t (t.id)}
         <ListItem
-          title={threadLabel(t)}
+          title={t.isPinned ? `📌 ${threadLabel(t)}` : threadLabel(t)}
           selected={selectedThreadId === t.id}
           onclick={() => void onSelectThread(t.id)}
         />
