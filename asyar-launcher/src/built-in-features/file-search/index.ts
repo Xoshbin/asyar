@@ -1,13 +1,11 @@
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 import { ActionContext } from 'asyar-sdk/contracts';
-import { tick } from 'svelte';
 import { quickLookPath } from '../../lib/ipc/fileSearchCommands';
 import { actionService } from '../../services/action/actionService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { t } from '../../services/i18n';
 import { logService } from '../../services/log/logService';
 import { openerService } from '../../services/opener/openerService';
-import { searchStores } from '../../services/search/stores/search.svelte';
 import { buildFileActions } from './fileActions';
 import {
   checkDeepSearchAvailability,
@@ -15,7 +13,6 @@ import {
   getSelectedFile,
   loadPinnedFiles,
   recordSelectionForCurrentQuery,
-  runSearch,
 } from './state.svelte';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
@@ -32,21 +29,14 @@ class FileSearchExtension implements Extension {
     await checkDeepSearchAvailability();
   }
 
-  async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
+  async executeCommand(commandId: string, _args?: Record<string, unknown>): Promise<unknown> {
     if (commandId === 'show-files') {
+      // Root search hands every command the text in the bar, but here that
+      // text was only used to *find* "Search Files" (a prefix, an alias, a
+      // typo) — never as a query. Like Raycast, the view opens empty; files
+      // matching what was typed already show inline in root search.
       this.extensionManager?.navigateToView('file-search/DefaultView');
       this.registerViewActions();
-      const seedQuery = typeof args?.query === 'string' ? args.query : '';
-      if (seedQuery) {
-        await tick();
-        // Also push into the shared search bar (not just the view's own
-        // internal query) — otherwise the visible bar keeps showing
-        // whatever the user typed in root search while the view silently
-        // searches a different query underneath it.
-        searchStores.query = seedQuery;
-        fileSearchViewState.searchQuery = seedQuery;
-        await runSearch();
-      }
       return { type: 'view', viewPath: 'file-search/DefaultView' };
     }
     return undefined;

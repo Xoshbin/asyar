@@ -40,9 +40,11 @@ pub async fn merged_search(
         &disabled_extensions,
     )?;
 
-    // The only file-search touch point on the root-search hot path: an O(1)
-    // check (one Arc + one RwLock read, no file-index data touched) plus a
-    // bounded Vec insert. See `file_search_fallback` for the full contract.
+    // Inline file rows are the only file-search touch point on the root-search
+    // hot path: an O(1) availability check (one Arc + one RwLock read) plus a
+    // bounded insert. There is deliberately no synthetic "Search files for …"
+    // row: the dedicated Search Files command is the way into the full view,
+    // and it opens empty (the typed text only found the command).
     let file_index =
         app_handle.try_state::<std::sync::Arc<crate::file_index::service::FileIndexState>>();
     let file_search_available = !disabled_extensions.iter().any(|id| id == "file-search")
@@ -53,29 +55,17 @@ pub async fn merged_search(
     // Backfilled suggestions are marked `score == -1.0` by
     // `SearchState::merged_search`; everything else is a real match.
     let matched_count = response.results.iter().filter(|r| r.score != -1.0).count();
-    let inserted = if include_files.unwrap_or(false) && file_search_available && matched_count < 20
-    {
-        file_index
-            .as_ref()
-            .map(|file_index| {
-                super::file_search_inline::append_inline_file_results(
-                    &mut response.results,
-                    &query,
-                    matched_count,
-                    file_index,
-                    crate::file_index::ranking::now_seconds(),
-                )
-            })
-            .unwrap_or(0)
-    } else {
-        0
-    };
-    super::file_search_fallback::append_file_search_fallback(
-        &mut response.results,
-        &query,
-        matched_count + inserted,
-        file_search_available,
-    );
+    if include_files.unwrap_or(false) && file_search_available && matched_count < 20 {
+        if let Some(file_index) = file_index.as_ref() {
+            super::file_search_inline::append_inline_file_results(
+                &mut response.results,
+                &query,
+                matched_count,
+                file_index,
+                crate::file_index::ranking::now_seconds(),
+            );
+        }
+    }
     response.results.truncate(20);
     if response.alias_match.as_ref().is_some_and(|alias| {
         !response

@@ -1,7 +1,7 @@
 # File Search — Architecture
 
 > Rust-owned filename index + thumbnail cache backing the "Search Files"
-> built-in feature and the root-search fallback row.
+> built-in feature and the inline root-search results.
 
 File search answers two questions: "find a file by name across `$HOME`" and
 "show me what it looks like without opening it." Both are implemented so
@@ -249,7 +249,7 @@ milestones are the synchronous `Rescanning` flip and the final
 TS wrappers: `src/lib/ipc/fileSearchCommands.ts`,
 `src/lib/ipc/thumbnailCommands.ts`.
 
-## 9. Root-search integration (inline results & fallback row)
+## 9. Root-search integration (inline results)
 
 File search integrates with root search through a decoupled two-pass architecture:
 
@@ -261,19 +261,9 @@ File search integrates with root search through a decoupled two-pass architectur
    - `append_inline_file_results` checks `FileIndexConfig::root_search_enabled` and requires a $\ge 3$ character query.
    - Candidates are queried from the in-memory index, capped at 4 results, and assigned `Tier::Files` (tier 5).
    - Normalized cross-platform path deduplication prevents file hits from duplicating `.app` bundles or executables already returned by application search.
-   - If more matching files exist in the index (`response.truncated`), a drill-down row (`Search files for “…”…`) is appended at the bottom of the file block. Pressing `Enter` opens the dedicated File Search view with the query pre-filled.
    - On the frontend, file rows display parent-folder subtitles (`~/Documents`), render native OS icons via `asyar-thumb://`, and support `⌘Y` Quick Look and `⌘K` file actions.
 
-3. **Fallback row (`search_engine/file_search_fallback.rs`)**:
-   - When `root_search_enabled` is false, or on short queries (2 chars) with few results, `append_file_search_fallback` appends an $O(1)$ synthetic command row sharing the real `cmd_file-search_show-files` ID to navigate directly to the dedicated view.
-
-`FileSearchExtension.executeCommand` (in
-`src/built-in-features/file-search/index.ts`) seeds **both** the view's
-own internal query state and the shared search bar
-(`searchStores.query`). Both are required: the two are otherwise
-independent reactive stores, so seeding only the internal query state
-leaves the visible search bar showing whatever the user had typed in
-root search even though results have already updated underneath it.
+3. **No synthetic "Search files for …" row.** Like Raycast, matching files show inline and the dedicated **Search Files** command is the way into the full view. Root search hands every command the text in the search bar, but for `show-files` that text was only used to _find_ the command (a prefix like "sea", an alias, a typo), so `FileSearchExtension.executeCommand` ignores it and the view opens empty. (An earlier variant that kept a seeding fallback row on its own `cmd_file-search_dyn_search-for` id is preserved in `.agents/variants/892-fallback-row-dispatcher.patch` for A/B comparison.)
 
 ## 10. Settings
 
