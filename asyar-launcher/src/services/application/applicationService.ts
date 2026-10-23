@@ -4,6 +4,8 @@ import {
   getFrontmostApplication,
   appIsRunning,
   uninstallApplication,
+  revealApplication,
+  runApplicationAsAdmin,
   scanUninstallTargets,
   type UninstallScanResult,
 } from '../../lib/ipc/applicationCommands';
@@ -68,6 +70,23 @@ export class ApplicationService {
    */
   async uninstallApplication(path: string, dataPaths: string[] = []): Promise<void> {
     await uninstallApplication(path, dataPaths);
+  }
+
+  /**
+   * Reveals the application in Finder / File Explorer. On Windows the Rust
+   * side resolves the Start-menu shortcut to the program's own folder.
+   * Tier 1 only — not exposed through the SDK.
+   */
+  async revealApplication(path: string): Promise<void> {
+    await revealApplication(path);
+  }
+
+  /**
+   * Launches the application through the Windows UAC prompt. The Rust command
+   * rejects non-core callers and non-Windows hosts.
+   */
+  async runApplicationAsAdmin(path: string): Promise<void> {
+    await runApplicationAsAdmin(path);
   }
 
   /**

@@ -32,7 +32,7 @@ vi.mock('@tauri-apps/plugin-os', () => ({
 }));
 
 // Import AFTER mocks so module-level platform detection evaluates to 'other'.
-import { ActionService } from './actionService.svelte';
+import { ActionService, setSelectedItemProvider } from './actionService.svelte';
 
 describe('uninstall_application visibility on Linux', () => {
   beforeEach(() => {
@@ -57,5 +57,35 @@ describe('uninstall_application visibility on Linux', () => {
     expect(action).toBeDefined();
     expect(action!.context).toBe(ActionContext.CORE);
     expect(action!.visible!()).toBe(false);
+  });
+});
+
+describe('application location actions on Linux', () => {
+  const desktopEntry = {
+    objectId: 'app_foo',
+    name: 'Foo',
+    type: 'application' as const,
+    score: 1,
+    path: '/usr/share/applications/foo.desktop',
+  };
+
+  beforeEach(() => {
+    mockSearchOrchestrator.items = [desktopEntry];
+    mockSearchStores.selectedIndex = 0;
+    setSelectedItemProvider(() => mockSearchOrchestrator.items[0]);
+  });
+
+  it('offers reveal and copy path', () => {
+    const svc = new ActionService();
+    for (const id of ['reveal_application', 'copy_application_path']) {
+      expect(svc.getAllActions().find((a) => a.id === id)!.visible!(), id).toBe(true);
+    }
+  });
+
+  it('never offers run as administrator', () => {
+    const svc = new ActionService();
+    expect(svc.getAllActions().find((a) => a.id === 'run_application_as_admin')!.visible!()).toBe(
+      false,
+    );
   });
 });
