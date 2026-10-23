@@ -125,7 +125,8 @@ export interface ExtensionManifest {
   /**
    * Sidecar values for parameterized permissions, keyed by permission string.
    * Each key must also appear in `permissions`. Value shape is
-   * permission-specific — `fs:watch` takes a `string[]` of glob patterns.
+   * permission-specific — `fs:watch` takes a `string[]` of glob patterns and
+   * `network:lan` takes a `string[]` of `host-or-CIDR:port` endpoints.
    */
   permissionArgs?: Record<string, unknown>;
   /** Extension-level preferences (apply to all commands). */

@@ -7,7 +7,6 @@ use crate::file_index::query::QueryOptions;
 use crate::file_index::service::FileIndexState;
 use crate::file_index::types::IndexStateKind;
 
-use super::file_search_fallback::FILE_SEARCH_FALLBACK_OBJECT_ID;
 use super::models::SearchResult;
 
 pub const ROOT_FILE_ROW_CAP: usize = 4;
@@ -56,7 +55,7 @@ pub fn append_inline_file_results(
         .then(|| file_index.primary_root())
         .flatten();
     let home_root = indexed_root.as_deref();
-    let mut rows: Vec<SearchResult> = response
+    let rows: Vec<SearchResult> = response
         .hits
         .into_iter()
         .filter(|hit| !existing_paths.contains(&normalize_path_for_dedup(&hit.path)))
@@ -83,9 +82,6 @@ pub fn append_inline_file_results(
         .collect();
 
     let inserted = rows.len();
-    if response.truncated {
-        rows.push(drill_down_row(trimmed));
-    }
     let insert_at = matched_count.min(results.len());
     results.splice(insert_at..insert_at, rows);
     inserted
@@ -115,25 +111,6 @@ fn parent_description(path: &str, home_root: Option<&str>) -> Option<String> {
         }
     }
     Some(parent.to_string_lossy().into_owned())
-}
-
-fn drill_down_row(query: &str) -> SearchResult {
-    SearchResult {
-        object_id: FILE_SEARCH_FALLBACK_OBJECT_ID.to_string(),
-        name: format!("Search files for “{query}”…"),
-        result_type: "command".to_string(),
-        score: 0.0,
-        path: None,
-        icon: Some("icon:folder-search".to_string()),
-        extension_id: Some("file-search".to_string()),
-        description: None,
-        type_label: None,
-        has_arguments: false,
-        favorite: false,
-        style: None,
-        alias: None,
-        tier: Tier::FrecencyOnly as u8,
-    }
 }
 
 #[cfg(test)]

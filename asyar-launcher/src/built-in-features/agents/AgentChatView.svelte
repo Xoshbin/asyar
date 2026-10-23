@@ -28,6 +28,9 @@
   const agentId = $derived(agentsManager.currentAgentId);
   let agent = $state<AgentDef | null>(null);
   let threads = $state<ThreadDef[]>([]);
+  // False until this agent's thread list is known, so the sidebar shows
+  // nothing rather than an empty state that is not true yet.
+  let threadsKnown = $state(false);
   let messages = $state<MessageDef[]>([]);
   let messagesEl = $state<HTMLDivElement | null>(null);
   let userScrolledUp = $state(false);
@@ -56,6 +59,9 @@
 
       agent = agentService.getById(currentAgentId) ?? null;
       loadError = null;
+      const known = agentsManager.threadsFor(currentAgentId);
+      threads = known ?? [];
+      threadsKnown = known !== undefined;
 
       let nextThreads: ThreadDef[];
       try {
@@ -68,6 +74,8 @@
 
       if (cancelled) return;
       threads = nextThreads;
+      threadsKnown = true;
+      agentsManager.rememberThreads(currentAgentId, nextThreads);
 
       const resolvedThreadId = resolveThreadId(currentThreadId, nextThreads);
       if (resolvedThreadId !== currentThreadId) {
@@ -225,7 +233,7 @@
     </div>
   {:else}
     <div class="chat-layout">
-      <ThreadListSidebar {threads} {selectedThreadId} {onSelectThread} />
+      <ThreadListSidebar {threads} known={threadsKnown} {selectedThreadId} {onSelectThread} />
       <div class="chat-main">
         <header class="chat-header">
           <h2>{agent.name}</h2>

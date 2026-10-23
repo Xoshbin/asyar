@@ -150,4 +150,34 @@ describe('NetworkService', () => {
       'worker',
     );
   });
+
+  describe('requestLanDevice and requestLanHost', () => {
+    it('rejects privileged host caller with no extension ID', async () => {
+      await expect(makeSvc().requestLanDevice(null, {}, 'view')).rejects.toThrow(
+        'LAN_PICKER_REQUIRES_EXTENSION_CALLER',
+      );
+      await expect(
+        makeSvc().requestLanHost(null, { host: '192.168.1.50', port: 80, label: 'test' }, 'view'),
+      ).rejects.toThrow('LAN_PICKER_REQUIRES_EXTENSION_CALLER');
+    });
+
+    it('rejects worker realm with LAN_PICKER_REQUIRES_VIEW', async () => {
+      await expect(makeSvc().requestLanDevice('org.test.ext', {}, 'worker')).rejects.toThrow(
+        'LAN_PICKER_REQUIRES_VIEW',
+      );
+      await expect(
+        makeSvc().requestLanHost(
+          'org.test.ext',
+          { host: '192.168.1.50', port: 80, label: 'test' },
+          'worker',
+        ),
+      ).rejects.toThrow('LAN_PICKER_REQUIRES_VIEW');
+    });
+
+    it('handles shifted role argument when options omitted from IPC', async () => {
+      await expect(makeSvc().requestLanDevice('org.test.ext', 'worker' as any)).rejects.toThrow(
+        'LAN_PICKER_REQUIRES_VIEW',
+      );
+    });
+  });
 });

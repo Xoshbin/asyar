@@ -225,8 +225,11 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'network:fetch': ['url', 'options'],
   'network:fetchWithSecrets': ['url', 'options'],
   'network:wsConnect': ['socketId', 'url', 'headers'],
+  'network:requestLanDevice': ['options'],
+  'network:requestLanHost': ['target'],
   'network:wsSend': ['socketId', 'message'],
   'network:wsClose': ['socketId', 'code', 'reason'],
+  'network:listLanDevices': [],
 
   // files
   'files:search': ['query', 'opts'],
@@ -576,7 +579,11 @@ export class ExtensionIpcRouter {
     ) {
       args = [...args, originRole];
     }
-    if (ns === 'network' && methodName === 'wsConnect' && originRole) {
+    if (
+      ns === 'network' &&
+      new Set(['wsConnect', 'requestLanDevice', 'requestLanHost']).has(methodName) &&
+      originRole
+    ) {
       args = [...args, originRole];
     }
     return await (method as (...a: unknown[]) => unknown).apply(service, args);

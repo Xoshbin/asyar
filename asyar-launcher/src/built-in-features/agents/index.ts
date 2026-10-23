@@ -259,13 +259,16 @@ class AgentsExtension implements Extension {
       return { type: 'view', viewPath: 'agents/AgentListView' };
     }
     if (commandId === 'ask') {
-      const query = typeof args?.query === 'string' ? args.query : '';
+      // Root search hands every command the text in the bar, but here it was
+      // only used to *find* "Ask AI". Submitting it as a message would send
+      // the user's search for the command to the model. Typed text reaches the
+      // chat through Tab (the AI hint), which is the explicit opt-in.
       const settings = settingsService.currentSettings;
       const decision = decideTabDestination({
         defaultAgentId: settings.ai.defaultAgentId,
         agents: agentService.agents,
       });
-      await openAgentForTab(decision.agentId, query, settings.ai.tabContinuesLastThread);
+      await openAgentForTab(decision.agentId, '', settings.ai.tabContinuesLastThread);
       return { type: 'view', viewPath: 'agents/AgentChatView' };
     }
     await dispatchAgentCommand(commandId, args);

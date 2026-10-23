@@ -182,6 +182,22 @@ pub(crate) async fn uninstall(
                     ),
                 }
 
+                // A reinstall must ask the user again before reaching LAN devices.
+                match crate::storage::lan_allowed_hosts::clear_for_extension(&conn, extension_id) {
+                    Ok(count) => {
+                        if count > 0 {
+                            info!(
+                                "Cleared {} approved LAN hosts for extension '{}'",
+                                count, extension_id
+                            );
+                        }
+                    }
+                    Err(e) => warn!(
+                        "Failed to clear approved LAN hosts for '{}': {}",
+                        extension_id, e
+                    ),
+                }
+
                 match crate::extensions::onboarding_state::clear(&conn, extension_id) {
                     Ok(_) => {
                         info!("Cleared onboarding state for extension '{}'", extension_id);

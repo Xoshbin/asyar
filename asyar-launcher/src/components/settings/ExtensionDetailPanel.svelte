@@ -22,6 +22,8 @@
   } from '../../services/runtime/runtimeDownloadStatus';
   import Icon from '../base/Icon.svelte';
   import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../lib/iconUtils';
+  import LanHostList from './LanHostList.svelte';
+  import LanScanSheet from './LanScanSheet.svelte';
   let {
     extension = null,
     command = null,
@@ -47,6 +49,8 @@
 
   let preferenceValues = $state<Record<string, any>>({});
   let isLoadingPrefs = $state(false);
+  let showScanSheet = $state(false);
+  let lanHostList = $state<LanHostList | null>(null);
   let needsPermissionReview = $state(false);
   let isDownloadingRuntime = $state(false);
   let needsRuntimeDownload = $state(false);
@@ -388,6 +392,27 @@
           permissions={extension.permissions}
           permissionArgs={extension.permissionArgs ?? {}}
         />
+      </div>
+    {/if}
+
+    {#if extension.permissions?.includes('network:lan')}
+      <div class="panel-section">
+        <div class="section-header">{t('settings.extensions.lan_devices')}</div>
+        {#if showScanSheet}
+          <LanScanSheet
+            extensionId={extension.id!}
+            onClose={() => (showScanSheet = false)}
+            onDeviceAdded={() => {
+              if (lanHostList) lanHostList.refresh();
+            }}
+          />
+        {:else}
+          <LanHostList
+            bind:this={lanHostList}
+            extensionId={extension.id!}
+            onOpenScan={() => (showScanSheet = true)}
+          />
+        {/if}
       </div>
     {/if}
 

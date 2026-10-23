@@ -31,6 +31,22 @@ Both layers must pass. If either rejects, the call returns a structured `{ allow
 
 ---
 
+## Local-network access (`network:lan`)
+
+By default, the `network` permission permits outbound requests only to public IP addresses. Access to private RFC 1918 subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), Carrier-Grade NAT (`100.64.0.0/10`), IPv6 Unique Local Addresses (`fc00::/7`), and `.local` mDNS domains is blocked to prevent DNS rebinding and intranet Server-Side Request Forgery (SSRF) attacks against local network hardware and services.
+
+The `network:lan` permission selectively opens access to approved local devices:
+
+- **Scoping**: Specific endpoints or CIDR ranges can be pre-declared via `permissionArgs["network:lan"]`, or authorized dynamically by the user.
+- **Fail-Closed Privacy & WebBluetooth Model**: Sandboxed extensions cannot open raw UDP/multicast sockets to scan the user's subnet or map internal network topology (preventing ambient network surveillance). Discovery is user-mediated by the launcher's native Tauri runtime through `network.requestLanDevice()`.
+- **Pre-Prompt SSRF Validation**: Rust verifies that target hosts and ports do not resolve to loopback (`127.0.0.1`, `::1`) or cloud link-local metadata endpoints (`169.254.169.254`) _before_ prompting the user for approval.
+- **DNS Resolution Pinning**: On every request and redirect, DNS answers are resolved and verified against the authorized LAN scope before connecting.
+
+See [manifest LAN schema](../reference/manifest.md#lan-endpoint-schema) and
+[network service local-network access](../reference/sdk/network-service.md#local-network-access).
+
+---
+
 ## Secret references
 
 `network:secrets` is an opt-in, parameterized permission that also requires

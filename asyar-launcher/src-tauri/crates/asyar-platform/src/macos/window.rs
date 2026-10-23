@@ -7,6 +7,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use super::launcher_resize::{self, Crop, CroppedWindow, LauncherSurface, WindowBackend};
+
 pub fn spotlight_collection_behavior_bits() -> u64 {
     // 1 << 0: NSWindowCollectionBehaviorCanJoinAllSpaces
     // 1 << 8: NSWindowCollectionBehaviorFullScreenAuxiliary
@@ -523,15 +525,161 @@ pub unsafe fn force_apply_resize_if_generation_matches(
     if RESIZE_GEN.load(Ordering::Acquire) != gen {
         return;
     }
-    let frame: NSRect = msg_send![ns_window, frame];
-    if (frame.size.height - height).abs() > 0.5 {
-        log::warn!("[launcher-resize] gen {gen} never presented; watchdog applying -> {height}");
-        apply_window_height_commit(ns_window, height, gen);
-        RESIZE_GEN.fetch_add(1, Ordering::AcqRel);
+    with_launcher_surface(ns_window, |surface| {
+        if (surface.window_height() - height).abs() > 0.5
+            || (surface.visible_height() - height).abs() > 0.5
+        {
+            log::warn!(
+                "[launcher-resize] gen {gen} never presented; watchdog applying -> {height}"
+            );
+            launcher_resize::apply_now(surface, height);
+            RESIZE_GEN.fetch_add(1, Ordering::AcqRel);
+        }
+    });
+}
+
+#[repr(C)]
+struct CGColorOpaque {
+    _private: [u8; 0],
+}
+
+// SAFETY: `CGColorRef` is a pointer to the opaque `struct CGColor`.
+unsafe impl objc2::encode::RefEncode for CGColorOpaque {
+    const ENCODING_REF: objc2::encode::Encoding =
+        objc2::encode::Encoding::Pointer(&objc2::encode::Encoding::Struct("CGColor", &[]));
+}
+
+thread_local! {
+    /// The launcher's visible height while it shows less than its window.
+    static CROP_HEIGHT: std::cell::Cell<Option<f64>> = const { std::cell::Cell::new(None) };
+    static CROP_MASK: RefCell<Option<Retained<AnyObject>>> = const { RefCell::new(None) };
+}
+
+/// Runs `f` on the launcher window as a [`launcher_resize::LauncherSurface`],
+/// carrying the crop across calls. Main thread only.
+unsafe fn with_launcher_surface<T>(
+    ns_window: *mut AnyObject,
+    f: impl FnOnce(&mut CroppedWindow<LauncherWindowBackend>) -> T,
+) -> T {
+    let crop = CROP_HEIGHT.with(|c| c.get());
+    let mut surface = CroppedWindow::new(LauncherWindowBackend { ns_window }, crop);
+    let result = f(&mut surface);
+    CROP_HEIGHT.with(|c| c.set(surface.crop()));
+    result
+}
+
+/// The launcher NSWindow's frame, and a mask on its content-view layer as the
+/// crop.
+struct LauncherWindowBackend {
+    ns_window: *mut AnyObject,
+}
+
+impl LauncherWindowBackend {
+    unsafe fn crop_mask() -> *mut AnyObject {
+        CROP_MASK.with(|slot| {
+            let mut slot = slot.borrow_mut();
+            let mask = slot.get_or_insert_with(|| {
+                let cls = AnyClass::get("CALayer").expect("CALayer class");
+                let mask: Retained<AnyObject> = msg_send_id![cls, new];
+                let color_cls = AnyClass::get("NSColor").expect("NSColor class");
+                let black: *mut AnyObject = msg_send![color_cls, blackColor];
+                let cg: *mut CGColorOpaque = msg_send![black, CGColor];
+                let _: () = msg_send![&*mask, setBackgroundColor: cg];
+                let _: () = msg_send![&*mask, setCornerRadius: 20.0_f64];
+                // A standalone layer animates geometry implicitly; the crop
+                // must land in exactly the transaction that sets it.
+                let null_cls = AnyClass::get("NSNull").expect("NSNull class");
+                let null: *mut AnyObject = msg_send![null_cls, null];
+                let dict_cls = AnyClass::get("NSMutableDictionary").expect("NSMutableDictionary");
+                let actions: *mut AnyObject = msg_send![dict_cls, dictionary];
+                for key in ["bounds", "position"] {
+                    let key = NSString::from_str(key);
+                    let _: () = msg_send![actions, setObject: null forKey: &*key];
+                }
+                let _: () = msg_send![&*mask, setActions: actions];
+                mask
+            });
+            Retained::as_ptr(mask) as *mut AnyObject
+        })
     }
 }
 
-unsafe fn apply_window_height_commit(ns_window: *mut AnyObject, height: f64, gen: u64) {
+impl WindowBackend for LauncherWindowBackend {
+    fn frame_height(&self) -> f64 {
+        let frame: NSRect = unsafe { msg_send![self.ns_window, frame] };
+        frame.size.height
+    }
+
+    fn set_frame_height(&mut self, height: f64) {
+        unsafe {
+            let ns_window = self.ns_window;
+            let frame: NSRect = msg_send![ns_window, frame];
+            let new_y = frame.origin.y + frame.size.height - height;
+            let new_frame = NSRect {
+                origin: NSPoint {
+                    x: frame.origin.x,
+                    y: new_y,
+                },
+                size: NSSize {
+                    width: frame.size.width,
+                    height,
+                },
+            };
+            let _: () =
+                msg_send![ns_window, setFrame: new_frame display: Bool::YES animate: Bool::NO];
+
+            let content_view: *mut AnyObject = msg_send![ns_window, contentView];
+            let new_origin_y = height - LAUNCHER_MAX_HEIGHT;
+
+            for view in [find_webview(content_view), find_vibrancy_view(content_view)] {
+                if view.is_null() {
+                    continue;
+                }
+                let f: NSRect = msg_send![view, frame];
+                let new_f = NSRect {
+                    origin: NSPoint {
+                        x: 0.0,
+                        y: new_origin_y,
+                    },
+                    size: f.size,
+                };
+                let _: () = msg_send![view, setFrame: new_f];
+            }
+        }
+    }
+
+    fn set_crop(&mut self, crop: Option<Crop>) {
+        unsafe {
+            let content_view: *mut AnyObject = msg_send![self.ns_window, contentView];
+            let layer: *mut AnyObject = msg_send![content_view, layer];
+            if layer.is_null() {
+                return;
+            }
+            let Some(crop) = crop else {
+                let none: *mut AnyObject = std::ptr::null_mut();
+                let _: () = msg_send![layer, setMask: none];
+                return;
+            };
+            let mask = Self::crop_mask();
+            let bounds: NSRect = msg_send![layer, bounds];
+            // Content-view layers are not flipped: the top edge is at y = window.
+            let frame = NSRect {
+                origin: NSPoint {
+                    x: 0.0,
+                    y: crop.window - crop.visible,
+                },
+                size: NSSize {
+                    width: bounds.size.width,
+                    height: crop.visible,
+                },
+            };
+            let _: () = msg_send![mask, setFrame: frame];
+            let _: () = msg_send![layer, setMask: mask];
+        }
+    }
+}
+
+unsafe fn apply_resize_now(ns_window: *mut AnyObject, height: f64, gen: u64) {
     let current = RESIZE_GEN.load(Ordering::Acquire);
     if current != gen {
         log::info!(
@@ -539,40 +687,37 @@ unsafe fn apply_window_height_commit(ns_window: *mut AnyObject, height: f64, gen
         );
         return;
     }
-    let frame: NSRect = msg_send![ns_window, frame];
-    let new_y = frame.origin.y + frame.size.height - height;
-    let new_frame = NSRect {
-        origin: NSPoint {
-            x: frame.origin.x,
-            y: new_y,
-        },
-        size: NSSize {
-            width: frame.size.width,
-            height,
-        },
-    };
-    let _: () = msg_send![ns_window, setFrame: new_frame display: Bool::YES animate: Bool::NO];
-
-    let content_view: *mut AnyObject = msg_send![ns_window, contentView];
-    let new_origin_y = height - active_max_height();
-
-    for view in [find_webview(content_view), find_vibrancy_view(content_view)] {
-        if view.is_null() {
-            continue;
-        }
-        let f: NSRect = msg_send![view, frame];
-        let new_f = NSRect {
-            origin: NSPoint {
-                x: 0.0,
-                y: new_origin_y,
-            },
-            size: f.size,
-        };
-        let _: () = msg_send![view, setFrame: new_f];
-    }
+    with_launcher_surface(ns_window, |surface| {
+        launcher_resize::apply_now(surface, height)
+    });
 }
 
-/// Atomically resize the NSWindow (top edge pinned).
+/// Runs inside the paint-swap transaction, where only the crop may change
+/// (see [`launcher_resize`]); a window left taller than the crop settles on
+/// the next main-queue turn, outside any commit.
+unsafe fn present_resize(ns_window: *mut AnyObject, height: f64, gen: u64) {
+    if RESIZE_GEN.load(Ordering::Acquire) != gen {
+        return;
+    }
+    if !with_launcher_surface(ns_window, |surface| {
+        launcher_resize::present(surface, height)
+    }) {
+        return;
+    }
+    let nsw = ns_window as usize;
+    let block = block2::RcBlock::new(move || {
+        // A newer resize owns the window now; settling under it could leave
+        // the window shorter than that resize is about to present.
+        if RESIZE_GEN.load(Ordering::Acquire) == gen {
+            unsafe { with_launcher_surface(nsw as *mut AnyObject, launcher_resize::settle) };
+        }
+    });
+    dispatch_async(&_dispatch_main_q as *const std::ffi::c_void, &block);
+}
+
+/// Resize the launcher (top edge pinned). Gated modes change the window frame
+/// only outside the paint commit and the visible crop inside it — see
+/// [`launcher_resize`] for why.
 /// Returns `Some(gen)` if `AfterNextPresentationUpdate` was armed and requires a watchdog timer,
 /// or `None` if the resize was committed or scheduled immediately.
 ///
@@ -586,54 +731,45 @@ pub unsafe fn set_launcher_window_height(
     let nsw = ns_window as usize;
     let gen = RESIZE_GEN.fetch_add(1, Ordering::AcqRel) + 1;
 
-    let commit = move || unsafe {
-        apply_window_height_commit(nsw as *mut AnyObject, height, gen);
+    if mode == ResizeMode::Immediate || get_window_alpha(ns_window) < 1.0 {
+        apply_resize_now(ns_window, height, gen);
+        return None;
+    }
+
+    with_launcher_surface(ns_window, |surface| {
+        launcher_resize::prepare(surface, height)
+    });
+    let present = move || unsafe {
+        present_resize(nsw as *mut AnyObject, height, gen);
     };
 
-    match mode {
-        ResizeMode::Immediate => {
-            commit();
-            None
-        }
-        ResizeMode::DeferToNextCaCommit => {
-            schedule_on_next_pre_commit(commit);
-            None
-        }
-        ResizeMode::AfterNextPresentationUpdate => {
-            if get_window_alpha(ns_window) < 1.0 {
-                commit();
-                return None;
-            }
-            if CONFIRMED_GEN.load(Ordering::Acquire) >= gen {
-                log::info!("[launcher-resize] gen {gen} confirmed before dispatch; committing via CA pre-commit");
-                schedule_on_next_pre_commit(commit);
-                return None;
-            }
-            let content_view: *mut AnyObject = msg_send![ns_window, contentView];
-            let webview = find_webview(content_view);
-            let hooked = if !webview.is_null() {
-                let fingerprint = layer_tree_fingerprint(webview);
-                let pending = Rc::new(SentinelPending {
-                    gen,
-                    commit: Box::new(commit),
-                    webview: webview as usize,
-                    fingerprint: std::cell::Cell::new(fingerprint),
-                    rounds: std::cell::Cell::new(0),
-                });
-                SENTINEL.with(|s| *s.borrow_mut() = Some(pending));
-                true
-            } else {
-                false
-            };
-            if !hooked {
-                log::info!("[launcher-resize] webview absent; falling back to CA pre-commit");
-                schedule_on_next_pre_commit(commit);
-                None
-            } else {
-                Some(gen)
-            }
-        }
+    if mode == ResizeMode::DeferToNextCaCommit {
+        schedule_on_next_pre_commit(present);
+        return None;
     }
+    if CONFIRMED_GEN.load(Ordering::Acquire) >= gen {
+        log::info!(
+            "[launcher-resize] gen {gen} confirmed before dispatch; committing via CA pre-commit"
+        );
+        schedule_on_next_pre_commit(present);
+        return None;
+    }
+    let content_view: *mut AnyObject = msg_send![ns_window, contentView];
+    let webview = find_webview(content_view);
+    if webview.is_null() {
+        log::info!("[launcher-resize] webview absent; falling back to CA pre-commit");
+        schedule_on_next_pre_commit(present);
+        return None;
+    }
+    let pending = Rc::new(SentinelPending {
+        gen,
+        commit: Box::new(present),
+        webview: webview as usize,
+        fingerprint: std::cell::Cell::new(layer_tree_fingerprint(webview)),
+        rounds: std::cell::Cell::new(0),
+    });
+    SENTINEL.with(|s| *s.borrow_mut() = Some(pending));
+    Some(gen)
 }
 
 pub fn activate_app() {

@@ -182,6 +182,24 @@ impl ExtensionPermissionRegistry {
             .ok_or(crate::network::secret_refs::SecretError::InvalidDeclaration)?;
         crate::network::secret_refs::validate_network_secrets_args(&value)
     }
+
+    pub fn lan_policy_manifest(
+        &self,
+        extension_id: &str,
+    ) -> Result<Option<crate::network::lan_policy::LanPolicy>, AppError> {
+        let has_lan = self
+            .inner
+            .lock()
+            .map_err(|_| AppError::Lock)?
+            .get(extension_id)
+            .is_some_and(|permissions| permissions.contains("network:lan"));
+        if !has_lan {
+            return Ok(None);
+        }
+        self.check(&Some(extension_id.into()), "network")?;
+        let value = self.args_for(extension_id, "network:lan");
+        crate::network::lan_policy::LanPolicy::from_manifest(value.as_ref()).map(Some)
+    }
 }
 
 /// Maps an IPC call type string to the required permission.
@@ -216,6 +234,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:network:wsConnect" => Some("network"),
         "asyar:api:network:wsSend" => Some("network"),
         "asyar:api:network:wsClose" => Some("network"),
+        "asyar:api:network:listLanDevices" => Some("network:lan"),
+        "asyar:api:network:requestLanDevice" => Some("network:lan"),
+        "asyar:api:network:requestLanHost" => Some("network:lan"),
         // Opener
         "asyar:api:opener:open" => Some("shell:open-url"),
         "asyar:api:opener:openPath" => Some("shell:open-path"),
@@ -702,6 +723,22 @@ mod tests {
         assert_eq!(
             get_required_permission("asyar:api:network:fetch"),
             Some("network")
+        );
+    }
+
+    #[test]
+    fn list_lan_devices_requires_network_lan() {
+        assert_eq!(
+            get_required_permission("asyar:api:network:listLanDevices"),
+            Some("network:lan")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:network:requestLanDevice"),
+            Some("network:lan")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:network:requestLanHost"),
+            Some("network:lan")
         );
     }
 

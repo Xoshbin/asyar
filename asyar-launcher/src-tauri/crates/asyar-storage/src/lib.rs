@@ -13,6 +13,7 @@ pub mod extension_preferences;
 pub mod extension_state;
 pub mod file_search_pinned;
 pub mod file_search_selections;
+pub mod lan_allowed_hosts;
 pub mod mcp_audit;
 pub mod mcp_permissions;
 pub mod mcp_servers;

@@ -6,10 +6,13 @@
 
   let {
     threads,
+    known,
     selectedThreadId,
     onSelectThread,
   }: {
     threads: ThreadDef[];
+    /** False while the list is still loading: an empty list means nothing yet. */
+    known: boolean;
     selectedThreadId: string | null;
     onSelectThread: (id: string) => void | Promise<void>;
   } = $props();
@@ -25,10 +28,12 @@
 <aside class="thread-sidebar w-60" data-no-focus-steal>
   <div class="thread-list custom-scrollbar">
     {#if threads.length === 0}
-      <EmptyState
-        message={t('features.agents.no_threads')}
-        description={t('features.agents.no_threads_description')}
-      />
+      {#if known}
+        <EmptyState
+          message={t('features.agents.no_threads')}
+          description={t('features.agents.no_threads_description')}
+        />
+      {/if}
     {:else}
       {#each threads as t (t.id)}
         <ListItem
