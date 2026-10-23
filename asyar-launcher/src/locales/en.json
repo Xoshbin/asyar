@@ -1207,7 +1207,9 @@
         "uninstall": "Uninstall Extension",
         "uninstall_desc": "Uninstall the currently viewed extension",
         "install": "Install Extension",
-        "install_desc": "Install the currently viewed extension"
+        "install_desc": "Install the currently viewed extension",
+        "open_web": "Open in Web",
+        "open_web_desc": "Open this extension's page on asyar.org"
       },
       "t_install_failed": "Install Failed",
       "t_install_no_ext": "Could not determine which extension to install.",

@@ -61,10 +61,13 @@ vi.mock('../../lib/ipc/runtimeCommands', () => ({
   getRuntimeDownloadSizes: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn().mockResolvedValue(undefined) }));
+
 vi.mock('./DefaultView.svelte', () => ({ default: {} }));
 vi.mock('./DetailView.svelte', () => ({ default: {} }));
 vi.mock('./LazyDetailView.svelte', () => ({ default: {} }));
 
+import { openUrl } from '@tauri-apps/plugin-opener';
 import * as commands from '../../lib/ipc/commands';
 import { actionService } from '../../services/action/actionService.svelte';
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
@@ -136,6 +139,51 @@ describe('StoreExtension lifecycle and commands', () => {
     );
     expect(actionService.unregisterAction).toHaveBeenCalledWith('app.asyar.store:update-selected');
     expect(setActiveViewActionLabel).toHaveBeenCalledWith(null);
+  });
+
+  it('detail view registers an "Open in Web" action that opens the asyar.org page', async () => {
+    const ctx = makeContext({ setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() });
+    await storeExtension.initialize(ctx as never);
+    initializeStore().selectedExtensionSlug = 'my ext';
+
+    await storeExtension.viewActivated('store/DetailView');
+
+    const call = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find(([a]) => a.id === 'app.asyar.store:open-web-detail');
+    expect(call).toBeDefined();
+    await call![0].execute();
+    expect(openUrl).toHaveBeenCalledWith('https://store.example.com/extensions/my%20ext');
+
+    await storeExtension.deactivate();
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('app.asyar.store:open-web-detail');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith(
+      'app.asyar.store:open-web-selected',
+    );
+  });
+
+  it('list view ignores arrow keys while the action panel is open', async () => {
+    const ctx = makeContext({ setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() });
+    await storeExtension.initialize(ctx as never);
+    const store = initializeStore();
+    const moveSelection = vi.spyOn(store, 'moveSelection');
+
+    await storeExtension.viewActivated('store/DefaultView');
+    store.setItems([
+      { id: 'a', slug: 'a' },
+      { id: 'b', slug: 'b' },
+    ] as never);
+    const popup = document.createElement('div');
+    popup.className = 'action-popup';
+    document.body.appendChild(popup);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true }));
+    expect(moveSelection).not.toHaveBeenCalled();
+
+    popup.remove();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true }));
+    expect(moveSelection).toHaveBeenCalledWith('down');
+
+    await storeExtension.deactivate();
   });
 
   it('deactivate() is safe and idempotent when not in view', async () => {

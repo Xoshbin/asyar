@@ -1207,7 +1207,9 @@
         "uninstall": "解除安裝擴充功能",
         "uninstall_desc": "解除安裝目前檢視的擴充功能",
         "install": "安裝擴充功能",
-        "install_desc": "安裝目前檢視的擴充功能"
+        "install_desc": "安裝目前檢視的擴充功能",
+        "open_web": "在網頁中開啟",
+        "open_web_desc": "在 asyar.org 上開啟此擴充功能的頁面"
       },
       "t_install_failed": "安裝失敗",
       "t_install_no_ext": "無法判斷要安裝哪個擴充功能。",
