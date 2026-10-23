@@ -32,6 +32,8 @@ export interface AppSettings {
   appearance: {
     theme: 'system' | 'light' | 'dark';
     launchView: 'default' | 'compact';
+    /** Compact mode only: hide the Show More bar below the search header. */
+    hideCompactShowMore?: boolean;
     windowWidth: number;
     windowHeight: number;
     activeTheme?: string | null;

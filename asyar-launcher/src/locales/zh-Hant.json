@@ -146,7 +146,9 @@
       "window_mode": "視窗模式",
       "window_mode_description": "輸入之前，啟動器顯示多少內容。",
       "theme_aria": "外觀主題",
-      "window_mode_aria": "視窗模式"
+      "window_mode_aria": "視窗模式",
+      "hide_show_more": "隱藏「顯示更多」列",
+      "hide_show_more_description": "緊湊模式下僅顯示搜尋列。按 ↓ 展開。"
     },
     "advanced": {
       "section_extension_surface": "擴充套件展示範圍",

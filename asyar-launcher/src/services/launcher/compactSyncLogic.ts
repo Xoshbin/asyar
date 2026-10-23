@@ -4,6 +4,7 @@
 
 import {
   LAUNCHER_HEIGHT_COMPACT,
+  LAUNCHER_HEIGHT_COMPACT_BARLESS,
   LAUNCHER_HEIGHT_DEFAULT,
 } from '../../lib/launcher/launcherGeometry';
 
@@ -56,6 +57,7 @@ export function isCompactIdle(i: CompactIdleInputs): boolean {
 }
 
 /** Target NSWindow / inner-size height for the current compact-idle state. */
-export function targetHeight(compactIdle: boolean): number {
-  return compactIdle ? LAUNCHER_HEIGHT_COMPACT : LAUNCHER_HEIGHT_DEFAULT;
+export function targetHeight(compactIdle: boolean, hideShowMoreBar = false): number {
+  if (!compactIdle) return LAUNCHER_HEIGHT_DEFAULT;
+  return hideShowMoreBar ? LAUNCHER_HEIGHT_COMPACT_BARLESS : LAUNCHER_HEIGHT_COMPACT;
 }

@@ -50,6 +50,7 @@ function makeDeps(overrides: Partial<MutableDeps> = {}): {
   const deps: CompactSyncDeps = {
     getInitialized: () => state.initialized,
     getLaunchView: () => state.launchView,
+    getHideShowMoreBar: () => false,
     getActiveView: () => state.activeView,
     getActiveContext: () => state.activeContext,
     getLocalSearchValue: () => state.localSearchValue,

@@ -146,7 +146,9 @@
       "window_mode": "Window mode",
       "window_mode_description": "How much of the launcher is visible before you type.",
       "theme_aria": "Appearance theme",
-      "window_mode_aria": "Window mode"
+      "window_mode_aria": "Window mode",
+      "hide_show_more": "Hide Show More bar",
+      "hide_show_more_description": "Show only the search bar in compact mode. Press ↓ to expand."
     },
     "advanced": {
       "section_extension_surface": "Extension surface",

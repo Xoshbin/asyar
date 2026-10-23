@@ -89,6 +89,30 @@ pub fn parse_launch_view(settings_root: Option<&serde_json::Value>) -> &'static 
     }
 }
 
+/// Compact launcher height: 96 (header + Show More bar) or 56 (header only)
+/// when `appearance.hideCompactShowMore` is set. Mirrors
+/// `LAUNCHER_HEIGHT_COMPACT[_BARLESS]` in `src/lib/launcher/launcherGeometry.ts`.
+pub fn parse_compact_height(settings_root: Option<&serde_json::Value>) -> f64 {
+    let hide_bar = settings_root
+        .and_then(|s| s.get("appearance"))
+        .and_then(|a| a.get("hideCompactShowMore"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if hide_bar {
+        56.0
+    } else {
+        96.0
+    }
+}
+
+pub fn read_compact_height(app: &tauri::AppHandle) -> f64 {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store("settings.dat") else {
+        return 96.0;
+    };
+    parse_compact_height(store.get("settings").as_ref())
+}
+
 pub fn read_launch_view(app: &tauri::AppHandle) -> &'static str {
     use tauri_plugin_store::StoreExt;
     let Ok(store) = app.store("settings.dat") else {
@@ -155,11 +179,11 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
 
     #[cfg(target_os = "macos")]
     {
-        use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
+        use crate::platform::macos::LAUNCHER_MAX_HEIGHT;
         crate::platform::macos::pin_launcher_webview(&window);
         crate::platform::macos::configure_launcher_webkit_features(&window);
         let height = if compact {
-            LAUNCHER_COMPACT_HEIGHT
+            read_compact_height(handle)
         } else {
             LAUNCHER_MAX_HEIGHT
         };
@@ -179,7 +203,7 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             let logical_width = size.width as f64 / scale;
             let _ = window.set_size(Size::Logical(LogicalSize {
                 width: logical_width,
-                height: 96.0,
+                height: read_compact_height(handle),
             }));
         }
     }
@@ -242,7 +266,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                     if should_collapse_on_resign(compact_mode, keep_expanded) {
                         crate::platform::macos::set_launcher_window_height(
                             &window,
-                            crate::platform::macos::LAUNCHER_COMPACT_HEIGHT,
+                            read_compact_height(&handle_for_main),
                             crate::platform::macos::ResizeMode::Immediate,
                         );
                     }
@@ -307,11 +331,9 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
 
                 #[cfg(target_os = "macos")]
                 {
-                    use crate::platform::macos::{
-                        ResizeMode, LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT,
-                    };
+                    use crate::platform::macos::{ResizeMode, LAUNCHER_MAX_HEIGHT};
                     let height = if compact {
-                        LAUNCHER_COMPACT_HEIGHT
+                        read_compact_height(&handle_for_main)
                     } else {
                         LAUNCHER_MAX_HEIGHT
                     };
@@ -326,7 +348,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                 {
                     use tauri::{LogicalSize, Size};
                     let height = if compact {
-                        96.0
+                        read_compact_height(&handle_for_main)
                     } else {
                         crate::launcher_placement::LAUNCHER_MAX_HEIGHT
                     };
@@ -447,6 +469,15 @@ mod launch_view_tests {
     #[test]
     fn returns_default_when_settings_root_is_none() {
         assert_eq!(parse_launch_view(None), "default");
+    }
+
+    #[test]
+    fn compact_height_drops_show_more_bar_when_hidden() {
+        let v = serde_json::json!({ "appearance": { "hideCompactShowMore": true } });
+        assert_eq!(parse_compact_height(Some(&v)), 56.0);
+        let v = serde_json::json!({ "appearance": {} });
+        assert_eq!(parse_compact_height(Some(&v)), 96.0);
+        assert_eq!(parse_compact_height(None), 96.0);
     }
 
     #[test]

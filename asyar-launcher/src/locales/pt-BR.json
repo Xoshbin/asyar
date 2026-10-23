@@ -146,7 +146,9 @@
       "window_mode": "Modo de janela",
       "window_mode_description": "Quanto do launcher fica visível antes de você digitar.",
       "theme_aria": "Tema de aparência",
-      "window_mode_aria": "Modo de janela"
+      "window_mode_aria": "Modo de janela",
+      "hide_show_more": "Ocultar barra Mostrar mais",
+      "hide_show_more_description": "Exibe apenas a barra de pesquisa no modo compacto. Pressione ↓ para expandir."
     },
     "advanced": {
       "section_extension_surface": "Superfície de extensões",

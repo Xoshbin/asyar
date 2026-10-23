@@ -239,6 +239,20 @@
         wellBackground="primary"
       />
     </SettingsRow>
+    {#if handler.selectedLaunchView === 'compact'}
+      <SettingsRow
+        label={t('settings.appearance.hide_show_more')}
+        description={t('settings.appearance.hide_show_more_description')}
+      >
+        <Toggle
+          checked={!!handler.settings.appearance.hideCompactShowMore}
+          onchange={() =>
+            settingsService.updateSettings('appearance', {
+              hideCompactShowMore: !handler.settings.appearance.hideCompactShowMore,
+            })}
+        />
+      </SettingsRow>
+    {/if}
   </div>
 </SettingsCard>
 
