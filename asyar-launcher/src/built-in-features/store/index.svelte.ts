@@ -21,6 +21,7 @@ import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import { extensionStateManager } from '../../services/extension/extensionStateManager.svelte';
 import { downloadDeclaredRuntimes } from '../../services/extension/runtimeDownloads';
 import { getRuntimeDownloadSizes } from '../../lib/ipc/runtimeCommands';
+import { fetchAllStoreItems } from './storeFetch';
 
 const EXTENSION_ID = 'store';
 const ACTION_ID_INSTALL_DETAIL = 'app.asyar.store:install-detail'; // Action ID for detail view
@@ -399,12 +400,7 @@ class StoreExtension implements Extension {
     this.logService?.debug('[Store Extension] fetchExtensions: Starting fetch...');
     storeViewState.setLoading(true);
     try {
-      const response = await fetch(`${envService.storeApiBaseUrl}/api/extensions`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      const fetchedExtensions: ApiExtension[] = Array.isArray(data) ? data : data.data || [];
+      const fetchedExtensions: ApiExtension[] = await fetchAllStoreItems();
 
       // Override status based on local installation state
       try {
