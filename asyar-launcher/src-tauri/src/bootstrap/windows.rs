@@ -212,14 +212,14 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
 
     #[cfg(target_os = "macos")]
     {
-        use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
+        use crate::platform::macos::LAUNCHER_MAX_HEIGHT;
         asyar_platform::macos::set_active_max_height(LAUNCHER_MAX_HEIGHT * scale);
 
         let mut frame = crate::platform::macos::get_window_frame(&window);
         let top = frame.origin.y + frame.size.height;
         frame.size.width *= scale;
         frame.size.height = if compact {
-            LAUNCHER_COMPACT_HEIGHT * scale
+            read_compact_height(handle) * scale
         } else {
             LAUNCHER_MAX_HEIGHT * scale
         };
@@ -238,7 +238,7 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             let device_scale = window.scale_factor().unwrap_or(1.0);
             let base_width = size.width as f64 / device_scale;
             let base_height = if compact {
-                96.0
+                read_compact_height(handle)
             } else {
                 crate::launcher_placement::LAUNCHER_MAX_HEIGHT
             };
@@ -293,7 +293,7 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         crate::platform::macos::pin_launcher_webview(&window);
         crate::platform::macos::configure_launcher_webkit_features(&window);
         let height = if compact {
-            read_compact_height(handle)
+            read_compact_height(handle) * scale
         } else {
             LAUNCHER_MAX_HEIGHT * scale
         };
@@ -303,19 +303,6 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             crate::platform::macos::ResizeMode::Immediate,
         );
         crate::platform::macos::prewarm_launcher_panel(&window, &panel);
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    if compact {
-        use tauri::{LogicalSize, Size};
-        if let Ok(size) = window.inner_size() {
-            let scale = window.scale_factor().unwrap_or(1.0);
-            let logical_width = size.width as f64 / scale;
-            let _ = window.set_size(Size::Logical(LogicalSize {
-                width: logical_width,
-                height: read_compact_height(handle),
-            }));
-        }
     }
 
     // Onboarding: open the window if needed
@@ -377,7 +364,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                     if should_collapse_on_resign(compact_mode, keep_expanded) {
                         crate::platform::macos::set_launcher_window_height(
                             &window,
-                            read_compact_height(&handle_for_main),
+                            read_compact_height(&handle_for_main) * scale,
                             crate::platform::macos::ResizeMode::Immediate,
                         );
                     }
@@ -445,7 +432,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                 {
                     use crate::platform::macos::{ResizeMode, LAUNCHER_MAX_HEIGHT};
                     let height = if compact {
-                        read_compact_height(&handle_for_main)
+                        read_compact_height(&handle_for_main) * scale
                     } else {
                         LAUNCHER_MAX_HEIGHT * scale
                     };
@@ -460,7 +447,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                 {
                     use tauri::{LogicalSize, Size};
                     let height = if compact {
-                        read_compact_height(&handle_for_main)
+                        read_compact_height(&handle_for_main) * scale
                     } else {
                         crate::launcher_placement::LAUNCHER_MAX_HEIGHT * scale
                     };
