@@ -269,7 +269,10 @@
       "exclude_patterns": "排除规则",
       "exclude_patterns_description": "索引时跳过的 Glob 匹配模式。",
       "add_search_root_title": "添加搜索根目录",
-      "pattern_placeholder": "例如 *.tmp"
+      "pattern_placeholder": "例如 *.tmp",
+      "recent_ignore_patterns": "最近文件忽略列表",
+      "recent_ignore_patterns_description": "过去 24 小时内修改的文件会在输入前显示在文件搜索中。与文件名及每个上级文件夹名匹配的 Glob 模式会将其从列表中隐藏。",
+      "reset_defaults": "恢复默认"
     },
     "extensions": {
       "installed": "已安装的扩展",
@@ -1027,7 +1030,14 @@
       },
       "ui": {
         "deep": "深度",
-        "loading_preview": "正在加载预览…"
+        "loading_preview": "正在加载预览…",
+        "no_recent": "过去 24 小时内没有修改的文件",
+        "name": "名称",
+        "where": "位置",
+        "kind": "类型",
+        "size": "大小",
+        "modified": "修改时间",
+        "created": "创建时间"
       }
     },
     "notes": {

@@ -941,7 +941,7 @@ pub async fn files_thumbnail<R: tauri::Runtime>(
     };
     let cache_dir = crate::thumbnail::cache::get_thumbnail_cache_dir(&app_handle);
     let Some(cached) =
-        crate::thumbnail::get_or_generate(&thumb_state, &cache_dir, &source, max_dim).await
+        crate::thumbnail::get_or_generate(&thumb_state, &cache_dir, &source, max_dim, false).await
     else {
         return Ok(None);
     };

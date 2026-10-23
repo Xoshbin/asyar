@@ -4,7 +4,11 @@ import { appDataDir, join } from '@tauri-apps/api/path';
 import { getVersion } from '@tauri-apps/api/app';
 import * as commands from '../../lib/ipc/commands';
 import type { ISettingsService } from './interfaces/ISettingsService';
-import type { AppSettings, AISettings } from './types/AppSettingsType';
+import {
+  DEFAULT_RECENT_IGNORE_PATTERNS,
+  type AppSettings,
+  type AISettings,
+} from './types/AppSettingsType';
 import { createPersistence } from '../../lib/persistence/extensionStore';
 
 // Default settings.
@@ -100,6 +104,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     includeRoots: [],
     excludePatterns: [],
     indexHidden: false,
+    recentIgnorePatterns: DEFAULT_RECENT_IGNORE_PATTERNS,
   },
   clipboardHistory: {
     retentionMs: 90 * 24 * 60 * 60 * 1000, // 90 days

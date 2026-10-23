@@ -15,17 +15,22 @@
   import { fileIndexStatus, fileIndexRebuild } from '../../../lib/ipc/fileSearchCommands';
   import { logService } from '../../../services/log/logService';
   import type { IndexStatus } from '../../../bindings';
+  import { DEFAULT_RECENT_IGNORE_PATTERNS } from '../../../services/settings/types/AppSettingsType';
   import { canAddRoot, canAddExcludePattern } from './fileSearchTab.helpers';
   import { t } from '../../../services/i18n';
   import { appListen } from '../../../lib/ipc/bridgeEvents';
 
   let roots = $derived(settingsService.currentSettings.fileSearch.includeRoots ?? []);
   let excludePatterns = $derived(settingsService.currentSettings.fileSearch.excludePatterns ?? []);
+  let recentIgnorePatterns = $derived(
+    settingsService.currentSettings.fileSearch.recentIgnorePatterns ?? [],
+  );
   let enabled = $derived(settingsService.currentSettings.fileSearch.enabled);
   let rootSearchEnabled = $derived(settingsService.currentSettings.fileSearch.rootSearchEnabled);
 
   let isBrowsing = $state(false);
   let newExcludePattern = $state('');
+  let newRecentIgnorePattern = $state('');
   let errorMessage = $state<string | null>(null);
   let status = $state<IndexStatus | null>(null);
   let rebuilding = $state(false);
@@ -62,6 +67,7 @@
       includeRoots: string[];
       excludePatterns: string[];
       indexHidden: boolean;
+      recentIgnorePatterns: string[];
     }>,
   ) {
     const ok = await settingsService.updateSettings('fileSearch', patch);
@@ -125,6 +131,27 @@
     await persistFileSearch({ excludePatterns: excludePatterns.filter((p) => p !== pattern) });
   }
 
+  async function handleAddRecentIgnorePattern() {
+    const pattern = newRecentIgnorePattern.trim();
+    if (!canAddExcludePattern(pattern, recentIgnorePatterns)) {
+      errorMessage = pattern ? `"${pattern}" is already ignored` : null;
+      return;
+    }
+    errorMessage = null;
+    await persistFileSearch({ recentIgnorePatterns: [...recentIgnorePatterns, pattern] });
+    newRecentIgnorePattern = '';
+  }
+
+  async function handleRemoveRecentIgnorePattern(pattern: string) {
+    await persistFileSearch({
+      recentIgnorePatterns: recentIgnorePatterns.filter((p) => p !== pattern),
+    });
+  }
+
+  async function handleResetRecentIgnorePatterns() {
+    await persistFileSearch({ recentIgnorePatterns: [...DEFAULT_RECENT_IGNORE_PATTERNS] });
+  }
+
   // The command itself resolves as soon as the background scan is
   // *spawned*, not when it's done — the actual duration is reflected by
   // `status.state` transitioning through `rescanning` (set synchronously,
@@ -142,6 +169,29 @@
     }
   }
 </script>
+
+{#snippet patternList(patterns: string[], onRemove: (pattern: string) => void)}
+  {#if patterns.length > 0}
+    <SettingsCard>
+      <ul class="path-list">
+        {#each patterns as pattern (pattern)}
+          <li class="path-row">
+            <Icon name="filter" size={14} class="path-icon" />
+            <span class="path-text text-mono" title={pattern}>{pattern}</span>
+            <button
+              type="button"
+              class="btn btn-danger remove-btn"
+              aria-label="Remove {pattern}"
+              onclick={() => onRemove(pattern)}
+            >
+              <Icon name="trash" size={14} />
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </SettingsCard>
+  {/if}
+{/snippet}
 
 <div class="section-header">{t('settings.file_search.section_status')}</div>
 <div id="file-search-status">
@@ -242,26 +292,32 @@
     <Button onclick={handleAddExcludePattern}>{t('common.add')}</Button>
   </div>
 
-  {#if excludePatterns.length > 0}
-    <SettingsCard>
-      <ul class="path-list">
-        {#each excludePatterns as pattern (pattern)}
-          <li class="path-row">
-            <Icon name="filter" size={14} class="path-icon" />
-            <span class="path-text text-mono" title={pattern}>{pattern}</span>
-            <button
-              type="button"
-              class="btn btn-danger remove-btn"
-              aria-label="Remove {pattern}"
-              onclick={() => handleRemoveExcludePattern(pattern)}
-            >
-              <Icon name="trash" size={14} />
-            </button>
-          </li>
-        {/each}
-      </ul>
-    </SettingsCard>
-  {/if}
+  {@render patternList(excludePatterns, handleRemoveExcludePattern)}
+</div>
+
+<div class="section-header">{t('settings.file_search.recent_ignore_patterns')}</div>
+<div id="file-search-recent-ignores">
+  <p class="section-description">
+    {t('settings.file_search.recent_ignore_patterns_description')}
+  </p>
+
+  <div class="add-row exclude-add-row">
+    <Input
+      unstyled
+      textIntent="exact"
+      type="text"
+      class="exclude-input"
+      placeholder={t('settings.file_search.pattern_placeholder')}
+      bind:value={newRecentIgnorePattern}
+      onkeydown={(e) => e.key === 'Enter' && handleAddRecentIgnorePattern()}
+    />
+    <Button onclick={handleAddRecentIgnorePattern}>{t('common.add')}</Button>
+    <Button onclick={handleResetRecentIgnorePatterns}
+      >{t('settings.file_search.reset_defaults')}</Button
+    >
+  </div>
+
+  {@render patternList(recentIgnorePatterns, handleRemoveRecentIgnorePattern)}
 </div>
 
 <style>

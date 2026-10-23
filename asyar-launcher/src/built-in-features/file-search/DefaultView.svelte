@@ -1,13 +1,8 @@
 <script lang="ts">
+  import { homeDir } from '@tauri-apps/api/path';
   import { stat } from '@tauri-apps/plugin-fs';
   import type { FileHit } from 'asyar-sdk/contracts';
-  import {
-    ActionFooter,
-    Badge,
-    EmptyState,
-    LauncherListRow,
-    SplitListDetail,
-  } from '../../components';
+  import { Badge, EmptyState, LauncherListRow, SplitListDetail } from '../../components';
   import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
   import { getFileIcon, getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
   import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
@@ -51,6 +46,20 @@
     if (days < 30) return `${days} d ago`;
     if (days < 365) return `${Math.floor(days / 30)} mo ago`;
     return `${Math.floor(days / 365)} y ago`;
+  }
+
+  function formatDate(d: Date | null): string {
+    return d ? d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  }
+
+  // "Where" shows the parent folder with $HOME collapsed to `~`.
+  let home = $state('');
+  void homeDir()
+    .then((h) => (home = h))
+    .catch(() => {});
+  function parentDir(path: string): string {
+    const dir = path.slice(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
+    return home && dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir;
   }
 
   // Subscribe to the searchBarAccessory dropdown
@@ -138,9 +147,10 @@
   let previewThumbUrl = $state<string | null>(null);
   let previewLoading = $state(false);
   let currentPreviewPath = $state('');
-  // `FileHit` doesn't carry size — the preview pane stats the one selected
-  // file lazily instead of keeping it in the hot per-keystroke struct.
+  // `FileHit` doesn't carry size/created — the preview pane stats the one
+  // selected file lazily instead of keeping it in the hot per-keystroke struct.
   let selectedSize = $state<number | null>(null);
+  let selectedCreated = $state<Date | null>(null);
 
   const MAX_TEXT_PREVIEW = 50_000;
   let previewTimer: ReturnType<typeof setTimeout> | undefined;
@@ -162,10 +172,11 @@
       currentPreviewPath = '';
     }
 
-    if (item && !item.isDir) {
-      void loadSize(item.path);
+    if (item) {
+      void loadStat(item.path, item.isDir);
     } else {
       selectedSize = null;
+      selectedCreated = null;
     }
 
     return () => clearTimeout(previewTimer);
@@ -191,7 +202,7 @@
       }
 
       // Step 2 — binary (or empty): ask the OS for a thumbnail.
-      previewThumbUrl = await getFileThumbnail(path, DETAIL_THUMB_DIM);
+      previewThumbUrl = await getFileThumbnail(path, DETAIL_THUMB_DIM, true);
       if (currentPreviewPath !== path) return; // superseded mid-flight
     } catch (err) {
       logService.warn(`[FileSearch] preview load failed: ${err}`);
@@ -200,12 +211,15 @@
     }
   }
 
-  async function loadSize(path: string) {
+  async function loadStat(path: string, isDir: boolean) {
     try {
       const meta = await stat(path);
-      selectedSize = meta.size;
+      if (selected?.path !== path) return; // superseded mid-flight
+      selectedSize = isDir ? null : meta.size;
+      selectedCreated = meta.birthtime;
     } catch {
       selectedSize = null;
+      selectedCreated = null;
     }
   }
 
@@ -249,7 +263,9 @@
     minLeftWidth={240}
     maxLeftWidth={600}
     ariaLabel="Files"
-    emptyMessage={fileSearchViewState.searchQuery ? 'No matches' : 'Start typing to search…'}
+    emptyMessage={fileSearchViewState.searchQuery
+      ? 'No matches'
+      : t('features.file_search.ui.no_recent')}
   >
     {#snippet listItem(item: FileHit, index: number)}
       <LauncherListRow
@@ -258,7 +274,6 @@
         onclick={() => onSelect(item)}
         ondblclick={() => onActivate(item)}
         title={item.name}
-        subtitle={item.path}
       >
         {#snippet leading()}
           <div class="row-icon-wrap">
@@ -367,20 +382,26 @@
           {/if}
         </div>
 
-        <ActionFooter>
-          {#snippet left()}
-            <div class="flex items-center space-x-3">
-              <Badge text={selected.type} variant="default" mono />
-              {#if selectedSize !== null}
-                <span class="text-caption">{formatBytes(selectedSize)}</span>
-              {/if}
-              <span class="text-caption opacity-70">{formatRelativeTime(selected.modifiedAt)}</span>
-              <span class="text-caption opacity-50 truncate" style="max-width:300px;"
-                >{selected.path}</span
-              >
-            </div>
-          {/snippet}
-        </ActionFooter>
+        <dl class="info-list">
+          <dt>{t('features.file_search.ui.name')}</dt>
+          <dd>{selected.name}</dd>
+          <dt>{t('features.file_search.ui.where')}</dt>
+          <dd title={selected.path}>{parentDir(selected.path)}</dd>
+          <dt>{t('features.file_search.ui.kind')}</dt>
+          <dd><Badge text={selected.type} variant="default" mono /></dd>
+          {#if selectedSize !== null}
+            <dt>{t('features.file_search.ui.size')}</dt>
+            <dd>{formatBytes(selectedSize)}</dd>
+          {/if}
+          <dt>{t('features.file_search.ui.modified')}</dt>
+          <dd title={formatDate(new Date(selected.modifiedAt * 1000))}>
+            {formatRelativeTime(selected.modifiedAt)}
+          </dd>
+          {#if selectedCreated}
+            <dt>{t('features.file_search.ui.created')}</dt>
+            <dd>{formatDate(selectedCreated)}</dd>
+          {/if}
+        </dl>
       {:else}
         <EmptyState
           message={fileSearchViewState.searchQuery
@@ -483,6 +504,33 @@
     object-fit: contain;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
+  }
+
+  /* Compact, fixed-height metadata block: the preview above keeps every
+     remaining pixel of the pane. */
+  .info-list {
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: var(--space-4);
+    row-gap: var(--space-1);
+    margin: 0;
+    padding: var(--space-3) var(--space-6);
+    border-top: 1px solid var(--border-color);
+    font-size: var(--font-size-sm);
+  }
+
+  .info-list dt {
+    color: var(--text-secondary);
+  }
+
+  .info-list dd {
+    margin: 0;
+    color: var(--text-primary);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .text-pane {

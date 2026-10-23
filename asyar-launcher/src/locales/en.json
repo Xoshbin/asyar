@@ -269,7 +269,10 @@
       "exclude_patterns": "Exclude patterns",
       "exclude_patterns_description": "Glob patterns to skip during indexing.",
       "add_search_root_title": "Add Search Root",
-      "pattern_placeholder": "e.g. *.tmp"
+      "pattern_placeholder": "e.g. *.tmp",
+      "recent_ignore_patterns": "Recent files ignore list",
+      "recent_ignore_patterns_description": "Files modified in the last 24 hours show in File Search before you type. Glob patterns matched against the file name and every parent folder hide noise from that list.",
+      "reset_defaults": "Reset to Defaults"
     },
     "extensions": {
       "installed": "Installed Extensions",
@@ -1027,7 +1030,14 @@
       },
       "ui": {
         "deep": "deep",
-        "loading_preview": "Loading preview…"
+        "loading_preview": "Loading preview…",
+        "no_recent": "No files modified in the last 24 hours",
+        "name": "Name",
+        "where": "Where",
+        "kind": "Kind",
+        "size": "Size",
+        "modified": "Modified",
+        "created": "Created"
       }
     },
     "notes": {

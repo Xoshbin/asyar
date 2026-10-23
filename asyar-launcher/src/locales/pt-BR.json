@@ -269,7 +269,10 @@
       "exclude_patterns": "Padrões de exclusão",
       "exclude_patterns_description": "Padrões glob a serem ignorados durante a indexação.",
       "add_search_root_title": "Adicionar Diretório de Busca",
-      "pattern_placeholder": "ex.: *.tmp"
+      "pattern_placeholder": "ex.: *.tmp",
+      "recent_ignore_patterns": "Lista de exclusão de arquivos recentes",
+      "recent_ignore_patterns_description": "Arquivos modificados nas últimas 24 horas aparecem na Busca de Arquivos antes de digitar. Padrões glob comparados com o nome do arquivo e cada pasta pai ocultam ruído dessa lista.",
+      "reset_defaults": "Restaurar padrões"
     },
     "extensions": {
       "installed": "Extensões Instaladas",
@@ -1027,7 +1030,14 @@
       },
       "ui": {
         "deep": "profunda",
-        "loading_preview": "Carregando pré-visualização…"
+        "loading_preview": "Carregando pré-visualização…",
+        "no_recent": "Nenhum arquivo modificado nas últimas 24 horas",
+        "name": "Nome",
+        "where": "Local",
+        "kind": "Tipo",
+        "size": "Tamanho",
+        "modified": "Modificado",
+        "created": "Criado"
       }
     },
     "notes": {

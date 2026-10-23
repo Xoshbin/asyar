@@ -6,6 +6,7 @@ vi.mock('../../services/feedback/feedbackService.svelte', () => ({
 }));
 vi.mock('../../lib/ipc/fileSearchCommands', () => ({
   fileSearch: vi.fn(),
+  fileSearchRecent: vi.fn(),
   fileSearchPin: vi.fn(),
   fileSearchUnpin: vi.fn(),
   fileSearchListPinned: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('../../lib/ipc/fileSearchCommands', () => ({
 
 import {
   fileSearch,
+  fileSearchRecent,
   fileSearchPin,
   fileSearchUnpin,
   fileSearchListPinned,
@@ -60,11 +62,36 @@ beforeEach(() => {
 });
 
 describe('runSearch', () => {
-  it('clears results for an empty query without calling the backend', async () => {
+  it('loads recent files for an empty query and selects the first row', async () => {
+    vi.mocked(fileSearchRecent).mockResolvedValue([hit('pinned'), hit('r1')]);
+    fileSearchViewState.pinnedFiles = [hit('pinned')];
     fileSearchViewState.searchQuery = '   ';
+    fileSearchViewState.typeFilter = 'image';
     await runSearch();
     expect(fileSearch).not.toHaveBeenCalled();
-    expect(fileSearchViewState.results).toEqual([]);
+    expect(fileSearchRecent).toHaveBeenCalledWith('image', 50);
+    // Pinned first, recents deduped against them.
+    expect(fileSearchViewState.allItems.map((i) => i.fileId)).toEqual(['pinned', 'r1']);
+    expect(fileSearchViewState.selectedFileId).toBe('pinned');
+  });
+
+  it('drops a stale response superseded by a newer call', async () => {
+    let resolveRecent!: (v: any) => void;
+    vi.mocked(fileSearchRecent).mockReturnValue(new Promise((r) => (resolveRecent = r)));
+    vi.mocked(fileSearch).mockResolvedValue({
+      hits: [hit('q')],
+      truncated: false,
+      scannedAll: true,
+      indexGeneration: 1,
+      work: {} as any,
+    });
+    fileSearchViewState.searchQuery = '';
+    const stale = runSearch();
+    fileSearchViewState.searchQuery = 'q';
+    await runSearch();
+    resolveRecent([hit('recent')]);
+    await stale;
+    expect(fileSearchViewState.results).toEqual([hit('q')]);
   });
 
   it('passes the trimmed query, resolved typeFilter, and a 50 limit', async () => {
@@ -126,12 +153,16 @@ describe('runSearch', () => {
 });
 
 describe('allItems', () => {
-  it('shows pinned files when there is no active query', () => {
+  it('shows pinned then recent files when there is no active query', () => {
     fileSearchViewState.searchQuery = '';
-    fileSearchViewState.results = [];
+    fileSearchViewState.results = [hit('recent'), hit('pinned-b')];
     fileSearchViewState.deepResults = [];
     fileSearchViewState.pinnedFiles = [hit('pinned-a'), hit('pinned-b')];
-    expect(fileSearchViewState.allItems.map((i) => i.fileId)).toEqual(['pinned-a', 'pinned-b']);
+    expect(fileSearchViewState.allItems.map((i) => i.fileId)).toEqual([
+      'pinned-a',
+      'pinned-b',
+      'recent',
+    ]);
   });
 
   it('shows real + deep results (not pinned) once there is an active query', () => {

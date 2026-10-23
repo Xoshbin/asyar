@@ -13,7 +13,11 @@ import { extensionStateManager } from '../../services/extension/extensionStateMa
 import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
-import type { AppSettings, PopToRootDelay } from '../../services/settings/types/AppSettingsType';
+import {
+  DEFAULT_RECENT_IGNORE_PATTERNS,
+  type AppSettings,
+  type PopToRootDelay,
+} from '../../services/settings/types/AppSettingsType';
 import type { EscapeBehavior } from '../../lib/keyboard/escapeBehavior';
 import { logService } from '../../services/log/logService';
 import { initVerboseLoggingSync } from '../../services/log/verboseLoggingSync.svelte';
@@ -116,6 +120,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     includeRoots: [],
     excludePatterns: [],
     indexHidden: false,
+    recentIgnorePatterns: DEFAULT_RECENT_IGNORE_PATTERNS,
   },
 };
 

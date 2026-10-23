@@ -56,6 +56,7 @@ pub async fn get_or_generate(
     cache_dir: &Path,
     path: &Path,
     max_dim: u32,
+    priority: bool,
 ) -> Option<PathBuf> {
     let meta = tokio::fs::metadata(path).await.ok()?;
     let mtime = meta
@@ -70,7 +71,13 @@ pub async fn get_or_generate(
         return Some(cached);
     }
 
-    let _permit = state.semaphore.acquire().await.ok()?;
+    // `priority` (the one file the user is looking at) skips the queue:
+    // otherwise it waits behind every row thumbnail of a freshly opened list.
+    let _permit = if priority {
+        None
+    } else {
+        Some(state.semaphore.acquire().await.ok()?)
+    };
     // Re-check after acquiring the permit — a concurrent request for the
     // same file may have generated it while we waited.
     if tokio::fs::metadata(&cached).await.is_ok() {
@@ -219,6 +226,43 @@ mod atomic_write_tests {
         assert!(bytes == vec![1; 4096] || bytes == vec![2; 4096]);
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod priority_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn priority_request_does_not_wait_for_a_saturated_queue() {
+        let dir = std::env::temp_dir().join(format!("thumb_priority_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("a.png");
+        image::DynamicImage::ImageRgb8(image::RgbImage::new(4, 4))
+            .save_with_format(&src, image::ImageFormat::Png)
+            .unwrap();
+
+        let state = ThumbnailState::default();
+        let _held = state
+            .semaphore
+            .acquire_many(MAX_CONCURRENT_GENERATIONS as u32)
+            .await
+            .unwrap();
+        let cache = dir.join("cache");
+        let wait = std::time::Duration::from_secs(5);
+
+        let queued = tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            get_or_generate(&state, &cache, &src, 64, false),
+        )
+        .await;
+        assert!(queued.is_err(), "non-priority request must queue");
+        let got = tokio::time::timeout(wait, get_or_generate(&state, &cache, &src, 64, true))
+            .await
+            .expect("priority request must not queue");
+        assert!(got.is_some());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

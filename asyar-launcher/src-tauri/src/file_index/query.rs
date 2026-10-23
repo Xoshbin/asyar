@@ -20,6 +20,7 @@
 
 use std::collections::BinaryHeap;
 
+use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use memchr::memmem;
 
 use super::file_id;
@@ -27,7 +28,9 @@ use super::index::FileIndex;
 use super::learning::LearningCache;
 use super::matcher::Matcher;
 use super::ranking::{self, MatchKind};
-use super::types::{flags_hidden, FileHit, FileSearchResponse, FileType, HitSource, WorkMeter};
+use super::types::{
+    flags_hidden, FileHit, FileSearchResponse, FileType, HitSource, WorkMeter, NO_PARENT,
+};
 
 pub const CANDIDATE_CAP: usize = 2048;
 pub const DEFAULT_LIMIT: usize = 50;
@@ -531,6 +534,86 @@ fn push_top(
     }
 }
 
+/// Recent files = modified within the last 24 h (Raycast's window).
+pub const RECENT_WINDOW_SECS: i64 = 86_400;
+
+/// Compiles the user's recent-files ignore list. Patterns are globs matched
+/// case-insensitively against the file name and every ancestor folder name
+/// (`*.log`, `node_modules`, `*.app`). Invalid patterns are skipped so one
+/// typo in settings can't disable the whole list.
+pub fn build_recent_ignore(patterns: &[String]) -> GlobSet {
+    let mut b = GlobSetBuilder::new();
+    for p in patterns {
+        if let Ok(g) = GlobBuilder::new(p.trim()).case_insensitive(true).build() {
+            b.add(g);
+        }
+    }
+    b.build().unwrap_or_else(|_| GlobSet::empty())
+}
+
+/// True when the entry's name or any (non-root) ancestor matches `ignore`
+/// or, with hidden entries off, is a dotfile/dotdir.
+fn recent_excluded(index: &FileIndex, idx: u32, ignore: &GlobSet, include_hidden: bool) -> bool {
+    let mut cur = idx;
+    let mut hops = 0;
+    while cur != NO_PARENT && !index.is_root(cur) && hops < 64 {
+        let e = index.entry(cur);
+        if (!include_hidden && flags_hidden(e.flags)) || ignore.is_match(index.disp_name(cur)) {
+            return true;
+        }
+        cur = e.parent;
+        hops += 1;
+    }
+    false
+}
+
+/// Raycast's empty-query "recent files": files modified within
+/// `RECENT_WINDOW_SECS`, newest first, minus the ignore list — answered
+/// from the in-memory index (which the watcher keeps current) instead of a
+/// Spotlight/`fd` subprocess. One linear pass over `EntryMeta` with a top-N
+/// min-heap on mtime; the ancestor walk only runs for entries that would
+/// actually enter the heap.
+pub fn recent(
+    index: &FileIndex,
+    learning: &LearningCache,
+    ignore: &GlobSet,
+    opts: &QueryOptions,
+    now: i64,
+) -> Vec<FileHit> {
+    let limit = if opts.limit == 0 {
+        DEFAULT_LIMIT
+    } else {
+        opts.limit.min(DEFAULT_LIMIT)
+    };
+    let cutoff = now - RECENT_WINDOW_SECS;
+    let mut heap: BinaryHeap<std::cmp::Reverse<(u32, u32)>> = BinaryHeap::with_capacity(limit + 1);
+    for idx in 0..index.entries_len() as u32 {
+        let e = index.entry(idx);
+        if (e.mtime as i64) < cutoff
+            || e.is_dir()
+            || index.is_root(idx)
+            || !passes_filters(index, idx, opts)
+        {
+            continue;
+        }
+        if heap.len() == limit && heap.peek().is_some_and(|r| e.mtime <= r.0 .0) {
+            continue;
+        }
+        if recent_excluded(index, idx, ignore, opts.include_hidden) {
+            continue;
+        }
+        heap.push(std::cmp::Reverse((e.mtime, idx)));
+        if heap.len() > limit {
+            heap.pop();
+        }
+    }
+    let mut top: Vec<(u32, u32)> = heap.into_iter().map(|r| r.0).collect();
+    top.sort_unstable_by(|a, b| b.cmp(a));
+    top.into_iter()
+        .map(|(_, idx)| make_hit(index, learning, idx, 0.0))
+        .collect()
+}
+
 fn make_hit(index: &FileIndex, learning: &LearningCache, idx: u32, score: f32) -> FileHit {
     let e = index.entry(idx);
     let fid = index.file_id(idx);
@@ -621,6 +704,52 @@ mod tests {
 
     fn hit_names(r: &FileSearchResponse) -> Vec<String> {
         r.hits.iter().map(|h| h.name.clone()).collect()
+    }
+
+    #[test]
+    fn recent_orders_by_mtime_within_window_and_skips_ignored_and_hidden() {
+        let fresh = (NOW - 60) as u32;
+        let items = vec![
+            entry("/r/old.md", EntryKind::File, fresh - 20),
+            entry("/r/new.md", EntryKind::File, fresh),
+            entry("/r/mid.png", EntryKind::File, fresh - 10),
+            entry(
+                "/r/stale.md",
+                EntryKind::File,
+                (NOW - RECENT_WINDOW_SECS - 1) as u32,
+            ),
+            entry("/r/dir", EntryKind::Dir, fresh),
+            entry("/r/App.LOG", EntryKind::File, fresh),
+            entry("/r/proj", EntryKind::Dir, fresh),
+            entry("/r/proj/node_modules", EntryKind::Dir, fresh),
+            entry("/r/proj/node_modules/x.js", EntryKind::File, fresh),
+            entry("/r/.secret", EntryKind::File, fresh),
+            entry("/r/.hid", EntryKind::Dir, fresh),
+            entry("/r/.hid/inner.md", EntryKind::File, fresh),
+        ];
+        let idx = FileIndex::build(vec![PathBuf::from(np("/r"))], items, NOW);
+        let learning = LearningCache::new();
+        let ignore = build_recent_ignore(&["*.log".into(), "node_modules".into(), "[".into()]);
+        let names = |opts: &QueryOptions| -> Vec<String> {
+            recent(&idx, &learning, &ignore, opts, NOW)
+                .into_iter()
+                .map(|h| h.name)
+                .collect()
+        };
+        assert_eq!(
+            names(&QueryOptions::default()),
+            ["new.md", "mid.png", "old.md"]
+        );
+        let two = QueryOptions {
+            limit: 2,
+            ..Default::default()
+        };
+        assert_eq!(names(&two), ["new.md", "mid.png"]);
+        let images = QueryOptions {
+            type_filter: Some(FileType::Image),
+            ..Default::default()
+        };
+        assert_eq!(names(&images), ["mid.png"]);
     }
 
     #[test]

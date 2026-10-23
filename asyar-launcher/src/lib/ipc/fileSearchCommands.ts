@@ -20,6 +20,12 @@ export async function fileSearch(
   });
 }
 
+/** Most recently modified files from the local index — the view's
+ * empty-query list. */
+export async function fileSearchRecent(typeFilter?: string, limit?: number): Promise<FileHit[]> {
+  return invokeSafe<FileHit[]>('file_search_recent', { typeFilter: typeFilter ?? null, limit });
+}
+
 export async function fileIndexStatus(): Promise<IndexStatus> {
   return invokeSafe<IndexStatus>('file_index_status');
 }

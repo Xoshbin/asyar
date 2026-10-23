@@ -1,5 +1,6 @@
 import {
   fileSearch,
+  fileSearchRecent,
   fileSearchPin,
   fileSearchUnpin,
   fileSearchListPinned,
@@ -41,14 +42,14 @@ class FileSearchViewState {
     this.typeFilter = v;
   }
 
-  /** Every visible row. With no active query, shows pinned files (there's
-   * nothing else to show and pinning would otherwise be invisible outside
-   * of the tiny badge on a matching search row). Once searching, real
-   * matches take over — pinned matches already rank first via the
-   * backend's pin bonus. */
+  /** Every visible row. With no active query, shows pinned files followed
+   * by recently modified files (`results` holds the recent list then).
+   * Once searching, real matches take over — pinned matches already rank
+   * first via the backend's pin bonus. */
   get allItems(): FileHit[] {
     if (!this.searchQuery.trim()) {
-      return this.pinnedFiles;
+      const pinned = new Set(this.pinnedFiles.map((p) => p.fileId));
+      return [...this.pinnedFiles, ...this.results.filter((r) => !pinned.has(r.fileId))];
     }
     return [...this.results, ...this.deepResults];
   }
@@ -114,28 +115,32 @@ export async function togglePin(fileId: string, path: string): Promise<void> {
   }
 }
 
+let searchSeq = 0;
+
+/** Searches the index for the current query, or — with an empty query —
+ * loads the recently modified files. Like Raycast, the first row is
+ * selected so the preview pane is never blank while there's something
+ * to show. */
 export async function runSearch(): Promise<void> {
+  const seq = ++searchSeq;
   const q = fileSearchViewState.searchQuery.trim();
   fileSearchViewState.deepResults = [];
-  if (!q) {
-    fileSearchViewState.results = [];
-    return;
-  }
   fileSearchViewState.loading = true;
   try {
     const typeFilter =
       fileSearchViewState.typeFilter === 'all' ? undefined : fileSearchViewState.typeFilter;
-    const response = await fileSearch(q, typeFilter, 50);
-    const results = response?.hits ?? [];
+    const results = q
+      ? ((await fileSearch(q, typeFilter, 50))?.hits ?? [])
+      : await fileSearchRecent(typeFilter, 50);
+    // A newer keystroke superseded this call; its results win.
+    if (seq !== searchSeq) return;
     fileSearchViewState.results = results;
-    if (
-      fileSearchViewState.selectedFileId &&
-      !results.some((r) => r.fileId === fileSearchViewState.selectedFileId)
-    ) {
-      fileSearchViewState.selectedFileId = results[0]?.fileId ?? null;
+    const items = fileSearchViewState.allItems;
+    if (!items.some((r) => r.fileId === fileSearchViewState.selectedFileId)) {
+      fileSearchViewState.selectedFileId = items[0]?.fileId ?? null;
     }
   } finally {
-    fileSearchViewState.loading = false;
+    if (seq === searchSeq) fileSearchViewState.loading = false;
   }
 }
 

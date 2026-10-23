@@ -231,6 +231,12 @@ export type FileIndexConfig = {
 	// Extra exclude patterns layered on top of the built-in defaults.
 	excludePatterns: string[],
 	indexHidden: boolean,
+	/**
+	 *  Globs hiding files from the empty-query "recent files" list, matched
+	 *  against the file name and every ancestor folder name. Doesn't affect
+	 *  indexing or search.
+	 */
+	recentIgnorePatterns?: string[],
 };
 
 export type FileReadRangeOptions = {
