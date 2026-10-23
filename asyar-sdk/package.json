@@ -57,8 +57,8 @@
     "@types/semver": "^7.7.1",
     "jsdom": "^29.0.1",
     "typescript": "~5.6.2",
-    "vitest": "^5.0.3",
-    "vite": "^6.4.3"
+    "vitest": "^5.0.5",
+    "vite": "^6.4.4"
   },
   "files": [
     "dist",

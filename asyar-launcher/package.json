@@ -1,6 +1,6 @@
 {
   "name": "asyar",
-  "version": "0.1.1-51",
+  "version": "0.1.1-53",
   "description": "A fast, open-source launcher for macOS, Windows, and Linux.",
   "type": "module",
   "scripts": {
@@ -41,22 +41,22 @@
     "@tauri-apps/plugin-updater": "~2.10.0",
     "asyar-sdk": "^4.16.0",
     "date-fns": "^4.1.0",
-    "katex": "^0.18.2",
+    "katex": "^0.18.3",
     "marked": "^17.0.5",
     "mathjs": "^15.2.0",
     "mermaid": "^11.16.1",
     "prismjs": "^1.30.0",
     "tailwindcss": "^4.0.6",
     "tauri-plugin-clipboard-x-api": "^2.0.1",
-    "uuid": "^14.0.2"
+    "uuid": "^14.0.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.23.0",
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.70.2",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
-    "@tauri-apps/cli": "^2.12.3",
-    "@tauri-apps/cli-win32-arm64-msvc": "^2.12.3",
+    "@tauri-apps/cli": "2.12.2",
+    "@tauri-apps/cli-win32-arm64-msvc": "2.12.2",
     "@testing-library/svelte": "^5.3.1",
     "@types/katex": "^0.16.8",
     "@types/node": "^22.14.1",
@@ -76,7 +76,7 @@
     "svelte-eslint-parser": "^1.1.0",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.28.0",
-    "vite": "^6.4.3",
-    "vitest": "^5.0.3"
+    "vite": "^6.4.4",
+    "vitest": "^5.0.5"
   }
 }
