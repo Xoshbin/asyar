@@ -231,6 +231,7 @@ pub async fn fetch_url(
     caller_extension_id: Option<String>,
     registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
     store: tauri::State<'_, DataStore>,
+    client_pool: tauri::State<'_, crate::network::client_pool::ScopedHttpClientPool>,
 ) -> Result<serde_json::Value, AppError> {
     registry.check(&caller_extension_id, "network")?;
     let lan_policy = build_lan_policy(&registry, &store, caller_extension_id.as_deref())?;
@@ -245,6 +246,7 @@ pub async fn fetch_url(
         },
         lan_policy.as_ref(),
         caller_extension_id.as_deref(),
+        client_pool.inner(),
     )
     .await
 }

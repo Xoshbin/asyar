@@ -3,6 +3,7 @@
 //! permission gating and delegates here for the actual request.
 
 use crate::error::AppError;
+use crate::network::client_pool::{ClientScope, Route, ScopedHttpClientPool};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use url::Url;
@@ -181,12 +182,14 @@ pub async fn fetch_scoped(
     req: FetchRequest,
     lan_policy: Option<&crate::network::lan_policy::LanPolicy>,
     caller_extension_id: Option<&str>,
+    client_pool: &ScopedHttpClientPool,
 ) -> Result<serde_json::Value, AppError> {
     let mut url =
         Url::parse(&req.url).map_err(|_| AppError::Other(format!("Invalid URL: {}", req.url)))?;
     let mut method = request_method(req.method.as_deref());
     let mut headers = req.headers.unwrap_or_default();
     let mut send_body = true;
+    let scope = ClientScope::from_caller(caller_extension_id);
 
     for redirect_count in 0..=10 {
         url = canonicalize_request_url(url)?;
@@ -210,8 +213,9 @@ pub async fn fetch_scoped(
             Route::ProxyAllowed
         };
         let timeout = std::time::Duration::from_millis(req.timeout_ms.unwrap_or(20000));
-        let client = pinned_client(&host, &prefer_ipv4(&addresses), timeout, route)?;
-        let mut request = client.request(method.clone(), url.clone());
+        let client =
+            client_pool.acquire(scope.clone(), route, url.scheme(), &host, port, &addresses)?;
+        let mut request = client.request(method.clone(), url.clone()).timeout(timeout);
         for (key, value) in &headers {
             request = request.header(key, value);
         }
@@ -250,45 +254,6 @@ pub async fn fetch_scoped(
         return response_envelope(response).await;
     }
     unreachable!("redirect loop returns at its configured limit")
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Route {
-    /// Dial only the authorized, pinned addresses.
-    Pinned,
-    /// Public destination: honor the user's system or environment proxy, as
-    /// the plain `network` transport always has.
-    ProxyAllowed,
-}
-
-fn pinned_client(
-    host: &str,
-    addresses: &[std::net::SocketAddr],
-    timeout: std::time::Duration,
-    route: Route,
-) -> Result<reqwest::Client, AppError> {
-    let mut builder = reqwest::Client::builder();
-    if route == Route::Pinned {
-        builder = builder.no_proxy();
-    }
-    Ok(builder
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .timeout(timeout)
-        .redirect(reqwest::redirect::Policy::none())
-        .resolve_to_addrs(host, addresses)
-        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15")
-        .build()?)
-}
-
-/// The extension transport has always dialed IPv4 only. Every resolved address
-/// is still authorized; this only narrows which of them get dialed.
-fn prefer_ipv4(addresses: &[std::net::SocketAddr]) -> Vec<std::net::SocketAddr> {
-    let ipv4: Vec<_> = addresses.iter().copied().filter(|a| a.is_ipv4()).collect();
-    if ipv4.is_empty() {
-        addresses.to_vec()
-    } else {
-        ipv4
-    }
 }
 
 fn strip_sensitive_redirect_headers(
@@ -474,13 +439,17 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        let client = pinned_client(
-            "speaker.local",
-            &[server.socket_address()],
-            std::time::Duration::from_secs(2),
-            Route::Pinned,
-        )
-        .unwrap();
+        let pool = ScopedHttpClientPool::new();
+        let client = pool
+            .acquire(
+                ClientScope::Extension("org.asyar.test".into()),
+                Route::Pinned,
+                "http",
+                "speaker.local",
+                server.socket_address().port(),
+                &[server.socket_address()],
+            )
+            .unwrap();
 
         let response = client.get(url).send().await.unwrap();
 
@@ -552,8 +521,11 @@ mod tests {
     fn fetch_dials_ipv4_when_available() {
         let v4: std::net::SocketAddr = "192.168.1.20:80".parse().unwrap();
         let v6: std::net::SocketAddr = "[fd00::20]:80".parse().unwrap();
-        assert_eq!(prefer_ipv4(&[v6, v4]), vec![v4]);
-        assert_eq!(prefer_ipv4(&[v6]), vec![v6]);
+        assert_eq!(
+            crate::network::client_pool::prefer_ipv4(&[v6, v4]),
+            vec![v4]
+        );
+        assert_eq!(crate::network::client_pool::prefer_ipv4(&[v6]), vec![v6]);
     }
 
     #[test]

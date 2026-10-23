@@ -641,6 +641,20 @@ fn resolve_declared_permissions(
     }
 }
 
+fn apply_permission_registration<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    registry: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    registration: Option<(HashSet<String>, HashMap<String, serde_json::Value>)>,
+) {
+    if let Some((permissions, args)) = registration {
+        registry.register(extension_id, permissions, args);
+    } else {
+        registry.unregister(extension_id);
+    }
+    crate::network::client_pool::evict_managed_extension(app_handle, extension_id);
+}
+
 /// Called by extensionManager.ts when an extension loads. Stores the extension's
 /// declared permission strings + their sidecar arguments so sensitive Rust
 /// commands can check them.
@@ -672,7 +686,7 @@ pub fn register_extension_permissions(
     };
 
     let consent = crate::extensions::consent::get_consent(&app_handle, &extension_id)?;
-    match crate::extensions::consent::registration_decision(
+    let (result, registration) = match crate::extensions::consent::registration_decision(
         is_built_in,
         &declared_perms,
         &declared_args,
@@ -681,29 +695,37 @@ pub fn register_extension_permissions(
         crate::extensions::consent::RegistrationDecision::Register => {
             let perms: HashSet<String> = declared_perms.into_iter().collect();
             let args: HashMap<String, serde_json::Value> = declared_args.into_iter().collect();
-            registry.register(&extension_id, perms, args);
-            Ok(PermissionRegistrationResult {
-                registered: true,
-                needs_consent: false,
-            })
+            (
+                PermissionRegistrationResult {
+                    registered: true,
+                    needs_consent: false,
+                },
+                Some((perms, args)),
+            )
         }
         crate::extensions::consent::RegistrationDecision::WithholdNeedsConsent => {
-            registry.unregister(&extension_id);
             log::warn!(
                 "Withholding permission registration for '{}': declared permissions exceed recorded consent",
                 extension_id
             );
-            Ok(PermissionRegistrationResult {
-                registered: false,
-                needs_consent: true,
-            })
+            (
+                PermissionRegistrationResult {
+                    registered: false,
+                    needs_consent: true,
+                },
+                None,
+            )
         }
-    }
+    };
+    apply_permission_registration(&app_handle, &registry, &extension_id, registration);
+    Ok(result)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::network::client_pool::{ClientScope, Route, ScopedHttpClientPool};
+    use tauri::Manager;
 
     fn make_registry() -> ExtensionPermissionRegistry {
         let reg = ExtensionPermissionRegistry::new();
@@ -1736,5 +1758,45 @@ mod tests {
 
         assert!(!is_built_in);
         assert_eq!(declared_perms, supplied);
+    }
+
+    #[test]
+    fn replacing_live_network_lan_permissions_evicts_retained_clients() {
+        let app = tauri::test::mock_app();
+        let pool = ScopedHttpClientPool::new();
+        pool.acquire(
+            ClientScope::Extension("org.asyar.sonos".into()),
+            Route::Pinned,
+            "http",
+            "speaker.local",
+            1400,
+            &["192.168.1.20:1400".parse().unwrap()],
+        )
+        .unwrap();
+        app.manage(pool);
+        let registry = ExtensionPermissionRegistry::new();
+
+        apply_permission_registration(
+            app.handle(),
+            &registry,
+            "org.asyar.sonos",
+            Some((
+                HashSet::from(["network".into(), "network:lan".into()]),
+                HashMap::from([(
+                    "network:lan".into(),
+                    serde_json::json!(["speaker.local:1400"]),
+                )]),
+            )),
+        );
+
+        assert!(registry
+            .lan_policy_manifest("org.asyar.sonos")
+            .unwrap()
+            .is_some());
+        let pool: tauri::State<'_, ScopedHttpClientPool> = app.state();
+        assert_eq!(
+            pool.len_for_scope(&ClientScope::Extension("org.asyar.sonos".into())),
+            0
+        );
     }
 }

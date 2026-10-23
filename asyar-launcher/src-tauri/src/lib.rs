@@ -416,6 +416,7 @@ pub fn run() {
         .manage(extensions::ExtensionRegistryState::new())
         .manage(extensions::dynamic_commands::DynamicCommandRegistry::new())
         .manage(permissions::ExtensionPermissionRegistry::new())
+        .manage(network::client_pool::ScopedHttpClientPool::new())
         .manage(network::websocket::WebSocketManager::new())
         .manage(auth::state::AuthState::default())
         .manage(auth::api_client::ApiClient::new())

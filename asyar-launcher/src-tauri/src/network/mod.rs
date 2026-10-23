@@ -1,3 +1,4 @@
+pub mod client_pool;
 pub mod commands;
 pub mod discovery;
 pub mod host_policy;

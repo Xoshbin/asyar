@@ -423,6 +423,8 @@ pub(crate) async fn uninstall(
         }
     }
 
+    run_http_client_cleanup(app_handle, extension_id, "uninstalled");
+
     // Close all active WebSockets owned by this extension.
     if let Some(ws_manager) = app_handle.try_state::<crate::network::websocket::WebSocketManager>()
     {
@@ -678,6 +680,7 @@ pub(crate) fn apply_extension_states(
 mod tests {
     use super::*;
     use crate::extensions::{CompatibilityStatus, ExtensionManifest};
+    use crate::network::client_pool::{ClientScope, Route, ScopedHttpClientPool};
     use crate::notifications::{NotificationActionRegistry, PendingAction};
     use std::sync::Arc;
 
@@ -714,6 +717,55 @@ mod tests {
             compatibility: CompatibilityStatus::Unknown,
             first_view_component: None,
         }
+    }
+
+    fn seed_http_client(pool: &ScopedHttpClientPool, extension_id: &str) {
+        pool.acquire(
+            ClientScope::Extension(extension_id.into()),
+            Route::Pinned,
+            "http",
+            "speaker.local",
+            1400,
+            &["192.168.1.20:1400".parse().unwrap()],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn disable_hook_evicts_only_the_disabled_extensions_http_clients() {
+        let app = tauri::test::mock_app();
+        let pool = ScopedHttpClientPool::new();
+        seed_http_client(&pool, "alpha");
+        seed_http_client(&pool, "beta");
+        app.manage(pool);
+
+        run_http_client_cleanup(app.handle(), "alpha", "disabled");
+
+        let pool: tauri::State<'_, ScopedHttpClientPool> = app.state();
+        assert_eq!(
+            pool.len_for_scope(&ClientScope::Extension("alpha".into())),
+            0
+        );
+        assert_eq!(
+            pool.len_for_scope(&ClientScope::Extension("beta".into())),
+            1
+        );
+    }
+
+    #[test]
+    fn uninstall_hook_evicts_the_uninstalled_extensions_http_clients() {
+        let app = tauri::test::mock_app();
+        let pool = ScopedHttpClientPool::new();
+        seed_http_client(&pool, "alpha");
+        app.manage(pool);
+
+        run_http_client_cleanup(app.handle(), "alpha", "uninstalled");
+
+        let pool: tauri::State<'_, ScopedHttpClientPool> = app.state();
+        assert_eq!(
+            pool.len_for_scope(&ClientScope::Extension("alpha".into())),
+            0
+        );
     }
 
     #[test]
@@ -1287,6 +1339,8 @@ pub(crate) async fn set_enabled(
             }
         }
 
+        run_http_client_cleanup(app_handle, extension_id, "disabled");
+
         // Close WebSocket connections. Disabled extensions have no iframe.
         if let Some(ws_manager) =
             app_handle.try_state::<crate::network::websocket::WebSocketManager>()
@@ -1423,6 +1477,20 @@ pub(crate) async fn set_enabled(
 
     info!("Extension {} set to enabled={}", extension_id, enabled);
     Ok(())
+}
+
+pub(crate) fn run_http_client_cleanup<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    extension_id: &str,
+    lifecycle_state: &str,
+) {
+    let removed = crate::network::client_pool::evict_managed_extension(app_handle, extension_id);
+    if removed > 0 {
+        info!(
+            "Evicted {} HTTP client pool entry(s) for {} extension '{}'",
+            removed, lifecycle_state, extension_id
+        );
+    }
 }
 
 /// Tool-registry sync hook for `set_enabled`. Looks up the `ToolRegistry`
