@@ -111,7 +111,7 @@ pub fn parse_ui_scale(settings_root: Option<&serde_json::Value>) -> f64 {
 }
 
 pub(crate) fn clamp_ui_scale(scale: f64) -> f64 {
-    const ALLOWED_SCALES: [f64; 3] = [1.0, 1.2, 1.4];
+    const ALLOWED_SCALES: [f64; 3] = [1.0, 1.1, 1.2];
 
     if !scale.is_finite() {
         return 1.0;
@@ -145,14 +145,14 @@ mod ui_scale_tests {
 
     #[test]
     fn parse_ui_scale_reads_allowed_value() {
-        let settings = json!({ "appearance": { "uiScale": 1.2 } });
+        let settings = json!({ "appearance": { "uiScale": 1.1 } });
 
-        assert_eq!(parse_ui_scale(Some(&settings)), 1.2);
+        assert_eq!(parse_ui_scale(Some(&settings)), 1.1);
     }
 
     #[test]
     fn parse_ui_scale_clamps_unknown() {
-        for (value, expected) in [(0.5, 1.0), (2.0, 1.4), (1.1, 1.0)] {
+        for (value, expected) in [(0.5, 1.0), (2.0, 1.2), (1.04, 1.0)] {
             let settings = json!({ "appearance": { "uiScale": value } });
             assert_eq!(parse_ui_scale(Some(&settings)), expected);
         }

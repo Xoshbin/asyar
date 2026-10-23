@@ -583,8 +583,8 @@ mod tests {
     #[test]
     fn set_ui_scale_clamps_out_of_range() {
         assert_eq!(clamp_ui_scale(0.3), 1.0);
-        assert_eq!(clamp_ui_scale(1.4), 1.4);
-        assert_eq!(clamp_ui_scale(5.0), 1.4);
+        assert_eq!(clamp_ui_scale(1.2), 1.2);
+        assert_eq!(clamp_ui_scale(5.0), 1.2);
     }
 
     #[test]

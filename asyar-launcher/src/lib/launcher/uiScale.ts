@@ -1,7 +1,7 @@
 export const UI_SCALE_OPTIONS: ReadonlyArray<{ value: number; labelKey: string }> = [
   { value: 1, labelKey: 'settings.appearance.interface_size_default' },
-  { value: 1.2, labelKey: 'settings.appearance.interface_size_large' },
-  { value: 1.4, labelKey: 'settings.appearance.interface_size_larger' },
+  { value: 1.1, labelKey: 'settings.appearance.interface_size_large' },
+  { value: 1.2, labelKey: 'settings.appearance.interface_size_larger' },
 ];
 
 export const DEFAULT_UI_SCALE = 1;
