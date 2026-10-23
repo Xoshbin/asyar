@@ -37,6 +37,9 @@ vi.mock('./agentsManager.svelte', () => ({
   agentsManager: {
     currentAgentId: null,
     currentThreadId: null,
+    threadsVersion: 0,
+    threadsFor: vi.fn(),
+    rememberThreads: vi.fn(),
     sending: false,
     streamingText: '',
     lastAssistantMessageText: null as string | null,
@@ -52,6 +55,7 @@ vi.mock('./agentService.svelte', () => ({
     delete: vi.fn(),
     createThread: vi.fn(),
     deleteThread: vi.fn(),
+    setThreadPinned: vi.fn().mockResolvedValue(undefined),
     listThreads: vi.fn().mockResolvedValue([]),
   },
 }));
@@ -234,5 +238,59 @@ describe('agents:new-thread action', () => {
     await agentsExtension.viewActivated?.('agents/AgentChatView');
     await getRegisteredAction('agents:new-thread').execute();
     expect(agentService.createThread).not.toHaveBeenCalled();
+  });
+});
+
+describe('agents:pin-thread / agents:unpin-thread actions', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    agentsManager.currentAgentId = 'agent-1';
+    agentsManager.currentThreadId = 'thread-1';
+    agentsManager.threadsVersion = 0;
+    await agentsExtension.viewActivated?.('agents/AgentChatView');
+  });
+
+  it('offers Pin for an unpinned active thread and hides Unpin', () => {
+    vi.mocked(agentsManager.threadsFor).mockReturnValue([{ id: 'thread-1', isPinned: false } as never]);
+    expect(getRegisteredAction('agents:pin-thread').visible?.()).toBe(true);
+    expect(getRegisteredAction('agents:unpin-thread').visible?.()).toBe(false);
+  });
+
+  it('offers Unpin for a pinned active thread and hides Pin', () => {
+    vi.mocked(agentsManager.threadsFor).mockReturnValue([{ id: 'thread-1', isPinned: true } as never]);
+    expect(getRegisteredAction('agents:pin-thread').visible?.()).toBe(false);
+    expect(getRegisteredAction('agents:unpin-thread').visible?.()).toBe(true);
+  });
+
+  it('hides both when there is no known active thread', () => {
+    vi.mocked(agentsManager.threadsFor).mockReturnValue(undefined);
+    expect(getRegisteredAction('agents:pin-thread').visible?.()).toBe(false);
+    expect(getRegisteredAction('agents:unpin-thread').visible?.()).toBe(false);
+  });
+
+  it('pins the active thread, updates the cached list and refreshes the view', async () => {
+    vi.mocked(agentsManager.threadsFor).mockReturnValue([
+      { id: 'thread-1', isPinned: false } as never,
+      { id: 'thread-2', isPinned: false } as never,
+    ]);
+    await getRegisteredAction('agents:pin-thread').execute();
+    expect(agentService.setThreadPinned).toHaveBeenCalledWith('thread-1', true);
+    expect(agentsManager.rememberThreads).toHaveBeenCalledWith('agent-1', [
+      { id: 'thread-1', isPinned: true },
+      { id: 'thread-2', isPinned: false },
+    ]);
+    expect(agentsManager.threadsVersion).toBe(1);
+  });
+
+  it('unpins the active thread', async () => {
+    vi.mocked(agentsManager.threadsFor).mockReturnValue([{ id: 'thread-1', isPinned: true } as never]);
+    await getRegisteredAction('agents:unpin-thread').execute();
+    expect(agentService.setThreadPinned).toHaveBeenCalledWith('thread-1', false);
+  });
+
+  it('unregisters both when the chat view deactivates', async () => {
+    await agentsExtension.viewDeactivated?.('agents/AgentChatView');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:pin-thread');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:unpin-thread');
   });
 });
