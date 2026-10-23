@@ -49,6 +49,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     launchView: 'default',
     windowWidth: 800,
     windowHeight: 600,
+    uiScale: 1,
   },
   extensions: {
     enabled: {},

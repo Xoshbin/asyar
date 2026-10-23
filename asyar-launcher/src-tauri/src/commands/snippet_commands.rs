@@ -131,6 +131,7 @@ mod contribute_tests {
 
     fn fresh_state() -> AppState {
         AppState {
+            ui_scale: AtomicU64::new(1.0f64.to_bits()),
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
             launcher_shortcut: Mutex::new(String::from("Alt+Space")),

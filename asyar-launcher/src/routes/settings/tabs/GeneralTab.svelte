@@ -8,6 +8,7 @@
     Button,
     Checkbox,
     SegmentedControl,
+    Select,
     SettingsCard,
     SettingsRangeSlider,
     SettingsRow,
@@ -16,6 +17,8 @@
     WindowModeSelector,
   } from '../../../components';
   import { discoverExtensions, onboardingCommands } from '../../../lib/ipc/commands';
+  import { setUiScale } from '../../../lib/ipc/windowCommands';
+  import { clampUiScale, DEFAULT_UI_SCALE, UI_SCALE_OPTIONS } from '../../../lib/launcher/uiScale';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { t } from '../../../services/i18n';
   import { launcherPlacementService } from '../../../services/launcher/launcherPlacementService.svelte';
@@ -34,6 +37,9 @@
     Array<{ id: string; name: string; author?: string; version: string }>
   >([]);
   let activeThemeId = $state<string | null>(null);
+  let selectedUiScale = $state(
+    clampUiScale(settingsService.currentSettings.appearance.uiScale ?? DEFAULT_UI_SCALE),
+  );
 
   onMount(async () => {
     // Separate from the theme-extension load below: Rust owns the placement,
@@ -124,6 +130,46 @@
   async function selectLaunchView(launchView: 'default' | 'compact') {
     await handler.updateLaunchView(launchView);
     await emit('asyar:launch-view-changed', { launchView });
+  }
+
+  async function selectUiScale(scale: number) {
+    const clampedScale = clampUiScale(scale);
+    const previousScale = selectedUiScale;
+    selectedUiScale = clampedScale;
+
+    let saved: boolean;
+    try {
+      saved = await settingsService.updateSettings('appearance', { uiScale: clampedScale });
+    } catch {
+      settingsService.currentSettings.appearance.uiScale = previousScale;
+      selectedUiScale = previousScale;
+      reportUiScaleError();
+      return;
+    }
+
+    if (!saved) {
+      settingsService.currentSettings.appearance.uiScale = previousScale;
+      selectedUiScale = previousScale;
+      reportUiScaleError();
+      return;
+    }
+
+    try {
+      await setUiScale(clampedScale);
+    } catch {
+      reportUiScaleError();
+    }
+  }
+
+  function reportUiScaleError() {
+    logService.error('Failed to update interface size');
+    feedbackService.report({
+      source: 'frontend',
+      kind: 'manual',
+      severity: 'error',
+      retryable: false,
+      context: { message: t('settings.general.error_save_interface_size') },
+    });
   }
 
   async function rerunOnboarding() {
@@ -237,6 +283,19 @@
         value={handler.selectedLaunchView}
         onchange={selectLaunchView}
         wellBackground="primary"
+      />
+    </SettingsRow>
+    <SettingsRow
+      label={t('settings.appearance.interface_size_label')}
+      description={t('settings.appearance.interface_size_hint')}
+    >
+      <Select
+        value={String(selectedUiScale)}
+        options={UI_SCALE_OPTIONS.map((option) => ({
+          value: String(option.value),
+          label: t(option.labelKey),
+        }))}
+        onchange={(value) => selectUiScale(Number(value))}
       />
     </SettingsRow>
     {#if handler.selectedLaunchView === 'compact'}

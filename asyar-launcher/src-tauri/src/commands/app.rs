@@ -303,6 +303,10 @@ fn validate_launcher_height(height: f64) -> Result<(), AppError> {
     Ok(())
 }
 
+fn scaled_height(base: f64, scale: f64) -> f64 {
+    base * scale
+}
+
 /// Resizes the launcher window height, keeping the top edge pinned. On macOS
 /// `defer_until_next_ca_commit: Some(true)` gates the resize on the current
 /// CA transaction's pre-commit phase;
@@ -317,6 +321,8 @@ pub fn set_launcher_height(
     after_next_presentation_update: Option<bool>,
 ) -> Result<(), AppError> {
     validate_launcher_height(height)?;
+    let scale = app_handle.state::<AppState>().ui_scale();
+    let height = scaled_height(height, scale);
     let window = app_handle
         .get_webview_window(SPOTLIGHT_LABEL)
         .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
@@ -348,6 +354,73 @@ pub fn set_launcher_height(
             width: logical_width,
             height,
         }));
+    }
+
+    Ok(())
+}
+
+/// Applies a discrete launcher UI scale to both WebKit rendering and the
+/// native window. The frontend continues to use the base 750 x 480 geometry;
+/// scaling is confined to this native boundary.
+#[tauri::command]
+pub fn set_ui_scale(app_handle: AppHandle, scale: f64) -> Result<(), AppError> {
+    const BASE_WIDTH: f64 = 750.0;
+    const COMPACT_HEIGHT: f64 = 96.0;
+
+    let scale = crate::bootstrap::windows::clamp_ui_scale(scale);
+    app_handle.state::<AppState>().set_ui_scale(scale);
+    #[cfg(target_os = "macos")]
+    asyar_platform::macos::set_active_max_height(
+        crate::launcher_placement::LAUNCHER_MAX_HEIGHT * scale,
+    );
+
+    let Some(window) = app_handle.get_webview_window(SPOTLIGHT_LABEL) else {
+        log::warn!("[launcher] cannot apply UI scale: launcher window not found");
+        return Ok(());
+    };
+    let base_height = if crate::bootstrap::windows::read_launch_view(&app_handle) == "compact" {
+        COMPACT_HEIGHT
+    } else {
+        crate::launcher_placement::LAUNCHER_MAX_HEIGHT
+    };
+
+    #[cfg(target_os = "macos")]
+    let can_reposition = {
+        match crate::platform::macos::set_window_width(&window, BASE_WIDTH * scale) {
+            Ok(()) => {
+                crate::platform::macos::pin_launcher_webview(&window);
+                crate::platform::macos::set_launcher_window_height(
+                    &window,
+                    base_height * scale,
+                    crate::platform::macos::ResizeMode::Immediate,
+                );
+                true
+            }
+            Err(error) => {
+                log::warn!("[launcher] failed to resize width for UI scale: {error}");
+                false
+            }
+        }
+    };
+
+    #[cfg(not(target_os = "macos"))]
+    let can_reposition = true;
+
+    #[cfg(not(target_os = "macos"))]
+    if let Err(error) = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+        width: BASE_WIDTH * scale,
+        height: base_height * scale,
+    })) {
+        log::warn!("[launcher] failed to resize for UI scale: {error}");
+    }
+
+    if let Err(error) = window.set_zoom(scale) {
+        log::warn!("[launcher] failed to apply UI zoom: {error}");
+    }
+    if can_reposition {
+        if let Err(error) = crate::launcher_placement::service::apply(&app_handle) {
+            log::warn!("[launcher] failed to reposition after UI scale change: {error}");
+        }
     }
 
     Ok(())
@@ -454,6 +527,7 @@ pub fn set_tray_icon_visible(app_handle: AppHandle, visible: bool) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bootstrap::windows::clamp_ui_scale;
 
     #[test]
     fn rejects_nan() {
@@ -498,6 +572,40 @@ mod tests {
     #[test]
     fn accepts_default_height() {
         assert!(validate_launcher_height(480.0).is_ok());
+    }
+
+    #[test]
+    fn scaled_launcher_height_multiplies_by_scale() {
+        assert!((scaled_height(96.0, 1.4) - 134.4).abs() < f64::EPSILON * 134.4);
+        assert_eq!(scaled_height(480.0, 1.0), 480.0);
+    }
+
+    #[test]
+    fn set_ui_scale_clamps_out_of_range() {
+        assert_eq!(clamp_ui_scale(0.3), 1.0);
+        assert_eq!(clamp_ui_scale(1.2), 1.2);
+        assert_eq!(clamp_ui_scale(5.0), 1.2);
+    }
+
+    #[test]
+    fn set_ui_scale_restores_crop_after_repin() {
+        let source = include_str!("app.rs");
+        let command = source
+            .split("pub fn set_ui_scale")
+            .nth(1)
+            .expect("set_ui_scale command")
+            .split("pub fn set_panel_appearance")
+            .next()
+            .expect("set_ui_scale body");
+        let repin = command.find("pin_launcher_webview").expect("webview repin");
+        let restore = command
+            .find("set_launcher_window_height")
+            .expect("crop height restore");
+
+        assert!(
+            restore > repin,
+            "crop height must be restored after repinning"
+        );
     }
 
     #[test]

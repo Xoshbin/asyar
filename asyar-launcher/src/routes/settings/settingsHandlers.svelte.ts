@@ -68,6 +68,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     windowWidth: 800,
     windowHeight: 600,
     activeTheme: null,
+    uiScale: 1,
   },
   extensions: {
     enabled: {},
