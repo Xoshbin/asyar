@@ -135,41 +135,24 @@ describe('FileSearchExtension class contract', () => {
   });
 });
 
-describe('executeCommand("show-files") with query seed', () => {
+describe('root-search query seeding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchStores.query = '';
+    fileSearchViewState.searchQuery = '';
   });
 
-  it('seeds searchQuery and calls runSearch after tick when query is provided', async () => {
+  it('"Search Files" opens empty even when root search handed it a query', async () => {
     const navigateToView = vi.fn();
-    const ctx = makeContext({ navigateToView });
-    await extension.initialize(ctx as never);
+    await extension.initialize(makeContext({ navigateToView }) as never);
 
-    await extension.executeCommand('show-files', { query: 'report' });
+    // "sea" / an alias / a fuzzy typo was only used to find the command.
+    const result = await extension.executeCommand('show-files', { query: 'sea' });
 
-    expect(tick).toHaveBeenCalled();
-    expect(fileSearchViewState.searchQuery).toBe('report');
-    expect(runSearch).toHaveBeenCalled();
-  });
-
-  it('also seeds the shared search bar (searchStores.query) so it stays visible', async () => {
-    const navigateToView = vi.fn();
-    const ctx = makeContext({ navigateToView });
-    await extension.initialize(ctx as never);
-
-    await extension.executeCommand('show-files', { query: 'invoice' });
-
-    expect(searchStores.query).toBe('invoice');
-  });
-
-  it('does not call runSearch when no query is provided', async () => {
-    const navigateToView = vi.fn();
-    const ctx = makeContext({ navigateToView });
-    await extension.initialize(ctx as never);
-
-    await extension.executeCommand('show-files');
-
+    expect(navigateToView).toHaveBeenCalledWith('file-search/DefaultView');
+    expect(result).toEqual({ type: 'view', viewPath: 'file-search/DefaultView' });
+    expect(fileSearchViewState.searchQuery).toBe('');
+    expect(searchStores.query).toBe('');
     expect(runSearch).not.toHaveBeenCalled();
   });
 });

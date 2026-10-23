@@ -247,6 +247,16 @@ describe('AgentsExtension', () => {
     });
   });
 
+  describe('"Ask AI" command', () => {
+    it('opens an empty chat even when root search handed it a query', async () => {
+      // "ask" / an alias / a typo was only used to find the command; sending
+      // it to the model as a message is the bug. Tab is the explicit route.
+      await agentsExtension.executeCommand('ask', { query: 'ask' });
+
+      expect(openAgentForTab).toHaveBeenCalledWith('agent-1', '', false);
+    });
+  });
+
   describe('lifecycle & view actions', () => {
     it('registers actions on viewActivated and unregisters on viewDeactivated', async () => {
       await agentsExtension.viewActivated('agents/AgentListView');
