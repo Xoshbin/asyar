@@ -16,7 +16,6 @@ import {
   setLauncherHeight,
   setLauncherKeepExpanded,
 } from '../../lib/ipc/commands';
-import { LAUNCHER_HEIGHT_COMPACT } from '../../lib/launcher/launcherGeometry';
 import { logService } from '../log/logService';
 import {
   isSearchSettled as computeSearchSettled,
@@ -27,6 +26,7 @@ import {
 export interface CompactSyncDeps {
   getInitialized: () => boolean;
   getLaunchView: () => string;
+  getHideShowMoreBar: () => boolean;
   getActiveView: () => unknown;
   getActiveContext: () => unknown;
   getLocalSearchValue: () => string;
@@ -123,9 +123,9 @@ export class CompactSyncService {
    */
   applyLauncherHeight(): void {
     const compactIdle = this.isCompactIdle;
-    const height = targetHeight(compactIdle);
+    const height = targetHeight(compactIdle, this.#deps.getHideShowMoreBar());
     if (height === this.#lastApplied) return;
-    if (height === LAUNCHER_HEIGHT_COMPACT && this.#deps.getLocalSearchValue()) {
+    if (compactIdle && this.#deps.getLocalSearchValue()) {
       // A compact target with query text present is always transient (the
       // search settles and re-expands, or the query clears). Still disarm
       // any pending resize: left armed, it would fire against this
@@ -167,11 +167,12 @@ export class CompactSyncService {
     // Cancel BEFORE the no-op check: even when already compact, a pending
     // gated resize must be disarmed or it fires against the hidden window.
     this.#cancelPendingResize();
-    if (this.#lastApplied === LAUNCHER_HEIGHT_COMPACT) return;
-    this.#lastApplied = LAUNCHER_HEIGHT_COMPACT;
+    const compactHeight = targetHeight(true, this.#deps.getHideShowMoreBar());
+    if (this.#lastApplied === compactHeight) return;
+    this.#lastApplied = compactHeight;
     // Ungated: the window is hidden (parked at alpha 0 on macOS), so there
     // is no interstitial to prevent and rAF-driven confirms are throttled.
-    setLauncherHeight(LAUNCHER_HEIGHT_COMPACT).catch((e) =>
+    setLauncherHeight(compactHeight).catch((e) =>
       logService.debug(`[compact] ${tag} shrink failed: ${e}`),
     );
   }

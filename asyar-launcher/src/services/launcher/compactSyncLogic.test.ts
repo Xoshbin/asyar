@@ -8,6 +8,7 @@ import {
 } from './compactSyncLogic';
 import {
   LAUNCHER_HEIGHT_COMPACT,
+  LAUNCHER_HEIGHT_COMPACT_BARLESS,
   LAUNCHER_HEIGHT_DEFAULT,
 } from '../../lib/launcher/launcherGeometry';
 
@@ -177,5 +178,10 @@ describe('targetHeight', () => {
 
   it('returns LAUNCHER_HEIGHT_DEFAULT when compactIdle is false', () => {
     expect(targetHeight(false)).toBe(LAUNCHER_HEIGHT_DEFAULT);
+  });
+
+  it('drops the Show More bar height when hidden, only while compact', () => {
+    expect(targetHeight(true, true)).toBe(LAUNCHER_HEIGHT_COMPACT_BARLESS);
+    expect(targetHeight(false, true)).toBe(LAUNCHER_HEIGHT_DEFAULT);
   });
 });

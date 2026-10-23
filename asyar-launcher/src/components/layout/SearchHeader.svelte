@@ -22,6 +22,7 @@
   let {
     value = $bindable(''),
     showBack = false,
+    hideSeparator = false,
     searchable = true,
     placeholder = t('search.placeholder'),
     ref = $bindable(null as HTMLInputElement | null),
@@ -52,6 +53,8 @@
   }: {
     value?: string;
     showBack?: boolean;
+    /** Drop the bottom border when nothing sits below the header (barless compact). */
+    hideSeparator?: boolean;
     searchable?: boolean;
     placeholder?: string;
     ref?: HTMLInputElement | null;
@@ -281,6 +284,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[var(--shell-header-h)] px-4 gap-3"
+    class:border-transparent={hideSeparator}
     onpointerdown={onHeaderPointerDown}
   >
     {#if showBack}

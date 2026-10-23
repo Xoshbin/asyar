@@ -11,3 +11,6 @@ export const LAUNCHER_HEIGHT_DEFAULT = 480;
 
 /** Compact launch-view height: SearchHeader (56px) + BottomActionBar (40px). */
 export const LAUNCHER_HEIGHT_COMPACT = 96;
+
+/** Compact height with the Show More bar hidden: SearchHeader (56px) only. */
+export const LAUNCHER_HEIGHT_COMPACT_BARLESS = 56;

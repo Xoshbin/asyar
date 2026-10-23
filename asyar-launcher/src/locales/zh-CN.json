@@ -152,7 +152,9 @@
       "interface_size_large": "大",
       "interface_size_larger": "更大",
       "theme_aria": "外观主题",
-      "window_mode_aria": "窗口模式"
+      "window_mode_aria": "窗口模式",
+      "hide_show_more": "隐藏“显示更多”栏",
+      "hide_show_more_description": "紧凑模式下仅显示搜索栏。按 ↓ 展开。"
     },
     "advanced": {
       "section_extension_surface": "扩展展示范围",
