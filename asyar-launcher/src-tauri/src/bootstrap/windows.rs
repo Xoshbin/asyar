@@ -97,6 +97,74 @@ pub fn read_launch_view(app: &tauri::AppHandle) -> &'static str {
     parse_launch_view(store.get("settings").as_ref())
 }
 
+pub fn parse_ui_scale(settings_root: Option<&serde_json::Value>) -> f64 {
+    let Some(scale) = settings_root
+        .and_then(|s| s.get("appearance"))
+        .and_then(|a| a.get("uiScale"))
+        .and_then(|v| v.as_f64())
+        .filter(|scale| scale.is_finite())
+    else {
+        return 1.0;
+    };
+
+    clamp_ui_scale(scale)
+}
+
+pub(crate) fn clamp_ui_scale(scale: f64) -> f64 {
+    const ALLOWED_SCALES: [f64; 3] = [1.0, 1.1, 1.2];
+
+    if !scale.is_finite() {
+        return 1.0;
+    }
+
+    ALLOWED_SCALES
+        .into_iter()
+        .fold(ALLOWED_SCALES[0], |nearest, candidate| {
+            let nearest_distance = (scale - nearest).abs();
+            let candidate_distance = (scale - candidate).abs();
+            if candidate_distance + f64::EPSILON < nearest_distance {
+                candidate
+            } else {
+                nearest
+            }
+        })
+}
+
+pub fn read_ui_scale(app: &tauri::AppHandle) -> f64 {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store("settings.dat") else {
+        return 1.0;
+    };
+    parse_ui_scale(store.get("settings").as_ref())
+}
+
+#[cfg(test)]
+mod ui_scale_tests {
+    use super::parse_ui_scale;
+    use serde_json::json;
+
+    #[test]
+    fn parse_ui_scale_reads_allowed_value() {
+        let settings = json!({ "appearance": { "uiScale": 1.1 } });
+
+        assert_eq!(parse_ui_scale(Some(&settings)), 1.1);
+    }
+
+    #[test]
+    fn parse_ui_scale_clamps_unknown() {
+        for (value, expected) in [(0.5, 1.0), (2.0, 1.2), (1.04, 1.0)] {
+            let settings = json!({ "appearance": { "uiScale": value } });
+            assert_eq!(parse_ui_scale(Some(&settings)), expected);
+        }
+    }
+
+    #[test]
+    fn parse_ui_scale_defaults_when_absent() {
+        assert_eq!(parse_ui_scale(Some(&json!({}))), 1.0);
+        assert_eq!(parse_ui_scale(None), 1.0);
+    }
+}
+
 #[cfg(target_os = "macos")]
 pub fn should_collapse_on_resign(compact_mode: bool, keep_expanded: bool) -> bool {
     compact_mode && !keep_expanded
@@ -114,6 +182,50 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     let window = handle
         .get_webview_window(SPOTLIGHT_LABEL)
         .ok_or("Main launcher window not found")?;
+    let compact = read_launch_view(handle) == "compact";
+    let scale = read_ui_scale(handle);
+    handle.state::<AppState>().set_ui_scale(scale);
+
+    #[cfg(target_os = "macos")]
+    {
+        use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
+        asyar_platform::macos::set_active_max_height(LAUNCHER_MAX_HEIGHT * scale);
+
+        let mut frame = crate::platform::macos::get_window_frame(&window);
+        let top = frame.origin.y + frame.size.height;
+        frame.size.width *= scale;
+        frame.size.height = if compact {
+            LAUNCHER_COMPACT_HEIGHT * scale
+        } else {
+            LAUNCHER_MAX_HEIGHT * scale
+        };
+        frame.origin.y = top - frame.size.height;
+        crate::platform::macos::set_window_frame(&window, frame);
+    }
+
+    if let Err(error) = window.set_zoom(scale) {
+        log::warn!("[launcher] failed to apply startup UI scale: {error}");
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        use tauri::{LogicalSize, Size};
+        if let Ok(size) = window.inner_size() {
+            let device_scale = window.scale_factor().unwrap_or(1.0);
+            let base_width = size.width as f64 / device_scale;
+            let base_height = if compact {
+                96.0
+            } else {
+                crate::launcher_placement::LAUNCHER_MAX_HEIGHT
+            };
+            if let Err(error) = window.set_size(Size::Logical(LogicalSize {
+                width: base_width * scale,
+                height: base_height * scale,
+            })) {
+                log::warn!("[launcher] failed to apply startup window scale: {error}");
+            }
+        }
+    }
 
     #[cfg(target_os = "macos")]
     let initial_theme_pref = read_appearance_theme(handle);
@@ -151,17 +263,15 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         });
     }
 
-    let compact = read_launch_view(handle) == "compact";
-
     #[cfg(target_os = "macos")]
     {
         use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
         crate::platform::macos::pin_launcher_webview(&window);
         crate::platform::macos::configure_launcher_webkit_features(&window);
         let height = if compact {
-            LAUNCHER_COMPACT_HEIGHT
+            LAUNCHER_COMPACT_HEIGHT * scale
         } else {
-            LAUNCHER_MAX_HEIGHT
+            LAUNCHER_MAX_HEIGHT * scale
         };
         crate::platform::macos::set_launcher_window_height(
             &window,
@@ -169,19 +279,6 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             crate::platform::macos::ResizeMode::Immediate,
         );
         crate::platform::macos::prewarm_launcher_panel(&window, &panel);
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    if compact {
-        use tauri::{LogicalSize, Size};
-        if let Ok(size) = window.inner_size() {
-            let scale = window.scale_factor().unwrap_or(1.0);
-            let logical_width = size.width as f64 / scale;
-            let _ = window.set_size(Size::Logical(LogicalSize {
-                width: logical_width,
-                height: 96.0,
-            }));
-        }
     }
 
     // Onboarding: open the window if needed
@@ -231,6 +328,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
 
                 let compact_mode = read_launch_view(&handle_clone) == "compact";
                 let keep_expanded = state.launcher_keep_expanded.load(Ordering::Relaxed);
+                let scale = state.ui_scale();
                 let handle_for_main = handle_clone.clone();
                 let panel = panel.clone();
                 let _ = handle_clone.run_on_main_thread(move || {
@@ -242,7 +340,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                     if should_collapse_on_resign(compact_mode, keep_expanded) {
                         crate::platform::macos::set_launcher_window_height(
                             &window,
-                            crate::platform::macos::LAUNCHER_COMPACT_HEIGHT,
+                            crate::platform::macos::LAUNCHER_COMPACT_HEIGHT * scale,
                             crate::platform::macos::ResizeMode::Immediate,
                         );
                     }
@@ -304,6 +402,7 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                 let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) else {
                     return;
                 };
+                let scale = handle_for_main.state::<AppState>().ui_scale();
 
                 #[cfg(target_os = "macos")]
                 {
@@ -311,9 +410,9 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                         ResizeMode, LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT,
                     };
                     let height = if compact {
-                        LAUNCHER_COMPACT_HEIGHT
+                        LAUNCHER_COMPACT_HEIGHT * scale
                     } else {
-                        LAUNCHER_MAX_HEIGHT
+                        LAUNCHER_MAX_HEIGHT * scale
                     };
                     crate::platform::macos::set_launcher_window_height(
                         &window,
@@ -326,9 +425,9 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
                 {
                     use tauri::{LogicalSize, Size};
                     let height = if compact {
-                        96.0
+                        96.0 * scale
                     } else {
-                        crate::launcher_placement::LAUNCHER_MAX_HEIGHT
+                        crate::launcher_placement::LAUNCHER_MAX_HEIGHT * scale
                     };
                     if let Ok(size) = window.inner_size() {
                         let scale = window.scale_factor().unwrap_or(1.0);

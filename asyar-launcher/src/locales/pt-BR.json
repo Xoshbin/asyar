@@ -132,6 +132,7 @@
       "use_default": "Usar padrão",
       "error_revert_default": "Não foi possível reverter para o tema padrão",
       "error_save_display": "Não foi possível salvar a tela do launcher",
+      "error_save_interface_size": "Não foi possível salvar o tamanho da interface",
       "error_save_position": "Não foi possível salvar a posição do launcher",
       "error_save_snap": "Não foi possível salvar a configuração de ajuste do launcher"
     },
@@ -145,6 +146,11 @@
       "compact_mode_description": "Reduzir o espaçamento e margens no launcher",
       "window_mode": "Modo de janela",
       "window_mode_description": "Quanto do launcher fica visível antes de você digitar.",
+      "interface_size_label": "Tamanho da interface",
+      "interface_size_hint": "Aumente o texto, os controles e a janela do launcher.",
+      "interface_size_default": "Padrão",
+      "interface_size_large": "Grande",
+      "interface_size_larger": "Maior",
       "theme_aria": "Tema de aparência",
       "window_mode_aria": "Modo de janela"
     },

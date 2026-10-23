@@ -35,6 +35,7 @@ export interface AppSettings {
     windowWidth: number;
     windowHeight: number;
     activeTheme?: string | null;
+    uiScale?: number;
   };
   extensions: {
     enabled: Record<string, boolean>;
