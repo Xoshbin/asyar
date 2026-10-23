@@ -343,6 +343,8 @@ macro_rules! system_commands {
                 $crate::commands::validate_application_scan_path,
                 $crate::commands::check_path_exists,
                 $crate::commands::open_application_path,
+                $crate::commands::reveal_application,
+                $crate::commands::run_application_as_admin,
                 $crate::commands::uninstall_application,
                 $crate::commands::scan_uninstall_targets,
                 $crate::commands::set_application_scan_paths,

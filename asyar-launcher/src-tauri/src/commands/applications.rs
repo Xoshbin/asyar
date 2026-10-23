@@ -5,7 +5,7 @@
 use crate::application::service::{self, FrontmostApplication, SyncResult};
 #[cfg(target_os = "macos")]
 use crate::application::uninstall::UninstallScanResult;
-use crate::application::{uninstall, IndexWatcher};
+use crate::application::{location, uninstall, IndexWatcher};
 use crate::error::AppError;
 use crate::permissions::ExtensionPermissionRegistry;
 use crate::search_engine::models::Application;
@@ -126,6 +126,37 @@ pub fn set_application_scan_paths(
 #[tauri::command]
 pub fn open_application_path(app_handle: AppHandle, path: String) -> Result<(), AppError> {
     service::open_application_path(&app_handle, path)
+}
+
+/// Reveals an application in Finder / File Explorer / the file manager.
+///
+/// On Windows the indexed `.lnk` is resolved to the program it points at.
+/// Microsoft Store apps have no file location and are rejected.
+#[tauri::command]
+pub fn reveal_application(app_handle: AppHandle, path: String) -> Result<(), AppError> {
+    let target = location::reveal_target(&path)?;
+    use tauri_plugin_opener::OpenerExt;
+    app_handle
+        .opener()
+        .reveal_item_in_dir(&target)
+        .map_err(|e| AppError::Platform(format!("Failed to reveal '{}': {}", target.display(), e)))
+}
+
+/// Launches an application through the OS elevation prompt (Windows only).
+///
+/// Core-only, like `uninstall_application`: running arbitrary programs with
+/// administrator rights is not a capability extensions get.
+#[tauri::command]
+pub fn run_application_as_admin(
+    extension_id: Option<String>,
+    path: String,
+) -> Result<(), AppError> {
+    if extension_id.is_some() {
+        return Err(AppError::Permission(
+            "run_application_as_admin is only available to core callers".to_string(),
+        ));
+    }
+    location::run_as_administrator(&path)
 }
 
 /// Uninstalls the selected application, optionally trashing associated

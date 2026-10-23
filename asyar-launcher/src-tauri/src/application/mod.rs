@@ -1,4 +1,5 @@
 pub mod index_watcher;
+pub mod location;
 pub mod service;
 pub mod uninstall;
 

@@ -20,6 +20,7 @@ import { commandService } from '../extension/commandService.svelte';
 import { applicationService } from '../application/applicationService';
 import type { UninstallScanResult } from '../application/applicationService';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
+import { canRunAsAdmin, hasAppFilePath } from './appLocation';
 import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
 import { assertActionShortcut } from '../../lib/keyboard/actionShortcut';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
@@ -592,6 +593,70 @@ export class ActionService implements IActionService {
         // next cold start before any DB connection is opened. The promise
         // does not resolve on this page because the process exits.
         await commands.factoryReset();
+      },
+    });
+
+    this.registerAction({
+      id: 'reveal_application',
+      label: IS_MACOS
+        ? t('core_actions.reveal_app_mac')
+        : IS_WINDOWS
+          ? t('core_actions.reveal_app_win')
+          : t('core_actions.reveal_app'),
+      icon: 'icon:folder',
+      description: t('core_actions.reveal_app_desc'),
+      category: t('categories.item'),
+      context: ActionContext.CORE,
+      visible: () => {
+        const item = this.getSelectedSearchItem();
+        return item?.type === 'application' && hasAppFilePath(item.path);
+      },
+      execute: async () => {
+        const item = this.getSelectedSearchItem();
+        if (!item || item.type !== 'application' || !hasAppFilePath(item.path)) return;
+        // Failures (e.g. the app was moved) surface through invokeSafe's feedback.
+        await applicationService.revealApplication(item.path);
+      },
+    });
+
+    this.registerAction({
+      id: 'copy_application_path',
+      label: t('core_actions.copy_app_path'),
+      icon: 'icon:clipboard',
+      description: t('core_actions.copy_app_path_desc'),
+      category: t('categories.item'),
+      context: ActionContext.CORE,
+      visible: () => {
+        const item = this.getSelectedSearchItem();
+        return item?.type === 'application' && hasAppFilePath(item.path);
+      },
+      execute: async () => {
+        const item = this.getSelectedSearchItem();
+        if (!item || item.type !== 'application' || !hasAppFilePath(item.path)) return;
+        await writeText(item.path);
+        await feedbackService.showHUD(t('core_actions.copy_app_path_hud'));
+      },
+    });
+
+    this.registerAction({
+      id: 'run_application_as_admin',
+      label: t('core_actions.run_as_admin'),
+      icon: 'icon:lock',
+      description: t('core_actions.run_as_admin_desc'),
+      category: t('categories.item'),
+      context: ActionContext.CORE,
+      visible: () => {
+        const item = this.getSelectedSearchItem();
+        return item?.type === 'application' && canRunAsAdmin(item.path, HOST_PLATFORM);
+      },
+      execute: async () => {
+        const item = this.getSelectedSearchItem();
+        if (!item || item.type !== 'application' || !canRunAsAdmin(item.path, HOST_PLATFORM)) {
+          return;
+        }
+        // A dismissed UAC prompt is not an error; real failures surface through
+        // invokeSafe's feedback.
+        await applicationService.runApplicationAsAdmin(item.path!);
       },
     });
 

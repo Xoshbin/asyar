@@ -32,6 +32,17 @@ export async function uninstallApplication(
   return invokeSafeVoid('uninstall_application', { path, dataPaths });
 }
 
+// `reveal_application` / `run_application_as_admin` are `Result<(), AppError>`
+// on the Rust side; failures reject with IpcError.
+
+export async function revealApplication(path: string): Promise<true> {
+  return invokeSafeVoid('reveal_application', { path });
+}
+
+export async function runApplicationAsAdmin(path: string): Promise<true> {
+  return invokeSafeVoid('run_application_as_admin', { path });
+}
+
 export async function scanUninstallTargets(path: string): Promise<UninstallScanResult> {
   return invokeSafe<UninstallScanResult>('scan_uninstall_targets', { path });
 }

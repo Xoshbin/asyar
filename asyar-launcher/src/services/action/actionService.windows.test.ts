@@ -27,6 +27,8 @@ vi.mock('../feedback/feedbackService.svelte', () => ({
 }));
 
 const mockApplicationService = vi.hoisted(() => ({
+  revealApplication: vi.fn().mockResolvedValue(undefined),
+  runApplicationAsAdmin: vi.fn().mockResolvedValue(undefined),
   uninstallApplication: vi.fn().mockResolvedValue(undefined),
   scanUninstallTargets: vi
     .fn()
@@ -191,5 +193,63 @@ describe('uninstall_application on Windows', () => {
 
     expect(mockApplicationService.uninstallApplication).not.toHaveBeenCalled();
     expect(mockFeedbackService.showHUD).not.toHaveBeenCalled();
+  });
+});
+
+describe('application location actions on Windows', () => {
+  const STORE_PATH = 'shell:AppsFolder\\Microsoft.Foo_8wekyb3d8bbwe!App';
+
+  function select(item: ReturnType<typeof makeLnkResult>) {
+    mockSearchOrchestrator.items = [item];
+    mockSearchStores.selectedIndex = 0;
+    setSelectedItemProvider(() => mockSearchOrchestrator.items[0]);
+  }
+
+  beforeEach(() => {
+    mockApplicationService.revealApplication.mockClear();
+    mockApplicationService.runApplicationAsAdmin.mockClear();
+  });
+
+  it('offers reveal, copy path and run as administrator for a .lnk app', () => {
+    const svc = new ActionService();
+    select(makeLnkResult());
+    for (const id of ['reveal_application', 'copy_application_path', 'run_application_as_admin']) {
+      const action = svc.getAllActions().find((a) => a.id === id);
+      expect(action, id).toBeDefined();
+      expect(action!.context).toBe(ActionContext.CORE);
+      expect(action!.visible!(), id).toBe(true);
+    }
+  });
+
+  it('hides all three for a Microsoft Store app', () => {
+    const svc = new ActionService();
+    select(makeLnkResult({ path: STORE_PATH }));
+    for (const id of ['reveal_application', 'copy_application_path', 'run_application_as_admin']) {
+      expect(svc.getAllActions().find((a) => a.id === id)!.visible!(), id).toBe(false);
+    }
+  });
+
+  it('hides them for non-application rows', () => {
+    const svc = new ActionService();
+    select({ ...makeLnkResult(), type: 'command' as any });
+    for (const id of ['reveal_application', 'copy_application_path', 'run_application_as_admin']) {
+      expect(svc.getAllActions().find((a) => a.id === id)!.visible!(), id).toBe(false);
+    }
+  });
+
+  it('executes reveal and run-as-admin against the selected path', async () => {
+    const svc = new ActionService();
+    const item = makeLnkResult();
+    select(item);
+    await svc
+      .getAllActions()
+      .find((a) => a.id === 'reveal_application')!
+      .execute();
+    await svc
+      .getAllActions()
+      .find((a) => a.id === 'run_application_as_admin')!
+      .execute();
+    expect(mockApplicationService.revealApplication).toHaveBeenCalledWith(item.path);
+    expect(mockApplicationService.runApplicationAsAdmin).toHaveBeenCalledWith(item.path);
   });
 });
