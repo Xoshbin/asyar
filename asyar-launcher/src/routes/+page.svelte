@@ -72,6 +72,7 @@
   const compactSync = new CompactSyncService({
     getInitialized: () => settingsService.initialized,
     getLaunchView: () => settingsService.currentSettings.appearance.launchView,
+    getHideShowMoreBar: () => !!settingsService.currentSettings.appearance.hideCompactShowMore,
     getActiveView: () => controller.activeViewVal,
     getActiveContext: () => controller.activeContext,
     getLocalSearchValue: () => controller.localSearchValue,
@@ -480,6 +481,8 @@
     bind:accessoryRef
     bind:value={controller.localSearchValue}
     showBack={!!controller.activeViewVal}
+    hideSeparator={isCompactIdle &&
+      !!settingsService.currentSettings.appearance.hideCompactShowMore}
     searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}
     placeholder={controller.activeViewVal
       ? controller.activeViewSearchableVal

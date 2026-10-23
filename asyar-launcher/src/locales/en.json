@@ -152,7 +152,9 @@
       "interface_size_large": "Large",
       "interface_size_larger": "Larger",
       "theme_aria": "Appearance theme",
-      "window_mode_aria": "Window mode"
+      "window_mode_aria": "Window mode",
+      "hide_show_more": "Hide Show More bar",
+      "hide_show_more_description": "Show only the search bar in compact mode. Press ↓ to expand."
     },
     "advanced": {
       "section_extension_surface": "Extension surface",
@@ -1215,7 +1217,9 @@
         "uninstall": "Uninstall Extension",
         "uninstall_desc": "Uninstall the currently viewed extension",
         "install": "Install Extension",
-        "install_desc": "Install the currently viewed extension"
+        "install_desc": "Install the currently viewed extension",
+        "open_web": "Open in Web",
+        "open_web_desc": "Open this extension's page on asyar.org"
       },
       "t_install_failed": "Install Failed",
       "t_install_no_ext": "Could not determine which extension to install.",

@@ -412,6 +412,7 @@ pub async fn set_extension_consent(
         grandfathered: false,
     };
     set_consent(&app_handle, &extension_id, &record)?;
+    crate::network::client_pool::evict_managed_extension(&app_handle, &extension_id);
 
     for program in declared_shell_programs(&record.permissions, &record.permission_args) {
         // Bare names go through the same PATH lookup the spawn path uses,
@@ -514,6 +515,7 @@ pub fn revoke_extension_consent(
     }
     clear_consent(&app_handle, &extension_id)?;
     registry.unregister(&extension_id);
+    crate::network::client_pool::evict_managed_extension(&app_handle, &extension_id);
     if let Some(manager) =
         app_handle.try_state::<crate::clipboard_capture::ClipboardCaptureManager>()
     {

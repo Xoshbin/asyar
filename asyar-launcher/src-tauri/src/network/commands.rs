@@ -3,7 +3,7 @@ use crate::network::discovery::DiscoveredDevice;
 use crate::permissions::ExtensionPermissionRegistry;
 use crate::storage::lan_allowed_hosts::{self, LanAllowedHost};
 use crate::storage::DataStore;
-use tauri::{Emitter, State};
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -77,18 +77,30 @@ pub async fn lan_hosts_add(
 /// Remove a user-approved LAN host.
 #[tauri::command]
 pub async fn lan_hosts_remove(
+    app_handle: AppHandle,
     extension_id: String,
     host: String,
     port: u16,
     store: State<'_, DataStore>,
 ) -> Result<bool, AppError> {
-    let conn = store.conn()?;
-    Ok(lan_allowed_hosts::remove(
-        &conn,
-        &extension_id,
-        &host,
-        port,
-    )?)
+    remove_lan_host(&app_handle, &store, &extension_id, &host, port)
+}
+
+fn remove_lan_host<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    store: &DataStore,
+    extension_id: &str,
+    host: &str,
+    port: u16,
+) -> Result<bool, AppError> {
+    let removed = {
+        let conn = store.conn()?;
+        lan_allowed_hosts::remove(&conn, extension_id, host, port)?
+    };
+    if removed {
+        crate::network::client_pool::evict_managed_extension(app_handle, extension_id);
+    }
+    Ok(removed)
 }
 
 /// Scan for LAN devices via SSDP and mDNS, streaming accepted rows to the caller.
@@ -123,6 +135,8 @@ pub async fn lan_host_validate(host: String, port: u16) -> Result<(), AppError> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::network::client_pool::{ClientScope, Route, ScopedHttpClientPool};
+    use tauri::Manager;
 
     #[test]
     fn lan_device_ref_serialises_only_host_port_label() {
@@ -204,5 +218,48 @@ mod tests {
             .await
             .is_err());
         assert!(lan_host_validate("8.8.8.8".into(), 53).await.is_err());
+    }
+
+    #[test]
+    fn removing_lan_host_evicts_the_extensions_clients() {
+        let app = tauri::test::mock_app();
+        let pool = ScopedHttpClientPool::new();
+        pool.acquire(
+            ClientScope::Extension("org.asyar.sonos".into()),
+            Route::Pinned,
+            "http",
+            "speaker.local",
+            1400,
+            &["192.168.1.20:1400".parse().unwrap()],
+        )
+        .unwrap();
+        app.manage(pool);
+        let store = DataStore::in_memory().unwrap();
+        {
+            let conn = store.conn().unwrap();
+            lan_allowed_hosts::init_table(&conn).unwrap();
+            lan_allowed_hosts::add(
+                &conn,
+                "org.asyar.sonos",
+                "speaker.local",
+                1400,
+                "Living Room",
+            )
+            .unwrap();
+        }
+
+        assert!(remove_lan_host(
+            app.handle(),
+            &store,
+            "org.asyar.sonos",
+            "speaker.local",
+            1400,
+        )
+        .unwrap());
+        let pool: tauri::State<'_, ScopedHttpClientPool> = app.state();
+        assert_eq!(
+            pool.len_for_scope(&ClientScope::Extension("org.asyar.sonos".into())),
+            0
+        );
     }
 }
