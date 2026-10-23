@@ -629,7 +629,7 @@ impl WindowBackend for LauncherWindowBackend {
                 msg_send![ns_window, setFrame: new_frame display: Bool::YES animate: Bool::NO];
 
             let content_view: *mut AnyObject = msg_send![ns_window, contentView];
-            let new_origin_y = height - LAUNCHER_MAX_HEIGHT;
+            let new_origin_y = height - active_max_height();
 
             for view in [find_webview(content_view), find_vibrancy_view(content_view)] {
                 if view.is_null() {
