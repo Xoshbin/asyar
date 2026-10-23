@@ -9,9 +9,9 @@ test('allowed values pass through', () => {
 });
 
 test('snaps to nearest allowed value', () => {
-  expect(clampUiScale(1.1)).toBe(1);
-  expect(clampUiScale(1.25)).toBe(1.2);
-  expect(clampUiScale(3)).toBe(1.4);
+  expect(clampUiScale(1.04)).toBe(1);
+  expect(clampUiScale(1.13)).toBe(1.1);
+  expect(clampUiScale(3)).toBe(1.2);
 });
 
 test('falls back to default for junk', () => {

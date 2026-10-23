@@ -547,7 +547,7 @@ mod snap_persistence_tests {
     #[test]
     fn reserve_height_scales_the_base() {
         let monitor = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-        let scaled_reserve = reserve_height_for_scale(1.4);
+        let scaled_reserve = reserve_height_for_scale(1.2);
 
         let (_, y) = resolve_origin(
             &LauncherAnchor::Centered,
@@ -557,8 +557,8 @@ mod snap_persistence_tests {
             scaled_reserve,
         );
 
-        assert_eq!(scaled_reserve, LAUNCHER_MAX_HEIGHT * 1.4);
-        assert_eq!(y, (monitor.height - LAUNCHER_MAX_HEIGHT * 1.4) / 2.0);
+        assert_eq!(scaled_reserve, LAUNCHER_MAX_HEIGHT * 1.2);
+        assert_eq!(y, (monitor.height - LAUNCHER_MAX_HEIGHT * 1.2) / 2.0);
     }
 
     #[test]
