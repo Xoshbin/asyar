@@ -1207,7 +1207,9 @@
         "uninstall": "Desinstalar extensão",
         "uninstall_desc": "Desinstalar a extensão atualmente exibida",
         "install": "Instalar extensão",
-        "install_desc": "Instalar a extensão atualmente exibida"
+        "install_desc": "Instalar a extensão atualmente exibida",
+        "open_web": "Abrir na Web",
+        "open_web_desc": "Abrir a página desta extensão em asyar.org"
       },
       "t_install_failed": "Falha na instalação",
       "t_install_no_ext": "Não foi possível determinar qual extensão instalar.",

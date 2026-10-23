@@ -1,3 +1,4 @@
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { t } from '../../services/i18n';
 import { envService } from '../../services/envService';
 import type {
@@ -29,6 +30,8 @@ const ACTION_ID_INSTALL_SELECTED = 'app.asyar.store:install-selected'; // Action
 const ACTION_ID_UNINSTALL_SELECTED = 'app.asyar.store:uninstall-selected'; // Action ID for list view selection
 const ACTION_ID_UPDATE_DETAIL = 'app.asyar.store:update-detail';
 const ACTION_ID_UPDATE_SELECTED = 'app.asyar.store:update-selected';
+const ACTION_ID_OPEN_WEB_DETAIL = 'app.asyar.store:open-web-detail';
+const ACTION_ID_OPEN_WEB_SELECTED = 'app.asyar.store:open-web-selected';
 
 // Define structure for install API response (needed for action)
 interface InstallInfo {
@@ -460,7 +463,9 @@ class StoreExtension implements Extension {
     // this view — e.g. mid-install — while `inView` stays true. This runs
     // in the window capture phase, ahead of the dialog's own handling, so
     // without this check Enter/arrows here would fire instead of reaching it.
-    if (isAnyModalOpen(document)) return;
+    // The ⌘K action panel is the same case: while it is mounted, arrows and
+    // Enter belong to the panel, not to the extension list behind it.
+    if (document.querySelector('.action-popup') || isAnyModalOpen(document)) return;
 
     // Detail view specific keyboard handlers
     if (this.currentView === `${EXTENSION_ID}/DetailView`) {
@@ -525,8 +530,36 @@ class StoreExtension implements Extension {
 
   // --- Action Registration ---
 
+  private buildOpenWebAction(
+    id: string,
+    getSlug: () => string | null | undefined,
+  ): ExtensionAction {
+    return {
+      id,
+      title: t('features.store.act.open_web'),
+      description: t('features.store.act.open_web_desc'),
+      icon: 'icon:globe',
+      extensionId: EXTENSION_ID,
+      execute: async () => {
+        const slug = getSlug();
+        if (!slug) return;
+        try {
+          await openUrl(`${envService.storeApiBaseUrl}/extensions/${encodeURIComponent(slug)}`);
+        } catch (err) {
+          this.logService?.warn(`[Store Extension] Failed to open store page for ${slug}: ${err}`);
+        }
+      },
+    };
+  }
+
   // Action for Detail View
   private registerDetailViewActions(): void {
+    actionService.registerAction(
+      this.buildOpenWebAction(
+        ACTION_ID_OPEN_WEB_DETAIL,
+        () => storeViewState.selectedExtensionSlug,
+      ),
+    );
     if (this.currentDetailIsInstalled === null) {
       // Still checking installed state — show nothing
       return;
@@ -608,6 +641,7 @@ class StoreExtension implements Extension {
     actionService.unregisterAction(ACTION_ID_INSTALL_DETAIL);
     actionService.unregisterAction(ACTION_ID_UNINSTALL_DETAIL);
     actionService.unregisterAction(ACTION_ID_UPDATE_DETAIL);
+    actionService.unregisterAction(ACTION_ID_OPEN_WEB_DETAIL);
   }
 
   // Action for List View Selection - Now manages subscription
@@ -623,6 +657,7 @@ class StoreExtension implements Extension {
         // Always unregister the previous actions first inside the subscription
         actionService.unregisterAction(ACTION_ID_INSTALL_SELECTED);
         actionService.unregisterAction(ACTION_ID_UNINSTALL_SELECTED);
+        actionService.unregisterAction(ACTION_ID_OPEN_WEB_SELECTED);
         // Clear the primary action label initially using the manager
         this.extensionManager?.setActiveViewActionLabel(null);
 
@@ -632,6 +667,12 @@ class StoreExtension implements Extension {
         if (selectedItem) {
           // Set the primary action label for the list view using the manager
           this.extensionManager?.setActiveViewActionLabel('Show Details');
+          actionService.registerAction(
+            this.buildOpenWebAction(
+              ACTION_ID_OPEN_WEB_SELECTED,
+              () => storeViewState.selectedItem?.slug,
+            ),
+          );
           this.logService?.debug(
             `Set primary action label to "Show Details" via manager for ${selectedItem.name}`,
           );
@@ -753,6 +794,7 @@ class StoreExtension implements Extension {
     actionService.unregisterAction(ACTION_ID_INSTALL_SELECTED);
     actionService.unregisterAction(ACTION_ID_UNINSTALL_SELECTED);
     actionService.unregisterAction(ACTION_ID_UPDATE_SELECTED);
+    actionService.unregisterAction(ACTION_ID_OPEN_WEB_SELECTED);
     // Also clear the primary action label via manager when unsubscribing/unregistering
     this.extensionManager?.setActiveViewActionLabel(null);
     this.logService?.debug(
