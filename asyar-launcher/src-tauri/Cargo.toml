@@ -14,6 +14,40 @@ resolver = "2"
 [profile.release.package.asyar-summon]
 strip = "symbols"
 
+# Unoptimized image codecs decode a single screenshot 20-30x slower than
+# release (~600 ms vs ~30 ms), making File Search previews/thumbnails crawl
+# in `tauri dev`. Optimize just the codec crates; our own code stays debug.
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.zune-core]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.image-webp]
+opt-level = 3
+[profile.dev.package.gif]
+opt-level = 3
+[profile.dev.package.moxcms]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+[profile.dev.package.simd-adler32]
+opt-level = 3
+[profile.dev.package.pxfm]
+opt-level = 3
+[profile.dev.package.adler2]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.bytemuck]
+opt-level = 3
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]

@@ -14,6 +14,7 @@
     ondblclick,
     icon,
     title,
+    titlePrefix,
     subtitle,
     alias,
     shortcut,
@@ -32,6 +33,8 @@
     ondblclick?: (e: MouseEvent) => void;
     icon?: string;
     title: string;
+    /** Dimmed text rendered inline before the title (e.g. `folder/`). */
+    titlePrefix?: string;
     subtitle?: string;
     alias?: string;
     shortcut?: string;
@@ -77,7 +80,9 @@
     {/if}
 
     <div class="row-body">
-      <span class="result-title truncate">{title}</span>
+      <span class="result-title truncate"
+        >{#if titlePrefix}<span class="title-prefix">{titlePrefix}</span>{/if}{title}</span
+      >
       {#if status}
         <StatusDot
           color={status === 'active' ? 'info' : status === 'failed' ? 'danger' : 'success'}
@@ -115,6 +120,10 @@
 </button>
 
 <style>
+  .title-prefix {
+    color: var(--text-secondary);
+  }
+
   .row-shell {
     display: flex;
     align-items: center;

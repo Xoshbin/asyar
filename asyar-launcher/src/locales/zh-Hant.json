@@ -271,7 +271,9 @@
       "exclude_patterns": "排除規則",
       "exclude_patterns_description": "索引時跳過的 Glob 匹配模式。",
       "add_search_root_title": "新增搜尋根目錄",
-      "pattern_placeholder": "例如 *.tmp"
+      "pattern_placeholder": "例如 *.tmp",
+      "recent_ignore_patterns": "最近檔案忽略清單",
+      "recent_ignore_patterns_description": "過去 24 小時內修改的檔案會在輸入前顯示在檔案搜尋中。常見的干擾項目（建置資料夾、快取、記錄檔、應用程式套件）已預設隱藏；可新增額外的 Glob 模式（與檔名及每個上層資料夾名稱相符）以隱藏更多。"
     },
     "extensions": {
       "installed": "已安裝的擴充套件",
@@ -1029,7 +1031,12 @@
       },
       "ui": {
         "deep": "深度",
-        "loading_preview": "正在載入預覽…"
+        "loading_preview": "正在載入預覽…",
+        "no_recent": "過去 24 小時內沒有修改的檔案",
+        "where": "位置",
+        "kind": "類型",
+        "size": "大小",
+        "modified": "修改時間"
       }
     },
     "notes": {

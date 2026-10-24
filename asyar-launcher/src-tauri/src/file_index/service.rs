@@ -12,12 +12,16 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, RwLock};
 
+use globset::GlobSet;
+
 use super::index::{FileIndex, IndexUpdate};
 use super::learning::LearningCache;
 use super::matcher::Matcher;
 use super::query::{self, QueryCache, QueryOptions};
 use super::snapshot;
-use super::types::{FileIndexConfig, FileSearchResponse, IndexStateKind, IndexStatus, WorkMeter};
+use super::types::{
+    FileHit, FileIndexConfig, FileSearchResponse, IndexStateKind, IndexStatus, WorkMeter,
+};
 use super::walker::{self, WalkOutcome};
 
 pub struct FileIndexState {
@@ -35,6 +39,8 @@ pub struct FileIndexState {
     /// captured token against the live value, so a newer keystroke's call
     /// cancels an older in-flight scan instead of racing it to completion.
     query_epoch: AtomicU64,
+    /// Compiled `config.recent_ignore_patterns`.
+    recent_ignore: RwLock<GlobSet>,
 }
 
 fn empty_response() -> FileSearchResponse {
@@ -49,6 +55,7 @@ fn empty_response() -> FileSearchResponse {
 
 impl FileIndexState {
     pub fn new(config: FileIndexConfig) -> Self {
+        let recent_ignore = query::build_recent_ignore(&config.recent_ignore_patterns);
         let state = if config.enabled {
             IndexStateKind::Building
         } else {
@@ -69,6 +76,7 @@ impl FileIndexState {
             }),
             last_scan_completed: Mutex::new(None),
             query_epoch: AtomicU64::new(0),
+            recent_ignore: RwLock::new(recent_ignore),
         }
     }
 
@@ -164,6 +172,26 @@ impl FileIndexState {
             now,
             &should_abort,
         )
+    }
+
+    /// Empty-query "recent files" list. Doesn't touch the narrowing cache.
+    pub fn recent(&self, opts: &QueryOptions, now: i64) -> Vec<FileHit> {
+        if !self.config.read().expect("config lock").enabled {
+            return Vec::new();
+        }
+        let index = self.index.read().expect("index lock");
+        let learning = self.learning.read().expect("learning lock");
+        let ignore = self.recent_ignore.read().expect("recent ignore lock");
+        query::recent(&index, &learning, &ignore, opts, now)
+    }
+
+    pub fn set_recent_ignore_patterns(&self, patterns: Vec<String>) {
+        *self.recent_ignore.write().expect("recent ignore lock") =
+            query::build_recent_ignore(&patterns);
+        self.config
+            .write()
+            .expect("config lock")
+            .recent_ignore_patterns = patterns;
     }
 
     /// Toggling off drops the in-memory index (nothing left to search, and

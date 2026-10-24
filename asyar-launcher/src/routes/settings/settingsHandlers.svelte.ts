@@ -116,6 +116,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     includeRoots: [],
     excludePatterns: [],
     indexHidden: false,
+    recentIgnorePatterns: [],
   },
 };
 

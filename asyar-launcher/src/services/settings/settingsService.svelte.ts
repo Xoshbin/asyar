@@ -100,6 +100,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     includeRoots: [],
     excludePatterns: [],
     indexHidden: false,
+    recentIgnorePatterns: [],
   },
   clipboardHistory: {
     retentionMs: 90 * 24 * 60 * 60 * 1000, // 90 days
