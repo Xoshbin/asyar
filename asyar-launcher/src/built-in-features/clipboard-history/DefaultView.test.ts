@@ -112,6 +112,8 @@ describe('DefaultView image preview', () => {
     MockURL.revokeObjectURL.mockReset();
     vi.stubGlobal('URL', MockURL);
     clipboardViewState.reset();
+    clipboardHistoryStore.recent = Object.values(items);
+    clipboardHistoryStore.favorites = [];
     pendingReads.clear();
   });
 
@@ -119,6 +121,8 @@ describe('DefaultView image preview', () => {
     cleanup();
     vi.unstubAllGlobals();
     clipboardViewState.reset();
+    clipboardHistoryStore.recent = Object.values(items);
+    clipboardHistoryStore.favorites = [];
     pendingReads.clear();
   });
 
@@ -203,6 +207,17 @@ describe('DefaultView image preview', () => {
     const pinBadge = screen.getByTestId('clip-pin-icon');
     expect(pinBadge).toBeTruthy();
     expect(pinBadge.getAttribute('aria-label')).toBeTruthy();
+    unmount();
+  });
+
+  it('renders metadata list for selected clipboard item', async () => {
+    const { unmount } = render(DefaultView);
+    await select('text');
+
+    expect(screen.getByText('Type')).toBeTruthy();
+    expect(screen.getByText('text')).toBeTruthy();
+    expect(screen.getByText('Characters')).toBeTruthy();
+    expect(screen.getByText('5')).toBeTruthy();
     unmount();
   });
 });

@@ -40,6 +40,7 @@ vi.mock('../../components', async () => ({
   LauncherListRow: (await import('../../components/list/LauncherListRow.svelte')).default,
   SplitView: (await import('../../components/list/SplitView.svelte')).default,
   WarningBanner: (await import('../../components/feedback/WarningBanner.svelte')).default,
+  MetadataList: (await import('../../components/layout/MetadataList.svelte')).default,
 }));
 
 import ScriptLibraryView from './ScriptLibraryView.svelte';
@@ -290,5 +291,14 @@ describe('ScriptLibraryView primary action label', () => {
     unmount();
 
     expect(viewManager.activeViewPrimaryActionLabel).toBe('Paste');
+  });
+
+  it('renders metadata list with script details', () => {
+    selectScript();
+    const { container } = render(ScriptLibraryView);
+
+    expect(container.querySelector('.metadata-section')).not.toBeNull();
+    expect(container.textContent).toContain('silent');
+    expect(container.textContent).toContain('/scripts');
   });
 });

@@ -34,4 +34,25 @@ describe('Notes DefaultView', () => {
     expect(pinBadge).toBeTruthy();
     expect(pinBadge.getAttribute('aria-label')).toBeTruthy();
   });
+
+  it('renders metadata list for selected note', () => {
+    noteStore.notes = [
+      {
+        id: 'n1',
+        title: 'Meeting Notes',
+        body: 'Discussing the release plan today',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        pinned: false,
+      },
+    ];
+
+    render(DefaultView);
+
+    expect(screen.getByText('Words')).toBeTruthy();
+    expect(screen.getByText('5')).toBeTruthy();
+    expect(screen.getByText('Characters')).toBeTruthy();
+    expect(screen.getByText('33')).toBeTruthy();
+    expect(screen.getByText('Modified')).toBeTruthy();
+  });
 });

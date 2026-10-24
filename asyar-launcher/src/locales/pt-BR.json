@@ -945,7 +945,14 @@
         "preview_alt": "Pré-visualização",
         "image_failed": "Falha ao carregar a imagem",
         "reveal_title": "Mostrar no Finder",
-        "preview_unavailable": "Pré-visualização indisponível"
+        "preview_unavailable": "Pré-visualização indisponível",
+        "source": "Origem",
+        "type": "Tipo",
+        "characters": "Caracteres",
+        "words": "Palavras",
+        "dimensions": "Dimensões",
+        "size": "Tamanho",
+        "copied": "Copiado"
       }
     },
     "snippets": {
@@ -1002,7 +1009,13 @@
         "browse_post": "para ver as opções.",
         "encrypted_secret": "Segredo criptografado",
         "badge": "snippet",
-        "add_first": "Adicione seu primeiro snippet"
+        "add_first": "Adicione seu primeiro snippet",
+        "keyword": "Palavra-chave",
+        "length": "Comprimento",
+        "created": "Criado em",
+        "visibility": "Visibilidade",
+        "visibility_private": "Privado (Apenas local)",
+        "visibility_synced": "Sincronizado"
       }
     },
     "file_search": {
@@ -1074,7 +1087,11 @@
         "untitled": "Nota sem título",
         "body_placeholder": "Comece a escrever… ⌘Enter segue um [[link]] sob o cursor.",
         "linked_mentions": "Menções vinculadas",
-        "create_first": "Crie sua primeira nota"
+        "create_first": "Crie sua primeira nota",
+        "words": "Palavras",
+        "characters": "Caracteres",
+        "modified": "Modificado em",
+        "mentions": "Menções"
       }
     },
     "walkthrough": {
@@ -1172,7 +1189,8 @@
         "path": "Caminho",
         "badge": "atalho",
         "press_pre": "Pressione",
-        "press_post": "para cancelar"
+        "press_post": "para cancelar",
+        "name": "Nome"
       }
     },
     "scripts": {
@@ -1200,7 +1218,10 @@
         "config": "Configuração",
         "file": "Arquivo",
         "directory": "Diretório",
-        "arguments": "Argumentos"
+        "arguments": "Argumentos",
+        "mode": "Modo",
+        "refresh": "Atualização",
+        "manual": "Manual"
       }
     },
     "store": {
@@ -1266,6 +1287,11 @@
         "updated": "Atualizado",
         "status": "Status",
         "added": "Adicionado",
+        "author": "Autor",
+        "category": "Categoria",
+        "installs": "Instalações",
+        "not_installed": "Não instalado",
+        "commands": "Comandos",
         "lazy_failed": "Falha ao carregar a tela"
       }
     },
@@ -1372,7 +1398,10 @@
         "exit_nonzero": "O script terminou com status diferente de zero.",
         "succeeded": "Concluído com sucesso",
         "succeeded_in": "Processo concluído com sucesso em {seconds} segundos.",
-        "succeeded_silent": "Execução bem-sucedida. O script terminou sem imprimir nada na saída padrão."
+        "succeeded_silent": "Execução bem-sucedida. O script terminou sem imprimir nada na saída padrão.",
+        "status": "Status",
+        "started": "Iniciado em",
+        "duration": "Duração"
       }
     },
     "usage_stats": {
@@ -1627,7 +1656,9 @@
         "use_placeholders": "Use marcadores na URL: {tokens}.",
         "browse_pre": "Pressione",
         "browse_mid": "ou o botão",
-        "browse_post": "para ver todos os marcadores."
+        "browse_post": "para ver todos os marcadores.",
+        "command": "Comando",
+        "created": "Criado em"
       }
     },
     "help": {
@@ -1799,7 +1830,9 @@
     "refresh": "Atualizar",
     "run": "Executar",
     "import": "Importar",
-    "update": "Atualizar"
+    "update": "Atualizar",
+    "information": "Informações",
+    "metadata": "Metadados"
   },
   "components": {
     "shortcut_recorder": {

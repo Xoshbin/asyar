@@ -494,7 +494,7 @@ fails the build if a component is missing from it, so the barrel is trustworthy
 | A master/detail page with its own empty state | `SplitListDetail`               |
 | A card                                        | `Card`                          |
 | A page header with a back button              | `AppBar`                        |
-| Actions pinned to the bottom of a view        | `ActionFooter`                  |
+| Key-value metadata inspector in a detail pane | `MetadataList`                  |
 | A ⌘K-style action menu                        | `ActionListPopup`               |
 
 | You are building                              | Use                                                                                     |

@@ -6,7 +6,7 @@
     SplitListDetail,
     LauncherListRow,
     Icon,
-    ActionFooter,
+    MetadataList,
     EmptyState,
     Button,
     Badge,
@@ -175,6 +175,7 @@
   }
 
   let wordCount = $derived(formBody.trim() ? formBody.trim().split(/\s+/).length : 0);
+  let charCount = $derived(formBody.length);
 </script>
 
 <SplitListDetail
@@ -283,14 +284,28 @@
           </div>
         {/if}
       </div>
-      <ActionFooter>
-        {#snippet left()}
-          <span class="text-caption" style="color: var(--text-tertiary)">
-            Edited {relativeTime(selectedNote.updatedAt)} · {wordCount}
-            {wordCount === 1 ? 'word' : 'words'}
-          </span>
-        {/snippet}
-      </ActionFooter>
+      <MetadataList
+        title={t('common.information')}
+        items={[
+          {
+            label: t('features.notes.ui.words'),
+            value: wordCount.toLocaleString(),
+          },
+          {
+            label: t('features.notes.ui.characters'),
+            value: charCount.toLocaleString(),
+          },
+          {
+            label: t('features.notes.ui.modified'),
+            value: relativeTime(selectedNote.updatedAt),
+            title: new Date(selectedNote.updatedAt).toLocaleString(),
+          },
+          {
+            label: t('features.notes.ui.mentions'),
+            value: backlinks.length > 0 ? String(backlinks.length) : null,
+          },
+        ]}
+      />
     {:else}
       <EmptyState
         message={filteredNotes.length === 0

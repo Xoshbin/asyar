@@ -144,11 +144,11 @@
     {/if}
 
     <PrimaryActionDisplay
-      {selectedItem}
+      selectedItem={viewManager.activeView ? null : selectedItem}
       activeViewLabel={viewManager.activeViewPrimaryActionLabel}
     />
 
-    {#if selectedItem || viewManager.activeViewPrimaryActionLabel}
+    {#if (viewManager.activeView ? null : selectedItem) || viewManager.activeViewPrimaryActionLabel}
       <span aria-hidden="true" class="bottom-bar-separator"></span>
     {/if}
 

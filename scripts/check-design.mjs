@@ -104,7 +104,6 @@ const DEPRECATED_BASELINE = new Map([
   ['components/dev/PanelRpc.svelte', 1],
   ['components/dev/PanelSubscriptions.svelte', 1],
   ['components/feedback/ToastHost.svelte', 1],
-  ['components/layout/ActionFooter.svelte', 1],
   ['components/layout/BottomBarButton.svelte', 1],
   ['components/layout/PrimaryActionDisplay.svelte', 1],
   ['components/list/CalcResultCard.svelte', 3],
