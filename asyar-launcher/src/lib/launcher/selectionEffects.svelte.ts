@@ -186,6 +186,39 @@ export function setupSelectionEffects(state: LauncherState) {
     return item?.type === 'file' && item.path ? item.object_id : null;
   });
 
+  const rowActionsItem = $derived.by(() => {
+    const item = state.currentSelectedItemOriginal;
+    return item?.rowActions?.length ? item : null;
+  });
+
+  // Effect 9d: ⌘K actions a built-in contributes for its own selected root
+  // row (e.g. the calculator's "Copy as HEX / RGB / HSL"). The row carries
+  // them, so they always match the query that produced it.
+  $effect(() => {
+    const item = rowActionsItem;
+    if (!item?.rowActions) return;
+    const ids: string[] = [];
+    for (const action of item.rowActions) {
+      ids.push(action.id);
+      actionService.registerAction({
+        id: action.id,
+        label: action.label,
+        description: action.description,
+        icon: action.icon,
+        category: action.category,
+        extensionId: item.extensionId ?? undefined,
+        context: ActionContext.CORE,
+        execute: async () => {
+          await action.execute();
+          state.getBottomBar()?.closeActionList();
+        },
+      });
+    }
+    return () => {
+      for (const id of ids) actionService.unregisterAction(id);
+    };
+  });
+
   // Effect 9: Shortcut action registration for selected item
   $effect(() => {
     const key = shortcutsKey;

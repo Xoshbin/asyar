@@ -1,4 +1,8 @@
-import { searchBuiltinProviders, executeBuiltinSearchResult } from './builtinSearchProviders';
+import {
+  searchBuiltinProviders,
+  executeBuiltinSearchResult,
+  getBuiltinRowActions,
+} from './builtinSearchProviders';
 import { isAppInitialized } from '../appInitState';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
@@ -190,6 +194,12 @@ class SearchOrchestratorClass {
             executeBuiltinSearchResult(builtin.extensionId, builtin.id, builtin.actionPayload).then(
               () => {},
             );
+          const rowActions = getBuiltinRowActions(
+            builtin.extensionId,
+            builtin.id,
+            builtin.actionPayload,
+          );
+          if (rowActions.length > 0) r.rowActions = rowActions;
           continue;
         }
         const action = directActions.get(r.objectId);

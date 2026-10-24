@@ -1943,6 +1943,8 @@
     "change_shortcut": "Change Shortcut",
     "assign_shortcut": "Assign Shortcut",
     "assign_shortcut_desc": "Assign global shortcut",
+    "copy_color_as": "Copy as {format}",
+    "copy_color_as_desc": "Copy this color as {format}",
     "cancel_run": "Cancel Run",
     "cancel_run_desc": "Cancel this running task",
     "dismiss_failure": "Dismiss Failure",

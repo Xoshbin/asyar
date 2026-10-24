@@ -1943,6 +1943,8 @@
     "change_shortcut": "變更快速鍵",
     "assign_shortcut": "指派快速鍵",
     "assign_shortcut_desc": "指派全域快速鍵",
+    "copy_color_as": "複製為 {format}",
+    "copy_color_as_desc": "將此顏色複製為 {format}",
     "cancel_run": "取消執行",
     "cancel_run_desc": "取消此執行中的工作",
     "dismiss_failure": "忽略失敗",

@@ -1943,6 +1943,8 @@
     "change_shortcut": "Alterar atalho",
     "assign_shortcut": "Atribuir atalho",
     "assign_shortcut_desc": "Atribuir atalho global",
+    "copy_color_as": "Copiar como {format}",
+    "copy_color_as_desc": "Copiar esta cor como {format}",
     "cancel_run": "Cancelar execução",
     "cancel_run_desc": "Cancelar esta tarefa em execução",
     "dismiss_failure": "Dispensar falha",

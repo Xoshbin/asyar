@@ -1943,6 +1943,8 @@
     "change_shortcut": "更改快捷键",
     "assign_shortcut": "分配快捷键",
     "assign_shortcut_desc": "分配全局快捷键",
+    "copy_color_as": "复制为 {format}",
+    "copy_color_as_desc": "将此颜色复制为 {format}",
     "cancel_run": "取消运行",
     "cancel_run_desc": "取消此正在运行的任务",
     "dismiss_failure": "忽略失败",
