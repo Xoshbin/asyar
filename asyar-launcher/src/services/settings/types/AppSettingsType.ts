@@ -87,6 +87,10 @@ export interface FileSearchSettings {
   /** Extra exclude patterns layered on top of the built-in defaults. */
   excludePatterns: string[];
   indexHidden: boolean;
+  /** Extra globs hiding files from the File Search view's "recent files"
+   * list, on top of the built-in defaults in Rust. Matched against the file
+   * name and every parent folder name. */
+  recentIgnorePatterns: string[];
 }
 
 export type CrashReportMode = 'off' | 'ask' | 'auto';

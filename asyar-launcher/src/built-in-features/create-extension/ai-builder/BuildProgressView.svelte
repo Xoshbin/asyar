@@ -5,14 +5,7 @@
   import { submitAnswer } from './questionBridge';
   import { aiBuildUiState } from './aiBuildUiState.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
-  import {
-    Button,
-    FormField,
-    Input,
-    ActionFooter,
-    KeyboardHint,
-    WarningBanner,
-  } from '../../../components';
+  import { Button, FormField, Input, KeyboardHint, WarningBanner } from '../../../components';
   import { actionService } from '../../../services/action/actionService.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { sidecarClient } from './sidecarClient';
@@ -49,6 +42,26 @@
   $effect(() => {
     const status = job?.status ?? null;
 
+    if (status === null) {
+      actionService.registerAction({
+        id: 'ai-builder:start-build',
+        label: t('features.create_extension.view.build'),
+        icon: 'icon:sparkles',
+        description: t('features.create_extension.view.subtitle'),
+        category: t('categories.ai_builder'),
+        extensionId: 'create-extension',
+        context: ActionContext.EXTENSION_VIEW,
+        disabled: !prompt.trim() || isStarting,
+        shortcut: 'Mod+Enter',
+        execute: async () => {
+          await onStart();
+        },
+      });
+      return () => {
+        actionService.unregisterAction('ai-builder:start-build');
+      };
+    }
+
     if (status === 'working') {
       actionService.registerAction({
         id: 'ai-builder:cancel',
@@ -65,6 +78,55 @@
       return () => {
         actionService.unregisterAction('ai-builder:cancel');
       };
+    }
+
+    if (status === 'waiting' && job?.pendingQuestion) {
+      if (job.pendingQuestion.inputKind === 'confirm') {
+        actionService.registerAction({
+          id: 'ai-builder:confirm-yes',
+          label: t('features.create_extension.view.yes'),
+          icon: 'icon:check',
+          category: t('categories.ai_builder'),
+          extensionId: 'create-extension',
+          context: ActionContext.EXTENSION_VIEW,
+          execute: async () => {
+            await onConfirm('yes');
+          },
+        });
+        actionService.registerAction({
+          id: 'ai-builder:confirm-no',
+          label: t('features.create_extension.view.no'),
+          icon: 'icon:cross',
+          category: t('categories.ai_builder'),
+          extensionId: 'create-extension',
+          context: ActionContext.EXTENSION_VIEW,
+          execute: async () => {
+            await onConfirm('no');
+          },
+        });
+        return () => {
+          actionService.unregisterAction('ai-builder:confirm-yes');
+          actionService.unregisterAction('ai-builder:confirm-no');
+        };
+      } else {
+        if (answer.trim()) {
+          actionService.registerAction({
+            id: 'ai-builder:send-answer',
+            label: t('features.create_extension.view.send_answer'),
+            icon: 'icon:arrow-right',
+            category: t('categories.ai_builder'),
+            extensionId: 'create-extension',
+            context: ActionContext.EXTENSION_VIEW,
+            execute: async () => {
+              await onAnswer();
+            },
+          });
+          return () => {
+            actionService.unregisterAction('ai-builder:send-answer');
+          };
+        }
+      }
+      return () => {};
     }
 
     if (status === 'done' && job?.result) {
@@ -147,7 +209,6 @@
       };
     }
 
-    // idle / waiting — no panel actions; primary affordances are in-view
     return () => {};
   });
 
@@ -250,6 +311,12 @@
           ></Textarea>
         </FormField>
 
+        {#if isStarting}
+          <div class="starting-status">
+            <span class="text-caption animate-pulse">{startingLabel}</span>
+          </div>
+        {/if}
+
         {#if startError}
           <div class="inline-error">{startError}</div>
         {/if}
@@ -275,6 +342,10 @@
             </li>
           {/each}
         </ol>
+        <p class="text-caption">
+          {job.steps.length}
+          {job.steps.length === 1 ? 'step' : 'steps'} completed
+        </p>
       {:else}
         <p class="text-caption">{t('features.create_extension.view.starting')}</p>
       {/if}
@@ -287,6 +358,14 @@
 
       {#if job.pendingQuestion.inputKind === 'confirm'}
         <p class="confirm-prompt">{job.pendingQuestion.prompt}</p>
+        <div class="confirm-actions">
+          <Button onclick={() => void onConfirm('no')}>
+            {t('features.create_extension.view.no')}
+          </Button>
+          <Button class="btn-primary" onclick={() => void onConfirm('yes')}>
+            {t('features.create_extension.view.yes')}
+          </Button>
+        </div>
       {:else}
         <div class="fields">
           <FormField label={job.pendingQuestion.prompt}>
@@ -313,6 +392,13 @@
               />
             {/if}
           </FormField>
+
+          <div class="answer-actions">
+            <span class="text-caption">{t('features.create_extension.view.press_enter')}</span>
+            <Button class="btn-primary" disabled={!answer.trim()} onclick={() => void onAnswer()}>
+              {t('features.create_extension.view.send_answer')}
+            </Button>
+          </div>
         </div>
       {/if}
 
@@ -364,60 +450,6 @@
       </p>
     {/if}
   </div>
-
-  <!-- footer: primary affordance per state. Build/Cancel/retry/etc. for the
-       non-input states live in the action panel; only the in-view input states
-       (idle prompt, waiting answer/confirm) get a primary button here. -->
-  <ActionFooter>
-    {#snippet left()}
-      {#if !job}
-        {#if isStarting}<span class="text-caption animate-pulse">{startingLabel}</span>{/if}
-      {:else if job.status === 'working'}
-        <span class="text-caption"
-          >{job.steps.length} step{job.steps.length === 1 ? '' : 's'} completed</span
-        >
-      {:else if job.status === 'waiting' && job.pendingQuestion}
-        {#if job.pendingQuestion.inputKind === 'confirm'}
-          <span class="text-caption">{t('features.create_extension.view.choose_answer')}</span>
-        {:else}
-          <span class="text-caption">{t('features.create_extension.view.press_enter')}</span>
-        {/if}
-      {:else if job.status === 'done' && job.result}
-        <span class="text-caption">{t('features.create_extension.view.complete')}</span>
-      {:else if job.status === 'failed' && job.failure}
-        <span class="text-caption">{t('features.create_extension.view.see_panel')}</span>
-      {/if}
-    {/snippet}
-
-    {#snippet right()}
-      {#if !job}
-        <Button
-          class="btn-primary"
-          disabled={!prompt.trim() || isStarting}
-          onclick={() => void onStart()}
-        >
-          {isStarting
-            ? t('features.create_extension.view.starting')
-            : t('features.create_extension.view.build')}
-        </Button>
-      {:else if job.status === 'waiting' && job.pendingQuestion}
-        {#if job.pendingQuestion.inputKind === 'confirm'}
-          <div class="confirm-actions">
-            <Button onclick={() => void onConfirm('no')}
-              >{t('features.create_extension.view.no')}</Button
-            >
-            <Button class="btn-primary" onclick={() => void onConfirm('yes')}
-              >{t('features.create_extension.view.yes')}</Button
-            >
-          </div>
-        {:else}
-          <Button class="btn-primary" disabled={!answer.trim()} onclick={() => void onAnswer()}>
-            {t('features.create_extension.view.send_answer')}
-          </Button>
-        {/if}
-      {/if}
-    {/snippet}
-  </ActionFooter>
 </div>
 
 <style>
@@ -459,10 +491,25 @@
     margin: 0;
   }
 
-  /* ── confirm Yes / No actions in footer ────────────────────────────────── */
+  /* ── confirm Yes / No actions ─────────────────────────────────────────── */
   .confirm-actions {
     display: flex;
     gap: var(--space-3);
+  }
+
+  /* ── answer inline actions ─────────────────────────────────────────────── */
+  .answer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  /* ── starting status ───────────────────────────────────────────────────── */
+  .starting-status {
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
   }
 
   /* ── inline error (idle state) ─────────────────────────────────────────── */

@@ -83,6 +83,7 @@ const DEFAULT: AppSettings = {
     includeRoots: [],
     excludePatterns: [],
     indexHidden: false,
+    recentIgnorePatterns: [],
   },
 };
 

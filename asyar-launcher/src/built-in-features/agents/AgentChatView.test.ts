@@ -10,13 +10,31 @@ vi.mock('./agentService.svelte', () => ({
   },
 }));
 
-vi.mock('../../components', async () => ({
-  Button: (await import('../../components/base/Button.svelte')).default,
-  IconButton: (await import('../../components/base/IconButton.svelte')).default,
+vi.mock('../../components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, any>>();
+  return {
+    ...actual,
+    Button: (await import('../../components/base/Button.svelte')).default,
+    IconButton: (await import('../../components/base/IconButton.svelte')).default,
+    EmptyState: (await import('../../components/feedback/EmptyState.svelte')).default,
+    SplitListDetail: (await import('../../components/layout/SplitListDetail.svelte')).default,
+    LauncherListRow: (await import('../../components/list/LauncherListRow.svelte')).default,
+    Icon: (await import('../../components/base/Icon.svelte')).default,
+  };
+});
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockResolvedValue([]),
+  transformCallback: vi.fn(() => 0),
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn().mockResolvedValue(() => {}),
+  emit: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../services/log/logService', () => ({
-  logService: { warn: vi.fn() },
+  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
@@ -82,6 +100,7 @@ describe('AgentChatView', () => {
     agentsManager.currentThreadId = thread.id;
     agentsManager.sending = false;
     agentsManager.lastAssistantMessageText = null;
+    agentsManager.threadsVersion = 0;
   });
 
   afterEach(() => {
@@ -133,6 +152,17 @@ describe('AgentChatView', () => {
 
     await screen.findByText('No threads');
     await waitFor(() => expect(screen.queryByText(thread.title)).toBeNull());
+  });
+
+  it('refreshes the sidebar when threadsVersion is incremented', async () => {
+    render(AgentChatView);
+    await screen.findByText(thread.title);
+
+    const updatedThread = { ...thread, isPinned: true };
+    mockedAgentService.listThreads.mockResolvedValue([updatedThread]);
+    agentsManager.threadsVersion++;
+
+    await screen.findByTestId('thread-pin-icon');
   });
 
   it('does not claim there are no threads before the list has loaded', async () => {
@@ -271,5 +301,21 @@ describe('AgentChatView', () => {
 
     expect(callbacks.length).toBeGreaterThan(0);
     expect(() => callbacks.forEach((callback) => callback(0))).not.toThrow();
+  });
+
+  it('switches thread when clicking a thread row in the list', async () => {
+    const thread2 = {
+      id: 'thread-2',
+      agentId: agent.id,
+      title: 'Second Thread',
+      createdAt: 2,
+      updatedAt: 2,
+    };
+    mockedAgentService.listThreads.mockResolvedValue([thread, thread2]);
+    render(AgentChatView);
+
+    const secondThread = await screen.findByText('Second Thread');
+    await fireEvent.click(secondThread);
+    expect(agentsManager.currentThreadId).toBe('thread-2');
   });
 });

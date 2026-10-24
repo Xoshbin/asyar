@@ -6,8 +6,7 @@
     ListItem,
     ExtensionAvatar,
     Badge,
-    ActionFooter,
-    KeyboardHint,
+    MetadataList,
   } from '../../components';
   import { nameToGradient } from '../../lib/extensionAvatar';
   import { t } from '../../services/i18n';
@@ -125,27 +124,74 @@
         {/if}
       </div>
 
-      <ActionFooter>
-        {#snippet left()}
-          <div class="flex items-center gap-3">
-            {#if selectedItem.status === 'UPDATE_AVAILABLE'}
-              <Badge text={t('features.store.ui.update_available')} variant="warning" mono />
-            {:else if selectedItem.status === 'INSTALLED'}
-              <Badge text={t('common.installed')} variant="success" mono />
-            {:else}
-              <Badge text={selectedItem.category} variant="default" mono />
-            {/if}
-            <span class="text-caption"
-              >Added {new Date(
-                selectedItem.created_at ?? (selectedItem as any).createdAt,
-              ).toLocaleDateString()}</span
-            >
-          </div>
-        {/snippet}
-        {#snippet right()}
-          <KeyboardHint keys="Enter" action="to View Details" />
-        {/snippet}
-      </ActionFooter>
+      <MetadataList
+        title={t('common.information')}
+        items={[
+          {
+            label: t('features.store.ui.author'),
+            value: selectedItem.author?.name,
+          },
+          {
+            label: t('features.store.ui.category'),
+            value: selectedItem.category,
+          },
+          {
+            label: t('features.store.ui.version'),
+            value: (selectedItem as any).version || (selectedItem.manifest as any)?.version || null,
+            mono: true,
+          },
+          {
+            label: t('features.store.ui.status'),
+            value:
+              selectedItem.status === 'UPDATE_AVAILABLE'
+                ? t('features.store.ui.update_available')
+                : selectedItem.status === 'INSTALLED'
+                  ? t('common.installed')
+                  : t('features.store.ui.not_installed'),
+          },
+          {
+            label: t('features.store.ui.installs'),
+            value:
+              getInstallCount(selectedItem) > 0
+                ? getInstallCount(selectedItem).toLocaleString()
+                : null,
+            mono: true,
+          },
+          {
+            label: t('features.store.ui.commands'),
+            value: selectedItem.manifest?.commands?.length
+              ? String(selectedItem.manifest.commands.length)
+              : null,
+            mono: true,
+          },
+          {
+            label: t('features.store.ui.added'),
+            value:
+              (selectedItem.created_at ?? (selectedItem as any).createdAt)
+                ? new Date(
+                    selectedItem.created_at ?? (selectedItem as any).createdAt,
+                  ).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                : null,
+          },
+          {
+            label: t('features.store.ui.updated'),
+            value:
+              (selectedItem.updated_at ?? (selectedItem as any).updatedAt)
+                ? new Date(
+                    selectedItem.updated_at ?? (selectedItem as any).updatedAt,
+                  ).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                : null,
+          },
+        ]}
+      />
     {:else}
       <EmptyState message={t('features.store.select_extension')}>
         {#snippet icon()}

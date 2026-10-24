@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { stat } from '@tauri-apps/plugin-fs';
+  import { homeDir } from '@tauri-apps/api/path';
   import type { FileHit } from 'asyar-sdk/contracts';
   import {
-    ActionFooter,
     Badge,
     EmptyState,
+    Icon,
     LauncherListRow,
+    MetadataList,
     SplitListDetail,
   } from '../../components';
-  import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
+  import { fileMetadata, readTextPreview } from '../../lib/ipc/fileSearchCommands';
   import { getFileIcon, getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
   import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -52,6 +53,34 @@
     if (days < 365) return `${Math.floor(days / 30)} mo ago`;
     return `${Math.floor(days / 365)} y ago`;
   }
+
+  function formatDate(d: Date): string {
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  // "Where" shows the parent folder with $HOME collapsed to `~`.
+  let home = $state('');
+  void homeDir()
+    .then((h) => (home = h))
+    .catch(() => {});
+  function parentDir(path: string): string {
+    const dir = path.slice(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
+    return home && dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir;
+  }
+
+  // Rows sharing a name (README.md, index.ts) get their parent folder as a
+  // dimmed prefix so they're distinguishable, like VS Code's tabs.
+  // ponytail: one folder level only; two same-named parents still collide.
+  function parentName(path: string): string {
+    const parts = path.split(/[\\/]/);
+    return parts[parts.length - 2] ?? '';
+  }
+  let duplicateNames = $derived.by(() => {
+    const seen = new Set<string>();
+    const dupes = new Set<string>();
+    for (const i of items) (seen.has(i.name) ? dupes : seen).add(i.name);
+    return dupes;
+  });
 
   // Subscribe to the searchBarAccessory dropdown
   $effect(() => {
@@ -162,8 +191,8 @@
       currentPreviewPath = '';
     }
 
-    if (item && !item.isDir) {
-      void loadSize(item.path);
+    if (item) {
+      void loadStat(item.path, item.isDir);
     } else {
       selectedSize = null;
     }
@@ -191,7 +220,7 @@
       }
 
       // Step 2 — binary (or empty): ask the OS for a thumbnail.
-      previewThumbUrl = await getFileThumbnail(path, DETAIL_THUMB_DIM);
+      previewThumbUrl = await getFileThumbnail(path, DETAIL_THUMB_DIM, true);
       if (currentPreviewPath !== path) return; // superseded mid-flight
     } catch (err) {
       logService.warn(`[FileSearch] preview load failed: ${err}`);
@@ -200,10 +229,11 @@
     }
   }
 
-  async function loadSize(path: string) {
+  async function loadStat(path: string, isDir: boolean) {
     try {
-      const meta = await stat(path);
-      selectedSize = meta.size;
+      const meta = await fileMetadata(path);
+      if (selected?.path !== path) return; // superseded mid-flight
+      selectedSize = isDir ? null : meta.size;
     } catch {
       selectedSize = null;
     }
@@ -249,7 +279,9 @@
     minLeftWidth={240}
     maxLeftWidth={600}
     ariaLabel="Files"
-    emptyMessage={fileSearchViewState.searchQuery ? 'No matches' : 'Start typing to search…'}
+    emptyMessage={fileSearchViewState.searchQuery
+      ? 'No matches'
+      : t('features.file_search.ui.no_recent')}
   >
     {#snippet listItem(item: FileHit, index: number)}
       <LauncherListRow
@@ -258,7 +290,7 @@
         onclick={() => onSelect(item)}
         ondblclick={() => onActivate(item)}
         title={item.name}
-        subtitle={item.path}
+        titlePrefix={duplicateNames.has(item.name) ? `${parentName(item.path)}/` : undefined}
       >
         {#snippet leading()}
           <div class="row-icon-wrap">
@@ -328,16 +360,12 @@
           {#if item.source === 'deep'}
             <Badge text={t('features.file_search.ui.deep')} variant="default" mono />
           {:else if pinnedIds.has(item.fileId)}
-            <svg
-              class="pin-badge"
-              fill="currentColor"
-              viewBox="0 0 24 24"
+            <span
+              class="pin-badge flex items-center justify-center"
               aria-label={t('common.pinned')}
             >
-              <path
-                d="M16 2v5l2 2-4 4v4l-2-2-2 2v-4L6 9l2-2V2h8zm0-2H8v6.17L4.83 9.34a1 1 0 000 1.41L8 13.92V18a1 1 0 00.55.89l2 1a1 1 0 00.9 0l2-1A1 1 0 0014 18v-4.08l3.17-3.17a1 1 0 000-1.41L16 6.17V0z"
-              />
-            </svg>
+              <Icon name="pin" size={13} />
+            </span>
           {/if}
         {/snippet}
       </LauncherListRow>
@@ -367,20 +395,27 @@
           {/if}
         </div>
 
-        <ActionFooter>
-          {#snippet left()}
-            <div class="flex items-center space-x-3">
-              <Badge text={selected.type} variant="default" mono />
-              {#if selectedSize !== null}
-                <span class="text-caption">{formatBytes(selectedSize)}</span>
-              {/if}
-              <span class="text-caption opacity-70">{formatRelativeTime(selected.modifiedAt)}</span>
-              <span class="text-caption opacity-50 truncate" style="max-width:300px;"
-                >{selected.path}</span
-              >
-            </div>
-          {/snippet}
-        </ActionFooter>
+        <MetadataList
+          title={t('common.metadata')}
+          items={[
+            {
+              label: t('features.file_search.ui.where'),
+              value: parentDir(selected.path),
+              title: selected.path,
+              mono: true,
+            },
+            { label: t('features.file_search.ui.kind'), value: selected.type },
+            {
+              label: t('features.file_search.ui.size'),
+              value: selectedSize === null ? null : formatBytes(selectedSize),
+            },
+            {
+              label: t('features.file_search.ui.modified'),
+              value: formatRelativeTime(selected.modifiedAt),
+              title: formatDate(new Date(selected.modifiedAt * 1000)),
+            },
+          ]}
+        />
       {:else}
         <EmptyState
           message={fileSearchViewState.searchQuery
@@ -444,8 +479,8 @@
   }
 
   .pin-badge {
-    width: 12px;
-    height: 12px;
+    width: 13px;
+    height: 13px;
     flex-shrink: 0;
     color: var(--accent-primary);
     opacity: 0.7;

@@ -28,6 +28,8 @@ const ACTION_EDIT_AGENT = 'agents:edit-agent';
 const ACTION_DELETE_AGENT = 'agents:delete-agent';
 const ACTION_NEW_THREAD = 'agents:new-thread';
 const ACTION_DELETE_THREAD = 'agents:delete-thread';
+const ACTION_PIN_THREAD = 'agents:pin-thread';
+const ACTION_UNPIN_THREAD = 'agents:unpin-thread';
 const ACTION_CANCEL_SEND = 'agents:cancel-send';
 const ACTION_COPY_LAST_RESPONSE = 'agents:copy-last-response';
 
@@ -149,6 +151,39 @@ class AgentsExtension implements Extension {
     }
   }
 
+  /** Pin state of the active thread, or `null` when there is no known active thread. */
+  private activeThreadPinned(): boolean | null {
+    const agentId = agentsManager.currentAgentId;
+    const threadId = agentsManager.currentThreadId;
+    if (!agentId || !threadId) return null;
+    const thread = agentsManager.threadsFor(agentId)?.find((th) => th.id === threadId);
+    return thread ? Boolean(thread.isPinned) : null;
+  }
+
+  private async runSetThreadPinned(pinned: boolean): Promise<void> {
+    const agentId = agentsManager.currentAgentId;
+    const threadId = agentsManager.currentThreadId;
+    if (!threadId) return;
+    try {
+      await agentService.setThreadPinned(threadId, pinned);
+      const known = agentId ? agentsManager.threadsFor(agentId) : undefined;
+      if (agentId && known) {
+        const updated = known
+          .map((th) => (th.id === threadId ? { ...th, isPinned: pinned } : th))
+          .sort(
+            (a, b) =>
+              Number(b.isPinned ?? 0) - Number(a.isPinned ?? 0) ||
+              (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
+          );
+        agentsManager.rememberThreads(agentId, updated);
+      }
+      // Pinned threads sort first, so the chat view reloads its list.
+      agentsManager.threadsVersion += 1;
+    } catch (err) {
+      logService.warn(`[agents] pin-thread action failed: ${err}`);
+    }
+  }
+
   private runCancelSend(): void {
     agentsManager.activeAbortController?.abort();
   }
@@ -222,6 +257,32 @@ class AgentsExtension implements Extension {
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => this.runDeleteThread(),
     });
+    // Pin and Unpin are two entries with complementary visibility, so the panel
+    // offers whichever applies to the active thread (action labels are static).
+    actionService.registerAction({
+      id: ACTION_PIN_THREAD,
+      label: t('features.agents.act.pin_thread'),
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
+      description: t('features.agents.act.pin_thread_desc'),
+      category: t('categories.agents'),
+      extensionId: 'agents',
+      context: ActionContext.EXTENSION_VIEW,
+      visible: () => this.activeThreadPinned() === false,
+      execute: async () => this.runSetThreadPinned(true),
+    });
+    actionService.registerAction({
+      id: ACTION_UNPIN_THREAD,
+      label: t('features.agents.act.unpin_thread'),
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
+      description: t('features.agents.act.unpin_thread_desc'),
+      category: t('categories.agents'),
+      extensionId: 'agents',
+      context: ActionContext.EXTENSION_VIEW,
+      visible: () => this.activeThreadPinned() === true,
+      execute: async () => this.runSetThreadPinned(false),
+    });
     actionService.registerAction({
       id: ACTION_CANCEL_SEND,
       label: t('features.agents.act.cancel'),
@@ -250,6 +311,8 @@ class AgentsExtension implements Extension {
   private unregisterChatViewActions(): void {
     actionService.unregisterAction(ACTION_NEW_THREAD);
     actionService.unregisterAction(ACTION_DELETE_THREAD);
+    actionService.unregisterAction(ACTION_PIN_THREAD);
+    actionService.unregisterAction(ACTION_UNPIN_THREAD);
     actionService.unregisterAction(ACTION_CANCEL_SEND);
     actionService.unregisterAction(ACTION_COPY_LAST_RESPONSE);
   }

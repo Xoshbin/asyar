@@ -33,8 +33,9 @@ class FileSearchExtension implements Extension {
     if (commandId === 'show-files') {
       // Root search hands every command the text in the bar, but here that
       // text was only used to *find* "Search Files" (a prefix, an alias, a
-      // typo) — never as a query. Like Raycast, the view opens empty; files
-      // matching what was typed already show inline in root search.
+      // typo) — never as a query. Like Raycast, the view opens on the
+      // recently modified files; files matching what was typed already
+      // show inline in root search.
       this.extensionManager?.navigateToView('file-search/DefaultView');
       this.registerViewActions();
       return { type: 'view', viewPath: 'file-search/DefaultView' };

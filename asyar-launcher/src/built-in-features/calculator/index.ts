@@ -97,6 +97,7 @@ class CalculatorExtension implements Extension {
       icon: KIND_ICONS[r.kind] ?? '🧮',
       style: 'large',
       priority: 'top',
+      primaryActionLabel: t('common.copy'),
       actionPayload: {
         copyValue: r.value.replace(/^≈ /, ''),
         // Every notation of a color, so ⌘K can offer each one without

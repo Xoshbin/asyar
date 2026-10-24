@@ -22,8 +22,9 @@
     EmptyState,
     LauncherListRow,
     Badge,
-    ActionFooter,
+    Icon,
     IconButton,
+    MetadataList,
   } from '../../components';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -39,6 +40,17 @@
     minute: '2-digit',
     second: '2-digit',
   });
+
+  const relativeTimeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+
+  function formatRelativeTime(ms: number): string {
+    const diffSeconds = Math.round((ms - Date.now()) / 1000);
+    const abs = Math.abs(diffSeconds);
+    if (abs < 60) return 'just now';
+    if (abs < 3600) return relativeTimeFormat.format(Math.round(diffSeconds / 60), 'minute');
+    if (abs < 86400) return relativeTimeFormat.format(Math.round(diffSeconds / 3600), 'hour');
+    return relativeTimeFormat.format(Math.round(diffSeconds / 86400), 'day');
+  }
 
   function timeSection(timestamp: number): string {
     const d = new Date(timestamp);
@@ -695,6 +707,17 @@
               {/if}
             </div>
           {/snippet}
+          {#snippet trailing()}
+            {#if item.favorite}
+              <span
+                class="pin-badge flex items-center justify-center opacity-70 flex-shrink-0"
+                aria-label={t('common.pinned')}
+                data-testid="clip-pin-icon"
+              >
+                <Icon name="pin" size={13} />
+              </span>
+            {/if}
+          {/snippet}
         </LauncherListRow>
       {/snippet}
 
@@ -919,69 +942,63 @@
             </div>
           {/if}
 
-          <ActionFooter>
-            {#snippet left()}
-              <div class="flex items-center space-x-3">
-                {#if clipboardViewState.selectedIds.length > 1}
-                  <span class="text-caption"
-                    >{clipboardViewState.selectedIds.length} items selected · Enter to merge &amp; paste</span
-                  >
-                {:else if selectedFullItem}
-                  <Badge text={selectedFullItem.type} variant="default" mono />
-                  <span class="flex items-center gap-1 text-caption">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                      ><path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      /></svg
-                    >
-                    {formatDetailDate(selectedFullItem.createdAt)}
-                  </span>
-                  {#if !selectedFullItem.redactedKinds?.length && getMetadataText(selectedFullItem)}
-                    <span class="text-caption opacity-70">
-                      {getMetadataText(selectedFullItem)}
-                    </span>
-                  {/if}
-                  {#if selectedFullItem.sourceApp}
-                    <span class="source-app-info">
-                      {#if (selectedFullItem.sourceApp as any).iconUrl}
-                        <img
-                          src={(selectedFullItem.sourceApp as any).iconUrl}
-                          class="source-app-icon"
-                          alt=""
-                          aria-hidden="true"
-                        />
-                      {:else}
-                        <svg
-                          class="source-app-icon-fallback"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="1.5"
-                            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                          />
-                        </svg>
-                      {/if}
-                      <span class="source-app-name">{(selectedFullItem.sourceApp as any).name}</span
-                      >
-                      {#if (selectedFullItem.sourceApp as any).windowTitle}
-                        <span class="source-app-title"
-                          >{(selectedFullItem.sourceApp as any).windowTitle}</span
-                        >
-                      {/if}
-                    </span>
-                  {/if}
-                {/if}
-              </div>
-            {/snippet}
-          </ActionFooter>
+          {#if clipboardViewState.selectedIds.length > 1}
+            <div class="p-4 text-caption text-center" style="color: var(--text-secondary)">
+              {clipboardViewState.selectedIds.length} items selected · Enter to merge &amp; paste
+            </div>
+          {:else if selectedFullItem}
+            <MetadataList
+              title={t('common.information')}
+              items={[
+                {
+                  label: t('features.clipboard.ui.source'),
+                  value: (selectedFullItem.sourceApp as any)?.name,
+                  title: (selectedFullItem.sourceApp as any)?.windowTitle,
+                  icon: (selectedFullItem.sourceApp as any)?.iconUrl,
+                },
+                {
+                  label: t('features.clipboard.ui.type'),
+                  value: selectedFullItem.type,
+                },
+                {
+                  label: t('features.clipboard.ui.dimensions'),
+                  value:
+                    selectedFullItem.type === 'image' &&
+                    selectedFullItem.metadata?.width &&
+                    selectedFullItem.metadata?.height
+                      ? `${selectedFullItem.metadata.width} × ${selectedFullItem.metadata.height}`
+                      : null,
+                },
+                {
+                  label: t('features.clipboard.ui.size'),
+                  value: selectedFullItem.metadata?.sizeBytes
+                    ? formatBytes(selectedFullItem.metadata.sizeBytes as number)
+                    : null,
+                },
+                {
+                  label: t('features.clipboard.ui.characters'),
+                  value:
+                    selectedFullItem.content &&
+                    ['text', 'html', 'rtf'].includes(selectedFullItem.type)
+                      ? selectedFullItem.content.length.toLocaleString()
+                      : null,
+                },
+                {
+                  label: t('features.clipboard.ui.words'),
+                  value:
+                    selectedFullItem.content &&
+                    ['text', 'html', 'rtf'].includes(selectedFullItem.type)
+                      ? getWordCount(selectedFullItem).toLocaleString()
+                      : null,
+                },
+                {
+                  label: t('features.clipboard.ui.copied'),
+                  value: formatRelativeTime(selectedFullItem.createdAt),
+                  title: formatDetailDate(selectedFullItem.createdAt),
+                },
+              ]}
+            />
+          {/if}
         {:else}
           <EmptyState message={t('features.clipboard.select_item_hint')}>
             {#snippet icon()}
@@ -1244,41 +1261,7 @@
     border-radius: var(--radius-xs);
   }
 
-  .source-app-info {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    color: var(--text-secondary);
-    flex-shrink: 0;
-  }
-
-  .source-app-icon {
-    width: var(--size-sm);
-    height: var(--size-sm);
-    object-fit: contain;
-    border-radius: var(--radius-xs);
-    flex-shrink: 0;
-  }
-
-  .source-app-icon-fallback {
-    width: var(--size-sm);
-    height: var(--size-sm);
-    flex-shrink: 0;
-    opacity: 0.5;
-  }
-
-  .source-app-name {
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    white-space: nowrap;
-  }
-
-  .source-app-title {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    max-width: 128px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .pin-badge {
+    color: var(--accent-primary);
   }
 </style>

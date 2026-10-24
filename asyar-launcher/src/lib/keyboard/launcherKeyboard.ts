@@ -69,6 +69,10 @@ export interface KeyboardDeps {
 export function createKeyboardHandlers(deps: KeyboardDeps) {
   function restoreSearchFocus(opts?: { select?: boolean }) {
     const focusAndMaybeSelect = () => {
+      // Parked launcher (not key): focusing would leave a caret that macOS
+      // anchors "Write with Siri" to. The window `focus` /
+      // become-key listeners call back in here on reveal.
+      if (!document.hasFocus()) return;
       const input = deps.getSearchInput();
       input?.focus({ preventScroll: true });
       // Raycast selects the restored query so the next keystroke replaces it.

@@ -12,6 +12,8 @@ export interface SearchResult extends Omit<SearchResultBase, 'type'> {
   action?: string | (() => unknown);
   /** ⌘K actions contributed by the owning built-in for this row. */
   rowActions?: BuiltinRowAction[];
+  /** Bottom-bar Enter label supplied by the owning built-in; falls back to the type default. */
+  primaryActionLabel?: string;
   subtitle?: string;
   description?: string;
   category?: string;

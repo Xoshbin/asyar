@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/svelte';
+import { render, cleanup, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 
 // Hoisted so the store mock below can list them. The text item comes first so
@@ -112,6 +112,8 @@ describe('DefaultView image preview', () => {
     MockURL.revokeObjectURL.mockReset();
     vi.stubGlobal('URL', MockURL);
     clipboardViewState.reset();
+    clipboardHistoryStore.recent = Object.values(items);
+    clipboardHistoryStore.favorites = [];
     pendingReads.clear();
   });
 
@@ -119,6 +121,8 @@ describe('DefaultView image preview', () => {
     cleanup();
     vi.unstubAllGlobals();
     clipboardViewState.reset();
+    clipboardHistoryStore.recent = Object.values(items);
+    clipboardHistoryStore.favorites = [];
     pendingReads.clear();
   });
 
@@ -190,5 +194,30 @@ describe('DefaultView image preview', () => {
 
     unmount();
     expect(mockUnsub).toHaveBeenCalled();
+  });
+
+  it('renders a pin badge on favorite clips', async () => {
+    clipboardHistoryStore.favorites = [
+      { id: 'fav1', type: 'text', content: 'pinned clip', favorite: true, createdAt: 100 } as any,
+    ];
+    clipboardHistoryStore.recent = [];
+    const { unmount } = render(DefaultView);
+    await flush();
+
+    const pinBadge = screen.getByTestId('clip-pin-icon');
+    expect(pinBadge).toBeTruthy();
+    expect(pinBadge.getAttribute('aria-label')).toBeTruthy();
+    unmount();
+  });
+
+  it('renders metadata list for selected clipboard item', async () => {
+    const { unmount } = render(DefaultView);
+    await select('text');
+
+    expect(screen.getByText('Type')).toBeTruthy();
+    expect(screen.getByText('text')).toBeTruthy();
+    expect(screen.getByText('Characters')).toBeTruthy();
+    expect(screen.getByText('5')).toBeTruthy();
+    unmount();
   });
 });

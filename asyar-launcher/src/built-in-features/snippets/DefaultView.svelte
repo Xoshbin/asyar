@@ -9,7 +9,8 @@
     SplitListDetail,
     LauncherListRow,
     Badge,
-    ActionFooter,
+    Icon,
+    MetadataList,
     EmptyState,
     WarningBanner,
     FormField,
@@ -274,8 +275,21 @@
           </div>
         {/snippet}
         {#snippet trailing()}
-          {#if snippet.isPrivate}
-            <Badge text={t('features.snippets.private_badge')} variant="warning" />
+          {#if snippet.isPrivate || snippet.pinned}
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              {#if snippet.isPrivate}
+                <Badge text={t('features.snippets.private_badge')} variant="warning" />
+              {/if}
+              {#if snippet.pinned}
+                <span
+                  class="pin-badge flex items-center justify-center opacity-70"
+                  aria-label={t('common.pinned')}
+                  data-testid="snippet-pin-icon"
+                >
+                  <Icon name="pin" size={13} />
+                </span>
+              {/if}
+            </div>
           {/if}
         {/snippet}
       </LauncherListRow>
@@ -408,32 +422,32 @@
             <pre class="snippet-expansion">{selectedSnippet.expansion}</pre>
           {/if}
         </div>
-        <ActionFooter>
-          {#snippet left()}
-            <div class="flex items-center gap-3">
-              <Badge text={t('features.snippets.ui.badge')} variant="default" mono />
-              {#if selectedSnippet.isPrivate}
-                <Badge text={t('features.snippets.private_badge')} variant="warning" />
-              {/if}
-              <span class="flex items-center gap-1 text-caption">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                {dateFormat.format(selectedSnippet.createdAt)}
-              </span>
-              {#if !selectedSnippet.redactedKinds?.length}
-                <span class="text-caption" style="color: var(--text-tertiary)"
-                  >{selectedSnippet.expansion.length} chars</span
-                >
-              {/if}
-            </div>
-          {/snippet}
-        </ActionFooter>
+        <MetadataList
+          title={t('common.information')}
+          items={[
+            {
+              label: t('features.snippets.ui.keyword'),
+              value: selectedSnippet.keyword,
+              mono: true,
+            },
+            {
+              label: t('features.snippets.ui.length'),
+              value: selectedSnippet.redactedKinds?.length
+                ? null
+                : `${selectedSnippet.expansion.length} chars`,
+            },
+            {
+              label: t('features.snippets.ui.visibility'),
+              value: selectedSnippet.isPrivate
+                ? t('features.snippets.ui.visibility_private')
+                : t('features.snippets.ui.visibility_synced'),
+            },
+            {
+              label: t('features.snippets.ui.created'),
+              value: dateFormat.format(selectedSnippet.createdAt),
+            },
+          ]}
+        />
       {:else}
         <!-- Nothing selected -->
         <EmptyState
@@ -605,5 +619,8 @@
   .toggle-hint {
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
+  }
+  .pin-badge {
+    color: var(--accent-primary);
   }
 </style>

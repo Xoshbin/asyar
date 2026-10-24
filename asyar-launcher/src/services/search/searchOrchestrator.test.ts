@@ -508,6 +508,25 @@ describe('searchOrchestrator characterization tests', () => {
     expect(searchOrchestrator.items[0].rowActions).toEqual([action]);
   });
 
+  it('carries a built-in row primary action label onto its result', async () => {
+    vi.mocked(searchBuiltinProviders).mockResolvedValue([
+      {
+        id: 'calc_result_0',
+        title: '42',
+        extensionId: 'calculator',
+        primaryActionLabel: 'Copy',
+      },
+    ]);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({
+      results: [{ objectId: 'calc_result_0', name: '42', type: 'command' } as any],
+      aliasMatch: null,
+    });
+
+    await searchOrchestrator.handleSearch('6 * 7');
+
+    expect(searchOrchestrator.items[0].primaryActionLabel).toBe('Copy');
+  });
+
   it('executes worker action before the aggregated navigation callback', async () => {
     const navigate = vi.fn();
     vi.mocked(extensionManager.searchAll).mockResolvedValue([
