@@ -168,10 +168,14 @@ class AgentsExtension implements Extension {
       await agentService.setThreadPinned(threadId, pinned);
       const known = agentId ? agentsManager.threadsFor(agentId) : undefined;
       if (agentId && known) {
-        agentsManager.rememberThreads(
-          agentId,
-          known.map((th) => (th.id === threadId ? { ...th, isPinned: pinned } : th)),
-        );
+        const updated = known
+          .map((th) => (th.id === threadId ? { ...th, isPinned: pinned } : th))
+          .sort(
+            (a, b) =>
+              Number(b.isPinned ?? 0) - Number(a.isPinned ?? 0) ||
+              (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
+          );
+        agentsManager.rememberThreads(agentId, updated);
       }
       // Pinned threads sort first, so the chat view reloads its list.
       agentsManager.threadsVersion += 1;
@@ -269,7 +273,7 @@ class AgentsExtension implements Extension {
     actionService.registerAction({
       id: ACTION_UNPIN_THREAD,
       label: t('features.agents.act.unpin_thread'),
-      icon: '📍',
+      icon: '📌',
       description: t('features.agents.act.unpin_thread_desc'),
       category: t('categories.agents'),
       extensionId: 'agents',

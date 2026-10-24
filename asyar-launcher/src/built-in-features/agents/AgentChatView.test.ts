@@ -82,6 +82,7 @@ describe('AgentChatView', () => {
     agentsManager.currentThreadId = thread.id;
     agentsManager.sending = false;
     agentsManager.lastAssistantMessageText = null;
+    agentsManager.threadsVersion = 0;
   });
 
   afterEach(() => {
@@ -133,6 +134,17 @@ describe('AgentChatView', () => {
 
     await screen.findByText('No threads');
     await waitFor(() => expect(screen.queryByText(thread.title)).toBeNull());
+  });
+
+  it('refreshes the sidebar when threadsVersion is incremented', async () => {
+    render(AgentChatView);
+    await screen.findByText(thread.title);
+
+    const updatedThread = { ...thread, isPinned: true };
+    mockedAgentService.listThreads.mockResolvedValue([updatedThread]);
+    agentsManager.threadsVersion++;
+
+    await screen.findByText('📌');
   });
 
   it('does not claim there are no threads before the list has loaded', async () => {
