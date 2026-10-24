@@ -1033,12 +1033,10 @@
         "deep": "deep",
         "loading_preview": "Loading preview…",
         "no_recent": "No files modified in the last 24 hours",
-        "name": "Name",
         "where": "Where",
         "kind": "Kind",
         "size": "Size",
-        "modified": "Modified",
-        "created": "Created"
+        "modified": "Modified"
       }
     },
     "notes": {

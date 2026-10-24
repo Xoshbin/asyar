@@ -1033,12 +1033,10 @@
         "deep": "profunda",
         "loading_preview": "Carregando pré-visualização…",
         "no_recent": "Nenhum arquivo modificado nas últimas 24 horas",
-        "name": "Nome",
         "where": "Local",
         "kind": "Tipo",
         "size": "Tamanho",
-        "modified": "Modificado",
-        "created": "Criado"
+        "modified": "Modificado"
       }
     },
     "notes": {

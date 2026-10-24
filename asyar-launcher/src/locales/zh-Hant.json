@@ -1033,12 +1033,10 @@
         "deep": "深度",
         "loading_preview": "正在載入預覽…",
         "no_recent": "過去 24 小時內沒有修改的檔案",
-        "name": "名稱",
         "where": "位置",
         "kind": "類型",
         "size": "大小",
-        "modified": "修改時間",
-        "created": "建立時間"
+        "modified": "修改時間"
       }
     },
     "notes": {

@@ -1,9 +1,14 @@
 <script lang="ts">
   import { homeDir } from '@tauri-apps/api/path';
-  import { stat } from '@tauri-apps/plugin-fs';
   import type { FileHit } from 'asyar-sdk/contracts';
-  import { Badge, EmptyState, LauncherListRow, SplitListDetail } from '../../components';
-  import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
+  import {
+    Badge,
+    EmptyState,
+    LauncherListRow,
+    MetadataList,
+    SplitListDetail,
+  } from '../../components';
+  import { fileMetadata, readTextPreview } from '../../lib/ipc/fileSearchCommands';
   import { getFileIcon, getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
   import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -48,8 +53,8 @@
     return `${Math.floor(days / 365)} y ago`;
   }
 
-  function formatDate(d: Date | null): string {
-    return d ? d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  function formatDate(d: Date): string {
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   }
 
   // "Where" shows the parent folder with $HOME collapsed to `~`.
@@ -61,6 +66,20 @@
     const dir = path.slice(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
     return home && dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir;
   }
+
+  // Rows sharing a name (README.md, index.ts) get their parent folder as a
+  // dimmed prefix so they're distinguishable, like VS Code's tabs.
+  // ponytail: one folder level only; two same-named parents still collide.
+  function parentName(path: string): string {
+    const parts = path.split(/[\\/]/);
+    return parts[parts.length - 2] ?? '';
+  }
+  let duplicateNames = $derived.by(() => {
+    const seen = new Set<string>();
+    const dupes = new Set<string>();
+    for (const i of items) (seen.has(i.name) ? dupes : seen).add(i.name);
+    return dupes;
+  });
 
   // Subscribe to the searchBarAccessory dropdown
   $effect(() => {
@@ -147,10 +166,9 @@
   let previewThumbUrl = $state<string | null>(null);
   let previewLoading = $state(false);
   let currentPreviewPath = $state('');
-  // `FileHit` doesn't carry size/created — the preview pane stats the one
-  // selected file lazily instead of keeping it in the hot per-keystroke struct.
+  // `FileHit` doesn't carry size — the preview pane stats the one selected
+  // file lazily instead of keeping it in the hot per-keystroke struct.
   let selectedSize = $state<number | null>(null);
-  let selectedCreated = $state<Date | null>(null);
 
   const MAX_TEXT_PREVIEW = 50_000;
   let previewTimer: ReturnType<typeof setTimeout> | undefined;
@@ -176,7 +194,6 @@
       void loadStat(item.path, item.isDir);
     } else {
       selectedSize = null;
-      selectedCreated = null;
     }
 
     return () => clearTimeout(previewTimer);
@@ -213,13 +230,11 @@
 
   async function loadStat(path: string, isDir: boolean) {
     try {
-      const meta = await stat(path);
+      const meta = await fileMetadata(path);
       if (selected?.path !== path) return; // superseded mid-flight
       selectedSize = isDir ? null : meta.size;
-      selectedCreated = meta.birthtime;
     } catch {
       selectedSize = null;
-      selectedCreated = null;
     }
   }
 
@@ -274,6 +289,7 @@
         onclick={() => onSelect(item)}
         ondblclick={() => onActivate(item)}
         title={item.name}
+        titlePrefix={duplicateNames.has(item.name) ? `${parentName(item.path)}/` : undefined}
       >
         {#snippet leading()}
           <div class="row-icon-wrap">
@@ -382,26 +398,25 @@
           {/if}
         </div>
 
-        <dl class="info-list">
-          <dt>{t('features.file_search.ui.name')}</dt>
-          <dd>{selected.name}</dd>
-          <dt>{t('features.file_search.ui.where')}</dt>
-          <dd title={selected.path}>{parentDir(selected.path)}</dd>
-          <dt>{t('features.file_search.ui.kind')}</dt>
-          <dd><Badge text={selected.type} variant="default" mono /></dd>
-          {#if selectedSize !== null}
-            <dt>{t('features.file_search.ui.size')}</dt>
-            <dd>{formatBytes(selectedSize)}</dd>
-          {/if}
-          <dt>{t('features.file_search.ui.modified')}</dt>
-          <dd title={formatDate(new Date(selected.modifiedAt * 1000))}>
-            {formatRelativeTime(selected.modifiedAt)}
-          </dd>
-          {#if selectedCreated}
-            <dt>{t('features.file_search.ui.created')}</dt>
-            <dd>{formatDate(selectedCreated)}</dd>
-          {/if}
-        </dl>
+        <MetadataList
+          items={[
+            {
+              label: t('features.file_search.ui.where'),
+              value: parentDir(selected.path),
+              title: selected.path,
+            },
+            { label: t('features.file_search.ui.kind'), value: selected.type },
+            {
+              label: t('features.file_search.ui.size'),
+              value: selectedSize === null ? null : formatBytes(selectedSize),
+            },
+            {
+              label: t('features.file_search.ui.modified'),
+              value: formatRelativeTime(selected.modifiedAt),
+              title: formatDate(new Date(selected.modifiedAt * 1000)),
+            },
+          ]}
+        />
       {:else}
         <EmptyState
           message={fileSearchViewState.searchQuery
@@ -504,33 +519,6 @@
     object-fit: contain;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
-  }
-
-  /* Compact, fixed-height metadata block: the preview above keeps every
-     remaining pixel of the pane. */
-  .info-list {
-    flex-shrink: 0;
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    column-gap: var(--space-4);
-    row-gap: var(--space-1);
-    margin: 0;
-    padding: var(--space-3) var(--space-6);
-    border-top: 1px solid var(--border-color);
-    font-size: var(--font-size-sm);
-  }
-
-  .info-list dt {
-    color: var(--text-secondary);
-  }
-
-  .info-list dd {
-    margin: 0;
-    color: var(--text-primary);
-    text-align: right;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .text-pane {
