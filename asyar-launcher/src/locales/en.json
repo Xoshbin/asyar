@@ -1803,8 +1803,7 @@
       "ratio": "Ratio",
       "expression": "Expression",
       "result": "Result",
-      "rounded_optimization": "Rounded down for optimization 😅",
-      "detected_color": "Detected Color"
+      "rounded_optimization": "Rounded down for optimization 😅"
     },
     "panel_events": {
       "pause_display": "Pause display"

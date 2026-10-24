@@ -1,7 +1,10 @@
 import {
   registerBuiltinSearchProvider,
+  type BuiltinRowAction,
   type BuiltinSearchRow,
 } from '../../services/search/builtinSearchProviders';
+import { t } from '../../services/i18n';
+import { colorFormatOf, sortColorFormats, splitColorQuery } from '../../lib/colorFormat';
 import type {
   Extension,
   ExtensionContext,
@@ -30,16 +33,6 @@ const KIND_ICONS: Record<CalcResult['kind'], string> = {
   percent: '％',
   ratio: '➗',
 };
-
-// Color rows show the typed query as their expression, so the HEX/RGB/HSL
-// variants for the ⌘K copy actions live here, keyed by row id.
-let colorFormats = new Map<string, string[]>();
-const colorOrder = (value: string) => (value.startsWith('#') ? 0 : value.startsWith('rgb') ? 1 : 2);
-
-/** HEX, RGB, HSL for a color row from the latest search, else undefined. */
-export function colorFormatsFor(rowId: string): string[] | undefined {
-  return colorFormats.get(rowId);
-}
 
 class CalculatorExtension implements Extension {
   private logService?: ILogService;
@@ -96,33 +89,50 @@ class CalculatorExtension implements Extension {
 
     const results = await calculatorEvaluate(trimmed);
 
-    colorFormats = new Map();
-    results.forEach((r, index) => {
-      if (r.kind !== 'color') return;
-      const formats = [r.value, ...r.detail.split(' · ')];
-      colorFormats.set(
-        `calc_result_${index}`,
-        formats.sort((a, b) => colorOrder(a) - colorOrder(b)),
-      );
-    });
-
     return results.map((r, index) => ({
       id: `calc_result_${index}`,
       score: 1.0,
       title: r.value,
-      subtitle: r.kind === 'color' ? trimmed : r.detail || trimmed,
+      subtitle: r.kind === 'color' ? splitColorQuery(trimmed).color : r.detail || trimmed,
       icon: KIND_ICONS[r.kind] ?? '🧮',
       style: 'large',
       priority: 'top',
-      actionPayload: { copyValue: r.value.replace(/^≈ /, '') },
+      actionPayload: {
+        copyValue: r.value.replace(/^≈ /, ''),
+        // Every notation of a color, so ⌘K can offer each one without
+        // another round-trip. Plain data: it travels with the row.
+        ...(r.kind === 'color' && {
+          colorFormats: sortColorFormats([r.value, ...r.detail.split(' · ')]),
+        }),
+      },
     }));
   }
+
+  rowActions(rowId: string, payload?: unknown): BuiltinRowAction[] {
+    const formats = (payload as { colorFormats?: unknown } | undefined)?.colorFormats;
+    if (!Array.isArray(formats)) return [];
+    return formats.flatMap((value): BuiltinRowAction[] => {
+      const format = typeof value === 'string' ? colorFormatOf(value) : null;
+      if (!format) return [];
+      return [
+        {
+          id: `calculator:copy-color-${format.toLowerCase()}`,
+          label: t('selection_actions.copy_color_as', { format }),
+          description: t('selection_actions.copy_color_as_desc', { format }),
+          icon: 'icon:copy',
+          category: t('components.calc_card.color'),
+          execute: () => this.executeSearchResult(rowId, { copyValue: value }),
+        },
+      ];
+    });
+  }
+
   async executeSearchResult(_id: string, payload?: unknown): Promise<void> {
     const copyValue = (payload as { copyValue?: unknown } | undefined)?.copyValue;
     if (typeof copyValue !== 'string') return;
     try {
       await writeText(copyValue);
-      this.feedbackService?.sendBackground({ title: 'Calculator', body: `Copied: ${copyValue}` });
+      await this.feedbackService?.showHUD(`Copied: ${copyValue}`);
     } catch (e) {
       this.logService?.error('Copy failed: ' + e);
     }
@@ -135,5 +145,6 @@ registerBuiltinSearchProvider({
   extensionId: 'calculator',
   search: (query) => extension.searchRows(query),
   execute: (id, payload) => extension.executeSearchResult(id, payload),
+  rowActions: (id, payload) => extension.rowActions(id, payload),
 });
 export default extension;

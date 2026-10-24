@@ -3,12 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: vi.fn() }));
 vi.mock('../../lib/ipc/invokeSafe', () => ({ invokeSafe: vi.fn() }));
 
-import calculator, { colorFormatsFor } from './index';
+import calculator from './index';
 import { invokeSafe } from '../../lib/ipc/invokeSafe';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import type { CalcResult } from '../../bindings';
 
-const feedbackService = { sendBackground: vi.fn() };
+const feedbackService = { showHUD: vi.fn() };
 const logService = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 function makeContext(prefs: Record<string, unknown> = {}) {
@@ -57,7 +57,7 @@ describe('calculator extension (thin presenter)', () => {
     expect(results[1].icon).toBe('🎨');
   });
 
-  it('color rows show the query as expression and expose HEX/RGB/HSL', async () => {
+  it('color rows show the query as expression and carry HEX/RGB/HSL in their payload', async () => {
     const rust: CalcResult[] = [
       { value: 'rgb(17, 34, 51)', detail: '#112233 · hsl(210, 50%, 13%)', kind: 'color' },
     ];
@@ -65,11 +65,49 @@ describe('calculator extension (thin presenter)', () => {
 
     const [result] = await calculator.searchRows('#112233');
     expect(result.subtitle).toBe('#112233');
-    expect(colorFormatsFor(result.id)).toEqual([
+    expect(result.actionPayload).toEqual({
+      copyValue: 'rgb(17, 34, 51)',
+      colorFormats: ['#112233', 'rgb(17, 34, 51)', 'hsl(210, 50%, 13%)'],
+    });
+  });
+
+  it('a "to <format>" clause is not part of the color expression', async () => {
+    vi.mocked(invokeSafe).mockResolvedValueOnce([
+      { value: 'hsl(210, 50%, 13%)', detail: '#112233 · rgb(17, 34, 51)', kind: 'color' },
+    ] satisfies CalcResult[]);
+
+    const [result] = await calculator.searchRows('#112233 to hsl');
+    expect(result.subtitle).toBe('#112233');
+    expect((result.actionPayload as { colorFormats: string[] }).colorFormats).toEqual([
       '#112233',
       'rgb(17, 34, 51)',
       'hsl(210, 50%, 13%)',
     ]);
+  });
+
+  it('rowActions offers one copy action per color format and copies that exact value', async () => {
+    vi.mocked(invokeSafe).mockResolvedValueOnce([
+      { value: 'rgb(17, 34, 51)', detail: '#112233 · hsl(210, 50%, 13%)', kind: 'color' },
+    ] satisfies CalcResult[]);
+    const [row] = await calculator.searchRows('#112233');
+
+    const actions = calculator.rowActions(row.id, row.actionPayload);
+    expect(actions.map((a) => a.id)).toEqual([
+      'calculator:copy-color-hex',
+      'calculator:copy-color-rgb',
+      'calculator:copy-color-hsl',
+    ]);
+
+    await actions[2].execute();
+    expect(writeText).toHaveBeenCalledWith('hsl(210, 50%, 13%)');
+  });
+
+  it('rowActions is empty for non-color rows', async () => {
+    vi.mocked(invokeSafe).mockResolvedValueOnce([
+      { value: '4', detail: '2+2', kind: 'math' },
+    ] satisfies CalcResult[]);
+    const [row] = await calculator.searchRows('2+2');
+    expect(calculator.rowActions(row.id, row.actionPayload)).toEqual([]);
   });
 
   it('explicitly treats evaluation failure as best-effort empty results', async () => {
@@ -125,7 +163,7 @@ describe('calculator extension (thin presenter)', () => {
     await calculator.executeSearchResult(result.id, result.actionPayload);
 
     expect(writeText).toHaveBeenCalledWith('62.14 miles');
-    expect(feedbackService.sendBackground).toHaveBeenCalled();
+    expect(feedbackService.showHUD).toHaveBeenCalledWith('Copied: 62.14 miles');
   });
 
   it('search returns empty when deactivated and resumes when reactivated', async () => {

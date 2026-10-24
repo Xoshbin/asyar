@@ -1803,8 +1803,7 @@
       "ratio": "比例",
       "expression": "表达式",
       "result": "结果",
-      "rounded_optimization": "为了优化，已经抹零啦 😅",
-      "detected_color": "识别的颜色"
+      "rounded_optimization": "为了优化，已经抹零啦 😅"
     },
     "panel_events": {
       "pause_display": "暂停显示"

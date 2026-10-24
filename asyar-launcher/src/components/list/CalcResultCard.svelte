@@ -3,6 +3,7 @@
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import { createFitGroup, fitText } from '../../lib/fitText';
   import { t } from '../../services/i18n';
+  import { colorFormatOf } from '../../lib/colorFormat';
 
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
@@ -53,12 +54,8 @@
   // Color results are already valid CSS (#hex / rgb() / hsl()), so the
   // value itself paints the swatch.
   const swatch = $derived(item.icon === '🎨' ? item.title : null);
-  // The expression is the typed color, so its prefix names the format.
-  const inputFormat = $derived(
-    item.subtitle?.trim().startsWith('#')
-      ? 'HEX'
-      : (item.subtitle?.trim().slice(0, 3).toUpperCase() ?? ''),
-  );
+  // The expression is the typed color, so its notation names the format.
+  const inputFormat = $derived(colorFormatOf(item.subtitle ?? '') ?? '');
 
   // Expression and Result always shrink to the same size, so the two
   // panels stay visually balanced.
@@ -102,7 +99,7 @@
         <div class="color-divider"><span class="color-arrow">→</span></div>
         <div class="color-panel">
           <span class="color-tile" style:--swatch={swatch}></span>
-          <span class="color-pill">{t('components.calc_card.detected_color')}</span>
+          <span class="color-pill color-result" title={item.title}>{item.title}</span>
         </div>
       </div>
     {:else}
@@ -302,6 +299,13 @@
     font-size: var(--font-size-sm);
     font-weight: 500;
     color: var(--text-secondary);
+  }
+  /* The value Enter copies — it must stay readable even when long. */
+  .color-result {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .color-divider {
     position: relative;

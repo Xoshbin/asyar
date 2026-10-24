@@ -21,8 +21,6 @@ import { runService } from '../../services/run/runService.svelte';
 import { untrack } from 'svelte';
 import { createRootFileIconCache } from './rootFileIcons.svelte';
 import { buildFileActions } from '../../built-in-features/file-search/fileActions';
-import { executeBuiltinSearchResult } from '../../services/search/builtinSearchProviders';
-import { colorFormatsFor } from '../../built-in-features/calculator';
 
 export function setupSelectionEffects(state: LauncherState) {
   const rootFileIcons = createRootFileIconCache();
@@ -188,32 +186,30 @@ export function setupSelectionEffects(state: LauncherState) {
     return item?.type === 'file' && item.path ? item.object_id : null;
   });
 
-  const colorFormatsKey = $derived.by(() => {
+  const rowActionsItem = $derived.by(() => {
     const item = state.currentSelectedItemOriginal;
-    if (item?.extensionId !== 'calculator') return null;
-    return colorFormatsFor(item.objectId)?.join('\n') ?? null;
+    return item?.rowActions?.length ? item : null;
   });
 
-  // Effect 9d: "Copy as HEX / RGB / HSL" for a selected color result.
+  // Effect 9d: ⌘K actions a built-in contributes for its own selected root
+  // row (e.g. the calculator's "Copy as HEX / RGB / HSL"). The row carries
+  // them, so they always match the query that produced it.
   $effect(() => {
-    const key = colorFormatsKey;
-    if (key === null) return;
-    const objectId = untrack(() => state.currentSelectedItemOriginal?.objectId) ?? '';
+    const item = rowActionsItem;
+    if (!item?.rowActions) return;
     const ids: string[] = [];
-    for (const value of key.split('\n')) {
-      const format = value.startsWith('#') ? 'HEX' : value.slice(0, 3).toUpperCase();
-      const id = `calculator:copy-color-${format.toLowerCase()}`;
-      ids.push(id);
+    for (const action of item.rowActions) {
+      ids.push(action.id);
       actionService.registerAction({
-        id,
-        label: t('selection_actions.copy_color_as', { format }),
-        icon: 'icon:copy',
-        description: t('selection_actions.copy_color_as_desc', { format }),
-        category: t('components.calc_card.color'),
-        extensionId: 'calculator',
+        id: action.id,
+        label: action.label,
+        description: action.description,
+        icon: action.icon,
+        category: action.category,
+        extensionId: item.extensionId ?? undefined,
         context: ActionContext.CORE,
         execute: async () => {
-          await executeBuiltinSearchResult('calculator', objectId, { copyValue: value });
+          await action.execute();
           state.getBottomBar()?.closeActionList();
         },
       });

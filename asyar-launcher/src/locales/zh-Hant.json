@@ -1803,8 +1803,7 @@
       "ratio": "比例",
       "expression": "表示式",
       "result": "結果",
-      "rounded_optimization": "為了最佳化，已經抹零啦 😅",
-      "detected_color": "偵測到的顏色"
+      "rounded_optimization": "為了最佳化，已經抹零啦 😅"
     },
     "panel_events": {
       "pause_display": "暫停顯示"
