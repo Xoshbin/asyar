@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/svelte';
+import { render, cleanup, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 
 // Hoisted so the store mock below can list them. The text item comes first so
@@ -190,5 +190,19 @@ describe('DefaultView image preview', () => {
 
     unmount();
     expect(mockUnsub).toHaveBeenCalled();
+  });
+
+  it('renders a pin badge on favorite clips', async () => {
+    clipboardHistoryStore.favorites = [
+      { id: 'fav1', type: 'text', content: 'pinned clip', favorite: true, createdAt: 100 } as any,
+    ];
+    clipboardHistoryStore.recent = [];
+    const { unmount } = render(DefaultView);
+    await flush();
+
+    const pinBadge = screen.getByTestId('clip-pin-icon');
+    expect(pinBadge).toBeTruthy();
+    expect(pinBadge.getAttribute('aria-label')).toBeTruthy();
+    unmount();
   });
 });

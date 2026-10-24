@@ -128,13 +128,31 @@ class NotesExtension implements Extension {
       },
     });
     actionService.registerAction({
-      id: 'notes:toggle-pin',
-      label: t('features.notes.act.pin'),
+      id: 'notes:pin',
+      label: t('features.notes.act.pin_note'),
       icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
       description: t('features.notes.act.pin_desc'),
       category: t('categories.notes'),
       extensionId: 'notes',
       context: ActionContext.EXTENSION_VIEW,
+      visible: () => (noteViewState.selectedNote ? !noteViewState.selectedNote.pinned : false),
+      execute: async () => {
+        const n = noteViewState.selectedNote;
+        if (n) noteStore.togglePin(n.id);
+      },
+    });
+    actionService.registerAction({
+      id: 'notes:unpin',
+      label: t('features.notes.act.unpin_note'),
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
+      description: t('features.notes.act.pin_desc'),
+      category: t('categories.notes'),
+      extensionId: 'notes',
+      context: ActionContext.EXTENSION_VIEW,
+      visible: () =>
+        noteViewState.selectedNote ? Boolean(noteViewState.selectedNote.pinned) : false,
       execute: async () => {
         const n = noteViewState.selectedNote;
         if (n) noteStore.togglePin(n.id);
@@ -232,7 +250,8 @@ class NotesExtension implements Extension {
 
   private unregisterViewActions(): void {
     actionService.unregisterAction('notes:add');
-    actionService.unregisterAction('notes:toggle-pin');
+    actionService.unregisterAction('notes:pin');
+    actionService.unregisterAction('notes:unpin');
     actionService.unregisterAction('notes:duplicate');
     actionService.unregisterAction('notes:copy-markdown');
     actionService.unregisterAction('notes:stick-to-desktop');

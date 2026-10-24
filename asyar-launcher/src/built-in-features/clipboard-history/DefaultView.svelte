@@ -22,6 +22,7 @@
     EmptyState,
     LauncherListRow,
     Badge,
+    Icon,
     ActionFooter,
     IconButton,
   } from '../../components';
@@ -695,6 +696,17 @@
               {/if}
             </div>
           {/snippet}
+          {#snippet trailing()}
+            {#if item.favorite}
+              <span
+                class="pin-badge flex items-center justify-center opacity-70 flex-shrink-0"
+                aria-label={t('common.pinned')}
+                data-testid="clip-pin-icon"
+              >
+                <Icon name="pin" size={13} />
+              </span>
+            {/if}
+          {/snippet}
         </LauncherListRow>
       {/snippet}
 
@@ -1280,5 +1292,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .pin-badge {
+    color: var(--accent-primary);
   }
 </style>

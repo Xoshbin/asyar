@@ -5,6 +5,7 @@
     Textarea,
     SplitListDetail,
     LauncherListRow,
+    Icon,
     ActionFooter,
     EmptyState,
     Button,
@@ -213,6 +214,17 @@
           </svg>
         </div>
       {/snippet}
+      {#snippet trailing()}
+        {#if note.pinned}
+          <span
+            class="pin-badge flex items-center justify-center opacity-70 flex-shrink-0"
+            aria-label={t('common.pinned')}
+            data-testid="note-pin-icon"
+          >
+            <Icon name="pin" size={13} />
+          </span>
+        {/if}
+      {/snippet}
     </LauncherListRow>
   {/snippet}
 
@@ -396,5 +408,8 @@
   }
   .backlink-item:hover {
     text-decoration: underline;
+  }
+  .pin-badge {
+    color: var(--accent-primary);
   }
 </style>

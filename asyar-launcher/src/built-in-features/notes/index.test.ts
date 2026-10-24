@@ -147,7 +147,18 @@ describe('NotesExtension lifecycle: viewActivated, viewDeactivated, activate, de
       expect.objectContaining({ id: 'notes:add' }),
     );
     expect(actionService.registerAction).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'notes:toggle-pin' }),
+      expect.objectContaining({
+        id: 'notes:pin',
+        icon: 'icon:pin',
+        shortcut: 'Mod+Shift+P',
+      }),
+    );
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'notes:unpin',
+        icon: 'icon:pin',
+        shortcut: 'Mod+Shift+P',
+      }),
     );
     expect(actionService.registerAction).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'notes:delete' }),
@@ -165,7 +176,8 @@ describe('NotesExtension lifecycle: viewActivated, viewDeactivated, activate, de
     expect(unlistenMock).toHaveBeenCalled();
     expect(noteViewState.reset).toHaveBeenCalled();
     expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:add');
-    expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:toggle-pin');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:pin');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:unpin');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:duplicate');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:copy-markdown');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('notes:stick-to-desktop');

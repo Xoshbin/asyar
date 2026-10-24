@@ -280,13 +280,19 @@ class ClipboardHistoryExtension implements Extension {
     };
     actionService.registerAction(pasteAsPlainTextAction);
 
-    const toggleFavoriteAction: ExtensionAction = {
-      id: 'clipboard-history:toggle-favorite',
-      title: t('features.clipboard.act.toggle_favorite'),
+    actionService.registerAction({
+      id: 'clipboard-history:pin',
+      title: t('features.clipboard.pin_action'),
       description: t('features.clipboard.act.toggle_favorite_desc'),
-      icon: 'icon:star',
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
       extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
       category: 'clipboard-action',
+      visible: () => {
+        const item = clipboardViewState.selectedItem;
+        return item ? !item.favorite : false;
+      },
       execute: async () => {
         const selected = clipboardViewState.selectedItem;
         if (selected) {
@@ -294,8 +300,29 @@ class ClipboardHistoryExtension implements Extension {
           await this.refreshClipboardData();
         }
       },
-    };
-    actionService.registerAction(toggleFavoriteAction);
+    });
+
+    actionService.registerAction({
+      id: 'clipboard-history:unpin',
+      title: t('features.clipboard.unpin_action'),
+      description: t('features.clipboard.act.toggle_favorite_desc'),
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      category: 'clipboard-action',
+      visible: () => {
+        const item = clipboardViewState.selectedItem;
+        return item ? Boolean(item.favorite) : false;
+      },
+      execute: async () => {
+        const selected = clipboardViewState.selectedItem;
+        if (selected) {
+          await clipboardViewState.toggleFavorite(selected.id);
+          await this.refreshClipboardData();
+        }
+      },
+    });
 
     actionService.registerAction({
       id: 'clipboard-history:save-as-snippet',
@@ -393,7 +420,8 @@ class ClipboardHistoryExtension implements Extension {
     this.logService?.debug('Unregistering clipboard view actions...');
     actionService.unregisterAction('clipboard-history:clear-history');
     actionService.unregisterAction('clipboard-history:toggle-html-view');
-    actionService.unregisterAction('clipboard-history:toggle-favorite');
+    actionService.unregisterAction('clipboard-history:pin');
+    actionService.unregisterAction('clipboard-history:unpin');
     actionService.unregisterAction('clipboard-history:paste-as-plain-text');
     actionService.unregisterAction('clipboard-history:open-in-browser');
     actionService.unregisterAction('clipboard-history:save-as-snippet');

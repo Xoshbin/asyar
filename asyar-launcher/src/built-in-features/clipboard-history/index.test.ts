@@ -442,9 +442,17 @@ describe('Action registration', () => {
     expect(actionIds).not.toContain('clipboard-history:filter-images');
     expect(actionIds).not.toContain('clipboard-history:filter-files');
     expect(actionIds).toContain('clipboard-history:toggle-html-view');
-    expect(actionIds).toContain('clipboard-history:toggle-favorite');
+    expect(actionIds).toContain('clipboard-history:pin');
+    expect(actionIds).toContain('clipboard-history:unpin');
     expect(actionIds).toContain('clipboard-history:paste-as-plain-text');
     expect(actionIds).toContain('clipboard-history:clear-multi-selection');
+
+    const pinAction = registerCalls.find((call) => call[0].id === 'clipboard-history:pin')?.[0];
+    const unpinAction = registerCalls.find((call) => call[0].id === 'clipboard-history:unpin')?.[0];
+    expect(pinAction?.icon).toBe('icon:pin');
+    expect(pinAction?.shortcut).toBe('Mod+Shift+P');
+    expect(unpinAction?.icon).toBe('icon:pin');
+    expect(unpinAction?.shortcut).toBe('Mod+Shift+P');
   });
 
   it('registers Clear Clipboard History as an in-view destructive action', async () => {
