@@ -4,6 +4,7 @@ fn error_response(status: u16, body: Vec<u8>) -> tauri::http::Response<Vec<u8>> 
     tauri::http::Response::builder()
         .status(status)
         .header("Access-Control-Allow-Origin", "*")
+        .header("Cache-Control", "no-store")
         .body(body)
         .unwrap()
 }
@@ -315,8 +316,8 @@ pub(crate) fn inject_dev_inspector_flag(html: &[u8]) -> Vec<u8> {
 // ── asyar-icon:// ─────────────────────────────────────────────────────────────
 
 /// Serves cached application icons from `$APPDATA/icon_cache/` under the `asyar-icon://` scheme.
-pub fn handle_icon_request(
-    app: &tauri::AppHandle,
+pub fn handle_icon_request<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     request: tauri::http::Request<Vec<u8>>,
 ) -> tauri::http::Response<Vec<u8>> {
     let uri = request.uri().to_string();
@@ -390,6 +391,7 @@ pub fn handle_icon_request(
             tauri::http::Response::builder()
                 .header("Content-Type", content_type)
                 .header("Access-Control-Allow-Origin", "*")
+                .header("Cache-Control", "no-store, must-revalidate")
                 .body(bytes)
                 .unwrap()
         }
@@ -407,8 +409,8 @@ pub fn handle_icon_request(
 /// `handle_icon_request` — same lookup/security shape, different cache
 /// dir (thumbnails are content-addressed by path+mtime+size, unlike app
 /// icons which are keyed by install path alone).
-pub fn handle_thumbnail_request(
-    app: &tauri::AppHandle,
+pub fn handle_thumbnail_request<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     request: tauri::http::Request<Vec<u8>>,
 ) -> tauri::http::Response<Vec<u8>> {
     let uri = request.uri().to_string();
@@ -453,6 +455,7 @@ pub fn handle_thumbnail_request(
         Ok(bytes) => tauri::http::Response::builder()
             .header("Content-Type", "image/png")
             .header("Access-Control-Allow-Origin", "*")
+            .header("Cache-Control", "no-store, must-revalidate")
             .body(bytes)
             .unwrap(),
         Err(e) => {
@@ -715,5 +718,72 @@ mod error_response_tests {
                 Some("*")
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod cache_control_tests {
+    use super::*;
+
+    #[test]
+    fn thumbnail_and_icon_responses_include_no_store_cache_control() {
+        let app = tauri::test::mock_app();
+        let thumb_dir = crate::thumbnail::cache::get_thumbnail_cache_dir(app.handle());
+        std::fs::create_dir_all(&thumb_dir).unwrap();
+        let test_thumb = thumb_dir.join("test_thumb.png");
+        std::fs::write(&test_thumb, b"png_data").unwrap();
+
+        let req = tauri::http::Request::builder()
+            .uri("asyar-thumb://localhost/test_thumb.png")
+            .body(Vec::new())
+            .unwrap();
+
+        let res = handle_thumbnail_request(app.handle(), req);
+        assert_eq!(res.status().as_u16(), 200);
+        let cache_control = res
+            .headers()
+            .get("Cache-Control")
+            .and_then(|v| v.to_str().ok());
+        assert_eq!(cache_control, Some("no-store, must-revalidate"));
+
+        let _ = std::fs::remove_file(test_thumb);
+    }
+
+    #[test]
+    fn icon_responses_include_no_store_cache_control() {
+        let app = tauri::test::mock_app();
+        let icon_dir = app
+            .path()
+            .app_data_dir()
+            .map(|p| p.join("icon_cache"))
+            .unwrap();
+        std::fs::create_dir_all(&icon_dir).unwrap();
+        let test_icon = icon_dir.join("test_icon.png");
+        std::fs::write(&test_icon, b"png_data").unwrap();
+
+        let req = tauri::http::Request::builder()
+            .uri("asyar-icon://localhost/test_icon.png")
+            .body(Vec::new())
+            .unwrap();
+
+        let res = handle_icon_request(app.handle(), req);
+        assert_eq!(res.status().as_u16(), 200);
+        let cache_control = res
+            .headers()
+            .get("Cache-Control")
+            .and_then(|v| v.to_str().ok());
+        assert_eq!(cache_control, Some("no-store, must-revalidate"));
+
+        let _ = std::fs::remove_file(test_icon);
+    }
+
+    #[test]
+    fn error_response_includes_no_store_cache_control() {
+        let res = error_response(404, Vec::new());
+        let cache_control = res
+            .headers()
+            .get("Cache-Control")
+            .and_then(|v| v.to_str().ok());
+        assert_eq!(cache_control, Some("no-store"));
     }
 }
