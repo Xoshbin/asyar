@@ -9,6 +9,7 @@ import type {
   IFeedbackService,
 } from 'asyar-sdk/contracts';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
+import { t } from '../../services/i18n';
 
 import {
   calculatorConfigure,
@@ -94,6 +95,7 @@ class CalculatorExtension implements Extension {
       icon: KIND_ICONS[r.kind] ?? '🧮',
       style: 'large',
       priority: 'top',
+      primaryActionLabel: t('common.copy'),
       actionPayload: { copyValue: r.value.replace(/^≈ /, '') },
     }));
   }

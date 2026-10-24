@@ -16,6 +16,8 @@ export interface BuiltinSearchRow {
   style?: 'default' | 'large';
   priority?: 'top';
   actionPayload?: unknown;
+  /** Overrides the bottom bar's Enter label ("Run"/"Open"), e.g. "Copy". Already localized. */
+  primaryActionLabel?: string;
 }
 
 export type BuiltinSearchHit = BuiltinSearchRow & { extensionId: string };

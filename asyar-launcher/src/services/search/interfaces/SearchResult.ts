@@ -9,6 +9,8 @@ export interface SearchResult extends Omit<SearchResultBase, 'type'> {
   type: 'application' | 'command' | 'file';
   // Frontend-only fields (not in Rust struct):
   action?: string | (() => unknown);
+  /** Bottom-bar Enter label supplied by the owning built-in; falls back to the type default. */
+  primaryActionLabel?: string;
   subtitle?: string;
   description?: string;
   category?: string;

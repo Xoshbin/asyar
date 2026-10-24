@@ -125,6 +125,14 @@ describe('calculator extension (thin presenter)', () => {
     expect(results).toHaveLength(1);
     expect(results[0].title).toBe('4');
   });
+
+  it('rows label the Enter action as a copy', async () => {
+    vi.mocked(invokeSafe).mockResolvedValueOnce([
+      { value: '4', detail: '2+2', kind: 'math' },
+    ] satisfies CalcResult[]);
+    const [row] = await calculator.searchRows('2+2');
+    expect(row.primaryActionLabel).toBe('Copy');
+  });
 });
 
 it('registers calculator as a typed platform search provider', async () => {
