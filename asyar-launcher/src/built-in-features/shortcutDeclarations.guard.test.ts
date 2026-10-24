@@ -109,9 +109,20 @@ describe('built-in action shortcut declarations', () => {
         expect(new Set(chords).size, `${feature}/${cmd.id} root actions`).toBe(chords.length);
       }
       // In-view: every source-declared shortcut in one feature is live in the
-      // same view context, so they must all be distinct.
-      const inView = sourceDeclarations(feature).map((d) => d.shortcut);
-      expect(new Set(inView).size, `${feature} in-view actions`).toBe(inView.length);
+      // same view context, so they must all be distinct, with the exception of
+      // complementary pin/unpin actions whose mutually exclusive visibility
+      // lets them share the standard Mod+Shift+P chord.
+      const declarations = sourceDeclarations(feature);
+      const chordCounts = new Map<string, number>();
+      for (const d of declarations) {
+        chordCounts.set(d.shortcut, (chordCounts.get(d.shortcut) ?? 0) + 1);
+      }
+      for (const [chord, count] of chordCounts) {
+        if (count > 1) {
+          if (chord === 'Mod+Shift+P' && count === 2) continue;
+          expect(count, `${feature} in-view actions sharing chord ${chord}`).toBe(1);
+        }
+      }
     });
 
     it('has no hand-written keydown check for a chord it declares as an action', () => {

@@ -262,7 +262,8 @@ class AgentsExtension implements Extension {
     actionService.registerAction({
       id: ACTION_PIN_THREAD,
       label: t('features.agents.act.pin_thread'),
-      icon: '📌',
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
       description: t('features.agents.act.pin_thread_desc'),
       category: t('categories.agents'),
       extensionId: 'agents',
@@ -273,7 +274,8 @@ class AgentsExtension implements Extension {
     actionService.registerAction({
       id: ACTION_UNPIN_THREAD,
       label: t('features.agents.act.unpin_thread'),
-      icon: '📌',
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
       description: t('features.agents.act.unpin_thread_desc'),
       category: t('categories.agents'),
       extensionId: 'agents',

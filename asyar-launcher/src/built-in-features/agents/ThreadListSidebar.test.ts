@@ -35,9 +35,9 @@ describe('ThreadListSidebar', () => {
     expect(screen.getByText('Pinned Thread')).toBeTruthy();
     expect(screen.getByText('Regular Thread')).toBeTruthy();
 
-    const pinEmoji = screen.getByText('📌');
-    expect(pinEmoji).toBeTruthy();
-    expect(pinEmoji.getAttribute('aria-label')).toBeTruthy();
+    const pinBadge = screen.getByTestId('thread-pin-icon');
+    expect(pinBadge).toBeTruthy();
+    expect(pinBadge.getAttribute('aria-label')).toBeTruthy();
   });
 
   it('invokes onSelectThread when clicking a thread', async () => {

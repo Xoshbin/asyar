@@ -152,13 +152,35 @@ class SnippetsExtension implements Extension {
       },
     });
     actionService.registerAction({
-      id: 'snippets:toggle-pin',
-      label: t('features.snippets.act.pin'),
+      id: 'snippets:pin',
+      label: t('features.snippets.act.pin_snippet'),
       icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
       description: t('features.snippets.act.pin_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      visible: () =>
+        snippetViewState.selectedSnippet ? !snippetViewState.selectedSnippet.pinned : false,
+      execute: async () => {
+        const s = snippetViewState.selectedSnippet;
+        if (s) {
+          snippetStore.togglePin(s.id);
+          await snippetService.syncToRust();
+        }
+      },
+    });
+    actionService.registerAction({
+      id: 'snippets:unpin',
+      label: t('features.snippets.act.unpin_snippet'),
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
+      description: t('features.snippets.act.pin_desc'),
+      category: t('categories.snippets'),
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      visible: () =>
+        snippetViewState.selectedSnippet ? Boolean(snippetViewState.selectedSnippet.pinned) : false,
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
@@ -207,7 +229,8 @@ class SnippetsExtension implements Extension {
     actionService.unregisterAction('snippets:delete');
     actionService.unregisterAction('snippets:copy-expansion');
     actionService.unregisterAction('snippets:duplicate');
-    actionService.unregisterAction('snippets:toggle-pin');
+    actionService.unregisterAction('snippets:pin');
+    actionService.unregisterAction('snippets:unpin');
     actionService.unregisterAction('snippets:toggle-private');
     actionService.unregisterAction('snippets:clear-all');
   }

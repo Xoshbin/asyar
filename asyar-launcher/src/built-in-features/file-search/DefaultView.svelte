@@ -5,6 +5,7 @@
     ActionFooter,
     Badge,
     EmptyState,
+    Icon,
     LauncherListRow,
     SplitListDetail,
   } from '../../components';
@@ -328,16 +329,9 @@
           {#if item.source === 'deep'}
             <Badge text={t('features.file_search.ui.deep')} variant="default" mono />
           {:else if pinnedIds.has(item.fileId)}
-            <svg
-              class="pin-badge"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              aria-label={t('common.pinned')}
-            >
-              <path
-                d="M16 2v5l2 2-4 4v4l-2-2-2 2v-4L6 9l2-2V2h8zm0-2H8v6.17L4.83 9.34a1 1 0 000 1.41L8 13.92V18a1 1 0 00.55.89l2 1a1 1 0 00.9 0l2-1A1 1 0 0014 18v-4.08l3.17-3.17a1 1 0 000-1.41L16 6.17V0z"
-              />
-            </svg>
+            <span class="flex items-center" aria-label={t('common.pinned')}>
+              <Icon name="pin" size={13} class="pin-badge" />
+            </span>
           {/if}
         {/snippet}
       </LauncherListRow>
@@ -444,8 +438,8 @@
   }
 
   .pin-badge {
-    width: 12px;
-    height: 12px;
+    width: 13px;
+    height: 13px;
     flex-shrink: 0;
     color: var(--accent-primary);
     opacity: 0.7;

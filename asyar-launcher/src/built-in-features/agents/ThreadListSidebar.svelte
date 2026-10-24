@@ -2,6 +2,7 @@
   import type { ThreadDef } from './types';
   import ListItem from '../../components/list/ListItem.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
+  import Icon from '../../components/base/Icon.svelte';
   import { t } from '../../services/i18n';
 
   let {
@@ -43,9 +44,13 @@
         >
           {#snippet trailing()}
             {#if thread.isPinned}
-              <span class="text-caption opacity-70" aria-label={t('features.agents.act.pin_thread')}
-                >📌</span
+              <span
+                class="pin-badge flex items-center justify-center opacity-70"
+                aria-label={t('features.agents.act.pin_thread')}
+                data-testid="thread-pin-icon"
               >
+                <Icon name="pin" size={13} />
+              </span>
             {/if}
           {/snippet}
         </ListItem>
@@ -65,5 +70,8 @@
     flex: 1;
     overflow-y: auto;
     padding: var(--space-3) 0;
+  }
+  .pin-badge {
+    color: var(--accent-primary);
   }
 </style>

@@ -144,7 +144,7 @@ describe('AgentChatView', () => {
     mockedAgentService.listThreads.mockResolvedValue([updatedThread]);
     agentsManager.threadsVersion++;
 
-    await screen.findByText('📌');
+    await screen.findByTestId('thread-pin-icon');
   });
 
   it('does not claim there are no threads before the list has loaded', async () => {

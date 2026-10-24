@@ -104,6 +104,8 @@ import type { ThreadDef } from './types';
 
 type RegisteredAction = {
   id: string;
+  icon?: string;
+  shortcut?: string;
   visible?: () => boolean;
   execute: () => Promise<void> | void;
 };
@@ -270,6 +272,10 @@ describe('agents:pin-thread / agents:unpin-thread actions', () => {
     const unpin = getRegisteredAction('agents:unpin-thread');
     expect(pin.visible?.()).toBe(true);
     expect(unpin.visible?.()).toBe(false);
+    expect(pin.icon).toBe('icon:pin');
+    expect(pin.shortcut).toBe('Mod+Shift+P');
+    expect(unpin.icon).toBe('icon:pin');
+    expect(unpin.shortcut).toBe('Mod+Shift+P');
   });
 
   it('offers Unpin for a pinned active thread and hides Pin', async () => {
