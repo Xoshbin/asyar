@@ -31,6 +31,16 @@ const KIND_ICONS: Record<CalcResult['kind'], string> = {
   ratio: '➗',
 };
 
+// Color rows show the typed query as their expression, so the HEX/RGB/HSL
+// variants for the ⌘K copy actions live here, keyed by row id.
+let colorFormats = new Map<string, string[]>();
+const colorOrder = (value: string) => (value.startsWith('#') ? 0 : value.startsWith('rgb') ? 1 : 2);
+
+/** HEX, RGB, HSL for a color row from the latest search, else undefined. */
+export function colorFormatsFor(rowId: string): string[] | undefined {
+  return colorFormats.get(rowId);
+}
+
 class CalculatorExtension implements Extension {
   private logService?: ILogService;
   private feedbackService?: IFeedbackService;
@@ -86,11 +96,21 @@ class CalculatorExtension implements Extension {
 
     const results = await calculatorEvaluate(trimmed);
 
+    colorFormats = new Map();
+    results.forEach((r, index) => {
+      if (r.kind !== 'color') return;
+      const formats = [r.value, ...r.detail.split(' · ')];
+      colorFormats.set(
+        `calc_result_${index}`,
+        formats.sort((a, b) => colorOrder(a) - colorOrder(b)),
+      );
+    });
+
     return results.map((r, index) => ({
       id: `calc_result_${index}`,
       score: 1.0,
       title: r.value,
-      subtitle: r.detail || trimmed,
+      subtitle: r.kind === 'color' ? trimmed : r.detail || trimmed,
       icon: KIND_ICONS[r.kind] ?? '🧮',
       style: 'large',
       priority: 'top',

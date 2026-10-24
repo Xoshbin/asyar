@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: vi.fn() }));
 vi.mock('../../lib/ipc/invokeSafe', () => ({ invokeSafe: vi.fn() }));
 
-import calculator from './index';
+import calculator, { colorFormatsFor } from './index';
 import { invokeSafe } from '../../lib/ipc/invokeSafe';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import type { CalcResult } from '../../bindings';
@@ -55,6 +55,21 @@ describe('calculator extension (thin presenter)', () => {
     const results = await calculator.searchRows('whatever');
     expect(results[0].icon).toBe('🕒');
     expect(results[1].icon).toBe('🎨');
+  });
+
+  it('color rows show the query as expression and expose HEX/RGB/HSL', async () => {
+    const rust: CalcResult[] = [
+      { value: 'rgb(17, 34, 51)', detail: '#112233 · hsl(210, 50%, 13%)', kind: 'color' },
+    ];
+    vi.mocked(invokeSafe).mockResolvedValueOnce(rust);
+
+    const [result] = await calculator.searchRows('#112233');
+    expect(result.subtitle).toBe('#112233');
+    expect(colorFormatsFor(result.id)).toEqual([
+      '#112233',
+      'rgb(17, 34, 51)',
+      'hsl(210, 50%, 13%)',
+    ]);
   });
 
   it('explicitly treats evaluation failure as best-effort empty results', async () => {

@@ -1803,7 +1803,8 @@
       "ratio": "比例",
       "expression": "表达式",
       "result": "结果",
-      "rounded_optimization": "为了优化，已经抹零啦 😅"
+      "rounded_optimization": "为了优化，已经抹零啦 😅",
+      "detected_color": "识别的颜色"
     },
     "panel_events": {
       "pause_display": "暂停显示"
@@ -1893,6 +1894,8 @@
     "change_shortcut": "更改快捷键",
     "assign_shortcut": "分配快捷键",
     "assign_shortcut_desc": "分配全局快捷键",
+    "copy_color_as": "复制为 {format}",
+    "copy_color_as_desc": "将此颜色复制为 {format}",
     "cancel_run": "取消运行",
     "cancel_run_desc": "取消此正在运行的任务",
     "dismiss_failure": "忽略失败",

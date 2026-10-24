@@ -50,6 +50,15 @@
   };
 
   const calc = $derived((item.icon && CALC_ICONS[item.icon]) || CALC_ICON_FALLBACK);
+  // Color results are already valid CSS (#hex / rgb() / hsl()), so the
+  // value itself paints the swatch.
+  const swatch = $derived(item.icon === '🎨' ? item.title : null);
+  // The expression is the typed color, so its prefix names the format.
+  const inputFormat = $derived(
+    item.subtitle?.trim().startsWith('#')
+      ? 'HEX'
+      : (item.subtitle?.trim().slice(0, 3).toUpperCase() ?? ''),
+  );
 
   // Expression and Result always shrink to the same size, so the two
   // panels stay visually balanced.
@@ -84,17 +93,31 @@
         <KeyboardHint keys={['↵']} />
       </span>
     </div>
-    <div class="calc-split">
-      <div class="calc-panel">
-        <span class="calc-number" use:fitText={fitGroup}>{item.subtitle ?? ''}</span>
-        <span class="calc-sub-label">{t('components.calc_card.expression')}</span>
+    {#if swatch}
+      <div class="calc-split">
+        <div class="color-panel">
+          <span class="calc-number color-input" use:fitText={fitGroup}>{item.subtitle ?? ''}</span>
+          <span class="color-pill">{inputFormat}</span>
+        </div>
+        <div class="color-divider"><span class="color-arrow">→</span></div>
+        <div class="color-panel">
+          <span class="color-tile" style:--swatch={swatch}></span>
+          <span class="color-pill">{t('components.calc_card.detected_color')}</span>
+        </div>
       </div>
-      <div class="calc-divider"></div>
-      <div class="calc-panel">
-        <span class="calc-number calc-result-value" use:fitText={fitGroup}>{item.title}</span>
-        <span class="calc-sub-label">{resultLabel}</span>
+    {:else}
+      <div class="calc-split">
+        <div class="calc-panel">
+          <span class="calc-number" use:fitText={fitGroup}>{item.subtitle ?? ''}</span>
+          <span class="calc-sub-label">{t('components.calc_card.expression')}</span>
+        </div>
+        <div class="calc-divider"></div>
+        <div class="calc-panel">
+          <span class="calc-number calc-result-value" use:fitText={fitGroup}>{item.title}</span>
+          <span class="calc-sub-label">{resultLabel}</span>
+        </div>
       </div>
-    </div>
+    {/if}
   </div>
 </button>
 
@@ -247,6 +270,58 @@
   }
   .calc-result-value {
     font-weight: 400;
+  }
+  /* ── Color card ──────────────────────────────────────── */
+  .color-panel {
+    --color-slot: 48px;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+  }
+  /* Text and tile share one slot height so both pills line up. */
+  .color-input {
+    max-width: 100%;
+    line-height: var(--color-slot);
+  }
+  .color-tile {
+    width: 96px;
+    height: var(--color-slot);
+    border-radius: var(--radius-md);
+    background: var(--swatch);
+    box-shadow: 0 0 0 2px var(--text-primary);
+  }
+  .color-pill {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--bg-hover);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .color-divider {
+    position: relative;
+    width: 1px;
+    flex-shrink: 0;
+    /* Gap in the line where the arrow sits. */
+    background: linear-gradient(
+      to bottom,
+      var(--separator) 38%,
+      transparent 38% 62%,
+      var(--separator) 62%
+    );
+  }
+  .color-arrow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-secondary);
+    font-size: var(--font-size-lg);
   }
   .calc-sub-label {
     font-size: var(--font-size-2xs);

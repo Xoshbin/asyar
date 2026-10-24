@@ -1803,7 +1803,8 @@
       "ratio": "Proporção",
       "expression": "Expressão",
       "result": "Resultado",
-      "rounded_optimization": "Arredondado para baixo para otimização 😅"
+      "rounded_optimization": "Arredondado para baixo para otimização 😅",
+      "detected_color": "Cor detectada"
     },
     "panel_events": {
       "pause_display": "Pausar exibição"
@@ -1893,6 +1894,8 @@
     "change_shortcut": "Alterar atalho",
     "assign_shortcut": "Atribuir atalho",
     "assign_shortcut_desc": "Atribuir atalho global",
+    "copy_color_as": "Copiar como {format}",
+    "copy_color_as_desc": "Copiar esta cor como {format}",
     "cancel_run": "Cancelar execução",
     "cancel_run_desc": "Cancelar esta tarefa em execução",
     "dismiss_failure": "Dispensar falha",
