@@ -9,6 +9,7 @@
     SplitListDetail,
     LauncherListRow,
     Badge,
+    Icon,
     ActionFooter,
     EmptyState,
     WarningBanner,
@@ -274,8 +275,21 @@
           </div>
         {/snippet}
         {#snippet trailing()}
-          {#if snippet.isPrivate}
-            <Badge text={t('features.snippets.private_badge')} variant="warning" />
+          {#if snippet.isPrivate || snippet.pinned}
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              {#if snippet.isPrivate}
+                <Badge text={t('features.snippets.private_badge')} variant="warning" />
+              {/if}
+              {#if snippet.pinned}
+                <span
+                  class="pin-badge flex items-center justify-center opacity-70"
+                  aria-label={t('common.pinned')}
+                  data-testid="snippet-pin-icon"
+                >
+                  <Icon name="pin" size={13} />
+                </span>
+              {/if}
+            </div>
           {/if}
         {/snippet}
       </LauncherListRow>
@@ -605,5 +619,8 @@
   .toggle-hint {
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
+  }
+  .pin-badge {
+    color: var(--accent-primary);
   }
 </style>

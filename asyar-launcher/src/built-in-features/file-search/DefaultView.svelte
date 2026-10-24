@@ -329,8 +329,11 @@
           {#if item.source === 'deep'}
             <Badge text={t('features.file_search.ui.deep')} variant="default" mono />
           {:else if pinnedIds.has(item.fileId)}
-            <span class="flex items-center" aria-label={t('common.pinned')}>
-              <Icon name="pin" size={13} class="pin-badge" />
+            <span
+              class="pin-badge flex items-center justify-center"
+              aria-label={t('common.pinned')}
+            >
+              <Icon name="pin" size={13} />
             </span>
           {/if}
         {/snippet}
