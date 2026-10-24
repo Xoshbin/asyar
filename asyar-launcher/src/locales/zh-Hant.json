@@ -273,8 +273,7 @@
       "add_search_root_title": "新增搜尋根目錄",
       "pattern_placeholder": "例如 *.tmp",
       "recent_ignore_patterns": "最近檔案忽略清單",
-      "recent_ignore_patterns_description": "過去 24 小時內修改的檔案會在輸入前顯示在檔案搜尋中。與檔名及每個上層資料夾名稱相符的 Glob 模式會將其從清單中隱藏。",
-      "reset_defaults": "恢復預設"
+      "recent_ignore_patterns_description": "過去 24 小時內修改的檔案會在輸入前顯示在檔案搜尋中。常見的干擾項目（建置資料夾、快取、記錄檔、應用程式套件）已預設隱藏；可新增額外的 Glob 模式（與檔名及每個上層資料夾名稱相符）以隱藏更多。"
     },
     "extensions": {
       "installed": "已安裝的擴充套件",

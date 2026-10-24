@@ -273,8 +273,7 @@
       "add_search_root_title": "添加搜索根目录",
       "pattern_placeholder": "例如 *.tmp",
       "recent_ignore_patterns": "最近文件忽略列表",
-      "recent_ignore_patterns_description": "过去 24 小时内修改的文件会在输入前显示在文件搜索中。与文件名及每个上级文件夹名匹配的 Glob 模式会将其从列表中隐藏。",
-      "reset_defaults": "恢复默认"
+      "recent_ignore_patterns_description": "过去 24 小时内修改的文件会在输入前显示在文件搜索中。常见的干扰项（构建目录、缓存、日志、应用包）已默认隐藏；可添加额外的 Glob 模式（与文件名及每个上级文件夹名匹配）以隐藏更多。"
     },
     "extensions": {
       "installed": "已安装的扩展",

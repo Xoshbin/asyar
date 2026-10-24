@@ -87,64 +87,11 @@ export interface FileSearchSettings {
   /** Extra exclude patterns layered on top of the built-in defaults. */
   excludePatterns: string[];
   indexHidden: boolean;
-  /** Globs hiding files from the File Search view's "recent files" list,
-   * matched against the file name and every parent folder name. */
+  /** Extra globs hiding files from the File Search view's "recent files"
+   * list, on top of the built-in defaults in Rust. Matched against the file
+   * name and every parent folder name. */
   recentIgnorePatterns: string[];
 }
-
-/** Raycast-style noise filter for recent files (from discussion #905):
- * dependency/build/cache folders, app bundles, and files that churn as a
- * side effect of other work. Hidden files are always excluded. */
-export const DEFAULT_RECENT_IGNORE_PATTERNS: string[] = [
-  'Library',
-  'node_modules',
-  'vendor',
-  'Pods',
-  'venv',
-  'env',
-  '__pycache__',
-  'target',
-  'build',
-  'dist',
-  'out',
-  'coverage',
-  'DerivedData',
-  'tmp',
-  'temp',
-  'cache',
-  'Caches',
-  'log',
-  'logs',
-  '*.app',
-  '*.photoslibrary',
-  '*.musiclibrary',
-  '*.tvlibrary',
-  '*.bundle',
-  '*.framework',
-  '*.log',
-  '*.tmp',
-  '*.temp',
-  '*.swp',
-  '*.swo',
-  '*.bak',
-  '*.cache',
-  '*.lock',
-  '*.pid',
-  '*.pyc',
-  '*.o',
-  '*.d',
-  '*.class',
-  '*.db-wal',
-  '*.db-shm',
-  '*.sqlite-wal',
-  '*.sqlite-shm',
-  '*.crdownload',
-  '*.part',
-  '*.download',
-  '*~',
-  'package-lock.json',
-  'pnpm-lock.yaml',
-];
 
 export type CrashReportMode = 'off' | 'ask' | 'auto';
 export type UsageShareMode = 'off' | 'ask' | 'auto';

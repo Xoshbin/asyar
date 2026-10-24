@@ -15,7 +15,6 @@
   import { fileIndexStatus, fileIndexRebuild } from '../../../lib/ipc/fileSearchCommands';
   import { logService } from '../../../services/log/logService';
   import type { IndexStatus } from '../../../bindings';
-  import { DEFAULT_RECENT_IGNORE_PATTERNS } from '../../../services/settings/types/AppSettingsType';
   import { canAddRoot, canAddExcludePattern } from './fileSearchTab.helpers';
   import { t } from '../../../services/i18n';
   import { appListen } from '../../../lib/ipc/bridgeEvents';
@@ -146,10 +145,6 @@
     await persistFileSearch({
       recentIgnorePatterns: recentIgnorePatterns.filter((p) => p !== pattern),
     });
-  }
-
-  async function handleResetRecentIgnorePatterns() {
-    await persistFileSearch({ recentIgnorePatterns: [...DEFAULT_RECENT_IGNORE_PATTERNS] });
   }
 
   // The command itself resolves as soon as the background scan is
@@ -312,9 +307,6 @@
       onkeydown={(e) => e.key === 'Enter' && handleAddRecentIgnorePattern()}
     />
     <Button onclick={handleAddRecentIgnorePattern}>{t('common.add')}</Button>
-    <Button onclick={handleResetRecentIgnorePatterns}
-      >{t('settings.file_search.reset_defaults')}</Button
-    >
   </div>
 
   {@render patternList(recentIgnorePatterns, handleRemoveRecentIgnorePattern)}

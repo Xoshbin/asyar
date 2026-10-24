@@ -246,9 +246,10 @@ pub struct FileIndexConfig {
     /// Extra exclude patterns layered on top of the built-in defaults.
     pub exclude_patterns: Vec<String>,
     pub index_hidden: bool,
-    /// Globs hiding files from the empty-query "recent files" list, matched
-    /// against the file name and every ancestor folder name. Doesn't affect
-    /// indexing or search.
+    /// Extra globs hiding files from the empty-query "recent files" list,
+    /// layered on top of `DEFAULT_RECENT_IGNORE_PATTERNS`. Matched against
+    /// the file name and every ancestor folder name. Doesn't affect indexing
+    /// or search.
     #[serde(default)]
     pub recent_ignore_patterns: Vec<String>,
 }

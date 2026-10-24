@@ -537,13 +537,71 @@ fn push_top(
 /// Recent files = modified within the last 24 h (Raycast's window).
 pub const RECENT_WINDOW_SECS: i64 = 86_400;
 
-/// Compiles the user's recent-files ignore list. Patterns are globs matched
-/// case-insensitively against the file name and every ancestor folder name
-/// (`*.log`, `node_modules`, `*.app`). Invalid patterns are skipped so one
-/// typo in settings can't disable the whole list.
-pub fn build_recent_ignore(patterns: &[String]) -> GlobSet {
+/// Raycast-style noise filter for recent files (from discussion #905):
+/// dependency/build/cache folders, app bundles, and files that churn as a
+/// side effect of other work. Hidden files are always excluded.
+pub const DEFAULT_RECENT_IGNORE_PATTERNS: &[&str] = &[
+    "Library",
+    "node_modules",
+    "vendor",
+    "Pods",
+    "venv",
+    "env",
+    "__pycache__",
+    "target",
+    "build",
+    "dist",
+    "out",
+    "coverage",
+    "DerivedData",
+    "tmp",
+    "temp",
+    "cache",
+    "Caches",
+    "log",
+    "logs",
+    "*.app",
+    "*.photoslibrary",
+    "*.musiclibrary",
+    "*.tvlibrary",
+    "*.bundle",
+    "*.framework",
+    "*.log",
+    "*.tmp",
+    "*.temp",
+    "*.swp",
+    "*.swo",
+    "*.bak",
+    "*.cache",
+    "*.lock",
+    "*.pid",
+    "*.pyc",
+    "*.o",
+    "*.d",
+    "*.class",
+    "*.db-wal",
+    "*.db-shm",
+    "*.sqlite-wal",
+    "*.sqlite-shm",
+    "*.crdownload",
+    "*.part",
+    "*.download",
+    "*~",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+];
+
+/// Compiles `DEFAULT_RECENT_IGNORE_PATTERNS` plus the user's extra patterns.
+/// Patterns are globs matched case-insensitively against the file name and
+/// every ancestor folder name (`*.log`, `node_modules`, `*.app`). Invalid
+/// patterns are skipped so one typo in settings can't disable the whole list.
+pub fn build_recent_ignore(extra: &[String]) -> GlobSet {
     let mut b = GlobSetBuilder::new();
-    for p in patterns {
+    let all = DEFAULT_RECENT_IGNORE_PATTERNS
+        .iter()
+        .copied()
+        .chain(extra.iter().map(String::as_str));
+    for p in all {
         if let Ok(g) = GlobBuilder::new(p.trim()).case_insensitive(true).build() {
             b.add(g);
         }
@@ -707,7 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn recent_orders_by_mtime_within_window_and_skips_ignored_and_hidden() {
+    fn recent_orders_by_mtime_within_window_and_skips_default_user_ignored_and_hidden() {
         let fresh = (NOW - 60) as u32;
         let items = vec![
             entry("/r/old.md", EntryKind::File, fresh - 20),
@@ -720,6 +778,7 @@ mod tests {
             ),
             entry("/r/dir", EntryKind::Dir, fresh),
             entry("/r/App.LOG", EntryKind::File, fresh),
+            entry("/r/notes.draft", EntryKind::File, fresh),
             entry("/r/proj", EntryKind::Dir, fresh),
             entry("/r/proj/node_modules", EntryKind::Dir, fresh),
             entry("/r/proj/node_modules/x.js", EntryKind::File, fresh),
@@ -729,7 +788,7 @@ mod tests {
         ];
         let idx = FileIndex::build(vec![PathBuf::from(np("/r"))], items, NOW);
         let learning = LearningCache::new();
-        let ignore = build_recent_ignore(&["*.log".into(), "node_modules".into(), "[".into()]);
+        let ignore = build_recent_ignore(&["*.draft".into(), "[".into()]);
         let names = |opts: &QueryOptions| -> Vec<String> {
             recent(&idx, &learning, &ignore, opts, NOW)
                 .into_iter()

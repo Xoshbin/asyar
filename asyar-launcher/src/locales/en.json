@@ -273,8 +273,7 @@
       "add_search_root_title": "Add Search Root",
       "pattern_placeholder": "e.g. *.tmp",
       "recent_ignore_patterns": "Recent files ignore list",
-      "recent_ignore_patterns_description": "Files modified in the last 24 hours show in File Search before you type. Glob patterns matched against the file name and every parent folder hide noise from that list.",
-      "reset_defaults": "Reset to Defaults"
+      "recent_ignore_patterns_description": "Files modified in the last 24 hours show in File Search before you type. Common noise (build folders, caches, logs, app bundles) is already hidden; add extra glob patterns, matched against the file name and every parent folder, to hide more."
     },
     "extensions": {
       "installed": "Installed Extensions",
