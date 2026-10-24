@@ -1287,6 +1287,11 @@
         "updated": "Updated",
         "status": "Status",
         "added": "Added",
+        "author": "Author",
+        "category": "Category",
+        "installs": "Installs",
+        "not_installed": "Not Installed",
+        "commands": "Commands",
         "lazy_failed": "Failed to load view"
       }
     },

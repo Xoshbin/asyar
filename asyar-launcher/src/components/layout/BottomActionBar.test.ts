@@ -47,6 +47,7 @@ vi.mock('../../services/feedback/feedbackService.svelte', () => ({
 }));
 
 import { appUpdateState } from '../../services/update/appUpdateStore.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 import BottomActionBar from './BottomActionBar.svelte';
 
 describe('BottomActionBar - Update Ready Pill', () => {
@@ -86,5 +87,27 @@ describe('BottomActionBar - Update Ready Pill', () => {
 
     await fireEvent.click(pills[0]);
     expect(mockAppRelaunch).toHaveBeenCalledTimes(1);
+  });
+
+  it('suppresses search selectedItem action when an extension view is active without activeViewPrimaryActionLabel', () => {
+    (viewManager as any).activeView = 'create-extension/BuildProgressView';
+    (viewManager as any).activeViewPrimaryActionLabel = null;
+
+    const dummyItem: any = {
+      id: 'cmd-1',
+      name: 'Build Extension with AI',
+      type: 'command',
+    };
+
+    render(BottomActionBar, {
+      props: {
+        selectedItem: dummyItem,
+        isActionListOpen: false,
+        onactionListToggled: () => {},
+        onactionListClosed: () => {},
+      },
+    });
+
+    expect(screen.queryByText('Run')).toBeNull();
   });
 });

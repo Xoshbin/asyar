@@ -116,7 +116,7 @@ to mount your own.
 | `SearchResultsArea`      | The launcher's results region                |
 | `BottomActionBar`        | The launcher's fixed bottom bar              |
 | `ShowMoreBarHuds`        | The compact-mode "show more" seam            |
-| `ActionFooter`           | Actions pinned to the bottom of a view       |
+| `MetadataList`           | Key-value metadata inspector in detail panes |
 | `ActionListPopup`        | A ⌘K-style action menu                       |
 | `Card`                   | A card surface                               |
 | `InformationPanel`       | A labelled information panel                 |

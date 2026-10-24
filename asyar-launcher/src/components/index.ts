@@ -30,7 +30,6 @@ export { default as DialogHost } from './feedback/DialogHost.svelte';
 export { default as FeedbackMessage } from './feedback/FeedbackMessage.svelte';
 
 // Layout
-export { default as ActionFooter } from './layout/ActionFooter.svelte';
 export { default as ActionListPopup } from './layout/ActionListPopup.svelte';
 export { default as AppBar } from './layout/AppBar.svelte';
 export { default as BottomActionBar } from './layout/BottomActionBar.svelte';

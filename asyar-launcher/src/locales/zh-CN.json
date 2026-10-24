@@ -1287,6 +1287,11 @@
         "updated": "更新于",
         "status": "状态",
         "added": "添加于",
+        "author": "作者",
+        "category": "分类",
+        "installs": "安装次数",
+        "not_installed": "未安装",
+        "commands": "命令",
         "lazy_failed": "加载视图失败"
       }
     },

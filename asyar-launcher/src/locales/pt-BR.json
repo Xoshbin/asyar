@@ -1287,6 +1287,11 @@
         "updated": "Atualizado",
         "status": "Status",
         "added": "Adicionado",
+        "author": "Autor",
+        "category": "Categoria",
+        "installs": "Instalações",
+        "not_installed": "Não instalado",
+        "commands": "Comandos",
         "lazy_failed": "Falha ao carregar a tela"
       }
     },

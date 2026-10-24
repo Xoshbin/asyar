@@ -1287,6 +1287,11 @@
         "updated": "更新於",
         "status": "狀態",
         "added": "新增於",
+        "author": "作者",
+        "category": "分類",
+        "installs": "安裝次數",
+        "not_installed": "未安裝",
+        "commands": "命令",
         "lazy_failed": "載入檢視失敗"
       }
     },
