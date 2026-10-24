@@ -396,11 +396,13 @@
         </div>
 
         <MetadataList
+          title={t('common.metadata')}
           items={[
             {
               label: t('features.file_search.ui.where'),
               value: parentDir(selected.path),
               title: selected.path,
+              mono: true,
             },
             { label: t('features.file_search.ui.kind'), value: selected.type },
             {

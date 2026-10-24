@@ -10,7 +10,7 @@
     KeyboardHint,
     ShortcutRecorder,
     Badge,
-    ActionFooter,
+    MetadataList,
     EmptyState,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -194,27 +194,26 @@
           <div class="hero-block">
             <KeyboardHint keys={toDisplayKeys(selectedShortcut.shortcut)} />
           </div>
-
-          <div class="meta-grid">
-            <div class="meta-label">{t('features.shortcuts.ui.type')}</div>
-            <div class="meta-value">{selectedShortcut.itemType}</div>
-            {#if selectedShortcut.itemPath}
-              <div class="meta-label">{t('features.shortcuts.ui.path')}</div>
-              <div class="meta-value mono">{selectedShortcut.itemPath}</div>
-            {/if}
-          </div>
         </div>
-        <ActionFooter>
-          {#snippet left()}
-            <div class="flex items-center gap-3">
-              <Badge text={t('features.shortcuts.ui.badge')} variant="default" mono />
-              <span class="text-caption">{selectedShortcut.itemType}</span>
-              <span class="text-caption shortcut-meta-dim">
-                {selectedShortcut.itemName}
-              </span>
-            </div>
-          {/snippet}
-        </ActionFooter>
+
+        <MetadataList
+          title={t('common.information')}
+          items={[
+            {
+              label: t('features.shortcuts.ui.name'),
+              value: selectedShortcut.itemName,
+            },
+            {
+              label: t('features.shortcuts.ui.type'),
+              value: selectedShortcut.itemType,
+            },
+            {
+              label: t('features.shortcuts.ui.path'),
+              value: selectedShortcut.itemPath,
+              mono: true,
+            },
+          ]}
+        />
       {:else if shortcutStore.shortcuts.length === 0}
         <EmptyState
           message={t('features.shortcuts.no_shortcuts')}
@@ -256,9 +255,6 @@
     color: var(--text-primary);
     margin: 0;
   }
-  .shortcut-meta-dim {
-    color: var(--text-tertiary);
-  }
 
   .hero-block {
     display: flex;
@@ -267,27 +263,6 @@
     padding: var(--space-7) var(--space-5);
     background: var(--bg-secondary);
     border-radius: var(--radius-md);
-  }
-
-  .meta-grid {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: var(--space-3) var(--space-6);
-    align-items: baseline;
-  }
-  .meta-label {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .meta-value {
-    font-size: var(--font-size-sm);
-    color: var(--text-primary);
-    word-break: break-all;
-  }
-  .meta-value.mono {
-    font-family: var(--font-mono);
   }
 
   .form-panel {

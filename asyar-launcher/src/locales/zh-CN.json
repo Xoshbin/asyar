@@ -945,7 +945,14 @@
         "preview_alt": "预览",
         "image_failed": "加载图片失败",
         "reveal_title": "在访达中显示",
-        "preview_unavailable": "预览不可用"
+        "preview_unavailable": "预览不可用",
+        "source": "来源",
+        "type": "类型",
+        "characters": "字符",
+        "words": "字数",
+        "dimensions": "尺寸",
+        "size": "大小",
+        "copied": "已复制"
       }
     },
     "snippets": {
@@ -1002,7 +1009,13 @@
         "browse_post": "以浏览。",
         "encrypted_secret": "加密的密钥",
         "badge": "片段",
-        "add_first": "添加你的第一个片段"
+        "add_first": "添加你的第一个片段",
+        "keyword": "关键词",
+        "length": "长度",
+        "created": "创建时间",
+        "visibility": "可见性",
+        "visibility_private": "私有（仅本地）",
+        "visibility_synced": "已同步"
       }
     },
     "file_search": {
@@ -1074,7 +1087,11 @@
         "untitled": "无标题笔记",
         "body_placeholder": "开始书写…按 ⌘Enter 可跳转光标处的 [[链接]]。",
         "linked_mentions": "关联提及",
-        "create_first": "创建你的第一条笔记"
+        "create_first": "创建你的第一条笔记",
+        "words": "字数",
+        "characters": "字符",
+        "modified": "修改时间",
+        "mentions": "提及"
       }
     },
     "walkthrough": {
@@ -1172,7 +1189,8 @@
         "path": "路径",
         "badge": "快捷键",
         "press_pre": "按",
-        "press_post": "取消"
+        "press_post": "取消",
+        "name": "名称"
       }
     },
     "scripts": {
@@ -1200,7 +1218,10 @@
         "config": "配置",
         "file": "文件",
         "directory": "目录",
-        "arguments": "参数"
+        "arguments": "参数",
+        "mode": "模式",
+        "refresh": "刷新",
+        "manual": "手动"
       }
     },
     "store": {
@@ -1372,7 +1393,10 @@
         "exit_nonzero": "脚本以非零状态退出。",
         "succeeded": "成功完成",
         "succeeded_in": "进程已在 {seconds} 秒内成功完成。",
-        "succeeded_silent": "执行成功。脚本结束时没有向标准输出打印任何内容。"
+        "succeeded_silent": "执行成功。脚本结束时没有向标准输出打印任何内容。",
+        "status": "状态",
+        "started": "开始时间",
+        "duration": "耗时"
       }
     },
     "usage_stats": {
@@ -1627,7 +1651,9 @@
         "use_placeholders": "在网址中使用占位符：{tokens}。",
         "browse_pre": "按",
         "browse_mid": "或点击",
-        "browse_post": "按钮以浏览所有占位符。"
+        "browse_post": "按钮以浏览所有占位符。",
+        "command": "命令",
+        "created": "创建时间"
       }
     },
     "help": {
@@ -1799,7 +1825,9 @@
     "refresh": "刷新",
     "run": "运行",
     "import": "导入",
-    "update": "更新"
+    "update": "更新",
+    "information": "信息",
+    "metadata": "元数据"
   },
   "components": {
     "shortcut_recorder": {

@@ -10,7 +10,7 @@
     LauncherListRow,
     IconBox,
     Badge,
-    ActionFooter,
+    MetadataList,
     EmptyState,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -263,19 +263,24 @@
             </div>
           {/if}
         </div>
-        <ActionFooter>
-          {#snippet left()}
-            <div class="flex items-center gap-3">
-              <Badge text={t('features.portals.ui.badge')} variant="default" mono />
-              <span class="text-caption">
-                {dateFormat.format(selectedPortal.createdAt)}
-              </span>
-              <span class="text-caption portal-meta-dim">
-                {tokens.length} placeholder{tokens.length === 1 ? '' : 's'}
-              </span>
-            </div>
-          {/snippet}
-        </ActionFooter>
+        <MetadataList
+          title={t('common.information')}
+          items={[
+            {
+              label: t('features.portals.ui.command'),
+              value: selectedPortal.name,
+              title: `cmd_portals_${selectedPortal.id}`,
+            },
+            {
+              label: t('features.portals.ui.placeholders'),
+              value: `${tokens.length} placeholder${tokens.length === 1 ? '' : 's'}`,
+            },
+            {
+              label: t('features.portals.ui.created'),
+              value: dateFormat.format(selectedPortal.createdAt),
+            },
+          ]}
+        />
       {:else}
         <EmptyState
           message={portals.length === 0
@@ -331,9 +336,6 @@
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
-  }
-  .portal-meta-dim {
-    color: var(--text-tertiary);
   }
 
   .field-group {

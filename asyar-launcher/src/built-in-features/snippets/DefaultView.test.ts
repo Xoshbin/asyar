@@ -34,4 +34,25 @@ describe('Snippets DefaultView', () => {
     expect(pinBadge).toBeTruthy();
     expect(pinBadge.getAttribute('aria-label')).toBeTruthy();
   });
+
+  it('renders metadata list for selected snippet', () => {
+    snippetStore.snippets = [
+      {
+        id: '1',
+        name: 'My Snippet',
+        expansion: 'console.log("hello")',
+        keyword: '!log',
+        createdAt: Date.now(),
+        isPrivate: true,
+      },
+    ];
+
+    render(DefaultView);
+
+    expect(screen.getByText('Keyword')).toBeTruthy();
+    expect(screen.getAllByText('!log').length).toBeGreaterThan(0);
+    expect(screen.getByText('Visibility')).toBeTruthy();
+    expect(screen.getByText('Private (Local only)')).toBeTruthy();
+    expect(screen.getByText('20 chars')).toBeTruthy();
+  });
 });

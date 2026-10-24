@@ -945,7 +945,14 @@
         "preview_alt": "Preview",
         "image_failed": "Failed to load image",
         "reveal_title": "Reveal in Finder",
-        "preview_unavailable": "Preview unavailable"
+        "preview_unavailable": "Preview unavailable",
+        "source": "Source",
+        "type": "Type",
+        "characters": "Characters",
+        "words": "Words",
+        "dimensions": "Dimensions",
+        "size": "Size",
+        "copied": "Copied"
       }
     },
     "snippets": {
@@ -1002,7 +1009,13 @@
         "browse_post": "to browse.",
         "encrypted_secret": "Encrypted secret",
         "badge": "snippet",
-        "add_first": "Add your first snippet"
+        "add_first": "Add your first snippet",
+        "keyword": "Keyword",
+        "length": "Length",
+        "created": "Created",
+        "visibility": "Visibility",
+        "visibility_private": "Private (Local only)",
+        "visibility_synced": "Synced"
       }
     },
     "file_search": {
@@ -1074,7 +1087,11 @@
         "untitled": "Untitled Note",
         "body_placeholder": "Start writing… ⌘Enter follows a [[link]] under the cursor.",
         "linked_mentions": "Linked Mentions",
-        "create_first": "Create your first note"
+        "create_first": "Create your first note",
+        "words": "Words",
+        "characters": "Characters",
+        "modified": "Modified",
+        "mentions": "Mentions"
       }
     },
     "walkthrough": {
@@ -1172,7 +1189,8 @@
         "path": "Path",
         "badge": "shortcut",
         "press_pre": "Press",
-        "press_post": "to cancel"
+        "press_post": "to cancel",
+        "name": "Name"
       }
     },
     "scripts": {
@@ -1200,7 +1218,10 @@
         "config": "Configuration",
         "file": "File",
         "directory": "Directory",
-        "arguments": "Arguments"
+        "arguments": "Arguments",
+        "mode": "Mode",
+        "refresh": "Refresh",
+        "manual": "Manual"
       }
     },
     "store": {
@@ -1372,7 +1393,10 @@
         "exit_nonzero": "Script exited with non-zero status.",
         "succeeded": "Finished Successfully",
         "succeeded_in": "Process successfully completed in {seconds} seconds.",
-        "succeeded_silent": "Execution successful. The script terminated without printing any output to standard out."
+        "succeeded_silent": "Execution successful. The script terminated without printing any output to standard out.",
+        "status": "Status",
+        "started": "Started",
+        "duration": "Duration"
       }
     },
     "usage_stats": {
@@ -1627,7 +1651,9 @@
         "use_placeholders": "Use placeholders in the URL: {tokens}.",
         "browse_pre": "Press",
         "browse_mid": "or the",
-        "browse_post": "button to browse all placeholders."
+        "browse_post": "button to browse all placeholders.",
+        "command": "Command",
+        "created": "Created"
       }
     },
     "help": {
@@ -1799,7 +1825,9 @@
     "refresh": "Refresh",
     "run": "Run",
     "import": "Import",
-    "update": "Update"
+    "update": "Update",
+    "information": "Information",
+    "metadata": "Metadata"
   },
   "components": {
     "shortcut_recorder": {

@@ -945,7 +945,14 @@
         "preview_alt": "預覽",
         "image_failed": "載入圖片失敗",
         "reveal_title": "在 Finder 中顯示",
-        "preview_unavailable": "預覽無法使用"
+        "preview_unavailable": "預覽無法使用",
+        "source": "來源",
+        "type": "類型",
+        "characters": "字元",
+        "words": "字數",
+        "dimensions": "尺寸",
+        "size": "大小",
+        "copied": "已複製"
       }
     },
     "snippets": {
@@ -1002,7 +1009,13 @@
         "browse_post": "以瀏覽。",
         "encrypted_secret": "加密的密鑰",
         "badge": "片段",
-        "add_first": "新增你的第一個片段"
+        "add_first": "新增你的第一個片段",
+        "keyword": "關鍵字",
+        "length": "長度",
+        "created": "建立時間",
+        "visibility": "可見度",
+        "visibility_private": "私人（僅本機）",
+        "visibility_synced": "已同步"
       }
     },
     "file_search": {
@@ -1074,7 +1087,11 @@
         "untitled": "未命名筆記",
         "body_placeholder": "開始書寫…按 ⌘Enter 可跳轉游標處的 [[連結]]。",
         "linked_mentions": "連結提及",
-        "create_first": "建立你的第一則筆記"
+        "create_first": "建立你的第一則筆記",
+        "words": "字數",
+        "characters": "字元",
+        "modified": "修改時間",
+        "mentions": "提及"
       }
     },
     "walkthrough": {
@@ -1172,7 +1189,8 @@
         "path": "路徑",
         "badge": "快速鍵",
         "press_pre": "按",
-        "press_post": "取消"
+        "press_post": "取消",
+        "name": "名稱"
       }
     },
     "scripts": {
@@ -1200,7 +1218,10 @@
         "config": "設定",
         "file": "檔案",
         "directory": "目錄",
-        "arguments": "引數"
+        "arguments": "引數",
+        "mode": "模式",
+        "refresh": "重新整理",
+        "manual": "手動"
       }
     },
     "store": {
@@ -1372,7 +1393,10 @@
         "exit_nonzero": "指令碼以非零狀態結束。",
         "succeeded": "成功完成",
         "succeeded_in": "程序已在 {seconds} 秒內成功完成。",
-        "succeeded_silent": "執行成功。指令碼結束時沒有向標準輸出列印任何內容。"
+        "succeeded_silent": "執行成功。指令碼結束時沒有向標準輸出列印任何內容。",
+        "status": "狀態",
+        "started": "開始時間",
+        "duration": "耗時"
       }
     },
     "usage_stats": {
@@ -1627,7 +1651,9 @@
         "use_placeholders": "在網址中使用預留位置：{tokens}。",
         "browse_pre": "按",
         "browse_mid": "或點擊",
-        "browse_post": "按鈕以瀏覽所有預留位置。"
+        "browse_post": "按鈕以瀏覽所有預留位置。",
+        "command": "指令",
+        "created": "建立時間"
       }
     },
     "help": {
@@ -1799,7 +1825,9 @@
     "refresh": "重新整理",
     "run": "執行",
     "import": "匯入",
-    "update": "更新"
+    "update": "更新",
+    "information": "資訊",
+    "metadata": "元資料"
   },
   "components": {
     "shortcut_recorder": {

@@ -13,6 +13,7 @@
     LauncherListRow,
     SplitView,
     WarningBanner,
+    MetadataList,
   } from '../../components';
   import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
@@ -200,56 +201,88 @@
 
   {#snippet right()}
     {#if selectedScript}
-      <div class="h-full overflow-y-auto custom-scrollbar p-6">
-        <div class="flex items-center gap-4 mb-6">
-          <IconBox size="lg">
-            {#snippet content()}
-              <Icon name="terminal" size={24} />
-            {/snippet}
-          </IconBox>
-          <div class="min-w-0 flex-1">
-            <div class="text-page-title truncate">{selectedScript.displayName}</div>
-            <div class="text-caption text-mono truncate">{selectedScript.absolutePath}</div>
+      <div class="h-full flex flex-col justify-between overflow-y-auto custom-scrollbar p-6">
+        <div>
+          <div class="flex items-center gap-4 mb-6">
+            <IconBox size="lg">
+              {#snippet content()}
+                <Icon name="terminal" size={24} />
+              {/snippet}
+            </IconBox>
+            <div class="min-w-0 flex-1">
+              <div class="text-page-title truncate">{selectedScript.displayName}</div>
+              <div class="text-caption text-mono truncate">{selectedScript.absolutePath}</div>
+            </div>
+            <Badge text={selectedScript.header.mode} variant="info" />
           </div>
-          <Badge text={selectedScript.header.mode} variant="info" />
+
+          <Card title={t('features.scripts.ui.config')}>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-4 text-body">
+              <dt class="text-label text-[var(--text-secondary)]">
+                {t('features.scripts.ui.file')}
+              </dt>
+              <dd class="text-mono break-all text-[var(--text-primary)]">
+                {selectedScript.fileName}
+              </dd>
+              <dt class="text-label text-[var(--text-secondary)]">
+                {t('features.scripts.ui.directory')}
+              </dt>
+              <dd class="text-mono break-all text-[var(--text-primary)]">
+                {selectedScript.directoryPath}
+              </dd>
+              <dt class="text-label text-[var(--text-secondary)]">
+                {t('features.scripts.ui.arguments')}
+              </dt>
+              <dd class="text-[var(--text-primary)]">
+                {#if selectedScript.header.arguments.length === 0}
+                  None
+                {:else}
+                  <div class="flex flex-wrap gap-2">
+                    {#each selectedScript.header.arguments as argument (argument.name)}
+                      <Badge text={argument.name} mono bordered />
+                    {/each}
+                  </div>
+                {/if}
+              </dd>
+              {#if selectedScript.header.mode === 'inline'}
+                <dt class="text-label text-[var(--text-secondary)]">{t('common.refresh')}</dt>
+                <dd class="text-[var(--text-primary)]">
+                  {selectedScript.header.refreshTimeSeconds
+                    ? `${selectedScript.header.refreshTimeSeconds}s`
+                    : 'Manual'}
+                </dd>
+              {/if}
+            </dl>
+          </Card>
         </div>
 
-        <Card title={t('features.scripts.ui.config')}>
-          <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-4 text-body">
-            <dt class="text-label text-[var(--text-secondary)]">{t('features.scripts.ui.file')}</dt>
-            <dd class="text-mono break-all text-[var(--text-primary)]">
-              {selectedScript.fileName}
-            </dd>
-            <dt class="text-label text-[var(--text-secondary)]">
-              {t('features.scripts.ui.directory')}
-            </dt>
-            <dd class="text-mono break-all text-[var(--text-primary)]">
-              {selectedScript.directoryPath}
-            </dd>
-            <dt class="text-label text-[var(--text-secondary)]">
-              {t('features.scripts.ui.arguments')}
-            </dt>
-            <dd class="text-[var(--text-primary)]">
-              {#if selectedScript.header.arguments.length === 0}
-                None
-              {:else}
-                <div class="flex flex-wrap gap-2">
-                  {#each selectedScript.header.arguments as argument (argument.name)}
-                    <Badge text={argument.name} mono bordered />
-                  {/each}
-                </div>
-              {/if}
-            </dd>
-            {#if selectedScript.header.mode === 'inline'}
-              <dt class="text-label text-[var(--text-secondary)]">{t('common.refresh')}</dt>
-              <dd class="text-[var(--text-primary)]">
-                {selectedScript.header.refreshTimeSeconds
-                  ? `${selectedScript.header.refreshTimeSeconds}s`
-                  : 'Manual'}
-              </dd>
-            {/if}
-          </dl>
-        </Card>
+        <MetadataList
+          title={t('common.information')}
+          items={[
+            {
+              label: t('features.scripts.ui.mode'),
+              value: selectedScript.header.mode,
+            },
+            {
+              label: t('features.scripts.ui.refresh'),
+              value:
+                selectedScript.header.mode === 'inline'
+                  ? selectedScript.header.refreshTimeSeconds
+                    ? `${selectedScript.header.refreshTimeSeconds}s`
+                    : t('features.scripts.ui.manual')
+                  : null,
+            },
+            {
+              label: t('features.scripts.ui.directory'),
+              value: selectedScript.directoryPath,
+              mono: true,
+            },
+            {
+              label: t('features.scripts.ui.arguments'),
+              value: `${selectedScript.header.arguments.length}`,
+            },
+          ]}
+        />
       </div>
     {:else if selectedIssue}
       <div class="h-full overflow-y-auto custom-scrollbar p-6">

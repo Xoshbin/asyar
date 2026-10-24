@@ -1,7 +1,14 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { SplitView, ListItem, EmptyState, Button, StatusDot } from '../../components';
+  import {
+    SplitView,
+    ListItem,
+    EmptyState,
+    Button,
+    StatusDot,
+    MetadataList,
+  } from '../../components';
   import { runService } from '../../services/run/runService.svelte';
   import { formatRunSubtitle } from './runViewLogic';
   import { statusIconName } from '../../components/run/runningSectionLogic';
@@ -90,6 +97,26 @@
     if (selectedRun && selectedRun.status === 'running' && selectedRun.cancellable) {
       await runService.cancelById(selectedRun.id);
     }
+  }
+
+  const relativeTimeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+
+  function formatRelativeTime(ms: number): string {
+    const diffSeconds = Math.round((ms - Date.now()) / 1000);
+    const abs = Math.abs(diffSeconds);
+    if (abs < 60) return 'just now';
+    if (abs < 3600) return relativeTimeFormat.format(Math.round(diffSeconds / 60), 'minute');
+    if (abs < 86400) return relativeTimeFormat.format(Math.round(diffSeconds / 3600), 'hour');
+    return relativeTimeFormat.format(Math.round(diffSeconds / 86400), 'day');
+  }
+
+  function formatDuration(run: Run): string | null {
+    if (run.startedAt && run.endedAt) {
+      const ms = Math.max(0, run.endedAt - run.startedAt);
+      if (ms < 1000) return `${ms}ms`;
+      return `${(ms / 1000).toFixed(2)}s`;
+    }
+    return null;
   }
 </script>
 
@@ -193,6 +220,25 @@
               : t('features.runs.dismissed_output')}
           />
         {/if}
+
+        <MetadataList
+          title={t('common.information')}
+          items={[
+            {
+              label: t('features.runs.ui.status'),
+              value: selectedRun.status,
+            },
+            {
+              label: t('features.runs.ui.started'),
+              value: formatRelativeTime(selectedRun.startedAt),
+              title: new Date(selectedRun.startedAt).toLocaleString(),
+            },
+            {
+              label: t('features.runs.ui.duration'),
+              value: formatDuration(selectedRun),
+            },
+          ]}
+        />
       {:else}
         <EmptyState
           message={t('features.runs.select_run')}
