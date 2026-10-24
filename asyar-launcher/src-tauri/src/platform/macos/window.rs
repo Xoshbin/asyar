@@ -158,6 +158,10 @@ pub fn is_key_window<R: Runtime>(window: &WebviewWindow<R>) -> bool {
 pub fn park_launcher_panel<R: Runtime>(window: &WebviewWindow<R>, panel: &Panel) {
     set_window_alpha(window, 0.0);
     set_ignores_mouse_events(window, true);
+    // No caret while parked: macOS anchors its "Write with Siri" button to a
+    // focused text field even in an invisible window. The frontend
+    // refocuses search when the panel becomes key again.
+    let _ = window.eval("document.activeElement?.blur()");
     if is_key_window(window) {
         panel.order_out(None);
         panel.order_front_regardless();

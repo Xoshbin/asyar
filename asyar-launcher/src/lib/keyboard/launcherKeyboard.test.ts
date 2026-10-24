@@ -173,6 +173,10 @@ if (typeof global.document === 'undefined') {
     set activeElement(el: any) {
       this._activeElement = el;
     },
+    _hasFocus: true,
+    hasFocus() {
+      return this._hasFocus;
+    },
     // isAnyModalOpen(document) delegates to querySelector(':modal'); tests
     // that need to simulate an open modal override this per-case.
     querySelector: (_selector: string) => null,
@@ -1703,6 +1707,20 @@ describe('launcherKeyboard characterization tests', () => {
       expect(searchInput.focus).not.toHaveBeenCalled();
 
       (document as any)._activeElement = null;
+    });
+
+    it('does not focus search while the launcher window lacks focus', () => {
+      const deps = createMockDeps();
+      const searchInput = deps.getSearchInput() as any;
+      const { restoreSearchFocus } = createKeyboardHandlers(deps);
+      (document as any)._hasFocus = false;
+
+      restoreSearchFocus({ select: true });
+      restoreSearchFocus();
+      vi.runAllTimers();
+
+      expect(searchInput.focus).not.toHaveBeenCalled();
+      (document as any)._hasFocus = true;
     });
 
     it('select mode restores focus to search when nothing else claimed it', () => {
