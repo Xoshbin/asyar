@@ -64,7 +64,7 @@ beforeEach(() => {
 describe('runSearch', () => {
   it('loads recent files for an empty query and selects the first row', async () => {
     vi.mocked(fileSearchRecent).mockResolvedValue([hit('pinned'), hit('r1')]);
-    fileSearchViewState.pinnedFiles = [hit('pinned')];
+    fileSearchViewState.pinnedFiles = [{ ...hit('pinned'), type: 'image' }];
     fileSearchViewState.searchQuery = '   ';
     fileSearchViewState.typeFilter = 'image';
     await runSearch();
@@ -163,6 +163,14 @@ describe('allItems', () => {
       'pinned-b',
       'recent',
     ]);
+  });
+
+  it('narrows pinned files by the active type filter', () => {
+    fileSearchViewState.searchQuery = '';
+    fileSearchViewState.typeFilter = 'image';
+    fileSearchViewState.results = [{ ...hit('recent'), type: 'image' }];
+    fileSearchViewState.pinnedFiles = [hit('pinned-doc'), { ...hit('pinned-img'), type: 'image' }];
+    expect(fileSearchViewState.allItems.map((i) => i.fileId)).toEqual(['pinned-img', 'recent']);
   });
 
   it('shows real + deep results (not pinned) once there is an active query', () => {

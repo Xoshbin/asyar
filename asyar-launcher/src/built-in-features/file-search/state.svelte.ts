@@ -43,13 +43,17 @@ class FileSearchViewState {
   }
 
   /** Every visible row. With no active query, shows pinned files followed
-   * by recently modified files (`results` holds the recent list then).
-   * Once searching, real matches take over — pinned matches already rank
-   * first via the backend's pin bonus. */
+   * by recently modified files (`results` holds the recent list then),
+   * both narrowed by the type filter. Once searching, real matches take
+   * over — pinned matches already rank first via the backend's pin bonus. */
   get allItems(): FileHit[] {
     if (!this.searchQuery.trim()) {
-      const pinned = new Set(this.pinnedFiles.map((p) => p.fileId));
-      return [...this.pinnedFiles, ...this.results.filter((r) => !pinned.has(r.fileId))];
+      const pinnedFiles =
+        this.typeFilter === 'all'
+          ? this.pinnedFiles
+          : this.pinnedFiles.filter((p) => p.type === this.typeFilter);
+      const pinned = new Set(pinnedFiles.map((p) => p.fileId));
+      return [...pinnedFiles, ...this.results.filter((r) => !pinned.has(r.fileId))];
     }
     return [...this.results, ...this.deepResults];
   }
