@@ -17,10 +17,10 @@
     onSelectThread: (id: string) => void | Promise<void>;
   } = $props();
 
-  function threadLabel(t: ThreadDef): string {
-    const title = t.title?.trim();
+  function threadLabel(thread: ThreadDef): string {
+    const title = thread.title?.trim();
     if (title) return title;
-    if (t.createdAt) return new Date(t.createdAt).toLocaleString();
+    if (thread.createdAt) return new Date(thread.createdAt).toLocaleString();
     return 'New thread';
   }
 </script>
@@ -35,12 +35,20 @@
         />
       {/if}
     {:else}
-      {#each threads as t (t.id)}
+      {#each threads as thread (thread.id)}
         <ListItem
-          title={threadLabel(t)}
-          selected={selectedThreadId === t.id}
-          onclick={() => void onSelectThread(t.id)}
-        />
+          title={threadLabel(thread)}
+          selected={selectedThreadId === thread.id}
+          onclick={() => void onSelectThread(thread.id)}
+        >
+          {#snippet trailing()}
+            {#if thread.isPinned}
+              <span class="text-caption opacity-70" aria-label={t('features.agents.act.pin_thread')}
+                >📌</span
+              >
+            {/if}
+          {/snippet}
+        </ListItem>
       {/each}
     {/if}
   </div>

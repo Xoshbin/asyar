@@ -1288,6 +1288,10 @@
         "new_thread_desc": "Start a new conversation thread",
         "delete_thread": "Delete Current Thread",
         "delete_thread_desc": "Delete the active conversation thread",
+        "pin_thread": "Pin Current Thread",
+        "pin_thread_desc": "Keep the active thread at the top of the list",
+        "unpin_thread": "Unpin Current Thread",
+        "unpin_thread_desc": "Stop keeping the active thread at the top of the list",
         "cancel": "Cancel Run",
         "cancel_desc": "Abort the in-flight assistant response"
       },

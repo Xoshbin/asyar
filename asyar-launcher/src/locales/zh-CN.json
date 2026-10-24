@@ -1288,6 +1288,10 @@
         "new_thread_desc": "开始新的对话",
         "delete_thread": "删除当前对话",
         "delete_thread_desc": "删除当前活动的对话",
+        "pin_thread": "置顶当前对话",
+        "pin_thread_desc": "将当前对话固定在列表顶部",
+        "unpin_thread": "取消置顶当前对话",
+        "unpin_thread_desc": "不再将当前对话固定在列表顶部",
         "cancel": "取消运行",
         "cancel_desc": "中止正在进行的助手回复"
       },

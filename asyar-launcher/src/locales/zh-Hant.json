@@ -1288,6 +1288,10 @@
         "new_thread_desc": "開始新的對話",
         "delete_thread": "刪除目前對話",
         "delete_thread_desc": "刪除目前作用中的對話",
+        "pin_thread": "置頂目前對話",
+        "pin_thread_desc": "將目前對話固定在清單頂端",
+        "unpin_thread": "取消置頂目前對話",
+        "unpin_thread_desc": "不再將目前對話固定在清單頂端",
         "cancel": "取消執行",
         "cancel_desc": "中止進行中的助理回應"
       },

@@ -46,6 +46,7 @@
     const currentAgentId = agentId;
     const currentThreadId = agentsManager.currentThreadId;
     void agentsManager.sending;
+    void agentsManager.threadsVersion;
     let cancelled = false;
 
     void (async () => {

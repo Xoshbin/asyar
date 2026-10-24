@@ -1288,6 +1288,10 @@
         "new_thread_desc": "Iniciar uma nova conversa",
         "delete_thread": "Excluir conversa atual",
         "delete_thread_desc": "Excluir a conversa ativa",
+        "pin_thread": "Fixar conversa atual",
+        "pin_thread_desc": "Manter a conversa ativa no topo da lista",
+        "unpin_thread": "Desafixar conversa atual",
+        "unpin_thread_desc": "Deixar de manter a conversa ativa no topo da lista",
         "cancel": "Cancelar execução",
         "cancel_desc": "Interromper a resposta do assistente em andamento"
       },
