@@ -235,6 +235,7 @@ macro_rules! search_commands {
                 $crate::aliases::commands::get_indexed_items,
                 $crate::file_index::commands::file_search,
                 $crate::file_index::commands::file_search_recent,
+                $crate::file_index::commands::file_metadata,
                 $crate::file_index::commands::file_index_status,
                 $crate::file_index::commands::file_index_rebuild,
                 $crate::file_index::commands::file_index_set_config,

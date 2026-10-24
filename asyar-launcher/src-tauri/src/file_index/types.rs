@@ -180,6 +180,14 @@ pub struct FileHit {
     pub source: HitSource,
 }
 
+/// Size of one file, stat'ed on demand for the preview pane (kept out of
+/// the hot per-keystroke `FileHit`).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FileMetadata {
+    pub size: u64,
+}
+
 /// Per-query work accounting. Surfaced on the wire for the status card's
 /// debug view and asserted on by the perf regression tests — the budget is
 /// enforced as operation counts, not wall-clock, so CI stays deterministic.

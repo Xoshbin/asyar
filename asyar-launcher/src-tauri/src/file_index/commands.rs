@@ -17,7 +17,8 @@ use super::ranking::now_seconds;
 use super::service::FileIndexState;
 use super::snapshot::SNAPSHOT_FILE_NAME;
 use super::types::{
-    FileHit, FileIndexConfig, FileSearchResponse, FileType, HitSource, IndexStateKind, IndexStatus,
+    FileHit, FileIndexConfig, FileMetadata, FileSearchResponse, FileType, HitSource,
+    IndexStateKind, IndexStatus,
 };
 use super::walker::HARD_CAP;
 use super::watcher::{self, FileIndexWatcherHandle, RescanOutcome};
@@ -60,6 +61,16 @@ pub async fn file_search_recent(
         include_hidden: false,
     };
     Ok(state.recent(&opts, now_seconds()))
+}
+
+/// Native stat for the preview pane: webview `plugin-fs` is scoped to
+/// AppData, so it can't stat arbitrary user files.
+#[tauri::command]
+pub async fn file_metadata(path: String) -> Result<FileMetadata, String> {
+    let meta = tokio::fs::metadata(&path)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(FileMetadata { size: meta.len() })
 }
 
 #[tauri::command]

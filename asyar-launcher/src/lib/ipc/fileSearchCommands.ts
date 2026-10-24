@@ -1,6 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
-import type { FileHit, FileIndexConfig, FileSearchResponse, IndexStatus } from '../../bindings';
+import type {
+  FileHit,
+  FileIndexConfig,
+  FileMetadata,
+  FileSearchResponse,
+  IndexStatus,
+} from '../../bindings';
 import type {
   FileChunk,
   FileReadRangeOptions,
@@ -24,6 +30,11 @@ export async function fileSearch(
  * empty-query list. */
 export async function fileSearchRecent(typeFilter?: string, limit?: number): Promise<FileHit[]> {
   return invokeSafe<FileHit[]>('file_search_recent', { typeFilter: typeFilter ?? null, limit });
+}
+
+/** Native stat (size) of one file for the preview pane. */
+export async function fileMetadata(path: string): Promise<FileMetadata> {
+  return invokeSafe<FileMetadata>('file_metadata', { path });
 }
 
 export async function fileIndexStatus(): Promise<IndexStatus> {

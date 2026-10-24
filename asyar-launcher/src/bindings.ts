@@ -232,11 +232,20 @@ export type FileIndexConfig = {
 	excludePatterns: string[],
 	indexHidden: boolean,
 	/**
-	 *  Globs hiding files from the empty-query "recent files" list, matched
-	 *  against the file name and every ancestor folder name. Doesn't affect
-	 *  indexing or search.
+	 *  Extra globs hiding files from the empty-query "recent files" list,
+	 *  layered on top of `DEFAULT_RECENT_IGNORE_PATTERNS`. Matched against
+	 *  the file name and every ancestor folder name. Doesn't affect indexing
+	 *  or search.
 	 */
 	recentIgnorePatterns?: string[],
+};
+
+/**
+ *  Size of one file, stat'ed on demand for the preview pane (kept out of
+ *  the hot per-keystroke `FileHit`).
+ */
+export type FileMetadata = {
+	size: number,
 };
 
 export type FileReadRangeOptions = {
