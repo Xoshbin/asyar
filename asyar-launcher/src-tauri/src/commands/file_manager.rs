@@ -22,10 +22,19 @@ fn validate_show_path(path_str: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Validates the path for the `trash_path` command.
+/// Validates the path for the `trash_path` command and returns the path to
+/// trash.
 /// Rejects non-absolute, non-existent, or paths outside the home directory,
 /// and the home directory itself.
-fn validate_trash_path(path_str: &str, home_dir: &Path) -> Result<(), AppError> {
+///
+/// Containment is judged on where the path really is: the parent directory and
+/// the home directory are canonicalized (symlinks followed), and the final
+/// component is kept as written. A lexical check would let a symlinked
+/// directory inside home reach files outside it, or reach home itself under a
+/// different spelling. The final component is not followed, so a symlink is
+/// trashed as a link and never takes its target with it. The returned path is
+/// what the OS acts on, so what was validated is what gets trashed.
+fn validate_trash_path(path_str: &str, home_dir: &Path) -> Result<std::path::PathBuf, AppError> {
     let path = Path::new(path_str);
     if !path.is_absolute() {
         return Err(AppError::Other(format!(
@@ -40,9 +49,19 @@ fn validate_trash_path(path_str: &str, home_dir: &Path) -> Result<(), AppError> 
         )));
     }
 
-    // Normalize using the helper from the files module
-    let normalized = super::files::normalize_path(path);
-    if !normalized.starts_with(home_dir) {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return Err(AppError::Other(format!(
+            "Path does not name a file or directory: {}",
+            path_str
+        )));
+    };
+    let canonical_parent = dunce::canonicalize(parent)
+        .map_err(|e| AppError::Other(format!("Could not resolve '{}': {}", path_str, e)))?;
+    let canonical_home = dunce::canonicalize(home_dir)
+        .map_err(|e| AppError::Other(format!("Could not resolve home directory: {}", e)))?;
+    let target = canonical_parent.join(name);
+
+    if !target.starts_with(&canonical_home) {
         return Err(AppError::Other(format!(
             "Access denied: path '{}' is outside home directory",
             path_str
@@ -50,12 +69,12 @@ fn validate_trash_path(path_str: &str, home_dir: &Path) -> Result<(), AppError> 
     }
     // `starts_with` also accepts the home directory itself, which would trash
     // every file the user owns in one call.
-    if normalized == super::files::normalize_path(home_dir) {
+    if target == canonical_home {
         return Err(AppError::Other(
             "Access denied: the home directory itself cannot be moved to the trash".to_string(),
         ));
     }
-    Ok(())
+    Ok(target)
 }
 
 /// Reveal a file/directory in the OS file manager (selecting it where the
@@ -115,9 +134,9 @@ pub async fn trash_path<R: tauri::Runtime>(
         .home_dir()
         .map_err(|e| AppError::Other(format!("Could not resolve home directory: {}", e)))?;
 
-    validate_trash_path(&path_str, &home_dir)?;
+    let target = validate_trash_path(&path_str, &home_dir)?;
 
-    trash::delete(&path_str)
+    trash::delete(&target)
         .map_err(|e| AppError::Other(format!("Failed to move path to trash: {}", e)))?;
 
     Ok(())
@@ -361,6 +380,72 @@ mod tests {
         let sneaky = format!("{}/./sub/..", home.path().display());
         std::fs::create_dir(home.path().join("sub")).unwrap();
         assert!(validate_trash_path(&sneaky, home.path()).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_trash_rejects_home_reached_through_a_symlink_to_its_parent() {
+        use std::os::unix::fs::symlink;
+        let outer = TempDir::new().unwrap();
+        let home = outer.path().join("me");
+        std::fs::create_dir(&home).unwrap();
+        // home/shortcut -> the directory that contains home
+        symlink(outer.path(), home.join("shortcut")).unwrap();
+
+        let sneaky = home.join("shortcut").join("me");
+        assert!(validate_trash_path(sneaky.to_str().unwrap(), &home).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_trash_rejects_a_file_reached_through_a_symlinked_directory_outside_home() {
+        use std::os::unix::fs::symlink;
+        let outer = TempDir::new().unwrap();
+        let home = outer.path().join("me");
+        let elsewhere = outer.path().join("elsewhere");
+        std::fs::create_dir(&home).unwrap();
+        std::fs::create_dir(&elsewhere).unwrap();
+        std::fs::write(elsewhere.join("secret.txt"), "data").unwrap();
+        symlink(&elsewhere, home.join("link")).unwrap();
+
+        let via_link = home.join("link").join("secret.txt");
+        let err = validate_trash_path(via_link.to_str().unwrap(), &home).unwrap_err();
+        assert!(format!("{err}").contains("outside"), "{err}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_trash_rejects_dot_dot_that_leaves_home_through_a_symlink() {
+        use std::os::unix::fs::symlink;
+        let outer = TempDir::new().unwrap();
+        let home = outer.path().join("me");
+        let elsewhere = outer.path().join("elsewhere");
+        std::fs::create_dir(&home).unwrap();
+        std::fs::create_dir_all(elsewhere.join("sub")).unwrap();
+        std::fs::write(elsewhere.join("x"), "data").unwrap();
+        symlink(elsewhere.join("sub"), home.join("link")).unwrap();
+
+        // Lexically home/link/../x is home/x; on disk it is elsewhere/x.
+        let sneaky = format!("{}/link/../x", home.display());
+        assert!(validate_trash_path(&sneaky, &home).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_trash_accepts_a_symlink_to_outside_home_and_targets_the_link() {
+        use std::os::unix::fs::symlink;
+        let outer = TempDir::new().unwrap();
+        let home = outer.path().join("me");
+        let elsewhere = outer.path().join("elsewhere.txt");
+        std::fs::create_dir(&home).unwrap();
+        std::fs::write(&elsewhere, "data").unwrap();
+        let link = home.join("link");
+        symlink(&elsewhere, &link).unwrap();
+
+        let target = validate_trash_path(link.to_str().unwrap(), &home).unwrap();
+
+        // The link itself is trashed, never what it points at.
+        assert_eq!(target, dunce::canonicalize(&home).unwrap().join("link"));
     }
 
     #[test]
