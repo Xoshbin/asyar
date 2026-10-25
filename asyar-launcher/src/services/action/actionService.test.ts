@@ -389,6 +389,7 @@ describe('filterActionsByContext (via getActions)', () => {
 
 describe('filteredActions ordering', () => {
   it('lists the item’s own actions before launcher-wide ones, destructive last', () => {
+    mockDeveloperSettingsService.isDeveloperMode = true;
     const svc = freshService();
     svc.setContext(ActionContext.CORE);
     svc.registerAction({ ...makeAction('drop', ActionContext.CORE), destructive: true });
@@ -401,9 +402,12 @@ describe('filteredActions ordering', () => {
       'file-search:copy-path',
       'settings',
       'send_feedback',
+      'reset_search',
       'shortcuts:assign',
+      'factory_reset',
       'drop',
     ]);
+    mockDeveloperSettingsService.isDeveloperMode = false;
   });
 });
 

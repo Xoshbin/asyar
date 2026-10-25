@@ -91,7 +91,6 @@ const GENERIC_ACTION_IDS = new Set([
   'settings',
   'send_feedback',
   'reset_search',
-  'factory_reset',
   'copy_deeplink',
   'view_extension_commands',
   'configure_extension',
@@ -588,6 +587,7 @@ export class ActionService implements IActionService {
       category: t('categories.danger'),
       context: ActionContext.CORE,
       confirm: true,
+      destructive: true,
       visible: () => developerSettingsService.isDeveloperMode,
       execute: async () => {
         logService.info('Executing built-in action: Factory Reset');
