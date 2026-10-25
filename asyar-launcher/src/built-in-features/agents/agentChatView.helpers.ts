@@ -1,6 +1,6 @@
 import type { ThreadDef, MessageDef } from './types';
 import type { GeminiGrounding, GroundingSource } from '../../bindings';
-import type { ToolCall } from '../../services/ai/IProviderPlugin';
+import type { ProviderConfig, ToolCall } from '../../services/ai/IProviderPlugin';
 import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -240,4 +240,20 @@ export function extractSourcesFromMessage(
   }
 
   return [];
+}
+
+/**
+ * Picker options for the Assistant's provider switcher: every enabled
+ * provider that has a model chosen, labelled like the AI settings rows.
+ */
+export function assistantProviderOptions(
+  providers: Record<string, ProviderConfig>,
+  plugins: Array<{ id: string; name: string }>,
+): Array<{ value: string; label: string }> {
+  return Object.entries(providers)
+    .filter(([, config]) => config.enabled && config.lastModelId)
+    .map(([id, config]) => ({
+      value: id,
+      label: config.name ?? plugins.find((p) => p.id === (config.providerType ?? id))?.name ?? id,
+    }));
 }

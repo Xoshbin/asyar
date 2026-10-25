@@ -144,6 +144,9 @@ export class AgentService {
     const existingId = settingsService.currentSettings.ai.defaultAgentId;
     const row = await agentsUpsertDefault(existingId, providerId, modelId);
     this.defaultAgent = row;
+    this.agents = this.agents.some((a) => a.id === row.id)
+      ? this.agents.map((a) => (a.id === row.id ? row : a))
+      : [...this.agents, row];
     if (existingId !== row.id) {
       await settingsService.updateSettings('ai', { defaultAgentId: row.id });
     }

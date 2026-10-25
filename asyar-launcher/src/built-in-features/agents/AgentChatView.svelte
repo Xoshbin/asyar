@@ -15,9 +15,12 @@
     messageBubbleVariant,
     resolveThreadId,
     lastAssistantMessageText,
+    assistantProviderOptions,
   } from './agentChatView.helpers';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
-  import { Button, IconButton, GoogleSearchSuggestions } from '../../components';
+  import { Button, IconButton, GoogleSearchSuggestions, Select } from '../../components';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
+  import { providerRegistry } from '../../services/ai/providerRegistry';
   import ThreadListSidebar from './ThreadListSidebar.svelte';
   import type { AgentDef, ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
@@ -40,6 +43,30 @@
   const sending = $derived(agentsManager.sending);
   const streamingText = $derived(agentsManager.streamingText);
   const streamingStatus = $derived(agentsManager.streamingStatus);
+
+  // The Assistant (default agent) follows the starred provider; let the user
+  // switch it right from the chat header.
+  const isAssistant = $derived(agent !== null && agent.id === agentService.defaultAgent?.id);
+  const providerOptions = $derived(
+    assistantProviderOptions(settingsService.currentSettings.ai.providers, providerRegistry.list()),
+  );
+
+  async function switchProvider(providerId: string) {
+    const modelId = settingsService.currentSettings.ai.providers[providerId]?.lastModelId;
+    if (!modelId) return;
+    try {
+      await agentService.upsertDefaultAgent(providerId, modelId);
+    } catch (err) {
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: true,
+        context: { message: t('settings.ai.error_set_default') },
+        developerDetail: String(err),
+      });
+    }
+  }
 
   // Ignore loads superseded by an agent, thread, or send-state change.
   $effect(() => {
@@ -237,6 +264,16 @@
       <div class="chat-main">
         <header class="chat-header">
           <h2>{agent.name}</h2>
+          {#if isAssistant && providerOptions.length > 0}
+            <div class="provider-picker">
+              <Select
+                value={agent.providerId}
+                options={providerOptions}
+                disabled={sending}
+                onchange={switchProvider}
+              />
+            </div>
+          {/if}
           {#if sending}
             <span class="streaming-tag">{t('features.agents.streaming_cancel')}</span>
           {/if}
@@ -414,6 +451,11 @@
     font-size: var(--font-size-md);
     font-weight: 600;
     color: var(--text-primary);
+  }
+  .provider-picker {
+    margin-left: auto;
+    margin-right: var(--space-3);
+    max-width: 12rem;
   }
   .streaming-tag {
     font-size: var(--font-size-xs);

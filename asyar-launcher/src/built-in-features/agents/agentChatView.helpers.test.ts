@@ -11,6 +11,7 @@ import {
   resolveThreadId,
   lastAssistantMessageText,
   extractSourcesFromMessage,
+  assistantProviderOptions,
 } from './agentChatView.helpers';
 
 import type { ThreadDef, MessageDef } from './types';
@@ -470,5 +471,28 @@ describe('extractSourcesFromMessage', () => {
     });
 
     expect(extractSourcesFromMessage(msg)).toEqual([{ title: 'Valid', url: 'https://valid.com/' }]);
+  });
+});
+
+describe('assistantProviderOptions', () => {
+  it('lists enabled providers with a model, preferring the custom name', () => {
+    const options = assistantProviderOptions(
+      {
+        openai: { enabled: true, lastModelId: 'gpt' },
+        work: { enabled: true, providerType: 'anthropic', lastModelId: 'c', name: 'Work' },
+        ollama: { enabled: true, providerType: 'ollama', lastModelId: 'l' },
+        off: { enabled: false, lastModelId: 'x' },
+        nomodel: { enabled: true },
+      },
+      [
+        { id: 'openai', name: 'OpenAI' },
+        { id: 'ollama', name: 'Ollama' },
+      ],
+    );
+    expect(options).toEqual([
+      { value: 'openai', label: 'OpenAI' },
+      { value: 'work', label: 'Work' },
+      { value: 'ollama', label: 'Ollama' },
+    ]);
   });
 });
