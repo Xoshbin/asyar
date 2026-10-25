@@ -73,6 +73,7 @@
     const currentAgentId = agentId;
     const currentThreadId = agentsManager.currentThreadId;
     void agentsManager.sending;
+    void agentsManager.messagesVersion;
     let cancelled = false;
 
     void (async () => {
@@ -122,6 +123,9 @@
         const nextMessages = await agentService.listMessages(resolvedThreadId);
         if (!cancelled) {
           messages = nextMessages;
+          // The persisted turn now renders; drop its streamed copy. A turn
+          // still streaming restores itself on the next delta (accumulated).
+          agentsManager.streamingText = '';
           agentsManager.lastAssistantMessageText = lastAssistantMessageText(nextMessages);
         }
       } catch (err) {
@@ -304,13 +308,6 @@
                 {@const sources = extractSourcesFromMessage(message, messages)}
                 {@const toolUses = extractToolUsesFromMessage(message)}
                 <div class="message-row {variant}">
-                  {#if variant === 'assistant'}
-                    <div class="avatar assistant-avatar">AI</div>
-                  {:else if variant === 'user'}
-                    <div class="avatar user-avatar">{t('features.agents.you')}</div>
-                  {:else}
-                    <div class="avatar tool-avatar">⚙</div>
-                  {/if}
                   <div class="message-bubble {variant}">
                     {#if variant === 'assistant'}
                       {#if text.length > 0}
@@ -339,10 +336,10 @@
                         {/if}
                       {/each}
                       {#each toolUses as tu (tu.id)}
-                        <div class="tool-use-chip">
-                          <span class="chip-name">{tu.name}</span>
+                        <details class="tool-use-chip">
+                          <summary class="chip-name">⚙ {tu.name}</summary>
                           <pre class="chip-input">{JSON.stringify(tu.input, null, 2)}</pre>
-                        </div>
+                        </details>
                       {/each}
                     {:else if variant === 'tool'}
                       {#if sources.length > 0}
@@ -359,7 +356,10 @@
                           {/each}
                         </div>
                       {/if}
-                      <pre class="tool-result">{text}</pre>
+                      <details class="tool-use-chip">
+                        <summary class="chip-name">{t('features.agents.tool_result')}</summary>
+                        <pre class="tool-result">{text}</pre>
+                      </details>
                     {:else}
                       <span class="user-text">{text}</span>
                     {/if}
@@ -387,26 +387,14 @@
                 </div>
               {/each}
 
-              {#if sending && streamingText.length > 0}
+              {#if sending}
                 <div class="message-row assistant">
-                  <div class="avatar assistant-avatar">AI</div>
                   <div class="message-bubble assistant">
-                    <div class="md-content">{@html renderMarkdown(streamingText)}</div>
-                    <span class="streaming-cursor">▊</span>
-                  </div>
-                </div>
-              {:else if sending && streamingStatus === 'searching'}
-                <div class="message-row assistant">
-                  <div class="avatar assistant-avatar">AI</div>
-                  <div class="message-bubble assistant activity-status">
-                    <span class="activity-label">{t('features.agents.searching')}</span>
-                    <span class="streaming-cursor">▊</span>
-                  </div>
-                </div>
-              {:else if sending}
-                <div class="message-row assistant">
-                  <div class="avatar assistant-avatar">AI</div>
-                  <div class="message-bubble assistant">
+                    {#if streamingText.length > 0}
+                      <div class="md-content">{@html renderMarkdown(streamingText)}</div>
+                    {:else if streamingStatus === 'searching'}
+                      <span class="activity-label">{t('features.agents.searching')}</span>
+                    {/if}
                     <span class="streaming-cursor">▊</span>
                   </div>
                 </div>
@@ -478,38 +466,9 @@
   }
   .message-row {
     display: flex;
-    align-items: flex-start;
-    gap: var(--space-4);
   }
   .message-row.user {
-    flex-direction: row-reverse;
-  }
-
-  .avatar {
-    flex-shrink: 0;
-    width: var(--size-lg);
-    height: var(--size-lg);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-    margin-top: var(--space-0-5);
-  }
-  .assistant-avatar {
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
-  }
-  .user-avatar {
-    background: var(--accent-primary-fill);
-    color: var(--text-on-accent);
-  }
-  .tool-avatar {
-    background: var(--bg-tertiary);
-    color: var(--text-tertiary);
-    border: 1px solid var(--border-color);
+    justify-content: flex-end;
   }
 
   .message-bubble {
@@ -522,22 +481,22 @@
     line-height: 1.55;
     word-break: break-word;
   }
-  .message-bubble.assistant {
-    background: var(--bg-secondary);
+  /* Replies read as a document, full width; only the user's turns are bubbles. */
+  .message-bubble.assistant,
+  .message-bubble.tool {
+    flex: 1;
+    max-width: none;
+    padding: 0;
     color: var(--text-primary);
-    border-top-left-radius: var(--radius-xs);
   }
   .message-bubble.user {
     background: var(--accent-primary-fill);
     color: var(--text-on-accent);
-    border-top-right-radius: var(--radius-xs);
+    border-bottom-right-radius: var(--radius-xs);
   }
   .message-bubble.tool {
-    background: var(--bg-tertiary);
     color: var(--text-secondary);
-    font-family: var(--font-mono);
     font-size: var(--font-size-sm);
-    border-top-left-radius: var(--radius-xs);
   }
 
   :global(.copy-message-btn) {
@@ -588,10 +547,12 @@
   .chip-name {
     font-weight: 600;
     color: var(--text-secondary);
+    cursor: pointer;
   }
   .chip-input,
   .tool-result {
     margin: var(--space-1) 0 0;
+    font-family: var(--font-mono);
     white-space: pre-wrap;
     word-break: break-word;
   }
@@ -602,10 +563,8 @@
     font-weight: bold;
     animation: blink 0.8s step-end infinite;
   }
-  .activity-status {
-    color: var(--text-tertiary);
-  }
   .activity-label {
+    color: var(--text-tertiary);
     font-style: italic;
   }
   @keyframes blink {

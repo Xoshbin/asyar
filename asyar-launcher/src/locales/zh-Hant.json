@@ -1270,6 +1270,7 @@
       "no_threads_description": "輸入一條訊息以開始第一個會話。",
       "streaming_cancel": "正在輸出……按 ⌘K 取消",
       "you": "你",
+      "tool_result": "工具結果",
       "copy_message": "複製訊息",
       "copy_last_response": "複製上一條回覆",
       "copy_last_response_description": "複製本會話中最新的一條助手回覆",

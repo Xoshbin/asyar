@@ -320,10 +320,9 @@ class AgentsExtension implements Extension {
         userText: text,
         abortSignal: controller.signal,
         onUserMessagePersisted: () => {
-          // Chat view watches `agentsManager.sending` + listens for refresh
-          // via its own effect against listMessages, so just nudge here.
           agentsManager.streamingText = '';
           agentsManager.streamingStatus = null;
+          agentsManager.messagesVersion++;
         },
         onAssistantStatus: (status) => {
           agentsManager.streamingStatus = status;
@@ -333,8 +332,10 @@ class AgentsExtension implements Extension {
           agentsManager.streamingText = accumulated;
         },
         onAssistantTurnPersisted: () => {
-          agentsManager.streamingText = '';
+          // streamingText stays until the chat view renders the persisted
+          // turn, otherwise the reply blinks out while messages reload.
           agentsManager.streamingStatus = null;
+          agentsManager.messagesVersion++;
         },
       });
     } catch (err) {

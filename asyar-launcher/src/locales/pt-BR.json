@@ -1270,6 +1270,7 @@
       "no_threads_description": "Digite uma mensagem para iniciar a primeira conversa.",
       "streaming_cancel": "Transmitindo… ⌘K para cancelar",
       "you": "Você",
+      "tool_result": "Resultado da ferramenta",
       "copy_message": "Copiar mensagem",
       "copy_last_response": "Copiar última resposta",
       "copy_last_response_description": "Copiar a resposta mais recente do assistente nesta conversa",

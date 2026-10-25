@@ -28,6 +28,8 @@ export class AgentsManager {
   streamingStatus = $state<ChatStreamStatus | null>(null);
   /** True while a `runAgent` invocation is in-flight for the active thread. */
   sending = $state<boolean>(false);
+  /** Bumped whenever Rust persists a message mid-run so the chat view reloads. */
+  messagesVersion = $state(0);
   /** Latest assistant message's text in the active thread, or null. Set by
    * AgentChatView on message load; read by the copy-last-response action. */
   lastAssistantMessageText = $state<string | null>(null);
