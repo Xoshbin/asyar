@@ -531,13 +531,16 @@
     line-height: 1.55;
     word-break: break-word;
   }
-  /* Replies read as a document, full width; only the user's turns are bubbles. */
-  .message-bubble.assistant,
+  .message-bubble.assistant {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-bottom-left-radius: var(--radius-xs);
+  }
+  /* Tool turns are just collapsed chips, no bubble. */
   .message-bubble.tool {
     flex: 1;
     max-width: none;
     padding: 0;
-    color: var(--text-primary);
   }
   .message-bubble.user {
     background: var(--accent-primary-fill);
