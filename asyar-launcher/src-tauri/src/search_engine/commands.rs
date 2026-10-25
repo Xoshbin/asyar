@@ -54,15 +54,47 @@ pub async fn merged_search(
             .unwrap_or(false);
     // Backfilled suggestions are marked `score == -1.0` by
     // `SearchState::merged_search`; everything else is a real match.
-    let matched_count = response.results.iter().filter(|r| r.score != -1.0).count();
+    let count_matched = |results: &[super::models::SearchResult]| {
+        results.iter().filter(|r| r.score != -1.0).count()
+    };
+
+    // A typed filesystem path gets one exact row (hidden files and `~` work,
+    // the file index is not needed) and suppresses unrelated fuzzy file hits.
+    let home = dirs::home_dir();
+    let typed_path = super::file_search_path::parse_typed_path(&query, home.as_deref());
+    let exact_allowed = super::file_search_path::exact_row_allowed(
+        include_files.unwrap_or(false),
+        typed_path.is_some(),
+        file_search_available,
+        file_index
+            .as_ref()
+            .map(|s| s.config().root_search_enabled)
+            .unwrap_or(false),
+    );
+    if exact_allowed {
+        if let Some(row) = super::file_search_path::resolve_exact_row(
+            &query,
+            home,
+            super::file_search_path::EXACT_PATH_TIMEOUT,
+            |path, home| super::file_search_path::exact_path_row(&path, home.as_deref()),
+        )
+        .await
+        {
+            super::file_search_path::prepend_exact_row(&mut response.results, row);
+        }
+    }
+
+    let matched_count = count_matched(&response.results);
     if include_files.unwrap_or(false) && file_search_available && matched_count < 20 {
         if let Some(file_index) = file_index.as_ref() {
+            let typed_prefix = typed_path.map(|p| p.to_string_lossy().into_owned());
             super::file_search_inline::append_inline_file_results(
                 &mut response.results,
                 &query,
                 matched_count,
                 file_index,
                 crate::file_index::ranking::now_seconds(),
+                typed_prefix.as_deref(),
             );
         }
     }
