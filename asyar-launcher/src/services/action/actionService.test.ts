@@ -385,6 +385,68 @@ describe('filterActionsByContext (via getActions)', () => {
   });
 });
 
+// ── ordering ─────────────────────────────────────────────────────────────────
+
+describe('filteredActions ordering', () => {
+  afterEach(() => {
+    mockDeveloperSettingsService.isDeveloperMode = false;
+  });
+
+  it('lists the item’s own actions first, then manage, launcher-wide, destructive last', () => {
+    mockDeveloperSettingsService.isDeveloperMode = true;
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    svc.registerAction({ ...makeAction('drop', ActionContext.CORE), destructive: true });
+    svc.registerAction({
+      ...makeAction('shortcuts:assign', ActionContext.CORE),
+      placement: 'manage',
+    });
+    svc.registerAction(makeAction('act_ext_custom', ActionContext.CORE, 'ext'));
+    svc.registerAction(makeAction('file-search:copy-path', ActionContext.CORE));
+
+    expect(svc.filteredActions.map((a) => a.id)).toEqual([
+      'act_ext_custom',
+      'file-search:copy-path',
+      'shortcuts:assign',
+      'settings',
+      'send_feedback',
+      'reset_search',
+      'factory_reset',
+      'drop',
+    ]);
+  });
+
+  it('re-sorts when an action is re-registered with a different placement', () => {
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    svc.registerAction(makeAction('mover', ActionContext.CORE));
+    svc.registerAction({ ...makeAction('mover', ActionContext.CORE), placement: 'launcher' });
+
+    const ids = svc.filteredActions.map((a) => a.id);
+    expect(ids.indexOf('mover')).toBeGreaterThan(ids.indexOf('settings'));
+  });
+
+  it('declares its tier on each built-in rather than leaving it to a list of ids', () => {
+    const byId = new Map(
+      freshService()
+        .getAllActions()
+        .map((a) => [a.id, a]),
+    );
+
+    for (const id of ['settings', 'send_feedback', 'reset_search']) {
+      expect(byId.get(id)?.placement, id).toBe('launcher');
+    }
+    for (const id of ['copy_deeplink', 'view_extension_commands', 'configure_extension']) {
+      expect(byId.get(id)?.placement, id).toBe('manage');
+    }
+    for (const id of ['reveal_application', 'copy_application_path']) {
+      expect(byId.get(id)?.placement, id).toBeUndefined();
+    }
+    expect(byId.get('factory_reset')?.destructive).toBe(true);
+    expect(byId.get('uninstall_application')?.destructive).toBe(true);
+  });
+});
+
 // ── visible callback ─────────────────────────────────────────────────────────
 
 describe('visible callback', () => {

@@ -1037,6 +1037,8 @@
         "toggle_pin_desc": "将此文件固定到顶部或取消固定",
         "trash": "移到废纸篓",
         "trash_desc": "将文件移到系统废纸篓",
+        "trash_confirm_title": "移到废纸篓？",
+        "trash_confirm_message": "“{name}”将被移到废纸篓，你可以从废纸篓中放回原处。",
         "quick_look": "快速查看",
         "quick_look_desc": "预览该文件",
         "send_ai": "发送给 Asyar AI",

@@ -1037,6 +1037,8 @@
         "toggle_pin_desc": "Pin this file to the top or unpin it",
         "trash": "Move to Trash",
         "trash_desc": "Move the file to the system trash",
+        "trash_confirm_title": "Move to Trash?",
+        "trash_confirm_message": "“{name}” will be moved to the Trash. You can put it back from there.",
         "quick_look": "Quick Look",
         "quick_look_desc": "Preview the file",
         "send_ai": "Send to Asyar AI",

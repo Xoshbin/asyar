@@ -223,6 +223,15 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
     );
   });
 
+  it('marks Delete Snippet and Clear All Snippets destructive so they sort last', async () => {
+    await snippetsExtension.viewActivated('snippets/DefaultView');
+    for (const id of ['snippets:delete', 'snippets:clear-all']) {
+      expect(actionService.registerAction).toHaveBeenCalledWith(
+        expect.objectContaining({ id, destructive: true }),
+      );
+    }
+  });
+
   it('snippets:toggle-private executes togglePrivate on selectedSnippet and syncs to rust', async () => {
     snippetStore.snippets = [
       {

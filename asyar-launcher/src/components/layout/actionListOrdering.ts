@@ -1,18 +1,37 @@
-export function groupActionsForDisplay<T extends { displayCategory: string }>(
+import { ActionTier, actionTier, type TieredAction } from '../../services/action/actionTier';
+
+const SINGLE_GROUP_TIERS: ReadonlySet<number> = new Set([
+  ActionTier.Manage,
+  ActionTier.Destructive,
+]);
+
+/**
+ * Groups actions for the ⌘K panel. Groups are ordered by tier first, then by
+ * where their category first appears, so a category shared between a row's own
+ * actions and a launcher-wide one can never drag the latter up the list.
+ * The manage and destructive tiers each form a single group whatever their
+ * categories, like the one "Configure" and one trailing red section elsewhere.
+ */
+export function groupActionsForDisplay<T extends TieredAction & { displayCategory: string }>(
   actions: T[],
 ): Array<{ category: string; actions: T[] }> {
-  const groupMap = new Map<string, T[]>();
+  const groups: Array<{ tier: number; key: string; category: string; actions: T[] }> = [];
+  const byKey = new Map<string, (typeof groups)[number]>();
 
   for (const action of actions) {
-    const cat = action.displayCategory;
-    if (!groupMap.has(cat)) {
-      groupMap.set(cat, []);
+    const tier = actionTier(action);
+    const key = SINGLE_GROUP_TIERS.has(tier) ? `${tier}` : `${tier}\u0000${action.displayCategory}`;
+    let group = byKey.get(key);
+    if (!group) {
+      group = { tier, key, category: action.displayCategory, actions: [] };
+      byKey.set(key, group);
+      groups.push(group);
     }
-    groupMap.get(cat)!.push(action);
+    group.actions.push(action);
   }
 
-  return Array.from(groupMap.entries()).map(([category, acts]) => ({
-    category,
-    actions: acts,
-  }));
+  // Array.prototype.sort is stable, so groups of one tier keep first-seen order.
+  return groups
+    .sort((a, b) => a.tier - b.tier)
+    .map(({ category, actions: acts }) => ({ category, actions: acts }));
 }

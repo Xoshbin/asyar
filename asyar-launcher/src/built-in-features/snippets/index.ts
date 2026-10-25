@@ -214,6 +214,7 @@ class SnippetsExtension implements Extension {
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       confirm: true,
+      destructive: true,
       execute: async () => {
         snippetStore.clearAll();
         await snippetService.syncToRust();

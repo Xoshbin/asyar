@@ -237,6 +237,7 @@ export function setupSelectionEffects(state: LauncherState) {
       category: t('categories.shortcuts'),
       extensionId: 'shortcuts',
       context: ActionContext.CORE,
+      placement: 'manage',
       execute: async () => {
         state.assignShortcutTarget = item;
         state.getBottomBar()?.closeActionList();
@@ -374,6 +375,7 @@ export function setupSelectionEffects(state: LauncherState) {
       category: t('categories.aliases'),
       extensionId: 'aliases',
       context: ActionContext.CORE,
+      placement: 'manage',
       execute: async () => {
         state.assignAliasTarget = item;
         state.getBottomBar()?.closeActionList();
