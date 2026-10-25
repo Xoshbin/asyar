@@ -180,6 +180,14 @@ pub struct FileHit {
     pub source: HitSource,
 }
 
+/// Size of one file, stat'ed on demand for the preview pane (kept out of
+/// the hot per-keystroke `FileHit`).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FileMetadata {
+    pub size: u64,
+}
+
 /// Per-query work accounting. Surfaced on the wire for the status card's
 /// debug view and asserted on by the perf regression tests — the budget is
 /// enforced as operation counts, not wall-clock, so CI stays deterministic.
@@ -246,6 +254,12 @@ pub struct FileIndexConfig {
     /// Extra exclude patterns layered on top of the built-in defaults.
     pub exclude_patterns: Vec<String>,
     pub index_hidden: bool,
+    /// Extra globs hiding files from the empty-query "recent files" list,
+    /// layered on top of `DEFAULT_RECENT_IGNORE_PATTERNS`. Matched against
+    /// the file name and every ancestor folder name. Doesn't affect indexing
+    /// or search.
+    #[serde(default)]
+    pub recent_ignore_patterns: Vec<String>,
 }
 
 impl Default for FileIndexConfig {
@@ -256,6 +270,7 @@ impl Default for FileIndexConfig {
             include_roots: Vec::new(),
             exclude_patterns: Vec::new(),
             index_hidden: false,
+            recent_ignore_patterns: Vec::new(),
         }
     }
 }

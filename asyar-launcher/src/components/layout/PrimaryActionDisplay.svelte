@@ -16,6 +16,7 @@
     (() => {
       if (activeViewLabel) return activeViewLabel;
       if (!selectedItem) return null;
+      if (selectedItem.primaryActionLabel) return selectedItem.primaryActionLabel;
       switch (selectedItem.type) {
         case 'application':
           return t('actions.open');

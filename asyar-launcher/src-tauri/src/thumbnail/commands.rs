@@ -16,6 +16,7 @@ const DEFAULT_MAX_DIM: u32 = 256;
 pub async fn get_file_thumbnail<R: tauri::Runtime>(
     path: String,
     max_dim: Option<u32>,
+    priority: Option<bool>,
     app: AppHandle<R>,
     state: State<'_, std::sync::Arc<ThumbnailState>>,
 ) -> Result<Option<String>, String> {
@@ -23,7 +24,9 @@ pub async fn get_file_thumbnail<R: tauri::Runtime>(
     let cache_dir = get_thumbnail_cache_dir(&app);
     let src = std::path::PathBuf::from(&path);
 
-    let Some(cached_path) = super::get_or_generate(&state, &cache_dir, &src, max_dim).await else {
+    let Some(cached_path) =
+        super::get_or_generate(&state, &cache_dir, &src, max_dim, priority.unwrap_or(false)).await
+    else {
         return Ok(None);
     };
 
@@ -78,6 +81,7 @@ mod tests {
         let url = get_file_thumbnail(
             src.to_string_lossy().into_owned(),
             Some(64),
+            None,
             app.handle().clone(),
             state,
         )
@@ -96,6 +100,7 @@ mod tests {
 
         let url = get_file_thumbnail(
             "/definitely/missing/file.png".to_string(),
+            None,
             None,
             app.handle().clone(),
             state,

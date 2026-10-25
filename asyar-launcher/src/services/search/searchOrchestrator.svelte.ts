@@ -1,4 +1,8 @@
-import { searchBuiltinProviders, executeBuiltinSearchResult } from './builtinSearchProviders';
+import {
+  searchBuiltinProviders,
+  executeBuiltinSearchResult,
+  getBuiltinRowActions,
+} from './builtinSearchProviders';
 import { isAppInitialized } from '../appInitState';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
@@ -83,6 +87,8 @@ class SearchOrchestratorClass {
       );
       if (token !== this.#searchToken) return;
 
+      const builtinById = new Map(builtinRows.map((row) => [row.id, row]));
+
       const shouldDebounceExtensions = query.trim().length > 1;
       let localResponse: Awaited<ReturnType<typeof commands.mergedSearch>> | null = null;
       if (shouldDebounceExtensions) {
@@ -100,7 +106,12 @@ class SearchOrchestratorClass {
         }));
         localResponse = await commands.mergedSearch(query, localRows, 10, false);
         if (token !== this.#searchToken) return;
-        this.items = localResponse.results as SearchResult[];
+        const localResults = localResponse.results as SearchResult[];
+        for (const r of localResults) {
+          const label = builtinById.get(r.objectId)?.primaryActionLabel;
+          if (label) r.primaryActionLabel = label;
+        }
+        this.items = localResults;
         this.lastCompletedQuery = query;
         await new Promise((resolve) =>
           setTimeout(resolve, SearchOrchestratorClass.EXTENSION_DEBOUNCE_MS),
@@ -110,7 +121,6 @@ class SearchOrchestratorClass {
 
       const resultsFromExtensions = await extensionManager.searchAll(query);
       if (token !== this.#searchToken) return;
-      const builtinById = new Map(builtinRows.map((row) => [row.id, row]));
 
       // Map extension results to serializable format for Rust
       const externalResults = resultsFromExtensions.map(
@@ -179,10 +189,17 @@ class SearchOrchestratorClass {
       for (const r of combinedResults) {
         const builtin = builtinById.get(r.objectId);
         if (builtin) {
+          if (builtin.primaryActionLabel) r.primaryActionLabel = builtin.primaryActionLabel;
           r.action = () =>
             executeBuiltinSearchResult(builtin.extensionId, builtin.id, builtin.actionPayload).then(
               () => {},
             );
+          const rowActions = getBuiltinRowActions(
+            builtin.extensionId,
+            builtin.id,
+            builtin.actionPayload,
+          );
+          if (rowActions.length > 0) r.rowActions = rowActions;
           continue;
         }
         const action = directActions.get(r.objectId);

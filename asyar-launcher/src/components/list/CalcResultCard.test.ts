@@ -99,4 +99,24 @@ describe('CalcResultCard', () => {
 
     expect(screen.getByText('Result')).toBeTruthy();
   });
+
+  it('color result shows the swatch, input format and the value Enter copies', () => {
+    const item: MappedSearchItem = {
+      object_id: 'calc-color',
+      title: 'rgb(17, 34, 51)',
+      subtitle: '#112233',
+      type: 'result',
+      icon: '🎨',
+      score: 0,
+      action: () => {},
+    };
+
+    const { container } = render(CalcResultCard, { item, index: 0 });
+
+    expect(screen.getByText('#112233')).toBeTruthy();
+    expect(screen.getByText('HEX')).toBeTruthy();
+    expect(screen.getByText('rgb(17, 34, 51)')).toBeTruthy();
+    expect(container.querySelector('.color-tile')).toBeTruthy();
+    expect(screen.queryByText('Expression')).toBeNull();
+  });
 });

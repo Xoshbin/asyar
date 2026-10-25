@@ -30,13 +30,13 @@ export { default as DialogHost } from './feedback/DialogHost.svelte';
 export { default as FeedbackMessage } from './feedback/FeedbackMessage.svelte';
 
 // Layout
-export { default as ActionFooter } from './layout/ActionFooter.svelte';
 export { default as ActionListPopup } from './layout/ActionListPopup.svelte';
 export { default as AppBar } from './layout/AppBar.svelte';
 export { default as BottomActionBar } from './layout/BottomActionBar.svelte';
 export { default as BottomBarButton } from './layout/BottomBarButton.svelte';
 export { default as Card } from './layout/Card.svelte';
 export { default as InformationPanel } from './layout/InformationPanel.svelte';
+export { default as MetadataList } from './layout/MetadataList.svelte';
 export { default as PrimaryActionDisplay } from './layout/PrimaryActionDisplay.svelte';
 export { default as SearchHeader } from './layout/SearchHeader.svelte';
 export { default as SearchResultsArea } from './layout/SearchResultsArea.svelte';

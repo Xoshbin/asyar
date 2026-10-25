@@ -210,7 +210,8 @@ describe('FileSearchExtension lifecycle: activate and deactivate', () => {
     expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:copy-path');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:copy-name');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:open-in-terminal');
-    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:toggle-pin');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:pin');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:unpin');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:move-to-trash');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:quick-look');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:send-to-ai');

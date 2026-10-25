@@ -491,6 +491,7 @@ mod bindings_export {
             .register::<crate::aliases::ItemAlias>()
             .register::<crate::aliases::commands::AliasConflict>()
             .register::<crate::file_index::types::FileHit>()
+            .register::<crate::file_index::types::FileMetadata>()
             .register::<crate::file_index::types::FileSearchResponse>()
             .register::<crate::file_index::types::IndexStatus>()
             .register::<crate::file_index::types::FileIndexConfig>()

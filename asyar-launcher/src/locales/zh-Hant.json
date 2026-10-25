@@ -271,7 +271,9 @@
       "exclude_patterns": "排除規則",
       "exclude_patterns_description": "索引時跳過的 Glob 匹配模式。",
       "add_search_root_title": "新增搜尋根目錄",
-      "pattern_placeholder": "例如 *.tmp"
+      "pattern_placeholder": "例如 *.tmp",
+      "recent_ignore_patterns": "最近檔案忽略清單",
+      "recent_ignore_patterns_description": "過去 24 小時內修改的檔案會在輸入前顯示在檔案搜尋中。常見的干擾項目（建置資料夾、快取、記錄檔、應用程式套件）已預設隱藏；可新增額外的 Glob 模式（與檔名及每個上層資料夾名稱相符）以隱藏更多。"
     },
     "extensions": {
       "installed": "已安裝的擴充套件",
@@ -943,7 +945,14 @@
         "preview_alt": "預覽",
         "image_failed": "載入圖片失敗",
         "reveal_title": "在 Finder 中顯示",
-        "preview_unavailable": "預覽無法使用"
+        "preview_unavailable": "預覽無法使用",
+        "source": "來源",
+        "type": "類型",
+        "characters": "字元",
+        "words": "字數",
+        "dimensions": "尺寸",
+        "size": "大小",
+        "copied": "已複製"
       }
     },
     "snippets": {
@@ -978,6 +987,8 @@
         "duplicate": "複製片段",
         "duplicate_desc": "建立所選片段的副本",
         "pin": "釘選/取消釘選片段",
+        "pin_snippet": "釘選片段",
+        "unpin_snippet": "取消釘選片段",
         "pin_desc": "釘選或取消釘選所選片段，使其保持在頂端",
         "private": "切換私人（僅限本機）",
         "private_desc": "將所選片段標記或取消標記為私人，以防止雲端同步",
@@ -998,7 +1009,13 @@
         "browse_post": "以瀏覽。",
         "encrypted_secret": "加密的密鑰",
         "badge": "片段",
-        "add_first": "新增你的第一個片段"
+        "add_first": "新增你的第一個片段",
+        "keyword": "關鍵字",
+        "length": "長度",
+        "created": "建立時間",
+        "visibility": "可見度",
+        "visibility_private": "私人（僅本機）",
+        "visibility_synced": "已同步"
       }
     },
     "file_search": {
@@ -1015,9 +1032,13 @@
         "open_terminal": "在終端機中開啟",
         "open_terminal_desc": "在預設終端機中開啟所在資料夾",
         "toggle_pin": "切換釘選",
+        "pin": "釘選檔案",
+        "unpin": "取消釘選檔案",
         "toggle_pin_desc": "將此檔案釘選到頂端或取消釘選",
         "trash": "移至垃圾桶",
         "trash_desc": "將檔案移至系統垃圾桶",
+        "trash_confirm_title": "移至垃圾桶？",
+        "trash_confirm_message": "「{name}」將被移至垃圾桶，你可以從垃圾桶中放回原處。",
         "quick_look": "快速查看",
         "quick_look_desc": "預覽該檔案",
         "send_ai": "傳送給 Asyar AI",
@@ -1029,7 +1050,12 @@
       },
       "ui": {
         "deep": "深度",
-        "loading_preview": "正在載入預覽…"
+        "loading_preview": "正在載入預覽…",
+        "no_recent": "過去 24 小時內沒有修改的檔案",
+        "where": "位置",
+        "kind": "類型",
+        "size": "大小",
+        "modified": "修改時間"
       }
     },
     "notes": {
@@ -1044,6 +1070,8 @@
         "new": "新增筆記",
         "new_desc": "建立新筆記",
         "pin": "釘選/取消釘選筆記",
+        "pin_note": "釘選筆記",
+        "unpin_note": "取消釘選筆記",
         "pin_desc": "釘選或取消釘選所選筆記，使其保持在頂端",
         "duplicate": "複製筆記",
         "duplicate_desc": "建立所選筆記的副本",
@@ -1061,7 +1089,11 @@
         "untitled": "未命名筆記",
         "body_placeholder": "開始書寫…按 ⌘Enter 可跳轉游標處的 [[連結]]。",
         "linked_mentions": "連結提及",
-        "create_first": "建立你的第一則筆記"
+        "create_first": "建立你的第一則筆記",
+        "words": "字數",
+        "characters": "字元",
+        "modified": "修改時間",
+        "mentions": "提及"
       }
     },
     "walkthrough": {
@@ -1159,7 +1191,8 @@
         "path": "路徑",
         "badge": "快速鍵",
         "press_pre": "按",
-        "press_post": "取消"
+        "press_post": "取消",
+        "name": "名稱"
       }
     },
     "scripts": {
@@ -1187,7 +1220,10 @@
         "config": "設定",
         "file": "檔案",
         "directory": "目錄",
-        "arguments": "引數"
+        "arguments": "引數",
+        "mode": "模式",
+        "refresh": "重新整理",
+        "manual": "手動"
       }
     },
     "store": {
@@ -1253,6 +1289,11 @@
         "updated": "更新於",
         "status": "狀態",
         "added": "新增於",
+        "author": "作者",
+        "category": "分類",
+        "installs": "安裝次數",
+        "not_installed": "未安裝",
+        "commands": "命令",
         "lazy_failed": "載入檢視失敗"
       }
     },
@@ -1289,6 +1330,10 @@
         "new_thread_desc": "開始新的對話",
         "delete_thread": "刪除目前對話",
         "delete_thread_desc": "刪除目前作用中的對話",
+        "pin_thread": "置頂目前對話",
+        "pin_thread_desc": "將目前對話固定在清單頂端",
+        "unpin_thread": "取消置頂目前對話",
+        "unpin_thread_desc": "不再將目前對話固定在清單頂端",
         "cancel": "取消執行",
         "cancel_desc": "中止進行中的助理回應"
       },
@@ -1356,7 +1401,10 @@
         "exit_nonzero": "指令碼以非零狀態結束。",
         "succeeded": "成功完成",
         "succeeded_in": "程序已在 {seconds} 秒內成功完成。",
-        "succeeded_silent": "執行成功。指令碼結束時沒有向標準輸出列印任何內容。"
+        "succeeded_silent": "執行成功。指令碼結束時沒有向標準輸出列印任何內容。",
+        "status": "狀態",
+        "started": "開始時間",
+        "duration": "耗時"
       }
     },
     "usage_stats": {
@@ -1611,7 +1659,9 @@
         "use_placeholders": "在網址中使用預留位置：{tokens}。",
         "browse_pre": "按",
         "browse_mid": "或點擊",
-        "browse_post": "按鈕以瀏覽所有預留位置。"
+        "browse_post": "按鈕以瀏覽所有預留位置。",
+        "command": "指令",
+        "created": "建立時間"
       }
     },
     "help": {
@@ -1717,6 +1767,14 @@
         "time_machine": "時光機",
         "startup_disk": "啟動磁碟"
       }
+    },
+    "url_opener": {
+      "open_in_browser": "在瀏覽器中開啟",
+      "open": "開啟",
+      "copy_url": "複製網址",
+      "copy_url_desc": "將網址複製到剪貼簿",
+      "copied": "已複製網址",
+      "open_failed": "無法開啟 {url}"
     }
   },
   "common": {
@@ -1783,7 +1841,9 @@
     "refresh": "重新整理",
     "run": "執行",
     "import": "匯入",
-    "update": "更新"
+    "update": "更新",
+    "information": "資訊",
+    "metadata": "元資料"
   },
   "components": {
     "shortcut_recorder": {
@@ -1894,6 +1954,8 @@
     "change_shortcut": "變更快速鍵",
     "assign_shortcut": "指派快速鍵",
     "assign_shortcut_desc": "指派全域快速鍵",
+    "copy_color_as": "複製為 {format}",
+    "copy_color_as_desc": "將此顏色複製為 {format}",
     "cancel_run": "取消執行",
     "cancel_run_desc": "取消此執行中的工作",
     "dismiss_failure": "忽略失敗",

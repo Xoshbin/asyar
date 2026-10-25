@@ -54,6 +54,7 @@ function mockSettings(partial: Partial<AppSettings>): void {
       includeRoots: [],
       excludePatterns: [],
       indexHidden: false,
+      recentIgnorePatterns: [],
     },
   };
   vi.mocked(settingsService.getSettings).mockReturnValue({

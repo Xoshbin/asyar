@@ -223,6 +223,15 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
     );
   });
 
+  it('marks Delete Snippet and Clear All Snippets destructive so they sort last', async () => {
+    await snippetsExtension.viewActivated('snippets/DefaultView');
+    for (const id of ['snippets:delete', 'snippets:clear-all']) {
+      expect(actionService.registerAction).toHaveBeenCalledWith(
+        expect.objectContaining({ id, destructive: true }),
+      );
+    }
+  });
+
   it('snippets:toggle-private executes togglePrivate on selectedSnippet and syncs to rust', async () => {
     snippetStore.snippets = [
       {
@@ -250,6 +259,50 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
     expect(snippetService.syncToRust).toHaveBeenCalled();
   });
 
+  it('registers snippets:pin and snippets:unpin with dynamic visibility, icon, and shortcut', async () => {
+    snippetStore.snippets = [
+      {
+        id: '1',
+        name: 'Work Email',
+        keyword: ';email',
+        expansion: 'work@example.com',
+        createdAt: 1,
+        pinned: false,
+      },
+    ];
+    snippetViewState.reset();
+    await snippetsExtension.viewActivated('snippets/DefaultView');
+
+    const pinCall = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find(([call]) => call.id === 'snippets:pin');
+    const unpinCall = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find(([call]) => call.id === 'snippets:unpin');
+
+    expect(pinCall).toBeDefined();
+    expect(unpinCall).toBeDefined();
+
+    const pinAction = pinCall![0] as any;
+    const unpinAction = unpinCall![0] as any;
+
+    expect(pinAction.icon).toBe('icon:pin');
+    expect(pinAction.shortcut).toBe('Mod+Shift+P');
+    expect(unpinAction.icon).toBe('icon:pin');
+    expect(unpinAction.shortcut).toBe('Mod+Shift+P');
+
+    expect(pinAction.visible()).toBe(true);
+    expect(unpinAction.visible()).toBe(false);
+
+    const togglePinSpy = vi.spyOn(snippetStore, 'togglePin');
+    await pinAction.execute();
+    expect(togglePinSpy).toHaveBeenCalledWith('1');
+
+    snippetStore.snippets[0].pinned = true;
+    expect(pinAction.visible()).toBe(false);
+    expect(unpinAction.visible()).toBe(true);
+  });
+
   it('deactivate() cleans up keydown listener, resets view state, and unregisters actions', async () => {
     await snippetsExtension.viewActivated('snippets/DefaultView');
     await snippetsExtension.deactivate();
@@ -261,7 +314,8 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:delete');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:copy-expansion');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:duplicate');
-    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:toggle-pin');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:pin');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:unpin');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:toggle-private');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:clear-all');
   });

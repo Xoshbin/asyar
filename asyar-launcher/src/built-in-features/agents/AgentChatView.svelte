@@ -17,11 +17,18 @@
     lastAssistantMessageText,
     assistantProviderOptions,
   } from './agentChatView.helpers';
-  import EmptyState from '../../components/feedback/EmptyState.svelte';
-  import { Button, IconButton, GoogleSearchSuggestions, Select } from '../../components';
+  import {
+    Button,
+    EmptyState,
+    IconButton,
+    Icon,
+    LauncherListRow,
+    SplitListDetail,
+    GoogleSearchSuggestions,
+    Select,
+  } from '../../components';
   import { settingsService } from '../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../services/ai/providerRegistry';
-  import ThreadListSidebar from './ThreadListSidebar.svelte';
   import type { AgentDef, ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -40,6 +47,9 @@
   let loadError = $state<string | null>(null);
 
   const selectedThreadId = $derived(agentsManager.currentThreadId);
+  const selectedThreadIndex = $derived(
+    selectedThreadId ? threads.findIndex((t) => t.id === selectedThreadId) : -1,
+  );
   const sending = $derived(agentsManager.sending);
   const streamingText = $derived(agentsManager.streamingText);
   const streamingStatus = $derived(agentsManager.streamingStatus);
@@ -68,11 +78,19 @@
     }
   }
 
+  function threadLabel(thread: ThreadDef): string {
+    const title = thread.title?.trim();
+    if (title) return title;
+    if (thread.createdAt) return new Date(thread.createdAt).toLocaleString();
+    return 'New thread';
+  }
+
   // Ignore loads superseded by an agent, thread, or send-state change.
   $effect(() => {
     const currentAgentId = agentId;
     const currentThreadId = agentsManager.currentThreadId;
     void agentsManager.sending;
+    void agentsManager.threadsVersion;
     void agentsManager.messagesVersion;
     let cancelled = false;
 
@@ -263,169 +281,201 @@
       <EmptyState message={t('features.agents.loading_agent')} />
     </div>
   {:else}
-    <div class="chat-layout">
-      <ThreadListSidebar {threads} known={threadsKnown} {selectedThreadId} {onSelectThread} />
-      <div class="chat-main">
-        <header class="chat-header">
-          <h2>{agent.name}</h2>
-          {#if isAssistant && providerOptions.length > 0}
-            <div class="provider-picker">
-              <Select
-                value={agent.providerId}
-                options={providerOptions}
-                disabled={sending}
-                onchange={switchProvider}
-              />
-            </div>
-          {/if}
-          {#if sending}
-            <span class="streaming-tag">{t('features.agents.streaming_cancel')}</span>
-          {/if}
-        </header>
-
-        <div
-          class="messages-container custom-scrollbar"
-          data-no-focus-steal
-          bind:this={messagesEl}
-          onscroll={handleScroll}
-          role="log"
+    <SplitListDetail
+      items={threads}
+      selectedIndex={selectedThreadIndex}
+      leftWidth={240}
+      minLeftWidth={180}
+      maxLeftWidth={420}
+      isLoading={!threadsKnown}
+      emptyMessage={t('features.agents.no_threads')}
+      ariaLabel="Threads"
+    >
+      {#snippet listItem(thread, index)}
+        <LauncherListRow
+          data-index={index}
+          selected={selectedThreadId === thread.id}
+          title={threadLabel(thread)}
+          onclick={() => void onSelectThread(thread.id)}
         >
-          {#if loadError}
-            <p class="error">{loadError}</p>
-          {:else if messages.length === 0 && !sending}
-            <EmptyState
-              message={t('features.agents.start_chatting')}
-              description={t('features.agents.start_chatting_description')}
-            />
-          {:else}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="messages-list" onclick={handleMarkdownCopyClick}>
-              {#each messages as message (message.id)}
-                {@const variant = messageBubbleVariant(message)}
-                {@const text = extractTextFromMessage(message)}
-                {@const grounding = extractGroundingFromMessage(message)}
-                {@const sources = extractSourcesFromMessage(message, messages)}
-                {@const toolUses = extractToolUsesFromMessage(message)}
-                <div class="message-row {variant}">
-                  <div class="message-bubble {variant}">
-                    {#if variant === 'assistant'}
-                      {#if text.length > 0}
-                        <div class="md-content">{@html renderMarkdown(text)}</div>
-                      {/if}
-                      {#if sources.length > 0}
-                        <div class="grounding-sources">
-                          <span class="text-caption">{t('features.agents.sources')}</span>
-                          {#each sources as source, index}
-                            <a
-                              href={source.url}
-                              onclick={(event) => {
-                                event.preventDefault();
-                                openSearchSource(source.url);
-                              }}>{index + 1}. {source.title}</a
-                            >
-                          {/each}
-                        </div>
-                      {/if}
-                      {#each grounding as search}
-                        {#if search.searchSuggestionsHtml}
-                          <GoogleSearchSuggestions
-                            html={search.searchSuggestionsHtml}
-                            onOpen={openSearchSource}
-                          />
-                        {/if}
-                      {/each}
-                      {#each toolUses as tu (tu.id)}
-                        <details class="tool-use-chip">
-                          <summary class="chip-name">⚙ {tu.name}</summary>
-                          <pre class="chip-input">{JSON.stringify(tu.input, null, 2)}</pre>
-                        </details>
-                      {/each}
-                    {:else if variant === 'tool'}
-                      {#if sources.length > 0}
-                        <div class="grounding-sources">
-                          <span class="text-caption">{t('features.agents.sources')}</span>
-                          {#each sources as source, index}
-                            <a
-                              href={source.url}
-                              onclick={(event) => {
-                                event.preventDefault();
-                                openSearchSource(source.url);
-                              }}>{index + 1}. {source.title}</a
-                            >
-                          {/each}
-                        </div>
-                      {/if}
-                      <details class="tool-use-chip">
-                        <summary class="chip-name">{t('features.agents.tool_result')}</summary>
-                        <pre class="tool-result">{text}</pre>
-                      </details>
-                    {:else}
-                      <span class="user-text">{text}</span>
-                    {/if}
-                    <IconButton
-                      class="copy-message-btn"
-                      onclick={() => copyText(text)}
-                      title={t('features.agents.copy_message')}
-                      ariaLabel={t('features.agents.copy_message')}
-                      size="sm"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        ><rect x="9" y="9" width="13" height="13" rx="2" /><path
-                          d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
-                        /></svg
-                      >
-                    </IconButton>
-                  </div>
-                </div>
-              {/each}
+          {#snippet trailing()}
+            {#if thread.isPinned}
+              <span
+                class="pin-badge flex items-center justify-center opacity-70"
+                aria-label={t('features.agents.act.pin_thread')}
+                data-testid="thread-pin-icon"
+              >
+                <Icon name="pin" size={13} />
+              </span>
+            {/if}
+          {/snippet}
+        </LauncherListRow>
+      {/snippet}
 
-              {#if sending}
-                <div class="message-row assistant">
-                  <div class="message-bubble assistant">
-                    {#if streamingText.length > 0}
-                      <div class="md-content">{@html renderMarkdown(streamingText)}</div>
-                    {:else if streamingStatus === 'searching'}
-                      <span class="activity-label">{t('features.agents.searching')}</span>
-                    {/if}
-                    <span class="streaming-cursor">▊</span>
+      {#snippet detail()}
+        <div class="chat-main">
+          <header class="chat-header">
+            <h2>{agent?.name}</h2>
+            {#if isAssistant && agent && providerOptions.length > 0}
+              <div class="provider-picker">
+                <Select
+                  value={agent.providerId}
+                  options={providerOptions}
+                  disabled={sending}
+                  onchange={switchProvider}
+                />
+              </div>
+            {/if}
+            {#if sending}
+              <span class="streaming-tag">{t('features.agents.streaming_cancel')}</span>
+            {/if}
+          </header>
+
+          <div
+            class="messages-container custom-scrollbar"
+            data-no-focus-steal
+            bind:this={messagesEl}
+            onscroll={handleScroll}
+            role="log"
+          >
+            {#if loadError}
+              <p class="error">{loadError}</p>
+            {:else if messages.length === 0 && !sending}
+              <EmptyState
+                message={t('features.agents.start_chatting')}
+                description={t('features.agents.start_chatting_description')}
+              />
+            {:else}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="messages-list" onclick={handleMarkdownCopyClick}>
+                {#each messages as message (message.id)}
+                  {@const variant = messageBubbleVariant(message)}
+                  {@const text = extractTextFromMessage(message)}
+                  {@const grounding = extractGroundingFromMessage(message)}
+                  {@const sources = extractSourcesFromMessage(message, messages)}
+                  {@const toolUses = extractToolUsesFromMessage(message)}
+                  <div class="message-row {variant}">
+                    <div class="message-bubble {variant}">
+                      {#if variant === 'assistant'}
+                        {#if text.length > 0}
+                          <div class="md-content">{@html renderMarkdown(text)}</div>
+                        {/if}
+                        {#if sources.length > 0}
+                          <div class="grounding-sources">
+                            <span class="text-caption">{t('features.agents.sources')}</span>
+                            {#each sources as source, index}
+                              <a
+                                href={source.url}
+                                onclick={(event) => {
+                                  event.preventDefault();
+                                  openSearchSource(source.url);
+                                }}>{index + 1}. {source.title}</a
+                              >
+                            {/each}
+                          </div>
+                        {/if}
+                        {#each grounding as search}
+                          {#if search.searchSuggestionsHtml}
+                            <GoogleSearchSuggestions
+                              html={search.searchSuggestionsHtml}
+                              onOpen={openSearchSource}
+                            />
+                          {/if}
+                        {/each}
+                        {#each toolUses as tu (tu.id)}
+                          <details class="tool-use-chip">
+                            <summary class="chip-name">⚙ {tu.name}</summary>
+                            <pre class="chip-input">{JSON.stringify(tu.input, null, 2)}</pre>
+                          </details>
+                        {/each}
+                      {:else if variant === 'tool'}
+                        {#if sources.length > 0}
+                          <div class="grounding-sources">
+                            <span class="text-caption">{t('features.agents.sources')}</span>
+                            {#each sources as source, index}
+                              <a
+                                href={source.url}
+                                onclick={(event) => {
+                                  event.preventDefault();
+                                  openSearchSource(source.url);
+                                }}>{index + 1}. {source.title}</a
+                              >
+                            {/each}
+                          </div>
+                        {/if}
+                        <details class="tool-use-chip">
+                          <summary class="chip-name">{t('features.agents.tool_result')}</summary>
+                          <pre class="tool-result">{text}</pre>
+                        </details>
+                      {:else}
+                        <span class="user-text">{text}</span>
+                      {/if}
+                      <IconButton
+                        class="copy-message-btn"
+                        onclick={() => copyText(text)}
+                        title={t('features.agents.copy_message')}
+                        ariaLabel={t('features.agents.copy_message')}
+                        size="sm"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          ><rect x="9" y="9" width="13" height="13" rx="2" /><path
+                            d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
+                          /></svg
+                        >
+                      </IconButton>
+                    </div>
                   </div>
-                </div>
-              {/if}
-            </div>
-          {/if}
+                {/each}
+
+                {#if sending}
+                  <div class="message-row assistant">
+                    <div class="message-bubble assistant">
+                      {#if streamingText.length > 0}
+                        <div class="md-content">{@html renderMarkdown(streamingText)}</div>
+                      {:else if streamingStatus === 'searching'}
+                        <span class="activity-label">{t('features.agents.searching')}</span>
+                      {/if}
+                      <span class="streaming-cursor">▊</span>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
         </div>
-      </div>
-    </div>
+      {/snippet}
+    </SplitListDetail>
   {/if}
 </div>
 
 <style>
   .agent-chat-view {
     display: flex;
+    flex-direction: column;
     height: 100%;
+    width: 100%;
   }
   .empty-state-wrapper {
     flex: 1;
     display: flex;
-  }
-  .chat-layout {
-    display: flex;
-    width: 100%;
-    gap: var(--space-0-5);
   }
   .chat-main {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
+    height: 100%;
+  }
+  .pin-badge {
+    color: var(--accent-primary);
   }
   .chat-header {
     display: flex;

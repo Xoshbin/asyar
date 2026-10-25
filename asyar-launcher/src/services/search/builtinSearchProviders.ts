@@ -16,9 +16,24 @@ export interface BuiltinSearchRow {
   style?: 'default' | 'large';
   priority?: 'top';
   actionPayload?: unknown;
+  /** Overrides the bottom bar's Enter label ("Run"/"Open"), e.g. "Copy". Already localized. */
+  primaryActionLabel?: string;
 }
 
 export type BuiltinSearchHit = BuiltinSearchRow & { extensionId: string };
+
+/**
+ * An extra ⌘K action a built-in contributes for one of its own root rows
+ * (e.g. the calculator's "Copy as HEX"). Labels are already localized.
+ */
+export interface BuiltinRowAction {
+  id: string;
+  label: string;
+  description?: string;
+  icon?: string;
+  category?: string;
+  execute(): Promise<void> | void;
+}
 
 /**
  * A statically compiled platform primitive's root-search contribution.
@@ -29,6 +44,12 @@ export interface BuiltinSearchProvider {
   extensionId: string;
   search(query: string): Promise<BuiltinSearchRow[]>;
   execute(rowId: string, actionPayload?: unknown): Promise<void> | void;
+  /**
+   * ⌘K actions for one of this provider's rows, derived only from the row's
+   * own `id` + `actionPayload` — no provider state, so a late search can
+   * never leave a row pointing at another query's data.
+   */
+  rowActions?(rowId: string, actionPayload?: unknown): BuiltinRowAction[];
 }
 
 const DEFAULT_PROVIDER_BUDGET_MS = 200;
@@ -105,4 +126,13 @@ export async function executeBuiltinSearchResult(
   if (!provider) return false;
   await provider.execute(rowId, actionPayload);
   return true;
+}
+
+/** The ⌘K actions the owning provider contributes for a row; empty when none. */
+export function getBuiltinRowActions(
+  extensionId: string,
+  rowId: string,
+  actionPayload?: unknown,
+): BuiltinRowAction[] {
+  return providers.get(extensionId)?.rowActions?.(rowId, actionPayload) ?? [];
 }

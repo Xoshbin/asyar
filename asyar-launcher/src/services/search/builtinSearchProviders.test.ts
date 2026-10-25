@@ -8,6 +8,7 @@ import {
   registerBuiltinSearchProvider,
   searchBuiltinProviders,
   executeBuiltinSearchResult,
+  getBuiltinRowActions,
   resetBuiltinSearchProviders,
   type BuiltinSearchProvider,
 } from './builtinSearchProviders';
@@ -107,5 +108,23 @@ describe('builtinSearchProviders', () => {
 
     const hits = await searchBuiltinProviders('x', () => true);
     expect(hits.map((h) => h.title)).toEqual(['W', 'C']);
+  });
+
+  it('asks the owning provider for row actions, derived from the row payload only', () => {
+    const rowActions = vi.fn((_id: string, payload?: unknown) => [
+      { id: 'a', label: String(payload), execute: vi.fn() },
+    ]);
+    registerBuiltinSearchProvider({ ...provider('calculator', []), rowActions });
+
+    expect(getBuiltinRowActions('calculator', 'row-1', 'p1')).toEqual([
+      expect.objectContaining({ id: 'a', label: 'p1' }),
+    ]);
+    expect(rowActions).toHaveBeenCalledWith('row-1', 'p1');
+  });
+
+  it('returns no row actions for unknown or action-less providers', () => {
+    registerBuiltinSearchProvider(provider('walkthrough', []));
+    expect(getBuiltinRowActions('walkthrough', 'r')).toEqual([]);
+    expect(getBuiltinRowActions('nobody', 'r')).toEqual([]);
   });
 });

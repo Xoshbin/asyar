@@ -7,7 +7,11 @@ import { searchStores } from './stores/search.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
 import { actionService } from '../action/actionService.svelte';
-import { searchBuiltinProviders, executeBuiltinSearchResult } from './builtinSearchProviders';
+import {
+  searchBuiltinProviders,
+  executeBuiltinSearchResult,
+  getBuiltinRowActions,
+} from './builtinSearchProviders';
 
 // Mocking dependencies
 vi.mock('../appInitState', () => ({
@@ -77,6 +81,7 @@ vi.mock('../action/actionService.svelte', () => ({
 vi.mock('./builtinSearchProviders', () => ({
   searchBuiltinProviders: vi.fn(),
   executeBuiltinSearchResult: vi.fn(),
+  getBuiltinRowActions: vi.fn(() => []),
 }));
 
 describe('searchOrchestrator characterization tests', () => {
@@ -479,6 +484,49 @@ describe('searchOrchestrator characterization tests', () => {
     expect(searchOrchestrator.items[0].action).toBeDefined();
     expect(typeof searchOrchestrator.items[0].action).toBe('function');
   });
+  it('attaches provider row actions built from the row payload', async () => {
+    const action = { id: 'calculator:copy-color-hex', label: 'Copy as HEX', execute: vi.fn() };
+    vi.mocked(getBuiltinRowActions).mockReturnValueOnce([action]);
+    vi.mocked(searchBuiltinProviders).mockResolvedValue([
+      {
+        id: 'calc_result_0',
+        title: 'rgb(1, 2, 3)',
+        extensionId: 'calculator',
+        actionPayload: { colorFormats: ['#010203'] },
+      },
+    ]);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({
+      results: [{ objectId: 'calc_result_0', name: 'rgb(1, 2, 3)', type: 'command' } as any],
+      aliasMatch: null,
+    });
+
+    await searchOrchestrator.handleSearch('#010203');
+
+    expect(getBuiltinRowActions).toHaveBeenCalledWith('calculator', 'calc_result_0', {
+      colorFormats: ['#010203'],
+    });
+    expect(searchOrchestrator.items[0].rowActions).toEqual([action]);
+  });
+
+  it('carries a built-in row primary action label onto its result', async () => {
+    vi.mocked(searchBuiltinProviders).mockResolvedValue([
+      {
+        id: 'calc_result_0',
+        title: '42',
+        extensionId: 'calculator',
+        primaryActionLabel: 'Copy',
+      },
+    ]);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({
+      results: [{ objectId: 'calc_result_0', name: '42', type: 'command' } as any],
+      aliasMatch: null,
+    });
+
+    await searchOrchestrator.handleSearch('6 * 7');
+
+    expect(searchOrchestrator.items[0].primaryActionLabel).toBe('Copy');
+  });
+
   it('executes worker action before the aggregated navigation callback', async () => {
     const navigate = vi.fn();
     vi.mocked(extensionManager.searchAll).mockResolvedValue([

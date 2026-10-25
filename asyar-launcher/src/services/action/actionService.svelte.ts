@@ -25,6 +25,7 @@ import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
 import { assertActionShortcut } from '../../lib/keyboard/actionShortcut';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
+import { compareActionTier, type ActionPlacement } from './actionTier';
 
 // Module-level platform detection for the Uninstall action. macOS moves the
 // .app bundle to Trash via `trash::delete`; Windows resolves the .lnk
@@ -82,6 +83,8 @@ export interface ApplicationAction {
   context?: ActionContext; // Use the enum type here too for consistency
   confirm?: boolean;
   destructive?: boolean;
+  /** Panel position for built-ins; unmarked actions are the selected item's own. See `actionTier`. */
+  placement?: ActionPlacement;
   execute: () => Promise<void> | void;
   shortcut?: string;
   visible?: () => boolean;
@@ -99,6 +102,7 @@ function sameActionMetadata(a: ApplicationAction, b: ApplicationAction): boolean
     a.context === b.context &&
     a.confirm === b.confirm &&
     a.destructive === b.destructive &&
+    a.placement === b.placement &&
     a.shortcut === b.shortcut &&
     a.disabled === b.disabled
   );
@@ -224,6 +228,7 @@ export class ActionService implements IActionService {
       context: action.context || ActionContext.EXTENSION_VIEW,
       confirm: 'confirm' in action ? action.confirm : undefined,
       destructive: 'destructive' in action ? action.destructive : undefined,
+      placement: 'placement' in action ? action.placement : undefined,
       shortcut: 'shortcut' in action ? action.shortcut : undefined,
       execute: action.execute,
       disabled: 'disabled' in action ? action.disabled : undefined,
@@ -367,9 +372,9 @@ export class ActionService implements IActionService {
    * Get actions filtered by the current context
    */
   private getFilteredActions(): ApplicationAction[] {
-    const filtered = Array.from(this.allActions.values()).filter(
-      this.filterActionsByContext.bind(this),
-    );
+    const filtered = Array.from(this.allActions.values())
+      .filter(this.filterActionsByContext.bind(this))
+      .sort(compareActionTier);
 
     // Log details about filtered actions
     logService.debug(
@@ -380,8 +385,9 @@ export class ActionService implements IActionService {
   }
 
   /**
-   * The actions a key press may trigger right now: exactly what the ⌘K panel
-   * would list for the current context, minus the ones without a shortcut.
+   * The actions a key press may trigger right now: the ⌘K panel's actions for
+   * the current context (same filter, not the same order: this ranks chord
+   * precedence, not panel position), minus the ones without a shortcut.
    * Recomputed on every call (not read from `filteredActions`) because
    * `visible()` depends on the selected search item, which can change between
    * the last `updateState()` and a keypress. View-scoped actions come before
@@ -523,6 +529,7 @@ export class ActionService implements IActionService {
       description: t('core_actions.settings_desc'),
       category: t('categories.system'),
       context: ActionContext.CORE,
+      placement: 'launcher',
       execute: async () => {
         logService.info('Executing built-in action: Open Settings');
         try {
@@ -540,6 +547,7 @@ export class ActionService implements IActionService {
       description: t('core_actions.send_feedback_desc'),
       category: t('categories.system'),
       context: ActionContext.CORE,
+      placement: 'launcher',
       execute: async () => {
         logService.info('Executing built-in action: Send Feedback');
         try {
@@ -557,6 +565,7 @@ export class ActionService implements IActionService {
       description: t('core_actions.reset_search_desc'),
       category: t('categories.system'),
       context: ActionContext.CORE,
+      placement: 'launcher',
       visible: () => developerSettingsService.isDeveloperMode,
       execute: async () => {
         logService.info('Executing built-in action: Reset Search Index');
@@ -572,6 +581,7 @@ export class ActionService implements IActionService {
       category: t('categories.danger'),
       context: ActionContext.CORE,
       confirm: true,
+      destructive: true,
       visible: () => developerSettingsService.isDeveloperMode,
       execute: async () => {
         logService.info('Executing built-in action: Factory Reset');
@@ -750,6 +760,7 @@ export class ActionService implements IActionService {
       description: t('core_actions.copy_deeplink_desc'),
       category: t('categories.share'),
       context: ActionContext.CORE,
+      placement: 'manage',
       shortcut: 'Mod+Shift+C',
       visible: () => {
         const item = this.getSelectedSearchItem();
@@ -775,6 +786,7 @@ export class ActionService implements IActionService {
       description: t('core_actions.view_extension_commands_desc'),
       category: t('categories.extension'),
       context: ActionContext.CORE,
+      placement: 'manage',
       shortcut: 'Mod+Shift+E',
       visible: () => {
         const item = this.getSelectedSearchItem();
@@ -797,6 +809,7 @@ export class ActionService implements IActionService {
       description: t('core_actions.configure_extension_desc'),
       category: t('categories.extension'),
       context: ActionContext.CORE,
+      placement: 'manage',
       shortcut: 'Mod+Shift+,',
       visible: () => {
         const item = this.getSelectedSearchItem();

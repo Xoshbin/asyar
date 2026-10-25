@@ -1,7 +1,10 @@
 import {
   registerBuiltinSearchProvider,
+  type BuiltinRowAction,
   type BuiltinSearchRow,
 } from '../../services/search/builtinSearchProviders';
+import { t } from '../../services/i18n';
+import { colorFormatOf, sortColorFormats, splitColorQuery } from '../../lib/colorFormat';
 import type {
   Extension,
   ExtensionContext,
@@ -90,19 +93,47 @@ class CalculatorExtension implements Extension {
       id: `calc_result_${index}`,
       score: 1.0,
       title: r.value,
-      subtitle: r.detail || trimmed,
+      subtitle: r.kind === 'color' ? splitColorQuery(trimmed).color : r.detail || trimmed,
       icon: KIND_ICONS[r.kind] ?? '🧮',
       style: 'large',
       priority: 'top',
-      actionPayload: { copyValue: r.value.replace(/^≈ /, '') },
+      primaryActionLabel: t('common.copy'),
+      actionPayload: {
+        copyValue: r.value.replace(/^≈ /, ''),
+        // Every notation of a color, so ⌘K can offer each one without
+        // another round-trip. Plain data: it travels with the row.
+        ...(r.kind === 'color' && {
+          colorFormats: sortColorFormats([r.value, ...r.detail.split(' · ')]),
+        }),
+      },
     }));
   }
+
+  rowActions(rowId: string, payload?: unknown): BuiltinRowAction[] {
+    const formats = (payload as { colorFormats?: unknown } | undefined)?.colorFormats;
+    if (!Array.isArray(formats)) return [];
+    return formats.flatMap((value): BuiltinRowAction[] => {
+      const format = typeof value === 'string' ? colorFormatOf(value) : null;
+      if (!format) return [];
+      return [
+        {
+          id: `calculator:copy-color-${format.toLowerCase()}`,
+          label: t('selection_actions.copy_color_as', { format }),
+          description: t('selection_actions.copy_color_as_desc', { format }),
+          icon: 'icon:copy',
+          category: t('components.calc_card.color'),
+          execute: () => this.executeSearchResult(rowId, { copyValue: value }),
+        },
+      ];
+    });
+  }
+
   async executeSearchResult(_id: string, payload?: unknown): Promise<void> {
     const copyValue = (payload as { copyValue?: unknown } | undefined)?.copyValue;
     if (typeof copyValue !== 'string') return;
     try {
       await writeText(copyValue);
-      this.feedbackService?.sendBackground({ title: 'Calculator', body: `Copied: ${copyValue}` });
+      await this.feedbackService?.showHUD(`Copied: ${copyValue}`);
     } catch (e) {
       this.logService?.error('Copy failed: ' + e);
     }
@@ -115,5 +146,6 @@ registerBuiltinSearchProvider({
   extensionId: 'calculator',
   search: (query) => extension.searchRows(query),
   execute: (id, payload) => extension.executeSearchResult(id, payload),
+  rowActions: (id, payload) => extension.rowActions(id, payload),
 });
 export default extension;

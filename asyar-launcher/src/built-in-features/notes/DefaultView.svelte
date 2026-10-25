@@ -5,7 +5,8 @@
     Textarea,
     SplitListDetail,
     LauncherListRow,
-    ActionFooter,
+    Icon,
+    MetadataList,
     EmptyState,
     Button,
     Badge,
@@ -174,6 +175,7 @@
   }
 
   let wordCount = $derived(formBody.trim() ? formBody.trim().split(/\s+/).length : 0);
+  let charCount = $derived(formBody.length);
 </script>
 
 <SplitListDetail
@@ -212,6 +214,17 @@
             />
           </svg>
         </div>
+      {/snippet}
+      {#snippet trailing()}
+        {#if note.pinned}
+          <span
+            class="pin-badge flex items-center justify-center opacity-70 flex-shrink-0"
+            aria-label={t('common.pinned')}
+            data-testid="note-pin-icon"
+          >
+            <Icon name="pin" size={13} />
+          </span>
+        {/if}
       {/snippet}
     </LauncherListRow>
   {/snippet}
@@ -271,14 +284,28 @@
           </div>
         {/if}
       </div>
-      <ActionFooter>
-        {#snippet left()}
-          <span class="text-caption" style="color: var(--text-tertiary)">
-            Edited {relativeTime(selectedNote.updatedAt)} · {wordCount}
-            {wordCount === 1 ? 'word' : 'words'}
-          </span>
-        {/snippet}
-      </ActionFooter>
+      <MetadataList
+        title={t('common.information')}
+        items={[
+          {
+            label: t('features.notes.ui.words'),
+            value: wordCount.toLocaleString(),
+          },
+          {
+            label: t('features.notes.ui.characters'),
+            value: charCount.toLocaleString(),
+          },
+          {
+            label: t('features.notes.ui.modified'),
+            value: relativeTime(selectedNote.updatedAt),
+            title: new Date(selectedNote.updatedAt).toLocaleString(),
+          },
+          {
+            label: t('features.notes.ui.mentions'),
+            value: backlinks.length > 0 ? String(backlinks.length) : null,
+          },
+        ]}
+      />
     {:else}
       <EmptyState
         message={filteredNotes.length === 0
@@ -396,5 +423,8 @@
   }
   .backlink-item:hover {
     text-decoration: underline;
+  }
+  .pin-badge {
+    color: var(--accent-primary);
   }
 </style>

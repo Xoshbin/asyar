@@ -11,7 +11,7 @@ import { fileManagerService } from '../../services/fileManager/fileManagerServic
 import { t } from '../../services/i18n';
 import { openerService } from '../../services/opener/openerService';
 import { primeAiChipForFile } from './aiChipBridge';
-import { runDeepSearch, togglePin } from './state.svelte';
+import { fileSearchViewState, runDeepSearch, togglePin } from './state.svelte';
 
 type RootFile = { path: string; name: string; fileId: string; isDir?: boolean };
 
@@ -32,12 +32,14 @@ function parentDirOf(file: FileHit): string {
   return file.isDir ? file.path : file.path.replace(/[/\\][^/\\]*$/, '');
 }
 
+export type FileAction = ExtensionAction & { visible?: () => boolean };
+
 export function buildFileActions(opts: {
   getFile: () => FileHit | RootFile | null | undefined;
   context: ActionContext;
   include?: { deepSearch?: boolean; clearHistory?: boolean };
   onRemoved?: (fileId: string) => void;
-}): ExtensionAction[] {
+}): FileAction[] {
   const getFile = (): FileHit | null => {
     const file = opts.getFile();
     return file ? asFileHit(file) : null;
@@ -47,7 +49,7 @@ export function buildFileActions(opts: {
     category: 'file-action',
     context: opts.context,
   };
-  const actions: ExtensionAction[] = [
+  const actions: FileAction[] = [
     {
       ...base,
       id: 'file-search:reveal-in-finder',
@@ -98,11 +100,33 @@ export function buildFileActions(opts: {
     },
     {
       ...base,
-      id: 'file-search:toggle-pin',
-      title: t('features.file_search.act.toggle_pin'),
+      id: 'file-search:pin',
+      title: t('features.file_search.act.pin'),
       description: t('features.file_search.act.toggle_pin_desc'),
-      icon: 'icon:bookmark',
+      icon: 'icon:pin',
       shortcut: 'Mod+Shift+P',
+      visible: () => {
+        const file = getFile();
+        return file
+          ? !fileSearchViewState.pinnedFiles.some((p) => p.fileId === file.fileId)
+          : false;
+      },
+      execute: async () => {
+        const file = getFile();
+        if (file) await togglePin(file.fileId, file.path);
+      },
+    },
+    {
+      ...base,
+      id: 'file-search:unpin',
+      title: t('features.file_search.act.unpin'),
+      description: t('features.file_search.act.toggle_pin_desc'),
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
+      visible: () => {
+        const file = getFile();
+        return file ? fileSearchViewState.pinnedFiles.some((p) => p.fileId === file.fileId) : false;
+      },
       execute: async () => {
         const file = getFile();
         if (file) await togglePin(file.fileId, file.path);
@@ -118,6 +142,16 @@ export function buildFileActions(opts: {
       execute: async () => {
         const file = getFile();
         if (!file) return;
+        // Asked here rather than through the action's `confirm` flag so every
+        // caller of this descriptor is covered, and so the dialog can name the file.
+        const confirmed = await feedbackService.confirmAlert({
+          title: t('features.file_search.act.trash_confirm_title'),
+          message: t('features.file_search.act.trash_confirm_message', { name: file.name }),
+          confirmText: t('features.file_search.act.trash'),
+          cancelText: t('common.cancel'),
+          variant: 'danger',
+        });
+        if (!confirmed) return;
         try {
           await fileManagerService.trash(file.path);
           opts.onRemoved?.(file.fileId);

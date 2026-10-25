@@ -271,7 +271,9 @@
       "exclude_patterns": "Exclude patterns",
       "exclude_patterns_description": "Glob patterns to skip during indexing.",
       "add_search_root_title": "Add Search Root",
-      "pattern_placeholder": "e.g. *.tmp"
+      "pattern_placeholder": "e.g. *.tmp",
+      "recent_ignore_patterns": "Recent files ignore list",
+      "recent_ignore_patterns_description": "Files modified in the last 24 hours show in File Search before you type. Common noise (build folders, caches, logs, app bundles) is already hidden; add extra glob patterns, matched against the file name and every parent folder, to hide more."
     },
     "extensions": {
       "installed": "Installed Extensions",
@@ -943,7 +945,14 @@
         "preview_alt": "Preview",
         "image_failed": "Failed to load image",
         "reveal_title": "Reveal in Finder",
-        "preview_unavailable": "Preview unavailable"
+        "preview_unavailable": "Preview unavailable",
+        "source": "Source",
+        "type": "Type",
+        "characters": "Characters",
+        "words": "Words",
+        "dimensions": "Dimensions",
+        "size": "Size",
+        "copied": "Copied"
       }
     },
     "snippets": {
@@ -978,6 +987,8 @@
         "duplicate": "Duplicate Snippet",
         "duplicate_desc": "Create a duplicate of the selected snippet",
         "pin": "Pin/Unpin Snippet",
+        "pin_snippet": "Pin Snippet",
+        "unpin_snippet": "Unpin Snippet",
         "pin_desc": "Pin or unpin the selected snippet to keep it at the top",
         "private": "Toggle Private (Local Only)",
         "private_desc": "Mark or unmark the selected snippet as private to prevent cloud sync",
@@ -998,7 +1009,13 @@
         "browse_post": "to browse.",
         "encrypted_secret": "Encrypted secret",
         "badge": "snippet",
-        "add_first": "Add your first snippet"
+        "add_first": "Add your first snippet",
+        "keyword": "Keyword",
+        "length": "Length",
+        "created": "Created",
+        "visibility": "Visibility",
+        "visibility_private": "Private (Local only)",
+        "visibility_synced": "Synced"
       }
     },
     "file_search": {
@@ -1015,9 +1032,13 @@
         "open_terminal": "Open in Terminal",
         "open_terminal_desc": "Open the containing folder in the default terminal",
         "toggle_pin": "Toggle Pin",
+        "pin": "Pin File",
+        "unpin": "Unpin File",
         "toggle_pin_desc": "Pin this file to the top or unpin it",
         "trash": "Move to Trash",
         "trash_desc": "Move the file to the system trash",
+        "trash_confirm_title": "Move to Trash?",
+        "trash_confirm_message": "“{name}” will be moved to the Trash. You can put it back from there.",
         "quick_look": "Quick Look",
         "quick_look_desc": "Preview the file",
         "send_ai": "Send to Asyar AI",
@@ -1029,7 +1050,12 @@
       },
       "ui": {
         "deep": "deep",
-        "loading_preview": "Loading preview…"
+        "loading_preview": "Loading preview…",
+        "no_recent": "No files modified in the last 24 hours",
+        "where": "Where",
+        "kind": "Kind",
+        "size": "Size",
+        "modified": "Modified"
       }
     },
     "notes": {
@@ -1044,6 +1070,8 @@
         "new": "New Note",
         "new_desc": "Create a new note",
         "pin": "Pin/Unpin Note",
+        "pin_note": "Pin Note",
+        "unpin_note": "Unpin Note",
         "pin_desc": "Pin or unpin the selected note to keep it at the top",
         "duplicate": "Duplicate Note",
         "duplicate_desc": "Create a duplicate of the selected note",
@@ -1061,7 +1089,11 @@
         "untitled": "Untitled Note",
         "body_placeholder": "Start writing… ⌘Enter follows a [[link]] under the cursor.",
         "linked_mentions": "Linked Mentions",
-        "create_first": "Create your first note"
+        "create_first": "Create your first note",
+        "words": "Words",
+        "characters": "Characters",
+        "modified": "Modified",
+        "mentions": "Mentions"
       }
     },
     "walkthrough": {
@@ -1159,7 +1191,8 @@
         "path": "Path",
         "badge": "shortcut",
         "press_pre": "Press",
-        "press_post": "to cancel"
+        "press_post": "to cancel",
+        "name": "Name"
       }
     },
     "scripts": {
@@ -1187,7 +1220,10 @@
         "config": "Configuration",
         "file": "File",
         "directory": "Directory",
-        "arguments": "Arguments"
+        "arguments": "Arguments",
+        "mode": "Mode",
+        "refresh": "Refresh",
+        "manual": "Manual"
       }
     },
     "store": {
@@ -1253,6 +1289,11 @@
         "updated": "Updated",
         "status": "Status",
         "added": "Added",
+        "author": "Author",
+        "category": "Category",
+        "installs": "Installs",
+        "not_installed": "Not Installed",
+        "commands": "Commands",
         "lazy_failed": "Failed to load view"
       }
     },
@@ -1289,6 +1330,10 @@
         "new_thread_desc": "Start a new conversation thread",
         "delete_thread": "Delete Current Thread",
         "delete_thread_desc": "Delete the active conversation thread",
+        "pin_thread": "Pin Current Thread",
+        "pin_thread_desc": "Keep the active thread at the top of the list",
+        "unpin_thread": "Unpin Current Thread",
+        "unpin_thread_desc": "Stop keeping the active thread at the top of the list",
         "cancel": "Cancel Run",
         "cancel_desc": "Abort the in-flight assistant response"
       },
@@ -1356,7 +1401,10 @@
         "exit_nonzero": "Script exited with non-zero status.",
         "succeeded": "Finished Successfully",
         "succeeded_in": "Process successfully completed in {seconds} seconds.",
-        "succeeded_silent": "Execution successful. The script terminated without printing any output to standard out."
+        "succeeded_silent": "Execution successful. The script terminated without printing any output to standard out.",
+        "status": "Status",
+        "started": "Started",
+        "duration": "Duration"
       }
     },
     "usage_stats": {
@@ -1611,7 +1659,9 @@
         "use_placeholders": "Use placeholders in the URL: {tokens}.",
         "browse_pre": "Press",
         "browse_mid": "or the",
-        "browse_post": "button to browse all placeholders."
+        "browse_post": "button to browse all placeholders.",
+        "command": "Command",
+        "created": "Created"
       }
     },
     "help": {
@@ -1717,6 +1767,14 @@
         "time_machine": "Time Machine",
         "startup_disk": "Startup Disk"
       }
+    },
+    "url_opener": {
+      "open_in_browser": "Open in Browser",
+      "open": "Open",
+      "copy_url": "Copy URL",
+      "copy_url_desc": "Copy the address to the clipboard",
+      "copied": "Copied URL",
+      "open_failed": "Couldn't open {url}"
     }
   },
   "common": {
@@ -1783,7 +1841,9 @@
     "refresh": "Refresh",
     "run": "Run",
     "import": "Import",
-    "update": "Update"
+    "update": "Update",
+    "information": "Information",
+    "metadata": "Metadata"
   },
   "components": {
     "shortcut_recorder": {
@@ -1894,6 +1954,8 @@
     "change_shortcut": "Change Shortcut",
     "assign_shortcut": "Assign Shortcut",
     "assign_shortcut_desc": "Assign global shortcut",
+    "copy_color_as": "Copy as {format}",
+    "copy_color_as_desc": "Copy this color as {format}",
     "cancel_run": "Cancel Run",
     "cancel_run_desc": "Cancel this running task",
     "dismiss_failure": "Dismiss Failure",

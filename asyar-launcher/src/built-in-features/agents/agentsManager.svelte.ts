@@ -20,6 +20,11 @@ export class AgentsManager {
    */
   currentThreadId = $state<string | null>(null);
   /**
+   * Bumped when thread metadata changes outside the chat view (e.g. pin / unpin
+   * from the ⌘K action panel) so the view reloads its thread list.
+   */
+  threadsVersion = $state(0);
+  /**
    * In-flight assistant response. While a turn is streaming, tokens land
    * here and the chat view renders them as a temporary bubble. Cleared
    * when the turn is persisted (real message takes over).
