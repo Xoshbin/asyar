@@ -28,6 +28,7 @@ export const BUILT_IN_FEATURE_IDS = new Set<string>([
   'store',
   'system',
   'system-settings',
+  'url-opener',
   'usage-stats',
   'walkthrough',
   'window-management',

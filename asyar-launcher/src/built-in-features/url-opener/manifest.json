@@ -1,0 +1,12 @@
+{
+  "id": "url-opener",
+  "name": "URL Opener",
+  "icon": "icon:globe",
+  "version": "1.0.0",
+  "lifecycle": { "disableable": true },
+  "description": "Type or paste a web address into the search bar and open it in your browser.",
+  "type": "extension",
+  "permissions": [],
+  "commands": [],
+  "searchable": true
+}

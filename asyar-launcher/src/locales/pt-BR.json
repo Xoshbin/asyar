@@ -1764,6 +1764,14 @@
         "time_machine": "Time Machine",
         "startup_disk": "Disco de Inicialização"
       }
+    },
+    "url_opener": {
+      "open_in_browser": "Abrir no navegador",
+      "open": "Abrir",
+      "copy_url": "Copiar URL",
+      "copy_url_desc": "Copiar o endereço para a área de transferência",
+      "copied": "URL copiada",
+      "open_failed": "Não foi possível abrir {url}"
     }
   },
   "common": {
