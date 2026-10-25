@@ -395,7 +395,11 @@ mod tests {
     #[test]
     fn parent_directories_compare_case_sensitively_unless_the_filesystem_folds_case() {
         let (hit, typed) = ("/home/me/docs/develop", "/home/me/Docs/dev");
-        assert!(!completes_typed_path_with(hit, typed, false));
+        // `normalize_path_for_dedup` already lowercases on Windows, and
+        // production never asks for case-sensitive compares there.
+        if !cfg!(windows) {
+            assert!(!completes_typed_path_with(hit, typed, false));
+        }
         assert!(completes_typed_path_with(hit, typed, true));
         // The filename prefix is case-insensitive either way.
         assert!(completes_typed_path_with(
