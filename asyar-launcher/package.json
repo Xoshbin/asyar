@@ -41,7 +41,7 @@
     "@tauri-apps/plugin-updater": "~2.10.0",
     "asyar-sdk": "^4.16.0",
     "date-fns": "^4.1.0",
-    "katex": "^0.18.3",
+    "katex": "^0.18.4",
     "marked": "^17.0.5",
     "mathjs": "^15.2.0",
     "mermaid": "^11.16.1",
@@ -53,7 +53,7 @@
   "devDependencies": {
     "@eslint/js": "^9.23.0",
     "@sveltejs/adapter-static": "^3.0.6",
-    "@sveltejs/kit": "^2.70.2",
+    "@sveltejs/kit": "^3.0.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tauri-apps/cli": "2.12.2",
     "@tauri-apps/cli-win32-arm64-msvc": "2.12.2",
