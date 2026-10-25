@@ -175,6 +175,12 @@ mod tests {
         )
     }
 
+    /// The index joins path parts with the native separator, so on Windows a
+    /// fixture path comes back as `/home/me\Developer`.
+    fn slashes(path: &str) -> String {
+        path.replace('\\', "/")
+    }
+
     /// Index with explicit directory entries, so ancestor tokens and
     /// materialised paths behave as in a real scan.
     fn tree(entries: &[(&str, EntryKind)]) -> FileIndexState {
@@ -309,10 +315,7 @@ mod tests {
             inserted > 0,
             "completions under the typed path must survive"
         );
-        assert!(rows.iter().all(|r| r
-            .path
-            .as_deref()
-            .unwrap()
+        assert!(rows.iter().all(|r| slashes(r.path.as_deref().unwrap())
             .to_lowercase()
             .starts_with("/home/me/dev")));
     }
@@ -359,7 +362,10 @@ mod tests {
             100,
             Some("/home/me/develop"),
         );
-        let mut paths: Vec<&str> = rows.iter().map(|r| r.path.as_deref().unwrap()).collect();
+        let mut paths: Vec<String> = rows
+            .iter()
+            .map(|r| slashes(r.path.as_deref().unwrap()))
+            .collect();
         paths.sort_unstable();
         assert_eq!(
             paths,
