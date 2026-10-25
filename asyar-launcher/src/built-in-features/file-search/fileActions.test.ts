@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionContext } from 'asyar-sdk/contracts';
 
-const { quickLookPath, openPath } = vi.hoisted(() => ({
+const { quickLookPath, openPath, confirmAlert } = vi.hoisted(() => ({
   quickLookPath: vi.fn(),
   openPath: vi.fn(),
+  confirmAlert: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/plugin-opener', () => ({ revealItemInDir: vi.fn() }));
@@ -18,7 +19,7 @@ vi.mock('../../services/fileManager/fileManagerService', () => ({
   fileManagerService: { trash: vi.fn() },
 }));
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
-  feedbackService: { report: vi.fn() },
+  feedbackService: { report: vi.fn(), confirmAlert },
 }));
 vi.mock('./aiChipBridge', () => ({ primeAiChipForFile: vi.fn() }));
 vi.mock('./state.svelte', () => ({
@@ -28,6 +29,7 @@ vi.mock('./state.svelte', () => ({
 }));
 
 import { buildFileActions } from './fileActions';
+import { fileManagerService } from '../../services/fileManager/fileManagerService';
 
 const file = { fileId: 'abc', path: '/tmp/report.txt', name: 'report.txt' };
 
@@ -72,5 +74,37 @@ describe('buildFileActions', () => {
     const actions = buildFileActions({ getFile: () => file, context: ActionContext.CORE });
     await actions.find((action) => action.id === 'file-search:quick-look')?.execute?.();
     expect(openPath).toHaveBeenCalledWith(null, file.path);
+  });
+
+  describe('file-search:move-to-trash', () => {
+    const trashAction = () => {
+      const action = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+        (a) => a.id === 'file-search:move-to-trash',
+      );
+      if (!action) throw new Error('move-to-trash action missing');
+      return action;
+    };
+
+    it('asks first, naming the file, and trashes nothing when declined', async () => {
+      confirmAlert.mockResolvedValue(false);
+
+      await trashAction().execute();
+
+      expect(confirmAlert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'danger',
+          message: expect.stringContaining('report.txt'),
+        }),
+      );
+      expect(fileManagerService.trash).not.toHaveBeenCalled();
+    });
+
+    it('moves the file to the trash once confirmed', async () => {
+      confirmAlert.mockResolvedValue(true);
+
+      await trashAction().execute();
+
+      expect(fileManagerService.trash).toHaveBeenCalledWith('/tmp/report.txt');
+    });
   });
 });

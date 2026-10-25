@@ -23,7 +23,8 @@ fn validate_show_path(path_str: &str) -> Result<(), AppError> {
 }
 
 /// Validates the path for the `trash_path` command.
-/// Rejects non-absolute, non-existent, or paths outside the home directory.
+/// Rejects non-absolute, non-existent, or paths outside the home directory,
+/// and the home directory itself.
 fn validate_trash_path(path_str: &str, home_dir: &Path) -> Result<(), AppError> {
     let path = Path::new(path_str);
     if !path.is_absolute() {
@@ -46,6 +47,13 @@ fn validate_trash_path(path_str: &str, home_dir: &Path) -> Result<(), AppError> 
             "Access denied: path '{}' is outside home directory",
             path_str
         )));
+    }
+    // `starts_with` also accepts the home directory itself, which would trash
+    // every file the user owns in one call.
+    if normalized == super::files::normalize_path(home_dir) {
+        return Err(AppError::Other(
+            "Access denied: the home directory itself cannot be moved to the trash".to_string(),
+        ));
     }
     Ok(())
 }
@@ -332,6 +340,35 @@ mod tests {
         let traversal_path = format!("{}/../../../etc/hosts", tmp.path().display());
         let result = validate_trash_path(&traversal_path, tmp.path());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_trash_rejects_home_directory_itself() {
+        let home = TempDir::new().unwrap();
+        let result = validate_trash_path(home.path().to_str().unwrap(), home.path());
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("home directory"),
+            "Error should mention the home directory: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_trash_rejects_home_spelled_with_dot_segments() {
+        let home = TempDir::new().unwrap();
+        let sneaky = format!("{}/./sub/..", home.path().display());
+        std::fs::create_dir(home.path().join("sub")).unwrap();
+        assert!(validate_trash_path(&sneaky, home.path()).is_err());
+    }
+
+    #[test]
+    fn test_trash_allows_a_directory_directly_inside_home() {
+        let home = TempDir::new().unwrap();
+        let dir = home.path().join("old-project");
+        std::fs::create_dir(&dir).unwrap();
+        assert!(validate_trash_path(dir.to_str().unwrap(), home.path()).is_ok());
     }
 
     #[test]

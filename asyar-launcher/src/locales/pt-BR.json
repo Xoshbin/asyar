@@ -1037,6 +1037,8 @@
         "toggle_pin_desc": "Fixar este arquivo no topo ou desafixá-lo",
         "trash": "Mover para a Lixeira",
         "trash_desc": "Mover o arquivo para a lixeira do sistema",
+        "trash_confirm_title": "Mover para a Lixeira?",
+        "trash_confirm_message": "“{name}” será movido para a Lixeira. Você pode restaurá-lo de lá.",
         "quick_look": "Quick Look",
         "quick_look_desc": "Pré-visualizar o arquivo",
         "send_ai": "Enviar para o Asyar AI",

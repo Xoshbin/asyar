@@ -1037,6 +1037,8 @@
         "toggle_pin_desc": "將此檔案釘選到頂端或取消釘選",
         "trash": "移至垃圾桶",
         "trash_desc": "將檔案移至系統垃圾桶",
+        "trash_confirm_title": "移至垃圾桶？",
+        "trash_confirm_message": "「{name}」將被移至垃圾桶，你可以從垃圾桶中放回原處。",
         "quick_look": "快速查看",
         "quick_look_desc": "預覽該檔案",
         "send_ai": "傳送給 Asyar AI",

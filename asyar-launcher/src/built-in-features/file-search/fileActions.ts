@@ -142,6 +142,16 @@ export function buildFileActions(opts: {
       execute: async () => {
         const file = getFile();
         if (!file) return;
+        // Asked here rather than through the action's `confirm` flag so every
+        // caller of this descriptor is covered, and so the dialog can name the file.
+        const confirmed = await feedbackService.confirmAlert({
+          title: t('features.file_search.act.trash_confirm_title'),
+          message: t('features.file_search.act.trash_confirm_message', { name: file.name }),
+          confirmText: t('features.file_search.act.trash'),
+          cancelText: t('common.cancel'),
+          variant: 'danger',
+        });
+        if (!confirmed) return;
         try {
           await fileManagerService.trash(file.path);
           opts.onRemoved?.(file.fileId);
