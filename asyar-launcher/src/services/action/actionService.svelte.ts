@@ -87,6 +87,20 @@ export interface ApplicationAction {
   visible?: () => boolean;
 }
 
+const GENERIC_ACTION_IDS = new Set([
+  'settings',
+  'send_feedback',
+  'reset_search',
+  'factory_reset',
+  'copy_deeplink',
+  'view_extension_commands',
+  'configure_extension',
+  'shortcuts:assign',
+  'aliases:assign',
+  'favorite_item',
+  'unfavorite_item',
+]);
+
 function sameActionMetadata(a: ApplicationAction, b: ApplicationAction): boolean {
   if (a.visible || b.visible) return false;
   return (
@@ -367,9 +381,11 @@ export class ActionService implements IActionService {
    * Get actions filtered by the current context
    */
   private getFilteredActions(): ApplicationAction[] {
-    const filtered = Array.from(this.allActions.values()).filter(
-      this.filterActionsByContext.bind(this),
-    );
+    const rank = (a: ApplicationAction) =>
+      a.destructive ? 2 : GENERIC_ACTION_IDS.has(a.id) ? 1 : 0;
+    const filtered = Array.from(this.allActions.values())
+      .filter(this.filterActionsByContext.bind(this))
+      .sort((a, b) => rank(a) - rank(b));
 
     // Log details about filtered actions
     logService.debug(

@@ -385,6 +385,28 @@ describe('filterActionsByContext (via getActions)', () => {
   });
 });
 
+// ── ordering ─────────────────────────────────────────────────────────────────
+
+describe('filteredActions ordering', () => {
+  it('lists the item’s own actions before launcher-wide ones, destructive last', () => {
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    svc.registerAction({ ...makeAction('drop', ActionContext.CORE), destructive: true });
+    svc.registerAction(makeAction('shortcuts:assign', ActionContext.CORE));
+    svc.registerAction(makeAction('act_ext_custom', ActionContext.CORE, 'ext'));
+    svc.registerAction(makeAction('file-search:copy-path', ActionContext.CORE));
+
+    expect(svc.filteredActions.map((a) => a.id)).toEqual([
+      'act_ext_custom',
+      'file-search:copy-path',
+      'settings',
+      'send_feedback',
+      'shortcuts:assign',
+      'drop',
+    ]);
+  });
+});
+
 // ── visible callback ─────────────────────────────────────────────────────────
 
 describe('visible callback', () => {
