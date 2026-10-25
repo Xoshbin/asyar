@@ -98,6 +98,19 @@ pub fn prepend_exact_row(results: &mut Vec<SearchResult>, row: SearchResult) {
     results.insert(0, row);
 }
 
+/// Whether a typed path may produce an exact row. It needs File Search to be on
+/// (extension enabled and the master switch, i.e. `file_search_available`)
+/// *and* the root-search flag: the Settings toggle for the latter is greyed
+/// out while File Search is off, but the stored flag can stay `true`.
+pub fn exact_row_allowed(
+    include_files: bool,
+    has_typed_path: bool,
+    file_search_available: bool,
+    root_search_enabled: bool,
+) -> bool {
+    include_files && has_typed_path && file_search_available && root_search_enabled
+}
+
 /// How long the typed path's `stat` may take before the exact row is skipped.
 /// A hung network mount must never hold up the rest of root search.
 pub const EXACT_PATH_TIMEOUT: Duration = Duration::from_millis(150);
@@ -319,6 +332,18 @@ mod tests {
         .await;
         assert!(row.is_none());
         assert!(started.elapsed() < Duration::from_millis(300));
+    }
+
+    #[test]
+    fn exact_row_needs_file_search_on_not_just_the_root_search_flag() {
+        // (include_files, typed_path, file_search_available, root_search_enabled)
+        assert!(exact_row_allowed(true, true, true, true));
+        // The master File Search switch is off but the stored root-search flag
+        // is still true: the Settings toggle is greyed out, so no file rows.
+        assert!(!exact_row_allowed(true, true, false, true));
+        assert!(!exact_row_allowed(true, true, true, false));
+        assert!(!exact_row_allowed(false, true, true, true));
+        assert!(!exact_row_allowed(true, false, true, true));
     }
 
     #[cfg(windows)]

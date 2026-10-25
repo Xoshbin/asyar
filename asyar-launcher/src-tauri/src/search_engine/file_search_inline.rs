@@ -11,10 +11,11 @@ use super::models::SearchResult;
 
 pub const ROOT_FILE_ROW_CAP: usize = 4;
 pub const MIN_FILE_QUERY_CHARS: usize = 3;
-/// Hits requested from the index for a path-shaped query. The prefix filter
-/// runs after the index applies its limit, so this must be well above
-/// `ROOT_FILE_ROW_CAP` or the true completions can be crowded out.
-pub const PATH_COMPLETION_CANDIDATES: usize = 64;
+/// Hits requested from the index for a path-shaped query: as many as the index
+/// will return (it clamps to `DEFAULT_LIMIT`). The sibling filter runs after
+/// that limit, so a very short typed segment (`/Users/me/a`) can in principle
+/// be crowded out by unrelated matches ranked above the true completions.
+pub const PATH_COMPLETION_CANDIDATES: usize = crate::file_index::query::DEFAULT_LIMIT;
 
 /// Inserts bounded file-index matches after the app/command match block.
 ///
@@ -107,6 +108,13 @@ pub fn append_inline_file_results(
 /// typed last segment. Descendants of an existing typed folder are not
 /// completions — they only resemble the last segment by accident.
 fn completes_typed_path(hit_path: &str, typed: &str) -> bool {
+    completes_typed_path_with(hit_path, typed, cfg!(any(windows, target_os = "macos")))
+}
+
+/// `fold_dir_case` mirrors the filesystem: macOS and Windows volumes fold case
+/// by default, so `/home/me/docs` and `/home/me/Docs` are one directory there;
+/// on Linux they are two. The filename prefix is always case-insensitive.
+fn completes_typed_path_with(hit_path: &str, typed: &str, fold_dir_case: bool) -> bool {
     let (hit, typed) = (Path::new(hit_path), Path::new(typed));
     let (Some(hit_parent), Some(typed_parent)) = (hit.parent(), typed.parent()) else {
         return false;
@@ -114,7 +122,14 @@ fn completes_typed_path(hit_path: &str, typed: &str) -> bool {
     let (Some(hit_name), Some(typed_name)) = (hit.file_name(), typed.file_name()) else {
         return false;
     };
-    let dir = |p: &Path| normalize_path_for_dedup(&p.to_string_lossy()).to_lowercase();
+    let dir = |p: &Path| {
+        let normalized = normalize_path_for_dedup(&p.to_string_lossy());
+        if fold_dir_case {
+            normalized.to_lowercase()
+        } else {
+            normalized
+        }
+    };
     dir(hit_parent) == dir(typed_parent)
         && hit_name
             .to_string_lossy()
@@ -375,5 +390,18 @@ mod tests {
                 "/home/me/develop-old"
             ]
         );
+    }
+
+    #[test]
+    fn parent_directories_compare_case_sensitively_unless_the_filesystem_folds_case() {
+        let (hit, typed) = ("/home/me/docs/develop", "/home/me/Docs/dev");
+        assert!(!completes_typed_path_with(hit, typed, false));
+        assert!(completes_typed_path_with(hit, typed, true));
+        // The filename prefix is case-insensitive either way.
+        assert!(completes_typed_path_with(
+            "/home/me/Docs/Develop",
+            typed,
+            false
+        ));
     }
 }

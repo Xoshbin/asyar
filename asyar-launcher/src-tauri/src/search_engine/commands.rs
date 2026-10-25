@@ -62,13 +62,15 @@ pub async fn merged_search(
     // the file index is not needed) and suppresses unrelated fuzzy file hits.
     let home = dirs::home_dir();
     let typed_path = super::file_search_path::parse_typed_path(&query, home.as_deref());
-    let exact_allowed = include_files.unwrap_or(false)
-        && typed_path.is_some()
-        && !disabled_extensions.iter().any(|id| id == "file-search")
-        && file_index
+    let exact_allowed = super::file_search_path::exact_row_allowed(
+        include_files.unwrap_or(false),
+        typed_path.is_some(),
+        file_search_available,
+        file_index
             .as_ref()
             .map(|s| s.config().root_search_enabled)
-            .unwrap_or(false);
+            .unwrap_or(false),
+    );
     if exact_allowed {
         if let Some(row) = super::file_search_path::resolve_exact_row(
             &query,
