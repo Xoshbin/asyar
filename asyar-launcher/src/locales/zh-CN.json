@@ -1764,6 +1764,14 @@
         "time_machine": "时间机器",
         "startup_disk": "启动磁盘"
       }
+    },
+    "url_opener": {
+      "open_in_browser": "在浏览器中打开",
+      "open": "打开",
+      "copy_url": "复制网址",
+      "copy_url_desc": "将网址复制到剪贴板",
+      "copied": "已复制网址",
+      "open_failed": "无法打开 {url}"
     }
   },
   "common": {

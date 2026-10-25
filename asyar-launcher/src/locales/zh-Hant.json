@@ -1764,6 +1764,14 @@
         "time_machine": "時光機",
         "startup_disk": "啟動磁碟"
       }
+    },
+    "url_opener": {
+      "open_in_browser": "在瀏覽器中開啟",
+      "open": "開啟",
+      "copy_url": "複製網址",
+      "copy_url_desc": "將網址複製到剪貼簿",
+      "copied": "已複製網址",
+      "open_failed": "無法開啟 {url}"
     }
   },
   "common": {

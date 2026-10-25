@@ -140,11 +140,66 @@ const NL_PREFIXES: &[&str] = &[
     "% change",
 ];
 
+/// Four dot-separated all-digit groups ("127.0.0.1"). Looser than a real IPv4
+/// parse on purpose: any such token is an address, never a calculation.
+fn is_ipv4_literal(host: &str) -> bool {
+    let parts: Vec<&str> = host.split('.').collect();
+    parts.len() == 4
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && p.len() <= 3 && p.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// A pasted web address or filesystem path is never a calculation, even
+/// though it usually contains digits, dots and slashes that fend would happily
+/// parse as division. Letting it through put a garbage "UNITS" card at the top
+/// of root search for every URL.
+fn looks_like_url_or_path(q: &str) -> bool {
+    let lower = q.to_ascii_lowercase();
+    if lower.contains("://")
+        || lower.starts_with("www.")
+        || lower.starts_with("~/")
+        || lower.starts_with("~\\")
+    {
+        return true;
+    }
+    if q.starts_with('/') && q[1..].contains('/') {
+        return true;
+    }
+    // A single bare token whose host part ends in an alphabetic label
+    // ("github.com/user/repo2", "web3.com"); "3.14*2" and "1.5km" do not.
+    if q.chars().any(char::is_whitespace) {
+        return false;
+    }
+    let authority = q.split(['/', '?', '#']).next().unwrap_or(q);
+    // Strip an optional ":port" so "localhost:5173" and "127.0.0.1:8080" are
+    // recognised as hosts, not as ratios or times.
+    let host = match authority.rsplit_once(':') {
+        Some((h, port))
+            if !port.is_empty() && port.len() <= 5 && port.chars().all(|c| c.is_ascii_digit()) =>
+        {
+            h
+        }
+        _ => authority,
+    };
+    if host.eq_ignore_ascii_case("localhost") || is_ipv4_literal(host) {
+        return true;
+    }
+    let host = q.split('/').next().unwrap_or(q);
+    match host.rsplit_once('.') {
+        Some((_, label)) => label.len() >= 2 && label.chars().all(|c| c.is_ascii_alphabetic()),
+        None => false,
+    }
+}
+
 /// Cheap pre-filter: most launcher queries are app searches, not math.
 /// Returns false when the query cannot possibly be a calculation.
 pub fn should_attempt(query: &str) -> bool {
     let q = query.trim();
     if q.is_empty() || q.len() > 256 {
+        return false;
+    }
+    if looks_like_url_or_path(q) {
         return false;
     }
     if q.chars().any(|c| c.is_ascii_digit()) {
@@ -411,6 +466,53 @@ mod tests {
         assert!(should_attempt("pi * 2"));
         assert!(should_attempt("pi"));
         assert!(should_attempt("pi/4"));
+    }
+
+    #[test]
+    fn gate_rejects_urls_and_paths() {
+        assert!(!should_attempt(
+            "https://github.com/Xoshbin/asyar/issues/895"
+        ));
+        assert!(!should_attempt("http://localhost:5173"));
+        assert!(!should_attempt("www.example2.com"));
+        assert!(!should_attempt("web3.com"));
+        assert!(!should_attempt("github.com/user/repo2"));
+        assert!(!should_attempt("~/Projects/app2"));
+        assert!(!should_attempt("/Users/a/project2"));
+    }
+
+    #[test]
+    fn gate_rejects_localhost_and_ip_addresses() {
+        assert!(!should_attempt("localhost:5173"));
+        assert!(!should_attempt("localhost:5173/settings"));
+        assert!(!should_attempt("LOCALHOST:3000"));
+        assert!(!should_attempt("127.0.0.1"));
+        assert!(!should_attempt("127.0.0.1:8080"));
+        assert!(!should_attempt("192.168.1.10/admin"));
+    }
+
+    #[test]
+    fn gate_still_accepts_ratios_times_and_decimals() {
+        assert!(should_attempt("10:30"));
+        assert!(should_attempt("5:30 pm"));
+        assert!(should_attempt("1.2.3 + 1"));
+        assert!(should_attempt("localhost + 1"));
+    }
+
+    #[test]
+    fn gate_still_accepts_math_with_slashes_and_dots() {
+        assert!(should_attempt("1/2"));
+        assert!(should_attempt("10/5/2"));
+        assert!(should_attempt("3.14*2"));
+        assert!(should_attempt("1.5km in m"));
+        assert!(should_attempt("2.5 kg in lb"));
+    }
+
+    #[test]
+    fn pasted_issue_url_produces_no_result() {
+        assert!(
+            evaluate_query("https://github.com/Xoshbin/asyar/issues/895", &test_ctx()).is_empty()
+        );
     }
 
     #[test]
