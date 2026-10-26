@@ -1,10 +1,31 @@
-# Asyar
+<div align="center">
+  <img src="./media/app-icon.png" width="112" height="112" alt="Asyar app icon">
+  <h1>Asyar</h1>
+  <p><strong>The power of Raycast. The speed of Alfred. Privacy by design.</strong></p>
+  <p>A fast, native Rust & Tauri launcher for macOS, Windows, and Linux.</p>
+  <p>
+    <a href="https://www.reddit.com/r/asyarapp/"><img alt="Reddit" src="https://img.shields.io/badge/Reddit-r%2Fasyarapp-FF4500?logo=reddit&logoColor=white"></a>
+    <a href="https://discord.gg/vvYRXrs7Xa"><img alt="Discord" src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white"></a>
+    <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-AGPL_v3-blue.svg"></a>
+  </p>
+  <p>
+    <a href="https://github.com/Xoshbin/asyar/releases/latest"><strong>Download for macOS</strong></a>
+    ·
+    <a href="https://www.reddit.com/r/asyarapp/">Reddit (r/asyarapp)</a>
+    ·
+    <a href="https://discord.gg/vvYRXrs7Xa">Community</a>
+    ·
+    <a href="docs/">Documentation</a>
+  </p>
+</div>
 
-**The power of Raycast. The speed of Alfred. Privacy by design.**
-
-A fast, open-source launcher for macOS, Windows, and Linux.
-
-[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/vvYRXrs7Xa)
+<p align="center">
+  <video src="./media/promo/asyar_promo_showcase.mp4" poster="./media/promo/asyar_promo_poster.png" width="100%" controls autoplay loop muted playsinline>
+    <a href="./media/promo/asyar_promo_showcase.mp4">
+      <img src="./media/promo/asyar_promo_poster.png" width="100%" alt="Asyar Showcase Video" />
+    </a>
+  </video>
+</p>
 
 ## Tiny Footprint. Native Performance.
 
