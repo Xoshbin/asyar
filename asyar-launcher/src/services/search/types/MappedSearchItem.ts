@@ -9,7 +9,12 @@ export type MappedSearchItem = {
   /** Internal type used for action filtering (e.g. "command" vs "application") */
   type?: string;
   path?: string;
+  /** Internal label: drives Scripts/Agents grouping. Not shown as-is. */
   typeLabel?: string;
+  /** What the row is, shown on its right edge ("Command", "Application"). */
+  kindLabel?: string;
+  /** Where the row comes from, shown muted after the title ("Asyar", an extension name). */
+  sourceLabel?: string;
   /** The selected row shows the search bar's "Input" hint when true. */
   hasArguments?: boolean;
   icon?: string;

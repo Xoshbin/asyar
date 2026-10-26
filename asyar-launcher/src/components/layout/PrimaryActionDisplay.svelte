@@ -40,10 +40,8 @@
 </script>
 
 {#if primaryActionLabel}
-  <div
-    class="flex items-center justify-end pl-3 text-[var(--text-secondary)] gap-[var(--space-5-5)]"
-  >
-    <span class="font-semibold text-[var(--text-primary)]" style="font-size: var(--font-size-sm)"
+  <div class="flex items-center justify-end pl-3 text-[var(--text-secondary)] gap-[var(--space-3)]">
+    <span class="font-medium text-[var(--text-primary)]" style="font-size: var(--font-size-sm)"
       >{primaryActionLabel}</span
     >
     <KeyboardHint keys="↵" />

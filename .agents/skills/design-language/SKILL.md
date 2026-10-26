@@ -220,7 +220,10 @@ color: var(--accent-danger);
 
 **Prefer alignment to a border.** Two things sharing a left edge already read
 as one column; a border on top of that is a line the layout has already drawn
-(Principle II). Use a real border when the job is "this is an interactive
+(Principle II). The launcher shell follows this: **there is no divider under
+the search header and none above the bottom bar.** The glass surface flows
+from one to the next, and the spacing does the separating. Do not reintroduce
+a hairline there to "tidy" a view. Use a real border when the job is "this is an interactive
 control with an outline".
 
 ### Code colour
@@ -233,7 +236,7 @@ Only for rendered code and structured data. The Prism markdown theme and
 ### Everything else
 
 `--scrim` / `--scrim-opaque` for modal backdrops · `--control-knob` for the
-Toggle knob · `--shadow-color` inside shadows only · `--kbd-rim` for key chips.
+Toggle knob · `--shadow-color` inside shadows only · `--kbd-rim` and `--kbd-border` for key chips (the rim is the inset glow, the border is the outline).
 
 ---
 
@@ -242,17 +245,18 @@ Toggle knob · `--shadow-color` inside shadows only · `--kbd-rim` for key chips
 Use the class. Only drop to raw `var(--font-size-*)` inside a component that
 needs a size the classes do not cover.
 
-| Where you are                                      | Class              |
-| -------------------------------------------------- | ------------------ |
-| The title of a settings page or a full-screen view | `.text-page-title` |
-| A section heading inside a page                    | `.text-section`    |
-| An uppercase group label above a list              | `.section-header`  |
-| The name of a list item, card, or result           | `.text-title`      |
-| A paragraph of running text                        | `.text-body`       |
-| The label on a form field or setting               | `.text-label`      |
-| The second line under a list-item title            | `.text-subtitle`   |
-| A hint, a timestamp, a caption                     | `.text-caption`    |
-| Code, a path, an ID                                | `.text-mono`       |
+| Where you are                                      | Class                          |
+| -------------------------------------------------- | ------------------------------ |
+| The title of a settings page or a full-screen view | `.text-page-title`             |
+| A section heading inside a page                    | `.text-section`                |
+| An uppercase group label above a list              | `.section-header`              |
+| A group label in the root launcher list            | `.section-header.root-section` |
+| The name of a list item, card, or result           | `.text-title`                  |
+| A paragraph of running text                        | `.text-body`                   |
+| The label on a form field or setting               | `.text-label`                  |
+| The second line under a list-item title            | `.text-subtitle`               |
+| A hint, a timestamp, a caption                     | `.text-caption`                |
+| Code, a path, an ID                                | `.text-mono`                   |
 
 Weight rules: **500 (`font-medium`) is the heaviest weight for body and label
 text.** 600 (`font-semibold`) is for headings and the command line. **700 does
@@ -351,16 +355,34 @@ off-grid values in the system, and they exist because sizes had no scale:
 The names are t-shirt, not role, so pick by value and use the canonical column
 as a guide. `--size-lg` on a spinner is fine; it is 24px, not "a tile".
 
-### The nine-row fit — do not break this by accident
+### Launcher-density metrics
 
-The launcher's content area is 384px, the list insets it by `--space-3` top and
-bottom, and **368px is exactly nine rows**: `9 × 40 + 8 × 1`.
+The launcher's rows are denser than the 4px size scale allows, so three
+metrics sit deliberately off it. Each carries a `design-ok` comment at its
+definition; do not spread them beyond the places listed.
 
-- The row height is `var(--shell-row-h)` (40px). Changing it changes how much
-  of Asyar is visible at once.
-- Row separation is a raw `1px`, **not** `--space-0-5`. Two pixels overflows
-  368 and costs a whole row. This is the one place a raw pixel beats a token.
-- Never hardcode `56px`, `40px` or `384px`. Use `--shell-header-h`,
+| Metric     | Value | Where                                      |
+| ---------- | ----- | ------------------------------------------ |
+| Row icon   | 22px  | The icon tile / image in `LauncherListRow` |
+| Key cap    | 18px  | `KeyboardHint` — height and minimum width  |
+| Alias chip | 18px  | The `f` / `cl` pill after a row title      |
+
+The row icon column is also the **alignment column**: the search header's
+leading slot is the same 22px wide, so the query text starts on the same x as
+every row title below it.
+
+### The visible-row fit — do not break this by accident
+
+The launcher's content area is 384px and the list insets it by `--space-3` top
+and bottom, leaving 368px. Rows are `var(--shell-row-h)` (38px) and **touch**
+(no gap), so nine full rows take 342px and the tenth row peeks in below them.
+That peek is intentional: it tells the user the list scrolls.
+
+- The row height is `var(--shell-row-h)`. Changing it changes how much of
+  Asyar is visible at once, and where the tenth row is cut.
+- Rows have no separation. Spacing between groups comes from the section
+  header's own top padding (`--space-4`), not from a gap between rows.
+- Never hardcode `56px`, `40px`, `38px` or `384px`. Use `--shell-header-h`,
   `--shell-footer-h`, `--shell-row-h`, or `calc()` off them.
 
 ### Density — how fast is this read?
@@ -376,8 +398,8 @@ The tokens are identical across all five surfaces; the rhythm is not.
 If you are unsure how much space to use, the question is not "what looks right"
 but **"how fast is this read?"**
 
-Pointer targets: the launcher's 40px row is below the 44px guideline, which is
-an accepted trade for the ninth result on a keyboard-first surface. Nothing
+Pointer targets: the launcher's 38px row is below the 44px guideline, which is
+an accepted trade for showing nine results and a peek of the tenth on a keyboard-first surface. Nothing
 that is _not_ keyboard-first gets that excuse — Settings and onboarding use the
 roomier density above.
 
@@ -540,12 +562,39 @@ If two components look like they both fit, pick the more specific one.
 
 - The header and footer are **already mounted** by `routes/+page.svelte`. A
   view renders into the content area only.
+- The diagram's `├───┤` rules mark where the bars end, not lines that are
+  drawn: neither bar has a border (see [Lines and edges](#lines-and-edges)).
 - **Never add a second fixed header or footer inside a view.**
 - Never hardcode `56px` or `40px`. Use `--shell-header-h` /
   `--shell-footer-h`, or `calc()` off them, so the five places that depend on
   those heights stay in agreement.
 - For a master/detail view inside the content area, use `SplitListDetail` (or
   `SplitView` for a plain resizable split) — not a hand-rolled flex layout.
+
+### Launcher row anatomy
+
+Left to right, a root-list row is:
+
+| Slot        | What it holds                                                 |
+| ----------- | ------------------------------------------------------------- |
+| Icon (22px) | The command's icon; also the alignment column for the query   |
+| Title       | `.result-title`, weight 500                                   |
+| Muted text  | The row's `subtitle`, or when there is none its `sourceLabel` |
+| Alias chip  | Filled pill, `--bg-hover`, never outlined                     |
+| Hotkey      | `KeyboardHint`, inline after the title                        |
+| Right edge  | `kindLabel` — what the row is ("Command", "Application")      |
+
+`typeLabel` is **not** shown. It is the internal grouping label the Scripts
+and Agents sections route on. Display text comes from `kindLabel` (the right
+edge) and `sourceLabel` (after the title), both set in
+`resolveItemMeta`. A built-in's source is "Asyar"; an extension's is its
+manifest name. The kind labels are translated (`search.kind_command`,
+`search.kind_application`).
+
+Key caps (`KeyboardHint`) are **outlined**: a `--kbd-border` hairline and no
+fill, so they read the same on glass, on hover and on the selected row.
+Section headers in the root list are sentence case, 12px, weight 500,
+`--text-secondary`, aligned to the icon edge.
 
 ### Scrolling
 

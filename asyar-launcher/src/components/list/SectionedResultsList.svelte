@@ -22,7 +22,7 @@
 <div class="p-2">
   {#each rows as row}
     {#if row.kind === 'header'}
-      <div class="section-header">{row.title}</div>
+      <div class="section-header root-section">{row.title}</div>
     {:else if row.item.style === 'large'}
       <CalcResultCard
         item={row.item}
@@ -41,9 +41,31 @@
         subtitle={row.item.subtitle}
         alias={row.item.alias}
         shortcut={row.item.shortcut}
-        typeLabel={row.item.typeLabel}
+        typeLabel={row.item.kindLabel}
+        sourceLabel={row.item.sourceLabel}
         {status}
       />
     {/if}
   {/each}
 </div>
+
+<style>
+  /* Sits on the same 16px left edge as the row icons and the query. The
+     shared .section-header indents 24px, which reads as a stray step. */
+  .root-section {
+    padding: var(--space-4) var(--space-3) var(--space-1);
+    /* A quiet sentence-case label rather than the shared uppercase one: the
+       root list is read at a glance, and caps-plus-tracking shouts over the
+       rows it introduces. */
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: var(--tracking-normal);
+    color: var(--text-secondary);
+  }
+
+  /* The search field already gives the list its breathing room above. */
+  .root-section:first-child {
+    padding-top: 0;
+  }
+</style>

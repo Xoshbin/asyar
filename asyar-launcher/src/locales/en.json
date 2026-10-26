@@ -1,5 +1,7 @@
 {
   "search": {
+    "kind_command": "Command",
+    "kind_application": "Application",
     "placeholder": "Search applications and commands...",
     "no_results": "No results found",
     "no_matches": "No matches",

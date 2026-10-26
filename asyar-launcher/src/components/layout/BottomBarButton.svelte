@@ -38,7 +38,7 @@
   .bottom-bar-button {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2-5);
+    gap: var(--space-3);
     padding: var(--space-1) 0;
     background: transparent;
     border: none;
@@ -68,6 +68,6 @@
 
   .label {
     font-size: var(--font-size-sm);
-    font-weight: 600;
+    font-weight: 500;
   }
 </style>

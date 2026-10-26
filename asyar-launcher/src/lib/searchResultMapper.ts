@@ -1,5 +1,7 @@
 import type { SearchResult } from '../services/search/interfaces/SearchResult';
 import { logService } from '../services/log/logService';
+import { t } from '../services/i18n';
+import { isBuiltInFeature } from '../services/extension/extensionDiscovery';
 import type { MappedSearchItem } from '../services/search/types/MappedSearchItem';
 import type { ItemShortcut } from '../built-in-features/shortcuts/shortcutStore.svelte';
 import type { ActiveContext } from '../services/context/contextModeService.svelte';
@@ -19,6 +21,8 @@ export type ResolvedItemMeta = {
   objectId: string;
   icon: string;
   typeLabel: string | undefined;
+  kindLabel: string | undefined;
+  sourceLabel: string | undefined;
 };
 
 /**
@@ -66,7 +70,22 @@ export function resolveItemMeta(
     logService.warn(`Result item missing/invalid objectId: ${result.name} ${type}`);
   }
 
-  return { objectId, icon, typeLabel };
+  // --- Row labels: what it is (right edge) and where it comes from (muted,
+  // after the title). `typeLabel` above stays as the internal grouping label. ---
+  let kindLabel = typeLabel;
+  let sourceLabel: string | undefined;
+  if (type === 'application') {
+    kindLabel = t('search.kind_application');
+  } else if (type === 'command') {
+    kindLabel = result.typeLabel || t('search.kind_command');
+    if (result.extensionId) {
+      sourceLabel = isBuiltInFeature(result.extensionId)
+        ? 'Asyar'
+        : getManifestById(result.extensionId)?.name;
+    }
+  }
+
+  return { objectId, icon, typeLabel, kindLabel, sourceLabel };
 }
 
 export type BuildMappedItemsParams = {
@@ -171,6 +190,7 @@ function buildRunMappedItem(run: Run): MappedSearchItem {
     subtitle,
     type,
     typeLabel: runKindLabel(run.kind),
+    kindLabel: runKindLabel(run.kind),
     icon: runKindIcon(run.kind),
     score: 1.0,
     action: buildRunAction(run.id, run.kind),
@@ -250,7 +270,7 @@ export function buildMappedItems({
 
   // --- Map each result to a display item ---
   const mappedItems: MappedSearchItem[] = baseItems.map((result) => {
-    const { objectId, icon, typeLabel } = resolveItemMeta(
+    const { objectId, icon, typeLabel, kindLabel, sourceLabel } = resolveItemMeta(
       result,
       (id) => extensionManager.getManifestById?.(id) ?? null,
     );
@@ -376,6 +396,8 @@ export function buildMappedItems({
       type,
       path,
       typeLabel,
+      kindLabel,
+      sourceLabel,
       hasArguments:
         type === 'command' &&
         (result.hasArguments === true ||

@@ -38,7 +38,8 @@
         subtitle={item.subtitle}
         alias={item.alias}
         shortcut={item.shortcut}
-        typeLabel={item.typeLabel}
+        typeLabel={item.kindLabel}
+        sourceLabel={item.sourceLabel}
         {status}
       />
     {/if}
