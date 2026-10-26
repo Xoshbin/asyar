@@ -13,7 +13,16 @@ use serde::{Deserialize, Serialize};
 
 use super::CalculatorState;
 
-const RATES_URL: &str = "https://api.exchangerate-api.com/v4/latest/USD";
+/// Keyless, USD-based `latest` endpoints, tried in order until one returns
+/// a usable `rates` object. Every entry answers `{"rates": {CODE: f64}}`
+/// with values meaning "units of CODE per one USD", so a single parser
+/// covers them all. No API keys, no accounts.
+const RATES_URLS: &[&str] = &[
+    "https://api.exchangerate-api.com/v4/latest/USD",
+    "https://open.er-api.com/v6/latest/USD",
+    "https://api.frankfurter.dev/v1/latest?base=USD",
+    "https://allratestoday.com/api/open/latest/USD",
+];
 pub const DEFAULT_TTL_HOURS: f64 = 6.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,7 +154,40 @@ pub fn merge_crypto_rates(rates: &mut HashMap<String, f64>, body: &serde_json::V
     }
 }
 
-/// Fetch fresh USD-based rates.
+/// Parse a `{"rates": {CODE: f64, ...}}` body into a USD-based map.
+pub fn parse_rates_body(body: &serde_json::Value) -> Result<HashMap<String, f64>, String> {
+    let rates = body
+        .get("rates")
+        .and_then(|r| r.as_object())
+        .ok_or("malformed rates response")?;
+    let map: HashMap<String, f64> = rates
+        .iter()
+        .filter_map(|(k, v)| v.as_f64().filter(|f| *f > 0.0).map(|f| (k.to_ascii_uppercase(), f)))
+        .collect();
+    if map.is_empty() {
+        return Err("empty rates response".to_string());
+    }
+    Ok(map)
+}
+
+async fn fetch_rates_from(
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<HashMap<String, f64>, String> {
+    let body: serde_json::Value = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+    parse_rates_body(&body)
+}
+
+/// Fetch fresh USD-based rates from the first keyless provider that answers.
 pub async fn fetch_rates() -> Result<HashMap<String, f64>, String> {
     // CoinGecko rejects requests with no descriptive User-Agent (HTTP 403,
     // but with a *valid* JSON error body — see `fetch_rates_includes_crypto`).
@@ -158,26 +200,19 @@ pub async fn fetch_rates() -> Result<HashMap<String, f64>, String> {
         ))
         .build()
         .map_err(|e| e.to_string())?;
-    let body: serde_json::Value = client
-        .get(RATES_URL)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .error_for_status()
-        .map_err(|e| e.to_string())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())?;
-    let rates = body
-        .get("rates")
-        .and_then(|r| r.as_object())
-        .ok_or("malformed rates response")?;
-    let mut map: HashMap<String, f64> = rates
-        .iter()
-        .filter_map(|(k, v)| v.as_f64().map(|f| (k.to_ascii_uppercase(), f)))
-        .collect();
+    let mut map: HashMap<String, f64> = HashMap::new();
+    let mut errors: Vec<String> = Vec::new();
+    for url in RATES_URLS {
+        match fetch_rates_from(&client, url).await {
+            Ok(m) => {
+                map = m;
+                break;
+            }
+            Err(e) => errors.push(format!("{url}: {e}")),
+        }
+    }
     if map.is_empty() {
-        return Err("empty rates response".to_string());
+        return Err(format!("all rate providers failed: {}", errors.join("; ")));
     }
 
     // Crypto prices are best-effort: fiat rates stay usable if this fails.
@@ -280,6 +315,34 @@ mod tests {
         // Fiat entries untouched, zero/unknown prices skipped.
         assert_eq!(rates["IQD"], 1310.0);
         assert!(!rates.contains_key("JUNK"));
+    }
+
+    #[test]
+    fn parse_rates_body_accepts_every_provider_shape() {
+        // exchangerate-api / open.er-api
+        let a: serde_json::Value =
+            serde_json::from_str(r#"{"result":"success","rates":{"EUR":0.9,"jpy":150.0}}"#).unwrap();
+        // frankfurter
+        let b: serde_json::Value =
+            serde_json::from_str(r#"{"amount":1.0,"base":"USD","rates":{"EUR":0.9}}"#).unwrap();
+        // allratestoday open endpoint
+        let c: serde_json::Value =
+            serde_json::from_str(r#"{"result":"success","base_code":"USD","rates":{"EUR":0.9}}"#).unwrap();
+        for body in [&a, &b, &c] {
+            let m = parse_rates_body(body).unwrap();
+            assert_eq!(m["EUR"], 0.9);
+        }
+        assert_eq!(parse_rates_body(&a).unwrap()["JPY"], 150.0);
+    }
+
+    #[test]
+    fn parse_rates_body_rejects_bad_bodies() {
+        let no_rates: serde_json::Value = serde_json::from_str(r#"{"error":"nope"}"#).unwrap();
+        assert!(parse_rates_body(&no_rates).is_err());
+        let empty: serde_json::Value = serde_json::from_str(r#"{"rates":{}}"#).unwrap();
+        assert!(parse_rates_body(&empty).is_err());
+        let zeros: serde_json::Value = serde_json::from_str(r#"{"rates":{"EUR":0.0}}"#).unwrap();
+        assert!(parse_rates_body(&zeros).is_err());
     }
 
     #[test]
