@@ -156,6 +156,60 @@ describe('typeLabel resolution', () => {
   });
 });
 
+// ── Row labels: kind (right edge) and source (after the title) ────────────────
+
+describe('kindLabel / sourceLabel resolution', () => {
+  it('labels an application "Application" with no source', () => {
+    const { kindLabel, sourceLabel } = resolveItemMeta(
+      makeResult({ type: 'application' }),
+      noManifest,
+    );
+    expect(kindLabel).toBe('Application');
+    expect(sourceLabel).toBeUndefined();
+  });
+
+  it('labels an extension command "Command" and names the extension as its source', () => {
+    const getManifest = (_id: string) => ({ name: 'My Extension' });
+    const { kindLabel, sourceLabel, typeLabel } = resolveItemMeta(
+      makeResult({ type: 'command', extensionId: 'my-ext' }),
+      getManifest,
+    );
+    expect(kindLabel).toBe('Command');
+    expect(sourceLabel).toBe('My Extension');
+    // The internal grouping label is untouched.
+    expect(typeLabel).toBe('My Extension');
+  });
+
+  it('shows "Asyar" as the source of a built-in feature instead of repeating its name', () => {
+    const getManifest = (_id: string) => ({ name: 'Clipboard History' });
+    const { kindLabel, sourceLabel } = resolveItemMeta(
+      makeResult({ type: 'command', extensionId: 'clipboard-history' }),
+      getManifest,
+    );
+    expect(kindLabel).toBe('Command');
+    expect(sourceLabel).toBe('Asyar');
+  });
+
+  it('keeps a per-command label as the kind and still names the source', () => {
+    const getManifest = (_id: string) => ({ name: 'Apple Shortcuts' });
+    const { kindLabel, sourceLabel } = resolveItemMeta(
+      makeResult({ type: 'command', extensionId: 'my-ext', typeLabel: 'Apple Shortcut' }),
+      getManifest,
+    );
+    expect(kindLabel).toBe('Apple Shortcut');
+    expect(sourceLabel).toBe('Apple Shortcuts');
+  });
+
+  it('has no source for a command whose extension cannot be resolved', () => {
+    const { kindLabel, sourceLabel } = resolveItemMeta(
+      makeResult({ type: 'command', extensionId: 'unknown-ext' }),
+      noManifest,
+    );
+    expect(kindLabel).toBe('Command');
+    expect(sourceLabel).toBeUndefined();
+  });
+});
+
 // ── ObjectId resolution ───────────────────────────────────────────────────────
 
 describe('objectId resolution', () => {

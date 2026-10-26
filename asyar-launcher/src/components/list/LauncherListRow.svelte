@@ -20,6 +20,7 @@
     shortcut,
     shortcutPlacement = 'inline',
     typeLabel,
+    sourceLabel,
     status = null,
     leading,
     trailing,
@@ -39,7 +40,10 @@
     alias?: string;
     shortcut?: string;
     shortcutPlacement?: 'inline' | 'trailing';
+    /** What the row is, on the right edge. */
     typeLabel?: string;
+    /** Where the row comes from; muted after the title, yields to `subtitle`. */
+    sourceLabel?: string;
     /**
      * Run-state dot rendered between the title and shortcut. `'active'` is
      * info-coloured + pulsing (a live run), `'done'` is success-coloured + static
@@ -90,10 +94,10 @@
           size={6}
         />
       {/if}
-      {#if subtitle}
+      {#if subtitle || sourceLabel}
         <span
           class="font-medium text-[var(--text-secondary)] truncate flex-shrink"
-          style="font-size: var(--font-size-md)">{subtitle}</span
+          style="font-size: var(--font-size-md)">{subtitle || sourceLabel}</span
         >
       {/if}
       {#if alias}

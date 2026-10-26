@@ -1,5 +1,7 @@
 {
   "search": {
+    "kind_command": "指令",
+    "kind_application": "應用程式",
     "placeholder": "搜尋應用程式與命令……",
     "no_results": "未找到結果",
     "no_matches": "無匹配項",

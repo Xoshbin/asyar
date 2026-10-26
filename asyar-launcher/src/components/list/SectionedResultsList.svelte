@@ -41,7 +41,8 @@
         subtitle={row.item.subtitle}
         alias={row.item.alias}
         shortcut={row.item.shortcut}
-        typeLabel={row.item.typeLabel}
+        typeLabel={row.item.kindLabel}
+        sourceLabel={row.item.sourceLabel}
         {status}
       />
     {/if}
