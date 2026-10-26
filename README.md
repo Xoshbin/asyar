@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./media/app-icon.png" width="112" height="112" alt="Asyar app icon">
+  <img src="./docs/images/app-icon.png" width="112" height="112" alt="Asyar app icon">
   <h1>Asyar</h1>
   <p><strong>The power of Raycast. The speed of Alfred. Privacy by design.</strong></p>
   <p>A fast, native Rust & Tauri launcher for macOS, Windows, and Linux.</p>
@@ -20,11 +20,9 @@
 </div>
 
 <p align="center">
-  <video src="./media/promo/asyar_promo_showcase.mp4" poster="./media/promo/asyar_promo_poster.png" width="100%" controls autoplay loop muted playsinline>
-    <a href="./media/promo/asyar_promo_showcase.mp4">
-      <img src="./media/promo/asyar_promo_poster.png" width="100%" alt="Asyar Showcase Video" />
-    </a>
-  </video>
+  <a href="./docs/images/promo/asyar_promo_showcase.mp4">
+    <img src="./docs/images/promo/asyar_promo_poster.png" width="100%" alt="Watch Asyar Showcase Video" />
+  </a>
 </p>
 
 ## Tiny Footprint. Native Performance.
