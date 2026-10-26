@@ -11,7 +11,9 @@ import {
   resolveThreadId,
   lastAssistantMessageText,
   extractSourcesFromMessage,
-  assistantProviderOptions,
+  agentSwitcherOptions,
+  chatSubtitle,
+  threadRunTarget,
 } from './agentChatView.helpers';
 
 import type { ThreadDef, MessageDef } from './types';
@@ -474,25 +476,64 @@ describe('extractSourcesFromMessage', () => {
   });
 });
 
-describe('assistantProviderOptions', () => {
-  it('lists enabled providers with a model, preferring the custom name', () => {
-    const options = assistantProviderOptions(
-      {
-        openai: { enabled: true, lastModelId: 'gpt' },
-        work: { enabled: true, providerType: 'anthropic', lastModelId: 'c', name: 'Work' },
-        ollama: { enabled: true, providerType: 'ollama', lastModelId: 'l' },
-        off: { enabled: false, lastModelId: 'x' },
-        nomodel: { enabled: true },
-      },
-      [
-        { id: 'openai', name: 'OpenAI' },
-        { id: 'ollama', name: 'Ollama' },
-      ],
-    );
-    expect(options).toEqual([
-      { value: 'openai', label: 'OpenAI' },
-      { value: 'work', label: 'Work' },
-      { value: 'ollama', label: 'Ollama' },
+describe('agentSwitcherOptions', () => {
+  it('lists chat agents by name and leaves silent agents out', () => {
+    expect(
+      agentSwitcherOptions([
+        { id: 'a', name: 'Asyar Assistant', silent: false },
+        { id: 'b', name: 'Fix Grammar', silent: true },
+        { id: 'c', name: 'Research', silent: false },
+      ]),
+    ).toEqual([
+      { value: 'a', title: 'Asyar Assistant' },
+      { value: 'c', title: 'Research' },
     ]);
+  });
+});
+
+describe('chatSubtitle', () => {
+  const plugins = [{ id: 'anthropic', name: 'Anthropic' }];
+
+  it('joins agent, provider and model', () => {
+    expect(
+      chatSubtitle(
+        { name: 'Research', providerId: 'anthropic', modelId: 'claude-sonnet' },
+        { anthropic: { enabled: true } },
+        plugins,
+      ),
+    ).toBe('Research · Anthropic · claude-sonnet');
+  });
+
+  it('uses a custom provider name and skips an empty model', () => {
+    expect(
+      chatSubtitle(
+        { name: 'Asyar Assistant', providerId: 'work', modelId: '' },
+        { work: { enabled: true, providerType: 'anthropic', name: 'Work' } },
+        plugins,
+      ),
+    ).toBe('Asyar Assistant · Work');
+  });
+
+  it('falls back to the provider id when it is unknown', () => {
+    expect(chatSubtitle({ name: 'A', providerId: 'gone', modelId: 'm' }, {}, plugins)).toBe(
+      'A · gone · m',
+    );
+  });
+});
+
+describe('threadRunTarget', () => {
+  const agent = { providerId: 'openai', modelId: 'gpt' };
+
+  it("uses the thread's override when it has one", () => {
+    expect(threadRunTarget(agent, { providerId: 'anthropic', modelId: 'claude' })).toEqual({
+      providerId: 'anthropic',
+      modelId: 'claude',
+    });
+  });
+
+  it('follows the agent without an override, or with half of one', () => {
+    expect(threadRunTarget(agent, null)).toEqual(agent);
+    expect(threadRunTarget(agent, { providerId: null, modelId: null })).toEqual(agent);
+    expect(threadRunTarget(agent, { providerId: 'anthropic', modelId: null })).toEqual(agent);
   });
 });

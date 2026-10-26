@@ -60,6 +60,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "lan_allowed_hosts",
         up: |conn| super::lan_allowed_hosts::init_table(conn),
     },
+    Migration {
+        version: 8,
+        name: "threads_provider_override",
+        up: migration_8_threads_provider_override,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -250,6 +255,26 @@ fn migration_6_threads_is_pinned(conn: &Connection) -> Result<(), AppError> {
         ))
     })?;
 
+    Ok(())
+}
+
+/// Per-thread provider/model override. Both columns are nullable: `NULL`
+/// means the thread follows its agent, which is every existing thread.
+fn migration_8_threads_provider_override(conn: &Connection) -> Result<(), AppError> {
+    for column in ["provider_id", "model_id"] {
+        let exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('threads') WHERE name = ?1",
+                [column],
+                |row| row.get::<_, i32>(0),
+            )
+            .map(|c| c > 0)
+            .unwrap_or(false);
+        if !exists {
+            conn.execute(&format!("ALTER TABLE threads ADD COLUMN {column} TEXT"), [])
+                .map_err(|e| AppError::Database(format!("Failed to add {column} column: {e}")))?;
+        }
+    }
     Ok(())
 }
 
@@ -482,6 +507,44 @@ mod tests {
             })
             .unwrap();
         assert_eq!(is_pinned, 0, "default is_pinned must be 0");
+    }
+
+    #[test]
+    fn version_seven_db_adds_thread_provider_override_as_null_for_existing_threads() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..7]).unwrap();
+        assert_eq!(user_version(&conn), 7);
+        // Simulate a stamped install whose threads table predates the override.
+        conn.execute_batch(
+            "ALTER TABLE threads DROP COLUMN provider_id;
+             ALTER TABLE threads DROP COLUMN model_id;
+             INSERT INTO agents (id, name, system_prompt, provider_id, model_id, created_at, updated_at)
+                 VALUES ('a1', 'Agent', 'prompt', 'p', 'm', 1, 1);
+             INSERT INTO threads (id, agent_id, title, created_at, updated_at)
+                 VALUES ('t1', 'a1', 'kept', 1, 1);",
+        )
+        .unwrap();
+        assert!(!column_names(&conn, "threads").contains(&"provider_id".to_string()));
+
+        run(&conn).unwrap();
+
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
+        let columns = column_names(&conn, "threads");
+        assert!(columns.contains(&"provider_id".to_string()));
+        assert!(columns.contains(&"model_id".to_string()));
+        let (title, provider, model): (String, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT title, provider_id, model_id FROM threads WHERE id = 't1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(title, "kept");
+        assert_eq!(
+            provider, None,
+            "existing threads must keep following their agent"
+        );
+        assert_eq!(model, None);
     }
 
     #[test]

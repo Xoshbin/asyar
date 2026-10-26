@@ -1312,6 +1312,17 @@
       "streaming_cancel": "Transmitindo… ⌘K para cancelar",
       "you": "Você",
       "tool_result": "Resultado da ferramenta",
+      "error_set_thread_provider": "Não foi possível alterar o provedor da conversa",
+      "model_picker": {
+        "title_provider": "Mudar provedor",
+        "title_model": "Mudar modelo · {provider}",
+        "filter_providers": "Pesquisar provedores…",
+        "filter_models": "Pesquisar modelos…",
+        "loading": "Carregando modelos…",
+        "no_providers": "Nenhum provedor configurado. Adicione um em Ajustes → IA.",
+        "no_models": "Nenhum modelo encontrado",
+        "load_error": "Não foi possível carregar os modelos: {error}"
+      },
       "copy_message": "Copiar mensagem",
       "copy_last_response": "Copiar última resposta",
       "copy_last_response_description": "Copiar a resposta mais recente do assistente nesta conversa",
@@ -1335,7 +1346,11 @@
         "unpin_thread": "Desafixar conversa atual",
         "unpin_thread_desc": "Deixar de manter a conversa ativa no topo da lista",
         "cancel": "Cancelar execução",
-        "cancel_desc": "Interromper a resposta do assistente em andamento"
+        "cancel_desc": "Interromper a resposta do assistente em andamento",
+        "change_provider": "Mudar provedor…",
+        "change_provider_desc": "Escolher outro dos seus provedores para a conversa atual",
+        "change_model": "Mudar modelo…",
+        "change_model_desc": "Escolher outro modelo do provedor atual para esta conversa"
       },
       "edit": {
         "name_placeholder": "Meu agente",

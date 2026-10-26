@@ -489,6 +489,8 @@ mod tests {
             agent_id: "agent_fk_test".to_string(),
             title: Some("Thread".to_string()),
             is_pinned: false,
+            provider_id: None,
+            model_id: None,
             created_at: Some(now),
             updated_at: Some(now),
         };

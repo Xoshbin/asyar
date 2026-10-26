@@ -1312,6 +1312,17 @@
       "streaming_cancel": "正在輸出……按 ⌘K 取消",
       "you": "你",
       "tool_result": "工具結果",
+      "error_set_thread_provider": "無法變更對話的提供者",
+      "model_picker": {
+        "title_provider": "變更提供者",
+        "title_model": "變更模型 · {provider}",
+        "filter_providers": "搜尋提供者…",
+        "filter_models": "搜尋模型…",
+        "loading": "正在載入模型…",
+        "no_providers": "尚未設定提供者。請在設定 → AI 中新增。",
+        "no_models": "找不到模型",
+        "load_error": "無法載入模型：{error}"
+      },
       "copy_message": "複製訊息",
       "copy_last_response": "複製上一條回覆",
       "copy_last_response_description": "複製本會話中最新的一條助手回覆",
@@ -1335,7 +1346,11 @@
         "unpin_thread": "取消置頂目前對話",
         "unpin_thread_desc": "不再將目前對話固定在清單頂端",
         "cancel": "取消執行",
-        "cancel_desc": "中止進行中的助理回應"
+        "cancel_desc": "中止進行中的助理回應",
+        "change_provider": "變更提供者…",
+        "change_provider_desc": "為目前對話選擇你的另一個提供者",
+        "change_model": "變更模型…",
+        "change_model_desc": "為此對話選擇目前提供者的另一個模型"
       },
       "edit": {
         "name_placeholder": "我的代理",

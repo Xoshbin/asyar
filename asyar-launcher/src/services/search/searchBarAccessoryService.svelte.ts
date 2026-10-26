@@ -18,6 +18,12 @@ export interface DeclareInput {
   commandId: string;
   options: SearchBarAccessoryDropdownOption[];
   default?: string;
+  /**
+   * The current selection, for an owner whose state lives elsewhere (e.g. the
+   * agent a chat view shows). Seeds the dropdown instead of the persisted
+   * value, which would otherwise override that state on every mount.
+   */
+  value?: string;
 }
 
 type Subscriber = {
@@ -57,18 +63,25 @@ export class SearchBarAccessoryServiceClass {
       throw new Error('searchBarAccessory.declare: options cannot be empty');
     }
 
+    const optionValues = new Set(input.options.map((o) => o.value));
+    const ownerValue =
+      input.value !== undefined && optionValues.has(input.value) ? input.value : null;
+
     // A missing row is a successful `null`. A read failure is diagnosed by
     // the transport and deliberately falls back to the manifest default.
     let persisted: string | null = null;
-    try {
-      persisted = await searchbarAccessoryGet(input.extensionId, input.commandId);
-    } catch {
-      // Best-effort persistence read; declaration can still use its default.
+    if (ownerValue === null) {
+      try {
+        persisted = await searchbarAccessoryGet(input.extensionId, input.commandId);
+      } catch {
+        // Best-effort persistence read; declaration can still use its default.
+      }
     }
 
-    const optionValues = new Set(input.options.map((o) => o.value));
     let seed: string;
-    if (persisted !== null && optionValues.has(persisted)) {
+    if (ownerValue !== null) {
+      seed = ownerValue;
+    } else if (persisted !== null && optionValues.has(persisted)) {
       seed = persisted;
     } else if (input.default !== undefined && optionValues.has(input.default)) {
       seed = input.default;

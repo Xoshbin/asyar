@@ -1,4 +1,4 @@
-import type { ThreadDef, MessageDef } from './types';
+import type { AgentDef, ThreadDef, MessageDef } from './types';
 import type { GeminiGrounding, GroundingSource } from '../../bindings';
 import type { ProviderConfig, ToolCall } from '../../services/ai/IProviderPlugin';
 import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
@@ -242,18 +242,54 @@ export function extractSourcesFromMessage(
   return [];
 }
 
-/**
- * Picker options for the Assistant's provider switcher: every enabled
- * provider that has a model chosen, labelled like the AI settings rows.
- */
-export function assistantProviderOptions(
+type ProviderPlugins = Array<{ id: string; name: string }>;
+
+/** A provider's display name, as the AI settings rows label it. */
+export function providerLabel(
+  providerId: string,
   providers: Record<string, ProviderConfig>,
-  plugins: Array<{ id: string; name: string }>,
-): Array<{ value: string; label: string }> {
-  return Object.entries(providers)
-    .filter(([, config]) => config.enabled && config.lastModelId)
-    .map(([id, config]) => ({
-      value: id,
-      label: config.name ?? plugins.find((p) => p.id === (config.providerType ?? id))?.name ?? id,
-    }));
+  plugins: ProviderPlugins,
+): string {
+  const config = providers[providerId];
+  return (
+    config?.name ??
+    plugins.find((p) => p.id === (config?.providerType ?? providerId))?.name ??
+    providerId
+  );
+}
+
+/**
+ * Options for the chat view's ⌘P agent switcher. Silent agents are left out:
+ * they run headlessly and never open a chat.
+ */
+export function agentSwitcherOptions(
+  agents: Array<Pick<AgentDef, 'id' | 'name' | 'silent'>>,
+): Array<{ value: string; title: string }> {
+  return agents.filter((a) => !a.silent).map((a) => ({ value: a.id, title: a.name }));
+}
+
+/**
+ * The provider and model a thread's next run uses: its override when it has
+ * one, otherwise its agent's. Mirrors `apply_thread_override` in Rust, minus
+ * the usability fallback, which only the run can judge.
+ */
+export function threadRunTarget(
+  agent: Pick<AgentDef, 'providerId' | 'modelId'>,
+  thread: Pick<ThreadDef, 'providerId' | 'modelId'> | null | undefined,
+): { providerId: string; modelId: string } {
+  if (thread?.providerId && thread.modelId) {
+    return { providerId: thread.providerId, modelId: thread.modelId };
+  }
+  return { providerId: agent.providerId, modelId: agent.modelId };
+}
+
+/** Bottom-bar subtitle for the chat view: who you are talking to, on what. */
+export function chatSubtitle(
+  agent: Pick<AgentDef, 'name' | 'providerId' | 'modelId'>,
+  providers: Record<string, ProviderConfig>,
+  plugins: ProviderPlugins,
+): string {
+  const parts = [agent.name, providerLabel(agent.providerId, providers, plugins)];
+  if (agent.modelId) parts.push(agent.modelId);
+  return parts.join(' · ');
 }

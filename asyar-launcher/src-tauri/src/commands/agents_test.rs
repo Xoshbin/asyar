@@ -1,9 +1,9 @@
 use crate::commands::agents::{
     agents_create_impl, agents_delete_impl, agents_get_impl, agents_list_impl,
     agents_message_insert_impl, agents_messages_list_impl, agents_thread_create_impl,
-    agents_thread_delete_impl, agents_thread_set_pinned_impl, agents_threads_list_impl,
-    agents_threads_prune_impl, agents_update_impl, AgentCreateInput, AgentUpdateInput,
-    MessageInsertInput, ThreadCreateInput,
+    agents_thread_delete_impl, agents_thread_set_pinned_impl, agents_thread_set_provider_impl,
+    agents_threads_list_impl, agents_threads_prune_impl, agents_update_impl, AgentCreateInput,
+    AgentUpdateInput, MessageInsertInput, ThreadCreateInput,
 };
 use crate::error::AppError;
 use crate::storage::agents::{
@@ -337,6 +337,8 @@ fn agents_threads_list_impl_orders_desc() {
         agent_id: agent.id.clone(),
         title: Some("Older".to_string()),
         is_pinned: false,
+        provider_id: None,
+        model_id: None,
         created_at: Some(1000),
         updated_at: Some(1000),
     };
@@ -345,6 +347,8 @@ fn agents_threads_list_impl_orders_desc() {
         agent_id: agent.id.clone(),
         title: Some("Newer".to_string()),
         is_pinned: false,
+        provider_id: None,
+        model_id: None,
         created_at: Some(5000),
         updated_at: Some(5000),
     };
@@ -677,4 +681,79 @@ fn agents_threads_prune_impl_prunes_correctly() {
 
     let remaining = agents_threads_list_impl(&conn, agent.id).unwrap();
     assert_eq!(remaining.len(), 2);
+}
+
+fn new_thread(conn: &Connection) -> ThreadRow {
+    let agent = agents_create_impl(conn, valid_create_input()).unwrap();
+    agents_thread_create_impl(
+        conn,
+        ThreadCreateInput {
+            agent_id: agent.id,
+            title: None,
+            is_pinned: None,
+            retention_cap: None,
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn agents_thread_set_provider_impl_sets_and_clears_the_override() {
+    let conn = make_conn();
+    let thread = new_thread(&conn);
+    assert_eq!(thread.provider_id, None);
+
+    agents_thread_set_provider_impl(
+        &conn,
+        thread.id.clone(),
+        Some("anthropic".into()),
+        Some("claude".into()),
+    )
+    .unwrap();
+    let fetched = crate::storage::agents::get_thread(&conn, &thread.id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(fetched.provider_id.as_deref(), Some("anthropic"));
+    assert_eq!(fetched.model_id.as_deref(), Some("claude"));
+    let listed = agents_threads_list_impl(&conn, thread.agent_id.clone()).unwrap();
+    assert_eq!(listed[0].provider_id.as_deref(), Some("anthropic"));
+
+    agents_thread_set_provider_impl(&conn, thread.id.clone(), None, None).unwrap();
+    let cleared = crate::storage::agents::get_thread(&conn, &thread.id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(cleared.provider_id, None);
+    assert_eq!(cleared.model_id, None);
+}
+
+#[test]
+fn agents_thread_set_provider_impl_rejects_half_or_blank_pairs() {
+    let conn = make_conn();
+    let thread = new_thread(&conn);
+    for (provider, model) in [
+        (Some("anthropic"), None),
+        (None, Some("claude")),
+        (Some(" "), Some("claude")),
+        (Some("anthropic"), Some("")),
+    ] {
+        let result = agents_thread_set_provider_impl(
+            &conn,
+            thread.id.clone(),
+            provider.map(Into::into),
+            model.map(Into::into),
+        );
+        assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+}
+
+#[test]
+fn agents_thread_set_provider_impl_errors_on_unknown_thread() {
+    let conn = make_conn();
+    let result = agents_thread_set_provider_impl(
+        &conn,
+        "missing".into(),
+        Some("anthropic".into()),
+        Some("claude".into()),
+    );
+    assert!(matches!(result, Err(AppError::NotFound(_))));
 }

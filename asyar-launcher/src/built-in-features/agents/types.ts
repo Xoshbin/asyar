@@ -42,6 +42,9 @@ export interface ThreadDef {
   agentId: string;
   title: string | null;
   isPinned?: boolean;
+  /** Per-thread override; null/absent follows the agent. Set as a pair. */
+  providerId?: string | null;
+  modelId?: string | null;
   createdAt: number | null;
   updatedAt: number | null;
 }

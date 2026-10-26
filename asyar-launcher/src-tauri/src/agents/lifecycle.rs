@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::storage::agents::{
     get_agent, insert_agent, list_agents, update_agent, AgentRow, SilentInputSource,
-    SilentOutputAction,
+    SilentOutputAction, ThreadRow,
 };
 use rusqlite::Connection;
 
@@ -283,6 +283,25 @@ pub fn resolve_runnable_agent(
     healed.updated_at = Some(now_ms());
     update_agent(conn, &healed)?;
     Ok((healed, true))
+}
+
+/// The agent a thread's run uses: the thread's provider override when it has a
+/// usable one, otherwise the agent as resolved. Only this run sees the swap;
+/// the agent row is untouched. An override whose provider has since been
+/// disabled or lost its key is ignored rather than failing the run.
+pub fn apply_thread_override(
+    mut agent: AgentRow,
+    thread: &ThreadRow,
+    providers: &[crate::agents::editor::AgentProviderDescriptor],
+    configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
+) -> AgentRow {
+    if let (Some(provider_id), Some(model_id)) = (&thread.provider_id, &thread.model_id) {
+        if provider_is_usable(provider_id, providers, configs) {
+            agent.provider_id = provider_id.clone();
+            agent.model_id = model_id.clone();
+        }
+    }
+    agent
 }
 
 pub fn derive_thread_title(user_text: &str) -> String {
@@ -788,6 +807,73 @@ mod tests {
         .unwrap();
 
         assert!(!healed);
+        assert_eq!(resolved, agent);
+    }
+
+    fn thread_with_override(provider_id: Option<&str>, model_id: Option<&str>) -> ThreadRow {
+        ThreadRow {
+            id: "t".into(),
+            agent_id: "a".into(),
+            title: None,
+            is_pinned: false,
+            provider_id: provider_id.map(Into::into),
+            model_id: model_id.map(Into::into),
+            created_at: None,
+            updated_at: None,
+        }
+    }
+
+    #[test]
+    fn apply_thread_override_uses_a_usable_thread_provider() {
+        let mut agent = emoji_fallback_agent();
+        agent.provider_id = "openai".into();
+        agent.model_id = "gpt".into();
+        let providers = vec![provider("anthropic", true, false)];
+        let configs = HashMap::from([(
+            "anthropic".to_string(),
+            provider_config(true, Some("sk-ant"), None),
+        )]);
+
+        let resolved = apply_thread_override(
+            agent.clone(),
+            &thread_with_override(Some("anthropic"), Some("claude")),
+            &providers,
+            &configs,
+        );
+
+        assert_eq!(resolved.provider_id, "anthropic");
+        assert_eq!(resolved.model_id, "claude");
+        assert_eq!(resolved.id, agent.id);
+    }
+
+    #[test]
+    fn apply_thread_override_follows_the_agent_without_an_override() {
+        let agent = emoji_fallback_agent();
+        let resolved = apply_thread_override(
+            agent.clone(),
+            &thread_with_override(None, None),
+            &[],
+            &HashMap::new(),
+        );
+        assert_eq!(resolved, agent);
+    }
+
+    #[test]
+    fn apply_thread_override_ignores_an_unusable_thread_provider() {
+        let agent = emoji_fallback_agent();
+        let providers = vec![provider("anthropic", true, false)];
+        let configs = HashMap::from([(
+            "anthropic".to_string(),
+            provider_config(false, Some("sk-ant"), None),
+        )]);
+
+        let resolved = apply_thread_override(
+            agent.clone(),
+            &thread_with_override(Some("anthropic"), Some("claude")),
+            &providers,
+            &configs,
+        );
+
         assert_eq!(resolved, agent);
     }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openerService } from '../../services/opener/openerService';
   import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, onDestroy, tick, untrack } from 'svelte';
   import { agentService } from './agentService.svelte';
   import { agentsManager } from './agentsManager.svelte';
   import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
@@ -15,7 +15,9 @@
     messageBubbleVariant,
     resolveThreadId,
     lastAssistantMessageText,
-    assistantProviderOptions,
+    agentSwitcherOptions,
+    chatSubtitle,
+    threadRunTarget,
   } from './agentChatView.helpers';
   import {
     Button,
@@ -25,18 +27,25 @@
     LauncherListRow,
     SplitListDetail,
     GoogleSearchSuggestions,
-    Select,
   } from '../../components';
+  import ModelPickerModal from './ModelPickerModal.svelte';
   import { settingsService } from '../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../services/ai/providerRegistry';
-  import type { AgentDef, ThreadDef, MessageDef } from './types';
+  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
+  import type { ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { t } from '../../services/i18n';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
+  // The ⌘P agent switcher is owned by the Ask AI command's view.
+  const ACCESSORY_EXTENSION_ID = 'agents';
+  const ACCESSORY_COMMAND_ID = 'ask';
+
   const agentId = $derived(agentsManager.currentAgentId);
-  let agent = $state<AgentDef | null>(null);
+  // Live from the service, so a provider switch (⌘K) shows up immediately.
+  const agent = $derived(agentId ? (agentService.getById(agentId) ?? null) : null);
   let threads = $state<ThreadDef[]>([]);
   // False until this agent's thread list is known, so the sidebar shows
   // nothing rather than an empty state that is not true yet.
@@ -54,29 +63,70 @@
   const streamingText = $derived(agentsManager.streamingText);
   const streamingStatus = $derived(agentsManager.streamingStatus);
 
-  // The Assistant (default agent) follows the starred provider; let the user
-  // switch it right from the chat header.
-  const isAssistant = $derived(agent !== null && agent.id === agentService.defaultAgent?.id);
-  const providerOptions = $derived(
-    assistantProviderOptions(settingsService.currentSettings.ai.providers, providerRegistry.list()),
+  const agentOptions = $derived(agentSwitcherOptions(agentService.agents));
+
+  // ⌘P switches agent. Threads belong to an agent, so this filters the
+  // sidebar the way ⌘P filters Clipboard History. The current agent seeds the
+  // dropdown (not its persisted value), so opening a specific agent from root
+  // search is never overridden. Leaving the view clears it
+  // (ExtensionViewContainer owns that for the `ask` command).
+  $effect(() => {
+    const options = agentOptions;
+    const current = agentId;
+    if (!current || options.length < 2 || !options.some((o) => o.value === current)) {
+      const active = untrack(() => searchBarAccessoryService.active);
+      if (active?.extensionId === ACCESSORY_EXTENSION_ID) searchBarAccessoryService.clear();
+      return;
+    }
+    void searchBarAccessoryService.declare({
+      extensionId: ACCESSORY_EXTENSION_ID,
+      commandId: ACCESSORY_COMMAND_ID,
+      options,
+      value: current,
+    });
+  });
+
+  $effect(() =>
+    untrack(() =>
+      searchBarAccessoryService.subscribe(ACCESSORY_EXTENSION_ID, ACCESSORY_COMMAND_ID, (value) => {
+        if (value !== agentsManager.currentAgentId) void switchAgent(value);
+      }),
+    ),
   );
 
-  async function switchProvider(providerId: string) {
-    const modelId = settingsService.currentSettings.ai.providers[providerId]?.lastModelId;
-    if (!modelId) return;
+  /** Show another agent's threads, landing on its latest one like root search does. */
+  async function switchAgent(nextAgentId: string) {
+    agentsManager.currentAgentId = nextAgentId;
+    agentsManager.currentThreadId = agentsManager.threadsFor(nextAgentId)?.[0]?.id ?? null;
     try {
-      await agentService.upsertDefaultAgent(providerId, modelId);
+      const latest = (await agentService.listThreads(nextAgentId))[0];
+      if (agentsManager.currentAgentId === nextAgentId && !agentsManager.currentThreadId) {
+        agentsManager.currentThreadId = latest?.id ?? null;
+      }
     } catch (err) {
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'error',
-        retryable: true,
-        context: { message: t('settings.ai.error_set_default') },
-        developerDetail: String(err),
-      });
+      logService.warn(`[agents] listThreads for agent switch failed: ${err}`);
     }
   }
+
+  const selectedThread = $derived(threads.find((th) => th.id === selectedThreadId) ?? null);
+
+  // Bottom-bar subtitle: who you are talking to, and the provider and model
+  // this thread runs on (its own override, else its agent's).
+  $effect(() => {
+    if (!agent) return;
+    const subtitle = sending
+      ? `${agent.name} · ${t('features.agents.streaming_cancel')}`
+      : chatSubtitle(
+          { ...agent, ...threadRunTarget(agent, selectedThread) },
+          settingsService.currentSettings.ai.providers,
+          providerRegistry.list(),
+        );
+    viewManager.activeViewSubtitle = subtitle;
+    return () => {
+      // Only clear our own text; the next view may already have set its own.
+      if (viewManager.activeViewSubtitle === subtitle) viewManager.activeViewSubtitle = null;
+    };
+  });
 
   function threadLabel(thread: ThreadDef): string {
     const title = thread.title?.trim();
@@ -96,14 +146,12 @@
 
     void (async () => {
       if (!currentAgentId) {
-        agent = null;
         threads = [];
         messages = [];
         agentsManager.lastAssistantMessageText = null;
         return;
       }
 
-      agent = agentService.getById(currentAgentId) ?? null;
       loadError = null;
       const known = agentsManager.threadsFor(currentAgentId);
       threads = known ?? [];
@@ -141,9 +189,12 @@
         const nextMessages = await agentService.listMessages(resolvedThreadId);
         if (!cancelled) {
           messages = nextMessages;
-          // The persisted turn now renders; drop its streamed copy. A turn
-          // still streaming restores itself on the next delta (accumulated).
-          agentsManager.streamingText = '';
+          // The saved turn now renders; drop its streamed copy. A turn still
+          // streaming is left alone so it never blinks out mid-reply.
+          if (agentsManager.streamingTextPersisted) {
+            agentsManager.streamingText = '';
+            agentsManager.streamingTextPersisted = false;
+          }
           agentsManager.lastAssistantMessageText = lastAssistantMessageText(nextMessages);
         }
       } catch (err) {
@@ -219,6 +270,8 @@
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     // When the action panel (Cmd+K) is open, let it own keyboard navigation.
     if (document.querySelector('.action-popup')) return;
+    // The ⌘P agent dropdown owns arrows while it is open.
+    if (searchBarAccessoryService.popoverOpen) return;
     // A modal dialog can open on top of this view — don't steal its keys.
     if (isAnyModalOpen(document)) return;
     if (event.key === 'ArrowUp') {
@@ -314,23 +367,6 @@
 
       {#snippet detail()}
         <div class="chat-main">
-          <header class="chat-header">
-            <h2>{agent?.name}</h2>
-            {#if isAssistant && agent && providerOptions.length > 0}
-              <div class="provider-picker">
-                <Select
-                  value={agent.providerId}
-                  options={providerOptions}
-                  disabled={sending}
-                  onchange={switchProvider}
-                />
-              </div>
-            {/if}
-            {#if sending}
-              <span class="streaming-tag">{t('features.agents.streaming_cancel')}</span>
-            {/if}
-          </header>
-
           <div
             class="messages-container custom-scrollbar"
             data-no-focus-steal
@@ -340,7 +376,7 @@
           >
             {#if loadError}
               <p class="error">{loadError}</p>
-            {:else if messages.length === 0 && !sending}
+            {:else if messages.length === 0 && !sending && streamingText.length === 0}
               <EmptyState
                 message={t('features.agents.start_chatting')}
                 description={t('features.agents.start_chatting_description')}
@@ -435,7 +471,10 @@
                   </div>
                 {/each}
 
-                {#if sending}
+                <!-- Stays after the run ends until the reload renders the
+                     persisted turn (which clears streamingText), so the reply
+                     never blinks out in between. -->
+                {#if sending || streamingText.length > 0}
                   <div class="message-row assistant">
                     <div class="message-bubble assistant">
                       {#if streamingText.length > 0}
@@ -443,7 +482,9 @@
                       {:else if streamingStatus === 'searching'}
                         <span class="activity-label">{t('features.agents.searching')}</span>
                       {/if}
-                      <span class="streaming-cursor">▊</span>
+                      {#if sending}
+                        <span class="streaming-cursor">▊</span>
+                      {/if}
                     </div>
                   </div>
                 {/if}
@@ -453,6 +494,7 @@
         </div>
       {/snippet}
     </SplitListDetail>
+    <ModelPickerModal />
   {/if}
 </div>
 
@@ -476,29 +518,6 @@
   }
   .pin-badge {
     color: var(--accent-primary);
-  }
-  .chat-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--border-color);
-  }
-  .chat-header h2 {
-    margin: 0;
-    font-size: var(--font-size-md);
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-  .provider-picker {
-    margin-left: auto;
-    margin-right: var(--space-3);
-    max-width: 12rem;
-  }
-  .streaming-tag {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    font-style: italic;
   }
   .messages-container {
     flex: 1;

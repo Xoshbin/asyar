@@ -476,6 +476,7 @@ macro_rules! ai_commands {
                 $crate::commands::agents::agents_seed_emoji_fallback,
                 $crate::commands::agents::agents_thread_create,
                 $crate::commands::agents::agents_thread_set_pinned,
+                $crate::commands::agents::agents_thread_set_provider,
                 $crate::commands::agents::agents_threads_prune,
                 $crate::commands::agents::agents_thread_delete,
                 $crate::commands::agents::agents_thread_update_title,

@@ -200,6 +200,8 @@ pub fn agents_thread_create_impl(
         agent_id: input.agent_id,
         title: input.title,
         is_pinned: input.is_pinned.unwrap_or(false),
+        provider_id: None,
+        model_id: None,
         created_at: Some(now),
         updated_at: Some(now),
     };
@@ -219,6 +221,28 @@ pub fn agents_thread_set_pinned_impl(
 ) -> Result<(), AppError> {
     Ok(crate::storage::agents::set_thread_pinned(
         conn, &id, pinned,
+    )?)
+}
+
+/// Point a thread at another provider/model, or back at its agent with both
+/// `None`. They come as a pair: a provider without a model cannot run.
+pub fn agents_thread_set_provider_impl(
+    conn: &Connection,
+    id: String,
+    provider_id: Option<String>,
+    model_id: Option<String>,
+) -> Result<(), AppError> {
+    let blank = |value: &Option<String>| value.as_deref().is_some_and(|v| v.trim().is_empty());
+    if provider_id.is_some() != model_id.is_some() || blank(&provider_id) || blank(&model_id) {
+        return Err(AppError::Validation(
+            "a thread override needs both a provider and a model, or neither".to_string(),
+        ));
+    }
+    Ok(crate::storage::agents::set_thread_provider(
+        conn,
+        &id,
+        provider_id.as_deref(),
+        model_id.as_deref(),
     )?)
 }
 
@@ -438,6 +462,22 @@ pub async fn agents_thread_set_pinned(
     {
         let conn = db.conn()?;
         agents_thread_set_pinned_impl(&conn, id, pinned)?;
+    }
+    crate::event_bridge::bridge_emit(&app, "agents:changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn agents_thread_set_provider(
+    app: AppHandle,
+    db: State<'_, DataStore>,
+    id: String,
+    provider_id: Option<String>,
+    model_id: Option<String>,
+) -> Result<(), AppError> {
+    {
+        let conn = db.conn()?;
+        agents_thread_set_provider_impl(&conn, id, provider_id, model_id)?;
     }
     crate::event_bridge::bridge_emit(&app, "agents:changed", ());
     Ok(())

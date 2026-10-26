@@ -874,6 +874,12 @@ where
             "thread '{thread_id}' does not belong to agent '{agent_id}'"
         )));
     }
+    let agent = crate::agents::lifecycle::apply_thread_override(
+        agent,
+        &thread,
+        &config.providers,
+        &config.configs,
+    );
     let run_id = run_id.unwrap_or_else(|| Uuid::new_v4().to_string());
     if !user_text.trim().is_empty() {
         let derived_title = thread
