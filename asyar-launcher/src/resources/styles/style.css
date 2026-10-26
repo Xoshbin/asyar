@@ -222,12 +222,12 @@
   --shell-footer-h: 40px;
   /* The result row. This is the most consequential number in the product:
      with a 480px window, a 56px header and a 40px footer, the content area is
-     384px, the list insets it by --space-3 top and bottom, and 368px is
-     EXACTLY nine rows — 9 × 40 + 8 × 1px of separation, with nothing left
-     over. Change this and you change how much of Asyar is visible at once.
-     It was a bare `min-height: 40px` inside .result-item before this token
-     existed, so the nine-row fit was true by accident. */
-  --shell-row-h: 40px;
+     384px and the list insets it by --space-3 top and bottom, leaving 368px.
+     At 38px with rows touching, nine rows fill 342px and the tenth peeks in
+     below them — a cue that the list scrolls. It was 40px (an exact
+     nine-row fit) before the launcher polish pass matched the reference
+     density. Change this and you change how much of Asyar is visible. */
+  --shell-row-h: 38px;
 
   /* Stacking scale. Every z-index in the app comes from this list — never
      write a bare number. The values are the ones the app already used, so
@@ -491,6 +491,7 @@ html[data-platform='macos'] .app-root {
     --popup-divider: rgba(255, 255, 255, 0.07);
     --scrollbar-thumb: rgba(155, 155, 155, 0.5);
     --kbd-rim: rgba(255, 255, 255, 0.03);
+    --kbd-border: rgba(255, 255, 255, 0.22);
 
     background-color: var(--bg-primary);
   }
@@ -558,6 +559,7 @@ html[data-platform='macos'] .app-root {
   --popup-divider: rgba(255, 255, 255, 0.07);
   --scrollbar-thumb: rgba(155, 155, 155, 0.5);
   --kbd-rim: rgba(255, 255, 255, 0.03);
+  --kbd-border: rgba(255, 255, 255, 0.22);
 
   background-color: var(--bg-primary);
   color-scheme: dark;
@@ -627,6 +629,7 @@ html[data-platform='macos'] .app-root {
     --popup-divider: rgba(60, 60, 67, 0.11);
     --scrollbar-thumb: rgba(100, 116, 132, 0.3);
     --kbd-rim: rgba(0, 0, 0, 0.025);
+    --kbd-border: rgba(0, 0, 0, 0.2);
 
     background-color: var(--bg-primary);
   }
@@ -691,6 +694,7 @@ html[data-platform='macos'] .app-root {
   --popup-divider: rgba(60, 60, 67, 0.11);
   --scrollbar-thumb: rgba(100, 116, 132, 0.3);
   --kbd-rim: rgba(0, 0, 0, 0.025);
+  --kbd-border: rgba(0, 0, 0, 0.2);
 
   background-color: var(--bg-primary);
   color-scheme: light;
@@ -843,9 +847,6 @@ html[data-platform='macos'] .app-root {
     min-height: var(--shell-row-h);
     border-radius: var(--radius-xl);
     border: none;
-    /* 1px, not --space-0-5: the nine-row fit above depends on this exact
-       separation, and 2px would cost a whole row. */
-    margin-bottom: 1px;
 
     &:active {
       background-color: var(--bg-selected);

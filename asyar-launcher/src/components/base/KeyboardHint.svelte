@@ -48,16 +48,20 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 24px;
-    height: 21px;
-    padding: 0 var(--space-2);
-    background-color: var(--bg-selected);
+    /* design-ok: 18px key cap matches the reference density; off the 4px size grid until the design language is revised */
+    min-width: 18px;
+    height: 18px;
+    padding: 0 var(--space-1);
+    /* An outlined cap: a hairline edge and no fill, so it reads the same on
+       glass, on a hovered row and on the selected row. */
+    background-color: transparent;
     color: var(--text-secondary);
-    border-radius: var(--radius-sm);
-    border: none;
-    /* Soft inset rim. */
-    box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
+    /* design-ok: 5px suits the 18px cap; --radius-xs is too square, --radius-sm too round */
+    border-radius: 5px;
+    border: 1px solid var(--kbd-border);
+    box-sizing: border-box;
     font-weight: 500;
+    line-height: 1;
   }
 
   .action {
