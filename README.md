@@ -19,11 +19,7 @@
   </p>
 </div>
 
-<p align="center">
-  <a href="./docs/images/promo/asyar_promo_showcase.mp4">
-    <img src="./docs/images/promo/asyar_promo_poster.png" width="100%" alt="Watch Asyar Showcase Video" />
-  </a>
-</p>
+https://github.com/user-attachments/assets/ad0e51f5-9b1c-4674-9021-4204aa85ecce
 
 ## Tiny Footprint. Native Performance.
 
