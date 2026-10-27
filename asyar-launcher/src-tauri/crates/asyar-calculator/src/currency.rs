@@ -155,18 +155,37 @@ pub fn merge_crypto_rates(rates: &mut HashMap<String, f64>, body: &serde_json::V
 }
 
 /// Parse a `{"rates": {CODE: f64, ...}}` body into a USD-based map.
+///
+/// Every provider in `RATES_URLS` is asked for a USD base. Providers that
+/// name the base (`base` for Frankfurter, `base_code` for the others) are
+/// rejected if it is not USD, and the base rate is restored when a provider
+/// omits it from `rates` (Frankfurter does), so `USD` is always present.
 pub fn parse_rates_body(body: &serde_json::Value) -> Result<HashMap<String, f64>, String> {
+    let base = body
+        .get("base")
+        .or_else(|| body.get("base_code"))
+        .and_then(|b| b.as_str());
+    if let Some(base) = base {
+        if !base.eq_ignore_ascii_case("USD") {
+            return Err(format!("unexpected base currency {base}"));
+        }
+    }
     let rates = body
         .get("rates")
         .and_then(|r| r.as_object())
         .ok_or("malformed rates response")?;
-    let map: HashMap<String, f64> = rates
+    let mut map: HashMap<String, f64> = rates
         .iter()
-        .filter_map(|(k, v)| v.as_f64().filter(|f| *f > 0.0).map(|f| (k.to_ascii_uppercase(), f)))
+        .filter_map(|(k, v)| {
+            v.as_f64()
+                .filter(|f| *f > 0.0)
+                .map(|f| (k.to_ascii_uppercase(), f))
+        })
         .collect();
     if map.is_empty() {
         return Err("empty rates response".to_string());
     }
+    map.entry("USD".to_string()).or_insert(1.0);
     Ok(map)
 }
 
@@ -321,18 +340,34 @@ mod tests {
     fn parse_rates_body_accepts_every_provider_shape() {
         // exchangerate-api / open.er-api
         let a: serde_json::Value =
-            serde_json::from_str(r#"{"result":"success","rates":{"EUR":0.9,"jpy":150.0}}"#).unwrap();
+            serde_json::from_str(r#"{"result":"success","rates":{"EUR":0.9,"jpy":150.0}}"#)
+                .unwrap();
         // frankfurter
         let b: serde_json::Value =
             serde_json::from_str(r#"{"amount":1.0,"base":"USD","rates":{"EUR":0.9}}"#).unwrap();
         // allratestoday open endpoint
         let c: serde_json::Value =
-            serde_json::from_str(r#"{"result":"success","base_code":"USD","rates":{"EUR":0.9}}"#).unwrap();
+            serde_json::from_str(r#"{"result":"success","base_code":"USD","rates":{"EUR":0.9}}"#)
+                .unwrap();
         for body in [&a, &b, &c] {
             let m = parse_rates_body(body).unwrap();
             assert_eq!(m["EUR"], 0.9);
+            // The base rate is present even when the provider omits it
+            // (Frankfurter), so `rate_for("USD")` never fails.
+            assert_eq!(m["USD"], 1.0);
         }
         assert_eq!(parse_rates_body(&a).unwrap()["JPY"], 150.0);
+    }
+
+    #[test]
+    fn parse_rates_body_rejects_non_usd_base() {
+        let frankfurter_eur: serde_json::Value =
+            serde_json::from_str(r#"{"amount":1.0,"base":"EUR","rates":{"USD":1.1}}"#).unwrap();
+        assert!(parse_rates_body(&frankfurter_eur).is_err());
+        let open_eur: serde_json::Value =
+            serde_json::from_str(r#"{"result":"success","base_code":"EUR","rates":{"USD":1.1}}"#)
+                .unwrap();
+        assert!(parse_rates_body(&open_eur).is_err());
     }
 
     #[test]
