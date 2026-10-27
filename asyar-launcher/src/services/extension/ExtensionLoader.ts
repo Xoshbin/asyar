@@ -502,6 +502,7 @@ export class ExtensionLoader {
           id: this.getCmdObjectId(cmd, manifest),
           name: cmd.name,
           extension: manifest.id,
+          extensionName: manifest.name,
           trigger: cmd.trigger || cmd.name,
           // Rust search index reads this as the command's execution style.
           // After the schema change, `cmd.mode` is the authoritative field;
