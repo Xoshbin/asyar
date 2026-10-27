@@ -599,6 +599,14 @@ pub fn init_daemons(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         });
     }
 
+    // One-time cleanup of legacy "asyar" MCP server entries in external CLI configs
+    {
+        let handle = app.handle().clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            crate::ai::cli_config_cleanup::run_cleanup_if_needed(&handle);
+        });
+    }
+
     // Extension runtime ticker
     if let Some(mgr) = app.try_state::<Arc<ExtensionRuntimeManager>>() {
         extension_runtime_ticker::spawn_ticker(

@@ -154,6 +154,16 @@ pub fn resolve_cli_binary(engine: &str, custom_path: Option<&str>) -> Option<Pat
 
 /// Checks whether the CLI tool for the given engine is installed and queries its version.
 pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliStatus {
+    check_cli_status_in(engine, custom_path, resolve_home_dir().as_deref()).await
+}
+
+/// Parameterized status check that accepts an optional home directory override,
+/// ensuring status probes and tests can run in isolated environments without touching real files.
+pub async fn check_cli_status_in(
+    engine: &str,
+    custom_path: Option<&str>,
+    home: Option<&Path>,
+) -> CliStatus {
     let resolved = resolve_cli_binary(engine, custom_path);
 
     let Some(bin_path) = resolved else {
@@ -174,20 +184,17 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
 
     let path_str = bin_path.to_string_lossy().to_string();
 
-    // If OpenAI, ensure MCP registration and probe account & rate limits via codex app-server.
-    // If Google, ensure MCP registration and probe active account from ~/.gemini.
-    // If Claude, ensure MCP registration and probe active account from ~/.claude.json.
+    // If OpenAI, probe account & rate limits via codex app-server.
+    // If Google, probe active account from ~/.gemini.
+    // If Claude, probe active account from ~/.claude.json.
     let account = if normalize_engine(engine) == "openai" {
-        ensure_mcp_registered_for_codex();
         crate::ai::codex_client::CodexClient::probe_account(&bin_path)
             .await
             .ok()
     } else if normalize_engine(engine) == "google" {
-        ensure_mcp_registered_for_agy();
-        probe_agy_account()
+        home.and_then(probe_agy_account_in)
     } else if normalize_engine(engine) == "claude" {
-        ensure_mcp_registered_for_claude();
-        probe_claude_account()
+        home.and_then(probe_claude_account_in)
     } else {
         None
     };
@@ -506,67 +513,14 @@ pub fn parse_cli_stream_line_stateful(
     events
 }
 
-/// Helper that registers or updates the "asyar" MCP server entry in the given config JSON file.
-pub fn register_mcp_server_in_config(config_file: &Path, current_exe_str: &str) -> bool {
-    let mut doc: serde_json::Value = if config_file.is_file() {
-        match std::fs::read_to_string(config_file) {
-            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({})),
-            Err(_) => serde_json::json!({}),
-        }
-    } else {
-        serde_json::json!({})
-    };
-
-    if !doc.is_object() {
-        doc = serde_json::json!({});
-    }
-
-    let mcp_servers = match doc.get_mut("mcpServers") {
-        Some(v) if v.is_object() => v,
-        _ => {
-            doc["mcpServers"] = serde_json::json!({});
-            &mut doc["mcpServers"]
-        }
-    };
-
-    let needs_update = match mcp_servers.get("asyar") {
-        Some(asyar_entry) => {
-            let cmd = asyar_entry.get("command").and_then(|c| c.as_str());
-            let args = asyar_entry.get("args").and_then(|a| a.as_array());
-            let has_mcp_arg =
-                args.is_some_and(|arr| arr.iter().any(|v| v.as_str() == Some("mcp-server")));
-            cmd != Some(current_exe_str) || !has_mcp_arg
-        }
-        None => true,
-    };
-
-    if needs_update {
-        if let Some(servers_map) = mcp_servers.as_object_mut() {
-            servers_map.insert(
-                "asyar".to_string(),
-                serde_json::json!({
-                    "command": current_exe_str,
-                    "args": ["mcp-server"]
-                }),
-            );
-
-            if let Some(parent) = config_file.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Ok(formatted) = serde_json::to_string_pretty(&doc) {
-                if std::fs::write(config_file, formatted).is_ok() {
-                    log::info!("[asyar mcp] Registered asyar MCP server in {config_file:?}");
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}
-
 /// Probes Google Antigravity account status from ~/.gemini/google_accounts.json and settings.json
 pub fn probe_agy_account() -> Option<CliAccountInfo> {
     let home = resolve_home_dir()?;
+    probe_agy_account_in(&home)
+}
+
+/// Probes Google Antigravity account status in the given home directory.
+pub fn probe_agy_account_in(home: &Path) -> Option<CliAccountInfo> {
     let accounts_file = home.join(".gemini/google_accounts.json");
     if !accounts_file.is_file() {
         return None;
@@ -607,74 +561,14 @@ pub fn probe_agy_account() -> Option<CliAccountInfo> {
     })
 }
 
-/// Ensures that Asyar is registered as a local MCP server in Google Antigravity CLI's configuration
-/// (~/.gemini/config/mcp_config.json), allowing `agy` to discover and invoke Asyar's tools.
-pub fn ensure_mcp_registered_for_agy() {
-    let Some(home) = resolve_home_dir() else {
-        return;
-    };
-    let config_file = home.join(".gemini/config/mcp_config.json");
-
-    let Ok(current_exe) = std::env::current_exe() else {
-        return;
-    };
-    let current_exe_str = current_exe.to_string_lossy().to_string();
-
-    register_mcp_server_in_config(&config_file, &current_exe_str);
-}
-
-/// Ensures that Asyar is registered as a local MCP server in OpenAI Codex's configuration
-/// (~/.codex/config.toml), allowing `codex` / `codex app-server` to discover and invoke Asyar's tools.
-pub fn ensure_mcp_registered_for_codex() {
-    let Some(home) = resolve_home_dir() else {
-        return;
-    };
-    let config_file = home.join(".codex/config.toml");
-
-    let Ok(current_exe) = std::env::current_exe() else {
-        return;
-    };
-    let current_exe_str = current_exe.to_string_lossy().to_string();
-
-    let content = std::fs::read_to_string(&config_file).unwrap_or_default();
-    if content.contains("[mcp_servers.asyar]") && content.contains(&current_exe_str) {
-        return;
-    }
-
-    if let Some(parent) = config_file.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-
-    let new_section = format!(
-        "\n[mcp_servers.asyar]\ncommand = \"{current_exe_str}\"\nargs = [\"mcp-server\"]\n"
-    );
-
-    if content.contains("[mcp_servers.asyar]") {
-        let mut lines = Vec::new();
-        let mut skipping = false;
-        for line in content.lines() {
-            if line.trim() == "[mcp_servers.asyar]" {
-                skipping = true;
-                continue;
-            }
-            if skipping && line.trim().starts_with('[') {
-                skipping = false;
-            }
-            if !skipping {
-                lines.push(line);
-            }
-        }
-        let updated = format!("{}\n{}", lines.join("\n"), new_section);
-        let _ = std::fs::write(&config_file, updated);
-    } else {
-        let updated = format!("{}{}", content, new_section);
-        let _ = std::fs::write(&config_file, updated);
-    }
-}
-
 /// Probes Claude Code account status from ~/.claude.json
 pub fn probe_claude_account() -> Option<CliAccountInfo> {
     let home = resolve_home_dir()?;
+    probe_claude_account_in(&home)
+}
+
+/// Probes Claude Code account status in the given home directory.
+pub fn probe_claude_account_in(home: &Path) -> Option<CliAccountInfo> {
     let claude_file = home.join(".claude.json");
     if !claude_file.is_file() {
         return None;
@@ -704,22 +598,6 @@ pub fn probe_claude_account() -> Option<CliAccountInfo> {
         quota_used_percent: None,
         quota_resets_at: None,
     })
-}
-
-/// Ensures that Asyar is registered as a local MCP server in Claude Code CLI's configuration
-/// (~/.claude.json), allowing `claude` to discover and invoke Asyar's tools.
-pub fn ensure_mcp_registered_for_claude() {
-    let Some(home) = resolve_home_dir() else {
-        return;
-    };
-    let config_file = home.join(".claude.json");
-
-    let Ok(current_exe) = std::env::current_exe() else {
-        return;
-    };
-    let current_exe_str = current_exe.to_string_lossy().to_string();
-
-    register_mcp_server_in_config(&config_file, &current_exe_str);
 }
 
 /// Builds the argument list for a non-interactive `claude` run.
@@ -789,32 +667,20 @@ where
 
     let prompt = build_cli_prompt(&messages, &params);
 
-    match normalize_engine(engine_type) {
-        "openai" => {
-            ensure_mcp_registered_for_codex();
-            let model = if params.model_id.trim().is_empty() {
-                None
-            } else {
-                Some(params.model_id.trim())
-            };
-            return crate::ai::codex_client::CodexClient::stream_turn(
-                &bin_path,
-                &prompt,
-                model,
-                config.reasoning_effort.as_deref(),
-                on_event,
-            )
-            .await;
-        }
-        "google" => {
-            // Ensure Asyar's MCP server is registered with agy so agy can discover Asyar's tools
-            ensure_mcp_registered_for_agy();
-        }
-        "claude" => {
-            // Ensure Asyar's MCP server is registered with claude so claude can discover Asyar's tools
-            ensure_mcp_registered_for_claude();
-        }
-        _ => {}
+    if normalize_engine(engine_type) == "openai" {
+        let model = if params.model_id.trim().is_empty() {
+            None
+        } else {
+            Some(params.model_id.trim())
+        };
+        return crate::ai::codex_client::CodexClient::stream_turn(
+            &bin_path,
+            &prompt,
+            model,
+            config.reasoning_effort.as_deref(),
+            on_event,
+        )
+        .await;
     }
 
     let mut cmd = Command::new(&bin_path);
@@ -1212,88 +1078,66 @@ mod tests {
     }
 
     #[test]
-    fn test_register_mcp_server_in_config_creates_and_preserves() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("asyar_test_mcp_{}", uuid::Uuid::new_v4()));
-        let config_file = temp_dir.join("mcp_config.json");
+    fn test_probe_agy_account_in_temp_home() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let gemini_dir = temp_dir.path().join(".gemini");
+        std::fs::create_dir_all(&gemini_dir).unwrap();
 
-        // Seed with existing server
-        let initial = serde_json::json!({
-            "mcpServers": {
-                "other-server": {
-                    "command": "node",
-                    "args": ["server.js"]
+        let accounts = serde_json::json!({
+            "active": "tester@example.com"
+        });
+        std::fs::write(
+            gemini_dir.join("google_accounts.json"),
+            accounts.to_string(),
+        )
+        .unwrap();
+
+        let settings = serde_json::json!({
+            "security": {
+                "auth": {
+                    "selectedType": "oauth-personal"
                 }
             }
         });
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        std::fs::write(&config_file, initial.to_string()).unwrap();
+        std::fs::write(gemini_dir.join("settings.json"), settings.to_string()).unwrap();
 
-        // Register asyar
-        let updated = register_mcp_server_in_config(&config_file, "/path/to/asyar");
-        assert!(updated, "Should update config on first registration");
-
-        // Read back and verify
-        let content = std::fs::read_to_string(&config_file).unwrap();
-        let doc: serde_json::Value = serde_json::from_str(&content).unwrap();
-
-        assert_eq!(
-            doc["mcpServers"]["other-server"]["command"], "node",
-            "Existing server must be preserved"
-        );
-        assert_eq!(doc["mcpServers"]["asyar"]["command"], "/path/to/asyar");
-        assert_eq!(
-            doc["mcpServers"]["asyar"]["args"],
-            serde_json::json!(["mcp-server"])
-        );
-
-        // Calling again with same path should not update
-        let second_call = register_mcp_server_in_config(&config_file, "/path/to/asyar");
-        assert!(
-            !second_call,
-            "Should not update if already configured identically"
-        );
-
-        // Cleanup
-        let _ = std::fs::remove_dir_all(&temp_dir);
+        let account = probe_agy_account_in(temp_dir.path()).expect("Should parse test agy account");
+        assert_eq!(account.email.as_deref(), Some("tester@example.com"));
+        assert_eq!(account.plan_type.as_deref(), Some("personal"));
     }
 
-    #[tokio::test]
-    async fn test_check_cli_status_codex_if_installed() {
-        if resolve_cli_binary("openai", None).is_some() {
-            let status = check_cli_status("openai", None).await;
-            assert!(status.installed);
-            assert!(status.version.is_some());
-            if let Some(account) = status.account {
-                assert!(account.email.is_some());
-                assert!(account.plan_type.is_some());
+    #[test]
+    fn test_probe_claude_account_in_temp_home() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let claude_file = temp_dir.path().join(".claude.json");
+
+        let claude_doc = serde_json::json!({
+            "oauthAccount": {
+                "emailAddress": "claude-tester@example.com",
+                "seatTier": "team"
             }
-        }
+        });
+        std::fs::write(&claude_file, claude_doc.to_string()).unwrap();
+
+        let account =
+            probe_claude_account_in(temp_dir.path()).expect("Should parse test claude account");
+        assert_eq!(account.email.as_deref(), Some("claude-tester@example.com"));
+        assert_eq!(account.plan_type.as_deref(), Some("team"));
     }
 
     #[tokio::test]
-    async fn test_check_cli_status_agy_if_installed() {
-        if resolve_cli_binary("google", None).is_some() {
-            let status = check_cli_status("google", None).await;
-            println!("Google CLI status: {status:?}");
-            assert!(status.installed);
-            assert!(status.version.is_some());
-            let account = status.account.expect("Should resolve agy account");
-            assert_eq!(account.email.as_deref(), Some("xoshbin@gmail.com"));
-            assert_eq!(account.plan_type.as_deref(), Some("personal"));
-        }
-    }
+    async fn test_check_cli_status_missing_binary_in_isolated_env() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let status = check_cli_status_in(
+            "nonexistent_engine_test",
+            Some("/path/that/does/not/exist/bin"),
+            Some(temp_dir.path()),
+        )
+        .await;
 
-    #[tokio::test]
-    async fn test_check_cli_status_claude_if_installed() {
-        if resolve_cli_binary("claude", None).is_some() {
-            let status = check_cli_status("claude", None).await;
-            println!("Claude CLI status: {status:?}");
-            assert!(status.installed);
-            assert!(status.version.is_some());
-            if let Some(account) = status.account {
-                assert!(account.email.is_some());
-            }
-        }
+        assert!(!status.installed);
+        assert!(status.version.is_none());
+        assert!(status.error.is_some());
+        assert!(status.account.is_none());
     }
 }
