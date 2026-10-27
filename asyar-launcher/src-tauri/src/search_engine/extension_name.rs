@@ -34,18 +34,84 @@ fn normalize(text: &str) -> String {
     out
 }
 
-/// `true` when `query` starts at the beginning of `name` or of any word in it.
-/// `cup` and `world cup` match "World Cup"; `ld` and `rld` do not.
+/// Fewest characters a query needs before a slip in it is forgiven. Below
+/// this, one wrong letter is most of the query and tolerance would let
+/// unrelated names through.
+const MIN_TYPO_QUERY_CHARS: usize = 4;
+
+/// Slips forgiven in a query of `len` characters: one, or two for long ones.
+fn allowed_slips(len: usize) -> usize {
+    if len >= 8 {
+        2
+    } else {
+        1
+    }
+}
+
+/// Optimal-string-alignment distance: insertions, deletions, substitutions and
+/// swapped neighbours each cost one.
+fn edit_distance(a: &[char], b: &[char]) -> usize {
+    let mut rows: Vec<Vec<usize>> = vec![vec![0; b.len() + 1]; a.len() + 1];
+    for (i, row) in rows.iter_mut().enumerate() {
+        row[0] = i;
+    }
+    for (j, cell) in rows[0].iter_mut().enumerate() {
+        *cell = j;
+    }
+    for i in 1..=a.len() {
+        for j in 1..=b.len() {
+            let cost = usize::from(a[i - 1] != b[j - 1]);
+            let mut best = (rows[i - 1][j] + 1)
+                .min(rows[i][j - 1] + 1)
+                .min(rows[i - 1][j - 1] + cost);
+            if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                best = best.min(rows[i - 2][j - 2] + 1);
+            }
+            rows[i][j] = best;
+        }
+    }
+    rows[a.len()][b.len()]
+}
+
+/// `true` when `query` is a slightly misspelled start of `candidate` (the name
+/// from a word boundary on). The first letter must be right — people rarely
+/// miss it, and requiring it keeps unrelated names out.
+fn is_typo_of_start(candidate: &[char], query: &[char]) -> bool {
+    if query.len() < MIN_TYPO_QUERY_CHARS || query.first() != candidate.first() {
+        return false;
+    }
+    let slips = allowed_slips(query.len());
+    // Dropped or extra letters change how much of the name the query covers.
+    (query.len().saturating_sub(slips)..=query.len() + slips)
+        .filter(|&len| len > 0 && len <= candidate.len())
+        .any(|len| edit_distance(query, &candidate[..len]) <= slips)
+}
+
+/// `true` when `query` starts at the beginning of `name` or of any word in it,
+/// allowing a slip or two in longer queries. `cup` and `world cup` match
+/// "World Cup"; `ld` and `rld` do not; `cofee` matches "Coffee".
 pub fn name_matches(name: &str, query: &str) -> bool {
     let query = normalize(query);
     if query.chars().count() < MIN_QUERY_CHARS {
         return false;
     }
     let name = normalize(name);
-    name.match_indices(' ')
+    let starts: Vec<usize> = name
+        .match_indices(' ')
         .map(|(i, _)| i + 1)
         .chain(std::iter::once(0))
-        .any(|start| name[start..].starts_with(&query))
+        .collect();
+    if starts
+        .iter()
+        .any(|&start| name[start..].starts_with(&query))
+    {
+        return true;
+    }
+    let query: Vec<char> = query.chars().collect();
+    starts.iter().any(|&start| {
+        let candidate: Vec<char> = name[start..].chars().collect();
+        is_typo_of_start(&candidate, &query)
+    })
 }
 
 /// A query read as "extension name + command words" — `color picker pick`.
@@ -136,6 +202,65 @@ mod tests {
         assert!(!name_matches("Coffee", ""));
         assert!(!name_matches("Coffee", " "));
         assert!(!name_matches("Coffee", "-"));
+    }
+
+    #[test]
+    fn tolerates_one_slip_in_a_name() {
+        // extra, missing, wrong and swapped letters
+        assert!(name_matches("Coffee", "cofee"));
+        assert!(name_matches("Coffee", "cofe"));
+        assert!(name_matches("Coffee", "cffee"));
+        assert!(name_matches("Coffee", "coffwe"));
+        assert!(name_matches("Coffee", "cofefe"));
+        assert!(!name_matches("Coffee", "ocffee"));
+        assert!(name_matches("Speed Test", "spede"));
+        assert!(name_matches("Speed Test", "sped test"));
+    }
+
+    #[test]
+    fn tolerates_a_slip_in_a_multi_word_name() {
+        assert!(name_matches("Color Picker", "colr picker"));
+        assert!(name_matches("Color Picker", "color-pciker"));
+        assert!(name_matches("World Cup", "wrld cup"));
+        assert!(name_matches("World Cup", "wrld"));
+    }
+
+    #[test]
+    fn tolerates_a_slip_in_a_later_word() {
+        assert!(name_matches("Color Picker", "pickr"));
+        assert!(name_matches("Google Translate", "tranlate"));
+    }
+
+    #[test]
+    fn allows_two_slips_only_in_long_queries() {
+        assert!(name_matches("Google Translate", "gogle tranlate"));
+        assert!(!name_matches("Coffee", "cofeee shop"));
+        // 5 letters allow one slip, not two.
+        assert!(name_matches("Coffee", "cofve"));
+        assert!(!name_matches("Coffee", "cvfve"));
+    }
+
+    #[test]
+    fn typo_tolerance_needs_four_letters() {
+        assert!(!name_matches("Coffee", "caf"));
+        assert!(!name_matches("Coffee", "cfe"));
+        assert!(!name_matches("Coffee", "cp"));
+    }
+
+    #[test]
+    fn typo_tolerance_needs_the_first_letter_right() {
+        assert!(!name_matches("Coffee", "kofee"));
+        assert!(!name_matches("Coffee", "ocffee"));
+        assert!(!name_matches("Coffee", "mffee"));
+        assert!(!name_matches("World Cup", "rld cup"));
+    }
+
+    #[test]
+    fn typo_tolerance_does_not_make_unrelated_words_match() {
+        assert!(!name_matches("Coffee", "clipboard"));
+        assert!(!name_matches("Color Picker", "calculator"));
+        assert!(!name_matches("Speed Test", "snippets"));
+        assert!(!name_matches("Coffee", "settings"));
     }
 
     #[test]
@@ -547,6 +672,48 @@ mod tests {
             )
             .unwrap());
         assert!(found.is_empty(), "{found:?}");
+    }
+
+    #[test]
+    fn plain_search_finds_commands_despite_a_typo_in_the_extension_name() {
+        let state = coffee_state();
+        for query in ["cofee", "cofe", "cffee", "COFEE"] {
+            let found = ids(state.search(query).unwrap());
+            for id in coffee_ids() {
+                assert!(found.contains(&id), "{id} missing for {query}");
+            }
+        }
+    }
+
+    #[test]
+    fn plain_search_typo_in_the_name_still_takes_command_words() {
+        let state = coffee_state();
+        assert_eq!(
+            ids(state.search("cofee decaf").unwrap()),
+            vec!["cmd_org.asyar.coffee_decaffeinate"]
+        );
+        let state = color_picker_state();
+        assert_eq!(
+            ids(state.search("colr picker pick").unwrap()),
+            vec!["cmd_org.asyar.color-picker_pick"]
+        );
+    }
+
+    #[test]
+    fn scoped_search_tolerates_a_typo_in_the_extension_name() {
+        let state = coffee_state();
+        let found = ids(state.search("@cofee").unwrap());
+        assert_eq!(sorted(found), sorted(coffee_ids()));
+    }
+
+    #[test]
+    fn typo_matches_rank_below_title_matches() {
+        let state = coffee_state();
+        state
+            .index_one(command("cmd_other_cofee", "Cofee Shop", "org.other", 0))
+            .unwrap();
+        let found = ids(state.merged_search("cofee", vec![], 0, &[]).unwrap());
+        assert_eq!(found[0], "cmd_other_cofee");
     }
 
     #[test]
