@@ -73,21 +73,32 @@ export class GitHubClient {
     }
   }
 
+  /**
+   * `targetCommitish` pins a new tag to that commit. Without it GitHub
+   * tags the default branch tip, which may not be what was built.
+   */
   async createRelease(
     owner: string,
     repo: string,
-    opts: { tag: string; name: string; body: string },
+    opts: { tag: string; name: string; body: string; targetCommitish?: string },
   ): Promise<{ id: number; upload_url: string; html_url: string }> {
     return this.request(`/repos/${owner}/${repo}/releases`, {
       method: 'POST',
       body: JSON.stringify({
         tag_name: opts.tag,
+        ...(opts.targetCommitish ? { target_commitish: opts.targetCommitish } : {}),
         name: opts.name,
         body: opts.body,
         draft: false,
         prerelease: false,
       }),
     });
+  }
+
+  /** Sha of the commit a branch, tag or sha points at (annotated tags are peeled). */
+  async getCommitSha(owner: string, repo: string, ref: string): Promise<string> {
+    const commit = await this.request(`/repos/${owner}/${repo}/commits/${encodeURIComponent(ref)}`);
+    return commit.sha;
   }
 
   async uploadReleaseAsset(

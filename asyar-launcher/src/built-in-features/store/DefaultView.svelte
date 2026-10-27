@@ -8,7 +8,7 @@
     Badge,
     MetadataList,
   } from '../../components';
-  import { nameToGradient } from '../../lib/extensionAvatar';
+  import { nameToGradient, storeIconSrc } from '../../lib/extensionAvatar';
   import { t } from '../../services/i18n';
 
   let isLoading = $derived(store.isLoading);
@@ -55,7 +55,11 @@
       subtitle={`By ${item.author.name}`}
     >
       {#snippet leading()}
-        <ExtensionAvatar name={item.name} size="sm" />
+        <ExtensionAvatar
+          name={item.name}
+          src={storeIconSrc(item.iconUrl ?? item.icon_url)}
+          size="sm"
+        />
       {/snippet}
       {#snippet trailing()}
         {#if item.status === 'UPDATE_AVAILABLE'}
@@ -79,7 +83,11 @@
       <div
         class="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar flex flex-col items-center pt-12"
       >
-        <ExtensionAvatar name={selectedItem.name} size="xl" />
+        <ExtensionAvatar
+          name={selectedItem.name}
+          src={storeIconSrc(selectedItem.iconUrl ?? selectedItem.icon_url)}
+          size="xl"
+        />
 
         <h2 class="store-detail-title">{selectedItem.name}</h2>
 

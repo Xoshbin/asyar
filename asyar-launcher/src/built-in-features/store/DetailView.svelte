@@ -12,7 +12,7 @@
     Button,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-  import { nameToGradient } from '../../lib/extensionAvatar';
+  import { nameToGradient, storeIconSrc } from '../../lib/extensionAvatar';
 
   import * as commands from '../../lib/ipc/commands'; // Import commands
   import storeExtension from './index.svelte';
@@ -314,7 +314,11 @@
       <div class="w-full max-w-5xl mx-auto px-6 py-8 md:px-12 md:py-12">
         <!-- Header Section -->
         <div class="flex flex-col md:flex-row items-start md:items-center gap-8 mb-12">
-          <ExtensionAvatar name={extensionDetail.name} size="xl" />
+          <ExtensionAvatar
+            name={extensionDetail.name}
+            src={storeIconSrc(extensionDetail.iconUrl)}
+            size="xl"
+          />
 
           <div class="flex-1 min-w-0">
             <h1 class="text-page-title mb-3" style="font-size: var(--font-size-3xl);">

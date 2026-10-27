@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
+import { iconFilePath } from './storeIcon';
 
 export interface ZipResult {
   zipPath: string;
@@ -10,22 +11,34 @@ export interface ZipResult {
   sizeBytes: number;
 }
 
+/**
+ * `readme` is the publish-time README (links already made absolute). It
+ * goes to the archive root so the Store reads it from the package itself,
+ * replacing any README.md the build copied into dist/.
+ */
 export function packageExtension(
   cwd: string,
   extensionId: string,
   version: string,
   isTheme = false,
+  readme?: string,
 ): ZipResult {
   const zip = new AdmZip();
 
   if (isTheme) {
-    // Theme packages: manifest.json + theme.json + optional fonts/
+    // Theme packages: manifest.json + theme.json + optional fonts/ + icon file
     zip.addLocalFile(path.join(cwd, 'manifest.json'));
     zip.addLocalFile(path.join(cwd, 'theme.json'));
 
     const fontsDir = path.join(cwd, 'fonts');
     if (fs.existsSync(fontsDir)) {
       addDirectoryToZip(zip, fontsDir, 'fonts');
+    }
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(cwd, 'manifest.json'), 'utf8'));
+    const iconPath = iconFilePath(manifest.icon);
+    if (iconPath && fs.existsSync(path.join(cwd, iconPath))) {
+      zip.addFile(iconPath, fs.readFileSync(path.join(cwd, iconPath)));
     }
   } else {
     const distDir = path.join(cwd, 'dist');
@@ -41,6 +54,11 @@ export function packageExtension(
     zip.addFile('manifest.json', Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`));
     // dist/ contents flattened into zip root
     addDirectoryToZip(zip, distDir, '');
+  }
+
+  if (readme !== undefined) {
+    if (zip.getEntry('README.md')) zip.deleteFile('README.md');
+    zip.addFile('README.md', Buffer.from(readme));
   }
 
   const zipFileName = `${extensionId}-${version}.zip`;
