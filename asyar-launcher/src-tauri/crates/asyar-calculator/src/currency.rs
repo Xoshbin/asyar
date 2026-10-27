@@ -23,6 +23,10 @@ const RATES_URLS: &[&str] = &[
     "https://api.frankfurter.dev/v1/latest?base=USD",
     "https://allratestoday.com/api/open/latest/USD",
 ];
+/// Keyless Central Bank of Iraq table (official USD/IQD reference rate),
+/// used to complete providers whose USD table has no `IQD` entry
+/// (Frankfurter and the AllRatesToday ECB table only carry ~30 currencies).
+const CBI_RATES_URL: &str = "https://allratestoday.com/api/open/central-bank/cbiq";
 pub const DEFAULT_TTL_HOURS: f64 = 6.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,6 +193,20 @@ pub fn parse_rates_body(body: &serde_json::Value) -> Result<HashMap<String, f64>
     Ok(map)
 }
 
+/// Pull the official USD→IQD reference rate out of a Central Bank of Iraq
+/// table body (`{"rates":[{"base":"USD","quote":"IQD","type":"reference","value":1310.0}, ...]}`).
+pub fn parse_cbi_usd_iqd(body: &serde_json::Value) -> Option<f64> {
+    body.get("rates")?.as_array()?.iter().find_map(|row| {
+        let is_usd_iqd = row.get("base")?.as_str()?.eq_ignore_ascii_case("USD")
+            && row.get("quote")?.as_str()?.eq_ignore_ascii_case("IQD")
+            && row.get("type")?.as_str()?.eq_ignore_ascii_case("reference");
+        if !is_usd_iqd {
+            return None;
+        }
+        row.get("value")?.as_f64().filter(|v| *v > 0.0)
+    })
+}
+
 async fn fetch_rates_from(
     client: &reqwest::Client,
     url: &str,
@@ -232,6 +250,31 @@ pub async fn fetch_rates() -> Result<HashMap<String, f64>, String> {
     }
     if map.is_empty() {
         return Err(format!("all rate providers failed: {}", errors.join("; ")));
+    }
+
+    // IQD is the one currency the calculator must never lose. Providers that
+    // serve the ECB table (Frankfurter, AllRatesToday) have no IQD entry, so
+    // complete the map from the Central Bank of Iraq's official table; if
+    // that fails too, reject the fetch so the existing cache stays active.
+    if !map.contains_key("IQD") {
+        let cbi = client
+            .get(CBI_RATES_URL)
+            .send()
+            .await
+            .map_err(|e| e.to_string())
+            .and_then(|r| r.error_for_status().map_err(|e| e.to_string()));
+        if let Ok(resp) = cbi {
+            if let Ok(body) = resp.json::<serde_json::Value>().await {
+                if let Some(rate) = parse_cbi_usd_iqd(&body) {
+                    map.insert("IQD".to_string(), rate);
+                }
+            }
+        }
+        if !map.contains_key("IQD") {
+            return Err(
+                "rate providers answered without an IQD rate; keeping cached rates".to_string(),
+            );
+        }
     }
 
     // Crypto prices are best-effort: fiat rates stay usable if this fails.
@@ -357,6 +400,25 @@ mod tests {
             assert_eq!(m["USD"], 1.0);
         }
         assert_eq!(parse_rates_body(&a).unwrap()["JPY"], 150.0);
+    }
+
+    #[test]
+    fn parse_cbi_usd_iqd_picks_the_reference_row() {
+        let body: serde_json::Value = serde_json::from_str(
+            r#"{"bank":"cbiq","rates":[
+                {"base":"USD","quote":"IQD","type":"buy","value":1300.0},
+                {"base":"USD","quote":"IQD","type":"reference","value":1310.0},
+                {"base":"EUR","quote":"IQD","type":"reference","value":1520.0}]}"#,
+        )
+        .unwrap();
+        assert_eq!(parse_cbi_usd_iqd(&body), Some(1310.0));
+        let none: serde_json::Value = serde_json::from_str(
+            r#"{"rates":[{"base":"EUR","quote":"IQD","type":"reference","value":1.0}]}"#,
+        )
+        .unwrap();
+        assert_eq!(parse_cbi_usd_iqd(&none), None);
+        let bad: serde_json::Value = serde_json::from_str(r#"{"error":"nope"}"#).unwrap();
+        assert_eq!(parse_cbi_usd_iqd(&bad), None);
     }
 
     #[test]
