@@ -42,24 +42,113 @@ pub struct JsonRpcError {
     pub data: Option<Value>,
 }
 
-/// Creates a default `ToolRegistry` with core built-in tools suitable for headless MCP execution.
-pub fn create_default_mcp_registry() -> Arc<ToolRegistry> {
+/// Parses the `--allow` argument from the command-line arguments for `asyar mcp-server`.
+/// Supports both `--allow <ids>` and `--allow=<ids>`.
+/// Returns `None` if `--allow` was not specified at all.
+pub fn parse_mcp_allow_flag(args: &[String]) -> Option<Vec<String>> {
+    let mut iter = args.iter().peekable();
+    while let Some(arg) = iter.next() {
+        if arg == "--allow" {
+            if let Some(val) = iter.next() {
+                return Some(
+                    val.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect(),
+                );
+            }
+            return Some(Vec::new());
+        } else if let Some(stripped) = arg.strip_prefix("--allow=") {
+            return Some(
+                stripped
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect(),
+            );
+        }
+    }
+    None
+}
+
+/// Creates a `ToolRegistry` registering only the specified built-in tools.
+/// Unknown tool IDs are ignored, with a single line logged to stderr for each.
+pub fn create_mcp_registry<'a, I>(allowed_ids: I) -> Arc<ToolRegistry>
+where
+    I: IntoIterator<Item = &'a str>,
+{
     let registry = Arc::new(ToolRegistry::new());
-    let _ = registry.register_builtin(Arc::new(CalculatorTool::new()));
+    let mut clipboard_provider: Option<Arc<dyn ClipboardProvider>> = None;
+    let mut registered = std::collections::HashSet::new();
 
-    let clipboard_provider: Arc<dyn ClipboardProvider> = Arc::new(SystemClipboard);
-    let _ = registry.register_builtin(Arc::new(ClipboardReadTool::new(Arc::clone(
-        &clipboard_provider,
-    ))));
-    let _ = registry.register_builtin(Arc::new(ClipboardWriteTool::new(clipboard_provider)));
+    for raw_id in allowed_ids {
+        let trimmed = raw_id.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
 
-    let _ = registry.register_builtin(Arc::new(FsReadTool::new()));
-    let _ = registry.register_builtin(Arc::new(FsWriteTool::new()));
-    let _ = registry.register_builtin(Arc::new(ShellExecTool::new()));
-    let _ = registry.register_builtin(Arc::new(WebFetchTool::new()));
-    let _ = registry.register_builtin(Arc::new(WebSearchTool::new()));
+        let normalized = trimmed
+            .strip_prefix("builtin:")
+            .or_else(|| trimmed.strip_prefix("builtin__"))
+            .unwrap_or(trimmed)
+            .replace('_', "-");
+
+        if !registered.insert(normalized.clone()) {
+            continue;
+        }
+
+        match normalized.as_str() {
+            "calculator" => {
+                let _ = registry.register_builtin(Arc::new(CalculatorTool::new()));
+            }
+            "clipboard-read" => {
+                let cp = clipboard_provider
+                    .get_or_insert_with(|| Arc::new(SystemClipboard))
+                    .clone();
+                let _ = registry.register_builtin(Arc::new(ClipboardReadTool::new(cp)));
+            }
+            "clipboard-write" => {
+                let cp = clipboard_provider
+                    .get_or_insert_with(|| Arc::new(SystemClipboard))
+                    .clone();
+                let _ = registry.register_builtin(Arc::new(ClipboardWriteTool::new(cp)));
+            }
+            "fs-read" => {
+                let _ = registry.register_builtin(Arc::new(FsReadTool::new()));
+            }
+            "fs-write" => {
+                let _ = registry.register_builtin(Arc::new(FsWriteTool::new()));
+            }
+            "shell-exec" => {
+                let _ = registry.register_builtin(Arc::new(ShellExecTool::new()));
+            }
+            "web-fetch" => {
+                let _ = registry.register_builtin(Arc::new(WebFetchTool::new()));
+            }
+            "web-search" => {
+                let _ = registry.register_builtin(Arc::new(WebSearchTool::new()));
+            }
+            unknown => {
+                eprintln!("[asyar mcp] Unknown built-in tool: '{unknown}'");
+            }
+        }
+    }
 
     registry
+}
+
+/// Creates a default `ToolRegistry` with core built-in tools suitable for headless MCP execution.
+pub fn create_default_mcp_registry() -> Arc<ToolRegistry> {
+    create_mcp_registry([
+        "calculator",
+        "clipboard-read",
+        "clipboard-write",
+        "fs-read",
+        "fs-write",
+        "shell-exec",
+        "web-fetch",
+        "web-search",
+    ])
 }
 
 /// Finds a built-in tool in the registry with flexible name matching (bare ID, FQID, dashes/underscores).

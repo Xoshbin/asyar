@@ -600,8 +600,64 @@ pub fn probe_claude_account_in(home: &Path) -> Option<CliAccountInfo> {
     })
 }
 
-/// Builds the argument list for a non-interactive `claude` run.
-pub fn claude_cli_args(prompt: &str, model: &str, effort: Option<&str>) -> Vec<String> {
+/// Resolves the app data directory for Asyar (`<data_dir>/org.asyar`).
+pub fn resolve_app_data_dir() -> Option<PathBuf> {
+    dirs::data_dir().map(|d| d.join("org.asyar"))
+}
+
+/// Resolves and ensures the existence of Asyar's dedicated CLI workspace directory
+/// (`<app_data_dir>/cli-workspace`).
+pub fn resolve_cli_workspace_dir(app_data_dir: Option<&Path>) -> Result<PathBuf, AppError> {
+    let base = app_data_dir
+        .map(PathBuf::from)
+        .or_else(resolve_app_data_dir)
+        .ok_or_else(|| AppError::Other("Could not resolve app data directory".to_string()))?;
+    let workspace = base.join("cli-workspace");
+    std::fs::create_dir_all(&workspace).map_err(|e| {
+        AppError::Other(format!(
+            "Failed to create CLI workspace directory at {workspace:?}: {e}"
+        ))
+    })?;
+    Ok(workspace)
+}
+
+/// Extracts bare IDs of built-in tools from tool definitions, dropping non-built-in tools with a warning.
+pub fn filter_cli_builtin_tools(tools: &[crate::ai::types::ToolDefinition]) -> Vec<String> {
+    let mut builtins = Vec::new();
+    for tool in tools {
+        let name = &tool.name;
+        if let Some(bare) = name
+            .strip_prefix("builtin:")
+            .or_else(|| name.strip_prefix("builtin__"))
+        {
+            builtins.push(bare.to_string());
+        } else {
+            log::warn!(
+                "[cli] Dropping non-builtin tool '{name}' for CLI run; only built-in tools are supported in CLI mode"
+            );
+        }
+    }
+    builtins
+}
+
+/// Builds the argument list for a non-interactive `claude` run with the default binary path.
+pub fn claude_cli_args(
+    prompt: &str,
+    model: &str,
+    effort: Option<&str>,
+    allowed_builtins: &[&str],
+) -> Vec<String> {
+    claude_cli_args_with_exe(prompt, model, effort, allowed_builtins, None)
+}
+
+/// Builds the argument list for a non-interactive `claude` run, optionally taking an explicit executable path.
+pub fn claude_cli_args_with_exe(
+    prompt: &str,
+    model: &str,
+    effort: Option<&str>,
+    allowed_builtins: &[&str],
+    exe_path: Option<&Path>,
+) -> Vec<String> {
     let mut args: Vec<String> = [
         "-p",
         prompt,
@@ -611,11 +667,52 @@ pub fn claude_cli_args(prompt: &str, model: &str, effort: Option<&str>) -> Vec<S
         "--include-partial-messages",
         "--disable-slash-commands",
         "--permission-mode",
-        "bypassPermissions",
+        "dontAsk",
+        "--tools",
+        "",
+        "--strict-mcp-config",
+        "--setting-sources",
+        "",
     ]
     .into_iter()
     .map(String::from)
     .collect();
+
+    let mut unique_builtins: Vec<&str> = Vec::new();
+    for id in allowed_builtins {
+        if !unique_builtins.contains(id) {
+            unique_builtins.push(*id);
+        }
+    }
+
+    if !unique_builtins.is_empty() {
+        let exe = match exe_path {
+            Some(p) => p.to_string_lossy().to_string(),
+            None => std::env::current_exe()
+                .unwrap_or_else(|_| PathBuf::from("asyar"))
+                .to_string_lossy()
+                .to_string(),
+        };
+
+        let allow_arg = unique_builtins.join(",");
+        let mcp_config = serde_json::json!({
+            "mcpServers": {
+                "asyar": {
+                    "command": exe,
+                    "args": ["mcp-server", "--allow", allow_arg]
+                }
+            }
+        });
+
+        args.push("--mcp-config".into());
+        args.push(mcp_config.to_string());
+
+        args.push("--allowedTools".into());
+        for id in &unique_builtins {
+            args.push(format!("mcp__asyar__{id}"));
+        }
+    }
+
     if !model.is_empty() {
         args.push("--model".into());
         args.push(model.into());
@@ -627,6 +724,21 @@ pub fn claude_cli_args(prompt: &str, model: &str, effort: Option<&str>) -> Vec<S
         args.push(effort.into());
     }
     args
+}
+
+/// Builds the Tokio `Command` to spawn Claude CLI with the given settings.
+pub fn build_claude_command(
+    bin_path: &Path,
+    prompt: &str,
+    model: &str,
+    effort: Option<&str>,
+    allowed_builtins: &[&str],
+    workspace_dir: &Path,
+) -> Command {
+    let mut cmd = Command::new(bin_path);
+    cmd.current_dir(workspace_dir);
+    cmd.args(claude_cli_args(prompt, model, effort, allowed_builtins));
+    cmd
 }
 
 /// Picks the message reported when a CLI process exits non-zero. Claude Code writes its
@@ -683,11 +795,16 @@ where
         .await;
     }
 
-    let mut cmd = Command::new(&bin_path);
+    let workspace_dir = resolve_cli_workspace_dir(None)?;
+    log::debug!(
+        "[cli] Spawning Claude process with working directory: {:?}",
+        workspace_dir
+    );
 
-    match normalize_engine(engine_type) {
+    let mut cmd = match normalize_engine(engine_type) {
         "google" => {
             // agy -p <prompt> --output-format stream-json --disable-slash-commands --dangerously-skip-permissions
+            let mut cmd = Command::new(&bin_path);
             cmd.arg("-p")
                 .arg(&prompt)
                 .arg("--output-format")
@@ -714,18 +831,26 @@ where
                     cmd.arg("--effort").arg(effort);
                 }
             }
+            cmd
         }
         "claude" => {
-            cmd.args(claude_cli_args(
+            let allowed_builtins = filter_cli_builtin_tools(params.tools.as_deref().unwrap_or(&[]));
+            let allowed_refs: Vec<&str> = allowed_builtins.iter().map(String::as_str).collect();
+            build_claude_command(
+                &bin_path,
                 &prompt,
                 params.model_id.trim(),
                 config.reasoning_effort.as_deref(),
-            ));
+                &allowed_refs,
+                &workspace_dir,
+            )
         }
         _ => {
+            let mut cmd = Command::new(&bin_path);
             cmd.arg(&prompt);
+            cmd
         }
-    }
+    };
 
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -1008,25 +1133,115 @@ mod tests {
     }
 
     #[test]
-    fn test_claude_cli_args() {
-        let args = claude_cli_args("hello", "sonnet", Some("high"));
+    fn test_claude_cli_args_flags_and_safety() {
+        let args = claude_cli_args("hello", "sonnet", Some("high"), &[]);
         assert_eq!(&args[..2], ["-p", "hello"]);
-        for flag in [
-            "--verbose",
-            "--include-partial-messages",
-            "--disable-slash-commands",
-            "bypassPermissions",
-        ] {
-            assert!(args.iter().any(|a| a == flag), "missing {flag}");
-        }
+        // Must never contain permission bypass flags
+        assert!(!args.iter().any(|a| a == "bypassPermissions"));
+        assert!(!args.iter().any(|a| a == "--dangerously-skip-permissions"));
+
+        // Must enforce restricted permissions and settings
         let pos = |flag: &str| args.iter().position(|a| a == flag).unwrap();
+        assert_eq!(args[pos("--permission-mode") + 1], "dontAsk");
+        assert_eq!(args[pos("--tools") + 1], "");
+        assert!(args.iter().any(|a| a == "--strict-mcp-config"));
+        assert_eq!(args[pos("--setting-sources") + 1], "");
+
         assert_eq!(args[pos("--model") + 1], "sonnet");
         assert_eq!(args[pos("--effort") + 1], "high");
 
-        let bare = claude_cli_args("hello", "", None);
+        let bare = claude_cli_args("hello", "", None, &[]);
         assert!(!bare.iter().any(|a| a == "--model" || a == "--effort"));
-        let bogus = claude_cli_args("hello", "", Some("bogus"));
+        let bogus = claude_cli_args("hello", "", Some("bogus"), &[]);
         assert!(!bogus.iter().any(|a| a == "--effort"));
+    }
+
+    #[test]
+    fn test_claude_cli_args_without_builtins_has_no_mcp_config() {
+        let args = claude_cli_args("hello", "", None, &[]);
+        assert!(!args.iter().any(|a| a == "--mcp-config"));
+        assert!(!args.iter().any(|a| a == "--allowedTools"));
+    }
+
+    #[test]
+    fn test_claude_cli_args_with_builtins() {
+        let exe = Path::new("/custom/bin/asyar");
+        let args = claude_cli_args_with_exe(
+            "hello",
+            "sonnet",
+            None,
+            &["calculator", "web-search"],
+            Some(exe),
+        );
+
+        let mcp_pos = args.iter().position(|a| a == "--mcp-config").unwrap();
+        let mcp_json: serde_json::Value =
+            serde_json::from_str(&args[mcp_pos + 1]).expect("valid json in --mcp-config");
+
+        let servers = mcp_json["mcpServers"]
+            .as_object()
+            .expect("mcpServers object");
+        assert_eq!(servers.len(), 1, "must define exactly one server");
+        assert!(servers.contains_key("asyar"));
+
+        assert_eq!(servers["asyar"]["command"], "/custom/bin/asyar");
+        assert_eq!(
+            servers["asyar"]["args"],
+            serde_json::json!(["mcp-server", "--allow", "calculator,web-search"])
+        );
+
+        let allowed_pos = args.iter().position(|a| a == "--allowedTools").unwrap();
+        assert_eq!(args[allowed_pos + 1], "mcp__asyar__calculator");
+        assert_eq!(args[allowed_pos + 2], "mcp__asyar__web-search");
+    }
+
+    #[test]
+    fn test_filter_cli_builtin_tools() {
+        use crate::ai::types::ToolDefinition;
+        let tools = vec![
+            ToolDefinition {
+                name: "builtin:calculator".into(),
+                description: "calc".into(),
+                parameters: serde_json::json!({}),
+            },
+            ToolDefinition {
+                name: "builtin__web-search".into(),
+                description: "search".into(),
+                parameters: serde_json::json!({}),
+            },
+            ToolDefinition {
+                name: "extension__weather__current".into(),
+                description: "weather".into(),
+                parameters: serde_json::json!({}),
+            },
+            ToolDefinition {
+                name: "mcp__github__create_issue".into(),
+                description: "github".into(),
+                parameters: serde_json::json!({}),
+            },
+        ];
+
+        let filtered = filter_cli_builtin_tools(&tools);
+        assert_eq!(filtered, vec!["calculator", "web-search"]);
+    }
+
+    #[test]
+    fn test_build_claude_command_uses_cli_workspace_directory() {
+        let bin_path = PathBuf::from("/usr/local/bin/claude");
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("cli-workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let cmd = build_claude_command(&bin_path, "prompt", "model", None, &[], &workspace);
+        assert_eq!(cmd.as_std().get_current_dir(), Some(workspace.as_path()));
+    }
+
+    #[test]
+    fn test_resolve_cli_workspace_dir_creates_dir() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = resolve_cli_workspace_dir(Some(temp.path())).unwrap();
+        assert_eq!(workspace, temp.path().join("cli-workspace"));
+        assert!(workspace.is_dir());
     }
 
     #[test]
