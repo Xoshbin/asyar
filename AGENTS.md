@@ -83,6 +83,8 @@ Or manually run the steps:
 - **Svelte 5 Runes Only**: Always use runes (`$state`, `$derived`, `$props`, `$bindable`, `$effect`). Svelte 4 syntax (`export let`, `$:`) is strictly forbidden.
 - **Tauri 2 APIs**: Use modular `@tauri-apps/api/*` and Tauri 2 plugins.
 
+- **One Hint Look**: Every launcher hint (an offer, not a result) uses `variant: HINT_VARIANT` + `HINT_ICON` from `services/search/hintLook.ts`. The look lives only in `LauncherListRow`; never restyle or re-icon a hint. See `.agents/rules/06-tech-stack.md` §3.
+
 ## 7. Keyboard Shortcuts & Input Safety
 
 - **Preserve Text Editing**: Never bind native text editing shortcuts (`Cmd+Backspace`, `Option+Backspace`, `Cmd+A`, etc.) to list actions or item deletion.

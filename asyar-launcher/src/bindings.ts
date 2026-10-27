@@ -370,6 +370,7 @@ export type LauncherPlacement = {
 export type MergedSearchResponse = {
 	results: SearchResult[],
 	aliasMatch?: AliasMatch | null,
+	scopeHint?: ScopeHint | null,
 };
 
 export type ModelInfo = {
@@ -435,6 +436,12 @@ export type ReadAlign = "none" | "line";
  *  results (synthetic answers like Calculator's expression result).
  */
 export type ResultPriority = "top";
+
+// The one extension a query names, offered as a "search only in <name>" row.
+export type ScopeHint = {
+	extensionId: string,
+	extensionName: string,
+};
 
 export type SearchResult = {
 	objectId: string,

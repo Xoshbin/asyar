@@ -138,12 +138,22 @@ pub struct AliasMatch {
     pub auto_execute: bool,
 }
 
+/// The one extension a query names, offered as a "search only in <name>" row.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeHint {
+    pub extension_id: String,
+    pub extension_name: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MergedSearchResponse {
     pub results: Vec<SearchResult>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alias_match: Option<AliasMatch>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_hint: Option<ScopeHint>,
 }
 
 // Helper to get the name for sorting/searching

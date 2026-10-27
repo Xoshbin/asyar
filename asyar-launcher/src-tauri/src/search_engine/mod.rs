@@ -1727,9 +1727,18 @@ impl SearchState {
             }
         }
 
+        let scope_hint = {
+            let names = self
+                .extension_names
+                .read()
+                .map_err(|_| SearchError::LockError)?;
+            extension_name::scope_hint(query, &names, disabled_extension_ids, &results)
+        };
+
         Ok(models::MergedSearchResponse {
             results,
             alias_match,
+            scope_hint,
         })
     }
 }

@@ -76,6 +76,8 @@ export function resolveItemMeta(
   let sourceLabel: string | undefined;
   if (type === 'application') {
     kindLabel = t('search.kind_application');
+  } else if (type === 'scope') {
+    kindLabel = t('search.kind_scope');
   } else if (type === 'command') {
     kindLabel = result.typeLabel || t('search.kind_command');
     if (result.extensionId) {
@@ -407,6 +409,7 @@ export function buildMappedItems({
       tier: result.tier,
       action: actionFunction,
       style: result.style,
+      variant: result.variant,
       shortcut: shortcutMap.get(objectId)?.shortcut,
       favorite: result.favorite ?? false,
       // Optimistic override: a freshly assigned alias appears in the chip

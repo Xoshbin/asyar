@@ -7,7 +7,7 @@ import type { BuiltinRowAction } from '../builtinSearchProviders';
  * Base fields stay in sync with Rust automatically via specta.
  */
 export interface SearchResult extends Omit<SearchResultBase, 'type'> {
-  type: 'application' | 'command' | 'file';
+  type: 'application' | 'command' | 'file' | 'scope';
   // Frontend-only fields (not in Rust struct):
   action?: string | (() => unknown);
   /** ⌘K actions contributed by the owning built-in for this row. */
@@ -18,4 +18,6 @@ export interface SearchResult extends Omit<SearchResultBase, 'type'> {
   description?: string;
   category?: string;
   style?: 'default' | 'large';
+  /** `'hint'` draws the row in the shared hint look (an offer, not a result). */
+  variant?: 'hint';
 }

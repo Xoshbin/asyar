@@ -252,6 +252,62 @@ describe('searchOrchestrator characterization tests', () => {
     expect(results).toHaveLength(10);
   });
 
+  it('adds a "search only in" row after the commands of the extension the query names', async () => {
+    vi.mocked(commands.mergedSearch).mockResolvedValue({
+      results: [
+        {
+          objectId: 'c1',
+          name: 'Caffeinate',
+          type: 'command',
+          extensionId: 'org.asyar.coffee',
+          score: 0.5,
+          tier: 4,
+        },
+        {
+          objectId: 'c2',
+          name: 'Decaffeinate',
+          type: 'command',
+          extensionId: 'org.asyar.coffee',
+          score: 0.5,
+          tier: 4,
+        },
+        { objectId: 'f1', name: 'coffee.png', type: 'file', score: 0.1, tier: 5 },
+      ] as any[],
+      aliasMatch: null,
+      scopeHint: { extensionId: 'org.asyar.coffee', extensionName: 'Coffee' },
+    });
+
+    await searchOrchestrator.handleSearch('coffee');
+
+    expect(searchOrchestrator.items.map((r) => r.objectId)).toEqual([
+      'c1',
+      'c2',
+      'scope_hint_org.asyar.coffee',
+      'f1',
+    ]);
+    const hintRow = searchOrchestrator.items[2];
+    (hintRow.action as () => void)();
+    expect(searchStores.query).toBe('@Coffee ');
+  });
+
+  it('adds no extra row when the search response carries no scope hint', async () => {
+    vi.mocked(commands.mergedSearch).mockResolvedValue({
+      results: [
+        {
+          objectId: 'c1',
+          name: 'Caffeinate',
+          type: 'command',
+          extensionId: 'org.asyar.coffee',
+          score: 0.5,
+          tier: 4,
+        },
+      ] as any[],
+      aliasMatch: null,
+    });
+    await searchOrchestrator.handleSearch('coffee');
+    expect(searchOrchestrator.items.map((r) => r.objectId)).toEqual(['c1']);
+  });
+
   it('handles search errors gracefully', async () => {
     vi.mocked(commands.mergedSearch).mockRejectedValue(new Error('search failed'));
 

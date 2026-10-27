@@ -1067,6 +1067,48 @@ Two rules that are not visible in the snippet and are easy to break:
    serves `.list-row` markup written inside feature views. Change both.
 2. **A selected row never takes a border**, in any list, for any reason.
 
+### 6.5 The Hint Row
+
+`components/list/LauncherListRow.svelte` (`variant="hint"`)
+
+The launcher's way of making an offer. It answers one question — _what could I
+do from here?_ — without being a result. Today it carries "Search only in
+Coffee"; the look is deliberately general so the next hint does not need its own.
+
+**Anatomy:** a row with a soft accent tint, a general info icon, a title in the
+accent colour, and the short token it will type or press as a chip.
+
+**Structural logic.**
+
+- **An offer must be distinguishable from an answer.** A hint that looks like a
+  command is read as a command, and a user pressing `⏎` on it expects a command
+  to run. The tint, the accent title and the chip are what say "this is not a
+  result" at a glance.
+- **It is the one place Principle III is bent.** Exactly one element is meant to
+  be the thing `⏎` acts on; a hint competes for the eye on purpose. The effect is
+  held mild — a 10% tint, never a solid fill, no border — so it is noticed
+  without outranking the selected row. The selected state is never restyled.
+- **One look, defined once.** Hints that each chose their own treatment would
+  drift into a second visual language. The look lives in `LauncherListRow`,
+  is reached through `variant: 'hint'`, and `hintLookGuard.test.ts` fails if its
+  selectors appear anywhere else.
+- **The icon is general.** `icon:info` is tied to no feature, so every hint reads
+  as the same kind of thing.
+- **It is never a command.** A command row hides the launcher or clears the
+  query when it finishes; a hint that rewrites the query would undo itself.
+- **It sits beside what it relates to**, not at the end of the list, where it
+  would be below the fold.
+
+**Derivation.** The tint and the text are mixed from the same ramp, the house
+formula (§4, _Tinted state backgrounds_): `color-mix(in srgb,
+var(--accent-primary) 10%, transparent)`, with hover at 16% and the chip at 16%.
+No new token was needed.
+
+**Rejected alternatives.** A solid accent fill (too loud; fights the selected
+row). A border or dashed outline (Principle II: the tint already separates it).
+A per-feature icon (drifts into many looks). A danger or warning hint (a problem
+is not an offer).
+
 ---
 
 ## 7. What this specification does not cover
@@ -1130,6 +1172,7 @@ commit.
 | `pnpm check:design`               | Tokens only: no hardcoded colours, raw pixels, bare z-indexes, Tailwind palette classes, voice tokens used as fills, spacing tokens used as dimensions, or new uses of a deprecated token |
 | `themePalettes.test.ts`           | The two copies of each palette agree; every fill carries `--text-on-accent` at ≥4.5:1                                                                                                     |
 | `themeVariables.test.ts`          | Spacing, size, type, tracking and easing stay design-system-owned and un-overridable by themes                                                                                            |
+| `hintLookGuard.test.ts`           | The hint look (`.hint-row`, `.hint-chip`) is styled only in `LauncherListRow`, so every hint stays one look                                                                               |
 | `.agents/skills/design-language/` | What an agent loads before touching any UI                                                                                                                                                |
 
 The mechanical half cannot be forgotten, so the human half gets to be about

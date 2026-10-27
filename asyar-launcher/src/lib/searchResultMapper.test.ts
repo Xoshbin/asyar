@@ -101,6 +101,25 @@ describe('icon resolution', () => {
 
 // ── TypeLabel resolution ──────────────────────────────────────────────────────
 
+describe('scope hint row', () => {
+  it('is labelled "Scope" and shows no source', () => {
+    const meta = resolveItemMeta(
+      {
+        objectId: 'scope_hint_x',
+        name: 'Search only in X',
+        type: 'scope',
+        score: 0,
+        tier: 4,
+        icon: 'icon:search',
+      } as any,
+      () => null,
+    );
+    expect(meta.kindLabel).toBe('Scope');
+    expect(meta.sourceLabel).toBeUndefined();
+    expect(meta.icon).toBe('icon:search');
+  });
+});
+
 describe('typeLabel resolution', () => {
   it('capitalizes the type string', () => {
     const { typeLabel } = resolveItemMeta(makeResult({ type: 'application' }), noManifest);
@@ -230,6 +249,30 @@ describe('objectId resolution', () => {
 });
 
 // ── buildMappedItems: style & description pass-through ───────────────────────
+
+describe('buildMappedItems carries the hint variant', () => {
+  it('passes variant "hint" through so the list can draw the shared hint look', () => {
+    const { mappedItems } = buildMappedItems({
+      searchItems: [
+        makeResult({
+          objectId: 'scope_hint_x',
+          name: 'Search only in X',
+          type: 'scope',
+          variant: 'hint',
+          action: () => {},
+        }),
+        makeResult({ objectId: 'app_safari', name: 'Safari', type: 'application', path: '/a' }),
+      ],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'x',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    });
+    expect(mappedItems[0].variant).toBe('hint');
+    expect(mappedItems[1].variant).toBeUndefined();
+  });
+});
 
 describe('buildMappedItems preserves calculator fields', () => {
   it('maps style: "large" from SearchResult to MappedSearchItem', () => {
