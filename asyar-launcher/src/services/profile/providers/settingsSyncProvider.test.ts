@@ -66,7 +66,7 @@ describe('SettingsSyncProvider', () => {
     expect(provider.syncTier).toBe('core');
     expect(provider.defaultEnabled).toBe(true);
     expect(provider.defaultConflictStrategy).toBe('replace');
-    expect(provider.sensitiveFields).toEqual([]);
+    expect(provider.sensitiveFields).toEqual(['ai']);
   });
 
   describe('exportFull', () => {
@@ -198,6 +198,30 @@ describe('SettingsSyncProvider', () => {
         modifier: 'Cmd',
         key: 'Space',
       });
+    });
+
+    it('ignores incoming ai section completely when applying upsert', async () => {
+      const { settingsService } = await import('../../../services/settings/settingsService.svelte');
+      await provider.applyItemUpsert({
+        id: 'settings',
+        categoryId: 'settings',
+        content: {
+          general: { startAtLogin: true },
+          ai: {
+            providers: {
+              openai: { enabled: true, apiKey: 'sk-or-TEST-0000' },
+            },
+            webSearch: {
+              engine: 'brave',
+              apiKey: 'sk-or-TEST-0001',
+            },
+          },
+        },
+      });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith('general', {
+        startAtLogin: true,
+      });
+      expect(settingsService.updateSettings).not.toHaveBeenCalledWith('ai', expect.anything());
     });
   });
 

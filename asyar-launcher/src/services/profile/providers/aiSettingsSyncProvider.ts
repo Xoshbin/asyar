@@ -19,8 +19,8 @@ export class AISettingsSyncProvider implements ISyncProvider {
   readonly syncTier = 'core' as const;
   readonly defaultEnabled = true;
   readonly defaultConflictStrategy = 'replace' as const;
-  // Note: API keys live inside providers.<id>.apiKey — we list them as sensitive
-  readonly sensitiveFields: string[] = ['providers'];
+  // Note: API keys live inside providers.<id>.apiKey and webSearch.apiKey — listed as sensitive
+  readonly sensitiveFields: string[] = ['providers', 'webSearch.apiKey'];
 
   async exportFull(): Promise<SyncProviderData> {
     return {
@@ -106,7 +106,11 @@ export class AISettingsSyncProvider implements ISyncProvider {
   }
 
   async applyItemUpsert(item: SyncItem): Promise<void> {
-    settingsService.updateSettings('ai', item.content as AISettings);
+    const sanitized = sanitizeIncomingAiSettings(
+      item.content as Partial<AISettings>,
+      settingsService.currentSettings.ai,
+    );
+    await settingsService.updateSettings('ai', sanitized);
   }
 
   // The ai-settings singleton lives inside settings — there is no separate
@@ -128,4 +132,42 @@ export class AISettingsSyncProvider implements ISyncProvider {
     });
     return unsub;
   }
+}
+
+/**
+ * Normalizes incoming AI settings for delta sync upserts.
+ * Omits 'providers' so local provider configurations and credentials remain intact.
+ * Merges 'webSearch' while preserving this device's own 'webSearch.apiKey'.
+ */
+function sanitizeIncomingAiSettings(
+  incoming: Partial<AISettings> | null | undefined,
+  localAi: AISettings | undefined,
+): Partial<AISettings> {
+  if (!incoming || typeof incoming !== 'object') {
+    return {};
+  }
+
+  const sanitized: Partial<AISettings> = { ...incoming };
+
+  // Provider configurations and keys are kept device-local
+  delete sanitized.providers;
+
+  // When webSearch is present in incoming data, merge while preserving local apiKey
+  if ('webSearch' in incoming && incoming.webSearch && typeof incoming.webSearch === 'object') {
+    const localWebSearch = localAi?.webSearch;
+    const mergedWebSearch: NonNullable<AISettings['webSearch']> = {
+      ...localWebSearch,
+      ...incoming.webSearch,
+    };
+
+    if (localWebSearch?.apiKey !== undefined) {
+      mergedWebSearch.apiKey = localWebSearch.apiKey;
+    } else {
+      delete mergedWebSearch.apiKey;
+    }
+
+    sanitized.webSearch = mergedWebSearch;
+  }
+
+  return sanitized;
 }

@@ -4,7 +4,7 @@ import type { SyncProviderData } from '../types';
 
 const mockAiSettings = vi.hoisted(() => ({
   providers: {
-    openai: { enabled: true, apiKey: 'sk-secret' },
+    openai: { enabled: true, apiKey: 'sk-or-TEST-0000' },
     anthropic: { enabled: false },
     google: { enabled: false },
     ollama: { enabled: false },
@@ -15,6 +15,10 @@ const mockAiSettings = vi.hoisted(() => ({
   maxTokens: 2048,
   defaultAgentId: 'agent-abc',
   tabContinuesLastThread: true,
+  webSearch: {
+    engine: 'duckduckgo' as const,
+    apiKey: 'sk-or-TEST-LOCAL',
+  },
 }));
 
 const mockUpdateSettings = vi.hoisted(() => vi.fn());
@@ -50,7 +54,7 @@ describe('AISettingsSyncProvider', () => {
     expect(provider.syncTier).toBe('core');
     expect(provider.defaultEnabled).toBe(true);
     expect(provider.defaultConflictStrategy).toBe('replace');
-    expect(provider.sensitiveFields).toEqual(['providers']);
+    expect(provider.sensitiveFields).toEqual(['providers', 'webSearch.apiKey']);
   });
 
   it('exportFull returns current AI settings', async () => {
@@ -210,14 +214,64 @@ describe('AISettingsSyncProvider', () => {
   });
 
   describe('applyItemUpsert_writes_full_state', () => {
-    it('hands the full settings object to settingsService.updateSettings', async () => {
+    it('hands the sanitized settings object to settingsService.updateSettings without providers', async () => {
       const newSettings = { ...mockAiSettings };
       await provider.applyItemUpsert({
         id: 'ai-settings',
         categoryId: 'ai-settings',
         content: newSettings,
       });
-      expect(mockUpdateSettings).toHaveBeenCalledWith('ai', newSettings);
+      expect(mockUpdateSettings).toHaveBeenCalledWith(
+        'ai',
+        expect.not.objectContaining({ providers: expect.anything() }),
+      );
+    });
+
+    it('pulling an ai-settings item with webSearch {engine: "brave"} and no apiKey preserves local apiKey', async () => {
+      await provider.applyItemUpsert({
+        id: 'ai-settings',
+        categoryId: 'ai-settings',
+        content: {
+          webSearch: {
+            engine: 'brave',
+          },
+        },
+      });
+
+      expect(mockUpdateSettings).toHaveBeenCalledWith('ai', {
+        webSearch: {
+          engine: 'brave',
+          apiKey: 'sk-or-TEST-LOCAL',
+        },
+      });
+    });
+
+    it('pulling an ai-settings item that contains webSearch.apiKey and providers.x.apiKey ignores both and keeps local values', async () => {
+      await provider.applyItemUpsert({
+        id: 'ai-settings',
+        categoryId: 'ai-settings',
+        content: {
+          providers: {
+            openai: { enabled: true, apiKey: 'sk-or-TEST-REMOTE-PROVIDER' },
+          },
+          webSearch: {
+            engine: 'tavily',
+            apiKey: 'sk-or-TEST-REMOTE-SEARCH',
+          },
+          temperature: 0.9,
+        },
+      });
+
+      const calledWith = mockUpdateSettings.mock.calls[0]?.[1] as Record<string, unknown>;
+      // providers key must be ignored completely
+      expect(calledWith).not.toHaveProperty('providers');
+      // webSearch engine updated to tavily, but apiKey retains local key
+      expect(calledWith.webSearch).toEqual({
+        engine: 'tavily',
+        apiKey: 'sk-or-TEST-LOCAL',
+      });
+      // other non-sensitive fields sync normally
+      expect(calledWith.temperature).toBe(0.9);
     });
   });
 
