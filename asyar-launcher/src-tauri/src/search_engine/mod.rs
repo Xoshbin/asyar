@@ -498,6 +498,27 @@ fn command_in_scope(cmd: &Command, token: &str, names: &HashMap<String, String>)
         || display_name_match
 }
 
+/// A search row for an indexed command. Used for rows reached through the
+/// extension's display name; `merged_search` assigns the real tier.
+fn command_result(cmd: &Command, score: f32, favorites: &HashSet<String>) -> SearchResult {
+    SearchResult {
+        object_id: cmd.id.clone(),
+        name: cmd.name.clone(),
+        result_type: "command".to_string(),
+        score,
+        path: None,
+        icon: cmd.icon.clone(),
+        extension_id: Some(cmd.extension.clone()),
+        description: cmd.subtitle.clone(),
+        type_label: cmd.type_label.clone(),
+        has_arguments: cmd.has_arguments,
+        favorite: favorites.contains(&cmd.id),
+        style: None,
+        alias: None,
+        tier: ranker::Tier::FrecencyOnly as u8,
+    }
+}
+
 /// Splits the text after `@` into (scope, subquery). The scope is the longest
 /// leading run of words for which `names_an_extension` is true, so
 /// `color picker pick` reads as scope `color picker`, subquery `pick`. With no
@@ -976,23 +997,43 @@ impl SearchState {
                 .filter(|cmd| !present.contains(&cmd.id))
                 .take(EXTENSION_NAME_MATCH_LIMIT)
             {
-                results.push(SearchResult {
-                    object_id: cmd.id.clone(),
-                    name: cmd.name.clone(),
-                    result_type: "command".to_string(),
-                    // Below any real fuzzy hit; merged_search re-tiers it.
-                    score: 0.0,
-                    path: None,
-                    icon: cmd.icon.clone(),
-                    extension_id: Some(cmd.extension.clone()),
-                    description: cmd.subtitle.clone(),
-                    type_label: cmd.type_label.clone(),
-                    has_arguments: cmd.has_arguments,
-                    favorite: favorites.contains(&cmd.id),
-                    style: None,
-                    alias: None,
-                    tier: ranker::Tier::FrecencyOnly as u8,
+                // Below any real fuzzy hit; merged_search re-tiers it.
+                results.push(command_result(cmd, 0.0, &favorites));
+            }
+
+            // "Extension name + command words" (`color picker pick`): the
+            // commands of the named extension whose titles match the words.
+            if let Some(split) = extension_name::split_extension_query(trimmed, &names) {
+                let present: HashSet<String> =
+                    results.iter().map(|r| r.object_id.clone()).collect();
+                let mut by_words: Vec<(i64, &Command)> = guard
+                    .iter()
+                    .filter_map(|item| match item {
+                        SearchableItem::Command(cmd)
+                            if split.extension_ids.contains(&cmd.extension)
+                                && !present.contains(&cmd.id) =>
+                        {
+                            matcher
+                                .fuzzy_match(&cmd.name, &split.command_query)
+                                .map(|score| (score, cmd))
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                by_words.sort_unstable_by(|a, b| {
+                    let frecency_a = frecency_score(a.1.usage_count, a.1.last_used_at);
+                    let frecency_b = frecency_score(b.1.usage_count, b.1.last_used_at);
+                    b.0.cmp(&a.0)
+                        .then_with(|| {
+                            frecency_b
+                                .partial_cmp(&frecency_a)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                        .then_with(|| a.1.name.cmp(&b.1.name))
                 });
+                for (score, cmd) in by_words.into_iter().take(EXTENSION_NAME_MATCH_LIMIT) {
+                    results.push(command_result(cmd, score as f32, &favorites));
+                }
             }
         }
         Ok(results)
@@ -1421,6 +1462,17 @@ impl SearchState {
             frecency: f32,
         }
 
+        // "Extension name + command words": commands of the named extension are
+        // also ranked by the words alone, so `color picker pick` puts Pick Color
+        // where `pick` would.
+        let split = {
+            let names = self
+                .extension_names
+                .read()
+                .map_err(|_| SearchError::LockError)?;
+            extension_name::split_extension_query(query.trim(), &names)
+        };
+
         let classify_inputs: Vec<ClassifyInput> = {
             let guard = self.items.read().map_err(|_| SearchError::LockError)?;
             let extension_names = self
@@ -1487,6 +1539,31 @@ impl SearchState {
                 ci.frecency,
                 false,
             );
+            let key = match &split {
+                Some(split)
+                    if ci
+                        .result
+                        .extension_id
+                        .as_deref()
+                        .is_some_and(|id| split.extension_ids.contains(id)) =>
+                {
+                    let by_words = ranker::classify(
+                        &split.command_query,
+                        &ci.result.name,
+                        ci.subtitle.as_deref(),
+                        &keywords_refs,
+                        ci.frecency,
+                        false,
+                    );
+                    // Never rank a command worse than its full-query match.
+                    if by_words.tier < key.tier {
+                        by_words
+                    } else {
+                        key
+                    }
+                }
+                _ => key,
+            };
             // Normalize score for display/browser-fallback compatibility.
             ci.result.score = (ci.result.score / skim_max).min(1.0);
             ci.result.tier = key.tier as u8;
