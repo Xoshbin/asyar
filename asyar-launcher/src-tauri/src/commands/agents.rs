@@ -16,7 +16,7 @@ use rusqlite::Connection;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 fn now_ms() -> i64 {
     SystemTime::now()
@@ -558,6 +558,13 @@ pub async fn agents_run_thread(
         async move { execute_agent_tool(&registry, &runtime, &agent_id, &request).await }
     };
 
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))?;
+    let workspace_dir = crate::ai::cli::resolve_cli_workspace_dir(&app_data_dir)?;
+    let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
+
     let result = crate::agents::runner::run_thread_loop_impl(
         &store,
         &registry,
@@ -569,6 +576,8 @@ pub async fn agents_run_thread(
         emit_event,
         dispatch_external,
         Some(cancellation),
+        Some(&workspace_dir),
+        Some(&codex_home_dir),
     )
     .await;
     if matches!(&result, Ok(true)) {
@@ -641,6 +650,13 @@ pub async fn agents_run_silent(
         async move { execute_agent_tool(&registry, &runtime, &agent_id, &request).await }
     };
 
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))?;
+    let workspace_dir = crate::ai::cli::resolve_cli_workspace_dir(&app_data_dir)?;
+    let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
+
     let result = crate::agents::runner::run_silent_agent_loop_impl(
         &agent,
         &registry,
@@ -649,6 +665,8 @@ pub async fn agents_run_silent(
         emit_event,
         dispatch_external,
         Some(cancellation),
+        Some(&workspace_dir),
+        Some(&codex_home_dir),
     )
     .await;
     let cleanup = runner_state.finish_run(&stream_id);

@@ -210,6 +210,8 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
+        None,
+        None,
     )
     .await
     .unwrap_err();
@@ -272,6 +274,8 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
         run_config("openai", provider, Some(0.7), 2048),
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
+        None,
+        None,
         None,
     )
     .await
@@ -351,6 +355,8 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
         run_config("openai", provider, Some(0.7), 2048),
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
+        None,
+        None,
         None,
     )
     .await
@@ -460,6 +466,8 @@ async fn test_run_thread_loop_text_only() {
                 "unexpected external tool dispatch".to_string(),
             ))
         },
+        None,
+        None,
         None,
     )
     .await
@@ -604,6 +612,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
                 "unexpected external tool dispatch".to_string(),
             ))
         },
+        None,
+        None,
         None,
     )
     .await
@@ -750,6 +760,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
             async { Ok(json!({ "answer": 42 })) }
         },
         None,
+        None,
+        None,
     )
     .await
     .unwrap();
@@ -861,6 +873,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
                 "unexpected external tool dispatch".to_string(),
             ))
         },
+        None,
+        None,
         None,
     )
     .await
@@ -1152,6 +1166,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
                 "unexpected external tool dispatch".to_string(),
             ))
         },
+        None,
+        None,
         None,
     )
     .await

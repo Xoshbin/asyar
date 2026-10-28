@@ -24,24 +24,36 @@ where
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn ai_stream_chat_impl<F>(
     provider_id: &str,
     config: ProviderConfig,
     messages: Vec<ChatMessage>,
     params: ChatParams,
     stream_id: String,
+    workspace_dir: Option<&std::path::Path>,
+    codex_home_dir: Option<&std::path::Path>,
     on_event: F,
 ) -> Result<(), AppError>
 where
     F: Fn(ChatStreamEventPayload) + Send + Sync + 'static,
 {
     if config.connection_mode.as_deref() == Some("cli") {
+        let workspace_dir = workspace_dir.ok_or_else(|| {
+            AppError::Other("CLI connection requires workspace directory".to_string())
+        })?;
+        let default_codex_home = workspace_dir.parent().map(|p| p.join("codex-home"));
+        let codex_home = codex_home_dir
+            .or(default_codex_home.as_deref())
+            .unwrap_or(workspace_dir);
         return crate::ai::cli::cli_stream_chat_impl(
             provider_id,
             config,
             messages,
             params,
             stream_id,
+            workspace_dir,
+            codex_home,
             on_event,
         )
         .await;
@@ -189,6 +201,8 @@ mod tests {
                 tools: None,
             },
             "stream-123".to_string(),
+            None,
+            None,
             move |ev| {
                 events_clone.lock().unwrap().push(ev);
             },

@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{oneshot, watch};
 use uuid::Uuid;
@@ -642,6 +643,8 @@ async fn run_loop<F, D, Fut>(
     dispatch_external: D,
     mut cancellation: Option<watch::Receiver<bool>>,
     query: Option<&str>,
+    workspace_dir: Option<&Path>,
+    codex_home_dir: Option<&Path>,
 ) -> Result<Option<String>, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -685,6 +688,8 @@ where
             messages,
             params,
             Uuid::new_v4().to_string(),
+            workspace_dir,
+            codex_home_dir,
             move |event| {
                 let Ok(mut output) = output_for_stream.lock() else {
                     return;
@@ -850,6 +855,8 @@ pub async fn run_thread_loop_impl<F, D, Fut>(
     on_event: F,
     dispatch_external: D,
     cancellation: Option<watch::Receiver<bool>>,
+    workspace_dir: Option<&Path>,
+    codex_home_dir: Option<&Path>,
 ) -> Result<bool, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -918,6 +925,8 @@ where
         dispatch_external,
         cancellation,
         Some(&user_text),
+        workspace_dir,
+        codex_home_dir,
     )
     .await?;
     on_event(if result.is_some() {
@@ -928,6 +937,7 @@ where
     Ok(healed)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_silent_agent_loop_impl<F, D, Fut>(
     agent: &AgentRow,
     registry: &ToolRegistry,
@@ -936,6 +946,8 @@ pub async fn run_silent_agent_loop_impl<F, D, Fut>(
     on_event: F,
     dispatch_external: D,
     cancellation: Option<watch::Receiver<bool>>,
+    workspace_dir: Option<&Path>,
+    codex_home_dir: Option<&Path>,
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -968,6 +980,8 @@ where
         dispatch_external,
         cancellation,
         Some(&user_text),
+        workspace_dir,
+        codex_home_dir,
     )
     .await?;
     match result {
@@ -997,6 +1011,8 @@ pub async fn run_silent_loop_impl<F, D, Fut>(
     on_event: F,
     dispatch_external: D,
     cancellation: Option<watch::Receiver<bool>>,
+    workspace_dir: Option<&Path>,
+    codex_home_dir: Option<&Path>,
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -1018,6 +1034,8 @@ where
         on_event,
         dispatch_external,
         cancellation,
+        workspace_dir,
+        codex_home_dir,
     )
     .await
 }

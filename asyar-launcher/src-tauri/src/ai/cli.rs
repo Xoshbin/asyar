@@ -20,7 +20,7 @@ pub(crate) fn hide_console_window(cmd: &mut Command) -> &mut Command {
 }
 
 /// Resolves the home directory safely without panic.
-fn resolve_home_dir() -> Option<PathBuf> {
+pub(crate) fn resolve_home_dir() -> Option<PathBuf> {
     // `HOME` is unset on Windows by default; fall back to the platform home dir (USERPROFILE).
     std::env::var_os("HOME")
         .filter(|h| !h.is_empty())
@@ -600,25 +600,41 @@ pub fn probe_claude_account_in(home: &Path) -> Option<CliAccountInfo> {
     })
 }
 
-/// Resolves the app data directory for Asyar (`<data_dir>/org.asyar`).
-pub fn resolve_app_data_dir() -> Option<PathBuf> {
-    dirs::data_dir().map(|d| d.join("org.asyar"))
-}
-
 /// Resolves and ensures the existence of Asyar's dedicated CLI workspace directory
 /// (`<app_data_dir>/cli-workspace`).
-pub fn resolve_cli_workspace_dir(app_data_dir: Option<&Path>) -> Result<PathBuf, AppError> {
-    let base = app_data_dir
-        .map(PathBuf::from)
-        .or_else(resolve_app_data_dir)
-        .ok_or_else(|| AppError::Other("Could not resolve app data directory".to_string()))?;
-    let workspace = base.join("cli-workspace");
+pub fn resolve_cli_workspace_dir(app_data_dir: &Path) -> Result<PathBuf, AppError> {
+    let workspace = app_data_dir.join("cli-workspace");
     std::fs::create_dir_all(&workspace).map_err(|e| {
         AppError::Other(format!(
             "Failed to create CLI workspace directory at {workspace:?}: {e}"
         ))
     })?;
+
     Ok(workspace)
+}
+
+/// Resolves and ensures the existence of Asyar's dedicated CODEX_HOME directory
+/// (`<app_data_dir>/codex-home`), which is kept as a sibling outside of `cli-workspace`.
+pub fn resolve_codex_home_dir(app_data_dir: &Path) -> Result<PathBuf, AppError> {
+    let codex_home = app_data_dir.join("codex-home");
+    std::fs::create_dir_all(&codex_home).map_err(|e| {
+        AppError::Other(format!(
+            "Failed to create CODEX_HOME directory at {codex_home:?}: {e}"
+        ))
+    })?;
+    Ok(codex_home)
+}
+
+/// Resolves the executable path to use for Asyar's built-in MCP server (`asyar mcp-server --allow ...`).
+/// Accepts an optional explicit path (used by tests).
+pub fn resolve_asyar_mcp_exe_path(explicit_exe: Option<&Path>) -> String {
+    match explicit_exe {
+        Some(p) => p.to_string_lossy().to_string(),
+        None => std::env::current_exe()
+            .unwrap_or_else(|_| PathBuf::from("asyar"))
+            .to_string_lossy()
+            .to_string(),
+    }
 }
 
 /// Extracts bare IDs of built-in tools from tool definitions, dropping non-built-in tools with a warning.
@@ -686,13 +702,7 @@ pub fn claude_cli_args_with_exe(
     }
 
     if !unique_builtins.is_empty() {
-        let exe = match exe_path {
-            Some(p) => p.to_string_lossy().to_string(),
-            None => std::env::current_exe()
-                .unwrap_or_else(|_| PathBuf::from("asyar"))
-                .to_string_lossy()
-                .to_string(),
-        };
+        let exe = resolve_asyar_mcp_exe_path(exe_path);
 
         let allow_arg = unique_builtins.join(",");
         let mcp_config = serde_json::json!({
@@ -726,6 +736,56 @@ pub fn claude_cli_args_with_exe(
     args
 }
 
+/// Builds the argument list for a non-interactive `agy` run.
+pub fn agy_cli_args(prompt: &str, model: &str, effort: Option<&str>) -> Vec<String> {
+    let mut args: Vec<String> = [
+        "-p",
+        prompt,
+        "--output-format",
+        "stream-json",
+        "--disable-slash-commands",
+        "--sandbox",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+
+    let model = model.trim();
+    // If the model is an obsolete/incompatible API-only model name like "gemini-2.5-flash", "gemini-1.5-flash", etc.,
+    // omit --model so agy uses its configured default model instead of crashing with invalid model selection.
+    if !model.is_empty() && !model.starts_with("gemini-1.") && !model.starts_with("gemini-2.") {
+        args.push("--model".into());
+        args.push(model.into());
+    }
+
+    if let Some(effort) = effort {
+        if matches!(effort, "low" | "medium" | "high" | "xhigh" | "max")
+            && !model.ends_with("-low")
+            && !model.ends_with("-medium")
+            && !model.ends_with("-high")
+        {
+            args.push("--effort".into());
+            args.push(effort.into());
+        }
+    }
+
+    args
+}
+
+/// Builds the Tokio `Command` to spawn agy CLI with the given settings.
+pub fn build_agy_command(
+    bin_path: &Path,
+    prompt: &str,
+    model: &str,
+    effort: Option<&str>,
+    workspace_dir: &Path,
+) -> Command {
+    let mut cmd = Command::new(bin_path);
+    cmd.current_dir(workspace_dir);
+    cmd.args(agy_cli_args(prompt, model, effort));
+    cmd
+}
+
 /// Builds the Tokio `Command` to spawn Claude CLI with the given settings.
 pub fn build_claude_command(
     bin_path: &Path,
@@ -755,12 +815,15 @@ fn cli_failure_message(stderr: &str, stream_error: Option<&str>, status: &str) -
 }
 
 /// Executes a prompt using a local CLI runtime process and streams tokens back to `on_event`.
+#[allow(clippy::too_many_arguments)]
 pub async fn cli_stream_chat_impl<F>(
     provider_id: &str,
     config: ProviderConfig,
     messages: Vec<ChatMessage>,
     params: ChatParams,
     _stream_id: String,
+    workspace_dir: &Path,
+    codex_home_dir: &Path,
     on_event: F,
 ) -> Result<(), AppError>
 where
@@ -785,54 +848,34 @@ where
         } else {
             Some(params.model_id.trim())
         };
+        let allowed_builtins = filter_cli_builtin_tools(params.tools.as_deref().unwrap_or(&[]));
+        let allowed_refs: Vec<&str> = allowed_builtins.iter().map(String::as_str).collect();
         return crate::ai::codex_client::CodexClient::stream_turn(
             &bin_path,
             &prompt,
             model,
             config.reasoning_effort.as_deref(),
+            &allowed_refs,
+            workspace_dir,
+            codex_home_dir,
             on_event,
         )
         .await;
     }
 
-    let workspace_dir = resolve_cli_workspace_dir(None)?;
     log::debug!(
-        "[cli] Spawning Claude process with working directory: {:?}",
+        "[cli] Spawning {engine_type} process with working directory: {:?}",
         workspace_dir
     );
 
     let mut cmd = match normalize_engine(engine_type) {
-        "google" => {
-            // agy -p <prompt> --output-format stream-json --disable-slash-commands --dangerously-skip-permissions
-            let mut cmd = Command::new(&bin_path);
-            cmd.arg("-p")
-                .arg(&prompt)
-                .arg("--output-format")
-                .arg("stream-json")
-                .arg("--disable-slash-commands")
-                .arg("--dangerously-skip-permissions");
-
-            let model = params.model_id.trim();
-            // If the model is an obsolete/incompatible API-only model name like "gemini-2.5-flash", "gemini-1.5-flash", etc.,
-            // omit --model so agy uses its configured default model instead of crashing with invalid model selection.
-            if !model.is_empty()
-                && !model.starts_with("gemini-1.")
-                && !model.starts_with("gemini-2.")
-            {
-                cmd.arg("--model").arg(model);
-            }
-
-            if let Some(effort) = config.reasoning_effort.as_deref() {
-                if matches!(effort, "low" | "medium" | "high")
-                    && !model.ends_with("-low")
-                    && !model.ends_with("-medium")
-                    && !model.ends_with("-high")
-                {
-                    cmd.arg("--effort").arg(effort);
-                }
-            }
-            cmd
-        }
+        "google" => build_agy_command(
+            &bin_path,
+            &prompt,
+            params.model_id.trim(),
+            config.reasoning_effort.as_deref(),
+            workspace_dir,
+        ),
         "claude" => {
             let allowed_builtins = filter_cli_builtin_tools(params.tools.as_deref().unwrap_or(&[]));
             let allowed_refs: Vec<&str> = allowed_builtins.iter().map(String::as_str).collect();
@@ -842,11 +885,12 @@ where
                 params.model_id.trim(),
                 config.reasoning_effort.as_deref(),
                 &allowed_refs,
-                &workspace_dir,
+                workspace_dir,
             )
         }
         _ => {
             let mut cmd = Command::new(&bin_path);
+            cmd.current_dir(workspace_dir);
             cmd.arg(&prompt);
             cmd
         }
@@ -1239,9 +1283,86 @@ mod tests {
     #[test]
     fn test_resolve_cli_workspace_dir_creates_dir() {
         let temp = tempfile::tempdir().unwrap();
-        let workspace = resolve_cli_workspace_dir(Some(temp.path())).unwrap();
+        let workspace = resolve_cli_workspace_dir(temp.path()).unwrap();
         assert_eq!(workspace, temp.path().join("cli-workspace"));
         assert!(workspace.is_dir());
+    }
+
+    #[test]
+    fn test_resolve_codex_home_dir_is_sibling_outside_workspace() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = resolve_cli_workspace_dir(temp.path()).unwrap();
+        let codex_home = resolve_codex_home_dir(temp.path()).unwrap();
+
+        assert_eq!(workspace, temp.path().join("cli-workspace"));
+        assert_eq!(codex_home, temp.path().join("codex-home"));
+        assert_ne!(workspace, codex_home);
+        assert!(!codex_home.starts_with(&workspace));
+        assert!(!workspace.starts_with(&codex_home));
+        assert!(codex_home.is_dir());
+    }
+
+    #[test]
+    fn test_resolve_asyar_mcp_exe_path() {
+        let explicit = Path::new("/custom/bin/asyar");
+        assert_eq!(
+            resolve_asyar_mcp_exe_path(Some(explicit)),
+            "/custom/bin/asyar"
+        );
+        let default_exe = resolve_asyar_mcp_exe_path(None);
+        assert!(!default_exe.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_cli_workspace_dir_dev_vs_prod_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let dev_data_dir = temp.path().join("org.asyar.dev");
+        let prod_data_dir = temp.path().join("org.asyar");
+
+        let dev_workspace = resolve_cli_workspace_dir(&dev_data_dir).unwrap();
+        assert_eq!(dev_workspace, dev_data_dir.join("cli-workspace"));
+        assert!(dev_workspace.is_dir());
+
+        let prod_workspace = resolve_cli_workspace_dir(&prod_data_dir).unwrap();
+        assert_eq!(prod_workspace, prod_data_dir.join("cli-workspace"));
+        assert!(prod_workspace.is_dir());
+
+        assert_ne!(dev_workspace, prod_workspace);
+    }
+
+    #[test]
+    fn test_build_agy_command_argv_and_cwd() {
+        let bin_path = PathBuf::from("/usr/local/bin/agy");
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("cli-workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let cmd = build_agy_command(
+            &bin_path,
+            "Say hi",
+            "gemini-3.0-flash",
+            Some("high"),
+            &workspace,
+        );
+        assert_eq!(cmd.as_std().get_current_dir(), Some(workspace.as_path()));
+
+        let args: Vec<String> = cmd
+            .as_std()
+            .get_args()
+            .map(|s| s.to_string_lossy().to_string())
+            .collect();
+
+        assert!(args.contains(&"--sandbox".to_string()));
+        assert!(args.contains(&"--disable-slash-commands".to_string()));
+        assert!(args.contains(&"-p".to_string()));
+        assert!(args.contains(&"Say hi".to_string()));
+        assert!(args.contains(&"--output-format".to_string()));
+        assert!(args.contains(&"stream-json".to_string()));
+        assert!(args.contains(&"--model".to_string()));
+        assert!(args.contains(&"gemini-3.0-flash".to_string()));
+        assert!(args.contains(&"--effort".to_string()));
+        assert!(args.contains(&"high".to_string()));
+        assert!(!args.contains(&"--dangerously-skip-permissions".to_string()));
     }
 
     #[test]
