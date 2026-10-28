@@ -44,7 +44,7 @@ pub fn ensure_rates_fresh(app: &tauri::AppHandle, state: &CalculatorState) {
             let fetched = currency::fetch_rates().await;
             let state = app.state::<CalculatorState>();
             if let Ok(rates) = fetched {
-                let cache = currency::RatesCache::new(rates, SystemTime::now());
+                let cache = currency::RatesCache::with_source(rates, SystemTime::now());
                 let _ = cache.save(&path);
                 *state.rates.write().unwrap() = Some(cache);
             }
@@ -62,11 +62,17 @@ pub async fn calculator_evaluate(
     // Non-blocking: loads the disk cache on first call and refreshes
     // stale rates in the background; the query never waits on the network.
     ensure_rates_fresh(&app, &state);
-    let (rates, rates_age) = state.rates_snapshot();
+    let (rates, rates_age, rates_source) = state.rates_snapshot();
     let preferred = state.preferred_currency.read().unwrap().clone();
     Ok(calculator::evaluate_query(
         &query,
-        &EvalContext::current(rates, rates_age, preferred, state.number_format()),
+        &EvalContext::current(
+            rates,
+            rates_age,
+            rates_source,
+            preferred,
+            state.number_format(),
+        ),
     ))
 }
 

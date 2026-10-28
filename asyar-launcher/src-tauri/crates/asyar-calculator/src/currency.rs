@@ -13,26 +13,59 @@ use serde::{Deserialize, Serialize};
 
 use super::CalculatorState;
 
+/// A keyless rate provider: where to fetch and how to credit it.
+struct RateProvider {
+    url: &'static str,
+    /// Shown on every currency result that uses this provider's rates
+    /// (keyless terms of some providers require visible attribution).
+    credit: &'static str,
+}
+
 /// Keyless, USD-based `latest` endpoints, tried in order until one returns
 /// a usable `rates` object. Every entry answers `{"rates": {CODE: f64}}`
 /// with values meaning "units of CODE per one USD", so a single parser
 /// covers them all. No API keys, no accounts.
-const RATES_URLS: &[&str] = &[
-    "https://api.exchangerate-api.com/v4/latest/USD",
-    "https://open.er-api.com/v6/latest/USD",
-    "https://api.frankfurter.dev/v1/latest?base=USD",
-    "https://allratestoday.com/api/open/latest/USD",
+const RATE_PROVIDERS: &[RateProvider] = &[
+    RateProvider {
+        url: "https://api.exchangerate-api.com/v4/latest/USD",
+        credit: "exchangerate-api.com",
+    },
+    RateProvider {
+        url: "https://open.er-api.com/v6/latest/USD",
+        credit: "open.er-api.com",
+    },
+    RateProvider {
+        url: "https://api.frankfurter.dev/v1/latest?base=USD",
+        credit: "frankfurter.dev",
+    },
+    RateProvider {
+        url: "https://allratestoday.com/api/open/latest/USD",
+        credit: "AllRatesToday (allratestoday.com)",
+    },
 ];
 /// Keyless Central Bank of Iraq table (official USD/IQD reference rate),
 /// used to complete providers whose USD table has no `IQD` entry
 /// (Frankfurter and the AllRatesToday ECB table only carry ~30 currencies).
 const CBI_RATES_URL: &str = "https://allratestoday.com/api/open/central-bank/cbiq";
+const CBI_CREDIT: &str = "Central Bank of Iraq via AllRatesToday (allratestoday.com)";
+
+/// A fetched rate map plus the provider(s) it came from.
+#[derive(Debug, Clone)]
+pub struct FetchedRates {
+    pub rates: HashMap<String, f64>,
+    /// Human-readable source credit, e.g. `"frankfurter.dev + Central Bank of Iraq via AllRatesToday (allratestoday.com)"`.
+    pub source: String,
+}
 pub const DEFAULT_TTL_HOURS: f64 = 6.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RatesCache {
     pub rates: HashMap<String, f64>,
     pub fetched_at_epoch_secs: u64,
+    /// Who supplied the rates (shown on currency results); absent in
+    /// caches written before the field existed.
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 impl RatesCache {
@@ -40,6 +73,14 @@ impl RatesCache {
         Self {
             rates,
             fetched_at_epoch_secs: now.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs(),
+            source: None,
+        }
+    }
+
+    pub fn with_source(fetched: FetchedRates, now: SystemTime) -> Self {
+        Self {
+            source: Some(fetched.source),
+            ..Self::new(fetched.rates, now)
         }
     }
 
@@ -163,7 +204,8 @@ pub fn merge_crypto_rates(rates: &mut HashMap<String, f64>, body: &serde_json::V
 /// Every provider in `RATES_URLS` is asked for a USD base. Providers that
 /// name the base (`base` for Frankfurter, `base_code` for the others) are
 /// rejected if it is not USD, and the base rate is restored when a provider
-/// omits it from `rates` (Frankfurter does), so `USD` is always present.
+/// omits it from `rates` (Frankfurter does), so `USD` is always present and
+/// always exactly 1.0 (a response stating any other USD rate is rejected).
 pub fn parse_rates_body(body: &serde_json::Value) -> Result<HashMap<String, f64>, String> {
     let base = body
         .get("base")
@@ -189,8 +231,10 @@ pub fn parse_rates_body(body: &serde_json::Value) -> Result<HashMap<String, f64>
     if map.is_empty() {
         return Err("empty rates response".to_string());
     }
-    map.entry("USD".to_string()).or_insert(1.0);
-    Ok(map)
+    match map.entry("USD".to_string()).or_insert(1.0) {
+        usd if *usd == 1.0 => Ok(map),
+        usd => Err(format!("USD-based response quotes USD at {usd}, not 1.0")),
+    }
 }
 
 /// Pull the official USD→IQD reference rate out of a Central Bank of Iraq
@@ -224,8 +268,30 @@ async fn fetch_rates_from(
     parse_rates_body(&body)
 }
 
-/// Fetch fresh USD-based rates from the first keyless provider that answers.
-pub async fn fetch_rates() -> Result<HashMap<String, f64>, String> {
+/// Fetch the official USD→IQD rate from the Central Bank of Iraq table.
+async fn fetch_cbi_usd_iqd(client: &reqwest::Client) -> Result<f64, String> {
+    let body: serde_json::Value = client
+        .get(CBI_RATES_URL)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+    parse_cbi_usd_iqd(&body).ok_or_else(|| "no USD/IQD reference row".to_string())
+}
+
+/// Fetch fresh USD-based rates from the first keyless provider that answers
+/// with a usable table **including IQD**.
+///
+/// IQD is the one currency the calculator must never lose. Providers that
+/// serve the ECB table (Frankfurter, AllRatesToday) have no IQD entry, so
+/// their map is completed from the Central Bank of Iraq's official table;
+/// if that fails the next provider is tried. Only when every provider is
+/// exhausted does this return an error, so the existing cache stays active.
+pub async fn fetch_rates() -> Result<FetchedRates, String> {
     // CoinGecko rejects requests with no descriptive User-Agent (HTTP 403,
     // but with a *valid* JSON error body — see `fetch_rates_includes_crypto`).
     let client = reqwest::Client::builder()
@@ -237,45 +303,42 @@ pub async fn fetch_rates() -> Result<HashMap<String, f64>, String> {
         ))
         .build()
         .map_err(|e| e.to_string())?;
-    let mut map: HashMap<String, f64> = HashMap::new();
     let mut errors: Vec<String> = Vec::new();
-    for url in RATES_URLS {
-        match fetch_rates_from(&client, url).await {
-            Ok(m) => {
-                map = m;
-                break;
+    let mut fetched: Option<FetchedRates> = None;
+    for provider in RATE_PROVIDERS {
+        let mut map = match fetch_rates_from(&client, provider.url).await {
+            Ok(m) => m,
+            Err(e) => {
+                errors.push(format!("{}: {e}", provider.url));
+                continue;
             }
-            Err(e) => errors.push(format!("{url}: {e}")),
-        }
-    }
-    if map.is_empty() {
-        return Err(format!("all rate providers failed: {}", errors.join("; ")));
-    }
-
-    // IQD is the one currency the calculator must never lose. Providers that
-    // serve the ECB table (Frankfurter, AllRatesToday) have no IQD entry, so
-    // complete the map from the Central Bank of Iraq's official table; if
-    // that fails too, reject the fetch so the existing cache stays active.
-    if !map.contains_key("IQD") {
-        let cbi = client
-            .get(CBI_RATES_URL)
-            .send()
-            .await
-            .map_err(|e| e.to_string())
-            .and_then(|r| r.error_for_status().map_err(|e| e.to_string()));
-        if let Ok(resp) = cbi {
-            if let Ok(body) = resp.json::<serde_json::Value>().await {
-                if let Some(rate) = parse_cbi_usd_iqd(&body) {
+        };
+        let mut source = provider.credit.to_string();
+        if !map.contains_key("IQD") {
+            match fetch_cbi_usd_iqd(&client).await {
+                Ok(rate) => {
                     map.insert("IQD".to_string(), rate);
+                    source = format!("{source} + {CBI_CREDIT}");
+                }
+                Err(e) => {
+                    errors.push(format!(
+                        "{}: no IQD and CBI completion failed ({e})",
+                        provider.url
+                    ));
+                    continue;
                 }
             }
         }
-        if !map.contains_key("IQD") {
-            return Err(
-                "rate providers answered without an IQD rate; keeping cached rates".to_string(),
-            );
-        }
+        fetched = Some(FetchedRates { rates: map, source });
+        break;
     }
+    let Some(mut fetched) = fetched else {
+        return Err(format!(
+            "all rate providers failed; keeping cached rates: {}",
+            errors.join("; ")
+        ));
+    };
+    let map = &mut fetched.rates;
 
     // Crypto prices are best-effort: fiat rates stay usable if this fails.
     let ids: Vec<&str> = CRYPTO_IDS.iter().map(|(id, _)| *id).collect();
@@ -285,11 +348,11 @@ pub async fn fetch_rates() -> Result<HashMap<String, f64>, String> {
     );
     if let Ok(resp) = client.get(&url).send().await {
         if let Ok(body) = resp.json::<serde_json::Value>().await {
-            merge_crypto_rates(&mut map, &body);
+            merge_crypto_rates(map, &body);
         }
     }
 
-    Ok(map)
+    Ok(fetched)
 }
 
 #[cfg(test)]
@@ -314,7 +377,13 @@ mod tests {
     #[tokio::test]
     #[ignore = "hits the live network — run manually to verify crypto rates actually arrive"]
     async fn fetch_rates_includes_crypto() {
-        let rates = fetch_rates().await.expect("fetch_rates should succeed");
+        let fetched = fetch_rates().await.expect("fetch_rates should succeed");
+        assert!(
+            !fetched.source.is_empty(),
+            "the source credit should be set"
+        );
+        let rates = fetched.rates;
+        assert!(rates.contains_key("IQD"), "IQD must always be present");
         assert!(
             rates.contains_key("USD"),
             "fiat rates should still be present"
@@ -400,6 +469,38 @@ mod tests {
             assert_eq!(m["USD"], 1.0);
         }
         assert_eq!(parse_rates_body(&a).unwrap()["JPY"], 150.0);
+    }
+
+    #[test]
+    fn parse_rates_body_rejects_bad_bases() {
+        let eur_base: serde_json::Value =
+            serde_json::from_str(r#"{"base":"EUR","rates":{"USD":1.1}}"#).unwrap();
+        assert!(parse_rates_body(&eur_base).is_err());
+        // A USD-based table that quotes USD at anything but 1.0 contradicts
+        // its own contract; refuse it so the next provider is tried.
+        let usd_two: serde_json::Value =
+            serde_json::from_str(r#"{"base":"USD","rates":{"USD":2.0,"EUR":0.9}}"#).unwrap();
+        assert!(parse_rates_body(&usd_two).is_err());
+        let usd_one: serde_json::Value =
+            serde_json::from_str(r#"{"base":"USD","rates":{"USD":1,"EUR":0.9}}"#).unwrap();
+        assert_eq!(parse_rates_body(&usd_one).unwrap()["USD"], 1.0);
+    }
+
+    #[test]
+    fn cache_source_roundtrips_and_defaults() {
+        let t0 = UNIX_EPOCH + Duration::from_secs(1_000_000);
+        let fetched = FetchedRates {
+            rates: sample_rates(),
+            source: "frankfurter.dev".to_string(),
+        };
+        let cache = RatesCache::with_source(fetched, t0);
+        let json = serde_json::to_string(&cache).unwrap();
+        let back: RatesCache = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.source.as_deref(), Some("frankfurter.dev"));
+        // Caches written before `source` existed still load.
+        let old: RatesCache =
+            serde_json::from_str(r#"{"rates":{"USD":1.0},"fetched_at_epoch_secs":1}"#).unwrap();
+        assert!(old.source.is_none());
     }
 
     #[test]

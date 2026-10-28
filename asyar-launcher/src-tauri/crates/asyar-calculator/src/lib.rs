@@ -68,6 +68,9 @@ pub struct EvalContext {
     pub rates: Option<Arc<HashMap<String, f64>>>,
     /// Human-readable age of the rates cache, e.g. `"2 h"`.
     pub rates_age: Option<String>,
+    /// Who supplied the rates, e.g. `"frankfurter.dev"`; shown on every
+    /// currency result so attribution-required providers are credited.
+    pub rates_source: Option<String>,
     /// Target for bare-amount queries like `50 usd` (user preference).
     pub preferred_currency: String,
     /// How the user writes numbers: `1,234.56` or `1.234,56`.
@@ -83,6 +86,7 @@ impl EvalContext {
     pub fn current(
         rates: Option<Arc<HashMap<String, f64>>>,
         rates_age: Option<String>,
+        rates_source: Option<String>,
         preferred_currency: String,
         number_format: locale::NumberFormat,
     ) -> Self {
@@ -94,6 +98,7 @@ impl EvalContext {
         Self {
             rates,
             rates_age,
+            rates_source,
             preferred_currency,
             number_format,
             today: local_now.date_naive(),
@@ -310,9 +315,7 @@ fn evaluate_canonical(raw: &str, ctx: &EvalContext) -> Vec<CalcResult> {
         let allow_echo = attempt != q;
         if let Some(mut r) = engine::evaluate_fend(attempt, ctx.rates.clone(), allow_echo) {
             if r.kind == CalcKind::Currency {
-                if let Some(age) = &ctx.rates_age {
-                    r.detail = format!("{} · rates {} old", r.detail, age);
-                }
+                r = with_rates_age(r, ctx);
             }
             return vec![r];
         }
@@ -326,10 +329,13 @@ fn evaluate_canonical(raw: &str, ctx: &EvalContext) -> Vec<CalcResult> {
     Vec::new()
 }
 
-/// Append a currency's own rate age to the result's detail line.
+/// Append the rates' age and source to the result's detail line.
 fn with_rates_age(mut r: CalcResult, ctx: &EvalContext) -> CalcResult {
     if let Some(age) = &ctx.rates_age {
         r.detail = format!("{} · rates {} old", r.detail, age);
+    }
+    if let Some(source) = &ctx.rates_source {
+        r.detail = format!("{} · rates by {}", r.detail, source);
     }
     r
 }
@@ -358,11 +364,8 @@ fn implicit_currency(q: &str, ctx: &EvalContext) -> Option<CalcResult> {
         return None;
     }
     let expr = format!("{} {} to {preferred}", &c[1], &c[2]);
-    let mut r = engine::evaluate_fend(&expr, ctx.rates.clone(), false)?;
-    if let Some(age) = &ctx.rates_age {
-        r.detail = format!("{} · rates {} old", r.detail, age);
-    }
-    Some(r)
+    let r = engine::evaluate_fend(&expr, ctx.rates.clone(), false)?;
+    Some(with_rates_age(r, ctx))
 }
 
 /// Managed Tauri state: exchange-rate cache + refresh policy.
@@ -404,14 +407,23 @@ impl CalculatorState {
     }
 
     /// Snapshot of the current rates map and its human-readable age.
-    pub fn rates_snapshot(&self) -> (Option<Arc<HashMap<String, f64>>>, Option<String>) {
+    /// `(rates, human age, source credit)` of the current cache.
+    #[allow(clippy::type_complexity)]
+    pub fn rates_snapshot(
+        &self,
+    ) -> (
+        Option<Arc<HashMap<String, f64>>>,
+        Option<String>,
+        Option<String>,
+    ) {
         let guard = self.rates.read().unwrap();
         match guard.as_ref() {
             Some(cache) => (
                 Some(Arc::new(cache.rates.clone())),
                 Some(cache.age_human(SystemTime::now())),
+                cache.source.clone(),
             ),
-            None => (None, None),
+            None => (None, None, None),
         }
     }
 }
@@ -437,6 +449,7 @@ mod tests {
         EvalContext {
             rates: Some(Arc::new(rates)),
             rates_age: Some("2 h".to_string()),
+            rates_source: Some("frankfurter.dev".to_string()),
             preferred_currency: "IQD".to_string(),
             number_format: locale::NumberFormat::Point,
             today: NaiveDate::from_ymd_opt(2026, 7, 11).unwrap(),
@@ -750,8 +763,9 @@ mod tests {
     #[test]
     fn state_snapshot_empty_by_default() {
         let state = CalculatorState::default();
-        let (rates, age) = state.rates_snapshot();
+        let (rates, age, source) = state.rates_snapshot();
         assert!(rates.is_none());
         assert!(age.is_none());
+        assert!(source.is_none());
     }
 }
