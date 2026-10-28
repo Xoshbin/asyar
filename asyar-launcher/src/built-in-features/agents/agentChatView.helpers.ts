@@ -241,3 +241,34 @@ export function extractSourcesFromMessage(
 
   return [];
 }
+
+/** Returns true if the normalized engine corresponds to Google Antigravity (agy). */
+export function isAgyEngine(engine: string): boolean {
+  const normalized = engine.toLowerCase();
+  return normalized === 'google' || normalized === 'agy' || normalized.includes('antigravity');
+}
+
+/**
+ * Formats user-facing notice text when tools are dropped for an agent run
+ * using a CLI-mode provider.
+ */
+export function formatToolsUnavailableNotice(engine: string, tools: string[]): string {
+  const toolsList = tools.join(', ');
+  if (isAgyEngine(engine)) {
+    return `Antigravity (CLI) can't use tools, so this chat runs without: ${toolsList}. To use tools, switch this provider to an API key in Settings → AI.`;
+  }
+  const normalized = engine.toLowerCase();
+  const name = normalized === 'openai' || normalized.includes('codex') ? 'Codex' : 'Claude Code';
+  return `${name} (CLI) can't use these tools: ${toolsList}. To use them, switch this provider to an API key in Settings → AI.`;
+}
+
+/**
+ * Formats user-facing explanation in the agent editor when selected tools are
+ * dropped because the active provider is running in CLI mode.
+ */
+export function formatEditorToolsUnavailableWarning(engine: string): string {
+  if (isAgyEngine(engine)) {
+    return "Antigravity (CLI) can't use tools. To use them, switch this provider to an API key in Settings → AI.";
+  }
+  return "Some selected tools aren't available in CLI mode. To use them, switch this provider to an API key in Settings → AI.";
+}

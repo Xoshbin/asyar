@@ -1222,3 +1222,521 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
         "Rust 1.80.0 was officially announced!"
     );
 }
+
+#[tokio::test]
+async fn test_runner_emits_tools_unavailable_once_in_cli_mode_with_dropped_tools() {
+    let store = make_store();
+    let agent_id = "agent-cli-dropped".to_string();
+    let thread_id = "thread-cli-dropped".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "CLI Agent".to_string(),
+            description: None,
+            system_prompt: "Helper".to_string(),
+            provider_id: "anthropic_cli".to_string(),
+            model_id: "claude-3-5-sonnet".to_string(),
+            tool_selection: vec!["weather:current".to_string()],
+            silent: false,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("CLI Test".to_string()),
+            is_pinned: false,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_tier2(
+            "weather",
+            vec![crate::agents::tools::ManifestTool {
+                id: "current".to_string(),
+                name: "Weather".to_string(),
+                description: "current weather".to_string(),
+                parameters: json!({}),
+            }],
+        )
+        .unwrap();
+
+    let current_exe = std::env::current_exe()
+        .expect("current_exe")
+        .to_string_lossy()
+        .to_string();
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        provider_type: Some("anthropic".to_string()),
+        connection_mode: Some("cli".to_string()),
+        cli_binary_path: Some(current_exe),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    let run_cfg = AgentRunConfig {
+        providers: vec![crate::agents::editor::AgentProviderDescriptor {
+            id: "anthropic".to_string(),
+            name: "Anthropic".to_string(),
+            requires_api_key: false,
+            requires_base_url: false,
+        }],
+        configs: std::collections::HashMap::from([("anthropic_cli".to_string(), config)]),
+        default_agent_id: None,
+        temperature: None,
+        max_tokens: 100,
+        web_search: None,
+    };
+
+    let res = run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "Hello".to_string(),
+        None,
+        run_cfg,
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+    )
+    .await;
+    if let Err(ref e) = res {
+        eprintln!("run_thread_loop_impl returned err: {e:?}");
+    }
+
+    let recorded = events.lock().unwrap();
+    let unavailable_events: Vec<_> = recorded
+        .iter()
+        .filter_map(|e| match e {
+            AgentStreamEvent::ToolsUnavailable { tools, engine } => {
+                Some((tools.clone(), engine.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(
+        unavailable_events.len(),
+        1,
+        "ToolsUnavailable must be emitted exactly once in CLI mode with dropped tools"
+    );
+    assert_eq!(unavailable_events[0].0, vec!["Weather"]);
+    assert_eq!(unavailable_events[0].1, "claude");
+}
+
+#[tokio::test]
+async fn test_runner_does_not_emit_tools_unavailable_in_cli_mode_when_only_builtins() {
+    let store = make_store();
+    let agent_id = "agent-cli-builtins".to_string();
+    let thread_id = "thread-cli-builtins".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "CLI Builtin Agent".to_string(),
+            description: None,
+            system_prompt: "Helper".to_string(),
+            provider_id: "anthropic_cli".to_string(),
+            model_id: "claude-3-5-sonnet".to_string(),
+            tool_selection: vec!["builtin:calculator".to_string()],
+            silent: false,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("CLI Test".to_string()),
+            is_pinned: false,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    struct DummyCalc;
+    #[async_trait::async_trait]
+    impl crate::agents::tools::BuiltinTool for DummyCalc {
+        fn descriptor(&self) -> crate::agents::tools::ToolDescriptor {
+            crate::agents::tools::ToolDescriptor {
+                id: "calculator".to_string(),
+                name: "Calculator".to_string(),
+                description: "calc".to_string(),
+                parameters: json!({}),
+                source: crate::agents::tools::ToolSource::Builtin,
+                fully_qualified_id: "builtin:calculator".to_string(),
+            }
+        }
+        async fn invoke(&self, _input: serde_json::Value) -> Result<serde_json::Value, AppError> {
+            Ok(json!({ "result": 42 }))
+        }
+    }
+    registry.register_builtin(Arc::new(DummyCalc)).unwrap();
+
+    let current_exe = std::env::current_exe()
+        .expect("current_exe")
+        .to_string_lossy()
+        .to_string();
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        provider_type: Some("anthropic".to_string()),
+        connection_mode: Some("cli".to_string()),
+        cli_binary_path: Some(current_exe),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    let _ = run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "Hello".to_string(),
+        None,
+        run_config("anthropic_cli", config, None, 100),
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+    )
+    .await;
+
+    let recorded = events.lock().unwrap();
+    let has_unavailable = recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::ToolsUnavailable { .. }));
+    assert!(
+        !has_unavailable,
+        "ToolsUnavailable must not be emitted when no tools are dropped"
+    );
+}
+
+#[tokio::test]
+async fn test_runner_does_not_emit_tools_unavailable_in_api_mode() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    tokio::spawn(async move {
+        if let Ok((mut socket, _)) = listener.accept().await {
+            let mut buf = [0; 4096];
+            let _ = tokio::io::AsyncReadExt::read(&mut socket, &mut buf).await;
+            let response = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n\
+data: {\"choices\":[{\"delta\":{\"content\":\"Hello!\"}}]}\n\ndata: [DONE]\n\n";
+            let _ = socket.write_all(response.as_bytes()).await;
+        }
+    });
+
+    let store = make_store();
+    let agent_id = "agent-api-mode".to_string();
+    let thread_id = "thread-api-mode".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "API Agent".to_string(),
+            description: None,
+            system_prompt: "Helper".to_string(),
+            provider_id: "openai_api".to_string(),
+            model_id: "gpt-4o".to_string(),
+            tool_selection: vec!["weather:current".to_string()],
+            silent: false,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("API Test".to_string()),
+            is_pinned: false,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_tier2(
+            "weather",
+            vec![crate::agents::tools::ManifestTool {
+                id: "current".to_string(),
+                name: "Weather".to_string(),
+                description: "current weather".to_string(),
+                parameters: json!({}),
+            }],
+        )
+        .unwrap();
+
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        provider_type: Some("openai".to_string()),
+        api_key: Some("test-key".to_string()),
+        base_url: Some(format!("http://127.0.0.1:{port}")),
+        connection_mode: None, // API mode
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "Hello".to_string(),
+        None,
+        run_config("openai_api", config, None, 100),
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let recorded = events.lock().unwrap();
+    let has_unavailable = recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::ToolsUnavailable { .. }));
+    assert!(
+        !has_unavailable,
+        "ToolsUnavailable must never be emitted in API mode"
+    );
+}
+
+#[tokio::test]
+async fn test_runner_does_not_emit_tools_unavailable_for_silent_runs() {
+    let store = make_store();
+    let agent_id = "agent-silent-cli".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    let agent = AgentRow {
+        id: agent_id.clone(),
+        name: "Silent CLI Agent".to_string(),
+        description: None,
+        system_prompt: "Helper".to_string(),
+        provider_id: "anthropic_cli".to_string(),
+        model_id: "claude-3-5-sonnet".to_string(),
+        tool_selection: vec!["weather:current".to_string()],
+        silent: true,
+        input_source: crate::storage::agents::SilentInputSource::Argument,
+        output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
+        created_at: Some(now),
+        updated_at: Some(now),
+    };
+    insert_agent(&store.conn().unwrap(), &agent).unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_tier2(
+            "weather",
+            vec![crate::agents::tools::ManifestTool {
+                id: "current".to_string(),
+                name: "Weather".to_string(),
+                description: "current weather".to_string(),
+                parameters: json!({}),
+            }],
+        )
+        .unwrap();
+
+    let current_exe = std::env::current_exe()
+        .expect("current_exe")
+        .to_string_lossy()
+        .to_string();
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        provider_type: Some("anthropic".to_string()),
+        connection_mode: Some("cli".to_string()),
+        cli_binary_path: Some(current_exe),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    let _ = crate::agents::runner::run_silent_agent_loop_impl(
+        &agent,
+        &registry,
+        "Hello".to_string(),
+        run_config("anthropic_cli", config, None, 100),
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+    )
+    .await;
+
+    let recorded = events.lock().unwrap();
+    let has_unavailable = recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::ToolsUnavailable { .. }));
+    assert!(
+        !has_unavailable,
+        "ToolsUnavailable must not be emitted for silent runs"
+    );
+}
+
+#[tokio::test]
+async fn test_runner_with_disabled_provider_preserves_error_and_does_not_emit_tools_unavailable() {
+    let store = make_store();
+    let agent_id = "agent-disabled-provider".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    let agent = AgentRow {
+        id: agent_id.clone(),
+        name: "Disabled Provider Agent".to_string(),
+        description: None,
+        system_prompt: "Helper".to_string(),
+        provider_id: "anthropic".to_string(),
+        model_id: "claude-3-5-sonnet".to_string(),
+        tool_selection: vec!["weather:current".to_string()],
+        silent: false,
+        input_source: crate::storage::agents::SilentInputSource::Argument,
+        output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
+        created_at: Some(now),
+        updated_at: Some(now),
+    };
+    insert_agent(&store.conn().unwrap(), &agent).unwrap();
+
+    let thread_id = "thread-disabled-provider".to_string();
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("Disabled Provider Test".to_string()),
+            is_pinned: false,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_tier2(
+            "weather",
+            vec![crate::agents::tools::ManifestTool {
+                id: "current".to_string(),
+                name: "Weather".to_string(),
+                description: "current weather".to_string(),
+                parameters: json!({}),
+            }],
+        )
+        .unwrap();
+
+    let config = crate::ai::types::ProviderConfig {
+        enabled: false,
+        provider_type: Some("anthropic".to_string()),
+        connection_mode: Some("cli".to_string()),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    let result = crate::agents::runner::run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "Hello".to_string(),
+        Some("run-1".to_string()),
+        run_config("anthropic", config, None, 100),
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+    )
+    .await;
+
+    assert!(result.is_err(), "Run must fail with disabled provider");
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("provider 'anthropic' is disabled"),
+        "Error message must report disabled provider, got: {err_msg}"
+    );
+
+    let recorded = events.lock().unwrap();
+    assert!(
+        !recorded
+            .iter()
+            .any(|e| matches!(e, AgentStreamEvent::ToolsUnavailable { .. })),
+        "ToolsUnavailable must not be emitted when provider lookup fails"
+    );
+    assert_eq!(
+        recorded.as_slice(),
+        &[AgentStreamEvent::UserMessagePersisted],
+        "Events must match pre-change behavior: only UserMessagePersisted before failure"
+    );
+}

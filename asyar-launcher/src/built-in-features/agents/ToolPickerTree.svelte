@@ -7,10 +7,12 @@
   let {
     groups,
     selectedIds,
+    droppedToolIds = [],
     onChange,
   }: {
     groups: AgentToolGroup[];
     selectedIds: string[];
+    droppedToolIds?: string[];
     onChange: (ids: string[]) => void;
   } = $props();
 
@@ -46,6 +48,9 @@
               onchange={() => onChange(toggleToolSelection(selectedIds, tool.fullyQualifiedId))}
             />
             <span>{tool.name}</span>
+            {#if droppedToolIds.includes(tool.fullyQualifiedId)}
+              <span class="tool-dropped-hint">Not available in CLI mode</span>
+            {/if}
           </label>
         {/each}
       </div>
@@ -94,5 +99,12 @@
     cursor: pointer;
     font-size: var(--font-size-sm);
     color: var(--text-primary);
+  }
+
+  .tool-dropped-hint {
+    margin-left: auto;
+    font-size: var(--font-size-xs);
+    color: var(--accent-warning);
+    font-weight: 500;
   }
 </style>

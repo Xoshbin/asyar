@@ -11,6 +11,9 @@ import {
   resolveThreadId,
   lastAssistantMessageText,
   extractSourcesFromMessage,
+  formatToolsUnavailableNotice,
+  formatEditorToolsUnavailableWarning,
+  isAgyEngine,
 } from './agentChatView.helpers';
 
 import type { ThreadDef, MessageDef } from './types';
@@ -470,5 +473,57 @@ describe('extractSourcesFromMessage', () => {
     });
 
     expect(extractSourcesFromMessage(msg)).toEqual([{ title: 'Valid', url: 'https://valid.com/' }]);
+  });
+});
+
+describe('formatToolsUnavailableNotice', () => {
+  it('formats notice for Claude Code (CLI)', () => {
+    const text = formatToolsUnavailableNotice('anthropic', ['Weather', 'GitHub Issues']);
+    expect(text).toBe(
+      "Claude Code (CLI) can't use these tools: Weather, GitHub Issues. To use them, switch this provider to an API key in Settings → AI.",
+    );
+  });
+
+  it('formats notice for Codex (CLI)', () => {
+    const text = formatToolsUnavailableNotice('openai', ['Weather', 'GitHub Issues']);
+    expect(text).toBe(
+      "Codex (CLI) can't use these tools: Weather, GitHub Issues. To use them, switch this provider to an API key in Settings → AI.",
+    );
+  });
+
+  it('formats notice for Antigravity (CLI)', () => {
+    const text = formatToolsUnavailableNotice('google', ['Weather', 'Calculator']);
+    expect(text).toBe(
+      "Antigravity (CLI) can't use tools, so this chat runs without: Weather, Calculator. To use tools, switch this provider to an API key in Settings → AI.",
+    );
+  });
+
+  it('recognizes engine variants case-insensitively', () => {
+    expect(formatToolsUnavailableNotice('AGY', ['ToolA'])).toContain(
+      "Antigravity (CLI) can't use tools, so this chat runs without: ToolA.",
+    );
+    expect(formatToolsUnavailableNotice('codex', ['ToolB'])).toContain(
+      "Codex (CLI) can't use these tools: ToolB.",
+    );
+  });
+});
+
+describe('formatEditorToolsUnavailableWarning', () => {
+  it('formats warning for Antigravity (google / agy)', () => {
+    expect(formatEditorToolsUnavailableWarning('google')).toBe(
+      "Antigravity (CLI) can't use tools. To use them, switch this provider to an API key in Settings → AI.",
+    );
+    expect(formatEditorToolsUnavailableWarning('agy')).toBe(
+      "Antigravity (CLI) can't use tools. To use them, switch this provider to an API key in Settings → AI.",
+    );
+  });
+
+  it('formats warning for other engines (claude / codex)', () => {
+    expect(formatEditorToolsUnavailableWarning('claude')).toBe(
+      "Some selected tools aren't available in CLI mode. To use them, switch this provider to an API key in Settings → AI.",
+    );
+    expect(formatEditorToolsUnavailableWarning('openai')).toBe(
+      "Some selected tools aren't available in CLI mode. To use them, switch this provider to an API key in Settings → AI.",
+    );
   });
 });

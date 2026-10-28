@@ -43,6 +43,14 @@ export class AgentsManager {
    */
   activeAbortController = $state<AbortController | null>(null);
   /**
+   * Non-blocking notice populated when a CLI-mode run drops selected tools.
+   * Scoped to the active thread where the run started. Rendered inline in
+   * AgentChatView only when matching currentThreadId.
+   */
+  toolsUnavailableNotice = $state<{ threadId: string; tools: string[]; engine: string } | null>(
+    null,
+  );
+  /**
    * The thread list each agent last loaded. The chat view mounts fresh on
    * every open, so it renders this until its own load lands rather than an
    * empty sidebar that claims there are no threads.

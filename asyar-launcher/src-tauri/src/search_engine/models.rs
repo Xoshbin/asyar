@@ -519,6 +519,7 @@ mod bindings_export {
             .register::<crate::ai::types::StreamEventPayload>()
             .register::<crate::ai::types::ChatStreamEventPayload>()
             .register::<crate::agents::editor::AgentProviderDescriptor>()
+            .register::<crate::agents::editor::AgentEditorDroppedTools>()
             .register::<crate::agents::runner::AgentRunConfig>()
             .register::<crate::agents::runner::AgentStreamEvent>()
             .register::<crate::system_actions::SystemAction>()

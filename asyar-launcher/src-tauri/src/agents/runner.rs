@@ -55,6 +55,10 @@ pub enum AgentStreamEvent {
     Error {
         message: String,
     },
+    ToolsUnavailable {
+        tools: Vec<String>,
+        engine: String,
+    },
     Completed,
     Cancelled,
 }
@@ -843,6 +847,42 @@ async fn wait_for_cancellation(signal: &mut watch::Receiver<bool>) {
     }
 }
 
+fn cli_dropped_tool_names(
+    agent: &AgentRow,
+    registry: &ToolRegistry,
+    configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
+) -> Option<(Vec<String>, String)> {
+    let provider_config = resolve_provider_config(&agent.provider_id, configs).ok()?;
+    if provider_config.connection_mode.as_deref() != Some("cli") {
+        return None;
+    }
+    let (tool_definitions, wire_to_fqid) = resolve_tools(agent, registry).ok()?;
+    let engine_type = provider_config
+        .provider_type
+        .as_deref()
+        .unwrap_or(&agent.provider_id);
+    let dropped = crate::ai::cli::dropped_tools(
+        engine_type,
+        provider_config.connection_mode.as_deref(),
+        &tool_definitions,
+    );
+    if dropped.is_empty() {
+        return None;
+    }
+    let display_names: Vec<String> = dropped
+        .iter()
+        .map(|t| {
+            wire_to_fqid
+                .get(&t.name)
+                .and_then(|fqid| registry.get_tool_descriptor(fqid))
+                .map(|d| d.name)
+                .unwrap_or_else(|| t.name.clone())
+        })
+        .collect();
+    let normalized_engine = crate::ai::cli::normalize_engine(engine_type).to_string();
+    Some((display_names, normalized_engine))
+}
+
 #[allow(clippy::too_many_arguments)] // Explicit dependencies keep the runner independently testable.
 pub async fn run_thread_loop_impl<F, D, Fut>(
     store: &DataStore,
@@ -911,6 +951,14 @@ where
         on_event(AgentStreamEvent::UserMessagePersisted);
     }
 
+    if let Some((display_names, engine)) = cli_dropped_tool_names(&agent, registry, &config.configs)
+    {
+        on_event(AgentStreamEvent::ToolsUnavailable {
+            tools: display_names,
+            engine,
+        });
+    }
+
     let mut conversation = Conversation::Persistent {
         store,
         thread_id,
@@ -959,6 +1007,15 @@ where
             "agent '{}' is not configured for silent execution",
             agent.id
         )));
+    }
+
+    if let Some((dropped_names, engine)) = cli_dropped_tool_names(agent, registry, &config.configs)
+    {
+        log::warn!(
+            "[agents] Silent run for agent '{}' ({engine} CLI) dropped unavailable tools: {:?}",
+            agent.id,
+            dropped_names
+        );
     }
     let mut conversation = Conversation::Ephemeral {
         messages: vec![ChatMessage {

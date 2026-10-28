@@ -13,6 +13,7 @@ import {
   agentsEditorLoad,
   agentsEditorListModels,
   agentsEditorSave,
+  agentsEditorDroppedTools,
   agentsProviderRemovalBlockers,
   agentsSeedEmojiFallback,
   agentsReportMcpPermission,
@@ -245,6 +246,24 @@ describe('agent runner commands', () => {
         },
       ],
       configs,
+    });
+  });
+
+  it('delegates editor dropped tools check to Rust command', async () => {
+    vi.mocked(invokeRaw).mockResolvedValueOnce({
+      dropped: ['extension:tool1'],
+      engine: 'claude',
+    });
+
+    const res = await agentsEditorDroppedTools('anthropic', 'cli', [
+      'builtin:calc',
+      'extension:tool1',
+    ]);
+    expect(res).toEqual({ dropped: ['extension:tool1'], engine: 'claude' });
+    expect(invokeRaw).toHaveBeenCalledWith('agents_editor_dropped_tools', {
+      engine: 'anthropic',
+      connectionMode: 'cli',
+      tools: ['builtin:calc', 'extension:tool1'],
     });
   });
 });

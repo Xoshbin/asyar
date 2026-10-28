@@ -9,6 +9,7 @@ import type {
   ReasoningEffort,
 } from '../../services/ai/IProviderPlugin';
 import type {
+  AgentEditorDroppedTools,
   AgentProviderDescriptor,
   ModelInfo as ModelInfoContract,
   CliStatus,
@@ -243,6 +244,14 @@ export async function agentsEditorListModels(
     })),
     selectedModelId: result.selectedModelId,
   };
+}
+
+export async function agentsEditorDroppedTools(
+  engine: string,
+  connectionMode: string | null,
+  tools: string[],
+): Promise<AgentEditorDroppedTools> {
+  return invokeRaw('agents_editor_dropped_tools', { engine, connectionMode, tools });
 }
 
 export async function agentsInvokeBuiltinTool(id: string, args: unknown): Promise<unknown> {

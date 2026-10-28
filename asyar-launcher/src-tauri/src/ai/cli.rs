@@ -637,23 +637,68 @@ pub fn resolve_asyar_mcp_exe_path(explicit_exe: Option<&Path>) -> String {
     }
 }
 
-/// Extracts bare IDs of built-in tools from tool definitions, dropping non-built-in tools with a warning.
-pub fn filter_cli_builtin_tools(tools: &[crate::ai::types::ToolDefinition]) -> Vec<String> {
-    let mut builtins = Vec::new();
-    for tool in tools {
-        let name = &tool.name;
-        if let Some(bare) = name
-            .strip_prefix("builtin:")
-            .or_else(|| name.strip_prefix("builtin__"))
-        {
-            builtins.push(bare.to_string());
-        } else {
-            log::warn!(
-                "[cli] Dropping non-builtin tool '{name}' for CLI run; only built-in tools are supported in CLI mode"
-            );
-        }
+/// Returns true if the tool name represents a built-in Asyar tool.
+pub fn is_cli_builtin_tool_name(name: &str) -> bool {
+    name.starts_with("builtin:") || name.starts_with("builtin__")
+}
+
+/// Extracts bare ID of a built-in tool (e.g. "builtin:calculator" -> "calculator").
+pub fn extract_cli_builtin_tool_name(name: &str) -> Option<&str> {
+    name.strip_prefix("builtin:")
+        .or_else(|| name.strip_prefix("builtin__"))
+}
+
+/// Returns the tool definitions that will be dropped for a CLI run with the given engine.
+///
+/// - Google Antigravity ("google") supports no tools in CLI mode; every tool is dropped.
+/// - Claude Code ("claude") and Codex ("openai") support only built-in tools (prefixed with `builtin:` or `builtin__`);
+///   extension tools and MCP tools are dropped.
+/// - Any other engine in CLI mode supports no tools; every tool is dropped.
+pub fn dropped_cli_tools<'a>(
+    engine: &str,
+    tools: &'a [crate::ai::types::ToolDefinition],
+) -> Vec<&'a crate::ai::types::ToolDefinition> {
+    match normalize_engine(engine) {
+        "claude" | "openai" => tools
+            .iter()
+            .filter(|tool| !is_cli_builtin_tool_name(&tool.name))
+            .collect(),
+        _ => tools.iter().collect(),
     }
-    builtins
+}
+
+/// Returns the tool definitions that will be dropped for a run with the given engine and connection mode.
+///
+/// In API mode (`connection_mode != Some("cli")`), no tools are dropped (returns empty).
+/// In CLI mode (`connection_mode == Some("cli")`), delegates to [`dropped_cli_tools`].
+pub fn dropped_tools<'a>(
+    engine: &str,
+    connection_mode: Option<&str>,
+    tools: &'a [crate::ai::types::ToolDefinition],
+) -> Vec<&'a crate::ai::types::ToolDefinition> {
+    if connection_mode != Some("cli") {
+        return Vec::new();
+    }
+    dropped_cli_tools(engine, tools)
+}
+
+/// Extracts bare IDs of built-in tools supported by this CLI engine, logging a warning for any dropped tools.
+pub fn filter_cli_builtin_tools(
+    engine: &str,
+    tools: &[crate::ai::types::ToolDefinition],
+) -> Vec<String> {
+    let dropped = dropped_cli_tools(engine, tools);
+    for tool in &dropped {
+        log::warn!(
+            "[cli] Dropping tool '{}' for {engine} CLI run; not supported in CLI mode",
+            tool.name
+        );
+    }
+    tools
+        .iter()
+        .filter(|tool| !dropped.iter().any(|d| d.name == tool.name))
+        .filter_map(|tool| extract_cli_builtin_tool_name(&tool.name).map(str::to_string))
+        .collect()
 }
 
 /// Builds the argument list for a non-interactive `claude` run with the default binary path.
@@ -848,7 +893,8 @@ where
         } else {
             Some(params.model_id.trim())
         };
-        let allowed_builtins = filter_cli_builtin_tools(params.tools.as_deref().unwrap_or(&[]));
+        let allowed_builtins =
+            filter_cli_builtin_tools(engine_type, params.tools.as_deref().unwrap_or(&[]));
         let allowed_refs: Vec<&str> = allowed_builtins.iter().map(String::as_str).collect();
         return crate::ai::codex_client::CodexClient::stream_turn(
             &bin_path,
@@ -869,15 +915,19 @@ where
     );
 
     let mut cmd = match normalize_engine(engine_type) {
-        "google" => build_agy_command(
-            &bin_path,
-            &prompt,
-            params.model_id.trim(),
-            config.reasoning_effort.as_deref(),
-            workspace_dir,
-        ),
+        "google" => {
+            let _ = filter_cli_builtin_tools(engine_type, params.tools.as_deref().unwrap_or(&[]));
+            build_agy_command(
+                &bin_path,
+                &prompt,
+                params.model_id.trim(),
+                config.reasoning_effort.as_deref(),
+                workspace_dir,
+            )
+        }
         "claude" => {
-            let allowed_builtins = filter_cli_builtin_tools(params.tools.as_deref().unwrap_or(&[]));
+            let allowed_builtins =
+                filter_cli_builtin_tools(engine_type, params.tools.as_deref().unwrap_or(&[]));
             let allowed_refs: Vec<&str> = allowed_builtins.iter().map(String::as_str).collect();
             build_claude_command(
                 &bin_path,
@@ -1265,8 +1315,89 @@ mod tests {
             },
         ];
 
-        let filtered = filter_cli_builtin_tools(&tools);
-        assert_eq!(filtered, vec!["calculator", "web-search"]);
+        let filtered_claude = filter_cli_builtin_tools("claude", &tools);
+        assert_eq!(filtered_claude, vec!["calculator", "web-search"]);
+
+        let filtered_codex = filter_cli_builtin_tools("openai", &tools);
+        assert_eq!(filtered_codex, vec!["calculator", "web-search"]);
+
+        let filtered_agy = filter_cli_builtin_tools("google", &tools);
+        assert!(filtered_agy.is_empty());
+    }
+
+    #[test]
+    fn test_dropped_tools_pure_function() {
+        use crate::ai::types::ToolDefinition;
+        let tools = vec![
+            ToolDefinition {
+                name: "builtin:calculator".into(),
+                description: "calc".into(),
+                parameters: serde_json::json!({}),
+            },
+            ToolDefinition {
+                name: "builtin__web-search".into(),
+                description: "search".into(),
+                parameters: serde_json::json!({}),
+            },
+            ToolDefinition {
+                name: "extension__weather__current".into(),
+                description: "weather".into(),
+                parameters: serde_json::json!({}),
+            },
+            ToolDefinition {
+                name: "mcp__github__create_issue".into(),
+                description: "github".into(),
+                parameters: serde_json::json!({}),
+            },
+        ];
+
+        // Claude CLI: keeps built-ins, drops extension and MCP tools
+        let dropped_claude = dropped_tools("claude", Some("cli"), &tools);
+        assert_eq!(
+            dropped_claude
+                .iter()
+                .map(|t| t.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["extension__weather__current", "mcp__github__create_issue"]
+        );
+
+        // Codex CLI: keeps built-ins, drops extension and MCP tools
+        let dropped_codex = dropped_tools("openai", Some("cli"), &tools);
+        assert_eq!(
+            dropped_codex
+                .iter()
+                .map(|t| t.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["extension__weather__current", "mcp__github__create_issue"]
+        );
+
+        // agy (Google Antigravity CLI): drops all tools (both built-in and external)
+        let dropped_agy = dropped_tools("google", Some("cli"), &tools);
+        assert_eq!(
+            dropped_agy
+                .iter()
+                .map(|t| t.name.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "builtin:calculator",
+                "builtin__web-search",
+                "extension__weather__current",
+                "mcp__github__create_issue"
+            ]
+        );
+
+        // Empty in -> empty out across all engines
+        assert!(dropped_tools("claude", Some("cli"), &[]).is_empty());
+        assert!(dropped_tools("openai", Some("cli"), &[]).is_empty());
+        assert!(dropped_tools("google", Some("cli"), &[]).is_empty());
+
+        // API mode -> nothing dropped across all engines
+        assert!(dropped_tools("claude", Some("api"), &tools).is_empty());
+        assert!(dropped_tools("claude", None, &tools).is_empty());
+        assert!(dropped_tools("openai", Some("api"), &tools).is_empty());
+        assert!(dropped_tools("openai", None, &tools).is_empty());
+        assert!(dropped_tools("google", Some("api"), &tools).is_empty());
+        assert!(dropped_tools("google", None, &tools).is_empty());
     }
 
     #[test]

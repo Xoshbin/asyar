@@ -26,10 +26,16 @@ vi.mock('../../lib/ipc/commands', () => ({
   agentsEditorLoad: vi.fn(),
   agentsEditorListModels: vi.fn(),
   agentsEditorSave: vi.fn(),
+  agentsEditorDroppedTools: vi.fn(),
 }));
 
 import AgentEditView from './AgentEditView.svelte';
-import { agentsEditorLoad, agentsEditorListModels, agentsEditorSave } from '../../lib/ipc/commands';
+import {
+  agentsEditorLoad,
+  agentsEditorListModels,
+  agentsEditorSave,
+  agentsEditorDroppedTools,
+} from '../../lib/ipc/commands';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 
@@ -133,5 +139,167 @@ describe('AgentEditView', () => {
         expect.objectContaining({ modelId: 'claude-3-5-haiku' }),
       ),
     );
+  });
+
+  it('marks dropped tools with inline hint and shows explanation when provider is in CLI mode', async () => {
+    vi.mocked(agentsEditorLoad).mockResolvedValue({
+      form: {
+        ...form,
+        providerId: 'anthropic',
+        toolSelection: ['builtin:calculator', 'extension:weather'],
+      },
+      providers: [{ id: 'anthropic', name: 'Anthropic' }],
+      toolGroups: [
+        {
+          kind: 'builtin',
+          tools: [
+            {
+              id: 'calculator',
+              fullyQualifiedId: 'builtin:calculator',
+              name: 'Calculator',
+              description: 'Calculate math',
+              parameters: {},
+            },
+          ],
+        },
+        {
+          kind: 'tier2',
+          extensionId: 'weather',
+          tools: [
+            {
+              id: 'current',
+              fullyQualifiedId: 'extension:weather',
+              name: 'Weather',
+              description: 'Current weather',
+              parameters: {},
+            },
+          ],
+        },
+      ] as any,
+    });
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      ai: {
+        providers: {
+          anthropic: { enabled: true, connectionMode: 'cli', providerType: 'anthropic' },
+        },
+        defaultAgentId: null,
+      },
+    } as any);
+    vi.mocked(agentsEditorDroppedTools).mockResolvedValue({
+      dropped: ['extension:weather'],
+      engine: 'claude',
+    });
+
+    render(AgentEditView);
+
+    await waitFor(() =>
+      expect(agentsEditorDroppedTools).toHaveBeenCalledWith('anthropic', 'cli', [
+        'builtin:calculator',
+        'extension:weather',
+      ]),
+    );
+
+    expect(await screen.findByText('Not available in CLI mode')).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Some selected tools aren't available in CLI mode. To use them, switch this provider to an API key in Settings → AI.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it('formats warning specifically for Antigravity when engine is google/agy', async () => {
+    vi.mocked(agentsEditorLoad).mockResolvedValue({
+      form: {
+        ...form,
+        providerId: 'google',
+        toolSelection: ['builtin:calculator'],
+      },
+      providers: [{ id: 'google', name: 'Google Gemini' }],
+      toolGroups: [
+        {
+          kind: 'builtin',
+          tools: [
+            {
+              id: 'calculator',
+              fullyQualifiedId: 'builtin:calculator',
+              name: 'Calculator',
+              description: 'Calculate math',
+              parameters: {},
+            },
+          ],
+        },
+      ] as any,
+    });
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      ai: {
+        providers: {
+          google: { enabled: true, connectionMode: 'cli', providerType: 'google' },
+        },
+        defaultAgentId: null,
+      },
+    } as any);
+    vi.mocked(agentsEditorDroppedTools).mockResolvedValue({
+      dropped: ['builtin:calculator'],
+      engine: 'google',
+    });
+
+    render(AgentEditView);
+
+    await waitFor(() =>
+      expect(agentsEditorDroppedTools).toHaveBeenCalledWith('google', 'cli', [
+        'builtin:calculator',
+      ]),
+    );
+
+    expect(await screen.findByText('Not available in CLI mode')).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Antigravity (CLI) can't use tools. To use them, switch this provider to an API key in Settings → AI.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it('does not query dropped tools and shows no warning in API mode', async () => {
+    vi.mocked(agentsEditorLoad).mockResolvedValue({
+      form: {
+        ...form,
+        providerId: 'anthropic',
+        toolSelection: ['builtin:calculator', 'extension:weather'],
+      },
+      providers: [{ id: 'anthropic', name: 'Anthropic' }],
+      toolGroups: [
+        {
+          kind: 'builtin',
+          tools: [
+            {
+              id: 'calculator',
+              fullyQualifiedId: 'builtin:calculator',
+              name: 'Calculator',
+              description: 'Calculate math',
+              parameters: {},
+            },
+          ],
+        },
+      ] as any,
+    });
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      ai: {
+        providers: {
+          anthropic: { enabled: true, connectionMode: 'api', apiKey: 'sk-ant' },
+        },
+        defaultAgentId: null,
+      },
+    } as any);
+
+    render(AgentEditView);
+
+    await screen.findByDisplayValue('Rust Agent');
+    expect(agentsEditorDroppedTools).not.toHaveBeenCalled();
+    expect(screen.queryByText('Not available in CLI mode')).toBeNull();
+    expect(
+      screen.queryByText(
+        "Some selected tools aren't available in CLI mode. To use them, switch this provider to an API key in Settings → AI.",
+      ),
+    ).toBeNull();
   });
 });

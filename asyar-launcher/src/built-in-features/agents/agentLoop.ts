@@ -23,6 +23,7 @@ export interface RunAgentInput {
   onAssistantTextDelta?: (delta: string, accumulated: string) => void;
   onAssistantStatus?: (status: ChatStreamStatus | null) => void;
   onAssistantTurnPersisted?: () => void;
+  onToolsUnavailable?: (tools: string[], engine: string) => void;
 }
 
 async function loadAgent(agentId: string): Promise<AgentDef> {
@@ -51,6 +52,9 @@ function presentEvent(
       break;
     case 'assistant_turn_persisted':
       input.onAssistantTurnPersisted?.();
+      break;
+    case 'tools_unavailable':
+      input.onToolsUnavailable?.(event.tools, event.engine);
       break;
     default:
       break;

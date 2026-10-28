@@ -484,3 +484,33 @@ pub async fn agents_editor_list_models(
         selected_model_id,
     })
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentEditorDroppedTools {
+    pub dropped: Vec<String>,
+    pub engine: String,
+}
+
+#[tauri::command]
+pub fn agents_editor_dropped_tools(
+    engine: String,
+    connection_mode: Option<String>,
+    tools: Vec<String>,
+) -> AgentEditorDroppedTools {
+    let normalized = crate::ai::cli::normalize_engine(&engine).to_string();
+    let tool_definitions: Vec<crate::ai::types::ToolDefinition> = tools
+        .into_iter()
+        .map(|id| crate::ai::types::ToolDefinition {
+            name: id,
+            description: String::new(),
+            parameters: serde_json::Value::Null,
+        })
+        .collect();
+    let dropped =
+        crate::ai::cli::dropped_tools(&engine, connection_mode.as_deref(), &tool_definitions);
+    AgentEditorDroppedTools {
+        dropped: dropped.into_iter().map(|t| t.name.clone()).collect(),
+        engine: normalized,
+    }
+}

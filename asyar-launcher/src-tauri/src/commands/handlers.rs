@@ -497,6 +497,7 @@ macro_rules! ai_commands {
                 $crate::ai::commands::ai_check_cli_status,
                 $crate::agents::editor::agents_editor_load,
                 $crate::agents::editor::agents_editor_list_models,
+                $crate::agents::editor::agents_editor_dropped_tools,
                 $crate::agents::editor::agents_editor_save,
                 $crate::agents::editor::agents_provider_removal_blockers,
                 $crate::agents::tools::agents_tools_list,

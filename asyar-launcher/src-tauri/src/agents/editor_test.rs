@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::agents::editor::{
-    agents_editor_catalog_impl, agents_editor_save_impl, agents_stranded_by_provider_removal,
-    build_editor_view_model, provider_removal_blocked_message, select_initial_model_id,
-    AgentEditorForm, AgentProviderDescriptor, AgentToolGroup,
+    agents_editor_catalog_impl, agents_editor_dropped_tools, agents_editor_save_impl,
+    agents_stranded_by_provider_removal, build_editor_view_model, provider_removal_blocked_message,
+    select_initial_model_id, AgentEditorForm, AgentProviderDescriptor, AgentToolGroup,
 };
 use crate::agents::tools::{BuiltinTool, ManifestTool, ToolDescriptor, ToolRegistry, ToolSource};
 use crate::ai::types::{ModelInfo, ProviderConfig};
@@ -533,4 +533,45 @@ fn editor_save_rejects_invalid_forms_in_rust() {
         agents_editor_save_impl(&conn, None, form),
         Err(AppError::Validation(_))
     ));
+}
+
+#[test]
+fn test_agents_editor_dropped_tools_command() {
+    let tools = vec![
+        "builtin:calculator".to_string(),
+        "builtin__web-search".to_string(),
+        "extension:weather:current".to_string(),
+        "mcp:github:issues".to_string(),
+    ];
+
+    // CLI mode for Claude Code: drops extension and MCP tools, keeps built-ins
+    let res_claude = agents_editor_dropped_tools(
+        "anthropic".to_string(),
+        Some("cli".to_string()),
+        tools.clone(),
+    );
+    assert_eq!(
+        res_claude.dropped,
+        vec!["extension:weather:current", "mcp:github:issues"]
+    );
+    assert_eq!(res_claude.engine, "claude");
+
+    // CLI mode for agy (Google): drops all tools
+    let res_agy =
+        agents_editor_dropped_tools("google".to_string(), Some("cli".to_string()), tools.clone());
+    assert_eq!(res_agy.dropped, tools);
+    assert_eq!(res_agy.engine, "google");
+
+    // API mode: drops nothing
+    let res_api = agents_editor_dropped_tools(
+        "anthropic".to_string(),
+        Some("api".to_string()),
+        tools.clone(),
+    );
+    assert!(res_api.dropped.is_empty());
+    assert_eq!(res_api.engine, "claude");
+
+    let res_none = agents_editor_dropped_tools("anthropic".to_string(), None, tools);
+    assert!(res_none.dropped.is_empty());
+    assert_eq!(res_none.engine, "claude");
 }

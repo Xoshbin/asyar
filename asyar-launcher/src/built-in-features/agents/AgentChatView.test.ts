@@ -20,6 +20,7 @@ vi.mock('../../components', async (importOriginal) => {
     SplitListDetail: (await import('../../components/layout/SplitListDetail.svelte')).default,
     LauncherListRow: (await import('../../components/list/LauncherListRow.svelte')).default,
     Icon: (await import('../../components/base/Icon.svelte')).default,
+    WarningBanner: (await import('../../components/feedback/WarningBanner.svelte')).default,
   };
 });
 
@@ -317,5 +318,49 @@ describe('AgentChatView', () => {
     const secondThread = await screen.findByText('Second Thread');
     await fireEvent.click(secondThread);
     expect(agentsManager.currentThreadId).toBe('thread-2');
+  });
+
+  it('renders tools unavailable notice when populated in agentsManager for active thread', async () => {
+    agentsManager.toolsUnavailableNotice = {
+      threadId: thread.id,
+      tools: ['Weather', 'GitHub Issues'],
+      engine: 'anthropic',
+    };
+    render(AgentChatView);
+
+    const notice = await screen.findByTestId('tools-unavailable-notice');
+    expect(notice).toBeTruthy();
+    expect(notice.textContent).toContain(
+      "Claude Code (CLI) can't use these tools: Weather, GitHub Issues. To use them, switch this provider to an API key in Settings → AI.",
+    );
+  });
+
+  it("does not show thread A's notice after switching to thread B", async () => {
+    const thread2 = {
+      id: 'thread-2',
+      agentId: agent.id,
+      title: 'Thread B',
+      createdAt: 2,
+      updatedAt: 2,
+    };
+    mockedAgentService.listThreads.mockResolvedValue([thread, thread2]);
+    agentsManager.currentThreadId = thread.id;
+    agentsManager.toolsUnavailableNotice = {
+      threadId: thread.id,
+      tools: ['Weather'],
+      engine: 'anthropic',
+    };
+
+    render(AgentChatView);
+
+    // Notice is visible on thread A
+    expect(await screen.findByTestId('tools-unavailable-notice')).toBeTruthy();
+
+    // Switch to thread B
+    const threadB = await screen.findByText('Thread B');
+    await fireEvent.click(threadB);
+
+    // Notice should no longer be displayed on thread B
+    expect(screen.queryByTestId('tools-unavailable-notice')).toBeNull();
   });
 });
