@@ -48,6 +48,8 @@ const RATE_PROVIDERS: &[RateProvider] = &[
 /// (Frankfurter and the AllRatesToday ECB table only carry ~30 currencies).
 const CBI_RATES_URL: &str = "https://allratestoday.com/api/open/central-bank/cbiq";
 const CBI_CREDIT: &str = "Central Bank of Iraq via AllRatesToday (allratestoday.com)";
+/// Credit appended to the source when CoinGecko prices were merged.
+const COINGECKO_CREDIT: &str = "crypto by CoinGecko";
 
 /// A fetched rate map plus the provider(s) it came from.
 #[derive(Debug, Clone)]
@@ -185,7 +187,11 @@ const CRYPTO_IDS: &[(&str, &str)] = &[
 
 /// Merge a CoinGecko `simple/price` response into a USD-based rates map,
 /// storing "units of coin per one USD" like every fiat entry.
-pub fn merge_crypto_rates(rates: &mut HashMap<String, f64>, body: &serde_json::Value) {
+///
+/// Returns how many coin prices were merged, so callers can credit
+/// CoinGecko only when a crypto rate actually came from it.
+pub fn merge_crypto_rates(rates: &mut HashMap<String, f64>, body: &serde_json::Value) -> usize {
+    let mut merged = 0;
     for (id, code) in CRYPTO_IDS {
         let price = body
             .get(*id)
@@ -194,9 +200,11 @@ pub fn merge_crypto_rates(rates: &mut HashMap<String, f64>, body: &serde_json::V
         if let Some(price) = price {
             if price > 0.0 {
                 rates.insert((*code).to_string(), 1.0 / price);
+                merged += 1;
             }
         }
     }
+    merged
 }
 
 /// Parse a `{"rates": {CODE: f64, ...}}` body into a USD-based map.
@@ -348,7 +356,9 @@ pub async fn fetch_rates() -> Result<FetchedRates, String> {
     );
     if let Ok(resp) = client.get(&url).send().await {
         if let Ok(body) = resp.json::<serde_json::Value>().await {
-            merge_crypto_rates(map, &body);
+            if merge_crypto_rates(map, &body) > 0 {
+                fetched.source = format!("{} · {COINGECKO_CREDIT}", fetched.source);
+            }
         }
     }
 
@@ -440,12 +450,23 @@ mod tests {
             r#"{"bitcoin":{"usd":80000.0},"ethereum":{"usd":2500.0},"junk":{"usd":0.0}}"#,
         )
         .unwrap();
-        merge_crypto_rates(&mut rates, &body);
+        assert_eq!(merge_crypto_rates(&mut rates, &body), 2);
         assert!((rates["BTC"] - 1.0 / 80000.0).abs() < 1e-12);
         assert!((rates["ETH"] - 1.0 / 2500.0).abs() < 1e-12);
         // Fiat entries untouched, zero/unknown prices skipped.
         assert_eq!(rates["IQD"], 1310.0);
         assert!(!rates.contains_key("JUNK"));
+    }
+
+    #[test]
+    fn crypto_merge_reports_nothing_for_error_bodies() {
+        // CoinGecko's 403/429 replies are valid JSON with no prices; nothing
+        // is merged, so the source credit must not name CoinGecko.
+        let mut rates = sample_rates();
+        let body: serde_json::Value =
+            serde_json::from_str(r#"{"status":{"error_code":403}}"#).unwrap();
+        assert_eq!(merge_crypto_rates(&mut rates, &body), 0);
+        assert!(!rates.contains_key("BTC"));
     }
 
     #[test]
