@@ -1387,6 +1387,31 @@ mod tests {
         assert!(is_default_app_location("/System/Applications/Calendar.app"));
     }
 
+    /// `File::open` on a directory cannot change its mtime on Windows
+    /// (`ERROR_ACCESS_DENIED`). Backup semantics are required there.
+    fn set_mtime(path: &Path, time: std::time::SystemTime) {
+        #[cfg(unix)]
+        {
+            std::fs::File::open(path)
+                .unwrap()
+                .set_modified(time)
+                .unwrap();
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            const FILE_WRITE_ATTRIBUTES: u32 = 0x0000_0100;
+            const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+            std::fs::OpenOptions::new()
+                .access_mode(FILE_WRITE_ATTRIBUTES)
+                .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+                .open(path)
+                .unwrap()
+                .set_modified(time)
+                .unwrap();
+        }
+    }
+
     /// An app as the index holds it, carrying frecency data a scan never has.
     fn indexed_app(id: &str, name: &str, usage_count: u32) -> SearchableItem {
         SearchableItem::Application(Application {
@@ -2192,10 +2217,7 @@ mod tests {
         let app = tmp.path().join("Demo.app");
         let resources = app.join("Contents/Resources");
         std::fs::create_dir_all(&resources).unwrap();
-        std::fs::File::open(&resources)
-            .unwrap()
-            .set_modified(std::time::SystemTime::UNIX_EPOCH)
-            .unwrap();
+        set_mtime(&resources, std::time::SystemTime::UNIX_EPOCH);
 
         let cached = cache_dir.join(format!(
             "{}.png",
@@ -2224,10 +2246,7 @@ mod tests {
         std::fs::write(&car, b"car").unwrap();
         // In-place writes do not bump the directory mtime. The old .icns stays
         // old; only Assets.car is newer than the cache.
-        std::fs::File::open(&resources)
-            .unwrap()
-            .set_modified(std::time::SystemTime::UNIX_EPOCH)
-            .unwrap();
+        set_mtime(&resources, std::time::SystemTime::UNIX_EPOCH);
         std::fs::File::options()
             .write(true)
             .open(&icns)
@@ -2292,10 +2311,7 @@ mod tests {
             .set_modified(std::time::SystemTime::UNIX_EPOCH)
             .unwrap();
         // Touch the directory after the icon file and the cache are both old.
-        std::fs::File::open(&resources)
-            .unwrap()
-            .set_modified(std::time::SystemTime::now())
-            .unwrap();
+        set_mtime(&resources, std::time::SystemTime::now());
 
         let bytes = std::fs::read(&cached).ok();
         let _ = extract_app_icon(app.to_str().unwrap(), &cache_dir);
