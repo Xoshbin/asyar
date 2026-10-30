@@ -534,6 +534,15 @@ pub async fn agents_run_thread(
     stream_id: String,
     on_event: Channel<AgentStreamEvent>,
 ) -> Result<(), AppError> {
+    // Resolve every fallible path before `begin_run`: a `?` after it would skip `finish_run`
+    // and leak the run entry.
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))?;
+    let workspace_dir = crate::ai::cli::resolve_cli_workspace_dir(&app_data_dir)?;
+    let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
+
     let cancellation = runner_state.begin_run(&stream_id)?;
 
     // Per-caller event sink: the channel is scoped to the invoking view,
@@ -557,13 +566,6 @@ pub async fn agents_run_thread(
         let agent_id = dispatch_agent_id.clone();
         async move { execute_agent_tool(&registry, &runtime, &agent_id, &request).await }
     };
-
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))?;
-    let workspace_dir = crate::ai::cli::resolve_cli_workspace_dir(&app_data_dir)?;
-    let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
 
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
     let master_key = *keystore.master_key();
@@ -633,6 +635,15 @@ pub async fn agents_run_silent(
     }
 
     let cache_key = user_text.clone();
+    // Resolve every fallible path before `begin_run`: a `?` after it would skip `finish_run`
+    // and leak the run entry.
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))?;
+    let workspace_dir = crate::ai::cli::resolve_cli_workspace_dir(&app_data_dir)?;
+    let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
+
     let cancellation = runner_state.begin_run(&stream_id)?;
 
     // Per-caller event sink (see agents_run_thread).
@@ -656,13 +667,6 @@ pub async fn agents_run_silent(
         let agent_id = dispatch_agent_id.clone();
         async move { execute_agent_tool(&registry, &runtime, &agent_id, &request).await }
     };
-
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))?;
-    let workspace_dir = crate::ai::cli::resolve_cli_workspace_dir(&app_data_dir)?;
-    let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
 
     let result = crate::agents::runner::run_silent_agent_loop_impl(
         &agent,

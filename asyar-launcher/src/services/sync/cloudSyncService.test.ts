@@ -374,6 +374,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
         'sk-or-TEST-OPENROUTER-KEY-9999',
         'sk-or-TEST-CUSTOM-KEY-9999',
         'sk-or-TEST-WEBSEARCH-KEY-9999',
+        'Bearer sk-or-TEST-PROXY-HEADER-9999',
       ];
 
       const seededAi: AISettings = {
@@ -382,7 +383,11 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
           anthropic: { enabled: true, apiKey: secretKeys[1] },
           google: { enabled: true, apiKey: secretKeys[2] },
           openrouter: { enabled: true, apiKey: secretKeys[3] },
-          custom: { enabled: true, apiKey: secretKeys[4] },
+          custom: {
+            enabled: true,
+            apiKey: secretKeys[4],
+            customHeaders: { Authorization: secretKeys[6] },
+          },
         } as any,
         temperature: 0.7,
         maxTokens: 2048,
@@ -451,6 +456,8 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       expect(aiSource).toBeDefined();
       const aiParsed = JSON.parse(aiSource!.content);
       expect(aiParsed.temperature).toBe(0.7);
+      // Provider configs (customHeaders, base URLs, paths) never leave the device
+      expect(aiParsed.providers).toBeUndefined();
       expect(aiParsed.webSearch?.engine).toBe('brave');
       expect(aiParsed.webSearch?.baseUrl).toBe('https://api.search.brave.com');
 

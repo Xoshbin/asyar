@@ -3,6 +3,7 @@
   import type { AgentToolGroup } from '../../lib/ipc/commands';
   import Checkbox from '../../components/base/Checkbox.svelte';
   import { mcpService } from '../mcp/mcpService.svelte';
+  import { t } from '../../services/i18n';
 
   let {
     groups,
@@ -49,7 +50,7 @@
             />
             <span>{tool.name}</span>
             {#if droppedToolIds.includes(tool.fullyQualifiedId)}
-              <span class="tool-dropped-hint">Not available in CLI mode</span>
+              <span class="tool-dropped-hint">{t('features.agents.edit.tool_dropped_hint')}</span>
             {/if}
           </label>
         {/each}

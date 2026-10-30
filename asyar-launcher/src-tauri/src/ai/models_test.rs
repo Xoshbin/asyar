@@ -255,3 +255,38 @@ async fn list_models_impl_returns_claude_models_in_cli_mode() {
         ["opus", "sonnet", "haiku"]
     );
 }
+
+fn credential_conn() -> rusqlite::Connection {
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::storage::migrations::run(&conn).unwrap();
+    conn
+}
+
+#[test]
+fn model_listing_reads_the_key_stored_under_the_connection_instance_id() {
+    let master = [7u8; 32];
+    let conn = credential_conn();
+    crate::storage::ai_credentials::set(&conn, "provider:custom_60f9a975", "sk-custom", &master)
+        .unwrap();
+    crate::storage::ai_credentials::set(&conn, "provider:custom", "sk-other-connection", &master)
+        .unwrap();
+
+    let key = super::models::resolve_model_listing_key_in(&conn, &master, "custom_60f9a975")
+        .unwrap()
+        .expect("the instance's own key");
+
+    assert_eq!(key.as_str(), "sk-custom");
+}
+
+#[test]
+fn model_listing_does_not_fall_back_to_another_connections_key() {
+    let master = [7u8; 32];
+    let conn = credential_conn();
+    crate::storage::ai_credentials::set(&conn, "provider:custom", "sk-other-connection", &master)
+        .unwrap();
+
+    let key =
+        super::models::resolve_model_listing_key_in(&conn, &master, "custom_60f9a975").unwrap();
+
+    assert!(key.is_none());
+}

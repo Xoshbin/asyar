@@ -21,8 +21,11 @@ export class AISettingsSyncProvider implements ISyncProvider {
   readonly syncTier = 'core' as const;
   readonly defaultEnabled = true;
   readonly defaultConflictStrategy = 'replace' as const;
-  // Note: API keys live in encrypted SQLite store and are never exported in profiles.
-  readonly sensitiveFields: string[] = [];
+  // Provider configs can carry credentials besides the API key (custom headers, base URLs,
+  // local paths), so the whole map stays out of cloud sync and is encrypted — or stripped —
+  // in exports. API keys themselves live in the encrypted credential store and are never
+  // exported (see `withoutApiKeys`).
+  readonly sensitiveFields: string[] = ['providers'];
 
   async exportFull(): Promise<SyncProviderData> {
     return {
@@ -70,6 +73,11 @@ export class AISettingsSyncProvider implements ISyncProvider {
       string,
       unknown
     >;
+    // A password-less export writes `null` for each sensitive field (`providers`); applying it
+    // would wipe the local value, so drop top-level nulls and keep what is already here.
+    for (const key of Object.keys(raw)) {
+      if (raw[key] === null) delete raw[key];
+    }
     await migrateLegacyExportKeys(raw, warnings);
 
     // Both 'replace' and 'merge' update the settings.
@@ -180,18 +188,12 @@ const KEY_IMPORT_WARNING = "some API keys couldn't be imported; please re-enter 
  * - `providers.<id>.apiKey` and `webSearch.apiKey` are moved into the encrypted credential
  *   store (a web-search key is stored for the export's own `webSearch.engine`; if that engine
  *   isn't a keyed one we can't tell which service the key was for, so it's skipped with a warning)
- *   and then deleted from the payload;
- * - top-level `null` fields are dropped. Old password-less exports wrote `providers: null`
- *   (it was a sensitive field), which would otherwise wipe every local provider on import.
+ *   and then deleted from the payload.
  */
 async function migrateLegacyExportKeys(
   raw: Record<string, unknown>,
   warnings: string[],
 ): Promise<void> {
-  for (const key of Object.keys(raw)) {
-    if (raw[key] === null) delete raw[key];
-  }
-
   const saveKey = async (
     target: Parameters<typeof aiSaveCredential>[0],
     secret: unknown,

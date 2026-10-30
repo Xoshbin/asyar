@@ -1323,6 +1323,8 @@
       "no_threads": "Nenhuma conversa",
       "no_threads_description": "Digite uma mensagem para iniciar a primeira conversa.",
       "streaming_cancel": "Transmitindo… ⌘K para cancelar",
+      "tools_unavailable_cli": "{engine} (CLI) não pode usar estas ferramentas: {tools}. Para usá-las, mude este provedor para uma chave de API em Configurações → IA.",
+      "tools_unavailable_agy": "O Antigravity (CLI) não pode usar ferramentas, então este chat é executado sem: {tools}. Para usar ferramentas, mude este provedor para uma chave de API em Configurações → IA.",
       "you": "Você",
       "copy_message": "Copiar mensagem",
       "copy_last_response": "Copiar última resposta",
@@ -1351,6 +1353,9 @@
       },
       "edit": {
         "name_placeholder": "Meu agente",
+        "tools_dropped_agy": "O Antigravity (CLI) não pode usar ferramentas. Para usá-las, mude este provedor para uma chave de API em Configurações → IA.",
+        "tools_dropped_cli": "Algumas ferramentas selecionadas não estão disponíveis no modo CLI. Para usá-las, mude este provedor para uma chave de API em Configurações → IA.",
+        "tool_dropped_hint": "Indisponível no modo CLI",
         "system_prompt": "Prompt do sistema",
         "system_prompt_placeholder": "Você é um assistente prestativo.",
         "type": "Tipo",

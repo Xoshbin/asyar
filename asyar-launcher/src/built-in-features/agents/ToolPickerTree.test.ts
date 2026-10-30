@@ -69,6 +69,24 @@ describe('ToolPickerTree', () => {
     expect(screen.getByText('Not available in CLI mode')).toBeTruthy();
   });
 
+  it('localizes the dropped-tool hint', async () => {
+    const { i18nService } = await import('../../services/i18n');
+    i18nService.setLocale('pt-BR');
+    try {
+      render(ToolPickerTree, {
+        groups: sampleGroups,
+        selectedIds: ['weather:current'],
+        droppedToolIds: ['weather:current'],
+        onChange: vi.fn(),
+      });
+
+      expect(screen.getByText('Indisponível no modo CLI')).toBeTruthy();
+      expect(screen.queryByText('Not available in CLI mode')).toBeNull();
+    } finally {
+      i18nService.setLocale('en');
+    }
+  });
+
   it('toggles tool selection via onChange callback', async () => {
     const onChange = vi.fn();
     render(ToolPickerTree, {

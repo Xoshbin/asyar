@@ -2,6 +2,7 @@ import type { ThreadDef, MessageDef } from './types';
 import type { GeminiGrounding, GroundingSource } from '../../bindings';
 import type { ToolCall } from '../../services/ai/IProviderPlugin';
 import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
+import { t } from '../../services/i18n';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -255,11 +256,11 @@ export function isAgyEngine(engine: string): boolean {
 export function formatToolsUnavailableNotice(engine: string, tools: string[]): string {
   const toolsList = tools.join(', ');
   if (isAgyEngine(engine)) {
-    return `Antigravity (CLI) can't use tools, so this chat runs without: ${toolsList}. To use tools, switch this provider to an API key in Settings → AI.`;
+    return t('features.agents.tools_unavailable_agy', { tools: toolsList });
   }
   const normalized = engine.toLowerCase();
   const name = normalized === 'openai' || normalized.includes('codex') ? 'Codex' : 'Claude Code';
-  return `${name} (CLI) can't use these tools: ${toolsList}. To use them, switch this provider to an API key in Settings → AI.`;
+  return t('features.agents.tools_unavailable_cli', { engine: name, tools: toolsList });
 }
 
 /**
@@ -267,8 +268,9 @@ export function formatToolsUnavailableNotice(engine: string, tools: string[]): s
  * dropped because the active provider is running in CLI mode.
  */
 export function formatEditorToolsUnavailableWarning(engine: string): string {
-  if (isAgyEngine(engine)) {
-    return "Antigravity (CLI) can't use tools. To use them, switch this provider to an API key in Settings → AI.";
-  }
-  return "Some selected tools aren't available in CLI mode. To use them, switch this provider to an API key in Settings → AI.";
+  return t(
+    isAgyEngine(engine)
+      ? 'features.agents.edit.tools_dropped_agy'
+      : 'features.agents.edit.tools_dropped_cli',
+  );
 }

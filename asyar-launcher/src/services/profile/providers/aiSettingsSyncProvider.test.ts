@@ -61,7 +61,7 @@ describe('AISettingsSyncProvider', () => {
     expect(provider.syncTier).toBe('core');
     expect(provider.defaultEnabled).toBe(true);
     expect(provider.defaultConflictStrategy).toBe('replace');
-    expect(provider.sensitiveFields).toEqual([]);
+    expect(provider.sensitiveFields).toEqual(['providers']);
   });
 
   it('exportFull returns current AI settings without any apiKey', async () => {
@@ -73,6 +73,40 @@ describe('AISettingsSyncProvider', () => {
     const data = result.data as Record<string, any>;
     expect(data.providers.openai).not.toHaveProperty('apiKey');
     expect(data.webSearch).not.toHaveProperty('apiKey');
+  });
+
+  it('exportFull keeps provider config (customHeaders included) but never apiKey', async () => {
+    (mockAiSettings.providers as any).custom.customHeaders = {
+      Authorization: 'Bearer proxy-token',
+    };
+    (mockAiSettings.providers as any).custom.apiKey = 'sk-dirty-key';
+
+    const result = await provider.exportFull();
+    const data = result.data as Record<string, any>;
+    expect(data.providers.custom.customHeaders).toEqual({ Authorization: 'Bearer proxy-token' });
+    expect(data.providers.custom).not.toHaveProperty('apiKey');
+
+    delete (mockAiSettings.providers as any).custom.customHeaders;
+    delete (mockAiSettings.providers as any).custom.apiKey;
+  });
+
+  it('a password-less export (providers: null) imports without erasing local providers', async () => {
+    // `providers` is a sensitive field, so a password-less export writes `providers: null`.
+    // That is the normal shape now, not only a legacy one.
+    const res = await provider.applyImport(
+      {
+        providerId: 'ai-settings',
+        version: 2,
+        exportedAt: 1,
+        data: { providers: null, temperature: 0.4, maxTokens: 256 },
+      },
+      'replace',
+    );
+
+    expect(res.success).toBe(true);
+    const updated = mockUpdateSettings.mock.calls[0][1];
+    expect('providers' in updated).toBe(false);
+    expect(updated.temperature).toBe(0.4);
   });
 
   it('exportFull explicitly strips any apiKey found in providers or webSearch', async () => {

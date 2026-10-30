@@ -612,6 +612,25 @@ pub async fn list_models(
     Ok(models)
 }
 
+/// Looks up the stored key for the connection `provider_id` — the settings key of the
+/// connection instance (`custom_60f9a975`), which is also where its key is stored
+/// (`provider:<instance>`), not the engine it uses.
+pub(crate) fn resolve_model_listing_key_in(
+    conn: &rusqlite::Connection,
+    master_key: &[u8; 32],
+    provider_id: &str,
+) -> Result<Option<zeroize::Zeroizing<String>>, AppError> {
+    let cred_id = format!("provider:{provider_id}");
+    match crate::storage::ai_credentials::get(conn, &cred_id, master_key) {
+        Ok(Some(k)) => Ok(Some(k)),
+        Ok(None) => Ok(None),
+        Err(asyar_storage::StorageError::Encryption(_)) => Err(AppError::Validation(format!(
+            "API key for provider '{provider_id}' cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI."
+        ))),
+        Err(e) => Err(e.into()),
+    }
+}
+
 pub fn resolve_model_listing_key(
     app: &tauri::AppHandle,
     provider_id: &str,
@@ -620,15 +639,7 @@ pub fn resolve_model_listing_key(
     let data_store = app.state::<crate::storage::DataStore>();
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
     let conn = data_store.conn()?;
-    let cred_id = format!("provider:{provider_id}");
-    match crate::storage::ai_credentials::get(&conn, &cred_id, keystore.master_key()) {
-        Ok(Some(k)) => Ok(Some(k)),
-        Ok(None) => Ok(None),
-        Err(asyar_storage::StorageError::Encryption(_)) => Err(AppError::Validation(format!(
-            "API key for provider '{provider_id}' cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI."
-        ))),
-        Err(e) => Err(e.into()),
-    }
+    resolve_model_listing_key_in(&conn, keystore.master_key(), provider_id)
 }
 
 #[tauri::command]

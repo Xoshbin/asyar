@@ -622,14 +622,23 @@ where
     let codex_action =
         cleanup_codex_toml_with_seam(&codex_path, extra_exe_name, &mut before_rename);
 
-    // Afterwards, write marker file in app_data_dir so it never runs again.
-    let _ = std::fs::create_dir_all(app_data_dir);
-    if let Err(e) = std::fs::write(&marker_path, b"done\n") {
-        log::warn!(
-            "[cli_config_cleanup] failed to write marker file {}: {}",
-            marker_path.display(),
-            e
-        );
+    // Write the marker so cleanup never runs again — unless a file was busy: Claude Code
+    // rewrites `~/.claude.json` often, so retry on the next start rather than leave the
+    // old entry there for good. (`LeftUnreadable` is final: retrying can't fix it.)
+    let any_busy = [&claude_action, &gemini_action, &codex_action]
+        .iter()
+        .any(|action| matches!(action, CleanupAction::LeftBusy));
+    if any_busy {
+        log::info!("[cli_config_cleanup] a config file was busy; will retry on next start");
+    } else {
+        let _ = std::fs::create_dir_all(app_data_dir);
+        if let Err(e) = std::fs::write(&marker_path, b"done\n") {
+            log::warn!(
+                "[cli_config_cleanup] failed to write marker file {}: {}",
+                marker_path.display(),
+                e
+            );
+        }
     }
 
     CleanupReport {
@@ -1245,5 +1254,46 @@ args = ["mcp-server"]
         let doc: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&claude_file).unwrap()).unwrap();
         assert!(doc["mcpServers"].get("asyar").is_some());
+    }
+
+    #[test]
+    fn test_cleanup_busy_file_leaves_no_marker_so_it_retries_next_start() {
+        let home_dir = tempfile::tempdir().unwrap();
+        let app_data_dir = tempfile::tempdir().unwrap();
+        let claude_file = home_dir.path().join(".claude.json");
+        let initial = serde_json::json!({
+            "mcpServers": { "asyar": { "command": "asyar", "args": ["mcp-server"] } }
+        });
+        std::fs::write(&claude_file, initial.to_string()).unwrap();
+
+        // Another writer touches the file on every attempt, so cleanup gives up.
+        let report =
+            run_cleanup_with_seam(home_dir.path(), app_data_dir.path(), None, |path, n| {
+                let busy = serde_json::json!({
+                    "mcpServers": { "asyar": { "command": "asyar", "args": ["mcp-server"] } },
+                    "attempt": n
+                });
+                std::fs::write(path, busy.to_string()).unwrap();
+            });
+
+        assert_eq!(report.claude_action, CleanupAction::LeftBusy);
+        assert!(!app_data_dir.path().join(CLEANUP_MARKER_FILE_NAME).exists());
+
+        // The next start (nobody writing now) finishes the job and writes the marker.
+        let retry = run_cleanup(home_dir.path(), app_data_dir.path(), None);
+        assert_eq!(retry.claude_action, CleanupAction::Removed);
+        assert!(app_data_dir.path().join(CLEANUP_MARKER_FILE_NAME).exists());
+    }
+
+    #[test]
+    fn test_cleanup_unreadable_file_still_writes_marker() {
+        let home_dir = tempfile::tempdir().unwrap();
+        let app_data_dir = tempfile::tempdir().unwrap();
+        std::fs::write(home_dir.path().join(".claude.json"), b"{ not json").unwrap();
+
+        let report = run_cleanup(home_dir.path(), app_data_dir.path(), None);
+
+        assert_eq!(report.claude_action, CleanupAction::LeftUnreadable);
+        assert!(app_data_dir.path().join(CLEANUP_MARKER_FILE_NAME).exists());
     }
 }

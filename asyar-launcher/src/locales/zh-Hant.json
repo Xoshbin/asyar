@@ -1323,6 +1323,8 @@
       "no_threads": "暫無會話",
       "no_threads_description": "輸入一條訊息以開始第一個會話。",
       "streaming_cancel": "正在輸出……按 ⌘K 取消",
+      "tools_unavailable_cli": "{engine}（CLI）無法使用這些工具：{tools}。如需使用，請在「設定 → AI」中將此提供者切換為 API 金鑰。",
+      "tools_unavailable_agy": "Antigravity（CLI）無法使用工具，因此此聊天將在沒有以下工具的情況下執行：{tools}。如需使用工具，請在「設定 → AI」中將此提供者切換為 API 金鑰。",
       "you": "你",
       "copy_message": "複製訊息",
       "copy_last_response": "複製上一條回覆",
@@ -1351,6 +1353,9 @@
       },
       "edit": {
         "name_placeholder": "我的代理",
+        "tools_dropped_agy": "Antigravity（CLI）無法使用工具。如需使用，請在「設定 → AI」中將此提供者切換為 API 金鑰。",
+        "tools_dropped_cli": "部分所選工具在 CLI 模式下無法使用。如需使用，請在「設定 → AI」中將此提供者切換為 API 金鑰。",
+        "tool_dropped_hint": "CLI 模式下無法使用",
         "system_prompt": "系統提示詞",
         "system_prompt_placeholder": "你是一位樂於助人的助理。",
         "type": "類型",

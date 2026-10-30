@@ -198,7 +198,7 @@
     fetchErrors = { ...fetchErrors, [providerId]: '' };
     try {
       const config = getConfig(providerId);
-      const models = await plugin.getModels(config);
+      const models = await plugin.getModels(config, providerId);
       sessionModelCache = { ...sessionModelCache, [providerId]: models };
       fetchErrors = { ...fetchErrors, [providerId]: '' };
       // Seed the effective model so the ★ default button is enabled even when

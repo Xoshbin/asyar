@@ -274,9 +274,25 @@ pub fn resolve_runnable_agent(
     let agent = get_agent(conn, agent_id)?
         .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found")))?;
 
+    // A stale key only matters when the run will actually send it: a CLI-mode provider keeps
+    // its old key row but never reads it (and hides the key field, so it couldn't be fixed).
+    let uses_stored_key = configs.get(&agent.provider_id).is_some_and(|config| {
+        let engine = config
+            .provider_type
+            .as_deref()
+            .unwrap_or(agent.provider_id.as_str());
+        config.enabled
+            && config.connection_mode.as_deref() != Some("cli")
+            && providers
+                .iter()
+                .any(|provider| provider.id == engine && provider.requires_api_key)
+    });
     let cred_id = format!("provider:{}", agent.provider_id);
-    if let Ok(crate::storage::ai_credentials::CredentialState::NeedsReentry) =
-        crate::storage::ai_credentials::status(conn, &cred_id, master_key)
+    if uses_stored_key
+        && matches!(
+            crate::storage::ai_credentials::status(conn, &cred_id, master_key),
+            Ok(crate::storage::ai_credentials::CredentialState::NeedsReentry)
+        )
     {
         return Err(AppError::Validation(format!(
             "API key for provider '{}' cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.",
@@ -965,5 +981,65 @@ mod tests {
             persisted.provider_id, "openai",
             "Agent must NOT be reassigned to default when NeedsReentry"
         );
+    }
+
+    #[test]
+    fn resolve_runnable_agent_in_cli_mode_ignores_a_stale_key_row() {
+        let conn = conn();
+        let old_master_key = [11u8; 32];
+        let new_master_key = [22u8; 32];
+
+        let agent = existing_agent("agent-cli", "My CLI Agent");
+        insert_agent(&conn, &agent).unwrap();
+
+        let providers = vec![provider("openai", true, false)];
+        let mut config = provider_config(true, None);
+        config.connection_mode = Some("cli".to_string());
+        let configs = HashMap::from([("openai".to_string(), config)]);
+
+        // The key was kept when the provider switched to CLI mode, then the keychain changed.
+        crate::storage::ai_credentials::set(
+            &conn,
+            "provider:openai",
+            "sk-fake-openai-test-key",
+            &old_master_key,
+        )
+        .unwrap();
+
+        let (resolved, healed) = resolve_runnable_agent(
+            &conn,
+            &new_master_key,
+            &agent.id,
+            None,
+            &providers,
+            &configs,
+        )
+        .expect("a CLI-mode run never reads the stored key");
+
+        assert_eq!(resolved.id, agent.id);
+        assert!(!healed);
+    }
+
+    #[test]
+    fn resolve_runnable_agent_in_api_mode_with_needs_reentry_keeps_the_reenter_error() {
+        let conn = conn();
+        let agent = existing_agent("agent-api", "My API Agent");
+        insert_agent(&conn, &agent).unwrap();
+
+        let providers = vec![provider("openai", true, false)];
+        let configs = HashMap::from([("openai".to_string(), provider_config(true, None))]);
+        crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-fake", &[11u8; 32])
+            .unwrap();
+
+        let result =
+            resolve_runnable_agent(&conn, &[22u8; 32], &agent.id, None, &providers, &configs);
+
+        match result {
+            Err(crate::error::AppError::Validation(msg)) => assert!(
+                msg.contains("cannot be decrypted") && msg.contains("re-enter your key"),
+                "{msg}"
+            ),
+            other => panic!("expected the re-enter error, got: {other:?}"),
+        }
     }
 }

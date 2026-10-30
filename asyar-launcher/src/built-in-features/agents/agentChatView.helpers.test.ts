@@ -17,6 +17,7 @@ import {
 } from './agentChatView.helpers';
 
 import type { ThreadDef, MessageDef } from './types';
+import { i18nService } from '../../services/i18n';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -505,6 +506,25 @@ describe('formatToolsUnavailableNotice', () => {
     expect(formatToolsUnavailableNotice('codex', ['ToolB'])).toContain(
       "Codex (CLI) can't use these tools: ToolB.",
     );
+  });
+});
+
+describe('tools-unavailable messages are localized', () => {
+  it.each([
+    ['pt-BR', 'não pode usar estas ferramentas: Weather, GitHub Issues'],
+    ['zh-CN', '无法使用这些工具：Weather, GitHub Issues'],
+    ['zh-Hant', '無法使用這些工具：Weather, GitHub Issues'],
+  ])('interpolates {engine} and {tools} in %s', (locale, fragment) => {
+    i18nService.setLocale(locale);
+    try {
+      const text = formatToolsUnavailableNotice('anthropic', ['Weather', 'GitHub Issues']);
+      expect(text).toContain('Claude Code');
+      expect(text).toContain(fragment);
+      expect(text).not.toContain('{');
+      expect(formatEditorToolsUnavailableWarning('claude')).not.toMatch(/aren't available/);
+    } finally {
+      i18nService.setLocale('en');
+    }
   });
 });
 

@@ -49,7 +49,9 @@ export class SettingsSyncProvider implements ISyncProvider {
       return { success: true, itemsAdded: 0, itemsUpdated: 0, itemsRemoved: 0, warnings: [] };
     }
 
-    const incomingSettings = incoming.data as Partial<AppSettings>;
+    // The AI Settings category is the only owner of `ai`: an old backup's Application Settings
+    // category can still carry it (with plaintext API keys), so drop it here as sync does.
+    const incomingSettings = sanitizeIncomingAppSettings(incoming.data as Partial<AppSettings>);
 
     if (strategy === 'replace') {
       for (const section of Object.keys(incomingSettings) as Array<keyof AppSettings>) {
@@ -128,7 +130,7 @@ export class SettingsSyncProvider implements ISyncProvider {
 }
 
 /**
- * Normalizes incoming application settings for delta sync upserts.
+ * Normalizes incoming application settings for imports and delta sync upserts.
  * The 'ai' section is managed separately by AISettingsSyncProvider and is omitted here.
  */
 function sanitizeIncomingAppSettings(

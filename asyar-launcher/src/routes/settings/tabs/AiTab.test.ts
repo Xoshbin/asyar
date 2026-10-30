@@ -312,6 +312,47 @@ describe('AiTab', () => {
     });
   });
 
+  it('fetches models with the connection instance id, not the plugin id', async () => {
+    const getModelsMock = vi.fn().mockResolvedValue([{ id: 'claude-3-7-sonnet', label: 'Sonnet' }]);
+
+    vi.mocked(settingsService).currentSettings = {
+      ai: {
+        providers: {
+          anthropic_abc123: {
+            enabled: true,
+            name: 'Work Anthropic',
+            providerType: 'anthropic',
+            apiKey: 'sk-ant',
+          },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+    vi.mocked(providerRegistry.list).mockReturnValue([
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        getModels: getModelsMock,
+      },
+    ]);
+
+    render(AiTab, { mode: 'providers-only' });
+
+    await fireEvent.click(screen.getByText('Work Anthropic'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Test & Fetch Models' }));
+
+    await screen.findByText('Sonnet');
+    expect(getModelsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ providerType: 'anthropic' }),
+      'anthropic_abc123',
+    );
+  });
+
   it('renders ModelSelector with saved lastModelId even before manual fetch', async () => {
     vi.mocked(settingsService).currentSettings = {
       ai: {

@@ -1323,6 +1323,8 @@
       "no_threads": "No threads",
       "no_threads_description": "Type a message to start the first thread.",
       "streaming_cancel": "Streaming… ⌘K to cancel",
+      "tools_unavailable_cli": "{engine} (CLI) can't use these tools: {tools}. To use them, switch this provider to an API key in Settings → AI.",
+      "tools_unavailable_agy": "Antigravity (CLI) can't use tools, so this chat runs without: {tools}. To use tools, switch this provider to an API key in Settings → AI.",
       "you": "You",
       "copy_message": "Copy message",
       "copy_last_response": "Copy Last Response",
@@ -1351,6 +1353,9 @@
       },
       "edit": {
         "name_placeholder": "My Agent",
+        "tools_dropped_agy": "Antigravity (CLI) can't use tools. To use them, switch this provider to an API key in Settings → AI.",
+        "tools_dropped_cli": "Some selected tools aren't available in CLI mode. To use them, switch this provider to an API key in Settings → AI.",
+        "tool_dropped_hint": "Not available in CLI mode",
         "system_prompt": "System prompt",
         "system_prompt_placeholder": "You are a helpful assistant.",
         "type": "Type",
