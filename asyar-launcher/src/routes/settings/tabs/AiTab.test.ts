@@ -264,7 +264,7 @@ describe('AiTab', () => {
     vi.mocked(settingsService).currentSettings = {
       ai: {
         providers: {
-          anthropic: { enabled: true, apiKey: 'sk-ant' },
+          anthropic: { enabled: true },
         },
         maxTokens: 1024,
         temperature: 0.7,
@@ -272,6 +272,10 @@ describe('AiTab', () => {
         tabContinuesLastThread: false,
       },
     } as any;
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: { anthropic: 'configured' },
+      webSearch: {},
+    });
     vi.mocked(providerRegistry.list).mockReturnValue([
       {
         id: 'anthropic',
@@ -287,8 +291,9 @@ describe('AiTab', () => {
     // Expand Anthropic row
     await fireEvent.click(screen.getByText('Anthropic'));
 
-    // Fetch models
+    // Fetch models — only once the stored key is reported, so the button is really enabled
     const fetchBtn = screen.getByRole('button', { name: 'Test & Fetch Models' });
+    await vi.waitFor(() => expect((fetchBtn as HTMLButtonElement).disabled).toBe(false));
     await fireEvent.click(fetchBtn);
 
     // Open model selector
@@ -322,7 +327,6 @@ describe('AiTab', () => {
             enabled: true,
             name: 'Work Anthropic',
             providerType: 'anthropic',
-            apiKey: 'sk-ant',
           },
         },
         maxTokens: 1024,
@@ -331,6 +335,10 @@ describe('AiTab', () => {
         tabContinuesLastThread: false,
       },
     } as any;
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: { anthropic_abc123: 'configured' },
+      webSearch: {},
+    });
     vi.mocked(providerRegistry.list).mockReturnValue([
       {
         id: 'anthropic',
@@ -344,7 +352,9 @@ describe('AiTab', () => {
     render(AiTab, { mode: 'providers-only' });
 
     await fireEvent.click(screen.getByText('Work Anthropic'));
-    await fireEvent.click(screen.getByRole('button', { name: 'Test & Fetch Models' }));
+    const fetchBtn = screen.getByRole('button', { name: 'Test & Fetch Models' });
+    await vi.waitFor(() => expect((fetchBtn as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.click(fetchBtn);
 
     await screen.findByText('Sonnet');
     expect(getModelsMock).toHaveBeenCalledWith(

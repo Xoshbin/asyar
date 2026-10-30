@@ -615,11 +615,19 @@ pub async fn list_models(
 /// Looks up the stored key for the connection `provider_id` — the settings key of the
 /// connection instance (`custom_60f9a975`), which is also where its key is stored
 /// (`provider:<instance>`), not the engine it uses.
+///
+/// A CLI-mode connection never sends a key, so it returns `Ok(None)` without touching the
+/// store: an old, unreadable key row must not break its model list (the key field is hidden
+/// in CLI mode, so the user couldn't fix it).
 pub(crate) fn resolve_model_listing_key_in(
     conn: &rusqlite::Connection,
     master_key: &[u8; 32],
     provider_id: &str,
+    config: &ProviderConfig,
 ) -> Result<Option<zeroize::Zeroizing<String>>, AppError> {
+    if config.connection_mode.as_deref() == Some("cli") {
+        return Ok(None);
+    }
     let cred_id = format!("provider:{provider_id}");
     match crate::storage::ai_credentials::get(conn, &cred_id, master_key) {
         Ok(Some(k)) => Ok(Some(k)),
@@ -634,12 +642,13 @@ pub(crate) fn resolve_model_listing_key_in(
 pub fn resolve_model_listing_key(
     app: &tauri::AppHandle,
     provider_id: &str,
+    config: &ProviderConfig,
 ) -> Result<Option<zeroize::Zeroizing<String>>, AppError> {
     use tauri::Manager;
     let data_store = app.state::<crate::storage::DataStore>();
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
     let conn = data_store.conn()?;
-    resolve_model_listing_key_in(&conn, keystore.master_key(), provider_id)
+    resolve_model_listing_key_in(&conn, keystore.master_key(), provider_id, config)
 }
 
 #[tauri::command]
@@ -648,7 +657,7 @@ pub async fn ai_list_models(
     provider_id: String,
     config: ProviderConfig,
 ) -> Result<Vec<ModelInfo>, AppError> {
-    let resolved = resolve_model_listing_key(&app, &provider_id)?;
+    let resolved = resolve_model_listing_key(&app, &provider_id, &config)?;
     let key_to_use = resolved.as_deref().map(|s| s.as_str());
     list_models(&provider_id, &config, key_to_use).await
 }

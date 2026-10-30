@@ -74,7 +74,7 @@ If the AI chip is missing or AI queries return no response:
 
 ## "This key can't be read anymore"
 
-API keys are stored encrypted on your device, and the encryption key is kept in your OS keychain. If that keychain entry changes, for example after a keychain reset or when your data is moved to a new computer, Asyar can no longer unlock the saved key. It then shows this warning next to the key.
+API keys are stored encrypted on your device, and the encryption key is kept in your OS keychain (on Linux without a keyring, in a file only your user can read). If that keychain entry or file changes, for example after a keychain reset or when your data is moved to a new computer, Asyar can no longer unlock the saved key. It then shows this warning next to the key.
 
 To fix it, enter the key again in **Settings → AI** and click **Save**.
 

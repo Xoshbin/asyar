@@ -35,7 +35,7 @@ Before you can use any agent, configure at least one AI provider in **Settings �
 
 1. **Cloud & Local API Providers**: Click **+ Add provider** and choose from: **Anthropic**, **OpenAI**, **Google**, **Ollama**, **OpenRouter**, or **Custom**.
    - Enter your API key and click **Save**. The field then shows **Key saved**, with **Replace** and **Remove**. The key is never shown again.
-   - Keys are stored encrypted on your device (AES-256-GCM), with the encryption key held in your OS keychain. They are never synced or included in backups.
+   - Keys are stored encrypted on your device (AES-256-GCM), with the encryption key held in your OS keychain (on Linux without a keyring, in a file only your user can read). They are never synced or included in backups.
 2. **Local CLI Providers (Zero-Key Setup)**:
    - If you have Claude Code (`claude`), Google's `agy` CLI or OpenAI's `codex` CLI installed and signed in on your machine, Asyar can detect them and use your existing account.
    - These local CLI connections require no API key.
@@ -53,7 +53,7 @@ Asyar agents can search the web and ground their answers in real-time informatio
   - Available to any agent with tool access.
   - Works out of the box with an **unauthenticated DuckDuckGo fallback** — no search API key required.
   - You can also configure **Brave Search**, **Tavily** or **Serply** API keys in **Settings → AI** for high-volume research and deep extraction. Each engine keeps its own key.
-  - With a CLI provider, keyed engines (Brave, Tavily, Serply) aren't available, because their keys stay inside Asyar's built-in chat. DuckDuckGo and SearXNG still work.
+  - With Claude Code or Codex, web search always uses DuckDuckGo; Brave, Tavily, Serply and SearXNG work only in Asyar's built-in chat. Antigravity can't use Asyar's tools.
   - When web search is used, the agent chat displays live search status streaming and renders interactive **source pills** with website favicons and domain previews at the top of the message.
 - **Google Search Grounding**:
   - Google Gemini models support direct native Google Search grounding via a toggle on the provider configuration card.

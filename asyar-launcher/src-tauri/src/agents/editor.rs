@@ -511,7 +511,7 @@ pub async fn agents_editor_list_models(
     config: ProviderConfig,
     current_model_id: String,
 ) -> Result<AgentEditorModelOptions, AppError> {
-    let resolved = crate::ai::models::resolve_model_listing_key(&app, &provider_id)?;
+    let resolved = crate::ai::models::resolve_model_listing_key(&app, &provider_id, &config)?;
     let key_to_use = resolved.as_deref().map(|s| s.as_str());
     let models = crate::ai::models::list_models(&provider_id, &config, key_to_use).await?;
     let selected_model_id =
