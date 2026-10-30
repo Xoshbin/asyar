@@ -28,6 +28,7 @@ where
 pub async fn ai_stream_chat_impl<F>(
     provider_id: &str,
     config: ProviderConfig,
+    resolved_api_key: Option<zeroize::Zeroizing<String>>,
     messages: Vec<ChatMessage>,
     params: ChatParams,
     stream_id: String,
@@ -59,7 +60,9 @@ where
         .await;
     }
 
-    let spec = providers::build_request(provider_id, &config, &messages, &params)?;
+    let key_to_use = resolved_api_key.as_deref().map(|s| s.as_str());
+
+    let spec = providers::build_request(provider_id, &config, key_to_use, &messages, &params)?;
 
     let client = reqwest::Client::new();
     let timeout = if config.hosted_web_search == Some(true) {
@@ -142,6 +145,88 @@ pub async fn ai_check_cli_status(
     Ok(crate::ai::cli::check_cli_status(&provider_id, custom_path.as_deref()).await)
 }
 
+pub use crate::storage::ai_credentials::{AiCredentialStatus, CredentialState, CredentialTarget};
+
+#[tauri::command]
+pub async fn ai_save_credential(
+    target: CredentialTarget,
+    secret: String,
+    data_store: tauri::State<'_, crate::storage::DataStore>,
+    keystore: tauri::State<'_, crate::crypto::keystore::KeystoreState>,
+) -> Result<(), AppError> {
+    let secret = zeroize::Zeroizing::new(secret);
+    let trimmed = secret.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::Validation(
+            "Credential secret cannot be empty".to_string(),
+        ));
+    }
+    let credential_id = target.to_credential_id();
+    let conn = data_store.conn()?;
+    crate::storage::ai_credentials::set(&conn, &credential_id, trimmed, keystore.master_key())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn ai_delete_credential(
+    target: CredentialTarget,
+    data_store: tauri::State<'_, crate::storage::DataStore>,
+) -> Result<bool, AppError> {
+    let credential_id = target.to_credential_id();
+    let conn = data_store.conn()?;
+    let deleted = crate::storage::ai_credentials::delete(&conn, &credential_id)?;
+    Ok(deleted)
+}
+
+#[tauri::command]
+pub async fn ai_get_credential_status(
+    app: tauri::AppHandle,
+    data_store: tauri::State<'_, crate::storage::DataStore>,
+    keystore: tauri::State<'_, crate::crypto::keystore::KeystoreState>,
+) -> Result<AiCredentialStatus, AppError> {
+    let conn = data_store.conn()?;
+    let master_key = keystore.master_key();
+    let cred_map = crate::storage::ai_credentials::list_all_statuses(&conn, master_key)?;
+
+    let mut providers = std::collections::HashMap::new();
+
+    use tauri_plugin_store::StoreExt;
+    if let Ok(store) = app.store("settings.dat") {
+        if let Some(settings) = store.get("settings") {
+            if let Some(providers_obj) = settings
+                .get("ai")
+                .and_then(|a| a.get("providers"))
+                .and_then(|p| p.as_object())
+            {
+                for provider_id in providers_obj.keys() {
+                    let cred_id = format!("provider:{provider_id}");
+                    let state = cred_map
+                        .get(&cred_id)
+                        .copied()
+                        .unwrap_or(CredentialState::NotConfigured);
+                    providers.insert(provider_id.clone(), state);
+                }
+            }
+        }
+    }
+
+    for (cred_id, state) in &cred_map {
+        if let Some(provider_id) = cred_id.strip_prefix("provider:") {
+            providers.entry(provider_id.to_string()).or_insert(*state);
+        }
+    }
+
+    let web_search = cred_map
+        .get("web_search")
+        .copied()
+        .unwrap_or(CredentialState::NotConfigured);
+
+    Ok(AiCredentialStatus {
+        providers,
+        web_search,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,6 +269,7 @@ mod tests {
         let result = ai_stream_chat_impl(
             "custom",
             config,
+            None,
             vec![ChatMessage {
                 id: "1".to_string(),
                 role: "user".to_string(),
@@ -220,5 +306,87 @@ mod tests {
             ChatStreamEventPayload::Done => {}
             _ => panic!("Expected done event"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_ai_stream_chat_uses_resolved_stored_key_ignoring_ipc_config_key() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("POST", "/chat/completions")
+            .match_header("Authorization", "Bearer stored-stream-key")
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(
+                "data: {\"choices\": [{\"delta\": {\"content\": \"hi\"}}]}\n\ndata: [DONE]\n\n",
+            )
+            .create_async()
+            .await;
+
+        let config = ProviderConfig {
+            enabled: true,
+            api_key: Some("different-ipc-key".to_string()),
+            base_url: Some(server.url()),
+            ..Default::default()
+        };
+
+        let resolved_api_key = Some(zeroize::Zeroizing::new("stored-stream-key".to_string()));
+
+        let result = ai_stream_chat_impl(
+            "custom",
+            config,
+            resolved_api_key,
+            vec![ChatMessage {
+                id: "1".to_string(),
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+                timestamp: 0,
+                tool_calls: None,
+                tool_call_id: None,
+                provider_context: None,
+            }],
+            ChatParams {
+                model_id: "test".to_string(),
+                temperature: None,
+                max_tokens: 100,
+                system_prompt: None,
+                tools: None,
+            },
+            "stream-test".to_string(),
+            None,
+            None,
+            |_| {},
+        )
+        .await;
+
+        assert!(result.is_ok());
+        m.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_list_models_uses_passed_key_ignoring_ipc_config_key() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", "/v1/models")
+            .match_header("Authorization", "Bearer stored-models-key")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":[{"id":"custom-model-1"}]}"#)
+            .create_async()
+            .await;
+
+        let config = ProviderConfig {
+            enabled: true,
+            api_key: Some("different-ipc-key".to_string()),
+            base_url: Some(format!("{}/v1", server.url())),
+            ..Default::default()
+        };
+
+        let models = crate::ai::models::list_models("custom", &config, Some("stored-models-key"))
+            .await
+            .unwrap();
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "custom-model-1");
+        m.assert_async().await;
     }
 }

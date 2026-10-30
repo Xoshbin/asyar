@@ -1,5 +1,21 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use zeroize::Zeroizing;
+
+/// Internal-only resolved provider configuration holding decrypted credentials.
+/// Never exposed over IPC or Specta bindings.
+#[derive(Debug, Clone)]
+pub struct ResolvedProviderConfig {
+    pub config: ProviderConfig,
+    pub api_key: Option<Zeroizing<String>>,
+}
+
+impl std::ops::Deref for ResolvedProviderConfig {
+    type Target = ProviderConfig;
+    fn deref(&self) -> &Self::Target {
+        &self.config
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

@@ -10,6 +10,7 @@ use crate::agents::tools::{BuiltinTool, ManifestTool, ToolDescriptor, ToolRegist
 use crate::ai::types::{ModelInfo, ProviderConfig};
 use crate::error::AppError;
 use crate::storage::agents::{AgentRow, SilentInputSource, SilentOutputAction};
+use crate::storage::ai_credentials::CredentialState;
 use rusqlite::Connection;
 
 struct TestBuiltin;
@@ -110,7 +111,9 @@ fn editor_catalog_groups_tools_and_filters_unavailable_providers() {
         ("disabled".into(), config(false, None, None)),
     ]);
 
-    let catalog = agents_editor_catalog_impl(&registry, &providers, &configs).unwrap();
+    let cred_statuses = HashMap::from([("provider:openai".into(), CredentialState::Configured)]);
+    let catalog =
+        agents_editor_catalog_impl(&registry, &providers, &configs, &cred_statuses).unwrap();
 
     assert_eq!(
         catalog
@@ -147,7 +150,9 @@ fn editor_catalog_requires_non_blank_credentials() {
         ("ollama".into(), config(true, None, Some("   "))),
     ]);
 
-    let catalog = agents_editor_catalog_impl(&registry, &providers, &configs).unwrap();
+    let cred_statuses = HashMap::from([("provider:openai".into(), CredentialState::NotConfigured)]);
+    let catalog =
+        agents_editor_catalog_impl(&registry, &providers, &configs, &cred_statuses).unwrap();
 
     assert!(catalog.providers.is_empty());
 }
@@ -160,7 +165,8 @@ fn editor_catalog_allows_cli_provider_without_api_key() {
     cli_config.connection_mode = Some("cli".to_string());
     let configs = HashMap::from([("google".into(), cli_config)]);
 
-    let catalog = agents_editor_catalog_impl(&registry, &providers, &configs).unwrap();
+    let catalog =
+        agents_editor_catalog_impl(&registry, &providers, &configs, &HashMap::new()).unwrap();
 
     assert_eq!(catalog.providers.len(), 1);
     assert_eq!(catalog.providers[0].id, "google");
@@ -222,7 +228,9 @@ fn initial_model_selection_is_owned_by_rust() {
 fn editor_view_model_uses_rust_owned_defaults_for_new_agents() {
     let registry = ToolRegistry::new();
 
-    let view = build_editor_view_model(&registry, None, None, &[], &HashMap::new()).unwrap();
+    let view =
+        build_editor_view_model(&registry, None, None, &[], &HashMap::new(), &HashMap::new())
+            .unwrap();
 
     assert_eq!(view.form.name, "");
     assert_eq!(view.form.description, "");
@@ -246,8 +254,16 @@ fn new_agent_form_defaults_to_the_default_agents_provider_and_model_when_usable(
     let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
     let default_agent = agent("default-agent", "anthropic", "claude-sonnet-5");
 
-    let view = build_editor_view_model(&registry, None, Some(&default_agent), &providers, &configs)
-        .unwrap();
+    let cred_statuses = HashMap::from([("provider:anthropic".into(), CredentialState::Configured)]);
+    let view = build_editor_view_model(
+        &registry,
+        None,
+        Some(&default_agent),
+        &providers,
+        &configs,
+        &cred_statuses,
+    )
+    .unwrap();
 
     assert_eq!(view.form.provider_id, "anthropic");
     assert_eq!(view.form.model_id, "claude-sonnet-5");
@@ -261,8 +277,15 @@ fn new_agent_form_stays_blank_when_default_agents_provider_is_unusable() {
     let configs = HashMap::from([("anthropic".into(), config(true, None, None))]);
     let default_agent = agent("default-agent", "anthropic", "claude-sonnet-5");
 
-    let view = build_editor_view_model(&registry, None, Some(&default_agent), &providers, &configs)
-        .unwrap();
+    let view = build_editor_view_model(
+        &registry,
+        None,
+        Some(&default_agent),
+        &providers,
+        &configs,
+        &HashMap::new(),
+    )
+    .unwrap();
 
     assert_eq!(view.form.provider_id, "");
     assert_eq!(view.form.model_id, "");
@@ -274,7 +297,9 @@ fn new_agent_form_stays_blank_when_there_is_no_default_agent() {
     let providers = vec![provider("anthropic", true, false)];
     let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
 
-    let view = build_editor_view_model(&registry, None, None, &providers, &configs).unwrap();
+    let cred_statuses = HashMap::from([("provider:anthropic".into(), CredentialState::Configured)]);
+    let view = build_editor_view_model(&registry, None, None, &providers, &configs, &cred_statuses)
+        .unwrap();
 
     assert_eq!(view.form.provider_id, "");
     assert_eq!(view.form.model_id, "");
@@ -294,12 +319,17 @@ fn editing_an_existing_agent_ignores_the_default_agent() {
     let existing = agent("agent-1", "openai", "gpt-5");
     let default_agent = agent("default-agent", "anthropic", "claude-sonnet-5");
 
+    let cred_statuses = HashMap::from([
+        ("provider:anthropic".into(), CredentialState::Configured),
+        ("provider:openai".into(), CredentialState::Configured),
+    ]);
     let view = build_editor_view_model(
         &registry,
         Some(&existing),
         Some(&default_agent),
         &providers,
         &configs,
+        &cred_statuses,
     )
     .unwrap();
 
@@ -317,9 +347,19 @@ fn stranded_by_provider_removal_is_empty_when_another_usable_provider_remains() 
         ("anthropic".into(), config(true, Some("sk-ant"), None)),
         ("openai".into(), config(true, Some("sk-oai"), None)),
     ]);
+    let cred_statuses = HashMap::from([
+        ("provider:anthropic".into(), CredentialState::Configured),
+        ("provider:openai".into(), CredentialState::Configured),
+    ]);
     let agents = vec![agent("agent-1", "openai", "gpt-5")];
 
-    let stranded = agents_stranded_by_provider_removal("openai", &agents, &providers, &configs);
+    let stranded = agents_stranded_by_provider_removal(
+        "openai",
+        &agents,
+        &providers,
+        &configs,
+        &cred_statuses,
+    );
 
     assert!(stranded.is_empty());
 }
@@ -328,12 +368,19 @@ fn stranded_by_provider_removal_is_empty_when_another_usable_provider_remains() 
 fn stranded_by_provider_removal_lists_agents_when_it_is_the_last_usable_provider() {
     let providers = vec![provider("anthropic", true, false)];
     let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
+    let cred_statuses = HashMap::from([("provider:anthropic".into(), CredentialState::Configured)]);
     let agents = vec![
         agent("agent-1", "anthropic", "claude-sonnet-5"),
         agent("agent-2", "anthropic", "claude-sonnet-5"),
     ];
 
-    let stranded = agents_stranded_by_provider_removal("anthropic", &agents, &providers, &configs);
+    let stranded = agents_stranded_by_provider_removal(
+        "anthropic",
+        &agents,
+        &providers,
+        &configs,
+        &cred_statuses,
+    );
 
     assert_eq!(
         stranded.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
@@ -345,12 +392,19 @@ fn stranded_by_provider_removal_lists_agents_when_it_is_the_last_usable_provider
 fn stranded_by_provider_removal_ignores_agents_already_on_other_providers() {
     let providers = vec![provider("anthropic", true, false)];
     let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
+    let cred_statuses = HashMap::from([("provider:anthropic".into(), CredentialState::Configured)]);
     let agents = vec![
         agent("agent-1", "anthropic", "claude-sonnet-5"),
         agent("agent-2", "already-stale-provider", "some-model"),
     ];
 
-    let stranded = agents_stranded_by_provider_removal("anthropic", &agents, &providers, &configs);
+    let stranded = agents_stranded_by_provider_removal(
+        "anthropic",
+        &agents,
+        &providers,
+        &configs,
+        &cred_statuses,
+    );
 
     assert_eq!(
         stranded.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
@@ -362,8 +416,10 @@ fn stranded_by_provider_removal_ignores_agents_already_on_other_providers() {
 fn stranded_by_provider_removal_is_empty_when_no_agents_reference_it() {
     let providers = vec![provider("anthropic", true, false)];
     let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
+    let cred_statuses = HashMap::from([("provider:anthropic".into(), CredentialState::Configured)]);
 
-    let stranded = agents_stranded_by_provider_removal("anthropic", &[], &providers, &configs);
+    let stranded =
+        agents_stranded_by_provider_removal("anthropic", &[], &providers, &configs, &cred_statuses);
 
     assert!(stranded.is_empty());
 }
@@ -378,9 +434,76 @@ fn stranded_by_provider_removal_is_empty_when_the_provider_being_removed_is_alre
     let configs = HashMap::from([("anthropic".into(), config(true, None, None))]);
     let agents = vec![agent("agent-1", "anthropic", "claude-sonnet-5")];
 
-    let stranded = agents_stranded_by_provider_removal("anthropic", &agents, &providers, &configs);
+    let stranded = agents_stranded_by_provider_removal(
+        "anthropic",
+        &agents,
+        &providers,
+        &configs,
+        &HashMap::new(),
+    );
 
     assert!(stranded.is_empty());
+}
+
+#[test]
+fn editor_catalog_and_stranded_check_rely_strictly_on_stored_credentials() {
+    let registry = ToolRegistry::new();
+    let providers = vec![
+        provider("openai", true, false),
+        provider("anthropic", true, false),
+    ];
+    // openai has NO apiKey in config, but IS in cred_statuses as Configured
+    let openai_cfg = config(true, None, None);
+    // anthropic HAS a plaintext apiKey in config, but is NOT in cred_statuses (or NotConfigured)
+    let anthropic_cfg = config(true, Some("plaintext-in-config-only"), None);
+
+    let configs = HashMap::from([
+        ("openai".into(), openai_cfg),
+        ("anthropic".into(), anthropic_cfg),
+    ]);
+
+    let cred_statuses = HashMap::from([
+        ("provider:openai".into(), CredentialState::Configured),
+        ("provider:anthropic".into(), CredentialState::NotConfigured),
+    ]);
+
+    // 1. Catalog check: openai appears; anthropic does NOT appear!
+    let catalog =
+        agents_editor_catalog_impl(&registry, &providers, &configs, &cred_statuses).unwrap();
+    let provider_ids: Vec<_> = catalog.providers.iter().map(|p| p.id.as_str()).collect();
+    assert_eq!(provider_ids, vec!["openai"]);
+
+    // 2. Stranded check:
+    let agents = vec![
+        agent("agent-1", "openai", "gpt-4o"),
+        agent("agent-2", "anthropic", "claude-3"),
+    ];
+
+    // openai is usable and the ONLY usable provider. Removing it strands agent-1!
+    let stranded_openai = agents_stranded_by_provider_removal(
+        "openai",
+        &agents,
+        &providers,
+        &configs,
+        &cred_statuses,
+    );
+    assert_eq!(
+        stranded_openai
+            .iter()
+            .map(|a| a.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["agent-1"]
+    );
+
+    // anthropic is NOT usable (plaintext key in config ignored). Removing it strands nothing!
+    let stranded_anthropic = agents_stranded_by_provider_removal(
+        "anthropic",
+        &agents,
+        &providers,
+        &configs,
+        &cred_statuses,
+    );
+    assert!(stranded_anthropic.is_empty());
 }
 
 #[test]
@@ -457,7 +580,10 @@ fn editor_catalog_lists_multiple_named_provider_instances() {
         ("openai_work".into(), work_openai_cfg),
     ]);
 
-    let catalog = agents_editor_catalog_impl(&registry, &providers, &configs).unwrap();
+    let cred_statuses =
+        HashMap::from([("provider:openai_work".into(), CredentialState::Configured)]);
+    let catalog =
+        agents_editor_catalog_impl(&registry, &providers, &configs, &cred_statuses).unwrap();
 
     let options = catalog.providers;
     assert_eq!(options.len(), 3);

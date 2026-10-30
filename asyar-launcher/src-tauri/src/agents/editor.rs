@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::agents::tools::{ToolDescriptor, ToolRegistry, ToolSource};
-use crate::ai::models::list_models_impl;
 use crate::ai::types::{ModelInfo, ProviderConfig};
 use crate::commands::agents::{
     agents_create_impl, agents_update_impl, AgentCreateInput, AgentUpdateInput,
@@ -143,6 +142,7 @@ fn has_non_blank(value: Option<&String>) -> bool {
 pub fn is_provider_usable(
     provider: &AgentProviderDescriptor,
     config: Option<&ProviderConfig>,
+    cred_state: crate::storage::ai_credentials::CredentialState,
 ) -> bool {
     let Some(config) = config else {
         return false;
@@ -153,20 +153,34 @@ pub fn is_provider_usable(
     if config.connection_mode.as_deref() == Some("cli") {
         return true;
     }
-    (!provider.requires_api_key || has_non_blank(config.api_key.as_ref()))
-        && (!provider.requires_base_url || has_non_blank(config.base_url.as_ref()))
+    let key_ok = if provider.requires_api_key {
+        matches!(
+            cred_state,
+            crate::storage::ai_credentials::CredentialState::Configured
+        )
+    } else {
+        true
+    };
+
+    key_ok && (!provider.requires_base_url || has_non_blank(config.base_url.as_ref()))
 }
 
 pub fn agents_editor_catalog_impl(
     registry: &ToolRegistry,
     providers: &[AgentProviderDescriptor],
     configs: &HashMap<String, ProviderConfig>,
+    cred_statuses: &HashMap<String, crate::storage::ai_credentials::CredentialState>,
 ) -> Result<AgentEditorCatalog, AppError> {
     let mut provider_options = Vec::new();
     for (instance_id, config) in configs {
         let ptype = config.provider_type.as_deref().unwrap_or(instance_id);
         if let Some(descriptor) = providers.iter().find(|p| p.id == ptype) {
-            if is_provider_usable(descriptor, Some(config)) {
+            let cred_id = format!("provider:{instance_id}");
+            let cred_state = cred_statuses
+                .get(&cred_id)
+                .copied()
+                .unwrap_or(crate::storage::ai_credentials::CredentialState::NotConfigured);
+            if is_provider_usable(descriptor, Some(config), cred_state) {
                 let name = config
                     .name
                     .as_deref()
@@ -204,12 +218,18 @@ pub fn agents_stranded_by_provider_removal(
     agents: &[AgentRow],
     providers: &[AgentProviderDescriptor],
     configs: &HashMap<String, ProviderConfig>,
+    cred_statuses: &HashMap<String, crate::storage::ai_credentials::CredentialState>,
 ) -> Vec<AgentRow> {
     let is_instance_usable = |id: &str| {
         if let Some(config) = configs.get(id) {
             let ptype = config.provider_type.as_deref().unwrap_or(id);
             if let Some(descriptor) = providers.iter().find(|p| p.id == ptype) {
-                return is_provider_usable(descriptor, Some(config));
+                let cred_id = format!("provider:{id}");
+                let cred_state = cred_statuses
+                    .get(&cred_id)
+                    .copied()
+                    .unwrap_or(crate::storage::ai_credentials::CredentialState::NotConfigured);
+                return is_provider_usable(descriptor, Some(config), cred_state);
             }
         }
         false
@@ -329,8 +349,9 @@ pub fn build_editor_view_model(
     default_agent: Option<&AgentRow>,
     providers: &[AgentProviderDescriptor],
     configs: &HashMap<String, ProviderConfig>,
+    cred_statuses: &HashMap<String, crate::storage::ai_credentials::CredentialState>,
 ) -> Result<AgentEditorViewModel, AppError> {
-    let catalog = agents_editor_catalog_impl(registry, providers, configs)?;
+    let catalog = agents_editor_catalog_impl(registry, providers, configs, cred_statuses)?;
     Ok(AgentEditorViewModel {
         form: editor_form(agent, default_agent, &catalog.providers),
         providers: catalog.providers,
@@ -406,6 +427,7 @@ pub fn select_initial_model_id(
 pub fn agents_editor_load(
     state: tauri::State<'_, crate::agents::tools::ToolRegistryState>,
     db: tauri::State<'_, DataStore>,
+    keystore: tauri::State<'_, crate::crypto::keystore::KeystoreState>,
     agent_id: Option<String>,
     default_agent_id: Option<String>,
     providers: Vec<AgentProviderDescriptor>,
@@ -425,12 +447,15 @@ pub fn agents_editor_load(
     } else {
         None
     };
+    let cred_statuses =
+        crate::storage::ai_credentials::list_all_statuses(&conn, keystore.master_key())?;
     build_editor_view_model(
         &state,
         agent.as_ref(),
         default_agent.as_ref(),
         &providers,
         &configs,
+        &cred_statuses,
     )
 }
 
@@ -440,13 +465,22 @@ pub fn agents_editor_load(
 #[tauri::command]
 pub fn agents_provider_removal_blockers(
     db: tauri::State<'_, DataStore>,
+    keystore: tauri::State<'_, crate::crypto::keystore::KeystoreState>,
     provider_id: String,
     providers: Vec<AgentProviderDescriptor>,
     configs: HashMap<String, ProviderConfig>,
 ) -> Result<Option<String>, AppError> {
     let conn = db.conn()?;
+    let cred_statuses =
+        crate::storage::ai_credentials::list_all_statuses(&conn, keystore.master_key())?;
     let agents = crate::commands::agents::agents_list_impl(&conn)?;
-    let stranded = agents_stranded_by_provider_removal(&provider_id, &agents, &providers, &configs);
+    let stranded = agents_stranded_by_provider_removal(
+        &provider_id,
+        &agents,
+        &providers,
+        &configs,
+        &cred_statuses,
+    );
     Ok(provider_removal_blocked_message(
         &provider_id,
         &providers,
@@ -472,11 +506,14 @@ pub fn agents_editor_save(
 
 #[tauri::command]
 pub async fn agents_editor_list_models(
+    app: AppHandle,
     provider_id: String,
     config: ProviderConfig,
     current_model_id: String,
 ) -> Result<AgentEditorModelOptions, AppError> {
-    let models = list_models_impl(&provider_id, &config).await?;
+    let resolved = crate::ai::models::resolve_model_listing_key(&app, &provider_id)?;
+    let key_to_use = resolved.as_deref().map(|s| s.as_str());
+    let models = crate::ai::models::list_models(&provider_id, &config, key_to_use).await?;
     let selected_model_id =
         select_initial_model_id(&current_model_id, config.last_model_id.as_deref(), &models);
     Ok(AgentEditorModelOptions {

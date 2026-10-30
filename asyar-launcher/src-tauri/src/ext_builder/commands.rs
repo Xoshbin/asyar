@@ -38,8 +38,31 @@ pub async fn ext_builder_start(
     prompt: String,
     target_dir: String,
     capability_spec_dir: String,
-    anthropic_key: String,
+    _anthropic_key: String,
 ) -> Result<ExtBuilderStartResponse, String> {
+    log::debug!("[ext_builder] Ignoring frontend-supplied anthropic_key; resolving from ai_credentials store");
+
+    use tauri::Manager;
+    let db = app.state::<crate::storage::DataStore>();
+    let ks = app.state::<crate::crypto::keystore::KeystoreState>();
+    let conn = db.conn().map_err(|e| e.to_string())?;
+    let resolved_key = match crate::storage::ai_credentials::get(
+        &conn,
+        "provider:anthropic",
+        ks.master_key(),
+    ) {
+        Ok(Some(k)) => k,
+        Ok(None) => {
+            return Err(
+                "Anthropic API key is not configured. Please set your API key in Settings → AI."
+                    .to_string(),
+            );
+        }
+        Err(_) => {
+            return Err("API key for Anthropic cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.".to_string());
+        }
+    };
+
     let current = state.current.clone();
     let outcome = super::process::start_checking_runtimes_ensuring(
         app,
@@ -48,7 +71,7 @@ pub async fn ext_builder_start(
         prompt,
         target_dir,
         capability_spec_dir,
-        anthropic_key,
+        resolved_key,
     )
     .await?;
     Ok(match outcome {

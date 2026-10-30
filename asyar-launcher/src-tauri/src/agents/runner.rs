@@ -10,6 +10,7 @@ use crate::storage::agents::{
     MessageRole, MessageRow, SilentInputSource,
 };
 use crate::storage::DataStore;
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -537,10 +538,12 @@ pub(crate) async fn build_system_prompt(
 /// to check (does a config entry even exist) with what always lived here
 /// (is it enabled, registered, and carrying required credentials) into one
 /// Rust-side gate.
-pub(crate) fn resolve_provider_config<'a>(
+pub(crate) fn resolve_provider_config(
     provider_id: &str,
-    configs: &'a HashMap<String, ProviderConfig>,
-) -> Result<&'a ProviderConfig, AppError> {
+    configs: &HashMap<String, ProviderConfig>,
+    conn: &Connection,
+    master_key: &[u8; 32],
+) -> Result<crate::ai::types::ResolvedProviderConfig, AppError> {
     let Some(config) = configs.get(provider_id) else {
         return Err(AppError::Validation(format!(
             "provider '{provider_id}' is not configured"
@@ -577,35 +580,55 @@ pub(crate) fn resolve_provider_config<'a>(
                 "CLI executable for provider '{provider_id}' was not found"
             )));
         }
-    } else {
-        if matches!(
-            engine_type,
-            "openai" | "anthropic" | "google" | "openrouter"
-        ) && config
-            .api_key
+        let mut clean_config = config.clone();
+        clean_config.api_key = None;
+        return Ok(crate::ai::types::ResolvedProviderConfig {
+            config: clean_config,
+            api_key: None,
+        });
+    }
+
+    let cred_id = format!("provider:{provider_id}");
+    let resolved_key = match crate::storage::ai_credentials::get(conn, &cred_id, master_key) {
+        Ok(Some(key)) => Some(key),
+        Ok(None) => None,
+        Err(asyar_storage::StorageError::Encryption(_)) => {
+            return Err(AppError::Validation(format!(
+                "API key for provider '{provider_id}' cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI."
+            )));
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    if matches!(
+        engine_type,
+        "openai" | "anthropic" | "google" | "openrouter"
+    ) && resolved_key.is_none()
+    {
+        return Err(AppError::Validation(format!(
+            "API key for provider '{provider_id}' is not configured"
+        )));
+    }
+    if matches!(engine_type, "ollama" | "custom")
+        && config
+            .base_url
             .as_deref()
             .unwrap_or_default()
             .trim()
             .is_empty()
-        {
-            return Err(AppError::Validation(format!(
-                "API key for provider '{provider_id}' is not configured"
-            )));
-        }
-        if matches!(engine_type, "ollama" | "custom")
-            && config
-                .base_url
-                .as_deref()
-                .unwrap_or_default()
-                .trim()
-                .is_empty()
-        {
-            return Err(AppError::Validation(format!(
-                "Base URL for provider '{provider_id}' is not configured"
-            )));
-        }
+    {
+        return Err(AppError::Validation(format!(
+            "Base URL for provider '{provider_id}' is not configured"
+        )));
     }
-    Ok(config)
+
+    let mut clean_config = config.clone();
+    clean_config.api_key = None;
+
+    Ok(crate::ai::types::ResolvedProviderConfig {
+        config: clean_config,
+        api_key: resolved_key,
+    })
 }
 
 fn resolve_tools(
@@ -649,16 +672,21 @@ async fn run_loop<F, D, Fut>(
     query: Option<&str>,
     workspace_dir: Option<&Path>,
     codex_home_dir: Option<&Path>,
+    store: &DataStore,
+    master_key: &[u8; 32],
 ) -> Result<Option<String>, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
     D: Fn(ExternalToolRequest) -> Fut + Send + Sync,
     Fut: Future<Output = Result<Value, AppError>> + Send,
 {
-    let provider_config = resolve_provider_config(&agent.provider_id, &config.configs)?.clone();
+    let resolved_provider = {
+        let conn = store.conn()?;
+        resolve_provider_config(&agent.provider_id, &config.configs, &conn, master_key)?
+    };
     let (tool_definitions, wire_to_fqid) = resolve_tools(agent, registry)?;
     let tools = (!tool_definitions.is_empty()).then_some(tool_definitions);
-    let has_web_search = provider_config.hosted_web_search.unwrap_or(false)
+    let has_web_search = resolved_provider.hosted_web_search.unwrap_or(false)
         || agent
             .tool_selection
             .iter()
@@ -688,7 +716,8 @@ where
         let on_stream_event = on_event.clone();
         let stream_future = crate::ai::commands::ai_stream_chat_impl(
             &agent.provider_id,
-            provider_config.clone(),
+            resolved_provider.config.clone(),
+            resolved_provider.api_key.clone(),
             messages,
             params,
             Uuid::new_v4().to_string(),
@@ -793,18 +822,17 @@ where
                     });
                 }
                 let mut input = tool_call.input.clone();
-                if is_web_search {
-                    if let Some(ref ws) = config.web_search {
-                        if let Some(obj) = input.as_object_mut() {
-                            obj.insert(
-                                "__config".to_string(),
-                                serde_json::to_value(ws).unwrap_or_default(),
-                            );
-                        }
-                    }
+                if let Some(obj) = input.as_object_mut() {
+                    obj.remove("__config");
                 }
-                let res = crate::agents::tools::agents_invoke_builtin_tool_impl(
-                    registry, builtin_id, input,
+                let tool_context = crate::agents::tools::ToolContext {
+                    web_search: config.web_search.clone(),
+                };
+                let res = crate::agents::tools::agents_invoke_builtin_tool_with_context_impl(
+                    registry,
+                    builtin_id,
+                    input,
+                    &tool_context,
                 )
                 .await;
                 if is_web_search {
@@ -852,18 +880,21 @@ fn cli_dropped_tool_names(
     registry: &ToolRegistry,
     configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
 ) -> Option<(Vec<String>, String)> {
-    let provider_config = resolve_provider_config(&agent.provider_id, configs).ok()?;
-    if provider_config.connection_mode.as_deref() != Some("cli") {
+    let config = configs.get(&agent.provider_id)?;
+    if !config.enabled || config.connection_mode.as_deref() != Some("cli") {
         return None;
     }
-    let (tool_definitions, wire_to_fqid) = resolve_tools(agent, registry).ok()?;
-    let engine_type = provider_config
+    let engine_type = config
         .provider_type
         .as_deref()
         .unwrap_or(&agent.provider_id);
+    if !matches!(engine_type, "google" | "openai" | "anthropic") {
+        return None;
+    }
+    let (tool_definitions, wire_to_fqid) = resolve_tools(agent, registry).ok()?;
     let dropped = crate::ai::cli::dropped_tools(
         engine_type,
-        provider_config.connection_mode.as_deref(),
+        config.connection_mode.as_deref(),
         &tool_definitions,
     );
     if dropped.is_empty() {
@@ -897,6 +928,7 @@ pub async fn run_thread_loop_impl<F, D, Fut>(
     cancellation: Option<watch::Receiver<bool>>,
     workspace_dir: Option<&Path>,
     codex_home_dir: Option<&Path>,
+    master_key: &[u8; 32],
 ) -> Result<bool, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -907,6 +939,7 @@ where
         let conn = store.conn()?;
         let (agent, healed) = resolve_runnable_agent(
             &conn,
+            master_key,
             agent_id,
             config.default_agent_id.as_deref(),
             &config.providers,
@@ -975,6 +1008,8 @@ where
         Some(&user_text),
         workspace_dir,
         codex_home_dir,
+        store,
+        master_key,
     )
     .await?;
     on_event(if result.is_some() {
@@ -996,6 +1031,8 @@ pub async fn run_silent_agent_loop_impl<F, D, Fut>(
     cancellation: Option<watch::Receiver<bool>>,
     workspace_dir: Option<&Path>,
     codex_home_dir: Option<&Path>,
+    store: &DataStore,
+    master_key: &[u8; 32],
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -1039,6 +1076,8 @@ where
         Some(&user_text),
         workspace_dir,
         codex_home_dir,
+        store,
+        master_key,
     )
     .await?;
     match result {
@@ -1070,6 +1109,7 @@ pub async fn run_silent_loop_impl<F, D, Fut>(
     cancellation: Option<watch::Receiver<bool>>,
     workspace_dir: Option<&Path>,
     codex_home_dir: Option<&Path>,
+    master_key: &[u8; 32],
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -1078,6 +1118,7 @@ where
 {
     let (agent, _healed) = resolve_runnable_agent(
         &*store.conn()?,
+        master_key,
         agent_id,
         config.default_agent_id.as_deref(),
         &config.providers,
@@ -1093,6 +1134,8 @@ where
         cancellation,
         workspace_dir,
         codex_home_dir,
+        store,
+        master_key,
     )
     .await
 }

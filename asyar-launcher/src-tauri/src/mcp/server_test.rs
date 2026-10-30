@@ -294,3 +294,65 @@ fn test_parse_mcp_allow_flag() {
         Some(vec![])
     );
 }
+
+#[tokio::test]
+async fn test_mcp_web_search_strips_model_config() {
+    let registry = std::sync::Arc::new(crate::agents::tools::ToolRegistry::new());
+
+    struct InspectTool(std::sync::Arc<std::sync::Mutex<Option<Value>>>);
+    #[async_trait::async_trait]
+    impl crate::agents::tools::BuiltinTool for InspectTool {
+        fn descriptor(&self) -> crate::agents::tools::ToolDescriptor {
+            crate::agents::tools::ToolDescriptor {
+                id: "web-search".to_string(),
+                name: "Web Search".to_string(),
+                description: "mock web search".to_string(),
+                parameters: json!({}),
+                source: crate::agents::tools::ToolSource::Builtin,
+                fully_qualified_id: "builtin:web-search".to_string(),
+            }
+        }
+        async fn invoke(&self, args: Value) -> Result<Value, crate::error::AppError> {
+            *self.0.lock().unwrap() = Some(args);
+            Ok(json!({ "sources": [], "results": [] }))
+        }
+    }
+
+    let captured = std::sync::Arc::new(std::sync::Mutex::new(None));
+    registry
+        .register_builtin(std::sync::Arc::new(InspectTool(captured.clone())))
+        .unwrap();
+
+    let line = json!({
+        "jsonrpc": "2.0",
+        "id": 88,
+        "method": "tools/call",
+        "params": {
+            "name": "web-search",
+            "arguments": {
+                "query": "rust",
+                "limit": 5,
+                "__config": {
+                    "engine": "brave"
+                }
+            }
+        }
+    })
+    .to_string();
+
+    let resp_str = handle_mcp_line(&line, &registry)
+        .await
+        .expect("response expected");
+    let resp: Value = serde_json::from_str(&resp_str).unwrap();
+
+    assert_eq!(resp["id"], 88);
+    assert_eq!(resp["result"]["isError"], false);
+
+    let received_args = captured.lock().unwrap().take().expect("tool was invoked");
+    assert_eq!(received_args["query"], "rust");
+    assert_eq!(received_args["limit"], 5);
+    assert!(
+        received_args.get("__config").is_none(),
+        "__config must be stripped before invoking tool"
+    );
+}

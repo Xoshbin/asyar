@@ -64,7 +64,14 @@ fn test_build_openai_request() {
     let config = mock_config();
     let messages = mock_messages();
     let params = mock_params(Some("You are helpful."));
-    let req = build_request("openai", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "openai",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
 
     assert_eq!(req.url, "https://api.openai.com/v1/chat/completions");
     assert_eq!(req.headers.get("Authorization").unwrap(), "Bearer test-key");
@@ -105,7 +112,14 @@ fn test_build_openai_responses_request() {
     config.hosted_web_search = Some(true);
     let messages = mock_messages();
     let params = mock_params(None);
-    let req = build_request("openai", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "openai",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
 
     assert_eq!(req.url, "https://api.openai.com/v1/responses");
     let body = req.body;
@@ -133,7 +147,14 @@ fn test_build_anthropic_request() {
     let config = mock_config();
     let messages = mock_messages();
     let params = mock_params(Some("Helpful bot."));
-    let req = build_request("anthropic", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "anthropic",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
 
     assert_eq!(req.url, "https://api.anthropic.com/v1/messages");
     assert_eq!(req.headers.get("x-api-key").unwrap(), "test-key");
@@ -166,7 +187,14 @@ fn test_build_google_request() {
     let config = mock_config();
     let messages = mock_messages();
     let params = mock_params(Some("Google prompt."));
-    let req = build_request("google", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "google",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
 
     assert!(req.url.contains("models/gpt-4o:streamGenerateContent"));
     assert_eq!(req.headers.get("x-goog-api-key").unwrap(), "test-key");
@@ -196,7 +224,14 @@ fn test_build_ollama_request() {
     let config = mock_config();
     let messages = mock_messages();
     let params = mock_params(None);
-    let req = build_request("ollama", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "ollama",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
 
     assert_eq!(req.url, "http://localhost:11434/api/chat");
 }
@@ -262,7 +297,14 @@ fn tool_history() -> Vec<ChatMessage> {
 
 #[test]
 fn test_build_openai_tool_request_preserves_tool_history() {
-    let req = build_request("openai", &mock_config(), &tool_history(), &tool_params()).unwrap();
+    let req = build_request(
+        "openai",
+        &mock_config(),
+        Some("test-key"),
+        &tool_history(),
+        &tool_params(),
+    )
+    .unwrap();
     let messages = req.body["messages"].as_array().unwrap();
 
     assert_eq!(messages[2]["tool_calls"][0]["id"], "call-1");
@@ -304,7 +346,14 @@ fn test_parse_openai_tool_call_across_chunks() {
 
 #[test]
 fn test_build_anthropic_tool_request_uses_content_blocks() {
-    let req = build_request("anthropic", &mock_config(), &tool_history(), &tool_params()).unwrap();
+    let req = build_request(
+        "anthropic",
+        &mock_config(),
+        Some("test-key"),
+        &tool_history(),
+        &tool_params(),
+    )
+    .unwrap();
     let messages = req.body["messages"].as_array().unwrap();
 
     assert_eq!(req.body["tools"][0]["name"], "builtin__echo");
@@ -338,7 +387,14 @@ fn test_parse_anthropic_tool_call_across_events() {
 
 #[test]
 fn test_build_google_tool_request_includes_function_response_name() {
-    let req = build_request("google", &mock_config(), &tool_history(), &tool_params()).unwrap();
+    let req = build_request(
+        "google",
+        &mock_config(),
+        Some("test-key"),
+        &tool_history(),
+        &tool_params(),
+    )
+    .unwrap();
     let contents = req.body["contents"].as_array().unwrap();
 
     assert_eq!(
@@ -360,7 +416,14 @@ fn test_build_google_tool_request_includes_function_response_name() {
 fn test_build_ollama_tool_request_uses_object_arguments() {
     let mut config = mock_config();
     config.base_url = Some("http://localhost:11434".to_string());
-    let req = build_request("ollama", &config, &tool_history(), &tool_params()).unwrap();
+    let req = build_request(
+        "ollama",
+        &config,
+        config.api_key.as_deref(),
+        &tool_history(),
+        &tool_params(),
+    )
+    .unwrap();
     let messages = req.body["messages"].as_array().unwrap();
 
     assert_eq!(
@@ -374,7 +437,14 @@ fn test_build_ollama_tool_request_uses_object_arguments() {
 fn test_build_openai_responses_tool_request_uses_function_items() {
     let mut config = mock_config();
     config.open_ai_api_mode = Some("responses".to_string());
-    let req = build_request("openai", &config, &tool_history(), &tool_params()).unwrap();
+    let req = build_request(
+        "openai",
+        &config,
+        config.api_key.as_deref(),
+        &tool_history(),
+        &tool_params(),
+    )
+    .unwrap();
     let input = req.body["input"].as_array().unwrap();
 
     assert!(input.iter().any(|item| {
@@ -415,7 +485,14 @@ fn test_build_request_and_parser_with_custom_named_instance() {
     config.provider_type = Some("custom".into());
     config.base_url = Some("http://localhost:8000/v1".into());
 
-    let req = build_request("custom_deepseek_123", &config, &[], &mock_params(None)).unwrap();
+    let req = build_request(
+        "custom_deepseek_123",
+        &config,
+        config.api_key.as_deref(),
+        &[],
+        &mock_params(None),
+    )
+    .unwrap();
     assert_eq!(req.url, "http://localhost:8000/v1/chat/completions");
 
     let mut parser = ProviderStreamParser::new("custom_deepseek_123", &config);
@@ -436,7 +513,14 @@ fn test_build_openai_request_omits_temperature_when_none() {
     let mut params = mock_params(None);
     params.temperature = None;
 
-    let req = build_request("openai", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "openai",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert!(req.body.get("temperature").is_none());
 }
 
@@ -447,7 +531,14 @@ fn test_build_openai_request_includes_temperature_when_some() {
     let mut params = mock_params(None);
     params.temperature = Some(0.85);
 
-    let req = build_request("openai", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "openai",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert_eq!(req.body["temperature"], 0.85);
 }
 
@@ -460,7 +551,14 @@ fn test_build_custom_request_omits_temperature_when_none() {
     params.model_id = "gpt-5.6-luna".to_string();
     params.temperature = None;
 
-    let req = build_request("custom", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "custom",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert_eq!(req.url, "https://api.opencode.ai/v1/chat/completions");
     assert_eq!(req.body["model"], "gpt-5.6-luna");
     assert!(
@@ -477,7 +575,14 @@ fn test_build_custom_request_includes_temperature_when_some() {
     let mut params = mock_params(None);
     params.temperature = Some(0.3);
 
-    let req = build_request("custom", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "custom",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert_eq!(req.body["temperature"], 0.3);
 }
 
@@ -490,7 +595,14 @@ fn test_build_custom_responses_request_omits_temperature_when_none() {
     let mut params = mock_params(None);
     params.temperature = None;
 
-    let req = build_request("custom", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "custom",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert!(req.body.get("temperature").is_none());
 }
 
@@ -501,7 +613,14 @@ fn test_build_openrouter_request_omits_temperature_when_none() {
     let mut params = mock_params(None);
     params.temperature = None;
 
-    let req = build_request("openrouter", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "openrouter",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert!(req.body.get("temperature").is_none());
 }
 
@@ -512,7 +631,14 @@ fn test_build_google_request_omits_temperature_when_none() {
     let mut params = mock_params(None);
     params.temperature = None;
 
-    let req = build_request("google", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "google",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert!(req.body["generationConfig"].get("temperature").is_none());
 }
 
@@ -523,7 +649,14 @@ fn test_build_google_request_includes_temperature_when_some() {
     let mut params = mock_params(None);
     params.temperature = Some(0.4);
 
-    let req = build_request("google", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "google",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert_eq!(req.body["generationConfig"]["temperature"], 0.4);
 }
 
@@ -534,7 +667,14 @@ fn test_build_anthropic_request_includes_temperature_when_some() {
     let mut params = mock_params(None);
     params.temperature = Some(0.5);
 
-    let req = build_request("anthropic", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "anthropic",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert_eq!(req.body["temperature"], 0.5);
 }
 
@@ -545,7 +685,14 @@ fn test_build_anthropic_request_omits_temperature_when_none() {
     let mut params = mock_params(None);
     params.temperature = None;
 
-    let req = build_request("anthropic", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "anthropic",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert!(req.body.get("temperature").is_none());
 }
 
@@ -556,7 +703,14 @@ fn test_build_ollama_request_omits_temperature_when_none() {
     let mut params = mock_params(None);
     params.temperature = None;
 
-    let req = build_request("ollama", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "ollama",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert!(req.body.get("options").is_none());
 }
 
@@ -567,7 +721,14 @@ fn test_build_ollama_request_includes_temperature_when_some() {
     let mut params = mock_params(None);
     params.temperature = Some(0.6);
 
-    let req = build_request("ollama", &config, &messages, &params).unwrap();
+    let req = build_request(
+        "ollama",
+        &config,
+        config.api_key.as_deref(),
+        &messages,
+        &params,
+    )
+    .unwrap();
     assert_eq!(req.body["options"]["temperature"], 0.6);
 }
 
@@ -577,7 +738,8 @@ fn google_search_preserves_custom_tools_on_gemini_3() {
     config.hosted_web_search = Some(true);
     let mut params = tool_params();
     params.model_id = "gemini-3-flash-preview".into();
-    let request = build_request("google", &config, &[], &params).unwrap();
+    let request =
+        build_request("google", &config, config.api_key.as_deref(), &[], &params).unwrap();
     assert_eq!(request.body["tools"][1], json!({"google_search": {}}));
     assert_eq!(
         request.body["toolConfig"]["includeServerSideToolInvocations"],
@@ -595,21 +757,27 @@ fn google_search_rejects_unsupported_custom_tool_combination() {
     config.hosted_web_search = Some(true);
     let mut params = tool_params();
     params.model_id = "gemini-2.5-flash".into();
-    assert!(build_request("google", &config, &[], &params)
-        .unwrap_err()
-        .to_string()
-        .contains("Gemini 3"));
+    assert!(
+        build_request("google", &config, config.api_key.as_deref(), &[], &params)
+            .unwrap_err()
+            .to_string()
+            .contains("Gemini 3")
+    );
     params.tools = None;
     assert_eq!(
-        build_request("google", &config, &[], &params).unwrap().body["tools"],
+        build_request("google", &config, config.api_key.as_deref(), &[], &params)
+            .unwrap()
+            .body["tools"],
         json!([{"google_search": {}}])
     );
     config.hosted_web_search = Some(false);
-    assert!(build_request("google", &config, &[], &params)
-        .unwrap()
-        .body
-        .get("tools")
-        .is_none());
+    assert!(
+        build_request("google", &config, config.api_key.as_deref(), &[], &params)
+            .unwrap()
+            .body
+            .get("tools")
+            .is_none()
+    );
 }
 
 #[test]
@@ -633,7 +801,14 @@ fn google_retains_grounding_and_signed_parts_for_continuation() {
         .any(|item| item["geminiGrounding"] == grounding));
     let mut history = tool_history();
     history[1].provider_context = Some(context);
-    let request = build_request("google", &config, &history, &tool_params()).unwrap();
+    let request = build_request(
+        "google",
+        &config,
+        config.api_key.as_deref(),
+        &history,
+        &tool_params(),
+    )
+    .unwrap();
     assert_eq!(request.body["contents"][1]["parts"], json!([part]));
 }
 
@@ -680,7 +855,14 @@ fn google_continuation_does_not_send_synthetic_id_to_api() {
     );
     history[1].tool_calls.as_mut().unwrap()[0].id = "gemini-1".into();
     history[2].tool_call_id = Some("gemini-1".into());
-    let request = build_request("google", &mock_config(), &history, &tool_params()).unwrap();
+    let request = build_request(
+        "google",
+        &mock_config(),
+        Some("test-key"),
+        &history,
+        &tool_params(),
+    )
+    .unwrap();
     assert!(request.body["contents"][1]["parts"][0]["functionCall"]
         .get("id")
         .is_none());
@@ -734,7 +916,14 @@ fn test_custom_headers_are_merged_into_request() {
             .collect(),
     );
 
-    let spec = build_request("openai", &config, &mock_messages(), &mock_params(None)).unwrap();
+    let spec = build_request(
+        "openai",
+        &config,
+        config.api_key.as_deref(),
+        &mock_messages(),
+        &mock_params(None),
+    )
+    .unwrap();
     assert_eq!(
         spec.headers.get("x-opencode-session"),
         Some(&"sess-123".to_string())
@@ -753,7 +942,14 @@ fn test_custom_headers_override_defaults() {
             .collect(),
     );
 
-    let spec = build_request("openai", &config, &mock_messages(), &mock_params(None)).unwrap();
+    let spec = build_request(
+        "openai",
+        &config,
+        config.api_key.as_deref(),
+        &mock_messages(),
+        &mock_params(None),
+    )
+    .unwrap();
     assert_eq!(
         spec.headers.get("Authorization"),
         Some(&"Custom-Token xyz".to_string())
@@ -763,7 +959,14 @@ fn test_custom_headers_override_defaults() {
 #[test]
 fn test_no_custom_headers_leaves_defaults_intact() {
     let config = mock_config();
-    let spec = build_request("openai", &config, &mock_messages(), &mock_params(None)).unwrap();
+    let spec = build_request(
+        "openai",
+        &config,
+        config.api_key.as_deref(),
+        &mock_messages(),
+        &mock_params(None),
+    )
+    .unwrap();
     assert!(spec.headers.contains_key("Authorization"));
     assert_eq!(config.custom_headers, None);
 }

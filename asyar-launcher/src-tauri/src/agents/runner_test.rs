@@ -17,6 +17,24 @@ fn make_store() -> crate::storage::DataStore {
     crate::storage::create_test_store_with_foreign_keys()
 }
 
+const TEST_MASTER_KEY: [u8; 32] = [42u8; 32];
+
+fn seed_test_credential(store: &crate::storage::DataStore, provider_id: &str, key: &str) {
+    crate::storage::ai_credentials::set(
+        &store.conn().unwrap(),
+        &format!("provider:{provider_id}"),
+        key,
+        &TEST_MASTER_KEY,
+    )
+    .unwrap();
+}
+
+fn test_db_and_key() -> (rusqlite::Connection, [u8; 32]) {
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::storage::migrations::run(&conn).unwrap();
+    (conn, [42u8; 32])
+}
+
 fn chat_message(role: &str, content: &str) -> crate::ai::types::ChatMessage {
     crate::ai::types::ChatMessage {
         id: uuid::Uuid::new_v4().to_string(),
@@ -202,6 +220,7 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         ..Default::default()
     };
 
+    let store = make_store();
     let error = run_silent_agent_loop_impl(
         &agent,
         &ToolRegistry::new(),
@@ -212,6 +231,8 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         None,
         None,
         None,
+        &store,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap_err();
@@ -267,6 +288,9 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
         ..Default::default()
     };
 
+    let store = make_store();
+    seed_test_credential(&store, "openai", "test-key");
+
     run_silent_agent_loop_impl(
         &shortcode_miss_agent(),
         &ToolRegistry::new(),
@@ -277,6 +301,8 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
         None,
         None,
         None,
+        &store,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap()
@@ -358,6 +384,7 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap_err();
@@ -452,6 +479,8 @@ async fn test_run_thread_loop_text_only() {
         }
     };
 
+    seed_test_credential(&store, "openai", "test-key");
+
     run_thread_loop_impl(
         &store,
         &registry,
@@ -469,6 +498,7 @@ async fn test_run_thread_loop_text_only() {
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -598,6 +628,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
         e_clone.lock().unwrap().push(event);
     };
 
+    seed_test_credential(&store, "openai", "test-key");
+
     run_thread_loop_impl(
         &store,
         &registry,
@@ -615,6 +647,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -737,6 +770,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
     let dispatched_clone = dispatched.clone();
     let events_for_dispatch = events.clone();
 
+    seed_test_credential(&store, "openai", "test-key");
+
     run_thread_loop_impl(
         &store,
         &registry,
@@ -762,6 +797,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -861,6 +897,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
         )
     };
 
+    seed_test_credential(&store, "openai", "test-key");
+
     let result = run_silent_loop_impl(
         &store,
         &registry,
@@ -876,6 +914,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -911,15 +950,81 @@ fn valid_openai_config() -> crate::ai::types::ProviderConfig {
 
 #[test]
 fn resolve_provider_config_succeeds_for_a_fully_configured_provider() {
+    let (conn, master_key) = test_db_and_key();
+    crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-test", &master_key).unwrap();
     let configs = std::collections::HashMap::from([("openai".to_string(), valid_openai_config())]);
-    let resolved = resolve_provider_config("openai", &configs).unwrap();
-    assert_eq!(resolved.api_key.as_deref(), Some("sk-test"));
+    let resolved = resolve_provider_config("openai", &configs, &conn, &master_key).unwrap();
+    assert_eq!(
+        resolved.api_key.as_deref().map(|s| s.as_str()),
+        Some("sk-test")
+    );
+}
+
+#[test]
+fn resolve_provider_config_uses_stored_key_even_when_ipc_config_carries_different_key() {
+    let (conn, master_key) = test_db_and_key();
+
+    crate::storage::ai_credentials::set(
+        &conn,
+        "provider:openai",
+        "sk-stored-encrypted-key",
+        &master_key,
+    )
+    .unwrap();
+
+    let mut config = valid_openai_config();
+    config.api_key = Some("sk-different-ipc-key".to_string());
+
+    let configs = std::collections::HashMap::from([("openai".to_string(), config)]);
+    let resolved =
+        crate::agents::runner::resolve_provider_config("openai", &configs, &conn, &master_key)
+            .unwrap();
+
+    assert_eq!(
+        resolved.api_key.as_deref().map(|s| s.as_str()),
+        Some("sk-stored-encrypted-key"),
+        "Runner must use stored key from ai_credentials, ignoring different key in IPC config"
+    );
+    assert_eq!(
+        resolved.config.api_key, None,
+        "IPC-facing config must have its apiKey stripped"
+    );
+}
+
+#[test]
+fn switching_to_cli_mode_does_not_delete_or_disturb_stored_credential() {
+    let (conn, master_key) = test_db_and_key();
+
+    crate::storage::ai_credentials::set(
+        &conn,
+        "provider:openai",
+        "sk-stored-openai-key",
+        &master_key,
+    )
+    .unwrap();
+
+    // Provider is switched to CLI mode
+    let mut cli_config = valid_openai_config();
+    cli_config.connection_mode = Some("cli".to_string());
+
+    // Verify key remains Configured in ai_credentials store
+    assert_eq!(
+        crate::storage::ai_credentials::status(&conn, "provider:openai", &master_key).unwrap(),
+        crate::storage::ai_credentials::CredentialState::Configured
+    );
+
+    // Key is still safely preserved and decryptable
+    let stored = crate::storage::ai_credentials::get(&conn, "provider:openai", &master_key)
+        .unwrap()
+        .unwrap();
+    assert_eq!(&*stored, "sk-stored-openai-key");
 }
 
 #[test]
 fn resolve_provider_config_errors_when_provider_has_no_config_entry() {
+    let (conn, master_key) = test_db_and_key();
     let configs = std::collections::HashMap::new();
-    let error = resolve_provider_config("openai", &configs).unwrap_err();
+    let error = resolve_provider_config("openai", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("provider 'openai' is not configured"));
@@ -927,17 +1032,19 @@ fn resolve_provider_config_errors_when_provider_has_no_config_entry() {
 
 #[test]
 fn resolve_provider_config_errors_when_disabled() {
+    let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
     config.enabled = false;
     let configs = std::collections::HashMap::from([("openai".to_string(), config)]);
-    let error = resolve_provider_config("openai", &configs).unwrap_err();
+    let error = resolve_provider_config("openai", &configs, &conn, &master_key).unwrap_err();
     assert!(error.to_string().contains("provider 'openai' is disabled"));
 }
 
 #[test]
 fn resolve_provider_config_errors_for_an_unregistered_provider_id() {
+    let (conn, master_key) = test_db_and_key();
     let configs = std::collections::HashMap::from([("made-up".to_string(), valid_openai_config())]);
-    let error = resolve_provider_config("made-up", &configs).unwrap_err();
+    let error = resolve_provider_config("made-up", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("provider 'made-up' is not registered"));
@@ -948,20 +1055,34 @@ fn resolve_provider_config_succeeds_for_a_named_connection_id() {
     // Named connections (added via the "multiple provider connections"
     // feature) get an opaque id like "custom_60f9a975" — the real engine
     // lives in `provider_type`, not the map key.
+    let (conn, master_key) = test_db_and_key();
+    crate::storage::ai_credentials::set(
+        &conn,
+        "provider:custom_60f9a975",
+        "custom-key",
+        &master_key,
+    )
+    .unwrap();
     let mut config = valid_openai_config();
     config.provider_type = Some("custom".to_string());
     config.base_url = Some("https://example.com/v1".to_string());
     let configs = std::collections::HashMap::from([("custom_60f9a975".to_string(), config)]);
-    let resolved = resolve_provider_config("custom_60f9a975", &configs).unwrap();
+    let resolved =
+        resolve_provider_config("custom_60f9a975", &configs, &conn, &master_key).unwrap();
     assert_eq!(resolved.provider_type.as_deref(), Some("custom"));
+    assert_eq!(
+        resolved.api_key.as_deref().map(|s| s.as_str()),
+        Some("custom-key")
+    );
 }
 
 #[test]
 fn resolve_provider_config_errors_when_api_key_is_missing() {
+    let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
-    config.api_key = Some("   ".to_string());
+    config.api_key = None;
     let configs = std::collections::HashMap::from([("anthropic".to_string(), config)]);
-    let error = resolve_provider_config("anthropic", &configs).unwrap_err();
+    let error = resolve_provider_config("anthropic", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("API key for provider 'anthropic' is not configured"));
@@ -969,10 +1090,11 @@ fn resolve_provider_config_errors_when_api_key_is_missing() {
 
 #[test]
 fn resolve_provider_config_errors_when_base_url_is_missing() {
+    let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
     config.base_url = None;
     let configs = std::collections::HashMap::from([("ollama".to_string(), config)]);
-    let error = resolve_provider_config("ollama", &configs).unwrap_err();
+    let error = resolve_provider_config("ollama", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("Base URL for provider 'ollama' is not configured"));
@@ -980,12 +1102,13 @@ fn resolve_provider_config_errors_when_base_url_is_missing() {
 
 #[test]
 fn resolve_provider_config_handles_cli_mode() {
+    let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
     config.api_key = None;
     config.connection_mode = Some("cli".to_string());
     config.cli_binary_path = Some("/non/existent/path/codex".to_string());
     let configs = std::collections::HashMap::from([("openai".to_string(), config.clone())]);
-    let error = resolve_provider_config("openai", &configs).unwrap_err();
+    let error = resolve_provider_config("openai", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("CLI executable for provider 'openai' was not found"));
@@ -996,12 +1119,13 @@ fn resolve_provider_config_handles_cli_mode() {
         .to_string();
     config.cli_binary_path = Some(current_exe);
     let valid_configs = std::collections::HashMap::from([("openai".to_string(), config)]);
-    let resolved = resolve_provider_config("openai", &valid_configs).unwrap();
+    let resolved = resolve_provider_config("openai", &valid_configs, &conn, &master_key).unwrap();
     assert_eq!(resolved.connection_mode.as_deref(), Some("cli"));
 }
 
 #[test]
 fn resolve_provider_config_allows_anthropic_cli_mode() {
+    let (conn, master_key) = test_db_and_key();
     let current_exe = std::env::current_exe()
         .expect("current_exe")
         .to_string_lossy()
@@ -1012,17 +1136,19 @@ fn resolve_provider_config_allows_anthropic_cli_mode() {
     config.connection_mode = Some("cli".to_string());
     config.cli_binary_path = Some(current_exe);
     let configs = std::collections::HashMap::from([("anthropic_d503f4b".to_string(), config)]);
-    let resolved = resolve_provider_config("anthropic_d503f4b", &configs).unwrap();
+    let resolved =
+        resolve_provider_config("anthropic_d503f4b", &configs, &conn, &master_key).unwrap();
     assert_eq!(resolved.connection_mode.as_deref(), Some("cli"));
 }
 
 #[test]
 fn resolve_provider_config_rejects_cli_mode_for_unsupported_engines() {
+    let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
     config.provider_type = Some("ollama".to_string());
     config.connection_mode = Some("cli".to_string());
     let configs = std::collections::HashMap::from([("ollama_1".to_string(), config)]);
-    let error = resolve_provider_config("ollama_1", &configs).unwrap_err();
+    let error = resolve_provider_config("ollama_1", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("CLI mode is not supported for provider 'ollama_1'"));
@@ -1136,8 +1262,21 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
 
     let registry = Arc::new(ToolRegistry::new());
     registry
-        .register_builtin(Arc::new(WebSearchTool::with_base_url(search_server.url())))
+        .register_builtin(Arc::new(WebSearchTool::with_store_and_base_url(
+            store.clone(),
+            TEST_MASTER_KEY,
+            search_server.url(),
+        )))
         .unwrap();
+
+    seed_test_credential(&store, "openai", "test-key");
+    crate::storage::ai_credentials::set(
+        &store.conn().unwrap(),
+        "web_search",
+        "test-search-key",
+        &TEST_MASTER_KEY,
+    )
+    .unwrap();
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
@@ -1169,6 +1308,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -1322,6 +1462,7 @@ async fn test_runner_emits_tools_unavailable_once_in_cli_mode_with_dropped_tools
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await;
     if let Err(ref e) = res {
@@ -1440,6 +1581,7 @@ async fn test_runner_does_not_emit_tools_unavailable_in_cli_mode_when_only_built
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await;
 
@@ -1535,6 +1677,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Hello!\"}}]}\n\ndata: [DONE]\n\n";
         e_clone.lock().unwrap().push(event);
     };
 
+    seed_test_credential(&store, "openai_api", "test-key");
+
     run_thread_loop_impl(
         &store,
         &registry,
@@ -1548,6 +1692,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Hello!\"}}]}\n\ndata: [DONE]\n\n";
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -1627,6 +1772,8 @@ async fn test_runner_does_not_emit_tools_unavailable_for_silent_runs() {
         None,
         None,
         None,
+        &store,
+        &TEST_MASTER_KEY,
     )
     .await;
 
@@ -1717,6 +1864,7 @@ async fn test_runner_with_disabled_provider_preserves_error_and_does_not_emit_to
         None,
         None,
         None,
+        &TEST_MASTER_KEY,
     )
     .await;
 

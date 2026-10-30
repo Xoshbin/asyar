@@ -1,5 +1,5 @@
 use super::models::{
-    list_models_impl, ollama_reasoning_efforts_from_capabilities, parse_ollama_show_capabilities,
+    list_models, ollama_reasoning_efforts_from_capabilities, parse_ollama_show_capabilities,
     parse_provider_models, provider_model_request,
 };
 use crate::ai::types::ProviderConfig;
@@ -19,6 +19,7 @@ fn custom_model_request_normalizes_base_url_and_optional_key() {
     let request = provider_model_request(
         "custom",
         &config(Some("secret"), Some("https://models.example/api/")),
+        Some("secret"),
     )
     .unwrap();
 
@@ -36,7 +37,7 @@ fn custom_model_request_resolves_via_provider_type() {
     cfg.provider_type = Some("ollama".into());
 
     let engine = cfg.provider_type.as_deref().unwrap_or("custom_ollama");
-    let request = provider_model_request(engine, &cfg).unwrap();
+    let request = provider_model_request(engine, &cfg, cfg.api_key.as_deref()).unwrap();
 
     assert_eq!(request.url, "http://localhost:11434/api/tags");
 }
@@ -116,7 +117,7 @@ fn openrouter_uses_model_specific_supported_efforts() {
 
 #[test]
 fn unknown_provider_is_rejected() {
-    let error = provider_model_request("missing", &config(None, None)).unwrap_err();
+    let error = provider_model_request("missing", &config(None, None), None).unwrap_err();
     assert!(error.to_string().contains("Unknown AI provider"));
 }
 
@@ -205,7 +206,7 @@ async fn list_models_impl_only_offers_reasoning_effort_for_thinking_capable_olla
         .create_async()
         .await;
 
-    let models = list_models_impl("ollama", &config(None, Some(&server.url())))
+    let models = list_models("ollama", &config(None, Some(&server.url())), None)
         .await
         .unwrap();
 
@@ -249,7 +250,7 @@ async fn list_models_impl_returns_claude_models_in_cli_mode() {
     let mut cfg = config(None, None);
     cfg.provider_type = Some("anthropic".to_string());
     cfg.connection_mode = Some("cli".to_string());
-    let models = list_models_impl("anthropic_1", &cfg).await.unwrap();
+    let models = list_models("anthropic_1", &cfg, None).await.unwrap();
     assert_eq!(
         models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
         ["opus", "sonnet", "haiku"]

@@ -2,6 +2,7 @@ pub mod cli;
 pub mod cli_config_cleanup;
 pub mod codex_client;
 pub mod commands;
+pub mod migration;
 pub mod models;
 pub mod providers;
 pub mod sse;

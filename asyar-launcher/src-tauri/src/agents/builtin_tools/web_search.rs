@@ -1,6 +1,7 @@
 use crate::agents::runner::WebSearchConfig;
 use crate::agents::tools::{BuiltinTool, ToolDescriptor, ToolSource};
 use crate::error::AppError;
+use crate::storage::DataStore;
 use percent_encoding::percent_decode_str;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -46,13 +47,23 @@ pub struct SearchResultEntry {
 }
 
 #[derive(Clone)]
+pub enum WebSearchCredentialSource {
+    Store {
+        data_store: DataStore,
+        master_key: [u8; 32],
+    },
+    None,
+}
+
+#[derive(Clone)]
 pub struct WebSearchTool {
     client: reqwest::Client,
     base_url: Option<String>,
+    credentials: WebSearchCredentialSource,
 }
 
 impl WebSearchTool {
-    pub fn new() -> Self {
+    pub fn with_store(data_store: DataStore, master_key: [u8; 32]) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
             .user_agent(USER_AGENT)
@@ -61,13 +72,98 @@ impl WebSearchTool {
         Self {
             client,
             base_url: None,
+            credentials: WebSearchCredentialSource::Store {
+                data_store,
+                master_key,
+            },
         }
     }
 
-    pub fn with_base_url(base_url: String) -> Self {
-        let mut tool = Self::new();
+    pub fn with_store_and_base_url(
+        data_store: DataStore,
+        master_key: [u8; 32],
+        base_url: String,
+    ) -> Self {
+        let mut tool = Self::with_store(data_store, master_key);
         tool.base_url = Some(base_url);
         tool
+    }
+
+    pub fn without_credentials() -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .user_agent(USER_AGENT)
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        Self {
+            client,
+            base_url: None,
+            credentials: WebSearchCredentialSource::None,
+        }
+    }
+
+    pub fn without_credentials_and_base_url(base_url: String) -> Self {
+        let mut tool = Self::without_credentials();
+        tool.base_url = Some(base_url);
+        tool
+    }
+
+    fn resolve_key(
+        &self,
+        engine: &str,
+        env_var: &str,
+    ) -> Result<zeroize::Zeroizing<String>, AppError> {
+        match &self.credentials {
+            WebSearchCredentialSource::Store {
+                data_store,
+                master_key,
+            } => {
+                let conn = data_store.conn()?;
+                let stored_key = match crate::storage::ai_credentials::get(
+                    &conn,
+                    "web_search",
+                    master_key,
+                ) {
+                    Ok(Some(k)) => Some(k),
+                    Ok(None) => None,
+                    Err(asyar_storage::StorageError::Encryption(_)) => {
+                        return Err(AppError::Validation(
+                            "Web search API key cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.".into(),
+                        ));
+                    }
+                    Err(e) => return Err(e.into()),
+                };
+                if let Some(k) = stored_key {
+                    return Ok(k);
+                }
+                if let Ok(env_val) = std::env::var(env_var) {
+                    let trimmed = env_val.trim();
+                    if !trimmed.is_empty() {
+                        return Ok(zeroize::Zeroizing::new(trimmed.to_string()));
+                    }
+                }
+                let display_name = match engine {
+                    "brave" => "Brave Search",
+                    "tavily" => "Tavily Search",
+                    "serply" => "Serply",
+                    other => other,
+                };
+                Err(AppError::Validation(format!(
+                    "{display_name} API key is required. Add it in Settings > AI or set {env_var}."
+                )))
+            }
+            WebSearchCredentialSource::None => {
+                if let Ok(env_val) = std::env::var(env_var) {
+                    let trimmed = env_val.trim();
+                    if !trimmed.is_empty() {
+                        return Ok(zeroize::Zeroizing::new(trimmed.to_string()));
+                    }
+                }
+                Err(AppError::Validation(
+                    "This search engine's API key is only available to Asyar's built-in AI chat, not to CLI providers".into(),
+                ))
+            }
+        }
     }
 
     #[allow(dead_code)]
@@ -91,10 +187,6 @@ impl WebSearchTool {
             .and_then(|c| c.engine.as_deref())
             .unwrap_or("duckduckgo");
 
-        let api_key = config
-            .and_then(|c| c.api_key.as_deref())
-            .filter(|k| !k.trim().is_empty());
-
         let base_url = config
             .and_then(|c| c.base_url.as_deref())
             .filter(|u| !u.trim().is_empty())
@@ -103,39 +195,15 @@ impl WebSearchTool {
 
         match engine {
             "brave" => {
-                let key = api_key
-                    .map(|s| s.to_string())
-                    .or_else(|| std::env::var("BRAVE_API_KEY").ok())
-                    .filter(|k| !k.trim().is_empty())
-                    .ok_or_else(|| {
-                        AppError::Validation(
-                            "Brave Search API key is required. Add it in Settings > AI or set BRAVE_API_KEY.".into(),
-                        )
-                    })?;
+                let key = self.resolve_key("brave", "BRAVE_API_KEY")?;
                 self.search_brave(query, limit, &key).await
             }
             "tavily" => {
-                let key = api_key
-                    .map(|s| s.to_string())
-                    .or_else(|| std::env::var("TAVILY_API_KEY").ok())
-                    .filter(|k| !k.trim().is_empty())
-                    .ok_or_else(|| {
-                        AppError::Validation(
-                            "Tavily Search API key is required. Add it in Settings > AI or set TAVILY_API_KEY.".into(),
-                        )
-                    })?;
+                let key = self.resolve_key("tavily", "TAVILY_API_KEY")?;
                 self.search_tavily(query, limit, &key).await
             }
             "serply" => {
-                let key = api_key
-                    .map(|s| s.to_string())
-                    .or_else(|| std::env::var("SERPLY_API_KEY").ok())
-                    .filter(|k| !k.trim().is_empty())
-                    .ok_or_else(|| {
-                        AppError::Validation(
-                            "Serply API key is required. Add it in Settings > AI or set SERPLY_API_KEY.".into(),
-                        )
-                    })?;
+                let key = self.resolve_key("serply", "SERPLY_API_KEY")?;
                 self.search_serply(query, limit, &key).await
             }
             "searxng" => {
@@ -324,9 +392,13 @@ impl WebSearchTool {
         limit: usize,
         api_key: &str,
     ) -> Result<Value, AppError> {
+        let url = self
+            .base_url
+            .as_deref()
+            .unwrap_or("https://api.search.brave.com/res/v1/web/search");
         let response = self
             .client
-            .get("https://api.search.brave.com/res/v1/web/search")
+            .get(url)
             .query(&[("q", query), ("count", &limit.to_string())])
             .header("X-Subscription-Token", api_key)
             .header(reqwest::header::USER_AGENT, ASYAR_API_USER_AGENT)
@@ -427,15 +499,7 @@ impl WebSearchTool {
     }
 }
 
-impl Default for WebSearchTool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub(crate) fn parse_web_search_args(
-    args: Value,
-) -> Result<(String, usize, Option<WebSearchConfig>), AppError> {
+pub(crate) fn parse_web_search_args(args: Value) -> Result<(String, usize), AppError> {
     let query = args
         .get("query")
         .and_then(Value::as_str)
@@ -452,11 +516,7 @@ pub(crate) fn parse_web_search_args(
         _ => return Err(AppError::Validation("'limit' must be a number".into())),
     };
 
-    let config = args
-        .get("__config")
-        .and_then(|v| serde_json::from_value::<WebSearchConfig>(v.clone()).ok());
-
-    Ok((query, limit, config))
+    Ok((query, limit))
 }
 
 pub(crate) fn clean_url(raw: &str) -> Option<String> {
@@ -757,8 +817,17 @@ impl BuiltinTool for WebSearchTool {
     }
 
     async fn invoke(&self, args: Value) -> Result<Value, AppError> {
-        let (query, limit, config) = parse_web_search_args(args)?;
-        self.execute_search_with_config(&query, limit, config.as_ref())
+        let (query, limit) = parse_web_search_args(args)?;
+        self.execute_search_with_config(&query, limit, None).await
+    }
+
+    async fn invoke_with_context(
+        &self,
+        args: Value,
+        context: &crate::agents::tools::ToolContext,
+    ) -> Result<Value, AppError> {
+        let (query, limit) = parse_web_search_args(args)?;
+        self.execute_search_with_config(&query, limit, context.web_search.as_ref())
             .await
     }
 }

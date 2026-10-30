@@ -126,7 +126,7 @@ where
                 let _ = registry.register_builtin(Arc::new(WebFetchTool::new()));
             }
             "web-search" => {
-                let _ = registry.register_builtin(Arc::new(WebSearchTool::new()));
+                let _ = registry.register_builtin(Arc::new(WebSearchTool::without_credentials()));
             }
             unknown => {
                 eprintln!("[asyar mcp] Unknown built-in tool: '{unknown}'");
@@ -261,10 +261,14 @@ pub async fn handle_mcp_line(line: &str, registry: &ToolRegistry) -> Option<Stri
                 .get("name")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            let args = params
+            let mut args = params
                 .get("arguments")
                 .cloned()
                 .unwrap_or_else(|| json!({}));
+
+            if let Some(obj) = args.as_object_mut() {
+                obj.remove("__config");
+            }
 
             if let Some(tool) = find_builtin_tool(registry, name) {
                 match tool.invoke(args).await {
