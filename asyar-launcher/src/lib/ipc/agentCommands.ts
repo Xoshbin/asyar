@@ -13,6 +13,9 @@ import type {
   AgentProviderDescriptor,
   ModelInfo as ModelInfoContract,
   CliStatus,
+  AiCredentialStatus,
+  CredentialTarget,
+  CredentialState,
 } from '../../bindings';
 
 // ── Agents ────────────────────────────────────────────────────────────────────
@@ -275,4 +278,16 @@ export async function aiCheckCliStatus(
   customPath?: string,
 ): Promise<CliStatus> {
   return invokeRaw<CliStatus>('ai_check_cli_status', { providerId, customPath });
+}
+
+export async function aiSaveCredential(target: CredentialTarget, secret: string): Promise<void> {
+  return invokeRaw<void>('ai_save_credential', { target, secret });
+}
+
+export async function aiDeleteCredential(target: CredentialTarget): Promise<boolean> {
+  return invokeRaw<boolean>('ai_delete_credential', { target });
+}
+
+export async function aiGetCredentialStatus(): Promise<AiCredentialStatus> {
+  return invokeRaw<AiCredentialStatus>('ai_get_credential_status');
 }

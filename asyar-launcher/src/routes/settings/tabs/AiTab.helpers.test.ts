@@ -37,10 +37,16 @@ describe('canTestAndFetch', () => {
     expect(canTestAndFetch(null, { enabled: true })).toBe(false);
   });
 
-  it('returns false for OpenAI (requiresApiKey) when apiKey is missing', () => {
+  it('returns false for OpenAI (requiresApiKey) when credentialState is not configured', () => {
     const plugin = makePlugin('openai', { requiresApiKey: true });
-    expect(canTestAndFetch(plugin, { enabled: true })).toBe(false);
-    expect(canTestAndFetch(plugin, { enabled: true, apiKey: '  ' })).toBe(false);
+    expect(canTestAndFetch(plugin, { enabled: true }, undefined)).toBe(false);
+    expect(canTestAndFetch(plugin, { enabled: true }, 'notConfigured')).toBe(false);
+    expect(canTestAndFetch(plugin, { enabled: true }, 'needsReentry')).toBe(false);
+  });
+
+  it('returns true for OpenAI (requiresApiKey) when credentialState is configured', () => {
+    const plugin = makePlugin('openai', { requiresApiKey: true });
+    expect(canTestAndFetch(plugin, { enabled: true }, 'configured')).toBe(true);
   });
 
   it('returns true for Ollama (requiresBaseUrl, no apiKey) when baseUrl is set', () => {
@@ -50,19 +56,25 @@ describe('canTestAndFetch', () => {
     );
   });
 
-  it('returns true for Custom (requiresBaseUrl + optionalApiKey) even when apiKey is absent', () => {
+  it('returns true for Custom (requiresBaseUrl + optionalApiKey) even when credential is not configured', () => {
     const plugin = makePlugin('custom', {
       requiresBaseUrl: true,
       optionalApiKey: true,
     });
-    expect(canTestAndFetch(plugin, { enabled: true, baseUrl: 'https://api.example.com' })).toBe(
-      true,
-    );
+    expect(
+      canTestAndFetch(
+        plugin,
+        { enabled: true, baseUrl: 'https://api.example.com' },
+        'notConfigured',
+      ),
+    ).toBe(true);
   });
 
-  it('returns true when connectionMode is cli even if requiresApiKey is true and apiKey is missing', () => {
+  it('returns true when connectionMode is cli even if requiresApiKey is true and credentialState is not configured', () => {
     const plugin = makePlugin('google', { requiresApiKey: true, supportsCliMode: true });
-    expect(canTestAndFetch(plugin, { enabled: true, connectionMode: 'cli' })).toBe(true);
+    expect(canTestAndFetch(plugin, { enabled: true, connectionMode: 'cli' }, 'notConfigured')).toBe(
+      true,
+    );
   });
 });
 

@@ -351,7 +351,6 @@ async fn test_web_search_with_searxng_config() {
         web_search: Some(crate::agents::runner::WebSearchConfig {
             engine: Some("searxng".to_string()),
             base_url: Some(server.url()),
-            ..Default::default()
         }),
     };
     let output = tool
@@ -472,8 +471,13 @@ async fn test_web_search_uses_stored_key_even_when_ipc_config_carries_different_
     let conn = data_store.conn().unwrap();
     let master_key = [77u8; 32];
 
-    crate::storage::ai_credentials::set(&conn, "web_search", "fake-stored-brave-key", &master_key)
-        .unwrap();
+    crate::storage::ai_credentials::set(
+        &conn,
+        "web_search:brave",
+        "fake-stored-brave-key",
+        &master_key,
+    )
+    .unwrap();
 
     let search_url = format!("{}/res/v1/web/search", server.url());
     let tool = WebSearchTool::with_store_and_base_url(data_store, master_key, search_url);
@@ -481,7 +485,6 @@ async fn test_web_search_uses_stored_key_even_when_ipc_config_carries_different_
     let context = crate::agents::tools::ToolContext {
         web_search: Some(crate::agents::runner::WebSearchConfig {
             engine: Some("brave".to_string()),
-            api_key: Some("fake-different-ipc-key".to_string()),
             ..Default::default()
         }),
     };
@@ -521,8 +524,13 @@ async fn test_web_search_model_injected_tavily_config_ignored_user_brave_used() 
     let conn = data_store.conn().unwrap();
     let master_key = [77u8; 32];
 
-    crate::storage::ai_credentials::set(&conn, "web_search", "fake-stored-brave-key", &master_key)
-        .unwrap();
+    crate::storage::ai_credentials::set(
+        &conn,
+        "web_search:brave",
+        "fake-stored-brave-key",
+        &master_key,
+    )
+    .unwrap();
 
     let search_url = format!("{}/res/v1/web/search", server.url());
     let tool = WebSearchTool::with_store_and_base_url(data_store, master_key, search_url);
@@ -572,7 +580,7 @@ async fn test_web_search_model_injected_config_with_no_user_config_uses_duckduck
     let data_store = crate::storage::DataStore::in_memory().unwrap();
     let conn = data_store.conn().unwrap();
     let stored_master_key = [1u8; 32];
-    crate::storage::ai_credentials::set(&conn, "web_search", "dummy-key", &stored_master_key)
+    crate::storage::ai_credentials::set(&conn, "web_search:brave", "dummy-key", &stored_master_key)
         .unwrap();
 
     // Tool has wrong master key [99u8; 32]. If resolve_key were called, it would fail with decrypt error.
@@ -682,4 +690,96 @@ async fn test_web_search_without_credentials_uses_env_var() {
 
     let sources = output["sources"].as_array().unwrap();
     assert_eq!(sources[0]["title"], "Rust");
+}
+
+#[tokio::test]
+async fn test_web_search_brave_key_is_never_sent_when_engine_is_tavily() {
+    let _lock = ENV_LOCK.lock().await;
+    let saved = std::env::var("TAVILY_API_KEY").ok();
+    std::env::remove_var("TAVILY_API_KEY");
+
+    struct Guard(Option<String>);
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            if let Some(ref k) = self.0 {
+                std::env::set_var("TAVILY_API_KEY", k);
+            }
+        }
+    }
+    let _guard = Guard(saved);
+
+    // Any request reaching the "Tavily" server would carry the Brave key; none may arrive.
+    let mut server = mockito::Server::new_async().await;
+    let leak = server
+        .mock("POST", mockito::Matcher::Any)
+        .match_body(mockito::Matcher::Regex("brave-secret-key".to_string()))
+        .expect(0)
+        .create_async()
+        .await;
+    let any_request = server
+        .mock("POST", mockito::Matcher::Any)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let data_store = crate::storage::DataStore::in_memory().unwrap();
+    let conn = data_store.conn().unwrap();
+    let master_key = [42u8; 32];
+    crate::storage::ai_credentials::set(&conn, "web_search:brave", "brave-secret-key", &master_key)
+        .unwrap();
+
+    let tool = WebSearchTool::with_store_and_base_url(data_store, master_key, server.url());
+    let context = crate::agents::tools::ToolContext {
+        web_search: Some(crate::agents::runner::WebSearchConfig {
+            engine: Some("tavily".to_string()),
+            ..Default::default()
+        }),
+    };
+
+    let err = tool
+        .invoke_with_context(json!({ "query": "rust", "limit": 5 }), &context)
+        .await
+        .unwrap_err();
+
+    let msg = err.to_string();
+    assert!(msg.contains("Tavily Search API key is required"), "{msg}");
+    assert!(!msg.contains("brave-secret-key"));
+    leak.assert_async().await;
+    any_request.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_web_search_each_engine_uses_only_its_own_stored_key() {
+    let mut server = mockito::Server::new_async().await;
+    let brave = server
+        .mock("GET", "/res/v1/web/search")
+        .match_query(mockito::Matcher::Any)
+        .match_header("X-Subscription-Token", "brave-own-key")
+        .with_status(200)
+        .with_body(r#"{"web":{"results":[{"title":"Rust","url":"https://rust-lang.org","description":"A language"}]}}"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let data_store = crate::storage::DataStore::in_memory().unwrap();
+    let conn = data_store.conn().unwrap();
+    let master_key = [43u8; 32];
+    crate::storage::ai_credentials::set(&conn, "web_search:brave", "brave-own-key", &master_key)
+        .unwrap();
+    crate::storage::ai_credentials::set(&conn, "web_search:tavily", "tavily-own-key", &master_key)
+        .unwrap();
+
+    let search_url = format!("{}/res/v1/web/search", server.url());
+    let tool = WebSearchTool::with_store_and_base_url(data_store, master_key, search_url);
+    let context = crate::agents::tools::ToolContext {
+        web_search: Some(crate::agents::runner::WebSearchConfig {
+            engine: Some("brave".to_string()),
+            ..Default::default()
+        }),
+    };
+
+    tool.invoke_with_context(json!({ "query": "rust", "limit": 5 }), &context)
+        .await
+        .unwrap();
+    brave.assert_async().await;
 }

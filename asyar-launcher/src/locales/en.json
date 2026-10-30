@@ -237,6 +237,7 @@
       "password_optional_description": "Encrypt sensitive fields in the export.",
       "password_optional_placeholder": "Leave blank to strip sensitive fields",
       "sensitive_stripped_warning": "Sensitive fields will be removed from this export. Set a password to keep them encrypted instead.",
+      "export_api_keys_note": "API keys aren't included in exports. You'll enter them again in Settings → AI on the other device.",
       "export_backup": "Export backup",
       "exporting": "Exporting…",
       "export_button": "Export…",
@@ -393,6 +394,7 @@
       "error_auto_set_default": "Could not auto-set the default AI agent. You can pick it manually with the star.",
       "error_check_removable": "Could not check whether this provider is safe to remove.",
       "error_update_default_after_remove": "Could not update the default agent after removing its previous provider.",
+      "error_remove_provider_key": "Couldn't remove this provider's saved key. Please try again.",
       "error_update_default": "Could not update the default AI agent.",
       "providers_hint_pre": "The",
       "providers_hint_post": "provider is what Asyar Assistant uses when you press Tab in the launcher.",
@@ -472,7 +474,16 @@
       "api_key_placeholder": "Enter your API key",
       "searxng_url": "SearXNG base URL",
       "searxng_desc_pre": "Self-hosted or public metasearch instance. Must support JSON format (",
-      "searxng_desc_post": ")."
+      "searxng_desc_post": ").",
+      "key_saved": "Key saved",
+      "replace_key": "Replace",
+      "remove_key": "Remove",
+      "save_key": "Save",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "key_reentry_warning": "This key can't be read anymore. Please enter it again.",
+      "key_save_error": "Couldn't save the key. Please try again.",
+      "key_remove_error": "Couldn't remove the key. Please try again."
     },
     "applications": {
       "no_match": "No applications match your filter",

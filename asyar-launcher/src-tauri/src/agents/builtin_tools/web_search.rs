@@ -121,7 +121,7 @@ impl WebSearchTool {
                 let conn = data_store.conn()?;
                 let stored_key = match crate::storage::ai_credentials::get(
                     &conn,
-                    "web_search",
+                    &crate::storage::ai_credentials::web_search_credential_id(engine),
                     master_key,
                 ) {
                     Ok(Some(k)) => Some(k),

@@ -68,7 +68,6 @@ pub enum AgentStreamEvent {
 #[serde(rename_all = "camelCase")]
 pub struct WebSearchConfig {
     pub engine: Option<String>,
-    pub api_key: Option<String>,
     pub base_url: Option<String>,
 }
 
@@ -580,10 +579,8 @@ pub(crate) fn resolve_provider_config(
                 "CLI executable for provider '{provider_id}' was not found"
             )));
         }
-        let mut clean_config = config.clone();
-        clean_config.api_key = None;
         return Ok(crate::ai::types::ResolvedProviderConfig {
-            config: clean_config,
+            config: config.clone(),
             api_key: None,
         });
     }
@@ -622,11 +619,8 @@ pub(crate) fn resolve_provider_config(
         )));
     }
 
-    let mut clean_config = config.clone();
-    clean_config.api_key = None;
-
     Ok(crate::ai::types::ResolvedProviderConfig {
-        config: clean_config,
+        config: config.clone(),
         api_key: resolved_key,
     })
 }

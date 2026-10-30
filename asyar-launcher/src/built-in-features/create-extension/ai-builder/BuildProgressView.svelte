@@ -185,10 +185,8 @@
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => {
-          const anthropicKey =
-            settingsService.currentSettings.ai.providers['anthropic']?.apiKey ?? '';
           buildJobStore.reset();
-          await startBuild(failedPrompt, { anthropicKey });
+          await startBuild(failedPrompt);
         },
       });
       actionService.registerAction({
@@ -234,8 +232,7 @@
     startError = null;
     isStarting = true;
     try {
-      const anthropicKey = settingsService.currentSettings.ai.providers['anthropic']?.apiKey ?? '';
-      const result = await startBuild(trimmed, { anthropicKey });
+      const result = await startBuild(trimmed);
       if (!result.ok) {
         startError = result.reason ?? 'Build could not start.';
       }

@@ -10,6 +10,7 @@
 </script>
 
 <script lang="ts">
+  import { onMount } from 'svelte';
   import {
     SettingsRow,
     Toggle,
@@ -20,11 +21,19 @@
     SettingsCard,
     ModelSelector,
     Select,
+    CredentialField,
   } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
-  import { agentsProviderRemovalBlockers, aiCheckCliStatus } from '../../../lib/ipc/commands';
+  import { logService } from '../../../services/log/logService';
+  import {
+    agentsProviderRemovalBlockers,
+    aiCheckCliStatus,
+    aiGetCredentialStatus,
+    aiSaveCredential,
+    aiDeleteCredential,
+  } from '../../../lib/ipc/commands';
   import { t } from '../../../services/i18n';
   import {
     availableProvidersForNewRow,
@@ -41,7 +50,7 @@
     ProviderConfig,
     ReasoningEffort,
   } from '../../../services/ai/IProviderPlugin';
-  import type { CliStatus } from '../../../bindings';
+  import type { AiCredentialStatus, CliStatus } from '../../../bindings';
   import type {
     ProviderId,
     WebSearchEngine,
@@ -83,6 +92,53 @@
   // provider id that was being made (or already is) the default. Same
   // inline-in-the-row reasoning as removeErrors.
   let defaultAgentErrors = $state<Record<string, string>>({});
+
+  // Credential status loaded from secure storage. Key fields aren't rendered until the
+  // first load settles, so a user with saved keys never sees an empty "enter your key" field.
+  let credStatus = $state<AiCredentialStatus>({ providers: {}, webSearch: {} });
+  let credLoaded = $state(false);
+
+  onMount(async () => {
+    try {
+      credStatus = await aiGetCredentialStatus();
+    } catch (err) {
+      logService.error(`Failed to load credential status: ${err}`);
+    } finally {
+      credLoaded = true;
+    }
+  });
+
+  async function saveProviderKey(providerId: string, secret: string) {
+    await aiSaveCredential({ type: 'provider', id: providerId }, secret);
+    credStatus = {
+      ...credStatus,
+      providers: { ...credStatus.providers, [providerId]: 'configured' },
+    };
+  }
+
+  async function removeProviderKey(providerId: string) {
+    await aiDeleteCredential({ type: 'provider', id: providerId });
+    credStatus = {
+      ...credStatus,
+      providers: { ...credStatus.providers, [providerId]: 'notConfigured' },
+    };
+  }
+
+  async function saveWebSearchKey(engine: string, secret: string) {
+    await aiSaveCredential({ type: 'webSearch', engine }, secret);
+    credStatus = {
+      ...credStatus,
+      webSearch: { ...credStatus.webSearch, [engine]: 'configured' },
+    };
+  }
+
+  async function removeWebSearchKey(engine: string) {
+    await aiDeleteCredential({ type: 'webSearch', engine });
+    credStatus = {
+      ...credStatus,
+      webSearch: { ...credStatus.webSearch, [engine]: 'notConfigured' },
+    };
+  }
 
   // Draft row: a new row the user started via "+ Add" but hasn't committed yet
   let draftActive = $state(false);
@@ -206,7 +262,7 @@
       }
       if (
         p &&
-        canTestAndFetch(p, cfg) &&
+        canTestAndFetch(p, cfg, credStatus.providers[id]) &&
         (cfg.connectionMode === 'cli' || cfg.lastModelId) &&
         sessionModelCache[id] === undefined &&
         !fetchingModels[id]
@@ -281,6 +337,20 @@
     }
 
     const wasDefault = isDefault(id);
+
+    // Delete the credential first (no orphan rows). If that fails, keep the provider: removing
+    // it anyway would let a later re-add silently bring the old key back.
+    try {
+      await aiDeleteCredential({ type: 'provider', id });
+    } catch (err) {
+      logService.error(`Failed to delete credential on provider removal ${id}: ${err}`);
+      removeErrors = { ...removeErrors, [id]: t('settings.ai.error_remove_provider_key') };
+      return;
+    }
+    const nextCredProviders = { ...credStatus.providers };
+    delete nextCredProviders[id];
+    credStatus = { ...credStatus, providers: nextCredProviders };
+
     const nextProviders = { ...settings.providers };
     delete nextProviders[id];
     // Clear config for this provider
@@ -723,27 +793,18 @@
                     </div>
                   {/if}
 
-                  {#if (plugin?.requiresApiKey || plugin?.optionalApiKey) && config.connectionMode !== 'cli'}
+                  {#if (plugin?.requiresApiKey || plugin?.optionalApiKey) && config.connectionMode !== 'cli' && credLoaded}
                     <div class="card-field">
-                      <label class="field-label" for="apikey-{providerId}">
-                        {t('settings.ai.api_key')}{#if !plugin?.requiresApiKey}
-                          <span class="field-hint">{t('settings.ai.optional')}</span>{/if}
-                      </label>
-                      <Input
-                        unstyled
-                        textIntent="exact"
-                        class="card-input"
-                        id="apikey-{providerId}"
-                        type="password"
-                        value={config.apiKey ?? ''}
+                      <CredentialField
+                        label={t('settings.ai.api_key')}
+                        inputId="apikey-{providerId}"
                         placeholder={plugin?.requiresApiKey
                           ? 'sk-••••••••••••••••'
                           : t('settings.ai.api_key_placeholder_optional')}
-                        autocomplete="off"
-                        onblur={(e) =>
-                          updateProviderConfig(providerId, {
-                            apiKey: (e.currentTarget as HTMLInputElement).value || undefined,
-                          })}
+                        state={credStatus.providers[providerId] ?? 'notConfigured'}
+                        optional={!plugin?.requiresApiKey}
+                        onSave={(secret) => saveProviderKey(providerId, secret)}
+                        onRemove={() => removeProviderKey(providerId)}
                       />
                     </div>
                   {/if}
@@ -828,7 +889,8 @@
                   <div class="card-actions">
                     <Button
                       onclick={() => plugin && fetchModels(providerId, plugin)}
-                      disabled={isFetching || !canTestAndFetch(plugin ?? null, config)}
+                      disabled={isFetching ||
+                        !canTestAndFetch(plugin ?? null, config, credStatus.providers[providerId])}
                     >
                       {isFetching ? t('settings.ai.fetching') : t('settings.ai.test_and_fetch')}
                     </Button>
@@ -1177,24 +1239,18 @@
               {t('settings.ai.ddg_desc')}
             </p>
           {:else if webSearchSettings.engine === 'brave'}
-            <div class="card-field">
-              <label class="field-label" for="web-search-brave-key"
-                >{t('settings.ai.brave_key')}</label
-              >
-              <Input
-                unstyled
-                textIntent="exact"
-                class="card-input"
-                id="web-search-brave-key"
-                type="password"
-                placeholder="BSA..."
-                value={webSearchSettings.apiKey ?? ''}
-                onblur={(e) =>
-                  updateWebSearch({
-                    apiKey: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
-                  })}
-              />
-            </div>
+            {#if credLoaded}
+              <div class="card-field">
+                <CredentialField
+                  label={t('settings.ai.brave_key')}
+                  inputId="web-search-brave-key"
+                  placeholder="BSA..."
+                  state={credStatus.webSearch['brave'] ?? 'notConfigured'}
+                  onSave={(secret) => saveWebSearchKey('brave', secret)}
+                  onRemove={() => removeWebSearchKey('brave')}
+                />
+              </div>
+            {/if}
             <p class="field-description">
               {t('settings.ai.brave_desc')}
               <a
@@ -1207,24 +1263,18 @@
               </a>.
             </p>
           {:else if webSearchSettings.engine === 'tavily'}
-            <div class="card-field">
-              <label class="field-label" for="web-search-tavily-key"
-                >{t('settings.ai.tavily_key')}</label
-              >
-              <Input
-                unstyled
-                textIntent="exact"
-                class="card-input"
-                id="web-search-tavily-key"
-                type="password"
-                placeholder="tvly-..."
-                value={webSearchSettings.apiKey ?? ''}
-                onblur={(e) =>
-                  updateWebSearch({
-                    apiKey: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
-                  })}
-              />
-            </div>
+            {#if credLoaded}
+              <div class="card-field">
+                <CredentialField
+                  label={t('settings.ai.tavily_key')}
+                  inputId="web-search-tavily-key"
+                  placeholder="tvly-..."
+                  state={credStatus.webSearch['tavily'] ?? 'notConfigured'}
+                  onSave={(secret) => saveWebSearchKey('tavily', secret)}
+                  onRemove={() => removeWebSearchKey('tavily')}
+                />
+              </div>
+            {/if}
             <p class="field-description">
               {t('settings.ai.tavily_desc')}
               <a href="https://tavily.com" target="_blank" rel="noreferrer" class="external-link">
@@ -1232,24 +1282,18 @@
               </a>.
             </p>
           {:else if webSearchSettings.engine === 'serply'}
-            <div class="card-field">
-              <label class="field-label" for="web-search-serply-key"
-                >{t('settings.ai.serply_key')}</label
-              >
-              <Input
-                unstyled
-                textIntent="exact"
-                class="card-input"
-                id="web-search-serply-key"
-                type="password"
-                placeholder={t('settings.ai.api_key_placeholder')}
-                value={webSearchSettings.apiKey ?? ''}
-                onblur={(e) =>
-                  updateWebSearch({
-                    apiKey: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
-                  })}
-              />
-            </div>
+            {#if credLoaded}
+              <div class="card-field">
+                <CredentialField
+                  label={t('settings.ai.serply_key')}
+                  inputId="web-search-serply-key"
+                  placeholder={t('settings.ai.api_key_placeholder')}
+                  state={credStatus.webSearch['serply'] ?? 'notConfigured'}
+                  onSave={(secret) => saveWebSearchKey('serply', secret)}
+                  onRemove={() => removeWebSearchKey('serply')}
+                />
+              </div>
+            {/if}
             <p class="field-description">
               {t('settings.ai.serply_desc_pre')} <code>ASYAROS</code>{t(
                 'settings.ai.serply_desc_mid',

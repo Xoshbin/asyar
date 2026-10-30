@@ -237,6 +237,7 @@
       "password_optional_description": "加密匯出檔案中的敏感欄位。",
       "password_optional_placeholder": "留空則剔除敏感欄位",
       "sensitive_stripped_warning": "敏感欄位將從此次匯出中剔除。設定密碼可改為加密保留。",
+      "export_api_keys_note": "匯出不包含 API 金鑰。您需要在另一部裝置上的「設定 → AI」中重新輸入。",
       "export_backup": "匯出備份",
       "exporting": "匯出中……",
       "export_button": "匯出……",
@@ -393,6 +394,7 @@
       "error_auto_set_default": "無法自動設定預設 AI 代理。你可以用星號手動選擇。",
       "error_check_removable": "無法檢查是否可以安全移除此提供者。",
       "error_update_default_after_remove": "移除原提供者後無法更新預設代理。",
+      "error_remove_provider_key": "無法移除此提供者已儲存的金鑰。請重試。",
       "error_update_default": "無法更新預設 AI 代理。",
       "providers_hint_pre": "帶有",
       "providers_hint_post": "的提供者會在你於啟動器中按 Tab 時供 Asyar 助理使用。",
@@ -472,7 +474,16 @@
       "api_key_placeholder": "輸入你的 API 金鑰",
       "searxng_url": "SearXNG 基礎 URL",
       "searxng_desc_pre": "自行架設或公開的元搜尋實例，必須支援 JSON 格式（",
-      "searxng_desc_post": "）。"
+      "searxng_desc_post": "）。",
+      "key_saved": "金鑰已儲存",
+      "replace_key": "取代",
+      "remove_key": "移除",
+      "save_key": "儲存",
+      "cancel": "取消",
+      "saving": "正在儲存…",
+      "key_reentry_warning": "無法再讀取此金鑰。請重新輸入。",
+      "key_save_error": "無法儲存金鑰。請重試。",
+      "key_remove_error": "無法移除金鑰。請重試。"
     },
     "applications": {
       "no_match": "沒有匹配篩選條件的應用程式",

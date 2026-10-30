@@ -161,7 +161,7 @@ pub async fn ai_save_credential(
             "Credential secret cannot be empty".to_string(),
         ));
     }
-    let credential_id = target.to_credential_id();
+    let credential_id = target.to_credential_id()?;
     let conn = data_store.conn()?;
     crate::storage::ai_credentials::set(&conn, &credential_id, trimmed, keystore.master_key())?;
     Ok(())
@@ -172,10 +172,28 @@ pub async fn ai_delete_credential(
     target: CredentialTarget,
     data_store: tauri::State<'_, crate::storage::DataStore>,
 ) -> Result<bool, AppError> {
-    let credential_id = target.to_credential_id();
+    let credential_id = target.to_credential_id()?;
     let conn = data_store.conn()?;
     let deleted = crate::storage::ai_credentials::delete(&conn, &credential_id)?;
     Ok(deleted)
+}
+
+/// One state per keyed engine, so the UI can show each engine's own key independently.
+pub(crate) fn web_search_states(
+    cred_map: &std::collections::HashMap<String, CredentialState>,
+) -> std::collections::HashMap<String, CredentialState> {
+    crate::storage::ai_credentials::KEYED_WEB_SEARCH_ENGINES
+        .iter()
+        .map(|engine| {
+            let state = cred_map
+                .get(&crate::storage::ai_credentials::web_search_credential_id(
+                    engine,
+                ))
+                .copied()
+                .unwrap_or(CredentialState::NotConfigured);
+            (engine.to_string(), state)
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -216,10 +234,7 @@ pub async fn ai_get_credential_status(
         }
     }
 
-    let web_search = cred_map
-        .get("web_search")
-        .copied()
-        .unwrap_or(CredentialState::NotConfigured);
+    let web_search = web_search_states(&cred_map);
 
     Ok(AiCredentialStatus {
         providers,
@@ -261,7 +276,6 @@ mod tests {
 
         let config = ProviderConfig {
             enabled: true,
-            api_key: Some("key".to_string()),
             base_url: Some(format!("http://{}", addr)),
             ..Default::default()
         };
@@ -324,7 +338,6 @@ mod tests {
 
         let config = ProviderConfig {
             enabled: true,
-            api_key: Some("different-ipc-key".to_string()),
             base_url: Some(server.url()),
             ..Default::default()
         };
@@ -376,7 +389,6 @@ mod tests {
 
         let config = ProviderConfig {
             enabled: true,
-            api_key: Some("different-ipc-key".to_string()),
             base_url: Some(format!("{}/v1", server.url())),
             ..Default::default()
         };
@@ -388,5 +400,38 @@ mod tests {
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].id, "custom-model-1");
         m.assert_async().await;
+    }
+}
+
+#[cfg(test)]
+mod web_search_status_tests {
+    use super::*;
+    use crate::storage::ai_credentials::{self, CredentialState};
+
+    #[test]
+    fn web_search_status_is_reported_per_keyed_engine() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::storage::migrations::run(&conn).unwrap();
+        let key = [5u8; 32];
+        ai_credentials::set(&conn, "web_search:brave", "k", &key).unwrap();
+        ai_credentials::set(&conn, "web_search:serply", "k", &[6u8; 32]).unwrap();
+
+        let all = ai_credentials::list_all_statuses(&conn, &key).unwrap();
+        let states = web_search_states(&all);
+
+        assert_eq!(states.len(), 3);
+        assert_eq!(states["brave"], CredentialState::Configured);
+        assert_eq!(states["tavily"], CredentialState::NotConfigured);
+        assert_eq!(states["serply"], CredentialState::NeedsReentry);
+    }
+
+    #[test]
+    fn web_search_targets_for_unkeyed_engines_are_rejected() {
+        for engine in ["duckduckgo", "searxng", "bing", ""] {
+            let target = CredentialTarget::WebSearch {
+                engine: engine.into(),
+            };
+            assert!(target.to_credential_id().is_err(), "{engine:?}");
+        }
     }
 }

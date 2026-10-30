@@ -36,7 +36,8 @@ export type AgentStreamEvent = { type: "user_message_persisted" } | { type: "tex
 
 export type AiCredentialStatus = {
 	providers: { [key in string]: CredentialState },
-	webSearch: CredentialState,
+	// Keyed engine id (`brave`, `tavily`, `serply`) → state of that engine's own key.
+	webSearch: { [key in string]: CredentialState },
 };
 
 export type AliasConflict = {
@@ -173,7 +174,7 @@ export type Command = {
 
 export type CredentialState = "notConfigured" | "configured" | "needsReentry";
 
-export type CredentialTarget = { type: "provider"; id: string } | { type: "webSearch" };
+export type CredentialTarget = { type: "provider"; id: string } | { type: "webSearch"; engine: string };
 
 /**
  *  Represents a search result contributed by a frontend extension.
@@ -417,7 +418,6 @@ export type ProviderConfig = {
 	enabled: boolean,
 	name: string | null,
 	providerType: string | null,
-	apiKey: string | null,
 	baseUrl: string | null,
 	lastModelId: string | null,
 	openAIApiMode: string | null,
@@ -522,7 +522,6 @@ export type UpdateCommandMetadataInput = {
 
 export type WebSearchConfig = {
 	engine: string | null,
-	apiKey: string | null,
 	baseUrl: string | null,
 };
 

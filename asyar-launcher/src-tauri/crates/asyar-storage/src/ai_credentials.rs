@@ -19,14 +19,34 @@ pub enum CredentialTarget {
     #[serde(rename = "provider")]
     Provider { id: String },
     #[serde(rename = "webSearch")]
-    WebSearch,
+    WebSearch { engine: String },
+}
+
+/// Web-search engines that need an API key. Each has its own credential row, so a key
+/// can never be sent to a service it wasn't issued for.
+pub const KEYED_WEB_SEARCH_ENGINES: [&str; 3] = ["brave", "tavily", "serply"];
+
+pub fn is_keyed_web_search_engine(engine: &str) -> bool {
+    KEYED_WEB_SEARCH_ENGINES.contains(&engine)
+}
+
+/// Credential row id for a keyed web-search engine's API key.
+pub fn web_search_credential_id(engine: &str) -> String {
+    format!("web_search:{engine}")
 }
 
 impl CredentialTarget {
-    pub fn to_credential_id(&self) -> String {
+    pub fn to_credential_id(&self) -> Result<String, AppError> {
         match self {
-            CredentialTarget::Provider { id } => format!("provider:{id}"),
-            CredentialTarget::WebSearch => "web_search".to_string(),
+            CredentialTarget::Provider { id } => Ok(format!("provider:{id}")),
+            CredentialTarget::WebSearch { engine } => {
+                if !is_keyed_web_search_engine(engine) {
+                    return Err(AppError::Validation(format!(
+                        "Web search engine '{engine}' does not use an API key"
+                    )));
+                }
+                Ok(web_search_credential_id(engine))
+            }
         }
     }
 }
@@ -35,7 +55,8 @@ impl CredentialTarget {
 #[serde(rename_all = "camelCase")]
 pub struct AiCredentialStatus {
     pub providers: HashMap<String, CredentialState>,
-    pub web_search: CredentialState,
+    /// Keyed engine id (`brave`, `tavily`, `serply`) → state of that engine's own key.
+    pub web_search: HashMap<String, CredentialState>,
 }
 
 /// Initialize the `ai_credentials` table (tests only; production uses migration 8).
@@ -189,17 +210,38 @@ mod tests {
             CredentialTarget::Provider {
                 id: "openai".into()
             }
-            .to_credential_id(),
+            .to_credential_id()
+            .unwrap(),
             "provider:openai"
         );
         assert_eq!(
             CredentialTarget::Provider {
                 id: "custom_123".into()
             }
-            .to_credential_id(),
+            .to_credential_id()
+            .unwrap(),
             "provider:custom_123"
         );
-        assert_eq!(CredentialTarget::WebSearch.to_credential_id(), "web_search");
+        assert_eq!(
+            CredentialTarget::WebSearch {
+                engine: "brave".into()
+            }
+            .to_credential_id()
+            .unwrap(),
+            "web_search:brave"
+        );
+    }
+
+    #[test]
+    fn web_search_target_rejects_unkeyed_or_unknown_engines() {
+        for engine in ["duckduckgo", "searxng", "", "BRAVE", "../brave"] {
+            let err = CredentialTarget::WebSearch {
+                engine: engine.into(),
+            }
+            .to_credential_id()
+            .unwrap_err();
+            assert!(matches!(err, AppError::Validation(_)), "engine {engine:?}");
+        }
     }
 
     #[test]
@@ -284,7 +326,7 @@ mod tests {
 
         set(&conn, "provider:openai", "key-1", &key).unwrap();
         set(&conn, "provider:custom_1", "key-2", &key).unwrap();
-        set(&conn, "web_search", "key-3", &key).unwrap();
+        set(&conn, "web_search:brave", "key-3", &key).unwrap();
 
         let all = list_all_statuses(&conn, &key).unwrap();
         assert_eq!(all.len(), 3);
@@ -296,7 +338,10 @@ mod tests {
             all.get("provider:custom_1"),
             Some(&CredentialState::Configured)
         );
-        assert_eq!(all.get("web_search"), Some(&CredentialState::Configured));
+        assert_eq!(
+            all.get("web_search:brave"),
+            Some(&CredentialState::Configured)
+        );
     }
 
     #[test]
@@ -313,7 +358,7 @@ mod tests {
             &key,
         )
         .unwrap();
-        set(&conn, "web_search", "secret-test-brave", &key).unwrap();
+        set(&conn, "web_search:brave", "secret-test-brave", &key).unwrap();
 
         // 1. Initialize cloud sync tables in the same DB
         crate::cloud_sync_state::init_table(&conn).unwrap();
@@ -324,7 +369,7 @@ mod tests {
                 "SELECT COUNT(*) FROM cloud_sync_items_journal
                  WHERE category_id IN ('ai_credentials', 'credentials', 'ai')
                     OR item_id LIKE 'provider:%'
-                    OR item_id = 'web_search'",
+                    OR item_id LIKE 'web_search%'",
                 [],
                 |row| row.get(0),
             )

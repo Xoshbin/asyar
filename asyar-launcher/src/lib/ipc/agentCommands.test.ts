@@ -23,6 +23,9 @@ import {
   agentsRunThread,
   agentsSeedGrammarFix,
   agentsUpsertDefault,
+  aiSaveCredential,
+  aiDeleteCredential,
+  aiGetCredentialStatus,
 } from './commands';
 import type { AgentDef } from '../../built-in-features/agents/types';
 import type { AgentRunConfig } from './commands';
@@ -31,7 +34,7 @@ import type { AgentStreamEvent } from '../../bindings';
 
 const config: AgentRunConfig = {
   providers: [],
-  configs: { openai: { enabled: true, apiKey: 'test-key' } },
+  configs: { openai: { enabled: true } },
   defaultAgentId: null,
   temperature: 0.25,
   maxTokens: 123,
@@ -201,22 +204,20 @@ describe('agent runner commands', () => {
       selectedModelId: 'gpt-4o',
     });
 
-    await expect(
-      agentsEditorListModels('openai', { enabled: true, apiKey: 'secret' }, ''),
-    ).resolves.toEqual({
+    await expect(agentsEditorListModels('openai', { enabled: true }, '')).resolves.toEqual({
       models: [{ id: 'gpt-4o', label: 'GPT-4o', reasoningEfforts: undefined }],
       selectedModelId: 'gpt-4o',
     });
     expect(invokeRaw).toHaveBeenCalledWith('agents_editor_list_models', {
       providerId: 'openai',
-      config: { enabled: true, apiKey: 'secret' },
+      config: { enabled: true },
       currentModelId: '',
     });
   });
 
   it('asks Rust for the reason a provider removal is blocked, ready to display', async () => {
     const configs = {
-      openai: { enabled: true, apiKey: 'secret' },
+      openai: { enabled: true },
     } as any;
     const providers = [
       {
@@ -264,6 +265,39 @@ describe('agent runner commands', () => {
       engine: 'anthropic',
       connectionMode: 'cli',
       tools: ['builtin:calc', 'extension:tool1'],
+    });
+  });
+
+  describe('credential commands', () => {
+    it('aiSaveCredential invokes ai_save_credential', async () => {
+      vi.mocked(invokeRaw).mockResolvedValueOnce(undefined);
+      await aiSaveCredential({ type: 'provider', id: 'openai' }, 'sk-secret');
+      expect(invokeRaw).toHaveBeenCalledWith('ai_save_credential', {
+        target: { type: 'provider', id: 'openai' },
+        secret: 'sk-secret',
+      });
+    });
+
+    it('aiDeleteCredential invokes ai_delete_credential', async () => {
+      vi.mocked(invokeRaw).mockResolvedValueOnce(true);
+      const res = await aiDeleteCredential({ type: 'webSearch', engine: 'brave' });
+      expect(res).toBe(true);
+      expect(invokeRaw).toHaveBeenCalledWith('ai_delete_credential', {
+        target: { type: 'webSearch', engine: 'brave' },
+      });
+    });
+
+    it('aiGetCredentialStatus invokes ai_get_credential_status', async () => {
+      vi.mocked(invokeRaw).mockResolvedValueOnce({
+        providers: { openai: 'configured' },
+        webSearch: { brave: 'notConfigured' },
+      });
+      const res = await aiGetCredentialStatus();
+      expect(res).toEqual({
+        providers: { openai: 'configured' },
+        webSearch: { brave: 'notConfigured' },
+      });
+      expect(invokeRaw).toHaveBeenCalledWith('ai_get_credential_status');
     });
   });
 });

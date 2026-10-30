@@ -42,10 +42,9 @@ fn provider(id: &str, requires_api_key: bool, requires_base_url: bool) -> AgentP
     }
 }
 
-fn config(enabled: bool, api_key: Option<&str>, base_url: Option<&str>) -> ProviderConfig {
+fn config(enabled: bool, _api_key: Option<&str>, base_url: Option<&str>) -> ProviderConfig {
     ProviderConfig {
         enabled,
-        api_key: api_key.map(str::to_owned),
         base_url: base_url.map(str::to_owned),
         ..Default::default()
     }

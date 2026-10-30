@@ -594,16 +594,11 @@ mod tests {
         }
     }
 
-    fn provider_config(
-        enabled: bool,
-        api_key: Option<&str>,
-        base_url: Option<&str>,
-    ) -> crate::ai::types::ProviderConfig {
+    fn provider_config(enabled: bool, base_url: Option<&str>) -> crate::ai::types::ProviderConfig {
         crate::ai::types::ProviderConfig {
             enabled,
             name: None,
             provider_type: None,
-            api_key: api_key.map(str::to_owned),
             base_url: base_url.map(str::to_owned),
             ..Default::default()
         }
@@ -637,7 +632,7 @@ mod tests {
         agent.model_id = "claude-sonnet-5".to_string();
         insert_agent(&conn, &agent).unwrap();
         let providers = vec![provider("anthropic", true, false)];
-        let configs = HashMap::from([("anthropic".to_string(), provider_config(true, None, None))]);
+        let configs = HashMap::from([("anthropic".to_string(), provider_config(true, None))]);
         crate::storage::ai_credentials::set(
             &conn,
             "provider:anthropic",
@@ -667,8 +662,8 @@ mod tests {
             provider("anthropic", true, false),
         ];
         let configs = HashMap::from([
-            ("ollama".to_string(), provider_config(false, None, None)),
-            ("anthropic".to_string(), provider_config(true, None, None)),
+            ("ollama".to_string(), provider_config(false, None)),
+            ("anthropic".to_string(), provider_config(true, None)),
         ]);
         crate::storage::ai_credentials::set(
             &conn,
@@ -709,7 +704,7 @@ mod tests {
         let default_agent =
             upsert_default_agent(&conn, None, "anthropic", "claude-sonnet-5").unwrap();
         let providers = vec![provider("anthropic", true, false)];
-        let configs = HashMap::from([("anthropic".to_string(), provider_config(true, None, None))]);
+        let configs = HashMap::from([("anthropic".to_string(), provider_config(true, None))]);
         crate::storage::ai_credentials::set(
             &conn,
             "provider:anthropic",
@@ -748,8 +743,8 @@ mod tests {
         ];
         // Note: anthropic has no credential stored, but openrouter does.
         let configs = HashMap::from([
-            ("anthropic".to_string(), provider_config(true, None, None)),
-            ("openrouter".to_string(), provider_config(true, None, None)),
+            ("anthropic".to_string(), provider_config(true, None)),
+            ("openrouter".to_string(), provider_config(true, None)),
         ]);
         crate::storage::ai_credentials::set(
             &conn,
@@ -781,7 +776,7 @@ mod tests {
         agent.id = "default-agent".to_string();
         insert_agent(&conn, &agent).unwrap();
         let providers = vec![provider("ollama", false, true)];
-        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None, None))]);
+        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None))]);
 
         let (resolved, healed) = resolve_runnable_agent(
             &conn,
@@ -804,7 +799,7 @@ mod tests {
         let agent = emoji_fallback_agent();
         insert_agent(&conn, &agent).unwrap();
         let providers = vec![provider("ollama", false, true)];
-        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None, None))]);
+        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None))]);
 
         let (resolved, healed) =
             resolve_runnable_agent(&conn, &master_key, &agent.id, None, &providers, &configs)
@@ -826,8 +821,8 @@ mod tests {
             provider("openai", true, false),
         ];
         let configs = HashMap::from([
-            ("ollama".to_string(), provider_config(false, None, None)),
-            ("openai".to_string(), provider_config(false, None, None)),
+            ("ollama".to_string(), provider_config(false, None)),
+            ("openai".to_string(), provider_config(false, None)),
         ]);
 
         let (resolved, healed) = resolve_runnable_agent(
@@ -879,8 +874,8 @@ mod tests {
 
         // Notice: configs have NO api_key!
         let configs = HashMap::from([
-            ("openai".to_string(), provider_config(true, None, None)),
-            ("anthropic".to_string(), provider_config(true, None, None)),
+            ("openai".to_string(), provider_config(true, None)),
+            ("anthropic".to_string(), provider_config(true, None)),
         ]);
 
         // Key exists ONLY in ai_credentials
@@ -931,8 +926,8 @@ mod tests {
         ];
 
         let configs = HashMap::from([
-            ("openai".to_string(), provider_config(true, None, None)),
-            ("anthropic".to_string(), provider_config(true, None, None)),
+            ("openai".to_string(), provider_config(true, None)),
+            ("anthropic".to_string(), provider_config(true, None)),
         ]);
 
         // Key was encrypted under old_master_key

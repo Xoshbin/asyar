@@ -93,7 +93,6 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     webSearch: settings.ai.webSearch
       ? {
           engine: settings.ai.webSearch.engine,
-          apiKey: settings.ai.webSearch.apiKey ?? null,
           baseUrl: settings.ai.webSearch.baseUrl ?? null,
         }
       : undefined,

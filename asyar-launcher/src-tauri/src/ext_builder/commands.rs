@@ -38,10 +38,7 @@ pub async fn ext_builder_start(
     prompt: String,
     target_dir: String,
     capability_spec_dir: String,
-    _anthropic_key: String,
 ) -> Result<ExtBuilderStartResponse, String> {
-    log::debug!("[ext_builder] Ignoring frontend-supplied anthropic_key; resolving from ai_credentials store");
-
     use tauri::Manager;
     let db = app.state::<crate::storage::DataStore>();
     let ks = app.state::<crate::crypto::keystore::KeystoreState>();

@@ -54,7 +54,6 @@ pub struct ProviderConfig {
     pub enabled: bool,
     pub name: Option<String>,
     pub provider_type: Option<String>,
-    pub api_key: Option<String>,
     pub base_url: Option<String>,
     pub last_model_id: Option<String>,
     #[serde(rename = "openAIApiMode")]
@@ -179,4 +178,32 @@ pub struct GeminiGrounding {
 pub struct GroundingSource {
     pub title: String,
     pub url: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_provider_config_deserialization_ignores_incoming_api_key() {
+        let json = r#"{
+            "enabled": true,
+            "apiKey": "sk-legacy-incoming-secret-key",
+            "name": "OpenAI",
+            "baseUrl": "https://api.openai.com/v1"
+        }"#;
+        let config: ProviderConfig =
+            serde_json::from_str(json).expect("deserialization with apiKey must succeed");
+        assert!(config.enabled);
+        assert_eq!(config.name.as_deref(), Some("OpenAI"));
+        assert_eq!(
+            config.base_url.as_deref(),
+            Some("https://api.openai.com/v1")
+        );
+
+        // Reserializing must not produce an apiKey field
+        let serialized = serde_json::to_string(&config).unwrap();
+        assert!(!serialized.contains("apiKey"));
+        assert!(!serialized.contains("api_key"));
+    }
 }

@@ -383,7 +383,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
           google: { enabled: true, apiKey: secretKeys[2] },
           openrouter: { enabled: true, apiKey: secretKeys[3] },
           custom: { enabled: true, apiKey: secretKeys[4] },
-        },
+        } as any,
         temperature: 0.7,
         maxTokens: 2048,
         defaultAgentId: null,
@@ -393,7 +393,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
           engine: 'brave',
           apiKey: secretKeys[5],
           baseUrl: 'https://api.search.brave.com',
-        },
+        } as any,
       };
 
       const seededSettings = {

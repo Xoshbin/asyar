@@ -215,7 +215,6 @@ async fn test_silent_runner_rejects_non_silent_agent() {
     };
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some("http://127.0.0.1:9".to_string()),
         ..Default::default()
     };
@@ -283,7 +282,6 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
 
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{port}")),
         ..Default::default()
     };
@@ -366,7 +364,6 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
     .unwrap();
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some("http://127.0.0.1:9".to_string()),
         ..Default::default()
     };
@@ -464,7 +461,6 @@ async fn test_run_thread_loop_text_only() {
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -617,7 +613,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -756,7 +751,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -878,7 +872,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
     let registry = Arc::new(ToolRegistry::new());
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -943,7 +936,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
 fn valid_openai_config() -> crate::ai::types::ProviderConfig {
     crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("sk-test".to_string()),
         ..Default::default()
     }
 }
@@ -972,8 +964,12 @@ fn resolve_provider_config_uses_stored_key_even_when_ipc_config_carries_differen
     )
     .unwrap();
 
-    let mut config = valid_openai_config();
-    config.api_key = Some("sk-different-ipc-key".to_string());
+    // Deserializing an IPC payload that carries legacy apiKey
+    let config: crate::ai::types::ProviderConfig = serde_json::from_value(serde_json::json!({
+        "enabled": true,
+        "apiKey": "sk-different-ipc-key"
+    }))
+    .unwrap();
 
     let configs = std::collections::HashMap::from([("openai".to_string(), config)]);
     let resolved =
@@ -984,10 +980,6 @@ fn resolve_provider_config_uses_stored_key_even_when_ipc_config_carries_differen
         resolved.api_key.as_deref().map(|s| s.as_str()),
         Some("sk-stored-encrypted-key"),
         "Runner must use stored key from ai_credentials, ignoring different key in IPC config"
-    );
-    assert_eq!(
-        resolved.config.api_key, None,
-        "IPC-facing config must have its apiKey stripped"
     );
 }
 
@@ -1079,8 +1071,7 @@ fn resolve_provider_config_succeeds_for_a_named_connection_id() {
 #[test]
 fn resolve_provider_config_errors_when_api_key_is_missing() {
     let (conn, master_key) = test_db_and_key();
-    let mut config = valid_openai_config();
-    config.api_key = None;
+    let config = valid_openai_config();
     let configs = std::collections::HashMap::from([("anthropic".to_string(), config)]);
     let error = resolve_provider_config("anthropic", &configs, &conn, &master_key).unwrap_err();
     assert!(error
@@ -1104,7 +1095,6 @@ fn resolve_provider_config_errors_when_base_url_is_missing() {
 fn resolve_provider_config_handles_cli_mode() {
     let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
-    config.api_key = None;
     config.connection_mode = Some("cli".to_string());
     config.cli_binary_path = Some("/non/existent/path/codex".to_string());
     let configs = std::collections::HashMap::from([("openai".to_string(), config.clone())]);
@@ -1131,7 +1121,6 @@ fn resolve_provider_config_allows_anthropic_cli_mode() {
         .to_string_lossy()
         .to_string();
     let mut config = valid_openai_config();
-    config.api_key = None;
     config.provider_type = Some("anthropic".to_string());
     config.connection_mode = Some("cli".to_string());
     config.cli_binary_path = Some(current_exe);
@@ -1272,7 +1261,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
     seed_test_credential(&store, "openai", "test-key");
     crate::storage::ai_credentials::set(
         &store.conn().unwrap(),
-        "web_search",
+        "web_search:brave",
         "test-search-key",
         &TEST_MASTER_KEY,
     )
@@ -1280,7 +1269,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -1665,7 +1653,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Hello!\"}}]}\n\ndata: [DONE]\n\n";
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
         provider_type: Some("openai".to_string()),
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{port}")),
         connection_mode: None, // API mode
         ..Default::default()
