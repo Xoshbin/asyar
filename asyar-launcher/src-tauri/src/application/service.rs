@@ -321,9 +321,9 @@ pub fn sync_application_index<R: tauri::Runtime>(
 /// switching macOS to German would go on seeing "Photos", and so would every
 /// install that was indexed before this resolution was fixed.
 ///
-/// Only the name is copied over. `usage_count` and `last_used_at` live on the
-/// indexed item and are absent from a freshly scanned one, so swapping the
-/// whole struct would silently reset every app's frecency on each scan.
+/// The name and icon are copied over. `usage_count` and `last_used_at` live
+/// on the indexed item and are absent from a freshly scanned one, so swapping
+/// the whole struct would silently reset every app's frecency on each scan.
 fn refresh_display_names(
     items: &mut [SearchableItem],
     scanned: &HashMap<String, Application>,
@@ -339,6 +339,9 @@ fn refresh_display_names(
         if indexed.name != fresh.name {
             indexed.name.clone_from(&fresh.name);
             renamed += 1;
+        }
+        if indexed.icon != fresh.icon {
+            indexed.icon.clone_from(&fresh.icon);
         }
     }
     renamed
@@ -1082,7 +1085,14 @@ fn icon_source_mtime(app_path: &Path) -> Option<std::time::SystemTime> {
             }
         }
     }
-    best.or_else(|| resources.metadata().ok()?.modified().ok())
+    // Adding or removing a file bumps the directory even when the surviving
+    // icon files are older than the cache.
+    if let Ok(modified) = resources.metadata().and_then(|meta| meta.modified()) {
+        if best.map(|current| modified > current).unwrap_or(true) {
+            best = Some(modified);
+        }
+    }
+    best
 }
 
 fn cached_icon_is_fresh(cached: &Path, source_mtime: Option<std::time::SystemTime>) -> bool {
@@ -1456,6 +1466,23 @@ mod tests {
         );
         assert_eq!(items[0].get_name(), "Safari");
         assert_eq!(items[1].get_name(), "Ghost");
+    }
+
+    #[test]
+    fn test_refresh_display_names_updates_a_recovered_icon_without_resetting_frecency() {
+        let mut items = vec![indexed_app("app_Happ", "Happ", 9)];
+        let (id, mut fresh) = scanned_app("app_Happ", "Happ");
+        fresh.icon = Some("asyar-icon://localhost/happ.png".to_string());
+        let scanned = HashMap::from([(id, fresh)]);
+
+        assert_eq!(refresh_display_names(&mut items, &scanned), 0);
+
+        let SearchableItem::Application(app) = &items[0] else {
+            panic!("item must stay an application");
+        };
+        assert_eq!(app.icon.as_deref(), Some("asyar-icon://localhost/happ.png"));
+        assert_eq!(app.usage_count, 9);
+        assert_eq!(app.last_used_at, Some(1_700_000_000));
     }
 
     #[test]
@@ -2232,6 +2259,49 @@ mod tests {
         if result.is_none() {
             assert!(bytes.is_none());
         }
+    }
+
+    #[test]
+    fn test_extract_app_icon_drops_cache_when_resource_dir_is_newer() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+        let app = tmp.path().join("Demo.app");
+        let resources = app.join("Contents/Resources");
+        std::fs::create_dir_all(&resources).unwrap();
+        let icns = resources.join("Icon.icns");
+        std::fs::write(&icns, b"icns").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&icns)
+            .unwrap()
+            .set_modified(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap();
+
+        let cached = cache_dir.join(format!(
+            "{}.png",
+            app.to_string_lossy()
+                .replace(['/', '\\', ':', ' '], "_")
+                .replace(".app", "")
+        ));
+        std::fs::write(&cached, b"stale").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&cached)
+            .unwrap()
+            .set_modified(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap();
+        // Touch the directory after the icon file and the cache are both old.
+        std::fs::File::open(&resources)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now())
+            .unwrap();
+
+        let bytes = std::fs::read(&cached).ok();
+        let _ = extract_app_icon(app.to_str().unwrap(), &cache_dir);
+        let after = std::fs::read(&cached).ok();
+        assert_ne!(bytes, after);
+        assert_ne!(after.as_deref(), Some(b"stale".as_slice()));
     }
 
     #[test]
