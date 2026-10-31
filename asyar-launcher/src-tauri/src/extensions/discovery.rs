@@ -403,7 +403,8 @@ pub fn get_builtin_records() -> Vec<ExtensionRecord> {
             let mut records = Vec::with_capacity(raw_manifests.len());
             for (id, raw) in raw_manifests {
                 match serde_json::from_str::<ExtensionManifest>(raw) {
-                    Ok(manifest) => {
+                    Ok(mut manifest) => {
+                        manifest.resolve_icons();
                         let disableable = manifest
                             .lifecycle
                             .as_ref()
@@ -626,6 +627,7 @@ mod background_entry_resolution_tests {
 
     fn manifest_with_worker(main: &str) -> ExtensionManifest {
         ExtensionManifest {
+            resolved_icon: None,
             id: "test.worker".into(),
             name: "Worker".into(),
             version: "1.0.0".into(),
@@ -679,9 +681,10 @@ mod background_entry_resolution_tests {
 /// Read and parse a single manifest.json file
 pub fn read_manifest(path: &Path) -> Result<ExtensionManifest, AppError> {
     let content = std::fs::read_to_string(path).map_err(AppError::Io)?;
-    let manifest: ExtensionManifest = serde_json::from_str(&content).map_err(AppError::Json)?;
+    let mut manifest: ExtensionManifest = serde_json::from_str(&content).map_err(AppError::Json)?;
     validate_manifest(&manifest)?;
     crate::extensions::validate_permission_args(&manifest)?;
+    manifest.resolve_icons();
     Ok(manifest)
 }
 
@@ -795,6 +798,7 @@ mod first_view_component_tests {
 
     fn manifest_with_commands(commands: Vec<ExtensionCommand>) -> ExtensionManifest {
         ExtensionManifest {
+            resolved_icon: None,
             id: "test".into(),
             name: "Test".into(),
             version: "1.0.0".into(),
@@ -822,6 +826,7 @@ mod first_view_component_tests {
 
     fn view_cmd(id: &str, component: &str) -> ExtensionCommand {
         ExtensionCommand {
+            resolved_icon: None,
             id: id.into(),
             name: id.into(),
             description: String::new(),
@@ -841,6 +846,7 @@ mod first_view_component_tests {
 
     fn bg_cmd(id: &str) -> ExtensionCommand {
         ExtensionCommand {
+            resolved_icon: None,
             id: id.into(),
             name: id.into(),
             description: String::new(),
@@ -890,6 +896,7 @@ mod first_view_component_tests {
         // mode defaults to "view" per schema rules, but we only return a
         // component if it is present and non-empty.
         let m = manifest_with_commands(vec![ExtensionCommand {
+            resolved_icon: None,
             id: "open".into(),
             name: "Open".into(),
             description: String::new(),
@@ -922,6 +929,7 @@ mod first_view_component_tests {
         // A command with no explicit mode but with a component is treated as
         // view (mode defaults to "view"). It should be returned.
         let m = manifest_with_commands(vec![ExtensionCommand {
+            resolved_icon: None,
             id: "open".into(),
             name: "Open".into(),
             description: String::new(),
@@ -948,6 +956,7 @@ mod onboarding_validation_tests {
 
     fn manifest_with_commands(commands: Vec<ExtensionCommand>) -> ExtensionManifest {
         ExtensionManifest {
+            resolved_icon: None,
             id: "test".into(),
             name: "Test".into(),
             version: "1.0.0".into(),
@@ -975,6 +984,7 @@ mod onboarding_validation_tests {
 
     fn view_cmd(id: &str, component: &str) -> ExtensionCommand {
         ExtensionCommand {
+            resolved_icon: None,
             id: id.into(),
             name: id.into(),
             description: String::new(),
@@ -1013,6 +1023,7 @@ mod onboarding_validation_tests {
     #[test]
     fn validate_manifest_rejects_onboarding_pointing_at_background_command() {
         let bg = ExtensionCommand {
+            resolved_icon: None,
             id: "setup".to_string(),
             name: "setup".to_string(),
             description: String::new(),
@@ -1103,6 +1114,7 @@ mod compatibility_tests {
 
     fn test_manifest(asyar_sdk: Option<&str>, min_app_version: Option<&str>) -> ExtensionManifest {
         ExtensionManifest {
+            resolved_icon: None,
             id: "test.extension".to_string(),
             name: "Test".to_string(),
             version: "1.0.0".to_string(),
@@ -1401,6 +1413,7 @@ mod discovery_tests {
     #[test]
     fn test_schedule_validation_strips_invalid() {
         let mut cmd = ExtensionCommand {
+            resolved_icon: None,
             id: "test".to_string(),
             name: "Test".to_string(),
             description: String::new(),
@@ -1430,6 +1443,7 @@ mod discovery_tests {
     #[test]
     fn test_schedule_validation_preserves_valid() {
         let mut cmd = ExtensionCommand {
+            resolved_icon: None,
             id: "test".to_string(),
             name: "Test".to_string(),
             description: String::new(),
@@ -1690,6 +1704,7 @@ mod manifest_schema_tests {
 
         fn action(id: &str, title: &str) -> ManifestAction {
             ManifestAction {
+                resolved_icon: None,
                 id: id.to_string(),
                 title: title.to_string(),
                 description: None,
@@ -2368,6 +2383,7 @@ mod manifest_schema_tests {
         };
 
         let manifest = ExtensionManifest {
+            resolved_icon: None,
             id: "org.test.bad-accessory".into(),
             name: "Bad Accessory".into(),
             version: "1.0.0".into(),
@@ -2381,6 +2397,7 @@ mod manifest_schema_tests {
             searchable: None,
             icon: None,
             commands: vec![ExtensionCommand {
+                resolved_icon: None,
                 id: "tick".into(),
                 name: "Tick".into(),
                 description: String::new(),

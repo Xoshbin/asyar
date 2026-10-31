@@ -19,7 +19,9 @@ import { logService } from '../../services/log/logService';
 import { initVerboseLoggingSync } from '../../services/log/verboseLoggingSync.svelte';
 import { agentService } from '../../built-in-features/agents/agentService.svelte';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
-import type { ExtensionCommand, PreferenceDeclaration } from 'asyar-sdk/contracts';
+import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
+import type { ResolvedIcon } from '../../bindings';
+import type { HostCommand } from '../../types/ExtendedManifest';
 
 // Define interface for extension items with enabled status
 export interface ExtensionItem {
@@ -27,13 +29,13 @@ export interface ExtensionItem {
   subtitle?: string;
   keywords?: string;
   type?: string;
-  iconUrl?: string;
+  icon?: ResolvedIcon;
   version?: string;
   action?: () => void;
   enabled?: boolean;
   id?: string;
   compatibility?: CompatibilityStatus;
-  commands?: ExtensionCommand[];
+  commands?: HostCommand[];
   preferences?: any[];
   isBuiltIn?: boolean;
   disableable?: boolean;

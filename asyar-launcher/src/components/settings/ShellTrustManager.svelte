@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, EmptyState, SettingsCard } from '../index';
+  import { AppIcon, Button, EmptyState, SettingsCard } from '../index';
+  import type { ResolvedIcon } from '../../bindings';
   import {
     shellListTrusted,
     shellRevokeTrust,
@@ -14,7 +15,7 @@
   interface GroupedTrust {
     extensionId: string;
     extensionName: string;
-    extensionIcon?: string;
+    extensionIcon?: ResolvedIcon;
     binaries: TrustedBinary[];
   }
 
@@ -51,9 +52,7 @@
           results.push({
             extensionId: record.manifest.id,
             extensionName: record.manifest.name,
-            extensionIcon: record.manifest.icon
-              ? `asyar-icon://${record.manifest.id}/${record.manifest.icon}`
-              : undefined,
+            extensionIcon: record.manifest.resolvedIcon,
             binaries: binaries.sort((a, b) => b.trustedAt - a.trustedAt),
           });
         }
@@ -130,13 +129,13 @@
         {#each groupedTrusts as group}
           <div class="trust-group">
             <div class="trust-group-header">
-              {#if group.extensionIcon}
-                <img src={group.extensionIcon} alt="" class="trust-icon" />
-              {:else}
-                <div class="trust-icon trust-icon-fallback">
-                  {group.extensionName.charAt(0).toUpperCase()}
-                </div>
-              {/if}
+              <AppIcon icon={group.extensionIcon} size={20}>
+                {#snippet fallback()}
+                  <div class="trust-icon trust-icon-fallback">
+                    {group.extensionName.charAt(0).toUpperCase()}
+                  </div>
+                {/snippet}
+              </AppIcon>
               <span class="trust-name">{group.extensionName}</span>
               <span class="trust-id text-mono">{group.extensionId}</span>
             </div>

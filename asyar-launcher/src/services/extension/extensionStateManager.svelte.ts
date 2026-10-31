@@ -118,26 +118,6 @@ export class ExtensionStateManager {
 
       for (const record of records ?? []) {
         const manifest = record.manifest;
-        const rawIcon = (manifest as { icon?: string }).icon;
-        let iconUrl: string | undefined;
-        if (rawIcon) {
-          const isSystemScheme =
-            rawIcon.startsWith('icon:') ||
-            rawIcon.startsWith('asyar-icon://') ||
-            rawIcon.startsWith('asyar-extension://') ||
-            rawIcon.startsWith('data:image') ||
-            rawIcon.startsWith('http://') ||
-            rawIcon.startsWith('https://') ||
-            rawIcon.startsWith('file://') ||
-            rawIcon.startsWith('/');
-          if (isSystemScheme) {
-            iconUrl = rawIcon;
-          } else if (rawIcon.includes('.') || rawIcon.includes('/')) {
-            iconUrl = `asyar-extension://${manifest.id}/${rawIcon}`;
-          } else {
-            iconUrl = rawIcon;
-          }
-        }
         allExtensionsData.push({
           title: manifest.name,
           subtitle: manifest.description || '',
@@ -149,7 +129,7 @@ export class ExtensionStateManager {
           enabled: record.enabled,
           id: manifest.id,
           version: manifest.version || 'N/A',
-          iconUrl,
+          icon: (manifest as ExtendedManifest).resolvedIcon,
           isBuiltIn: record.isBuiltIn,
           disableable: record.disableable ?? this.isExtensionDisableable(manifest.id),
           compatibility: record.compatibility,

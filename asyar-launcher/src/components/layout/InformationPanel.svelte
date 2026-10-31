@@ -1,29 +1,22 @@
 <script lang="ts">
-  import type { ExtensionManifest } from 'asyar-sdk/contracts';
+  import type { ExtendedManifest } from '../../types/ExtendedManifest';
   import { viewManager } from '../../services/extension/viewManager.svelte';
-  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
-  import Icon from '../base/Icon.svelte';
+  import AppIcon from '../base/AppIcon.svelte';
 
   let {
     activeViewManifest = null,
   }: {
-    activeViewManifest?: ExtensionManifest | null;
+    activeViewManifest?: ExtendedManifest | null;
   } = $props();
 
-  let icon = $derived(activeViewManifest?.icon ?? '🧩');
+  let icon = $derived(activeViewManifest?.resolvedIcon ?? '🧩');
   let name = $derived(activeViewManifest?.name ?? '');
 </script>
 
 {#if activeViewManifest}
   <div class="info-chip">
     <span class="info-chip-badge">
-      {#if isBuiltInIcon(icon)}
-        <Icon name={getBuiltInIconName(icon)} size={14} />
-      {:else if isIconImage(icon)}
-        <img src={icon} alt="" class="info-chip-img" />
-      {:else}
-        <span class="info-chip-emoji">{icon}</span>
-      {/if}
+      <AppIcon {icon} size={14} />
     </span>
     <span class="info-chip-label">{name}</span>
     {#if viewManager.activeViewSubtitle}
@@ -53,15 +46,6 @@
     border-radius: var(--radius-sm);
     background-color: var(--accent-primary-fill);
     color: var(--text-on-accent);
-  }
-  .info-chip-img {
-    width: var(--size-xs);
-    height: var(--size-xs);
-    object-fit: contain;
-  }
-  .info-chip-emoji {
-    font-size: var(--font-size-md);
-    line-height: 1;
   }
   .info-chip-label {
     font-weight: 600;

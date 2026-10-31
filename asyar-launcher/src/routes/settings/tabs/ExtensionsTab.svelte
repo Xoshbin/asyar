@@ -19,7 +19,7 @@
     openCreateExtension,
   } from '../../../lib/ipc/commands';
   import { filterExtensions, type ExtensionFilter } from './extensionFilters';
-  import type { ExtensionCommand } from 'asyar-sdk/contracts';
+  import type { HostCommand } from '../../../types/ExtendedManifest';
   import { onMount } from 'svelte';
   import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
   import { aliasService } from '../../../built-in-features/aliases/aliasService';
@@ -34,7 +34,7 @@
   import { toDisplayString } from '../../../built-in-features/shortcuts/shortcutFormatter';
   import KeyboardHint from '../../../components/base/KeyboardHint.svelte';
   import { logService } from '../../../services/log/logService';
-  import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../../lib/iconUtils';
+  import AppIcon from '../../../components/base/AppIcon.svelte';
   type AliasEditTarget = {
     objectId: string;
     name: string;
@@ -44,7 +44,6 @@
   type ShortcutEditTarget = {
     objectId: string;
     name: string;
-    icon?: string;
   };
 
   let editingAliasTarget = $state<AliasEditTarget | null>(null);
@@ -64,7 +63,7 @@
     return `cmd_${extensionId}_${cmdId}`;
   }
 
-  function openAliasCaptureForCommand(ext: ExtensionItem, cmd: ExtensionCommand): void {
+  function openAliasCaptureForCommand(ext: ExtensionItem, cmd: HostCommand): void {
     if (!ext.id) return;
     const objectId = commandObjectId(ext.id, cmd.id);
     editingAliasTarget = {
@@ -74,10 +73,7 @@
     };
   }
 
-  async function handleRemoveCommandAlias(
-    ext: ExtensionItem,
-    cmd: ExtensionCommand,
-  ): Promise<void> {
+  async function handleRemoveCommandAlias(ext: ExtensionItem, cmd: HostCommand): Promise<void> {
     if (!ext.id) return;
     const alias = aliasStore.byObjectId.get(commandObjectId(ext.id, cmd.id));
     if (!alias) return;
@@ -89,12 +85,11 @@
     }
   }
 
-  function openShortcutCaptureForCommand(ext: ExtensionItem, cmd: ExtensionCommand): void {
+  function openShortcutCaptureForCommand(ext: ExtensionItem, cmd: HostCommand): void {
     if (!ext.id) return;
     editingShortcutTarget = {
       objectId: commandObjectId(ext.id, cmd.id),
       name: cmd.name,
-      icon: cmd.icon,
     };
   }
 
@@ -109,8 +104,6 @@
       editingShortcutTarget.name,
       'command',
       shortcut,
-      undefined,
-      editingShortcutTarget.icon,
     );
     if (!result.ok) {
       const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';
@@ -119,10 +112,7 @@
     return true;
   }
 
-  async function handleRemoveCommandShortcut(
-    ext: ExtensionItem,
-    cmd: ExtensionCommand,
-  ): Promise<void> {
+  async function handleRemoveCommandShortcut(ext: ExtensionItem, cmd: HostCommand): Promise<void> {
     if (!ext.id) return;
     try {
       await shortcutService.unregister(commandObjectId(ext.id, cmd.id));
@@ -216,7 +206,7 @@
     handler.extensions.find((e) => (e.id ?? e.title) === selectedExtensionId) ?? null,
   );
 
-  let selectedCommand = $derived.by<{ cmd: ExtensionCommand; parent: ExtensionItem } | null>(() => {
+  let selectedCommand = $derived.by<{ cmd: HostCommand; parent: ExtensionItem } | null>(() => {
     if (!selectedCommandId || !selectedExtensionId) return null;
     const ext = handler.extensions.find((e) => (e.id ?? e.title) === selectedExtensionId);
     const cmd = ext?.commands?.find((c) => c.id === selectedCommandId);
@@ -249,7 +239,7 @@
     handler.pendingExtensionSelection = null;
   });
 
-  function selectCommand(ext: ExtensionItem, cmd: ExtensionCommand) {
+  function selectCommand(ext: ExtensionItem, cmd: HostCommand) {
     selectedExtensionId = ext.id ?? ext.title;
     selectedCommandId = cmd.id;
   }
@@ -311,15 +301,11 @@
           </svg>
         </button>
         <div class="ext-icon shrink-0">
-          {#if ext.iconUrl && isBuiltInIcon(ext.iconUrl)}
-            <Icon name={getBuiltInIconName(ext.iconUrl)} size={20} />
-          {:else if ext.iconUrl && isIconImage(ext.iconUrl)}
-            <img src={ext.iconUrl} alt={ext.title} class="ext-icon-img" />
-          {:else if ext.iconUrl}
-            <span class="ext-icon-emoji">{ext.iconUrl}</span>
-          {:else}
-            <span class="ext-icon-letter">{ext.title[0]?.toUpperCase() ?? 'E'}</span>
-          {/if}
+          <AppIcon icon={ext.icon} size={20} alt={ext.title}>
+            {#snippet fallback()}
+              <span class="ext-icon-letter">{ext.title[0]?.toUpperCase() ?? 'E'}</span>
+            {/snippet}
+          </AppIcon>
         </div>
         <span class="ext-title">{ext.title}</span>
         {#if ext.id && extensionUpdateService.getUpdateForExtension(ext.id)}
@@ -372,27 +358,19 @@
         >
           <div class="col-name row-name-cell cmd-indent">
             <div class="cmd-icon shrink-0">
-              {#if cmd.icon && isBuiltInIcon(cmd.icon)}
-                <Icon name={getBuiltInIconName(cmd.icon)} size={14} />
-              {:else if cmd.icon && isIconImage(cmd.icon)}
-                <img src={cmd.icon} alt={cmd.name} class="cmd-icon-img" />
-              {:else if cmd.icon}
-                <span class="cmd-icon-emoji">{cmd.icon}</span>
-              {:else if ext.iconUrl && isBuiltInIcon(ext.iconUrl)}
-                <Icon name={getBuiltInIconName(ext.iconUrl)} size={14} />
-              {:else if ext.iconUrl && isIconImage(ext.iconUrl)}
-                <img src={ext.iconUrl} alt={cmd.name} class="cmd-icon-img" />
-              {:else}
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                >
-                  <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
-                </svg>
-              {/if}
+              <AppIcon icon={cmd.resolvedIcon} size={16} glyphSize={14} alt={cmd.name}>
+                {#snippet fallback()}
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  >
+                    <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
+                  </svg>
+                {/snippet}
+              </AppIcon>
             </div>
             <span class="ext-title">{cmd.name}</span>
           </div>
@@ -1060,17 +1038,6 @@
     overflow: hidden;
   }
 
-  .ext-icon-img {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
-  }
-
-  .ext-icon-emoji {
-    font-size: var(--font-size-section);
-    line-height: 1;
-  }
-
   .ext-icon-letter {
     font-size: var(--font-size-sm);
     font-weight: 700;
@@ -1093,17 +1060,6 @@
     width: 12px;
     height: 12px;
     color: var(--text-tertiary);
-  }
-
-  .cmd-icon-img {
-    width: 16px;
-    height: 16px;
-    object-fit: contain;
-  }
-
-  .cmd-icon-emoji {
-    font-size: var(--font-size-sm);
-    line-height: 1;
   }
 
   .section-header-row {

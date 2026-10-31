@@ -1,3 +1,4 @@
+import type { IconSource } from '../../lib/icon';
 import { setWorkerEntryProvider } from './workerRegistry.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import * as commands from '../../lib/ipc/commands';
@@ -9,7 +10,8 @@ import type {
   ExtensionCommand,
 } from 'asyar-sdk/contracts';
 
-import type { ExtendedManifest } from '../../types/ExtendedManifest';
+import type { ExtendedManifest, HostCommand } from '../../types/ExtendedManifest';
+import type { ResolvedIcon } from '../../bindings';
 import { isBuiltInFeature } from './extensionDiscovery';
 import { extensionBridge, type ExtensionBridge } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
@@ -511,26 +513,21 @@ export class ExtensionManager implements IExtensionManager {
     commandId: string;
     commandName: string;
     isBuiltIn: boolean;
-    icon?: string;
+    icon?: IconSource;
     args: import('asyar-sdk/contracts').CommandArgument[];
     mode?: 'view' | 'background';
     requireAnyOf?: string[];
     isDynamic?: boolean;
   } | null> {
-    if (!commandObjectId.startsWith('cmd_')) return null;
-    const rest = commandObjectId.slice(4);
-    for (const manifest of this.manifestsById.values()) {
-      const prefix = `${manifest.id}_`;
-      if (!rest.startsWith(prefix)) continue;
-      const commandId = rest.slice(prefix.length);
-      const cmd = manifest.commands?.find((c) => c.id === commandId);
-      if (!cmd) continue;
+    const found = this.findManifestCommand(commandObjectId);
+    if (found) {
+      const { manifest, cmd } = found;
       return {
         extensionId: manifest.id,
-        commandId,
+        commandId: cmd.id,
         commandName: cmd.name,
         isBuiltIn: isBuiltInFeature(manifest.id),
-        icon: (cmd as { icon?: string }).icon ?? (manifest as { icon?: string }).icon,
+        icon: cmd.resolvedIcon,
         args:
           (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
         mode: (cmd as { mode?: 'view' | 'background' }).mode,
@@ -580,6 +577,25 @@ export class ExtensionManager implements IExtensionManager {
    * which Tab consults before `preventDefault()`.
    */
   public manifestCommandHasArguments(commandObjectId: string): boolean | null {
+    const cmd = this.findManifestCommand(commandObjectId)?.cmd;
+    if (!cmd) return null;
+    const args = (cmd as { arguments?: unknown[] }).arguments;
+    return Array.isArray(args) && args.length > 0;
+  }
+
+  /** Display icon of a manifest command; `undefined` for dynamic or unknown ids. */
+  public getCommandIcon(commandObjectId: string): ResolvedIcon | undefined {
+    return this.findManifestCommand(commandObjectId)?.cmd.resolvedIcon;
+  }
+
+  /**
+   * Resolve a `cmd_<extensionId>_<commandId>` object id against the loaded
+   * manifests. Extension ids contain dots and command ids hyphens, so each
+   * manifest id is tried as a prefix.
+   */
+  private findManifestCommand(
+    commandObjectId: string,
+  ): { manifest: ExtendedManifest; cmd: HostCommand } | null {
     if (!commandObjectId.startsWith('cmd_')) return null;
     const rest = commandObjectId.slice(4);
     for (const manifest of this.manifestsById.values()) {
@@ -587,9 +603,7 @@ export class ExtensionManager implements IExtensionManager {
       if (!rest.startsWith(prefix)) continue;
       const commandId = rest.slice(prefix.length);
       const cmd = manifest.commands?.find((c) => c.id === commandId);
-      if (!cmd) continue;
-      const args = (cmd as { arguments?: unknown[] }).arguments;
-      return Array.isArray(args) && args.length > 0;
+      if (cmd) return { manifest, cmd };
     }
     return null;
   }

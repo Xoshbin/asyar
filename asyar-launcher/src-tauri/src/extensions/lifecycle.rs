@@ -687,6 +687,7 @@ mod tests {
     fn make_record(id: &str, name: &str, is_built_in: bool) -> ExtensionRecord {
         ExtensionRecord {
             manifest: ExtensionManifest {
+                resolved_icon: None,
                 id: id.into(),
                 name: name.into(),
                 version: "1.0.0".into(),
