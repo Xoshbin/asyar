@@ -117,7 +117,11 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
 }
 
 /// Insert a Run into history with INSERT OR REPLACE semantics, then evict over-cap rows.
-pub fn insert(conn: &Connection, run: &Run) -> Result<(), AppError> {
+///
+/// Returns the ids of the rows evicted by the cap so the caller can release
+/// any per-run resources (e.g. output buffers) that were only reachable
+/// through those history entries.
+pub fn insert(conn: &Connection, run: &Run) -> Result<Vec<String>, AppError> {
     let kind = kind_to_db(run.kind)?;
     let status = status_to_db(run.status)?;
     conn.execute(
@@ -140,8 +144,7 @@ pub fn insert(conn: &Connection, run: &Run) -> Result<(), AppError> {
         ],
     )
     .map_err(|e| AppError::Database(e.to_string()))?;
-    evict_over_cap(conn, HISTORY_CAP)?;
-    Ok(())
+    evict_over_cap(conn, HISTORY_CAP)
 }
 
 /// Return up to `limit` runs ordered most-recent first (ORDER BY started_at DESC).
@@ -221,24 +224,43 @@ pub fn delete_one(conn: &Connection, id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Delete all rows from runs_history.
-pub fn delete_all(conn: &Connection) -> Result<(), AppError> {
+/// Delete all rows from runs_history, returning the ids that were removed.
+pub fn delete_all(conn: &Connection) -> Result<Vec<String>, AppError> {
+    let ids = select_ids(conn, "SELECT id FROM runs_history", params![])?;
     conn.execute("DELETE FROM runs_history", [])
         .map_err(|e| AppError::Database(e.to_string()))?;
-    Ok(())
+    Ok(ids)
 }
 
-/// Drop rows with the oldest started_at until the total count is at most `cap`.
-fn evict_over_cap(conn: &Connection, cap: usize) -> Result<(), AppError> {
-    conn.execute(
-        "DELETE FROM runs_history
+/// Drop rows with the oldest started_at until the total count is at most `cap`,
+/// returning the ids that were evicted.
+fn evict_over_cap(conn: &Connection, cap: usize) -> Result<Vec<String>, AppError> {
+    const OVER_CAP: &str = "FROM runs_history
          WHERE id NOT IN (
              SELECT id FROM runs_history ORDER BY started_at DESC LIMIT ?1
-         )",
-        params![cap as i64],
-    )
-    .map_err(|e| AppError::Database(e.to_string()))?;
-    Ok(())
+         )";
+    let ids = select_ids(conn, &format!("SELECT id {OVER_CAP}"), params![cap as i64])?;
+    if !ids.is_empty() {
+        conn.execute(&format!("DELETE {OVER_CAP}"), params![cap as i64])
+            .map_err(|e| AppError::Database(e.to_string()))?;
+    }
+    Ok(ids)
+}
+
+fn select_ids(
+    conn: &Connection,
+    sql: &str,
+    params: impl rusqlite::Params,
+) -> Result<Vec<String>, AppError> {
+    let mut stmt = conn
+        .prepare(sql)
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    let ids = stmt
+        .query_map(params, |row| row.get::<_, String>(0))
+        .map_err(|e| AppError::Database(e.to_string()))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    Ok(ids)
 }
 
 /// Serialize a RunKind to its DB string via serde_json round-trip (no manual match to maintain).
@@ -383,6 +405,29 @@ mod tests {
             min_started_at > 5,
             "expected oldest 5 evicted, but min started_at={min_started_at}"
         );
+    }
+
+    #[test]
+    fn insert_returns_evicted_ids() {
+        let conn = make_conn();
+        for i in 0..HISTORY_CAP {
+            let evicted = insert(&conn, &make_run(&format!("r{i}"), i as i64 + 1)).unwrap();
+            assert!(evicted.is_empty());
+        }
+        let evicted = insert(&conn, &make_run("newest", HISTORY_CAP as i64 + 1)).unwrap();
+        assert_eq!(evicted, vec!["r0".to_string()]);
+    }
+
+    #[test]
+    fn delete_all_returns_removed_ids() {
+        let conn = make_conn();
+        insert(&conn, &make_run("a", 1)).unwrap();
+        insert(&conn, &make_run("b", 2)).unwrap();
+
+        let mut ids = delete_all(&conn).unwrap();
+        ids.sort();
+        assert_eq!(ids, vec!["a".to_string(), "b".to_string()]);
+        assert!(delete_all(&conn).unwrap().is_empty());
     }
 
     #[test]

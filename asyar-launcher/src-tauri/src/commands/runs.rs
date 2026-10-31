@@ -81,10 +81,14 @@ fn finalize_impl(
     let snapshot = buffer.snapshot(id);
     let tail = format_tail_output(&snapshot);
     let run = registry.transition(id, new_status, error_message, tail)?;
-    runs_history::insert(conn, &run)?;
-    // Buffer is kept alive for post-mortem reads by RunView and notification
-    // consumers. It will be dropped by runs_dismiss (on user dismiss) and on
-    // session reset.
+    let evicted = runs_history::insert(conn, &run)?;
+    // The just-finished run's buffer stays alive for post-mortem reads by
+    // RunView and notification consumers. It is dropped by runs_dismiss (on
+    // user dismiss), when its history entry is evicted or cleared (below and
+    // in `runs_history_clear_impl`), and on session reset.
+    for evicted_id in &evicted {
+        buffer.drop_for_run(evicted_id);
+    }
     let payload = serde_json::to_value(&run)
         .map_err(|e| AppError::Validation(format!("serialize Run: {e}")))?;
     let _ = emit("runs:state-changed", &payload);
@@ -169,8 +173,13 @@ pub fn runs_history_list_impl(conn: &Connection, limit: usize) -> Result<Vec<Run
     Ok(runs_history::list_recent(conn, limit)?)
 }
 
-pub fn runs_history_clear_impl(conn: &Connection) -> Result<(), AppError> {
-    Ok(runs_history::delete_all(conn)?)
+/// Clear persisted history and release the output buffers that were only
+/// reachable through those history entries.
+pub fn runs_history_clear_impl(buffer: &OutputBuffer, conn: &Connection) -> Result<(), AppError> {
+    for id in runs_history::delete_all(conn)? {
+        buffer.drop_for_run(&id);
+    }
+    Ok(())
 }
 
 pub fn runs_get_output_impl(buffer: &OutputBuffer, id: &str) -> Vec<String> {
@@ -416,7 +425,7 @@ pub async fn runs_history_list(
 #[tauri::command]
 pub async fn runs_history_clear(db: State<'_, DataStore>) -> Result<(), AppError> {
     let conn = db.conn()?;
-    runs_history_clear_impl(&conn)
+    runs_history_clear_impl(OutputBuffer::instance(), &conn)
 }
 
 /// Return the buffered output lines for an active run.
@@ -1305,13 +1314,77 @@ mod tests {
             runs_done_impl(&registry, &buffer, &emit, &conn, id).unwrap();
         }
 
-        runs_history_clear_impl(&conn).unwrap();
+        runs_history_clear_impl(&buffer, &conn).unwrap();
 
         let history = runs_history_list_impl(&conn, 50).unwrap();
         assert!(
             history.is_empty(),
             "history must be empty after clear, got {history:?}"
         );
+    }
+
+    #[test]
+    fn history_clear_releases_output_buffers() {
+        let (registry, buffer, conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::Custom,
+            "Job".to_string(),
+            None,
+            false,
+            None,
+            false,
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "hi".to_string(),
+        )
+        .unwrap();
+        runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
+        assert_eq!(buffer.snapshot("r1"), vec!["hi".to_string()]);
+
+        runs_history_clear_impl(&buffer, &conn).unwrap();
+        assert!(buffer.snapshot("r1").is_empty());
+    }
+
+    #[test]
+    fn history_eviction_releases_output_buffers() {
+        let (registry, buffer, conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        for i in 0..=runs_history::HISTORY_CAP {
+            let id = format!("r{i}");
+            runs_start_impl(
+                &registry,
+                &buffer,
+                &emit,
+                id.clone(),
+                RunKind::Custom,
+                format!("Job {i}"),
+                None,
+                false,
+                None,
+                false,
+            )
+            .unwrap();
+            runs_write_impl(&registry, &buffer, &emit, id.clone(), "out".to_string()).unwrap();
+            runs_done_impl(&registry, &buffer, &emit, &conn, id).unwrap();
+            // History orders by `started_at` (ms); keep it strictly increasing.
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+
+        // Oldest entry fell off the capped history; its buffer must go with it.
+        assert!(buffer.snapshot("r0").is_empty());
+        assert!(!buffer.snapshot("r1").is_empty());
     }
 
     // ── runs_get_output tests ─────────────────────────────────────────────────
