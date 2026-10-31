@@ -55,6 +55,8 @@ describe('dispatchScriptCommand', () => {
       undefined,
       'cmd_scripts_dyn_dyn123',
       'My Script',
+      undefined,
+      false,
     );
     expect(feedbackService.report).not.toHaveBeenCalled();
   });
@@ -133,6 +135,8 @@ describe('dispatchScriptCommand', () => {
       undefined,
       'cmd_scripts_dyn_dyn123',
       'My Script',
+      undefined,
+      false,
     );
   });
 
@@ -159,6 +163,20 @@ describe('dispatchScriptCommand', () => {
       undefined,
       'cmd_scripts_dyn_dyn123',
       'My Script',
+      undefined,
+      false,
     );
+  });
+
+  it('dispatch_passes_quietSuccess_true_for_silent_mode_scripts', async () => {
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue({
+      ...mockScript,
+      header: { ...mockScript.header, mode: 'silent' },
+    });
+
+    await dispatchScriptCommand('dyn123', undefined);
+
+    const call = vi.mocked(shellService.spawn).mock.calls[0];
+    expect(call[8]).toBe(true);
   });
 });

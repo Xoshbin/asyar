@@ -105,6 +105,7 @@ export class RunService {
     label: string,
     cancellable: boolean,
     subjectId: string | null = null,
+    quietSuccess = false,
   ): Promise<Run> {
     const run = await invokeSafe<Run>('runs_start', {
       id,
@@ -113,6 +114,7 @@ export class RunService {
       extensionId,
       cancellable,
       subjectId,
+      quietSuccess,
     });
     if (!run) {
       throw new Error('runs_start failed');
@@ -210,7 +212,7 @@ export class RunService {
         this.keptAgents = await this.upsertBucket(this.keptAgents, run, 'kept-agent');
       }
 
-      if (run.status === 'succeeded' && run.kind === 'shell-script') {
+      if (run.status === 'succeeded' && run.kind === 'shell-script' && !run.quietSuccess) {
         // Scripts persist after success so the user can read the output.
         // Rust dedupes by subjectId when present so re-running the same
         // script row collapses into one entry; anonymous (no subjectId)
@@ -314,6 +316,8 @@ export class RunService {
      * can light up the originating row with a status dot.
      */
     subjectId?: string | null;
+    /** Suppress success surfacing (notification + result row); failures always surface. */
+    quietSuccess?: boolean;
   }): Promise<LocalRunHandle> {
     const id = crypto.randomUUID();
     await this.start(
@@ -323,6 +327,7 @@ export class RunService {
       input.label,
       input.cancellable ?? false,
       input.subjectId ?? null,
+      input.quietSuccess ?? false,
     );
     return this.buildLocalHandle(id);
   }

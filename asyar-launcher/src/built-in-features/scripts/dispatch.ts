@@ -41,5 +41,7 @@ export async function dispatchScriptCommand(
     undefined,
     subjectId,
     label,
+    undefined,
+    script.header.mode === 'silent',
   );
 }

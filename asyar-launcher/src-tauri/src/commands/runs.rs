@@ -28,6 +28,7 @@ pub fn runs_start_impl(
     extension_id: Option<String>,
     cancellable: bool,
     subject_id: Option<String>,
+    quiet_success: bool,
 ) -> Result<Run, AppError> {
     let run = Run {
         id,
@@ -41,6 +42,7 @@ pub fn runs_start_impl(
         error_message: None,
         subject_id,
         tail_output: None,
+        quiet_success,
     };
     registry.insert(run.clone())?;
     let payload = serde_json::to_value(&run)
@@ -224,7 +226,7 @@ pub fn build_run_notification(run: &Run) -> Option<NotificationRequest> {
                 extension_id: "runs".to_string(),
             })
         }
-        RunStatus::Succeeded if run.kind == RunKind::ShellScript => {
+        RunStatus::Succeeded if run.kind == RunKind::ShellScript && !run.quiet_success => {
             let tail = run.tail_output.as_deref().unwrap_or("(no output)");
             let body_source = format!("{}\n{}", run.label, tail);
             let body = truncate(&body_source, 120);
@@ -275,6 +277,7 @@ pub async fn runs_start(
     extension_id: Option<String>,
     cancellable: bool,
     subject_id: Option<String>,
+    quiet_success: Option<bool>,
 ) -> Result<Run, AppError> {
     let registry = RunRegistry::instance();
     let buffer = OutputBuffer::instance();
@@ -289,6 +292,7 @@ pub async fn runs_start(
         extension_id,
         cancellable,
         subject_id,
+        quiet_success.unwrap_or(false),
     )
 }
 
@@ -486,6 +490,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -522,6 +527,7 @@ mod tests {
             Some("org.test.ext".to_string()),
             true,
             None,
+            false,
         )
         .unwrap();
 
@@ -558,6 +564,7 @@ mod tests {
             None,
             false,
             Some("cmd_scripts_dyn_abc".to_string()),
+            false,
         )
         .unwrap();
 
@@ -587,6 +594,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -608,6 +616,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -621,6 +630,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         );
 
         assert!(
@@ -646,6 +656,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -689,6 +700,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -764,6 +776,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -791,6 +804,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_write_impl(
@@ -836,6 +850,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -876,6 +891,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -938,6 +954,7 @@ mod tests {
             None,
             true,
             None,
+            false,
         )
         .unwrap();
 
@@ -993,6 +1010,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -1022,6 +1040,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_start_impl(
@@ -1034,6 +1053,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -1083,6 +1103,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -1114,6 +1135,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
@@ -1147,6 +1169,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
@@ -1177,6 +1200,7 @@ mod tests {
                 None,
                 false,
                 None,
+                false,
             )
             .unwrap();
             runs_done_impl(&registry, &buffer, &emit, &conn, id).unwrap();
@@ -1221,6 +1245,7 @@ mod tests {
                 None,
                 false,
                 None,
+                false,
             )
             .unwrap();
             runs_done_impl(&registry, &buffer, &emit, &conn, id).unwrap();
@@ -1252,6 +1277,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_write_impl(
@@ -1315,6 +1341,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_write_impl(
@@ -1365,6 +1392,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_write_impl(
@@ -1417,6 +1445,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_write_impl(
@@ -1461,6 +1490,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_write_impl(
@@ -1497,6 +1527,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_write_impl(
@@ -1557,6 +1588,7 @@ mod tests {
             None,
             true,
             None,
+            false,
         )
         .unwrap();
         runs_write_impl(
@@ -1601,6 +1633,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
 
@@ -1631,6 +1664,7 @@ mod tests {
             None,
             false,
             None,
+            false,
         )
         .unwrap();
         runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "".to_string()).unwrap();
@@ -1705,6 +1739,7 @@ mod tests {
             error_message: Some("something went wrong".to_string()),
             subject_id: None,
             tail_output: None,
+            quiet_success: false,
         };
 
         // Failed status
@@ -1774,6 +1809,7 @@ mod tests {
             error_message: Some("failed agent".to_string()),
             subject_id: None,
             tail_output: None,
+            quiet_success: false,
         };
 
         // Failed status should send and register the action
@@ -1805,5 +1841,36 @@ mod tests {
         run.status = RunStatus::Cancelled;
         maybe_send_run_notification(&registry, &backend, &run).unwrap();
         assert_eq!(backend.sent.lock().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn quiet_success_suppresses_success_notification_but_not_failure() {
+        let mut run = Run {
+            id: "q1".to_string(),
+            kind: RunKind::ShellScript,
+            label: "Quiet script".to_string(),
+            status: RunStatus::Succeeded,
+            extension_id: None,
+            started_at: 0,
+            ended_at: None,
+            cancellable: false,
+            error_message: None,
+            subject_id: None,
+            tail_output: Some("ok".to_string()),
+            quiet_success: true,
+        };
+        assert!(
+            build_run_notification(&run).is_none(),
+            "quiet successful run must not notify"
+        );
+
+        run.status = RunStatus::Failed;
+        run.error_message = Some("boom".to_string());
+        let req = build_run_notification(&run).expect("failures always notify");
+        assert_eq!(req.title, "Run failed");
+
+        run.quiet_success = false;
+        run.status = RunStatus::Succeeded;
+        assert!(build_run_notification(&run).is_some());
     }
 }
