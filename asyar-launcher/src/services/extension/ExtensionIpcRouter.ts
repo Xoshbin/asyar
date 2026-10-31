@@ -137,7 +137,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'oauth:revokeToken': ['providerId'],
 
   // shell
-  'shell:spawn': ['program', 'args', 'spawnId', 'stdin'],
+  'shell:spawn': ['program', 'args', 'spawnId', 'stdin', 'background'],
   'shell:list': [],
   'shell:attach': ['spawnId'],
   'shell:writeStdin': ['spawnId', 'data'],
@@ -577,6 +577,13 @@ export class ExtensionIpcRouter {
         (ns === 'ai' && methodName === 'streamChat')) &&
       originRole
     ) {
+      if (ns === 'shell' && methodName === 'spawn') {
+        // Pad omitted optional params so originRole always lands in the last slot
+        // instead of shifting with whichever optionals the SDK happened to send.
+        const lead = extensionId ? 1 : 0;
+        const slots = lead + METHOD_PARAM_SCHEMAS['shell:spawn'].length;
+        while (args.length < slots) args.push(undefined);
+      }
       args = [...args, originRole];
     }
     if (

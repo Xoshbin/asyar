@@ -3,6 +3,13 @@ export interface SpawnParams {
   args?: string[];
   /** Optional initial stdin string to write immediately on spawn (automatically closes stdin). */
   stdin?: string;
+  /**
+   * When true, successful execution is quiet: no launcher list row and
+   * no "Script finished" notification. Failures still surface.
+   * The run is always recorded in history for auditability.
+   * @default false
+   */
+  background?: boolean;
 }
 
 export interface ShellChunk {

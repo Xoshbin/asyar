@@ -148,6 +148,7 @@ export function buildServiceRegistry(deps: {
         args: string[] = [],
         spawnId: string,
         stdin?: string,
+        background?: boolean,
         originRole?: 'view' | 'worker',
       ) =>
         shellService.spawn(
@@ -159,6 +160,7 @@ export function buildServiceRegistry(deps: {
           undefined,
           undefined,
           stdin,
+          background === true,
         ),
       list: (extensionId: string) => shellService.list(extensionId),
       attach: (extensionId: string, spawnId: string, originRole?: 'view' | 'worker') =>

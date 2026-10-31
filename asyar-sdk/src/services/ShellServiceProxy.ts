@@ -16,6 +16,7 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
         args: params.args,
         spawnId,
         stdin: params.stdin,
+        background: params.background,
       }),
     );
   }

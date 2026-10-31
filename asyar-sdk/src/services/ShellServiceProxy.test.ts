@@ -50,6 +50,15 @@ describe('ShellServiceProxy', () => {
       expect(payload).toMatchObject({ program: 'cat', stdin: 'hello world' });
     });
 
+    it('passes background in payload when provided', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      proxy.spawn({ program: 'echo', background: true });
+      await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
+      const [cmd, payload] = mockInvoke.mock.calls[0];
+      expect(cmd).toBe('shell:spawn');
+      expect(payload).toMatchObject({ program: 'echo', background: true });
+    });
+
     it('includes spawnId in the payload', async () => {
       const { proxy, mockInvoke } = makeProxy();
       proxy.spawn({ program: 'git', args: ['status'] });
