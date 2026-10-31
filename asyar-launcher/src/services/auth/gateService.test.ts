@@ -56,6 +56,7 @@ function mockSettings(partial: Partial<AppSettings>): void {
       indexHidden: false,
       recentIgnorePatterns: [],
     },
+    scripts: { notifyOnSuccess: true, keepSuccessfulInLauncher: true },
   };
   vi.mocked(settingsService.getSettings).mockReturnValue({
     ...defaults,

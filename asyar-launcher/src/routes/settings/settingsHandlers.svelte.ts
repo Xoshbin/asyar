@@ -118,6 +118,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     indexHidden: false,
     recentIgnorePatterns: [],
   },
+  scripts: { notifyOnSuccess: true, keepSuccessfulInLauncher: true },
 };
 
 export class SettingsHandler {
