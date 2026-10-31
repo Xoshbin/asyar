@@ -96,6 +96,8 @@ export interface CommandSyncInput {
   id: string;
   name: string;
   extension: string;
+  /** The extension's display name, so search can match it ("Color Picker"). */
+  extensionName?: string;
   trigger: string;
   type: string;
   icon?: string | null;

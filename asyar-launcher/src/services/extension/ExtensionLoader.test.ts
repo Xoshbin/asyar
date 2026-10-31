@@ -287,6 +287,21 @@ describe('ExtensionLoader.syncCommandIndex', () => {
     expect(ids).not.toContain('cmd_my-ext_bg-worker');
   });
 
+  it("sends the extension's display name so search can find its commands by it", async () => {
+    const { syncCommandIndex } = await import('../../lib/ipc/commands');
+    vi.mocked(syncCommandIndex).mockResolvedValueOnce({ added: 1, removed: 0, total: 1 });
+
+    const loader = new ExtensionLoader({} as any, vi.fn(), vi.fn(), vi.fn());
+    const manifest = { ...makeManifest('org.asyar.coffee'), name: 'Coffee' };
+    const cmd = { id: 'caffeinate', name: 'Caffeinate', mode: 'view' as const };
+
+    await loader.syncCommandIndex([{ cmd: cmd as any, manifest, isBuiltIn: false }]);
+
+    const [input] = vi.mocked(syncCommandIndex).mock.calls[0][0];
+    expect(input.extension).toBe('org.asyar.coffee');
+    expect(input.extensionName).toBe('Coffee');
+  });
+
   it('indexes commands normally when searchable is true or omitted', async () => {
     const { syncCommandIndex } = await import('../../lib/ipc/commands');
     vi.mocked(syncCommandIndex).mockResolvedValueOnce({ added: 2, removed: 0, total: 2 });

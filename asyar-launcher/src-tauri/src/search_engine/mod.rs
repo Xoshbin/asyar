@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod extension_name;
 pub mod file_search_inline;
 pub mod file_search_path;
 pub mod models;
@@ -9,7 +10,7 @@ use crate::storage::DataStore;
 use fuzzy_matcher::FuzzyMatcher;
 use models::{Command, SearchResult, SearchableItem};
 use rusqlite::params;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::{Arc, RwLock};
 use tauri::{AppHandle, Manager};
@@ -18,6 +19,10 @@ use tauri::{AppHandle, Manager};
 pub struct SearchState {
     pub items: RwLock<Vec<SearchableItem>>,
     favorites: RwLock<HashSet<String>>,
+    /// Extension id → display name, refreshed on every command sync. Lets a
+    /// query like "color picker" reach the commands of `org.asyar.color-picker`.
+    /// Not persisted: the frontend re-sends it on every launch.
+    extension_names: RwLock<HashMap<String, String>>,
     pub data_store: Arc<DataStore>,
 }
 
@@ -315,6 +320,7 @@ pub fn initialize_search_state<R: tauri::Runtime>(
     Ok(SearchState {
         items: RwLock::new(items),
         favorites: RwLock::new(favorites),
+        extension_names: RwLock::new(HashMap::new()),
         data_store,
     })
 }
@@ -461,6 +467,76 @@ fn description_for(item: &SearchableItem) -> Option<String> {
     }
 }
 
+/// How many commands found only through their extension's display name one
+/// plain query may add on top of the title matches.
+const EXTENSION_NAME_MATCH_LIMIT: usize = 20;
+
+/// `true` when `token` (already lowercased) names the extension owning `cmd`:
+/// by id, by the id's last dotted segment, by the command's type label, or by
+/// the extension's display name.
+fn command_in_scope(cmd: &Command, token: &str, names: &HashMap<String, String>) -> bool {
+    let ext_lower = cmd.extension.to_lowercase();
+    let last_part = cmd
+        .extension
+        .split('.')
+        .next_back()
+        .unwrap_or("")
+        .to_lowercase();
+    let type_label_match = cmd
+        .type_label
+        .as_ref()
+        .map(|l| l.to_lowercase() == token || l.to_lowercase().starts_with(token))
+        .unwrap_or(false);
+    let display_name_match = names
+        .get(&cmd.extension)
+        .is_some_and(|name| extension_name::name_matches(name, token));
+    ext_lower == token
+        || ext_lower.starts_with(token)
+        || last_part == token
+        || last_part.starts_with(token)
+        || type_label_match
+        || display_name_match
+}
+
+/// A search row for an indexed command. Used for rows reached through the
+/// extension's display name; `merged_search` assigns the real tier.
+fn command_result(cmd: &Command, score: f32, favorites: &HashSet<String>) -> SearchResult {
+    SearchResult {
+        object_id: cmd.id.clone(),
+        name: cmd.name.clone(),
+        result_type: "command".to_string(),
+        score,
+        path: None,
+        icon: cmd.icon.clone(),
+        extension_id: Some(cmd.extension.clone()),
+        description: cmd.subtitle.clone(),
+        type_label: cmd.type_label.clone(),
+        has_arguments: cmd.has_arguments,
+        favorite: favorites.contains(&cmd.id),
+        style: None,
+        alias: None,
+        tier: ranker::Tier::FrecencyOnly as u8,
+    }
+}
+
+/// Splits the text after `@` into (scope, subquery). The scope is the longest
+/// leading run of words for which `names_an_extension` is true, so
+/// `color picker pick` reads as scope `color picker`, subquery `pick`. With no
+/// such run it falls back to "first word is the scope".
+fn resolve_scope(raw_scope: &str, names_an_extension: impl Fn(&str) -> bool) -> (String, String) {
+    let words: Vec<&str> = raw_scope.split_whitespace().collect();
+    for take in (1..=words.len()).rev() {
+        let scope = words[..take].join(" ").to_lowercase();
+        if names_an_extension(&scope) {
+            return (scope, words[take..].join(" "));
+        }
+    }
+    match words.split_first() {
+        Some((first, rest)) => (first.to_lowercase(), rest.join(" ")),
+        None => (String::new(), String::new()),
+    }
+}
+
 impl SearchState {
     /// Construct a fresh, isolated SearchState backed by an in-memory SQLite
     /// database. Intended for unit tests that need a real SearchState without
@@ -471,7 +547,15 @@ impl SearchState {
         Self {
             items: RwLock::new(vec![]),
             favorites: RwLock::new(HashSet::new()),
+            extension_names: RwLock::new(HashMap::new()),
             data_store: store,
+        }
+    }
+
+    /// Replace the extension id → display name map (see `extension_names`).
+    pub fn set_extension_names(&self, names: HashMap<String, String>) {
+        if let Ok(mut guard) = self.extension_names.write() {
+            *guard = names;
         }
     }
 
@@ -567,30 +651,23 @@ impl SearchState {
                 return Ok(results);
             }
 
-            let (first_word, subquery) = match raw_scope.split_once(' ') {
-                Some((scope, sub)) => (scope.trim().to_lowercase(), sub.trim()),
-                None => (raw_scope.trim().to_lowercase(), ""),
-            };
+            let names = self
+                .extension_names
+                .read()
+                .map_err(|_| SearchError::LockError)?;
 
-            let ext_matches = |cmd: &Command, token: &str| -> bool {
-                let ext_lower = cmd.extension.to_lowercase();
-                let last_part = cmd
-                    .extension
-                    .split('.')
-                    .next_back()
-                    .unwrap_or("")
-                    .to_lowercase();
-                let type_label_match = cmd
-                    .type_label
-                    .as_ref()
-                    .map(|l| l.to_lowercase() == token || l.to_lowercase().starts_with(token))
-                    .unwrap_or(false);
-                ext_lower == token
-                    || ext_lower.starts_with(token)
-                    || last_part == token
-                    || last_part.starts_with(token)
-                    || type_label_match
-            };
+            let ext_matches = |cmd: &Command, token: &str| command_in_scope(cmd, token, &names);
+
+            // The scope may be several words ("@color picker pick"): take the
+            // longest leading run of words that names an extension, and treat
+            // the rest as the subquery.
+            let (first_word, subquery) = resolve_scope(raw_scope, |token| {
+                guard.iter().any(|item| match item {
+                    SearchableItem::Command(cmd) => ext_matches(cmd, token),
+                    SearchableItem::Application(_) => false,
+                })
+            });
+            let subquery = subquery.as_str();
 
             let has_extension_match = !first_word.is_empty()
                 && guard.iter().any(|item| match item {
@@ -882,6 +959,80 @@ impl SearchState {
                         // Untiered: see comment on the empty-query branch above.
                         tier: ranker::Tier::FrecencyOnly as u8,
                     });
+                }
+            }
+
+            // Commands reachable only through their extension's display name
+            // ("coffee" → every Coffee command). Appended after the title hits
+            // and capped separately so a crowd of title matches cannot push
+            // them out; merged_search then ranks them below title matches.
+            let names = self
+                .extension_names
+                .read()
+                .map_err(|_| SearchError::LockError)?;
+            let mut by_name: Vec<&Command> = guard
+                .iter()
+                .filter_map(|item| match item {
+                    SearchableItem::Command(cmd)
+                        if names
+                            .get(&cmd.extension)
+                            .is_some_and(|name| extension_name::name_matches(name, trimmed)) =>
+                    {
+                        Some(cmd)
+                    }
+                    _ => None,
+                })
+                .collect();
+            by_name.sort_unstable_by(|a, b| {
+                let score_a = frecency_score(a.usage_count, a.last_used_at);
+                let score_b = frecency_score(b.usage_count, b.last_used_at);
+                score_b
+                    .partial_cmp(&score_a)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a.name.cmp(&b.name))
+            });
+            let present: HashSet<String> = results.iter().map(|r| r.object_id.clone()).collect();
+            for cmd in by_name
+                .into_iter()
+                .filter(|cmd| !present.contains(&cmd.id))
+                .take(EXTENSION_NAME_MATCH_LIMIT)
+            {
+                // Below any real fuzzy hit; merged_search re-tiers it.
+                results.push(command_result(cmd, 0.0, &favorites));
+            }
+
+            // "Extension name + command words" (`color picker pick`): the
+            // commands of the named extension whose titles match the words.
+            if let Some(split) = extension_name::split_extension_query(trimmed, &names) {
+                let present: HashSet<String> =
+                    results.iter().map(|r| r.object_id.clone()).collect();
+                let mut by_words: Vec<(i64, &Command)> = guard
+                    .iter()
+                    .filter_map(|item| match item {
+                        SearchableItem::Command(cmd)
+                            if split.extension_ids.contains(&cmd.extension)
+                                && !present.contains(&cmd.id) =>
+                        {
+                            matcher
+                                .fuzzy_match(&cmd.name, &split.command_query)
+                                .map(|score| (score, cmd))
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                by_words.sort_unstable_by(|a, b| {
+                    let frecency_a = frecency_score(a.1.usage_count, a.1.last_used_at);
+                    let frecency_b = frecency_score(b.1.usage_count, b.1.last_used_at);
+                    b.0.cmp(&a.0)
+                        .then_with(|| {
+                            frecency_b
+                                .partial_cmp(&frecency_a)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                        .then_with(|| a.1.name.cmp(&b.1.name))
+                });
+                for (score, cmd) in by_words.into_iter().take(EXTENSION_NAME_MATCH_LIMIT) {
+                    results.push(command_result(cmd, score as f32, &favorites));
                 }
             }
         }
@@ -1222,10 +1373,23 @@ impl SearchState {
         if let Some(stripped) = query.trim().strip_prefix('@') {
             let raw = self.search(query)?;
             let raw_scope = stripped.trim_start();
-            let scope_token = raw_scope
-                .split_once(' ')
-                .map(|(s, _)| s.trim().to_lowercase())
-                .unwrap_or_else(|| raw_scope.trim().to_lowercase());
+            let (scope_token, _) = {
+                let guard = self.items.read().map_err(|_| SearchError::LockError)?;
+                let names = self
+                    .extension_names
+                    .read()
+                    .map_err(|_| SearchError::LockError)?;
+                resolve_scope(raw_scope, |token| {
+                    guard.iter().any(|item| match item {
+                        SearchableItem::Command(cmd) => command_in_scope(cmd, token, &names),
+                        SearchableItem::Application(_) => false,
+                    })
+                })
+            };
+            let extension_names = self
+                .extension_names
+                .read()
+                .map_err(|_| SearchError::LockError)?;
 
             let mut combined: Vec<models::SearchResult> = raw;
             for ext in external_results {
@@ -1245,6 +1409,12 @@ impl SearchState {
                                     .contains(&scope_token)
                         })
                         .unwrap_or(false);
+                    let ext_matches = ext_matches
+                        || ext
+                            .extension_id
+                            .as_ref()
+                            .and_then(|id| extension_names.get(id))
+                            .is_some_and(|name| extension_name::name_matches(name, &scope_token));
                     let name_matches = ext.name.to_lowercase().contains(&scope_token)
                         || ext
                             .description
@@ -1292,8 +1462,23 @@ impl SearchState {
             frecency: f32,
         }
 
+        // "Extension name + command words": commands of the named extension are
+        // also ranked by the words alone, so `color picker pick` puts Pick Color
+        // where `pick` would.
+        let split = {
+            let names = self
+                .extension_names
+                .read()
+                .map_err(|_| SearchError::LockError)?;
+            extension_name::split_extension_query(query.trim(), &names)
+        };
+
         let classify_inputs: Vec<ClassifyInput> = {
             let guard = self.items.read().map_err(|_| SearchError::LockError)?;
+            let extension_names = self
+                .extension_names
+                .read()
+                .map_err(|_| SearchError::LockError)?;
             let item_by_id: std::collections::HashMap<&str, &SearchableItem> =
                 guard.iter().map(|item| (item.id(), item)).collect();
 
@@ -1308,7 +1493,11 @@ impl SearchState {
 
                     let (subtitle, keywords) = match item_by_id.get(r.object_id.as_str()) {
                         Some(SearchableItem::Command(cmd)) => {
-                            (cmd.subtitle.clone(), vec![cmd.trigger.clone()])
+                            // The extension's display name lets a command found
+                            // only through it land in the keyword tier.
+                            let mut keywords = vec![cmd.trigger.clone()];
+                            keywords.extend(extension_names.get(&cmd.extension).cloned());
+                            (cmd.subtitle.clone(), keywords)
                         }
                         Some(item @ SearchableItem::Application(app)) => {
                             // Bundle id plus any non-display name the item
@@ -1350,6 +1539,31 @@ impl SearchState {
                 ci.frecency,
                 false,
             );
+            let key = match &split {
+                Some(split)
+                    if ci
+                        .result
+                        .extension_id
+                        .as_deref()
+                        .is_some_and(|id| split.extension_ids.contains(id)) =>
+                {
+                    let by_words = ranker::classify(
+                        &split.command_query,
+                        &ci.result.name,
+                        ci.subtitle.as_deref(),
+                        &keywords_refs,
+                        ci.frecency,
+                        false,
+                    );
+                    // Never rank a command worse than its full-query match.
+                    if by_words.tier < key.tier {
+                        by_words
+                    } else {
+                        key
+                    }
+                }
+                _ => key,
+            };
             // Normalize score for display/browser-fallback compatibility.
             ci.result.score = (ci.result.score / skim_max).min(1.0);
             ci.result.tier = key.tier as u8;

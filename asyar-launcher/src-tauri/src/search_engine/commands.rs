@@ -308,6 +308,10 @@ pub struct CommandSyncInput {
     pub id: String, // Full object ID, e.g. "cmd_extensionId_commandId"
     pub name: String,
     pub extension: String, // Extension ID
+    /// The extension's display name ("Color Picker"), so root search and `@`
+    /// can find its commands by the name users see on each row.
+    #[serde(default)]
+    pub extension_name: Option<String>,
     pub trigger: String,
     #[serde(rename = "type")]
     pub command_type: String,
@@ -354,9 +358,20 @@ pub fn sync_command_index_internal_with_aliases(
 
     // 1. Build current command map from input
     let mut current_commands: HashMap<String, CommandSyncInput> = HashMap::new();
+    let mut extension_names: HashMap<String, String> = HashMap::new();
     for cmd in commands {
+        if let Some(name) = cmd
+            .extension_name
+            .as_deref()
+            .filter(|n| !n.trim().is_empty())
+        {
+            extension_names.insert(cmd.extension.clone(), name.to_string());
+        }
         current_commands.insert(cmd.id.clone(), cmd);
     }
+    // Replaced wholesale, so a renamed or uninstalled extension never leaves a
+    // stale name behind.
+    search_state.set_extension_names(extension_names);
 
     // 2. Get currently indexed cmd_ IDs
     let indexed_ids: Vec<String> = {
@@ -555,6 +570,7 @@ mod tests {
             id: "cmd_new".to_string(),
             name: "New".to_string(),
             extension: "ext".to_string(),
+            extension_name: None,
             trigger: "new".to_string(),
             command_type: "command".to_string(),
             icon: None,
@@ -563,6 +579,79 @@ mod tests {
         let result = sync_command_index_internal(input, &state).unwrap();
         assert_eq!(result.added, 1);
         assert_eq!(result.total, 1);
+    }
+
+    fn named_input(
+        id: &str,
+        name: &str,
+        extension: &str,
+        ext_name: Option<&str>,
+    ) -> CommandSyncInput {
+        CommandSyncInput {
+            id: id.to_string(),
+            name: name.to_string(),
+            extension: extension.to_string(),
+            extension_name: ext_name.map(str::to_string),
+            trigger: name.to_lowercase(),
+            command_type: "command".to_string(),
+            icon: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sync_makes_commands_findable_by_extension_display_name() {
+        let state = make_test_state();
+        sync_command_index_internal(
+            vec![named_input(
+                "cmd_org.asyar.coffee_caffeinate",
+                "Caffeinate",
+                "org.asyar.coffee",
+                Some("Coffee"),
+            )],
+            &state,
+        )
+        .unwrap();
+
+        let found = state.search("coffee").unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].object_id, "cmd_org.asyar.coffee_caffeinate");
+    }
+
+    #[tokio::test]
+    async fn test_sync_replaces_extension_names_so_renames_and_removals_apply() {
+        let state = make_test_state();
+        let cmd = |ext_name| {
+            named_input(
+                "cmd_org.asyar.coffee_caffeinate",
+                "Caffeinate",
+                "org.asyar.coffee",
+                ext_name,
+            )
+        };
+
+        sync_command_index_internal(vec![cmd(Some("Coffee"))], &state).unwrap();
+        assert_eq!(state.search("coffee").unwrap().len(), 1);
+
+        sync_command_index_internal(vec![cmd(Some("Brew"))], &state).unwrap();
+        assert!(
+            state.search("coffee").unwrap().is_empty(),
+            "old name lingered"
+        );
+        assert_eq!(state.search("brew").unwrap().len(), 1);
+
+        sync_command_index_internal(vec![cmd(None)], &state).unwrap();
+        assert!(state.search("brew").unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_sync_input_without_extension_name_still_deserializes() {
+        // The frontend may omit the field; it must stay optional.
+        let json = serde_json::json!({
+            "id": "cmd_a_b", "name": "B", "extension": "a",
+            "trigger": "b", "type": "command", "icon": null
+        });
+        let input: CommandSyncInput = serde_json::from_value(json).unwrap();
+        assert!(input.extension_name.is_none());
     }
 
     #[tokio::test]
@@ -593,6 +682,7 @@ mod tests {
                 id: "cmd_dup".to_string(),
                 name: "First".to_string(),
                 extension: "ext".to_string(),
+                extension_name: None,
                 trigger: "first".to_string(),
                 command_type: "command".to_string(),
                 icon: None,
@@ -601,6 +691,7 @@ mod tests {
                 id: "cmd_dup".to_string(),
                 name: "Second".to_string(),
                 extension: "ext".to_string(),
+                extension_name: None,
                 trigger: "second".to_string(),
                 command_type: "command".to_string(),
                 icon: None,
@@ -642,6 +733,7 @@ mod tests {
             id: "cmd_static_one".to_string(),
             name: "Static".to_string(),
             extension: "ext".to_string(),
+            extension_name: None,
             trigger: "static".to_string(),
             command_type: "command".to_string(),
             icon: None,
