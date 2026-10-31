@@ -105,6 +105,7 @@ macro_rules! window_commands {
                 $crate::commands::check_accessibility_permission,
                 $crate::commands::update_global_shortcut,
                 $crate::commands::get_persisted_shortcut,
+                $crate::commands::get_shortcut_backend_info,
                 $crate::commands::initialize_shortcut_from_settings,
                 $crate::commands::initialize_autostart_from_settings,
                 $crate::commands::get_autostart_status,

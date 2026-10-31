@@ -139,7 +139,10 @@
       "error_save_display": "Não foi possível salvar a tela do launcher",
       "error_save_interface_size": "Não foi possível salvar o tamanho da interface",
       "error_save_position": "Não foi possível salvar a posição do launcher",
-      "error_save_snap": "Não foi possível salvar a configuração de ajuste do launcher"
+      "error_save_snap": "Não foi possível salvar a configuração de ajuste do launcher",
+      "wayland_hotkey_hint": "No Wayland ({compositor}), vincule asyar-summon no seu compositor ou nas configurações de atalhos da área de trabalho para abrir o Asyar instantaneamente.",
+      "wayland_copy_cmd": "Copiar",
+      "wayland_copied": "✓ Copiado"
     },
     "appearance": {
       "theme": "Tema",
@@ -792,6 +795,11 @@
     "summon_heading": "Abra o Asyar e comece a digitar",
     "summon_desc": "Pressione Option+Espaço (ou Alt+Espaço) de qualquer lugar para abrir o Asyar. Tente pesquisar um aplicativo ou fazer um cálculo rápido — digite 24 * 7 e pressione Enter.",
     "change_hotkey_hint": "Prefere uma tecla diferente? Altere aqui",
+    "wayland_hotkey_notice": "No Wayland ({compositor}), os atalhos globais são gerenciados pelo seu compositor. Vincule asyar-summon para abrir o Asyar instantaneamente:",
+    "wayland_config_file": "Adicione a {path}:",
+    "wayland_custom_shortcut_cmd": "Comando para as configurações de atalho da sua área de trabalho:",
+    "wayland_copy_snippet": "Copiar trecho",
+    "wayland_copied": "✓ Copiado",
     "theme_title": "Deixe com a sua cara",
     "theme_heading": "Escolha um visual que combine com seu espaço de trabalho",
     "theme_desc": "Alterne a qualquer momento em Configurações (⌘,) → Aparência. Os temas alteram a paleta de cores, o contraste e os destaques.",

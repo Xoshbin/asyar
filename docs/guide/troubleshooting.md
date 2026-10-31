@@ -12,12 +12,17 @@ If pressing your global hotkey does nothing:
 
 3. **Check for conflicts.** Another app may have claimed the same key combination. Open the shortcut recorder — if a conflict warning appears, choose a different combination that is not already in use.
 
-4. **Linux Wayland Shortcut Setup:** On Wayland (GNOME, KDE, Hyprland, Sway), applications cannot intercept global keystrokes in the background. You must create a custom shortcut in your desktop settings that executes `asyar`:
-   - **GNOME:** **Settings** → **Keyboard** → **View and Customize Shortcuts** → **Custom Shortcuts** → Add Name `Asyar`, Command `asyar`, and set your shortcut (e.g. `Ctrl+Space`).
-   - **KDE Plasma:** **System Settings** → **Shortcuts** → **Custom Shortcuts** / **Command/URL** → set Command to `asyar`.
-   - **Hyprland:** Add `bind = ALT, SPACE, exec, asyar` to `hyprland.conf`.
-   - **Sway:** Add `bindsym Mod1+space exec asyar` to your Sway config.
-     Running `asyar` while the app is active will toggle the launcher window.
+4. **Linux Wayland Shortcut Setup:** On Wayland (GNOME, KDE, Hyprland, Sway), applications cannot intercept global keystrokes in the background. Bind a custom shortcut in your desktop or compositor settings to execute `asyar-summon` (the lightweight ~3.5ms D-Bus summon binary installed alongside `asyar`):
+   - **Hyprland:** Add `bind = $mainMod, SPACE, exec, asyar-summon` to `~/.config/hypr/hyprland.conf`.
+   - **Omarchy (Hyprland):** Omarchy binds `SUPER, SPACE` to its default app launcher (`omarchy-launch-walker`) out of the box. Override it in `~/.config/hypr/bindings.conf`:
+     ```ini
+     unbind = SUPER, SPACE
+     bindd = SUPER, SPACE, Asyar, exec, asyar-summon
+     ```
+   - **Sway:** Add `bindsym $mod+space exec asyar-summon` to `~/.config/sway/config`.
+   - **GNOME:** **Settings** → **Keyboard** → **View and Customize Shortcuts** → **Custom Shortcuts** → Add Name `Asyar`, Command `asyar-summon`, and set your shortcut (e.g. `Ctrl+Space`).
+   - **KDE Plasma:** **System Settings** → **Shortcuts** → **Custom Shortcuts** / **Command/URL** → set Command to `asyar-summon`.
+     Running `asyar-summon` while the app is active toggles the launcher window instantly over D-Bus.
 
 5. **Check macOS Accessibility permission (macOS only).** Although Accessibility is mainly needed for text expansion, Asyar also needs it for reliable global hotkey registration on some macOS versions. Go to **System Settings → Privacy & Security → Accessibility**, find Asyar in the list, and make sure the toggle is on. Relaunch Asyar after granting access.
 

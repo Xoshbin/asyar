@@ -6,6 +6,7 @@ const {
   currentSettingsMock,
   emitMock,
   feedbackReportMock,
+  getShortcutBackendInfoMock,
   logErrorMock,
   setUiScaleMock,
   updateSettingsMock,
@@ -13,6 +14,9 @@ const {
   currentSettingsMock: { appearance: { uiScale: 1.2 } },
   emitMock: vi.fn().mockResolvedValue(undefined),
   feedbackReportMock: vi.fn(),
+  getShortcutBackendInfoMock: vi
+    .fn()
+    .mockResolvedValue({ isWayland: false, compositor: null, isOmarchy: false }),
   logErrorMock: vi.fn(),
   setUiScaleMock: vi.fn().mockResolvedValue(undefined),
   updateSettingsMock: vi.fn().mockResolvedValue(true),
@@ -29,6 +33,7 @@ vi.mock('../../../built-in-features/shortcuts/shortcutService', () => ({
 
 vi.mock('../../../lib/ipc/commands', () => ({
   discoverExtensions: vi.fn().mockResolvedValue([]),
+  getShortcutBackendInfo: getShortcutBackendInfoMock,
   onboardingCommands: { reset: vi.fn().mockResolvedValue(undefined) },
 }));
 
@@ -151,5 +156,20 @@ describe('GeneralTab interface size', () => {
         context: { message: 'Could not save the interface size' },
       }),
     );
+  });
+
+  it('renders Wayland compositor hotkey instructions when running on Omarchy Hyprland', async () => {
+    getShortcutBackendInfoMock.mockResolvedValueOnce({
+      isWayland: true,
+      compositor: 'hyprland',
+      isOmarchy: true,
+    });
+
+    render(GeneralTab, { props: { handler: createHandler() } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Hyprland \(Omarchy\)/)).toBeTruthy();
+      expect(screen.getByText(/bindd = SUPER, SPACE, Asyar, exec, asyar-summon/)).toBeTruthy();
+    });
   });
 });

@@ -139,7 +139,10 @@
       "error_save_display": "無法儲存啟動器顯示器設定",
       "error_save_interface_size": "無法儲存介面大小",
       "error_save_position": "無法儲存啟動器位置",
-      "error_save_snap": "無法儲存啟動器吸附設定"
+      "error_save_snap": "無法儲存啟動器吸附設定",
+      "wayland_hotkey_hint": "在 Wayland（{compositor}）上，請在合成器或桌面快速鍵設定中綁定 asyar-summon，以實現瞬時全域喚起。",
+      "wayland_copy_cmd": "複製",
+      "wayland_copied": "✓ 已複製"
     },
     "appearance": {
       "theme": "主題",
@@ -792,6 +795,11 @@
     "summon_heading": "喚起 Asyar，然後直接輸入",
     "summon_desc": "在任何地方按 Option+Space 即可開啟 Asyar。試著搜尋一個應用程式，或做道算術題 —— 輸入 24 * 7 然後按 Enter 鍵。",
     "change_hotkey_hint": "想換個按鍵？去改一下",
+    "wayland_hotkey_notice": "在 Wayland（{compositor}）上，全域快速鍵由你的合成器管理。綁定 asyar-summon 即可立即喚起 Asyar：",
+    "wayland_config_file": "新增至 {path}：",
+    "wayland_custom_shortcut_cmd": "桌面快速鍵設定中使用的指令：",
+    "wayland_copy_snippet": "複製程式碼片段",
+    "wayland_copied": "✓ 已複製",
     "theme_title": "讓它變成你的",
     "theme_heading": "挑一個適合你工作環境的外觀",
     "theme_desc": "隨時可在設定（⌘,）→ 外觀中切換。主題會改變配色、對比度和高亮強調色。",

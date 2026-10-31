@@ -101,7 +101,10 @@ pub fn commit_show(
         let window = app_handle
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        crate::launcher_placement::service::apply(&app_handle)?;
+        log_placement_if_err(
+            crate::launcher_placement::service::apply(&app_handle),
+            "commit_show",
+        );
         #[cfg(target_os = "linux")]
         let _ = crate::platform::linux::present_and_focus_spotlight_window(&window);
         #[cfg(not(target_os = "linux"))]
@@ -159,7 +162,10 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         let window = app_handle
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        crate::launcher_placement::service::apply(&app_handle)?;
+        log_placement_if_err(
+            crate::launcher_placement::service::apply(&app_handle),
+            "show",
+        );
         let _ = window.show();
         #[cfg(target_os = "linux")]
         let _ = crate::platform::linux::present_and_focus_spotlight_window(&window);
@@ -285,6 +291,18 @@ pub fn confirm_launcher_paint() {
 pub fn cancel_launcher_resize() {
     #[cfg(target_os = "macos")]
     crate::platform::macos::cancel_pending_resize();
+}
+
+/// Logs placement errors without aborting the reveal sequence.
+#[cfg(any(not(target_os = "macos"), test))]
+fn log_placement_if_err<E: std::fmt::Display>(res: Result<(), E>, caller: &str) -> bool {
+    match res {
+        Ok(()) => true,
+        Err(err) => {
+            log::warn!("[{caller}] launcher placement failed (continuing reveal): {err}");
+            false
+        }
+    }
 }
 
 /// Validates a launcher height value before it reaches platform window APIs.
@@ -485,12 +503,19 @@ pub fn show_launcher(app: &AppHandle) -> Result<(), AppError> {
         let window = app
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        crate::launcher_placement::service::apply(app)?;
+        #[cfg(target_os = "linux")]
+        let _ = crate::platform::linux::setup_spotlight_window(&window);
+        log_placement_if_err(
+            crate::launcher_placement::service::apply(app),
+            "show_launcher",
+        );
         let _ = window.show();
         #[cfg(target_os = "linux")]
         let _ = crate::platform::linux::present_and_focus_spotlight_window(&window);
         #[cfg(not(target_os = "linux"))]
         let _ = window.set_focus();
+        #[cfg(target_os = "linux")]
+        crate::mark_launcher_shown(&state);
     }
     Ok(())
 }
@@ -622,5 +647,43 @@ mod tests {
     fn error_is_validation_variant() {
         let err = validate_launcher_height(f64::NAN).unwrap_err();
         assert!(matches!(err, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn log_placement_if_err_returns_true_on_ok_and_false_on_err() {
+        assert!(log_placement_if_err::<&str>(Ok(()), "test"));
+        assert!(!log_placement_if_err(
+            Err("wayland monitor unavailable"),
+            "test"
+        ));
+    }
+
+    #[test]
+    fn reveal_paths_use_fail_soft_placement_and_linux_show_launcher_marks_shown() {
+        let source = include_str!("app.rs").split("#[cfg(test)]").next().unwrap();
+        assert!(
+            !source.contains("crate::launcher_placement::service::apply(&app_handle)?"),
+            "reveal paths must not abort on placement errors with `?`"
+        );
+        assert!(
+            !source.contains("crate::launcher_placement::service::apply(app)?"),
+            "show_launcher must not abort on placement errors with `?`"
+        );
+
+        let show_launcher_body = source
+            .split("pub fn show_launcher")
+            .nth(1)
+            .expect("show_launcher function")
+            .split("pub fn quit_app")
+            .next()
+            .expect("show_launcher body");
+        assert!(
+            show_launcher_body.contains("setup_spotlight_window"),
+            "show_launcher must call setup_spotlight_window on Linux"
+        );
+        assert!(
+            show_launcher_body.contains("mark_launcher_shown"),
+            "show_launcher must call mark_launcher_shown on Linux to prevent spurious Wayland blur hide"
+        );
     }
 }
