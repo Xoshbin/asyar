@@ -283,7 +283,12 @@ pub fn run() {
         };
 
         rt.block_on(async {
-            let registry = mcp::server::create_default_mcp_registry();
+            let allowed = mcp::server::parse_mcp_allow_flag(&args);
+            let allowed_refs: Vec<&str> = allowed
+                .as_ref()
+                .map(|v| v.iter().map(|s| s.as_str()).collect())
+                .unwrap_or_default();
+            let registry = mcp::server::create_mcp_registry(allowed_refs);
             if let Err(e) = mcp::server::run_stdio_server(registry).await {
                 eprintln!("[asyar mcp] Server exited with error: {e}");
             }

@@ -6,6 +6,7 @@ import {
   agentsThreadsList,
   agentsThreadCreate,
   agentsThreadSetPinned,
+  agentsThreadSetProvider,
   agentsThreadsPrune,
   agentsThreadDelete,
   agentsThreadUpdateTitle,
@@ -144,6 +145,9 @@ export class AgentService {
     const existingId = settingsService.currentSettings.ai.defaultAgentId;
     const row = await agentsUpsertDefault(existingId, providerId, modelId);
     this.defaultAgent = row;
+    this.agents = this.agents.some((a) => a.id === row.id)
+      ? this.agents.map((a) => (a.id === row.id ? row : a))
+      : [...this.agents, row];
     if (existingId !== row.id) {
       await settingsService.updateSettings('ai', { defaultAgentId: row.id });
     }
@@ -217,6 +221,15 @@ export class AgentService {
 
   async setThreadPinned(id: string, pinned: boolean): Promise<void> {
     await agentsThreadSetPinned(id, pinned);
+  }
+
+  /** Override a thread's provider/model; pass nulls to follow its agent again. */
+  async setThreadProvider(
+    id: string,
+    providerId: string | null,
+    modelId: string | null,
+  ): Promise<void> {
+    await agentsThreadSetProvider(id, providerId, modelId);
   }
 
   async pruneThreads(cap?: number, activeThreadId?: string): Promise<number> {

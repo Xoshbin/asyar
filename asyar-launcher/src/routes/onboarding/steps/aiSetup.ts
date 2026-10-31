@@ -13,13 +13,21 @@ export async function connectCliProvider(
 ): Promise<void> {
   const modelId = spec.defaultModel;
 
+  const providers = settingsService.currentSettings.ai.providers;
+  const existing = providers[spec.id];
+  const cliBinaryPath = status.path ?? existing?.cliBinaryPath;
+
+  // Merge so base URL, reasoning effort and any other field survive. The model is
+  // replaced on purpose: API-mode model ids are not valid for the CLI. A saved key
+  // lives in the encrypted credential store and is not touched here.
   await settingsService.updateSettings('ai', {
     providers: {
-      ...settingsService.currentSettings.ai.providers,
+      ...providers,
       [spec.id]: {
+        ...existing,
         enabled: true,
         connectionMode: 'cli',
-        cliBinaryPath: status.path ?? undefined,
+        ...(cliBinaryPath ? { cliBinaryPath } : {}),
         lastModelId: modelId,
       },
     },

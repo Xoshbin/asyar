@@ -1,7 +1,8 @@
-import type { ThreadDef, MessageDef } from './types';
-import type { GeminiGrounding, GroundingSource } from '../../bindings';
-import type { ToolCall } from '../../services/ai/IProviderPlugin';
+import type { AgentDef, ThreadDef, MessageDef } from './types';
+import type { CredentialState, GeminiGrounding, GroundingSource } from '../../bindings';
+import type { ProviderConfig, ToolCall } from '../../services/ai/IProviderPlugin';
 import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
+import { t } from '../../services/i18n';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -240,4 +241,122 @@ export function extractSourcesFromMessage(
   }
 
   return [];
+}
+
+type ProviderPlugins = Array<{
+  id: string;
+  name: string;
+  requiresApiKey?: boolean;
+  requiresBaseUrl?: boolean;
+}>;
+
+/** A provider's display name, as the AI settings rows label it. */
+export function providerLabel(
+  providerId: string,
+  providers: Record<string, ProviderConfig>,
+  plugins: ProviderPlugins,
+): string {
+  const config = providers[providerId];
+  return (
+    config?.name ??
+    plugins.find((p) => p.id === (config?.providerType ?? providerId))?.name ??
+    providerId
+  );
+}
+
+/**
+ * Options for the chat view's ⌘P agent switcher. Silent agents are left out:
+ * they run headlessly and never open a chat.
+ */
+export function agentSwitcherOptions(
+  agents: Array<Pick<AgentDef, 'id' | 'name' | 'silent'>>,
+): Array<{ value: string; title: string }> {
+  return agents.filter((a) => !a.silent).map((a) => ({ value: a.id, title: a.name }));
+}
+
+/**
+ * Whether a run would use `providerId` as a thread override, mirroring
+ * `resolve_thread_agent` in Rust: the provider is enabled, and either in CLI
+ * mode or has what it needs (a key when it requires one, a base URL when it
+ * requires one). A `needsReentry` key counts: the run then fails with the
+ * re-enter error naming this provider rather than switching away. Null
+ * `credentialStates` (not loaded) trusts the key.
+ */
+export function overrideCanRun(
+  providerId: string,
+  providers: Record<string, ProviderConfig>,
+  plugins: ProviderPlugins,
+  credentialStates: Record<string, CredentialState> | null,
+): boolean {
+  const config = providers[providerId];
+  if (!config?.enabled) return false;
+  if (config.connectionMode === 'cli') return true;
+  const plugin = plugins.find((p) => p.id === (config.providerType ?? providerId));
+  const state = credentialStates?.[providerId];
+  const keyOk =
+    !plugin?.requiresApiKey ||
+    !credentialStates ||
+    state === 'configured' ||
+    state === 'needsReentry';
+  const baseUrlOk = !plugin?.requiresBaseUrl || Boolean(config.baseUrl?.trim());
+  return keyOk && baseUrlOk;
+}
+
+/**
+ * The provider and model a thread's next run uses: its override when it has
+ * one that can run (`canRun`, see `overrideCanRun`), otherwise its agent's.
+ * Without `canRun` every override counts.
+ */
+export function threadRunTarget(
+  agent: Pick<AgentDef, 'providerId' | 'modelId'>,
+  thread: Pick<ThreadDef, 'providerId' | 'modelId'> | null | undefined,
+  canRun?: (providerId: string) => boolean,
+): { providerId: string; modelId: string } {
+  if (thread?.providerId && thread.modelId && (!canRun || canRun(thread.providerId))) {
+    return { providerId: thread.providerId, modelId: thread.modelId };
+  }
+  return { providerId: agent.providerId, modelId: agent.modelId };
+}
+
+/** Bottom-bar subtitle for the chat view: who you are talking to, on what. */
+export function chatSubtitle(
+  agent: Pick<AgentDef, 'name' | 'providerId' | 'modelId'>,
+  providers: Record<string, ProviderConfig>,
+  plugins: ProviderPlugins,
+): string {
+  const parts = [agent.name, providerLabel(agent.providerId, providers, plugins)];
+  if (agent.modelId) parts.push(agent.modelId);
+  return parts.join(' · ');
+}
+
+/** Returns true if the normalized engine corresponds to Google Antigravity (agy). */
+export function isAgyEngine(engine: string): boolean {
+  const normalized = engine.toLowerCase();
+  return normalized === 'google' || normalized === 'agy' || normalized.includes('antigravity');
+}
+
+/**
+ * Formats user-facing notice text when tools are dropped for an agent run
+ * using a CLI-mode provider.
+ */
+export function formatToolsUnavailableNotice(engine: string, tools: string[]): string {
+  const toolsList = tools.join(', ');
+  if (isAgyEngine(engine)) {
+    return t('features.agents.tools_unavailable_agy', { tools: toolsList });
+  }
+  const normalized = engine.toLowerCase();
+  const name = normalized === 'openai' || normalized.includes('codex') ? 'Codex' : 'Claude Code';
+  return t('features.agents.tools_unavailable_cli', { engine: name, tools: toolsList });
+}
+
+/**
+ * Formats user-facing explanation in the agent editor when selected tools are
+ * dropped because the active provider is running in CLI mode.
+ */
+export function formatEditorToolsUnavailableWarning(engine: string): string {
+  return t(
+    isAgyEngine(engine)
+      ? 'features.agents.edit.tools_dropped_agy'
+      : 'features.agents.edit.tools_dropped_cli',
+  );
 }

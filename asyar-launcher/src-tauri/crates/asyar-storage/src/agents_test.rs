@@ -39,6 +39,8 @@ fn thread(id: &str, agent_id: &str, updated_at: i64) -> ThreadRow {
         agent_id: agent_id.to_string(),
         title: Some(format!("Thread {id}")),
         is_pinned: false,
+        provider_id: None,
+        model_id: None,
         created_at: Some(updated_at),
         updated_at: Some(updated_at),
     }

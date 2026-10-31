@@ -89,6 +89,38 @@ describe('searchBarAccessoryService', () => {
     expect(searchBarAccessoryService.active?.value).toBe('first');
   });
 
+  it('declare seeds from the owner value over the persisted one, without reading it', async () => {
+    const handler = vi.fn();
+    const off = searchBarAccessoryService.subscribe(EXT, CMD, handler);
+    await searchBarAccessoryService.declare({
+      extensionId: EXT,
+      commandId: CMD,
+      options: [
+        { value: 'a', title: 'A' },
+        { value: 'b', title: 'B' },
+      ],
+      value: 'b',
+    });
+    off();
+    expect(invoke).not.toHaveBeenCalledWith('searchbar_accessory_get', expect.anything());
+    expect(searchBarAccessoryService.active?.value).toBe('b');
+    expect(handler).toHaveBeenCalledWith('b');
+  });
+
+  it('declare ignores an owner value that is not an option', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce('a');
+    await searchBarAccessoryService.declare({
+      extensionId: EXT,
+      commandId: CMD,
+      options: [
+        { value: 'a', title: 'A' },
+        { value: 'b', title: 'B' },
+      ],
+      value: 'gone',
+    });
+    expect(searchBarAccessoryService.active?.value).toBe('a');
+  });
+
   it('setSelected persists and broadcasts to view iframe', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(null); // get
     await searchBarAccessoryService.declare({

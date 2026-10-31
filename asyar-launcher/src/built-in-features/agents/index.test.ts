@@ -53,11 +53,18 @@ vi.mock('./agentsManager.svelte', () => ({
     stop: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn().mockResolvedValue(undefined),
     activeAbortController: null,
+    threadsVersion: 0,
+    threadsFor: vi.fn(),
+    rememberThreads: vi.fn(),
   },
 }));
 
 vi.mock('./agentService.svelte', () => ({
   agentService: {
+    defaultAgent: null,
+    upsertDefaultAgent: vi.fn(),
+    getById: vi.fn(),
+    setThreadProvider: vi.fn().mockResolvedValue(undefined),
     delete: vi.fn(),
     createThread: vi.fn(),
     deleteThread: vi.fn(),
@@ -73,7 +80,8 @@ vi.mock('./agentLoop', () => ({
   runAgent: vi.fn(),
 }));
 
-vi.mock('./agentChatView.helpers', () => ({
+vi.mock('./agentChatView.helpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./agentChatView.helpers')>()),
   ensureThread: vi.fn(),
 }));
 
@@ -163,6 +171,41 @@ describe('AgentsExtension', () => {
           userText: 'hello',
         }),
       );
+    });
+
+    it('leaves the streamed reply for the chat view to clear after its reload', async () => {
+      agentsManager.currentAgentId = 'agent-1';
+      agentsManager.currentThreadId = 'thread-1';
+      vi.mocked(agentService.listThreads).mockResolvedValue([
+        { id: 'thread-1', agentId: 'agent-1', title: '', createdAt: 1, updatedAt: 1 },
+      ] as never);
+      vi.mocked(runAgent).mockImplementation(async (opts: any) => {
+        opts.onAssistantTextDelta('Hi', 'Hi there');
+        opts.onAssistantTurnPersisted();
+      });
+
+      await agentsExtension.onViewSubmit?.('hello');
+
+      expect(agentsManager.sending).toBe(false);
+      expect(agentsManager.streamingText).toBe('Hi there');
+      expect(agentsManager.streamingTextPersisted).toBe(true);
+      expect(agentsManager.streamingThreadId).toBe('thread-1');
+    });
+
+    it('clears a streamed reply that was never saved (aborted or failed run)', async () => {
+      agentsManager.currentAgentId = 'agent-1';
+      agentsManager.currentThreadId = 'thread-1';
+      vi.mocked(agentService.listThreads).mockResolvedValue([
+        { id: 'thread-1', agentId: 'agent-1', title: '', createdAt: 1, updatedAt: 1 },
+      ] as never);
+      vi.mocked(runAgent).mockImplementation(async (opts: any) => {
+        opts.onAssistantTextDelta('Hi', 'Hi');
+        throw new Error('aborted');
+      });
+
+      await agentsExtension.onViewSubmit?.('hello');
+
+      expect(agentsManager.streamingText).toBe('');
     });
   });
 
@@ -268,6 +311,45 @@ describe('AgentsExtension', () => {
       expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:new-agent');
       expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:edit-agent');
       expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:delete-agent');
+    });
+
+    describe('provider and model actions', () => {
+      beforeEach(() => {
+        agentsManager.currentAgentId = 'agent-1';
+        (agentsManager as any).picker = null;
+      });
+
+      function registered(id: string) {
+        return vi
+          .mocked(actionService.registerAction)
+          .mock.calls.map(([action]) => action as any)
+          .find((action) => action.id === id);
+      }
+
+      it('registers Change Provider and Change Model, without shortcuts, and unregisters them', async () => {
+        await agentsExtension.viewActivated('agents/AgentChatView');
+        expect(registered('agents:change-provider').shortcut).toBeUndefined();
+        expect(registered('agents:change-model').shortcut).toBeUndefined();
+
+        await agentsExtension.viewDeactivated('agents/AgentChatView');
+        expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:change-provider');
+        expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:change-model');
+      });
+
+      it.each([
+        ['agents:change-provider', 'provider'],
+        ['agents:change-model', 'model'],
+      ])('%s opens its picker, and is hidden mid-run', async (id, picker) => {
+        await agentsExtension.viewActivated('agents/AgentChatView');
+        const action = registered(id);
+        expect(action.visible()).toBe(true);
+
+        await action.execute();
+        expect((agentsManager as any).picker).toBe(picker);
+
+        agentsManager.sending = true;
+        expect(action.visible()).toBe(false);
+      });
     });
 
     it('deactivates and reactivates cleanly and idempotently', async () => {

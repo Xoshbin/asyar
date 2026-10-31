@@ -32,6 +32,8 @@ const ACTION_PIN_THREAD = 'agents:pin-thread';
 const ACTION_UNPIN_THREAD = 'agents:unpin-thread';
 const ACTION_CANCEL_SEND = 'agents:cancel-send';
 const ACTION_COPY_LAST_RESPONSE = 'agents:copy-last-response';
+const ACTION_CHANGE_PROVIDER = 'agents:change-provider';
+const ACTION_CHANGE_MODEL = 'agents:change-model';
 
 class AgentsExtension implements Extension {
   private extensionManager?: IExtensionManager;
@@ -134,6 +136,7 @@ class AgentsExtension implements Extension {
       // The user may have switched agent while the thread was being created;
       // selecting it then would point the new agent at a foreign thread.
       if (agentsManager.currentAgentId !== agentId) return;
+      agentsManager.toolsUnavailableNotice = null;
       agentsManager.currentThreadId = thread.id;
     } catch (err) {
       logService.warn(`[agents] new-thread action failed: ${err}`);
@@ -306,9 +309,38 @@ class AgentsExtension implements Extension {
       visible: () => !agentsManager.sending && !!agentsManager.lastAssistantMessageText,
       execute: async () => this.runCopyLastResponse(),
     });
+    // The panel has no submenus, so each list opens as its own picker.
+    actionService.registerAction({
+      id: ACTION_CHANGE_PROVIDER,
+      label: t('features.agents.act.change_provider'),
+      icon: 'icon:sparkles',
+      description: t('features.agents.act.change_provider_desc'),
+      category: t('categories.agents'),
+      extensionId: 'agents',
+      context: ActionContext.EXTENSION_VIEW,
+      visible: () => !agentsManager.sending && !!agentsManager.currentAgentId,
+      execute: async () => {
+        agentsManager.picker = 'provider';
+      },
+    });
+    actionService.registerAction({
+      id: ACTION_CHANGE_MODEL,
+      label: t('features.agents.act.change_model'),
+      icon: 'icon:sparkles',
+      description: t('features.agents.act.change_model_desc'),
+      category: t('categories.agents'),
+      extensionId: 'agents',
+      context: ActionContext.EXTENSION_VIEW,
+      visible: () => !agentsManager.sending && !!agentsManager.currentAgentId,
+      execute: async () => {
+        agentsManager.picker = 'model';
+      },
+    });
   }
 
   private unregisterChatViewActions(): void {
+    actionService.unregisterAction(ACTION_CHANGE_PROVIDER);
+    actionService.unregisterAction(ACTION_CHANGE_MODEL);
     actionService.unregisterAction(ACTION_NEW_THREAD);
     actionService.unregisterAction(ACTION_DELETE_THREAD);
     actionService.unregisterAction(ACTION_PIN_THREAD);
@@ -374,7 +406,10 @@ class AgentsExtension implements Extension {
     agentsManager.activeAbortController = controller;
     agentsManager.sending = true;
     agentsManager.streamingText = '';
+    agentsManager.streamingTextPersisted = false;
+    agentsManager.streamingThreadId = threadId;
     agentsManager.streamingStatus = null;
+    agentsManager.toolsUnavailableNotice = null;
 
     try {
       await runAgent({
@@ -383,10 +418,9 @@ class AgentsExtension implements Extension {
         userText: text,
         abortSignal: controller.signal,
         onUserMessagePersisted: () => {
-          // Chat view watches `agentsManager.sending` + listens for refresh
-          // via its own effect against listMessages, so just nudge here.
           agentsManager.streamingText = '';
           agentsManager.streamingStatus = null;
+          agentsManager.messagesVersion++;
         },
         onAssistantStatus: (status) => {
           agentsManager.streamingStatus = status;
@@ -394,10 +428,17 @@ class AgentsExtension implements Extension {
         onAssistantTextDelta: (_delta, accumulated) => {
           agentsManager.streamingStatus = null;
           agentsManager.streamingText = accumulated;
+          agentsManager.streamingTextPersisted = false;
         },
         onAssistantTurnPersisted: () => {
-          agentsManager.streamingText = '';
+          // streamingText stays until the chat view renders the persisted
+          // turn, otherwise the reply blinks out while messages reload.
+          agentsManager.streamingTextPersisted = true;
           agentsManager.streamingStatus = null;
+          agentsManager.messagesVersion++;
+        },
+        onToolsUnavailable: (tools, engine) => {
+          agentsManager.toolsUnavailableNotice = { threadId, tools, engine };
         },
       });
     } catch (err) {
@@ -405,8 +446,10 @@ class AgentsExtension implements Extension {
     } finally {
       agentsManager.sending = false;
       agentsManager.activeAbortController = null;
-      agentsManager.streamingText = '';
       agentsManager.streamingStatus = null;
+      // A saved turn is cleared by the chat view once its reload renders it.
+      // Anything else (an aborted or failed turn) has nothing to replace it.
+      if (!agentsManager.streamingTextPersisted) agentsManager.streamingText = '';
     }
   }
 }

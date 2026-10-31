@@ -3,14 +3,17 @@
   import type { AgentToolGroup } from '../../lib/ipc/commands';
   import Checkbox from '../../components/base/Checkbox.svelte';
   import { mcpService } from '../mcp/mcpService.svelte';
+  import { t } from '../../services/i18n';
 
   let {
     groups,
     selectedIds,
+    droppedToolIds = [],
     onChange,
   }: {
     groups: AgentToolGroup[];
     selectedIds: string[];
+    droppedToolIds?: string[];
     onChange: (ids: string[]) => void;
   } = $props();
 
@@ -46,6 +49,9 @@
               onchange={() => onChange(toggleToolSelection(selectedIds, tool.fullyQualifiedId))}
             />
             <span>{tool.name}</span>
+            {#if droppedToolIds.includes(tool.fullyQualifiedId)}
+              <span class="tool-dropped-hint">{t('features.agents.edit.tool_dropped_hint')}</span>
+            {/if}
           </label>
         {/each}
       </div>
@@ -94,5 +100,12 @@
     cursor: pointer;
     font-size: var(--font-size-sm);
     color: var(--text-primary);
+  }
+
+  .tool-dropped-hint {
+    margin-left: auto;
+    font-size: var(--font-size-xs);
+    color: var(--accent-warning);
+    font-weight: 500;
   }
 </style>

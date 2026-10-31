@@ -348,6 +348,9 @@
           oninput={handleContextInput}
           {onkeydown}
         />
+        <!-- A view can run inside a context (Ask AI is the AI context), so its
+             accessory belongs here too. -->
+        {@render accessoryDropdown()}
       </div>
     {:else}
       <div class="search-input-row">
@@ -458,20 +461,19 @@
             <KeyboardHint keys="⇥" />
           </span>
         {/if}
-        <!-- Note: context chips and the searchbar accessory share the right slot in
-             this {:else} branch. If both are populated (rare race during hotkey-
-             driven view navigation while a context chip is active), the {:else if
-             activeContext} branch above wins and this block does not render. -->
-        {#if !argumentMode && accessory}
-          <SearchBarAccessoryDropdown
-            bind:this={accessoryRef}
-            options={accessory.options}
-            value={accessory.value}
-            onChange={onAccessoryChange}
-          />
-        {/if}
+        {@render accessoryDropdown()}
       </div>
     {/if}
+    {#snippet accessoryDropdown()}
+      {#if !argumentMode && accessory}
+        <SearchBarAccessoryDropdown
+          bind:this={accessoryRef}
+          options={accessory.options}
+          value={accessory.value}
+          onChange={onAccessoryChange}
+        />
+      {/if}
+    {/snippet}
     {#if developmentBuildIndicator}
       <span
         class="shrink-0"

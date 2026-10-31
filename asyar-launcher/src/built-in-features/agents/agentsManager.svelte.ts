@@ -31,8 +31,24 @@ export class AgentsManager {
    */
   streamingText = $state<string>('');
   streamingStatus = $state<ChatStreamStatus | null>(null);
+  /**
+   * True once the turn in `streamingText` is saved. The chat view clears the
+   * streamed copy only then, after its reload renders the saved turn; clearing
+   * on any reload would blink the reply out mid-stream.
+   */
+  streamingTextPersisted = $state(false);
+  /**
+   * The thread `streamingText` belongs to. The chat view shows the streamed
+   * copy, and clears it after a reload, only while that thread is selected, so
+   * a reply never appears in, or is cleared by, another thread.
+   */
+  streamingThreadId = $state<string | null>(null);
+  /** Which of the chat's ⌘K pickers is open: Change Provider or Change Model. */
+  picker = $state<'provider' | 'model' | null>(null);
   /** True while a `runAgent` invocation is in-flight for the active thread. */
   sending = $state<boolean>(false);
+  /** Bumped whenever Rust persists a message mid-run so the chat view reloads. */
+  messagesVersion = $state(0);
   /** Latest assistant message's text in the active thread, or null. Set by
    * AgentChatView on message load; read by the copy-last-response action. */
   lastAssistantMessageText = $state<string | null>(null);
@@ -42,6 +58,14 @@ export class AgentsManager {
    * via the abortSignal arg.
    */
   activeAbortController = $state<AbortController | null>(null);
+  /**
+   * Non-blocking notice populated when a CLI-mode run drops selected tools.
+   * Scoped to the active thread where the run started. Rendered inline in
+   * AgentChatView only when matching currentThreadId.
+   */
+  toolsUnavailableNotice = $state<{ threadId: string; tools: string[]; engine: string } | null>(
+    null,
+  );
   /**
    * The thread list each agent last loaded. The chat view mounts fresh on
    * every open, so it renders this until its own load lands rather than an

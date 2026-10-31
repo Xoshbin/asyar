@@ -1,4 +1,6 @@
 import { settingsService } from '../../../services/settings/settingsService.svelte';
+import { aiSaveCredential } from '../../../lib/ipc/commands';
+import { logService } from '../../../services/log/logService';
 import type { AISettings } from '../../settings/types/AppSettingsType';
 import type {
   ISyncProvider,
@@ -19,7 +21,10 @@ export class AISettingsSyncProvider implements ISyncProvider {
   readonly syncTier = 'core' as const;
   readonly defaultEnabled = true;
   readonly defaultConflictStrategy = 'replace' as const;
-  // Note: API keys live inside providers.<id>.apiKey — we list them as sensitive
+  // Provider configs can carry credentials besides the API key (custom headers, base URLs,
+  // local paths), so the whole map stays out of cloud sync and is encrypted — or stripped —
+  // in exports. API keys themselves live in the encrypted credential store and are never
+  // exported (see `withoutApiKeys`).
   readonly sensitiveFields: string[] = ['providers'];
 
   async exportFull(): Promise<SyncProviderData> {
@@ -27,26 +32,19 @@ export class AISettingsSyncProvider implements ISyncProvider {
       providerId: this.id,
       version: 2,
       exportedAt: Date.now(),
-      data: settingsService.currentSettings.ai,
+      data: withoutApiKeys(settingsService.currentSettings.ai),
     };
   }
 
   async exportForSync(): Promise<SyncProviderData> {
-    // Export only the 5 active keys — legacy AI-Chat keys are excluded.
-    const settings = settingsService.currentSettings.ai;
-    const sanitizedProviders = Object.fromEntries(
-      Object.entries(settings.providers).map(([id, config]) => {
-        const copy = { ...config };
-        delete (copy as Record<string, unknown>)['apiKey'];
-        return [id, copy];
-      }),
-    );
+    // Export only the active keys — legacy AI-Chat keys are excluded.
+    const settings = withoutApiKeys(settingsService.currentSettings.ai);
     return {
       providerId: this.id,
       version: 2,
       exportedAt: Date.now(),
       data: {
-        providers: sanitizedProviders as AISettings['providers'],
+        providers: settings.providers,
         temperature: settings.temperature,
         maxTokens: settings.maxTokens,
         defaultAgentId: settings.defaultAgentId,
@@ -70,9 +68,20 @@ export class AISettingsSyncProvider implements ISyncProvider {
       return { success: true, itemsAdded: 0, itemsUpdated: 0, itemsRemoved: 0, warnings: [] };
     }
 
+    const warnings: string[] = [];
+    const raw = (incoming.data ? JSON.parse(JSON.stringify(incoming.data)) : {}) as Record<
+      string,
+      unknown
+    >;
+    // A password-less export writes `null` for each sensitive field (`providers`); applying it
+    // would wipe the local value, so drop top-level nulls and keep what is already here.
+    for (const key of Object.keys(raw)) {
+      if (raw[key] === null) delete raw[key];
+    }
+    await migrateLegacyExportKeys(raw, warnings);
+
     // Both 'replace' and 'merge' update the settings.
     // Strip legacy AI-Chat keys before forwarding so they never leak into settings.
-    const raw = incoming.data as Record<string, unknown>;
     const filtered: Partial<AISettings> = {};
     const activeKeys: Array<keyof AISettings> = [
       'providers',
@@ -80,12 +89,22 @@ export class AISettingsSyncProvider implements ISyncProvider {
       'maxTokens',
       'defaultAgentId',
       'tabContinuesLastThread',
+      'historyRetentionCap',
+      'webSearch',
     ];
     for (const key of activeKeys) {
       if (key in raw) (filtered as Record<string, unknown>)[key] = raw[key];
     }
     settingsService.updateSettings('ai', filtered as AISettings);
-    return { success: true, itemsAdded: 0, itemsUpdated: 1, itemsRemoved: 0, warnings: [] };
+
+    const dedupedWarnings = Array.from(new Set(warnings));
+    return {
+      success: true,
+      itemsAdded: 0,
+      itemsUpdated: 1,
+      itemsRemoved: 0,
+      warnings: dedupedWarnings,
+    };
   }
 
   async getLocalSummary(): Promise<DataSummary> {
@@ -102,11 +121,21 @@ export class AISettingsSyncProvider implements ISyncProvider {
   // ai-settings is a singleton stored under the 'ai' section of AppSettings.
 
   async exportItems(): Promise<SyncItem[]> {
-    return [{ id: this.id, categoryId: this.id, content: settingsService.currentSettings.ai }];
+    return [
+      {
+        id: this.id,
+        categoryId: this.id,
+        content: withoutApiKeys(settingsService.currentSettings.ai),
+      },
+    ];
   }
 
   async applyItemUpsert(item: SyncItem): Promise<void> {
-    settingsService.updateSettings('ai', item.content as AISettings);
+    const sanitized = sanitizeIncomingAiSettings(
+      item.content as Partial<AISettings>,
+      settingsService.currentSettings.ai,
+    );
+    await settingsService.updateSettings('ai', sanitized);
   }
 
   // The ai-settings singleton lives inside settings — there is no separate
@@ -128,4 +157,114 @@ export class AISettingsSyncProvider implements ISyncProvider {
     });
     return unsub;
   }
+}
+
+/** Copy of the AI settings with any `apiKey` removed from providers and web search. */
+function withoutApiKeys(ai: AISettings): AISettings {
+  const providers = Object.fromEntries(
+    Object.entries(ai.providers ?? {}).map(([id, config]) => {
+      const copy = { ...config } as Record<string, unknown>;
+      delete copy['apiKey'];
+      return [id, copy];
+    }),
+  ) as unknown as AISettings['providers'];
+
+  const result: AISettings = { ...ai, providers };
+  if (ai.webSearch) {
+    const webSearch = { ...ai.webSearch } as Record<string, unknown>;
+    delete webSearch['apiKey'];
+    result.webSearch = webSearch as unknown as AISettings['webSearch'];
+  }
+  return result;
+}
+
+const KEYED_WEB_SEARCH_ENGINES = ['brave', 'tavily', 'serply'];
+const KEY_IMPORT_WARNING = "some API keys couldn't be imported; please re-enter them";
+
+/**
+ * COMPAT(remove in 0.2.0): old .asyar exports carry apiKey
+ *
+ * Normalizes an old-format export in place so only the new shape reaches `settings.dat`:
+ * - `providers.<id>.apiKey` and `webSearch.apiKey` are moved into the encrypted credential
+ *   store (a web-search key is stored for the export's own `webSearch.engine`; if that engine
+ *   isn't a keyed one we can't tell which service the key was for, so it's skipped with a warning)
+ *   and then deleted from the payload.
+ */
+async function migrateLegacyExportKeys(
+  raw: Record<string, unknown>,
+  warnings: string[],
+): Promise<void> {
+  const saveKey = async (
+    target: Parameters<typeof aiSaveCredential>[0],
+    secret: unknown,
+    label: string,
+  ) => {
+    if (typeof secret !== 'string' || !secret.trim()) return;
+    try {
+      await aiSaveCredential(target, secret.trim());
+    } catch (err) {
+      logService.error(`Failed to import API key for ${label}: ${String(err)}`);
+      warnings.push(KEY_IMPORT_WARNING);
+    }
+  };
+
+  if (raw.providers && typeof raw.providers === 'object') {
+    const providers = raw.providers as Record<string, Record<string, unknown> | null>;
+    for (const [id, cfg] of Object.entries(providers)) {
+      if (cfg && typeof cfg === 'object' && 'apiKey' in cfg) {
+        const secret = cfg['apiKey'];
+        delete cfg['apiKey'];
+        await saveKey({ type: 'provider', id }, secret, `provider ${id}`);
+      }
+    }
+  }
+
+  if (raw.webSearch && typeof raw.webSearch === 'object') {
+    const webSearch = raw.webSearch as Record<string, unknown>;
+    if ('apiKey' in webSearch) {
+      const secret = webSearch['apiKey'];
+      delete webSearch['apiKey'];
+      const engine = webSearch['engine'];
+      if (typeof engine === 'string' && KEYED_WEB_SEARCH_ENGINES.includes(engine)) {
+        await saveKey({ type: 'webSearch', engine }, secret, `web search (${engine})`);
+      } else if (typeof secret === 'string' && secret.trim()) {
+        logService.warn(
+          'Skipped imported web-search API key: its engine does not identify which service it was for',
+        );
+        warnings.push(KEY_IMPORT_WARNING);
+      }
+    }
+  }
+}
+
+/**
+ * Normalizes incoming AI settings for delta sync upserts.
+ * Omits 'providers' so local provider configurations and credentials remain intact.
+ * Merges 'webSearch' while stripping any incoming apiKey.
+ */
+export function sanitizeIncomingAiSettings(
+  incoming: Partial<AISettings> | null | undefined,
+  localAi: AISettings | undefined,
+): Partial<AISettings> {
+  if (!incoming || typeof incoming !== 'object') {
+    return {};
+  }
+
+  const sanitized: Partial<AISettings> = { ...incoming };
+
+  // Provider configurations and keys are kept device-local
+  delete sanitized.providers;
+
+  // When webSearch is present in incoming data, merge while stripping any remote apiKey
+  if ('webSearch' in incoming && incoming.webSearch && typeof incoming.webSearch === 'object') {
+    const localWebSearch = localAi?.webSearch;
+    const mergedWebSearch: Record<string, unknown> = {
+      ...localWebSearch,
+      ...incoming.webSearch,
+    };
+    delete mergedWebSearch['apiKey'];
+    sanitized.webSearch = mergedWebSearch as unknown as AISettings['webSearch'];
+  }
+
+  return sanitized;
 }

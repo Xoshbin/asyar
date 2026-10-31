@@ -17,6 +17,25 @@ fn make_store() -> crate::storage::DataStore {
     crate::storage::create_test_store_with_foreign_keys()
 }
 
+static TEST_MASTER_KEY: std::sync::LazyLock<[u8; 32]> =
+    std::sync::LazyLock::new(crate::crypto::test_master_key);
+
+fn seed_test_credential(store: &crate::storage::DataStore, provider_id: &str, key: &str) {
+    crate::storage::ai_credentials::set(
+        &store.conn().unwrap(),
+        &format!("provider:{provider_id}"),
+        key,
+        &TEST_MASTER_KEY,
+    )
+    .unwrap();
+}
+
+fn test_db_and_key() -> (rusqlite::Connection, [u8; 32]) {
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::storage::migrations::run(&conn).unwrap();
+    (conn, *TEST_MASTER_KEY)
+}
+
 fn chat_message(role: &str, content: &str) -> crate::ai::types::ChatMessage {
     crate::ai::types::ChatMessage {
         id: uuid::Uuid::new_v4().to_string(),
@@ -197,11 +216,11 @@ async fn test_silent_runner_rejects_non_silent_agent() {
     };
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some("http://127.0.0.1:9".to_string()),
         ..Default::default()
     };
 
+    let store = make_store();
     let error = run_silent_agent_loop_impl(
         &agent,
         &ToolRegistry::new(),
@@ -210,6 +229,10 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
+        None,
+        None,
+        &store,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap_err();
@@ -260,10 +283,12 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
 
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{port}")),
         ..Default::default()
     };
+
+    let store = make_store();
+    seed_test_credential(&store, "openai", "test-key");
 
     run_silent_agent_loop_impl(
         &shortcode_miss_agent(),
@@ -273,6 +298,10 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
+        None,
+        None,
+        &store,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap()
@@ -329,6 +358,8 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
             agent_id: "agent-2".to_string(),
             title: None,
             is_pinned: false,
+            provider_id: None,
+            model_id: None,
             created_at: Some(now),
             updated_at: Some(now),
         },
@@ -336,7 +367,6 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
     .unwrap();
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some("http://127.0.0.1:9".to_string()),
         ..Default::default()
     };
@@ -352,6 +382,9 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap_err();
@@ -421,6 +454,8 @@ async fn test_run_thread_loop_text_only() {
             agent_id: agent_id.clone(),
             title: None,
             is_pinned: false,
+            provider_id: None,
+            model_id: None,
             created_at: Some(now),
             updated_at: Some(now),
         },
@@ -431,7 +466,6 @@ async fn test_run_thread_loop_text_only() {
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -445,6 +479,8 @@ async fn test_run_thread_loop_text_only() {
             }
         }
     };
+
+    seed_test_credential(&store, "openai", "test-key");
 
     run_thread_loop_impl(
         &store,
@@ -461,6 +497,9 @@ async fn test_run_thread_loop_text_only() {
             ))
         },
         None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -551,6 +590,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
             agent_id: agent_id.clone(),
             title: Some("Title".to_string()),
             is_pinned: false,
+            provider_id: None,
+            model_id: None,
             created_at: Some(now),
             updated_at: Some(now),
         },
@@ -579,7 +620,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -589,6 +629,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
     let on_event = move |event| {
         e_clone.lock().unwrap().push(event);
     };
+
+    seed_test_credential(&store, "openai", "test-key");
 
     run_thread_loop_impl(
         &store,
@@ -605,6 +647,9 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
             ))
         },
         None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -691,6 +736,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
             agent_id: agent_id.clone(),
             title: Some("Title".to_string()),
             is_pinned: false,
+            provider_id: None,
+            model_id: None,
             created_at: Some(now),
             updated_at: Some(now),
         },
@@ -713,7 +760,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -726,6 +772,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
     let dispatched = Arc::new(std::sync::Mutex::new(Vec::new()));
     let dispatched_clone = dispatched.clone();
     let events_for_dispatch = events.clone();
+
+    seed_test_credential(&store, "openai", "test-key");
 
     run_thread_loop_impl(
         &store,
@@ -750,6 +798,9 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
             async { Ok(json!({ "answer": 42 })) }
         },
         None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -830,7 +881,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
     let registry = Arc::new(ToolRegistry::new());
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -849,6 +899,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
         )
     };
 
+    seed_test_credential(&store, "openai", "test-key");
+
     let result = run_silent_loop_impl(
         &store,
         &registry,
@@ -862,6 +914,9 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
             ))
         },
         None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -890,22 +945,87 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
 fn valid_openai_config() -> crate::ai::types::ProviderConfig {
     crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("sk-test".to_string()),
         ..Default::default()
     }
 }
 
 #[test]
 fn resolve_provider_config_succeeds_for_a_fully_configured_provider() {
+    let (conn, master_key) = test_db_and_key();
+    crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-test", &master_key).unwrap();
     let configs = std::collections::HashMap::from([("openai".to_string(), valid_openai_config())]);
-    let resolved = resolve_provider_config("openai", &configs).unwrap();
-    assert_eq!(resolved.api_key.as_deref(), Some("sk-test"));
+    let resolved = resolve_provider_config("openai", &configs, &conn, &master_key).unwrap();
+    assert_eq!(
+        resolved.api_key.as_deref().map(|s| s.as_str()),
+        Some("sk-test")
+    );
+}
+
+#[test]
+fn resolve_provider_config_uses_stored_key_even_when_ipc_config_carries_different_key() {
+    let (conn, master_key) = test_db_and_key();
+
+    crate::storage::ai_credentials::set(
+        &conn,
+        "provider:openai",
+        "sk-stored-encrypted-key",
+        &master_key,
+    )
+    .unwrap();
+
+    // Deserializing an IPC payload that carries legacy apiKey
+    let config: crate::ai::types::ProviderConfig = serde_json::from_value(serde_json::json!({
+        "enabled": true,
+        "apiKey": "sk-different-ipc-key"
+    }))
+    .unwrap();
+
+    let configs = std::collections::HashMap::from([("openai".to_string(), config)]);
+    let resolved =
+        crate::agents::runner::resolve_provider_config("openai", &configs, &conn, &master_key)
+            .unwrap();
+
+    assert_eq!(
+        resolved.api_key.as_deref().map(|s| s.as_str()),
+        Some("sk-stored-encrypted-key"),
+        "Runner must use stored key from ai_credentials, ignoring different key in IPC config"
+    );
+}
+
+#[test]
+fn switching_to_cli_mode_does_not_delete_or_disturb_stored_credential() {
+    let (conn, master_key) = test_db_and_key();
+
+    crate::storage::ai_credentials::set(
+        &conn,
+        "provider:openai",
+        "sk-stored-openai-key",
+        &master_key,
+    )
+    .unwrap();
+
+    // Provider is switched to CLI mode
+    let mut cli_config = valid_openai_config();
+    cli_config.connection_mode = Some("cli".to_string());
+
+    // Verify key remains Configured in ai_credentials store
+    assert_eq!(
+        crate::storage::ai_credentials::status(&conn, "provider:openai", &master_key).unwrap(),
+        crate::storage::ai_credentials::CredentialState::Configured
+    );
+
+    // Key is still safely preserved and decryptable
+    let stored = crate::storage::ai_credentials::get(&conn, "provider:openai", &master_key)
+        .unwrap()
+        .unwrap();
+    assert_eq!(&*stored, "sk-stored-openai-key");
 }
 
 #[test]
 fn resolve_provider_config_errors_when_provider_has_no_config_entry() {
+    let (conn, master_key) = test_db_and_key();
     let configs = std::collections::HashMap::new();
-    let error = resolve_provider_config("openai", &configs).unwrap_err();
+    let error = resolve_provider_config("openai", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("provider 'openai' is not configured"));
@@ -913,17 +1033,19 @@ fn resolve_provider_config_errors_when_provider_has_no_config_entry() {
 
 #[test]
 fn resolve_provider_config_errors_when_disabled() {
+    let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
     config.enabled = false;
     let configs = std::collections::HashMap::from([("openai".to_string(), config)]);
-    let error = resolve_provider_config("openai", &configs).unwrap_err();
+    let error = resolve_provider_config("openai", &configs, &conn, &master_key).unwrap_err();
     assert!(error.to_string().contains("provider 'openai' is disabled"));
 }
 
 #[test]
 fn resolve_provider_config_errors_for_an_unregistered_provider_id() {
+    let (conn, master_key) = test_db_and_key();
     let configs = std::collections::HashMap::from([("made-up".to_string(), valid_openai_config())]);
-    let error = resolve_provider_config("made-up", &configs).unwrap_err();
+    let error = resolve_provider_config("made-up", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("provider 'made-up' is not registered"));
@@ -934,20 +1056,33 @@ fn resolve_provider_config_succeeds_for_a_named_connection_id() {
     // Named connections (added via the "multiple provider connections"
     // feature) get an opaque id like "custom_60f9a975" — the real engine
     // lives in `provider_type`, not the map key.
+    let (conn, master_key) = test_db_and_key();
+    crate::storage::ai_credentials::set(
+        &conn,
+        "provider:custom_60f9a975",
+        "custom-key",
+        &master_key,
+    )
+    .unwrap();
     let mut config = valid_openai_config();
     config.provider_type = Some("custom".to_string());
     config.base_url = Some("https://example.com/v1".to_string());
     let configs = std::collections::HashMap::from([("custom_60f9a975".to_string(), config)]);
-    let resolved = resolve_provider_config("custom_60f9a975", &configs).unwrap();
+    let resolved =
+        resolve_provider_config("custom_60f9a975", &configs, &conn, &master_key).unwrap();
     assert_eq!(resolved.provider_type.as_deref(), Some("custom"));
+    assert_eq!(
+        resolved.api_key.as_deref().map(|s| s.as_str()),
+        Some("custom-key")
+    );
 }
 
 #[test]
 fn resolve_provider_config_errors_when_api_key_is_missing() {
-    let mut config = valid_openai_config();
-    config.api_key = Some("   ".to_string());
+    let (conn, master_key) = test_db_and_key();
+    let config = valid_openai_config();
     let configs = std::collections::HashMap::from([("anthropic".to_string(), config)]);
-    let error = resolve_provider_config("anthropic", &configs).unwrap_err();
+    let error = resolve_provider_config("anthropic", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("API key for provider 'anthropic' is not configured"));
@@ -955,10 +1090,11 @@ fn resolve_provider_config_errors_when_api_key_is_missing() {
 
 #[test]
 fn resolve_provider_config_errors_when_base_url_is_missing() {
+    let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
     config.base_url = None;
     let configs = std::collections::HashMap::from([("ollama".to_string(), config)]);
-    let error = resolve_provider_config("ollama", &configs).unwrap_err();
+    let error = resolve_provider_config("ollama", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("Base URL for provider 'ollama' is not configured"));
@@ -966,12 +1102,12 @@ fn resolve_provider_config_errors_when_base_url_is_missing() {
 
 #[test]
 fn resolve_provider_config_handles_cli_mode() {
+    let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
-    config.api_key = None;
     config.connection_mode = Some("cli".to_string());
     config.cli_binary_path = Some("/non/existent/path/codex".to_string());
     let configs = std::collections::HashMap::from([("openai".to_string(), config.clone())]);
-    let error = resolve_provider_config("openai", &configs).unwrap_err();
+    let error = resolve_provider_config("openai", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("CLI executable for provider 'openai' was not found"));
@@ -982,33 +1118,35 @@ fn resolve_provider_config_handles_cli_mode() {
         .to_string();
     config.cli_binary_path = Some(current_exe);
     let valid_configs = std::collections::HashMap::from([("openai".to_string(), config)]);
-    let resolved = resolve_provider_config("openai", &valid_configs).unwrap();
+    let resolved = resolve_provider_config("openai", &valid_configs, &conn, &master_key).unwrap();
     assert_eq!(resolved.connection_mode.as_deref(), Some("cli"));
 }
 
 #[test]
 fn resolve_provider_config_allows_anthropic_cli_mode() {
+    let (conn, master_key) = test_db_and_key();
     let current_exe = std::env::current_exe()
         .expect("current_exe")
         .to_string_lossy()
         .to_string();
     let mut config = valid_openai_config();
-    config.api_key = None;
     config.provider_type = Some("anthropic".to_string());
     config.connection_mode = Some("cli".to_string());
     config.cli_binary_path = Some(current_exe);
     let configs = std::collections::HashMap::from([("anthropic_d503f4b".to_string(), config)]);
-    let resolved = resolve_provider_config("anthropic_d503f4b", &configs).unwrap();
+    let resolved =
+        resolve_provider_config("anthropic_d503f4b", &configs, &conn, &master_key).unwrap();
     assert_eq!(resolved.connection_mode.as_deref(), Some("cli"));
 }
 
 #[test]
 fn resolve_provider_config_rejects_cli_mode_for_unsupported_engines() {
+    let (conn, master_key) = test_db_and_key();
     let mut config = valid_openai_config();
     config.provider_type = Some("ollama".to_string());
     config.connection_mode = Some("cli".to_string());
     let configs = std::collections::HashMap::from([("ollama_1".to_string(), config)]);
-    let error = resolve_provider_config("ollama_1", &configs).unwrap_err();
+    let error = resolve_provider_config("ollama_1", &configs, &conn, &master_key).unwrap_err();
     assert!(error
         .to_string()
         .contains("CLI mode is not supported for provider 'ollama_1'"));
@@ -1114,6 +1252,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
             agent_id: agent_id.clone(),
             title: Some("Search Thread".to_string()),
             is_pinned: false,
+            provider_id: None,
+            model_id: None,
             created_at: Some(now),
             updated_at: Some(now),
         },
@@ -1122,12 +1262,24 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
 
     let registry = Arc::new(ToolRegistry::new());
     registry
-        .register_builtin(Arc::new(WebSearchTool::with_base_url(search_server.url())))
+        .register_builtin(Arc::new(WebSearchTool::with_store_and_base_url(
+            store.clone(),
+            *TEST_MASTER_KEY,
+            search_server.url(),
+        )))
         .unwrap();
+
+    seed_test_credential(&store, "openai", "test-key");
+    crate::storage::ai_credentials::set(
+        &store.conn().unwrap(),
+        "web_search:brave",
+        "test-search-key",
+        &TEST_MASTER_KEY,
+    )
+    .unwrap();
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         ..Default::default()
     };
@@ -1153,6 +1305,9 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
             ))
         },
         None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
     )
     .await
     .unwrap();
@@ -1204,5 +1359,538 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
     assert_eq!(
         msgs[3].content["text"].as_str().unwrap(),
         "Rust 1.80.0 was officially announced!"
+    );
+}
+
+#[tokio::test]
+async fn test_runner_emits_tools_unavailable_once_in_cli_mode_with_dropped_tools() {
+    let store = make_store();
+    let agent_id = "agent-cli-dropped".to_string();
+    let thread_id = "thread-cli-dropped".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "CLI Agent".to_string(),
+            description: None,
+            system_prompt: "Helper".to_string(),
+            provider_id: "anthropic_cli".to_string(),
+            model_id: "claude-3-5-sonnet".to_string(),
+            tool_selection: vec!["weather:current".to_string()],
+            silent: false,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("CLI Test".to_string()),
+            is_pinned: false,
+            provider_id: None,
+            model_id: None,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_tier2(
+            "weather",
+            vec![crate::agents::tools::ManifestTool {
+                id: "current".to_string(),
+                name: "Weather".to_string(),
+                description: "current weather".to_string(),
+                parameters: json!({}),
+            }],
+        )
+        .unwrap();
+
+    let current_exe = std::env::current_exe()
+        .expect("current_exe")
+        .to_string_lossy()
+        .to_string();
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        provider_type: Some("anthropic".to_string()),
+        connection_mode: Some("cli".to_string()),
+        cli_binary_path: Some(current_exe),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    let run_cfg = AgentRunConfig {
+        providers: vec![crate::agents::editor::AgentProviderDescriptor {
+            id: "anthropic".to_string(),
+            name: "Anthropic".to_string(),
+            requires_api_key: false,
+            requires_base_url: false,
+        }],
+        configs: std::collections::HashMap::from([("anthropic_cli".to_string(), config)]),
+        default_agent_id: None,
+        temperature: None,
+        max_tokens: 100,
+        web_search: None,
+    };
+
+    let res = run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "Hello".to_string(),
+        None,
+        run_cfg,
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
+    )
+    .await;
+    if let Err(ref e) = res {
+        eprintln!("run_thread_loop_impl returned err: {e:?}");
+    }
+
+    let recorded = events.lock().unwrap();
+    let unavailable_events: Vec<_> = recorded
+        .iter()
+        .filter_map(|e| match e {
+            AgentStreamEvent::ToolsUnavailable { tools, engine } => {
+                Some((tools.clone(), engine.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(
+        unavailable_events.len(),
+        1,
+        "ToolsUnavailable must be emitted exactly once in CLI mode with dropped tools"
+    );
+    assert_eq!(unavailable_events[0].0, vec!["Weather"]);
+    assert_eq!(unavailable_events[0].1, "claude");
+}
+
+#[tokio::test]
+async fn test_runner_does_not_emit_tools_unavailable_in_cli_mode_when_only_builtins() {
+    let store = make_store();
+    let agent_id = "agent-cli-builtins".to_string();
+    let thread_id = "thread-cli-builtins".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "CLI Builtin Agent".to_string(),
+            description: None,
+            system_prompt: "Helper".to_string(),
+            provider_id: "anthropic_cli".to_string(),
+            model_id: "claude-3-5-sonnet".to_string(),
+            tool_selection: vec!["builtin:calculator".to_string()],
+            silent: false,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("CLI Test".to_string()),
+            is_pinned: false,
+            provider_id: None,
+            model_id: None,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    struct DummyCalc;
+    #[async_trait::async_trait]
+    impl crate::agents::tools::BuiltinTool for DummyCalc {
+        fn descriptor(&self) -> crate::agents::tools::ToolDescriptor {
+            crate::agents::tools::ToolDescriptor {
+                id: "calculator".to_string(),
+                name: "Calculator".to_string(),
+                description: "calc".to_string(),
+                parameters: json!({}),
+                source: crate::agents::tools::ToolSource::Builtin,
+                fully_qualified_id: "builtin:calculator".to_string(),
+            }
+        }
+        async fn invoke(&self, _input: serde_json::Value) -> Result<serde_json::Value, AppError> {
+            Ok(json!({ "result": 42 }))
+        }
+    }
+    registry.register_builtin(Arc::new(DummyCalc)).unwrap();
+
+    let current_exe = std::env::current_exe()
+        .expect("current_exe")
+        .to_string_lossy()
+        .to_string();
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        provider_type: Some("anthropic".to_string()),
+        connection_mode: Some("cli".to_string()),
+        cli_binary_path: Some(current_exe),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    let _ = run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "Hello".to_string(),
+        None,
+        run_config("anthropic_cli", config, None, 100),
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
+    )
+    .await;
+
+    let recorded = events.lock().unwrap();
+    let has_unavailable = recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::ToolsUnavailable { .. }));
+    assert!(
+        !has_unavailable,
+        "ToolsUnavailable must not be emitted when no tools are dropped"
+    );
+}
+
+#[tokio::test]
+async fn test_runner_does_not_emit_tools_unavailable_in_api_mode() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    tokio::spawn(async move {
+        if let Ok((mut socket, _)) = listener.accept().await {
+            let mut buf = [0; 4096];
+            let _ = tokio::io::AsyncReadExt::read(&mut socket, &mut buf).await;
+            let response = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n\
+data: {\"choices\":[{\"delta\":{\"content\":\"Hello!\"}}]}\n\ndata: [DONE]\n\n";
+            let _ = socket.write_all(response.as_bytes()).await;
+        }
+    });
+
+    let store = make_store();
+    let agent_id = "agent-api-mode".to_string();
+    let thread_id = "thread-api-mode".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "API Agent".to_string(),
+            description: None,
+            system_prompt: "Helper".to_string(),
+            provider_id: "openai_api".to_string(),
+            model_id: "gpt-4o".to_string(),
+            tool_selection: vec!["weather:current".to_string()],
+            silent: false,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("API Test".to_string()),
+            is_pinned: false,
+            provider_id: None,
+            model_id: None,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_tier2(
+            "weather",
+            vec![crate::agents::tools::ManifestTool {
+                id: "current".to_string(),
+                name: "Weather".to_string(),
+                description: "current weather".to_string(),
+                parameters: json!({}),
+            }],
+        )
+        .unwrap();
+
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        provider_type: Some("openai".to_string()),
+        base_url: Some(format!("http://127.0.0.1:{port}")),
+        connection_mode: None, // API mode
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    seed_test_credential(&store, "openai_api", "test-key");
+
+    run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "Hello".to_string(),
+        None,
+        run_config("openai_api", config, None, 100),
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
+    )
+    .await
+    .unwrap();
+
+    let recorded = events.lock().unwrap();
+    let has_unavailable = recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::ToolsUnavailable { .. }));
+    assert!(
+        !has_unavailable,
+        "ToolsUnavailable must never be emitted in API mode"
+    );
+}
+
+#[tokio::test]
+async fn test_runner_does_not_emit_tools_unavailable_for_silent_runs() {
+    let store = make_store();
+    let agent_id = "agent-silent-cli".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    let agent = AgentRow {
+        id: agent_id.clone(),
+        name: "Silent CLI Agent".to_string(),
+        description: None,
+        system_prompt: "Helper".to_string(),
+        provider_id: "anthropic_cli".to_string(),
+        model_id: "claude-3-5-sonnet".to_string(),
+        tool_selection: vec!["weather:current".to_string()],
+        silent: true,
+        input_source: crate::storage::agents::SilentInputSource::Argument,
+        output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
+        created_at: Some(now),
+        updated_at: Some(now),
+    };
+    insert_agent(&store.conn().unwrap(), &agent).unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_tier2(
+            "weather",
+            vec![crate::agents::tools::ManifestTool {
+                id: "current".to_string(),
+                name: "Weather".to_string(),
+                description: "current weather".to_string(),
+                parameters: json!({}),
+            }],
+        )
+        .unwrap();
+
+    let current_exe = std::env::current_exe()
+        .expect("current_exe")
+        .to_string_lossy()
+        .to_string();
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        provider_type: Some("anthropic".to_string()),
+        connection_mode: Some("cli".to_string()),
+        cli_binary_path: Some(current_exe),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    let _ = crate::agents::runner::run_silent_agent_loop_impl(
+        &agent,
+        &registry,
+        "Hello".to_string(),
+        run_config("anthropic_cli", config, None, 100),
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+        &store,
+        &TEST_MASTER_KEY,
+    )
+    .await;
+
+    let recorded = events.lock().unwrap();
+    let has_unavailable = recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::ToolsUnavailable { .. }));
+    assert!(
+        !has_unavailable,
+        "ToolsUnavailable must not be emitted for silent runs"
+    );
+}
+
+#[tokio::test]
+async fn test_runner_with_disabled_provider_preserves_error_and_does_not_emit_tools_unavailable() {
+    let store = make_store();
+    let agent_id = "agent-disabled-provider".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    let agent = AgentRow {
+        id: agent_id.clone(),
+        name: "Disabled Provider Agent".to_string(),
+        description: None,
+        system_prompt: "Helper".to_string(),
+        provider_id: "anthropic".to_string(),
+        model_id: "claude-3-5-sonnet".to_string(),
+        tool_selection: vec!["weather:current".to_string()],
+        silent: false,
+        input_source: crate::storage::agents::SilentInputSource::Argument,
+        output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
+        created_at: Some(now),
+        updated_at: Some(now),
+    };
+    insert_agent(&store.conn().unwrap(), &agent).unwrap();
+
+    let thread_id = "thread-disabled-provider".to_string();
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("Disabled Provider Test".to_string()),
+            is_pinned: false,
+            provider_id: None,
+            model_id: None,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_tier2(
+            "weather",
+            vec![crate::agents::tools::ManifestTool {
+                id: "current".to_string(),
+                name: "Weather".to_string(),
+                description: "current weather".to_string(),
+                parameters: json!({}),
+            }],
+        )
+        .unwrap();
+
+    let config = crate::ai::types::ProviderConfig {
+        enabled: false,
+        provider_type: Some("anthropic".to_string()),
+        connection_mode: Some("cli".to_string()),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    let result = crate::agents::runner::run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "Hello".to_string(),
+        Some("run-1".to_string()),
+        run_config("anthropic", config, None, 100),
+        on_event,
+        |_| async { Ok(json!({})) },
+        None,
+        None,
+        None,
+        &TEST_MASTER_KEY,
+    )
+    .await;
+
+    assert!(result.is_err(), "Run must fail with disabled provider");
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("provider 'anthropic' is disabled"),
+        "Error message must report disabled provider, got: {err_msg}"
+    );
+
+    let recorded = events.lock().unwrap();
+    assert!(
+        !recorded
+            .iter()
+            .any(|e| matches!(e, AgentStreamEvent::ToolsUnavailable { .. })),
+        "ToolsUnavailable must not be emitted when provider lookup fails"
+    );
+    assert_eq!(
+        recorded.as_slice(),
+        &[AgentStreamEvent::UserMessagePersisted],
+        "Events must match pre-change behavior: only UserMessagePersisted before failure"
     );
 }

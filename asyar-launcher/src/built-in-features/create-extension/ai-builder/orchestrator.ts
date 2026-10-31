@@ -10,6 +10,7 @@ import { homeDir, join } from '@tauri-apps/api/path';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../../../services/log/logService';
 import { extBuilderCheckRuntimes } from '../../../lib/ipc/extensionBuilderCommands';
+import { aiGetCredentialStatus } from '../../../lib/ipc/commands';
 import { extBuilderRuntimeConsentStore } from './runtimeConsentStore.svelte';
 import { runtimeService } from '../../../services/runtime/runtimeService.svelte';
 import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
@@ -154,12 +155,17 @@ async function ensureRuntimesReady(): Promise<{ ok: true } | { ok: false; reason
   return { ok: true };
 }
 
-export async function startBuild(
-  prompt: string,
-  opts: { anthropicKey: string },
-): Promise<StartResult> {
-  const key = opts.anthropicKey?.trim();
-  if (!key) {
+export async function startBuild(prompt: string): Promise<StartResult> {
+  let credStatus;
+  try {
+    credStatus = await aiGetCredentialStatus();
+  } catch {
+    return {
+      ok: false,
+      reason: 'Failed to verify AI credential status. Please check Settings → AI.',
+    };
+  }
+  if (credStatus.providers['anthropic'] !== 'configured') {
     return {
       ok: false,
       reason: 'This feature needs an Anthropic API key. Add one in Settings → AI → Anthropic.',
@@ -181,7 +187,6 @@ export async function startBuild(
       prompt,
       targetDir: baseDir,
       capabilitySpecDir,
-      anthropicKey: key,
     });
   } catch (error) {
     buildJobStore.finishFailed({

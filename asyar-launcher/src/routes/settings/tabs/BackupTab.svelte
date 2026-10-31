@@ -48,6 +48,8 @@
       {/each}
     </div>
 
+    <p class="export-note">{t('settings.backup.export_api_keys_note')}</p>
+
     {#if backup.exportWillStripSensitive}
       <div class="warning-row">
         <WarningBanner>{t('settings.backup.sensitive_stripped_warning')}</WarningBanner>
@@ -253,6 +255,14 @@
     align-items: center;
     gap: var(--space-2);
     cursor: pointer;
+  }
+
+  .export-note {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    padding: var(--space-3) var(--space-6);
+    margin: 0;
+    border-bottom: 1px solid var(--border-color);
   }
 
   .warning-row {

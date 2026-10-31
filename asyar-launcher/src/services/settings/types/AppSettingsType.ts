@@ -118,7 +118,6 @@ export type WebSearchEngine = 'duckduckgo' | 'brave' | 'tavily' | 'serply' | 'se
 
 export interface WebSearchSettings {
   engine: WebSearchEngine;
-  apiKey?: string;
   baseUrl?: string;
 }
 

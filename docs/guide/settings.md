@@ -79,11 +79,12 @@ This section is split across two related tabs.
 - **Tab continues last thread** — When on, pressing `Tab` to enter AI mode resumes your previous conversation instead of starting a new one.
 - **History retention cap** — Maximum conversation sessions to keep before older unpinned threads are automatically deleted (Unlimited, 25, 50, 100 [default], or custom). Pinned threads are always preserved.
 - **Providers** — Add one or more AI providers (Anthropic, OpenAI, OpenRouter, Google, Ollama, or a custom endpoint).
-- **Local CLI Providers (Zero-Key)** — Connect directly to your local authenticated Google (`agy`) and OpenAI (`codex`) CLIs without needing to enter an API key.
+- **API keys** — Type the key and click **Save**. After that the field shows **Key saved** with **Replace** and **Remove**, and the key itself is never shown again. Keys are stored encrypted on your device, and they are never synced or included in backups.
+- **Local CLI Providers (Zero-Key)** — Connect directly to your local, signed-in Claude Code (`claude`), Google (`agy`) and OpenAI (`codex`) CLIs without entering an API key.
 - **Searchable Model Filter** — Easily search and filter through large provider catalogs (e.g. OpenRouter or Ollama).
 - **Web Search & Grounding** — Configure web search capabilities for your agents:
-  - **Default engine** — Choose between DuckDuckGo (free, unauthenticated fallback), Brave Search, or Tavily.
-  - **API Keys** — Enter Brave or Tavily API keys for higher volume queries.
+  - **Default engine** — Choose between DuckDuckGo (free, no key needed), Brave Search, Tavily, Serply, or your own SearXNG instance.
+  - **API Keys** — Brave, Tavily and Serply each keep their own key, so switching engines doesn't lose or mix up keys.
   - **Google Search Grounding** — Enable native Google Search grounding for Gemini models.
 - **Advanced AI settings** — Max tokens, temperature, and reasoning controls.
 - **Manage Agents** — Open the Agents view to create, edit, and assign hotkeys to AI agents.
@@ -127,7 +128,7 @@ This section is split across two related tabs.
 
 **Backup** tab:
 
-- **Export** — Select which data categories to include, optionally set a password, and click Export to save a local backup file.
+- **Export** — Select which data categories to include, optionally set a password, and click Export to save a local backup file. API keys are never included.
 - **Import** — Choose a backup file to restore from. You can pick which categories to restore and how to handle conflicts (Merge, Replace, or Skip).
 - **Migrate from Raycast** — Click **Import from Raycast…** to bring in snippets, quicklinks, and app hotkeys from Raycast exports (both compressed and uncompressed JSON formats supported). See [Import from Raycast](./features/raycast-import.md).
 

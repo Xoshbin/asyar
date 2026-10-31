@@ -60,6 +60,16 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "lan_allowed_hosts",
         up: |conn| super::lan_allowed_hosts::init_table(conn),
     },
+    Migration {
+        version: 8,
+        name: "ai_credentials",
+        up: migration_8_ai_credentials,
+    },
+    Migration {
+        version: 9,
+        name: "threads_provider_override",
+        up: migration_9_threads_provider_override,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -253,6 +263,26 @@ fn migration_6_threads_is_pinned(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Per-thread provider/model override. Both columns are nullable: `NULL`
+/// means the thread follows its agent, which is every existing thread.
+fn migration_9_threads_provider_override(conn: &Connection) -> Result<(), AppError> {
+    for column in ["provider_id", "model_id"] {
+        let exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('threads') WHERE name = ?1",
+                [column],
+                |row| row.get::<_, i32>(0),
+            )
+            .map(|c| c > 0)
+            .unwrap_or(false);
+        if !exists {
+            conn.execute(&format!("ALTER TABLE threads ADD COLUMN {column} TEXT"), [])
+                .map_err(|e| AppError::Database(format!("Failed to add {column} column: {e}")))?;
+        }
+    }
+    Ok(())
+}
+
 fn migration_5_search_engine_tables(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS search_items (
@@ -269,6 +299,19 @@ fn migration_5_search_engine_tables(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
+fn migration_8_ai_credentials(conn: &Connection) -> Result<(), AppError> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS ai_credentials (
+            credential_id TEXT PRIMARY KEY,
+            ciphertext    TEXT NOT NULL,
+            updated_at    INTEGER NOT NULL
+        );",
+    )
+    .map_err(|e| AppError::Database(format!("Failed to create ai_credentials table: {e}")))?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -277,6 +320,7 @@ mod tests {
     /// Sorted; compared as a whole so an accidental add or drop fails loudly.
     const EXPECTED_TABLES: &[&str] = &[
         "agents",
+        "ai_credentials",
         "clipboard_items",
         "cloud_sync_cursor",
         "cloud_sync_e2ee_local",
@@ -485,6 +529,44 @@ mod tests {
     }
 
     #[test]
+    fn version_eight_db_adds_thread_provider_override_as_null_for_existing_threads() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..8]).unwrap();
+        assert_eq!(user_version(&conn), 8);
+        // Simulate a stamped install whose threads table predates the override.
+        conn.execute_batch(
+            "ALTER TABLE threads DROP COLUMN provider_id;
+             ALTER TABLE threads DROP COLUMN model_id;
+             INSERT INTO agents (id, name, system_prompt, provider_id, model_id, created_at, updated_at)
+                 VALUES ('a1', 'Agent', 'prompt', 'p', 'm', 1, 1);
+             INSERT INTO threads (id, agent_id, title, created_at, updated_at)
+                 VALUES ('t1', 'a1', 'kept', 1, 1);",
+        )
+        .unwrap();
+        assert!(!column_names(&conn, "threads").contains(&"provider_id".to_string()));
+
+        run(&conn).unwrap();
+
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
+        let columns = column_names(&conn, "threads");
+        assert!(columns.contains(&"provider_id".to_string()));
+        assert!(columns.contains(&"model_id".to_string()));
+        let (title, provider, model): (String, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT title, provider_id, model_id FROM threads WHERE id = 't1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(title, "kept");
+        assert_eq!(
+            provider, None,
+            "existing threads must keep following their agent"
+        );
+        assert_eq!(model, None);
+    }
+
+    #[test]
     fn version_four_db_adds_search_engine_tables_without_losing_existing_rows() {
         let conn = Connection::open_in_memory().unwrap();
         run_ledger(&conn, &MIGRATIONS[..4]).unwrap();
@@ -497,6 +579,52 @@ mod tests {
         assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
         assert!(names_of(&conn, "table").contains(&"search_items".to_string()));
         assert!(names_of(&conn, "table").contains(&"search_favorites".to_string()));
+    }
+
+    #[test]
+    fn version_seven_db_adds_ai_credentials_without_losing_existing_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..7]).unwrap();
+        assert_eq!(user_version(&conn), 7);
+        assert!(!names_of(&conn, "table").contains(&"ai_credentials".to_string()));
+
+        conn.execute(
+            "INSERT INTO snippets (id, expansion, name, created_at) VALUES ('s1', 'exp', 'Name', 1.0)",
+            [],
+        )
+        .unwrap();
+
+        run(&conn).unwrap();
+
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
+        assert!(names_of(&conn, "table").contains(&"ai_credentials".to_string()));
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM snippets WHERE id = 's1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 1, "existing snippet row must be preserved");
+    }
+
+    #[test]
+    fn version_seven_db_reaches_nine_with_credentials_table_and_thread_override_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..7]).unwrap();
+        assert_eq!(user_version(&conn), 7);
+        // Simulate a stamped install whose threads table predates the override.
+        conn.execute_batch(
+            "ALTER TABLE threads DROP COLUMN provider_id;
+             ALTER TABLE threads DROP COLUMN model_id;",
+        )
+        .unwrap();
+
+        run(&conn).unwrap();
+
+        assert_eq!(user_version(&conn), 9);
+        assert!(names_of(&conn, "table").contains(&"ai_credentials".to_string()));
+        let columns = column_names(&conn, "threads");
+        assert!(columns.contains(&"provider_id".to_string()));
+        assert!(columns.contains(&"model_id".to_string()));
     }
 
     #[test]

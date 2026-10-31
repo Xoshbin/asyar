@@ -49,7 +49,19 @@ describe('initProviders', () => {
     const config = { enabled: true, apiKey: 'secret' };
     const models = await providerRegistry.list()[0].getModels(config);
 
+    // No instance id → the plugin id doubles as the connection id (the built-in row).
     expect(aiListModels).toHaveBeenCalledWith('openai', config);
     expect(models).toEqual([{ id: 'rust-model', label: 'Rust model', reasoningEfforts: ['high'] }]);
+  });
+
+  it('looks models up under the connection instance id when one is given', async () => {
+    vi.mocked(aiListModels).mockResolvedValue([]);
+    initProviders();
+
+    const config = { enabled: true, providerType: 'custom' as const };
+    const custom = providerRegistry.list().find((p) => p.id === 'custom')!;
+    await custom.getModels(config, 'custom_60f9a975');
+
+    expect(aiListModels).toHaveBeenCalledWith('custom_60f9a975', config);
   });
 });

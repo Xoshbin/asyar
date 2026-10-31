@@ -9,9 +9,13 @@ import type {
   ReasoningEffort,
 } from '../../services/ai/IProviderPlugin';
 import type {
+  AgentEditorDroppedTools,
   AgentProviderDescriptor,
   ModelInfo as ModelInfoContract,
   CliStatus,
+  AiCredentialStatus,
+  CredentialTarget,
+  CredentialState,
 } from '../../bindings';
 
 // ── Agents ────────────────────────────────────────────────────────────────────
@@ -67,6 +71,15 @@ export async function agentsThreadCreate(
 
 export async function agentsThreadSetPinned(id: string, pinned: boolean): Promise<void> {
   await invokeSafe('agents_thread_set_pinned', { id, pinned });
+}
+
+/** Point a thread at another provider/model, or back at its agent with nulls. */
+export async function agentsThreadSetProvider(
+  id: string,
+  providerId: string | null,
+  modelId: string | null,
+): Promise<void> {
+  await invokeSafe('agents_thread_set_provider', { id, providerId, modelId });
 }
 
 export async function agentsThreadsPrune(
@@ -245,6 +258,14 @@ export async function agentsEditorListModels(
   };
 }
 
+export async function agentsEditorDroppedTools(
+  engine: string,
+  connectionMode: string | null,
+  tools: string[],
+): Promise<AgentEditorDroppedTools> {
+  return invokeRaw('agents_editor_dropped_tools', { engine, connectionMode, tools });
+}
+
 export async function agentsInvokeBuiltinTool(id: string, args: unknown): Promise<unknown> {
   return invokeSafe('agents_invoke_builtin_tool', { id, args });
 }
@@ -266,4 +287,16 @@ export async function aiCheckCliStatus(
   customPath?: string,
 ): Promise<CliStatus> {
   return invokeRaw<CliStatus>('ai_check_cli_status', { providerId, customPath });
+}
+
+export async function aiSaveCredential(target: CredentialTarget, secret: string): Promise<void> {
+  return invokeRaw<void>('ai_save_credential', { target, secret });
+}
+
+export async function aiDeleteCredential(target: CredentialTarget): Promise<boolean> {
+  return invokeRaw<boolean>('ai_delete_credential', { target });
+}
+
+export async function aiGetCredentialStatus(): Promise<AiCredentialStatus> {
+  return invokeRaw<AiCredentialStatus>('ai_get_credential_status');
 }

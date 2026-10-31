@@ -11,9 +11,17 @@ import {
   resolveThreadId,
   lastAssistantMessageText,
   extractSourcesFromMessage,
+  agentSwitcherOptions,
+  chatSubtitle,
+  threadRunTarget,
+  overrideCanRun,
+  formatToolsUnavailableNotice,
+  formatEditorToolsUnavailableWarning,
+  isAgyEngine,
 } from './agentChatView.helpers';
 
 import type { ThreadDef, MessageDef } from './types';
+import { i18nService } from '../../services/i18n';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -470,5 +478,203 @@ describe('extractSourcesFromMessage', () => {
     });
 
     expect(extractSourcesFromMessage(msg)).toEqual([{ title: 'Valid', url: 'https://valid.com/' }]);
+  });
+});
+
+describe('agentSwitcherOptions', () => {
+  it('lists chat agents by name and leaves silent agents out', () => {
+    expect(
+      agentSwitcherOptions([
+        { id: 'a', name: 'Asyar Assistant', silent: false },
+        { id: 'b', name: 'Fix Grammar', silent: true },
+        { id: 'c', name: 'Research', silent: false },
+      ]),
+    ).toEqual([
+      { value: 'a', title: 'Asyar Assistant' },
+      { value: 'c', title: 'Research' },
+    ]);
+  });
+});
+
+describe('chatSubtitle', () => {
+  const plugins = [{ id: 'anthropic', name: 'Anthropic' }];
+
+  it('joins agent, provider and model', () => {
+    expect(
+      chatSubtitle(
+        { name: 'Research', providerId: 'anthropic', modelId: 'claude-sonnet' },
+        { anthropic: { enabled: true } },
+        plugins,
+      ),
+    ).toBe('Research · Anthropic · claude-sonnet');
+  });
+
+  it('uses a custom provider name and skips an empty model', () => {
+    expect(
+      chatSubtitle(
+        { name: 'Asyar Assistant', providerId: 'work', modelId: '' },
+        { work: { enabled: true, providerType: 'anthropic', name: 'Work' } },
+        plugins,
+      ),
+    ).toBe('Asyar Assistant · Work');
+  });
+
+  it('falls back to the provider id when it is unknown', () => {
+    expect(chatSubtitle({ name: 'A', providerId: 'gone', modelId: 'm' }, {}, plugins)).toBe(
+      'A · gone · m',
+    );
+  });
+});
+
+describe('formatToolsUnavailableNotice', () => {
+  it('formats notice for Claude Code (CLI)', () => {
+    const text = formatToolsUnavailableNotice('anthropic', ['Weather', 'GitHub Issues']);
+    expect(text).toBe(
+      "Claude Code (CLI) can't use these tools: Weather, GitHub Issues. To use them, switch this provider to an API key in Settings → AI.",
+    );
+  });
+
+  it('formats notice for Codex (CLI)', () => {
+    const text = formatToolsUnavailableNotice('openai', ['Weather', 'GitHub Issues']);
+    expect(text).toBe(
+      "Codex (CLI) can't use these tools: Weather, GitHub Issues. To use them, switch this provider to an API key in Settings → AI.",
+    );
+  });
+
+  it('formats notice for Antigravity (CLI)', () => {
+    const text = formatToolsUnavailableNotice('google', ['Weather', 'Calculator']);
+    expect(text).toBe(
+      "Antigravity (CLI) can't use tools, so this chat runs without: Weather, Calculator. To use tools, switch this provider to an API key in Settings → AI.",
+    );
+  });
+
+  it('recognizes engine variants case-insensitively', () => {
+    expect(formatToolsUnavailableNotice('AGY', ['ToolA'])).toContain(
+      "Antigravity (CLI) can't use tools, so this chat runs without: ToolA.",
+    );
+    expect(formatToolsUnavailableNotice('codex', ['ToolB'])).toContain(
+      "Codex (CLI) can't use these tools: ToolB.",
+    );
+  });
+});
+
+describe('threadRunTarget', () => {
+  const agent = { providerId: 'openai', modelId: 'gpt' };
+
+  it("uses the thread's override when it has one", () => {
+    expect(threadRunTarget(agent, { providerId: 'anthropic', modelId: 'claude' })).toEqual({
+      providerId: 'anthropic',
+      modelId: 'claude',
+    });
+  });
+
+  it('follows the agent without an override, or with half of one', () => {
+    expect(threadRunTarget(agent, null)).toEqual(agent);
+    expect(threadRunTarget(agent, { providerId: null, modelId: null })).toEqual(agent);
+    expect(threadRunTarget(agent, { providerId: 'anthropic', modelId: null })).toEqual(agent);
+  });
+
+  it("follows the agent when the override's provider can't run", () => {
+    const override = { providerId: 'anthropic', modelId: 'claude' };
+    expect(threadRunTarget(agent, override, () => false)).toEqual(agent);
+    expect(threadRunTarget(agent, override, (id) => id === 'anthropic')).toEqual({
+      providerId: 'anthropic',
+      modelId: 'claude',
+    });
+  });
+});
+
+describe('overrideCanRun', () => {
+  const plugins = [
+    { id: 'anthropic', name: 'Anthropic', requiresApiKey: true, requiresBaseUrl: false },
+    { id: 'ollama', name: 'Ollama', requiresApiKey: false, requiresBaseUrl: true },
+  ];
+
+  it('needs the provider enabled', () => {
+    expect(overrideCanRun('anthropic', {}, plugins, null)).toBe(false);
+    expect(overrideCanRun('anthropic', { anthropic: { enabled: false } }, plugins, null)).toBe(
+      false,
+    );
+  });
+
+  it('runs a keyed provider with a saved key, or one that needs re-entry (the run then names it)', () => {
+    const providers = { anthropic: { enabled: true } };
+    expect(overrideCanRun('anthropic', providers, plugins, { anthropic: 'configured' })).toBe(true);
+    expect(overrideCanRun('anthropic', providers, plugins, { anthropic: 'needsReentry' })).toBe(
+      true,
+    );
+    expect(overrideCanRun('anthropic', providers, plugins, { anthropic: 'notConfigured' })).toBe(
+      false,
+    );
+    expect(overrideCanRun('anthropic', providers, plugins, {})).toBe(false);
+  });
+
+  it('trusts the key while states are unknown, and in CLI mode', () => {
+    expect(overrideCanRun('anthropic', { anthropic: { enabled: true } }, plugins, null)).toBe(true);
+    expect(
+      overrideCanRun(
+        'anthropic',
+        { anthropic: { enabled: true, connectionMode: 'cli' } },
+        plugins,
+        { anthropic: 'notConfigured' },
+      ),
+    ).toBe(true);
+  });
+
+  it('looks the plugin up by provider type for a named instance', () => {
+    const providers = { work: { enabled: true, providerType: 'anthropic' as const } };
+    expect(overrideCanRun('work', providers, plugins, { work: 'notConfigured' })).toBe(false);
+    expect(overrideCanRun('work', providers, plugins, { work: 'configured' })).toBe(true);
+  });
+
+  it('needs a base URL when the provider requires one', () => {
+    expect(overrideCanRun('ollama', { ollama: { enabled: true } }, plugins, {})).toBe(false);
+    expect(
+      overrideCanRun(
+        'ollama',
+        { ollama: { enabled: true, baseUrl: 'http://localhost:11434' } },
+        plugins,
+        {},
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('tools-unavailable messages are localized', () => {
+  it.each([
+    ['pt-BR', 'não pode usar estas ferramentas: Weather, GitHub Issues'],
+    ['zh-CN', '无法使用这些工具：Weather, GitHub Issues'],
+    ['zh-Hant', '無法使用這些工具：Weather, GitHub Issues'],
+  ])('interpolates {engine} and {tools} in %s', (locale, fragment) => {
+    i18nService.setLocale(locale);
+    try {
+      const text = formatToolsUnavailableNotice('anthropic', ['Weather', 'GitHub Issues']);
+      expect(text).toContain('Claude Code');
+      expect(text).toContain(fragment);
+      expect(text).not.toContain('{');
+      expect(formatEditorToolsUnavailableWarning('claude')).not.toMatch(/aren't available/);
+    } finally {
+      i18nService.setLocale('en');
+    }
+  });
+});
+
+describe('formatEditorToolsUnavailableWarning', () => {
+  it('formats warning for Antigravity (google / agy)', () => {
+    expect(formatEditorToolsUnavailableWarning('google')).toBe(
+      "Antigravity (CLI) can't use tools. To use them, switch this provider to an API key in Settings → AI.",
+    );
+    expect(formatEditorToolsUnavailableWarning('agy')).toBe(
+      "Antigravity (CLI) can't use tools. To use them, switch this provider to an API key in Settings → AI.",
+    );
+  });
+
+  it('formats warning for other engines (claude / codex)', () => {
+    expect(formatEditorToolsUnavailableWarning('claude')).toBe(
+      "Some selected tools aren't available in CLI mode. To use them, switch this provider to an API key in Settings → AI.",
+    );
+    expect(formatEditorToolsUnavailableWarning('openai')).toBe(
+      "Some selected tools aren't available in CLI mode. To use them, switch this provider to an API key in Settings → AI.",
+    );
   });
 });

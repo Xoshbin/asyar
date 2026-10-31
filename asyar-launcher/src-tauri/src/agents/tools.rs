@@ -106,11 +106,25 @@ pub struct ManifestTool {
     pub parameters: serde_json::Value,
 }
 
+/// Execution context passed to built-in tools when invoked from an agent runner.
+/// Separates model-controlled arguments from host/user-configured state (e.g. search configuration).
+#[derive(Debug, Default, Clone)]
+pub struct ToolContext {
+    pub web_search: Option<crate::agents::runner::WebSearchConfig>,
+}
+
 /// Trait implemented by every built-in tool.
 #[async_trait::async_trait]
 pub trait BuiltinTool: Send + Sync {
     fn descriptor(&self) -> ToolDescriptor;
     async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError>;
+    async fn invoke_with_context(
+        &self,
+        args: serde_json::Value,
+        _context: &ToolContext,
+    ) -> Result<serde_json::Value, AppError> {
+        self.invoke(args).await
+    }
 }
 
 /// Central registry for all tools — built-in, Tier 2, and MCP.
@@ -358,6 +372,19 @@ pub async fn agents_tools_unregister_tier2(
     state.unregister_tier2(&extension_id)
 }
 
+/// Invokes a built-in tool with an execution context (e.g. search configuration).
+pub async fn agents_invoke_builtin_tool_with_context_impl(
+    registry: &ToolRegistry,
+    id: &str,
+    args: serde_json::Value,
+    context: &ToolContext,
+) -> Result<serde_json::Value, AppError> {
+    let tool = registry
+        .get_builtin(id)
+        .ok_or_else(|| AppError::NotFound(format!("builtin tool '{}' not found", id)))?;
+    tool.invoke_with_context(args, context).await
+}
+
 /// Testable core for `agents_invoke_builtin_tool`. Looks up the builtin tool
 /// by bare id, delegates to its `invoke` method, and returns the result.
 pub async fn agents_invoke_builtin_tool_impl(
@@ -365,10 +392,7 @@ pub async fn agents_invoke_builtin_tool_impl(
     id: &str,
     args: serde_json::Value,
 ) -> Result<serde_json::Value, AppError> {
-    let tool = registry
-        .get_builtin(id)
-        .ok_or_else(|| AppError::NotFound(format!("builtin tool '{}' not found", id)))?;
-    tool.invoke(args).await
+    agents_invoke_builtin_tool_with_context_impl(registry, id, args, &ToolContext::default()).await
 }
 
 /// Tauri command — invoke a built-in tool by its bare id.
