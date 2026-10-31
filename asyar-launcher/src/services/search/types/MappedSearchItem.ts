@@ -22,6 +22,8 @@ export type MappedSearchItem = {
   /** Tier ordinal from Rust's `ranker::Tier` (0=Pinned, 5=Files, 6=FrecencyOnly). */
   tier?: number;
   style?: 'default' | 'large';
+  /** `'hint'` draws the row in the shared hint look. */
+  variant?: 'hint';
   shortcut?: string;
   alias?: string;
   favorite?: boolean;

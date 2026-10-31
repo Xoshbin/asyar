@@ -2,6 +2,9 @@
   "search": {
     "kind_command": "命令",
     "kind_application": "应用程序",
+    "kind_scope": "范围",
+    "scope_hint_title": "仅在 {name} 中搜索",
+    "scope_hint_action": "搜索",
     "placeholder": "搜索应用与命令……",
     "no_results": "未找到结果",
     "no_matches": "无匹配项",

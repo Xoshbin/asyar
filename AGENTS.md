@@ -34,14 +34,15 @@ Or manually run the steps:
 3. **Full Frontend & Workspace Tests**: `pnpm -r --if-present test:run` (in repo root)
 4. **Rust Formatting (if Rust touched)**: `cargo fmt --check` (in `asyar-launcher/src-tauri`)
 5. **Clippy with `-D warnings` (if Rust touched)**: `cargo clippy --workspace --all-targets -- -D warnings` (in `asyar-launcher/src-tauri`)
-6. **Rust Test Suite (if Rust touched)**: `cargo test --workspace` (in `asyar-launcher/src-tauri`)
+6. **Rust Docs (if Rust touched)**: `RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items` (in `asyar-launcher/src-tauri`)
+7. **Rust Test Suite (if Rust touched)**: `cargo test --workspace` (in `asyar-launcher/src-tauri`)
 
 > **Always pass `--workspace` to `cargo test` and `cargo clippy`.** The Cargo workspace sets
 > `default-members = ["."]`, so the bare commands silently skip the ~610 tests in
 > `src-tauri/crates/*` (asyar-storage, asyar-search, asyar-platform, asyar-calculator) and
 > report ~3,190 instead of the full ~3,816. `scripts/check-ci.mjs` already does this.
 
-7. **Type & Bindings Check (if bindings/types touched)**: `cargo test export_bindings -- --ignored` and check `git diff --exit-code -- asyar-launcher/src/bindings.ts`
+8. **Type & Bindings Check (if bindings/types touched)**: `cargo test export_bindings -- --ignored` and check `git diff --exit-code -- asyar-launcher/src/bindings.ts`
 
 ## 4. Formatting Enforcement
 
@@ -82,6 +83,8 @@ Or manually run the steps:
 
 - **Svelte 5 Runes Only**: Always use runes (`$state`, `$derived`, `$props`, `$bindable`, `$effect`). Svelte 4 syntax (`export let`, `$:`) is strictly forbidden.
 - **Tauri 2 APIs**: Use modular `@tauri-apps/api/*` and Tauri 2 plugins.
+
+- **One Hint Look**: Every launcher hint (an offer, not a result) uses `variant: HINT_VARIANT` + `HINT_ICON` from `services/search/hintLook.ts`. The look lives only in `LauncherListRow`; never restyle or re-icon a hint. See `.agents/rules/06-tech-stack.md` §3.
 
 ## 7. Keyboard Shortcuts & Input Safety
 

@@ -11,6 +11,7 @@ import { logService } from '../log/logService';
 import type { SearchResult } from './interfaces/SearchResult';
 import type { ExtensionResult } from 'asyar-sdk/contracts';
 import { getCachedTopItems, setCachedTopItems, invalidateTopItemsCache } from './topItemsCache';
+import { insertScopeHint } from './scopeHintRow';
 import * as commands from '../../lib/ipc/commands';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
@@ -246,7 +247,7 @@ class SearchOrchestratorClass {
       }
 
       if (token !== this.#searchToken) return;
-      this.items = combinedResults;
+      this.items = insertScopeHint(combinedResults, resp.scopeHint);
       this.lastCompletedQuery = query;
     } catch (error) {
       logService.error(`Combined search failed: ${error}`);

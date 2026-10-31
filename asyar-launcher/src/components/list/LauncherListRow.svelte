@@ -21,6 +21,7 @@
     shortcutPlacement = 'inline',
     typeLabel,
     sourceLabel,
+    variant = 'default',
     status = null,
     leading,
     trailing,
@@ -45,6 +46,13 @@
     /** Where the row comes from; muted after the title, yields to `subtitle`. */
     sourceLabel?: string;
     /**
+     * `'hint'` is the one look for every hint in the launcher — an offer to the
+     * user, not a result: a soft accent tint, the title in the accent colour,
+     * and the subtitle as a chip (keep it a short token such as `@Coffee`, the
+     * thing the row will type or press). Defined here and nowhere else.
+     */
+    variant?: 'default' | 'hint';
+    /**
      * Run-state dot rendered between the title and shortcut. `'active'` is
      * info-coloured + pulsing (a live run), `'done'` is success-coloured + static
      * (a recently-succeeded run within the 10-min done window). `null` renders
@@ -62,6 +70,7 @@
   class="result-item"
   class:selected-result={selected}
   class:multi-selected-result={multiSelected}
+  class:hint-row={variant === 'hint'}
   {onclick}
   {ondblclick}
   {...rest}
@@ -94,7 +103,9 @@
           size={6}
         />
       {/if}
-      {#if subtitle || sourceLabel}
+      {#if variant === 'hint' && subtitle}
+        <span data-test="hint-chip" class="hint-chip text-mono">{subtitle}</span>
+      {:else if subtitle || sourceLabel}
         <span
           class="font-medium text-[var(--text-secondary)] truncate flex-shrink"
           style="font-size: var(--font-size-md)">{subtitle || sourceLabel}</span
@@ -176,6 +187,37 @@
     border-radius: var(--radius-sm);
     background-color: var(--accent-primary-fill);
     color: var(--text-on-accent);
+  }
+
+  /* The hint row, shared by every hint in the launcher. The tint and the text come from the
+     same accent ramp (the house formula), so they always agree. The selected
+     band is left to .selected-result, which is never restyled; the accent title
+     and chip stay on purpose, so a selected hint still reads as an offer. */
+  .hint-row:not(.selected-result) {
+    background-color: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  }
+
+  .hint-row:not(.selected-result):hover {
+    background-color: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+  }
+
+  .hint-row .result-title {
+    color: var(--accent-primary);
+  }
+
+  .hint-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-0-5) var(--space-2);
+    border-radius: var(--radius-sm);
+    background-color: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+    color: var(--accent-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+    flex-shrink: 0;
   }
 
   .alias-chip {

@@ -52,24 +52,25 @@ the moment Principle II applies, not an exception to it.
 
 ## The 30-second version
 
-| You need                      | You use                                                                                  |
-| ----------------------------- | ---------------------------------------------------------------------------------------- |
-| Any UI element                | A component from `src/components/index.ts` — read the barrel first                       |
-| Any colour                    | A `var(--…)` token. Never a hex, `rgb()`, `white`, or a Tailwind colour                  |
-| Any accent **as text/icon**   | `var(--accent-*)` — the voice ramp                                                       |
-| Any accent **as a fill**      | `var(--accent-*-fill)` — the ground ramp. See [§2](#2-colour)                            |
-| Any text size or weight       | A `.text-*` class, or `var(--font-size-*)`                                               |
-| Any letter-spacing            | `var(--tracking-*)` — never a raw `em`                                                   |
-| Any padding/margin/gap        | `var(--space-*)` — the gap between things                                                |
-| Any width/height/icon size    | `var(--size-*)` — the thing itself. See [§5](#5-space-and-size--which-measurement-where) |
-| A shell metric                | `--shell-header-h` · `--shell-footer-h` · `--shell-row-h`                                |
-| Any corner                    | `var(--radius-*)`                                                                        |
-| Any duration                  | `var(--dur-*)`                                                                           |
-| Any easing                    | `var(--ease-*)`                                                                          |
-| Any stacking                  | `var(--z-*)`                                                                             |
-| A selected row                | Let `.list-row.selected` / `.selected-result` do it — do not restyle it                  |
-| A scrolling container         | Add `.custom-scrollbar`                                                                  |
-| Something that does not exist | Build a reusable component in `src/components/`, export it from the barrel               |
+| You need                        | You use                                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Any UI element                  | A component from `src/components/index.ts` — read the barrel first                                             |
+| Any colour                      | A `var(--…)` token. Never a hex, `rgb()`, `white`, or a Tailwind colour                                        |
+| Any accent **as text/icon**     | `var(--accent-*)` — the voice ramp                                                                             |
+| Any accent **as a fill**        | `var(--accent-*-fill)` — the ground ramp. See [§2](#2-colour)                                                  |
+| Any text size or weight         | A `.text-*` class, or `var(--font-size-*)`                                                                     |
+| Any letter-spacing              | `var(--tracking-*)` — never a raw `em`                                                                         |
+| Any padding/margin/gap          | `var(--space-*)` — the gap between things                                                                      |
+| Any width/height/icon size      | `var(--size-*)` — the thing itself. See [§5](#5-space-and-size--which-measurement-where)                       |
+| A shell metric                  | `--shell-header-h` · `--shell-footer-h` · `--shell-row-h`                                                      |
+| Any corner                      | `var(--radius-*)`                                                                                              |
+| Any duration                    | `var(--dur-*)`                                                                                                 |
+| Any easing                      | `var(--ease-*)`                                                                                                |
+| Any stacking                    | `var(--z-*)`                                                                                                   |
+| A selected row                  | Let `.list-row.selected` / `.selected-result` do it — do not restyle it                                        |
+| A hint (an offer, not a result) | A list row with `variant: HINT_VARIANT` and `icon: HINT_ICON` — see [Hints](#hints--the-one-look-for-an-offer) |
+| A scrolling container           | Add `.custom-scrollbar`                                                                                        |
+| Something that does not exist   | Build a reusable component in `src/components/`, export it from the barrel                                     |
 
 Never write a `var(--token, fallback)`. Every token is always defined, so a
 fallback can only ever hide a typo — that is exactly how a whole subsystem in
@@ -504,20 +505,21 @@ fails the build if a component is missing from it, so the barrel is trustworthy
 | An icon                               | `Icon` · in a sized container: `IconBox`               |
 | An extension's avatar                 | `ExtensionAvatar`                                      |
 
-| You are building                              | Use                             |
-| --------------------------------------------- | ------------------------------- |
-| **Any** dialog                                | `Modal`                         |
-| A yes/no confirmation                         | Queue it through `DialogHost`   |
-| A destructive confirmation                    | Same, with the `danger` variant |
-| A row in a list                               | `ListItem`                      |
-| A long, scrolling result list                 | `ResultsList` (virtualised)     |
-| A list with group headers                     | `SectionedResultsList`          |
-| A resizable two-pane layout                   | `SplitView`                     |
-| A master/detail page with its own empty state | `SplitListDetail`               |
-| A card                                        | `Card`                          |
-| A page header with a back button              | `AppBar`                        |
-| Key-value metadata inspector in a detail pane | `MetadataList`                  |
-| A ⌘K-style action menu                        | `ActionListPopup`               |
+| You are building                              | Use                                                         |
+| --------------------------------------------- | ----------------------------------------------------------- |
+| **Any** dialog                                | `Modal`                                                     |
+| A yes/no confirmation                         | Queue it through `DialogHost`                               |
+| A destructive confirmation                    | Same, with the `danger` variant                             |
+| A row in a list                               | `ListItem`                                                  |
+| A hint in the launcher list                   | A result with `variant: 'hint'` — never a custom-styled row |
+| A long, scrolling result list                 | `ResultsList` (virtualised)                                 |
+| A list with group headers                     | `SectionedResultsList`                                      |
+| A resizable two-pane layout                   | `SplitView`                                                 |
+| A master/detail page with its own empty state | `SplitListDetail`                                           |
+| A card                                        | `Card`                                                      |
+| A page header with a back button              | `AppBar`                                                    |
+| Key-value metadata inspector in a detail pane | `MetadataList`                                              |
+| A ⌘K-style action menu                        | `ActionListPopup`                                           |
 
 | You are building                              | Use                                                                                     |
 | --------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -595,6 +597,64 @@ Key caps (`KeyboardHint`) are **outlined**: a `--kbd-border` hairline and no
 fill, so they read the same on glass, on hover and on the selected row.
 Section headers in the root list are sentence case, 12px, weight 500,
 `--text-secondary`, aligned to the icon edge.
+
+### Hints — the one look for an offer
+
+A **hint** is the launcher offering the user a shortcut, not returning a
+result: _"Search only in Coffee"_ today, anything of that kind later. There is
+exactly **one** hint look and every hint uses it. Do not design a second one,
+and do not restyle a hint to suit its feature.
+
+| Part       | Spec                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------- |
+| Row        | A normal launcher row (`.result-item`) with `variant: 'hint'`                         |
+| Background | `color-mix(in srgb, var(--accent-primary) 10%, transparent)`; 16% on hover            |
+| Title      | `var(--accent-primary)`, the usual weight 500 — not bold                              |
+| Chip       | The `subtitle`, as a mono chip: 16% accent tint, accent text, `--radius-sm`           |
+| Icon       | `HINT_ICON` (`icon:info`) — the same general icon for every hint                      |
+| Right edge | The `kindLabel` as on any row, left in the normal muted colour so it does not compete |
+| Selected   | Untouched. `.selected-result` wins; the tint only shows while the row is not selected |
+
+How to make one:
+
+```ts
+import { HINT_ICON, HINT_VARIANT } from '../services/search/hintLook';
+
+const row: SearchResult = {
+  objectId: 'my_hint_x',
+  name: t('…title'), // a short imperative: "Search only in Coffee"
+  description: '@Coffee', // a short token the row will type or press
+  type: 'scope', // anything but 'command' — see below
+  icon: HINT_ICON,
+  variant: HINT_VARIANT,
+  // …score, tier, action
+};
+```
+
+Rules that keep it one look:
+
+1. **It lives in `LauncherListRow` and nowhere else.** The `.hint-row` and
+   `.hint-chip` selectors may not appear in any other file —
+   `hintLookGuard.test.ts` fails if they do. To use it, set `variant`; never
+   copy the CSS.
+2. **A hint is never `type: 'command'`.** After a command row runs, the
+   launcher hides itself or clears the query. A hint that rewrites the query
+   (as "Search only in…" does) would wipe its own work.
+3. **No second colour.** There is no danger or warning hint. A hint is an offer
+   in the primary accent; a problem belongs in `WarningBanner` or `ErrorState`.
+4. **The chip is a token, not a sentence.** `@Coffee`, `⌘K`, a short word. A
+   sentence belongs in the title.
+5. **Place it beside what it relates to.** Put it right after the group it
+   offers to narrow or extend, not at the end of the list — the end is usually
+   below the fold.
+6. **Only when it earns its row.** Show a hint when it would change what the
+   user can do next. A hint that narrows nothing (one matching command) is noise.
+7. **Keep it quiet.** It is meant to be noticed, not to shout: the tint stays at
+   10%, never a solid fill. It bends Principle III on purpose, so it is the
+   _only_ element allowed to.
+
+Colour is not its only channel: the info icon, the "Search only in…" wording and
+the chip all carry the meaning with the hue removed.
 
 ### Scrolling
 
@@ -767,6 +827,8 @@ Then check the things a script cannot:
   lost, leave it out (Principle II).
 - **Is there exactly one candidate?** Squint at it. If two elements compete for
   the eye, one of them is wrong.
+- Adding a hint? It uses `variant: 'hint'` and `HINT_ICON`. Nothing else in the
+  row is hand-styled.
 - **Does anything cast a sideways drop shadow?** Every cast is `0 Ypx`.
 - Does every interactive element have hover, and does Tab show a focus ring?
 - Does every action show its key?

@@ -9,6 +9,7 @@
 //! match on "Clipboard History" would surface every one of its commands for
 //! two scattered letters like `cl` or `hi`.
 
+use super::models::{ScopeHint, SearchResult};
 use std::collections::{HashMap, HashSet};
 
 /// Fewest characters a query needs before it can match an extension name.
@@ -147,6 +148,74 @@ pub fn split_extension_query(
         }
     }
     None
+}
+
+/// The extensions whose display name is exactly `scope`, or `None` when no
+/// name is.
+///
+/// An exact name pins an `@` scope to those extensions alone: `@Coffee`, which
+/// the scope hint types, must not also bring in `com.acme.coffeemaker` or
+/// another extension's "Coffee Break" command. A partial scope (`@cof`) keeps
+/// the broad id, label and name match.
+pub fn exact_scope_ids<'a>(
+    scope: &str,
+    names: &'a HashMap<String, String>,
+) -> Option<HashSet<&'a str>> {
+    let scope = normalize(scope);
+    let ids: HashSet<&str> = names
+        .iter()
+        .filter(|(_, name)| !scope.is_empty() && normalize(name) == scope)
+        .map(|(id, _)| id.as_str())
+        .collect();
+    (!ids.is_empty()).then_some(ids)
+}
+
+/// Fewest of the extension's commands that must already be in the results for
+/// a "search only in it" row to be worth showing.
+const MIN_HINT_COMMANDS: usize = 2;
+
+/// The extension to offer as a scope, when `query` names exactly one.
+///
+/// Reads the query both as a name alone (`coffee`) and as a name plus command
+/// words (`color picker pick`). It stays silent when the query names no
+/// extension or several (`co` is both Coffee and Color Picker), for `@`
+/// queries (already scoped), for disabled extensions, and when fewer than
+/// [`MIN_HINT_COMMANDS`] of the extension's commands are in `results` — a
+/// scope that would not narrow anything.
+pub fn scope_hint(
+    query: &str,
+    names: &HashMap<String, String>,
+    disabled_extension_ids: &[String],
+    results: &[SearchResult],
+) -> Option<ScopeHint> {
+    let query = query.trim();
+    if query.is_empty() || query.starts_with('@') {
+        return None;
+    }
+    let mut named: HashSet<&String> = names
+        .iter()
+        .filter(|(_, name)| name_matches(name, query))
+        .map(|(id, _)| id)
+        .collect();
+    if let Some(split) = split_extension_query(query, names) {
+        named.extend(
+            names
+                .keys()
+                .filter(|id| split.extension_ids.contains(id.as_str())),
+        );
+    }
+    named.retain(|id| !disabled_extension_ids.contains(*id));
+    let [extension_id] = named.into_iter().collect::<Vec<_>>()[..] else {
+        return None;
+    };
+    let commands = results
+        .iter()
+        .filter(|r| r.result_type == "command" && r.extension_id.as_ref() == Some(extension_id))
+        .count();
+    (commands >= MIN_HINT_COMMANDS).then(|| ScopeHint {
+        extension_id: extension_id.clone(),
+        extension_name: names[extension_id].clone(),
+    })
 }
 
 #[cfg(test)]
@@ -714,6 +783,222 @@ mod tests {
             .unwrap();
         let found = ids(state.merged_search("cofee", vec![], 0, &[]).unwrap());
         assert_eq!(found[0], "cmd_other_cofee");
+    }
+
+    // --- The "search only in <extension>" hint --------------------------
+
+    fn scope_hint(
+        state: &SearchState,
+        query: &str,
+    ) -> Option<crate::search_engine::models::ScopeHint> {
+        state
+            .merged_search_with_aliases(
+                query,
+                vec![],
+                0,
+                &crate::aliases::AliasState::new_for_test(),
+                &[],
+            )
+            .unwrap()
+            .scope_hint
+    }
+
+    fn coffee_and_color_state() -> SearchState {
+        let state = coffee_state();
+        for (id, title) in [
+            ("cmd_org.asyar.color-picker_pick", "Pick Color"),
+            ("cmd_org.asyar.color-picker_history", "Color History"),
+        ] {
+            state
+                .index_one(command(id, title, "org.asyar.color-picker", 0))
+                .unwrap();
+        }
+        state.set_extension_names(names(&[
+            ("org.asyar.coffee", "Coffee"),
+            ("org.asyar.speedtest", "Speed Test"),
+            ("org.asyar.color-picker", "Color Picker"),
+        ]));
+        state
+    }
+
+    #[test]
+    fn hint_names_the_one_extension_the_query_names() {
+        let state = coffee_and_color_state();
+        for query in ["coffee", "cof", "cofee", "COFFEE"] {
+            let hint = scope_hint(&state, query).unwrap_or_else(|| panic!("no hint for {query}"));
+            assert_eq!(hint.extension_id, "org.asyar.coffee", "query {query}");
+            assert_eq!(hint.extension_name, "Coffee", "query {query}");
+        }
+        let hint = scope_hint(&state, "color picker").unwrap();
+        assert_eq!(hint.extension_name, "Color Picker");
+    }
+
+    #[test]
+    fn hint_is_absent_when_the_query_names_two_extensions() {
+        // "co" starts both "Coffee" and "Color Picker".
+        let state = coffee_and_color_state();
+        assert!(scope_hint(&state, "co").is_none());
+    }
+
+    #[test]
+    fn hint_is_absent_when_the_query_names_no_extension() {
+        let state = coffee_and_color_state();
+        assert!(scope_hint(&state, "zzzz").is_none());
+        assert!(scope_hint(&state, "").is_none());
+        // Title matches alone are not a reason to offer a scope.
+        assert!(scope_hint(&state, "caf").is_none());
+    }
+
+    #[test]
+    fn hint_is_absent_for_an_at_query() {
+        let state = coffee_and_color_state();
+        assert!(scope_hint(&state, "@coffee").is_none());
+        assert!(scope_hint(&state, "@coffee decaf").is_none());
+    }
+
+    #[test]
+    fn hint_is_absent_when_one_command_already_answers_the_query() {
+        // "color picker pick" narrows to a single command; scoping adds nothing.
+        let state = coffee_and_color_state();
+        assert!(scope_hint(&state, "color picker pick").is_none());
+        // An extension with a single command has nothing to scope to.
+        assert!(scope_hint(&state, "speed test").is_none());
+    }
+
+    #[test]
+    fn hint_is_absent_for_a_disabled_extension() {
+        let state = coffee_and_color_state();
+        let resp = state
+            .merged_search_with_aliases_filtered(
+                "coffee",
+                vec![],
+                0,
+                &crate::aliases::AliasState::new_for_test(),
+                &[],
+                &["org.asyar.coffee".to_string()],
+            )
+            .unwrap();
+        assert!(resp.scope_hint.is_none());
+    }
+
+    // --- Where the hint leads: `@<exact name>` ---------------------------
+
+    /// Coffee beside two lookalikes the loose `@` match lets in: an extension
+    /// whose id starts with "coffee", and another extension's command named
+    /// after coffee.
+    fn coffee_with_lookalikes_state() -> SearchState {
+        let state = coffee_state();
+        for (id, title, extension) in [
+            (
+                "cmd_com.acme.coffeemaker_brew",
+                "Brew",
+                "com.acme.coffeemaker",
+            ),
+            (
+                "cmd_org.asyar.pomodoro_break",
+                "Coffee Break",
+                "org.asyar.pomodoro",
+            ),
+        ] {
+            state.index_one(command(id, title, extension, 0)).unwrap();
+        }
+        state.set_extension_names(names(&[
+            ("org.asyar.coffee", "Coffee"),
+            ("org.asyar.speedtest", "Speed Test"),
+            ("com.acme.coffeemaker", "Brew Buddy"),
+            ("org.asyar.pomodoro", "Pomodoro"),
+        ]));
+        state
+    }
+
+    fn scoped(
+        state: &SearchState,
+        query: &str,
+        external: Vec<crate::search_engine::models::ExternalSearchResult>,
+    ) -> Vec<String> {
+        ids(state
+            .merged_search_with_aliases(
+                query,
+                external,
+                0,
+                &crate::aliases::AliasState::new_for_test(),
+                &[],
+            )
+            .unwrap()
+            .results)
+    }
+
+    fn external(
+        object_id: &str,
+        name: &str,
+        extension_id: &str,
+    ) -> crate::search_engine::models::ExternalSearchResult {
+        crate::search_engine::models::ExternalSearchResult {
+            object_id: object_id.to_string(),
+            name: name.to_string(),
+            description: None,
+            result_type: "result".to_string(),
+            score: 1.0,
+            icon: None,
+            extension_id: Some(extension_id.to_string()),
+            category: None,
+            style: None,
+            priority: None,
+        }
+    }
+
+    #[test]
+    fn exact_name_scope_holds_only_that_extensions_commands() {
+        // What the hint types: "Search only in Coffee" must mean only Coffee.
+        let state = coffee_with_lookalikes_state();
+        for query in ["@Coffee ", "@coffee", "@COFFEE "] {
+            assert_eq!(
+                sorted(scoped(&state, query, vec![])),
+                sorted(coffee_ids()),
+                "query {query}"
+            );
+        }
+    }
+
+    #[test]
+    fn exact_name_scope_with_words_searches_only_that_extension() {
+        // "Brew" belongs to com.acme.coffeemaker, not to Coffee.
+        let state = coffee_with_lookalikes_state();
+        assert!(scoped(&state, "@Coffee brew", vec![]).is_empty());
+        assert_eq!(
+            scoped(&state, "@Coffee decaf", vec![]),
+            vec!["cmd_org.asyar.coffee_decaffeinate".to_string()]
+        );
+    }
+
+    #[test]
+    fn exact_name_scope_keeps_only_that_extensions_external_results() {
+        let state = coffee_with_lookalikes_state();
+        let found = scoped(
+            &state,
+            "@Coffee ",
+            vec![
+                external("coffee_result", "Brewing now", "org.asyar.coffee"),
+                external(
+                    "pomodoro_result",
+                    "Coffee break in 5 min",
+                    "org.asyar.pomodoro",
+                ),
+            ],
+        );
+        assert!(found.contains(&"coffee_result".to_string()));
+        assert!(!found.contains(&"pomodoro_result".to_string()));
+    }
+
+    #[test]
+    fn a_partial_scope_still_matches_loosely() {
+        // Only an exact name pins the scope; "@cof" keeps today's reach.
+        let state = coffee_with_lookalikes_state();
+        let found = scoped(&state, "@cof", vec![]);
+        for id in coffee_ids() {
+            assert!(found.contains(&id), "missing {id}");
+        }
+        assert!(found.contains(&"cmd_com.acme.coffeemaker_brew".to_string()));
     }
 
     #[test]

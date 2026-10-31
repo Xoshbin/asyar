@@ -2,6 +2,9 @@
   "search": {
     "kind_command": "Comando",
     "kind_application": "Aplicativo",
+    "kind_scope": "Escopo",
+    "scope_hint_title": "Pesquisar apenas em {name}",
+    "scope_hint_action": "Pesquisar",
     "placeholder": "Pesquisar aplicativos e comandos...",
     "no_results": "Nenhum resultado encontrado",
     "no_matches": "Nenhuma correspondência",

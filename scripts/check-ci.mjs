@@ -19,18 +19,18 @@ Usage: node scripts/check-ci.mjs [options]
 
 Options:
   -f, --frontend    Run frontend checks (Prettier, Design System, Svelte types, Vitest)
-  -r, --rust        Run Rust checks (cargo fmt, clippy, cargo test)
+  -r, --rust        Run Rust checks (cargo fmt, clippy, cargo doc, cargo test)
   -c, --changed     Inspect git status & diff to run only touched domains
   -a, --all         Run full CI verification matrix (default)
   -h, --help        Show this help message
 `);
 }
 
-function runStep(name, cmd, cwd = root) {
+function runStep(name, cmd, cwd = root, env = {}) {
   console.log(`\n▶ Running: ${name}...`);
   const startTime = Date.now();
   try {
-    execSync(cmd, { cwd, stdio: 'inherit' });
+    execSync(cmd, { cwd, stdio: 'inherit', env: { ...process.env, ...env } });
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`✓ ${name} passed (${duration}s)`);
   } catch (error) {
@@ -182,6 +182,14 @@ if (runRust) {
       'Rust Clippy (-D warnings)',
       'cargo clippy --workspace --all-targets -- -D warnings',
       tauriRoot,
+    );
+    // Same command and flags as the "Check Rust docs compile" step in
+    // .github/workflows/test-and-lint.yml.
+    runStep(
+      'Rust Docs (cargo doc -D warnings)',
+      'cargo doc --no-deps --document-private-items',
+      tauriRoot,
+      { RUSTDOCFLAGS: '-D warnings' },
     );
     runStep('Rust Tests (cargo test)', 'cargo test --workspace', tauriRoot);
   } else {

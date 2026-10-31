@@ -24,3 +24,16 @@ test('local and platform CI enforce launcher Svelte types', () => {
   assert.match(local, /runStep\('Launcher Type Check', 'pnpm --dir asyar-launcher check'\)/);
   assert.match(platform, /run: pnpm --dir asyar-launcher check/);
 });
+
+test('local and platform CI compile Rust docs with warnings denied', () => {
+  const local = readFileSync('scripts/check-ci.mjs', 'utf8');
+  const platform = readFileSync('.github/workflows/test-and-lint.yml', 'utf8');
+  assert.match(
+    local,
+    /'cargo doc --no-deps --document-private-items',\s*tauriRoot,\s*\{ RUSTDOCFLAGS: '-D warnings' \}/,
+  );
+  assert.match(
+    platform,
+    /run: cargo doc --no-deps --document-private-items\n(?:.*\n)*?\s+RUSTDOCFLAGS: '-D warnings'/,
+  );
+});

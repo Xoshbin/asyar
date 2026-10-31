@@ -40,6 +40,7 @@
         shortcut={item.shortcut}
         typeLabel={item.kindLabel}
         sourceLabel={item.sourceLabel}
+        variant={item.variant === 'hint' ? 'hint' : 'default'}
         {status}
       />
     {/if}
