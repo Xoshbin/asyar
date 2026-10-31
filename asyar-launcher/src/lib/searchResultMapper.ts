@@ -16,10 +16,11 @@ import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte
 import { windowService } from '../services/window/windowService';
 import { fileSearchRecordSelection } from './ipc/fileSearchCommands';
 import { openerService } from '../services/opener/openerService';
+import { toResolvedIcon, type IconSource } from './icon';
 
 export type ResolvedItemMeta = {
   objectId: string;
-  icon: string;
+  icon: IconSource;
   typeLabel: string | undefined;
   kindLabel: string | undefined;
   sourceLabel: string | undefined;
@@ -36,7 +37,7 @@ export function resolveItemMeta(
   const type = result.type || 'unknown';
 
   // --- Icon resolution ---
-  let icon = result.icon ?? '🧩';
+  let icon: IconSource = result.icon ?? '🧩';
   if (!result.icon) {
     if (type === 'application') icon = '🖥️';
     else if (type === 'command') icon = '❯_';
@@ -255,7 +256,7 @@ export function buildMappedItems({
       score: 1.0,
       // Always surfaces first — Tier::Pinned (0), matching its placement.
       tier: 0,
-      icon: ctx.provider.display.icon,
+      icon: toResolvedIcon(ctx.provider.display.icon),
       extensionId: ctx.provider.type === 'url' ? 'portals' : ctx.provider.id,
     };
     baseItems = [portalResult, ...searchItems.filter((r) => r.objectId !== portalResult.objectId)];

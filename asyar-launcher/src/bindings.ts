@@ -444,6 +444,23 @@ export type RankInput = {
 
 export type ReadAlign = "none" | "line";
 
+// A display-ready icon. Tagged by `kind` on the wire.
+export type ResolvedIcon = 
+// A glyph from the launcher's built-in icon set (`icon:<name>`).
+{ kind: "glyph"; name: string } | 
+// Plain text, normally a single emoji.
+{ kind: "emoji"; value: string } | 
+/**
+ *  A local image the webview may load: an extension's bundled file,
+ *  a host scheme (`asyar-icon://`, `asyar-thumb://`) or a `data:image/`.
+ */
+{ kind: "image"; src: string } | 
+/**
+ *  An `https://` image. Only produced for runtime icons; manifest icons
+ *  are known at install time and never need the network.
+ */
+{ kind: "remote"; url: string };
+
 /**
  *  Result-level priority hint. `Top` pins the result above all tier 1–5
  *  results (synthetic answers like Calculator's expression result).
@@ -456,7 +473,7 @@ export type SearchResult = {
 	type: string,
 	score: number,
 	path?: string | null,
-	icon?: string | null,
+	icon?: ResolvedIcon | null,
 	extensionId?: string | null,
 	description?: string | null,
 	typeLabel?: string | null,

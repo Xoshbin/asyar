@@ -1,8 +1,8 @@
-import type { ExtensionManifest } from 'asyar-sdk/contracts';
+import type { ExtendedManifest } from './ExtendedManifest';
 import type { CompatibilityStatus } from './CompatibilityStatus';
 
 export interface ExtensionRecord {
-  manifest: ExtensionManifest;
+  manifest: ExtendedManifest;
   enabled: boolean;
   isBuiltIn: boolean;
   disableable?: boolean;

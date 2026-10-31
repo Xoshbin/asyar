@@ -1694,6 +1694,7 @@ mod tests {
     ) -> crate::extensions::ExtensionRecord {
         crate::extensions::ExtensionRecord {
             manifest: crate::extensions::ExtensionManifest {
+                resolved_icon: None,
                 id: id.to_string(),
                 name: id.to_string(),
                 version: "1.0.0".to_string(),

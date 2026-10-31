@@ -2,7 +2,7 @@
   import { Badge, Input, SearchBarAccessoryDropdown } from '..';
   import { tick } from 'svelte';
   import { developmentBuildIndicator } from '../../lib/developmentBuild';
-  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
+  import AppIcon from '../base/AppIcon.svelte';
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import ArgumentChipRow from '../search/ArgumentChipRow.svelte';
@@ -320,13 +320,7 @@
       <div class="context-search-row">
         <span class="context-chip" style="background: {chipColor}">
           <span class="chip-icon">
-            {#if isBuiltInIcon(activeContext.icon)}
-              <Icon name={getBuiltInIconName(activeContext.icon)} size={13} />
-            {:else if isIconImage(activeContext.icon)}
-              <img src={activeContext.icon} alt="" class="w-4 h-4 object-contain" />
-            {:else}
-              {activeContext.icon}
-            {/if}
+            <AppIcon icon={activeContext.icon} size={16} glyphSize={13} />
           </span>
           <span class="chip-name">{activeContext.name}</span>
           <button
@@ -448,13 +442,7 @@
           <span class="context-hint" class:context-hint--muted={aiHintMuted}>
             <span class="hint-text">
               <span class="hint-icon">
-                {#if isBuiltInIcon(contextHint.icon)}
-                  <Icon name={getBuiltInIconName(contextHint.icon)} size={13} />
-                {:else if isIconImage(contextHint.icon)}
-                  <img src={contextHint.icon} alt="" class="w-4 h-4 object-contain" />
-                {:else}
-                  {contextHint.icon}
-                {/if}
+                <AppIcon icon={contextHint.icon} size={16} glyphSize={13} />
               </span>
               <span class="hint-label">{hintLabel}</span>
             </span>

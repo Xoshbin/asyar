@@ -3,6 +3,7 @@
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 import { bumpArgumentHintVersion } from '../launcher/argumentHintVersion.svelte';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
+import type { ResolvedIcon } from '../../bindings';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 
 // ── Extensions ────────────────────────────────────────────────────────────────
@@ -167,7 +168,7 @@ export interface DynamicCommandMetaReply {
   extensionId: string;
   commandId: string;
   commandName: string;
-  icon?: string;
+  icon?: ResolvedIcon | null;
   args: DynamicCommandArgumentInput[];
   /** Same "at least one of these" gate the manifest path declares. */
   requireAnyOf?: string[];

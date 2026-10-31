@@ -77,7 +77,7 @@ pub struct SearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub icon: Option<String>,
+    pub icon: Option<crate::icons::ResolvedIcon>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -147,7 +147,24 @@ pub struct MergedSearchResponse {
 }
 
 // Helper to get the name for sorting/searching
+impl Command {
+    /// Dynamic (runtime) command icons may be remote; manifest ones may not.
+    pub fn resolved_icon(&self) -> Option<crate::icons::ResolvedIcon> {
+        crate::icons::resolve_opt(self.icon.as_deref(), Some(&self.extension), self.is_dynamic)
+    }
+}
+
 impl SearchableItem {
+    /// Display icon for a search result. Dynamic (runtime) command icons may
+    /// be remote; manifest command icons may not.
+    pub fn resolved_icon(&self) -> Option<crate::icons::ResolvedIcon> {
+        use crate::icons::resolve_opt;
+        match self {
+            SearchableItem::Application(a) => resolve_opt(a.icon.as_deref(), None, false),
+            SearchableItem::Command(c) => c.resolved_icon(),
+        }
+    }
+
     pub fn get_name(&self) -> &str {
         match self {
             SearchableItem::Application(a) => &a.name,

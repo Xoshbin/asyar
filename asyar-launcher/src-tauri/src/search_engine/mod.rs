@@ -507,7 +507,7 @@ fn command_result(cmd: &Command, score: f32, favorites: &HashSet<String>) -> Sea
         result_type: "command".to_string(),
         score,
         path: None,
-        icon: cmd.icon.clone(),
+        icon: cmd.resolved_icon(),
         extension_id: Some(cmd.extension.clone()),
         description: cmd.subtitle.clone(),
         type_label: cmd.type_label.clone(),
@@ -631,10 +631,7 @@ impl SearchState {
                         result_type: item.get_type_str().to_string(),
                         score: frecency_score(item.usage_count(), item.last_used_at()),
                         path: None,
-                        icon: match item {
-                            SearchableItem::Application(app) => app.icon.clone(),
-                            SearchableItem::Command(cmd) => cmd.icon.clone(),
-                        },
+                        icon: item.resolved_icon(),
                         extension_id: match item {
                             SearchableItem::Application(_) => None,
                             SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
@@ -717,10 +714,7 @@ impl SearchState {
                             result_type: item.get_type_str().to_string(),
                             score: score as f32,
                             path: None,
-                            icon: match item {
-                                SearchableItem::Application(app) => app.icon.clone(),
-                                SearchableItem::Command(cmd) => cmd.icon.clone(),
-                            },
+                            icon: item.resolved_icon(),
                             extension_id: match item {
                                 SearchableItem::Application(_) => None,
                                 SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
@@ -768,10 +762,7 @@ impl SearchState {
                             result_type: item.get_type_str().to_string(),
                             score: frecency_score(item.usage_count(), item.last_used_at()),
                             path: None,
-                            icon: match item {
-                                SearchableItem::Application(app) => app.icon.clone(),
-                                SearchableItem::Command(cmd) => cmd.icon.clone(),
-                            },
+                            icon: item.resolved_icon(),
                             extension_id: match item {
                                 SearchableItem::Application(_) => None,
                                 SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
@@ -837,10 +828,7 @@ impl SearchState {
                             result_type: item.get_type_str().to_string(),
                             score: score as f32,
                             path: None,
-                            icon: match item {
-                                SearchableItem::Application(app) => app.icon.clone(),
-                                SearchableItem::Command(cmd) => cmd.icon.clone(),
-                            },
+                            icon: item.resolved_icon(),
                             extension_id: match item {
                                 SearchableItem::Application(_) => None,
                                 SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
@@ -884,10 +872,7 @@ impl SearchState {
                         SearchableItem::Application(app) => Some(app.path.clone()),
                         SearchableItem::Command(_) => None,
                     },
-                    icon: match item {
-                        SearchableItem::Application(app) => app.icon.clone(),
-                        SearchableItem::Command(cmd) => cmd.icon.clone(),
-                    },
+                    icon: item.resolved_icon(),
                     extension_id: match item {
                         SearchableItem::Application(_) => None,
                         SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
@@ -942,10 +927,7 @@ impl SearchState {
                             SearchableItem::Application(app) => Some(app.path.clone()),
                             SearchableItem::Command(_) => None,
                         },
-                        icon: match item {
-                            SearchableItem::Application(app) => app.icon.clone(),
-                            SearchableItem::Command(cmd) => cmd.icon.clone(),
-                        },
+                        icon: item.resolved_icon(),
                         extension_id: match item {
                             SearchableItem::Application(_) => None,
                             SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
@@ -1337,7 +1319,11 @@ impl SearchState {
                     result_type: ext.result_type,
                     score: ext.score,
                     path: None,
-                    icon: ext.icon,
+                    icon: crate::icons::resolve_opt(
+                        ext.icon.as_deref(),
+                        ext.extension_id.as_deref(),
+                        true,
+                    ),
                     extension_id: ext.extension_id,
                     description: ext.description,
                     type_label: None,
@@ -1431,7 +1417,11 @@ impl SearchState {
                         result_type: ext.result_type,
                         score: ext.score,
                         path: None,
-                        icon: ext.icon,
+                        icon: crate::icons::resolve_opt(
+                            ext.icon.as_deref(),
+                            ext.extension_id.as_deref(),
+                            true,
+                        ),
                         extension_id: ext.extension_id,
                         description: ext.description,
                         type_label: None,
@@ -1587,7 +1577,11 @@ impl SearchState {
                 result_type: ext.result_type,
                 score: ext.score,
                 path: None,
-                icon: ext.icon,
+                icon: crate::icons::resolve_opt(
+                    ext.icon.as_deref(),
+                    ext.extension_id.as_deref(),
+                    true,
+                ),
                 extension_id: ext.extension_id,
                 description: ext.description,
                 type_label: None,

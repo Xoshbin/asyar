@@ -1,3 +1,4 @@
+import type { IconSource } from '../../lib/icon';
 import { untrack } from 'svelte';
 import { t } from '../i18n';
 import { logService } from '../log/logService';
@@ -75,7 +76,7 @@ function buildMacosConfirmMessage(appName: string, scan: UninstallScanResult): s
 export interface ApplicationAction {
   id: string;
   label: string;
-  icon?: string;
+  icon?: IconSource;
   description?: string;
   category?: string;
   extensionId?: string;
@@ -418,7 +419,8 @@ export class ActionService implements IActionService {
         id: action.id,
         title: action.label,
         description: action.description,
-        icon: action.icon,
+        // ExtensionAction carries a string; drop typed (manifest) icons.
+        icon: typeof action.icon === 'string' ? action.icon : undefined,
         // Ensure extensionId is a string, default to 'core' if undefined
         extensionId: action.extensionId || 'core',
         category: action.category,

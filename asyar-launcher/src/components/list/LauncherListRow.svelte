@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
+  import type { IconSource } from '../../lib/icon';
   import { toDisplayKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
-  import Icon from '../base/Icon.svelte';
+  import AppIcon from '../base/AppIcon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import StatusDot from '../base/StatusDot.svelte';
   import type { ItemStatus } from '../../services/launcher/itemStatusLogic';
@@ -32,7 +32,7 @@
     multiSelected?: boolean;
     onclick?: (e: MouseEvent) => void;
     ondblclick?: (e: MouseEvent) => void;
-    icon?: string;
+    icon?: IconSource;
     title: string;
     /** Dimmed text rendered inline before the title (e.g. `folder/`). */
     titlePrefix?: string;
@@ -69,18 +69,8 @@
   <div class="row-shell">
     {#if leading}
       {@render leading()}
-    {:else if icon}
-      {#if isBuiltInIcon(icon)}
-        <div class="builtin-icon-tile">
-          <Icon name={getBuiltInIconName(icon)} size={14} />
-        </div>
-      {:else if isIconImage(icon)}
-        <img src={icon} alt={title} class="row-icon-img" />
-      {:else}
-        <div class="row-icon-fallback">
-          {icon}
-        </div>
-      {/if}
+    {:else}
+      <AppIcon {icon} size={22} glyphSize={14} emojiSize={12} tile alt={title} />
     {/if}
 
     <div class="row-body">
@@ -135,47 +125,17 @@
     gap: var(--space-5);
   }
 
+  /* Emoji/text icons stay small and muted, as before AppIcon. */
+  .row-shell :global(.app-icon-emoji) {
+    color: var(--text-secondary);
+  }
+
   .row-body {
     flex: 1;
     display: flex;
     align-items: center;
     min-width: 0;
     gap: var(--space-5);
-  }
-
-  .row-icon-img {
-    /* design-ok: 22px row icon matches the reference density; off the 4px size grid until the design language is revised */
-    width: 22px;
-    height: 22px;
-    object-fit: contain;
-    border-radius: var(--radius-xs);
-    flex-shrink: 0;
-  }
-
-  .row-icon-fallback {
-    /* design-ok: 22px row icon matches the reference density; off the 4px size grid until the design language is revised */
-    width: 22px;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    flex-shrink: 0;
-    border-radius: var(--radius-xs);
-  }
-
-  .builtin-icon-tile {
-    /* design-ok: 22px row icon matches the reference density; off the 4px size grid until the design language is revised */
-    width: 22px;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    border-radius: var(--radius-sm);
-    background-color: var(--accent-primary-fill);
-    color: var(--text-on-accent);
   }
 
   .alias-chip {

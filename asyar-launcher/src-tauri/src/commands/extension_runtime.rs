@@ -1032,6 +1032,7 @@ mod onboarding_dispatch_tests {
 
     fn make_manifest_with_onboarding() -> ExtensionManifest {
         ExtensionManifest {
+            resolved_icon: None,
             id: "ext.coffee".into(),
             name: "Coffee".into(),
             version: "0.1.0".into(),
@@ -1044,6 +1045,7 @@ mod onboarding_dispatch_tests {
             icon: None,
             commands: vec![
                 ExtensionCommand {
+                    resolved_icon: None,
                     id: "brew".into(),
                     name: "Brew".into(),
                     description: String::new(),
@@ -1060,6 +1062,7 @@ mod onboarding_dispatch_tests {
                     search_bar_accessory: None,
                 },
                 ExtensionCommand {
+                    resolved_icon: None,
                     id: "setup".into(),
                     name: "Setup".into(),
                     description: String::new(),

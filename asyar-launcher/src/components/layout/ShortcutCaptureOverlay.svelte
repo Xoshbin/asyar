@@ -22,7 +22,9 @@
       target.type === 'application' || target.type === 'command' ? target.type : 'command',
       shortcut,
       target.path ?? undefined,
-      target.icon ?? undefined,
+      // Only app icons are stored (plain image URLs, sync-safe); command
+      // icons are looked up from the manifest when the shortcut is shown.
+      target.icon?.kind === 'image' ? target.icon.src : undefined,
     );
 
     if (!result.ok) {

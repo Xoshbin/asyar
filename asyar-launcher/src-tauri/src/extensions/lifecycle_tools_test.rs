@@ -29,6 +29,7 @@ mod lifecycle_tools_tests {
 
     fn make_manifest_with_tools(extension_id: &str, tools: Vec<ManifestTool>) -> ExtensionManifest {
         ExtensionManifest {
+            resolved_icon: None,
             id: extension_id.to_string(),
             name: "Test Ext".to_string(),
             version: "1.0.0".to_string(),

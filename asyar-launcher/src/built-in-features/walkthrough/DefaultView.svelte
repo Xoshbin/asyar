@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Badge, EmptyState, Icon, ListItem, MeterBar } from '../../components';
-  import { getBuiltInIconName, isBuiltInIcon } from '../../lib/iconUtils';
+  import AppIcon from '../../components/base/AppIcon.svelte';
   import { renderMarkdown } from '../../utils/markdown';
   import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { taskProgressFraction, taskProgressLabel } from './taskProgressLabel';
@@ -56,9 +56,7 @@
   {#if walkthroughViewState.mode === 'detail' && task}
     <article class="detail" bind:this={detailEl}>
       <header class="detail-head">
-        {#if isBuiltInIcon(task.icon ?? '')}
-          <Icon name={getBuiltInIconName(task.icon ?? '')} size={24} />
-        {/if}
+        <AppIcon icon={task.icon} size={24} />
         <h1 class="detail-title">{task.title}</h1>
         {#if task.completed}
           <Badge text={task.source === 'manual' ? 'Marked done' : 'Done'} variant="success" />
@@ -121,8 +119,8 @@
               <span class="check" class:done={item.completed}>
                 {#if item.completed}
                   <Icon name="star" size={16} />
-                {:else if isBuiltInIcon(item.icon ?? '')}
-                  <Icon name={getBuiltInIconName(item.icon ?? '')} size={16} />
+                {:else}
+                  <AppIcon icon={item.icon} size={16} />
                 {/if}
               </span>
             {/snippet}

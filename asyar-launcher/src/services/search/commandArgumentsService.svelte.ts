@@ -1,3 +1,4 @@
+import type { IconSource } from '../../lib/icon';
 import type { CommandArgument } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
 import {
@@ -19,7 +20,7 @@ export interface CommandArgMeta {
   commandId: string;
   commandName: string;
   isBuiltIn: boolean;
-  icon?: string;
+  icon?: IconSource;
   args: CommandArgument[];
   /**
    * Manifest-declared execution mode for this command. Drives Tier 2 routing:
@@ -94,7 +95,7 @@ export interface ActiveArgumentMode {
   isDynamic: boolean;
   isBuiltIn: boolean;
   title: string;
-  icon?: string;
+  icon?: IconSource;
   args: CommandArgument[];
   values: Record<string, string>;
   /**

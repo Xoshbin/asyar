@@ -199,6 +199,7 @@ pub mod file_index;
 pub mod files_scope;
 pub mod fs_watcher;
 pub mod hud_window;
+pub mod icons;
 pub mod index_events;
 mod launcher;
 pub mod launcher_placement;

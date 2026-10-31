@@ -149,7 +149,6 @@ class ShortcutService {
           type: 'application',
           score: 1,
           tier: 6, // untiered: opened directly from a shortcut binding, not search results
-          icon: '', // Not used by opening logic
         });
       } catch (e) {
         logService.error(`Failed to open app: ${e}`);

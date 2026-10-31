@@ -74,60 +74,21 @@ describe('extensionStateManager — needsRuntime', () => {
   });
 });
 
-describe('extensionStateManager — iconUrl', () => {
+describe('extensionStateManager — icon', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  function makeRecord(id: string, icon?: string) {
-    return {
-      manifest: {
-        id,
-        name: id,
-        description: '',
-        type: 'extension' as const,
-        version: '1.0.0',
-        commands: [],
-        ...(icon ? { icon } : {}),
+  // Resolution itself is tested in Rust (src-tauri/src/icons.rs).
+  it('passes the Rust-resolved manifest icon through', async () => {
+    const resolvedIcon = { kind: 'image', src: 'asyar-extension://ext/icon.png' } as const;
+    vi.mocked(discoverExtensions).mockResolvedValueOnce([
+      {
+        manifest: { id: 'ext', name: 'ext', version: '1.0.0', commands: [], resolvedIcon },
+        enabled: true,
+        isBuiltIn: false,
       },
-      enabled: true,
-      isBuiltIn: false,
-      compatibility: 'compatible' as const,
-    };
-  }
-
-  it('keeps icon: prefix as-is', async () => {
-    vi.mocked(discoverExtensions).mockResolvedValueOnce([
-      makeRecord('calc', 'icon:calculator'),
     ] as never);
     const [ext] = await extensionStateManager.getAllExtensionsWithState();
-    expect(ext.iconUrl).toBe('icon:calculator');
-  });
-
-  it('keeps emoji as-is instead of prefixing asyar-icon://', async () => {
-    vi.mocked(discoverExtensions).mockResolvedValueOnce([makeRecord('play', '🧪')] as never);
-    const [ext] = await extensionStateManager.getAllExtensionsWithState();
-    expect(ext.iconUrl).toBe('🧪');
-  });
-
-  it('prefixes bare filename to asyar-extension://', async () => {
-    vi.mocked(discoverExtensions).mockResolvedValueOnce([makeRecord('ext', 'icon.png')] as never);
-    const [ext] = await extensionStateManager.getAllExtensionsWithState();
-    expect(ext.iconUrl).toBe('asyar-extension://ext/icon.png');
-  });
-
-  it('keeps asyar-icon:// and https:// as-is', async () => {
-    vi.mocked(discoverExtensions).mockResolvedValueOnce([
-      makeRecord('a', 'asyar-icon://a/icon.png'),
-      makeRecord('b', 'https://example.com/i.png'),
-    ] as never);
-    const result = await extensionStateManager.getAllExtensionsWithState();
-    expect(result[0].iconUrl).toBe('asyar-icon://a/icon.png');
-    expect(result[1].iconUrl).toBe('https://example.com/i.png');
-  });
-
-  it('returns undefined when icon is missing', async () => {
-    vi.mocked(discoverExtensions).mockResolvedValueOnce([makeRecord('noicon')] as never);
-    const [ext] = await extensionStateManager.getAllExtensionsWithState();
-    expect(ext.iconUrl).toBeUndefined();
+    expect(ext.icon).toEqual(resolvedIcon);
   });
 });
 

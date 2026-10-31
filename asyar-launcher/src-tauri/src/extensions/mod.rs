@@ -241,6 +241,10 @@ pub struct ManifestAction {
     pub shortcut: Option<String>,
     #[serde(default)]
     pub category: Option<String>,
+    /// Display-ready icon, filled by [`ExtensionManifest::resolve_icons`] at
+    /// discovery. Never read from manifest.json.
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub resolved_icon: Option<crate::icons::ResolvedIcon>,
 }
 
 /// Mirrors the ExtensionCommand from asyar-sdk
@@ -260,6 +264,10 @@ pub struct ExtensionCommand {
     pub mode: Option<String>,
     #[serde(default)]
     pub icon: Option<String>,
+    /// Display-ready icon, filled by [`ExtensionManifest::resolve_icons`] at
+    /// discovery. Never read from manifest.json.
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub resolved_icon: Option<crate::icons::ResolvedIcon>,
     /// Name of the Svelte component exported by the extension's `view.ts`
     /// entry. Required iff `mode === "view"`; forbidden otherwise.
     #[serde(default)]
@@ -354,6 +362,10 @@ pub struct ExtensionManifest {
     pub searchable: Option<bool>,
     #[serde(default)]
     pub icon: Option<String>,
+    /// Display-ready icon, filled by [`ExtensionManifest::resolve_icons`] at
+    /// discovery. Never read from manifest.json.
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub resolved_icon: Option<crate::icons::ResolvedIcon>,
     #[serde(default)]
     pub commands: Vec<ExtensionCommand>,
     #[serde(default)]
@@ -402,6 +414,24 @@ impl ExtensionManifest {
     /// has no view commands. Used by the frontend to determine which Svelte
     /// component to render when an extension is opened without a specific
     /// command selection.
+    /// Fill every `resolved_icon` from its raw `icon`. Manifest icons are
+    /// bundled; a command without its own icon shows the extension's.
+    pub fn resolve_icons(&mut self) {
+        use crate::icons::resolve_opt;
+        let id = self.id.clone();
+        let resolve = |raw: &Option<String>| resolve_opt(raw.as_deref(), Some(&id), false);
+        self.resolved_icon = resolve(&self.icon);
+        for action in self.actions.iter_mut().flatten() {
+            action.resolved_icon = resolve(&action.icon);
+        }
+        for cmd in &mut self.commands {
+            cmd.resolved_icon = resolve(&cmd.icon).or_else(|| self.resolved_icon.clone());
+            for action in cmd.actions.iter_mut().flatten() {
+                action.resolved_icon = resolve(&action.icon);
+            }
+        }
+    }
+
     pub fn first_view_component(&self) -> Option<&str> {
         self.commands.iter().find_map(|cmd| {
             let is_view = cmd.mode.as_deref().unwrap_or("view") == "view";
@@ -1304,6 +1334,7 @@ mod tests {
             "test".into(),
             ExtensionRecord {
                 manifest: ExtensionManifest {
+                    resolved_icon: None,
                     id: "test".into(),
                     name: "Test".into(),
                     version: "1.0.0".into(),
@@ -1541,6 +1572,7 @@ mod tests {
     #[test]
     fn validate_extension_command_rejects_search_bar_accessory_on_background_mode() {
         let cmd = ExtensionCommand {
+            resolved_icon: None,
             id: "tick".to_string(),
             name: "Tick".to_string(),
             description: String::new(),
@@ -1571,6 +1603,7 @@ mod tests {
 
     fn make_cmd_with_args(args: Vec<CommandArgument>) -> ExtensionCommand {
         ExtensionCommand {
+            resolved_icon: None,
             id: "test-cmd".to_string(),
             name: "Test".to_string(),
             description: String::new(),

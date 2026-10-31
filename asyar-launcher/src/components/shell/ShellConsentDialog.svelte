@@ -2,10 +2,11 @@
   import Modal from '../base/Modal.svelte';
   import { Button, ExtensionAvatar, WarningBanner } from '../index';
   import { t } from '../../services/i18n';
+  import type { ResolvedIcon } from '../../bindings';
 
   interface Props {
     extensionName: string;
-    extensionIcon?: string;
+    extensionIcon?: ResolvedIcon;
     program: string;
     resolvedPath: string;
     onAllow: () => void;
@@ -52,7 +53,7 @@
   <div class="dialog-container">
     <!-- Component-Driven Horizontal Header -->
     <div class="dialog-header">
-      <ExtensionAvatar name={extensionName} src={extensionIcon} size="md" />
+      <ExtensionAvatar name={extensionName} icon={extensionIcon} size="md" />
 
       <div class="header-texts">
         <span id="shell-consent-title" class="app-name">{extensionName}</span>

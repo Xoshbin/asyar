@@ -1,32 +1,42 @@
 <!-- src/components/base/ExtensionAvatar.svelte -->
 <script lang="ts">
+  import AppIcon from './AppIcon.svelte';
   import { nameToGradient, nameToInitials } from '../../lib/extensionAvatar';
+  import { toResolvedIcon, type IconSource } from '../../lib/icon';
 
   let {
     name,
-    src = undefined,
+    icon = undefined,
     size = 'md',
   }: {
     name: string;
-    src?: string;
+    icon?: IconSource;
     size?: 'sm' | 'md' | 'lg' | 'xl';
   } = $props();
 
-  let imageError = $state(false);
+  const PX = { sm: 36, md: 48, lg: 64, xl: 88 };
   let gradient = $derived(nameToGradient(name));
   let initials = $derived(nameToInitials(name));
   let bg = $derived(`linear-gradient(135deg, ${gradient.from}, ${gradient.to})`);
   const sizeClass = $derived(`size-${size}`);
 </script>
 
-{#if src && !imageError}
-  <div class="ext-avatar {sizeClass} image-container">
-    <img {src} alt={name} onerror={() => (imageError = true)} />
-  </div>
-{:else}
+{#snippet initialsAvatar()}
   <div class="ext-avatar {sizeClass}" style="background: {bg};">
     {initials}
   </div>
+{/snippet}
+
+{#if toResolvedIcon(icon)}
+  <div class="ext-avatar {sizeClass} image-container">
+    <AppIcon {icon} size={PX[size]} glyphSize={Math.round(PX[size] * 0.6)} alt={name}>
+      {#snippet fallback()}
+        {@render initialsAvatar()}
+      {/snippet}
+    </AppIcon>
+  </div>
+{:else}
+  {@render initialsAvatar()}
 {/if}
 
 <style>
@@ -46,12 +56,6 @@
     border: 1px solid var(--border-color);
     padding: 0;
     overflow: hidden;
-  }
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
   }
 
   .size-sm {

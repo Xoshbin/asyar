@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { toResolvedIcon } from '../../lib/icon';
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import { createFitGroup, fitText } from '../../lib/fitText';
@@ -50,10 +51,15 @@
     name: 'calculator',
   };
 
-  const calc = $derived((item.icon && CALC_ICONS[item.icon]) || CALC_ICON_FALLBACK);
+  // The calculator tags each result kind with an emoji icon.
+  const glyph = $derived.by(() => {
+    const icon = toResolvedIcon(item.icon);
+    return icon?.kind === 'emoji' ? icon.value : '';
+  });
+  const calc = $derived(CALC_ICONS[glyph] || CALC_ICON_FALLBACK);
   // Color results are already valid CSS (#hex / rgb() / hsl()), so the
   // value itself paints the swatch.
-  const swatch = $derived(item.icon === '🎨' ? item.title : null);
+  const swatch = $derived(glyph === '🎨' ? item.title : null);
   // The expression is the typed color, so its notation names the format.
   const inputFormat = $derived(colorFormatOf(item.subtitle ?? '') ?? '');
 

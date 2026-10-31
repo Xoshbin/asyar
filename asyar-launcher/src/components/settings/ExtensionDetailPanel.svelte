@@ -5,7 +5,7 @@
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
   import PermissionList from './PermissionList.svelte';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
-  import type { ExtensionCommand } from 'asyar-sdk/contracts';
+  import type { HostCommand } from '../../types/ExtendedManifest';
   import { t } from '../../services/i18n';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
   import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
@@ -20,8 +20,7 @@
     formatRuntimeDownloadStatus,
     describeMissingRuntimesForConfirm,
   } from '../../services/runtime/runtimeDownloadStatus';
-  import Icon from '../base/Icon.svelte';
-  import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../lib/iconUtils';
+  import AppIcon from '../base/AppIcon.svelte';
   import LanHostList from './LanHostList.svelte';
   import LanScanSheet from './LanScanSheet.svelte';
   let {
@@ -34,7 +33,7 @@
     onUninstall,
   }: {
     extension?: ExtensionItem | null;
-    command?: { cmd: ExtensionCommand; parent: ExtensionItem } | null;
+    command?: { cmd: HostCommand; parent: ExtensionItem } | null;
     isToggling?: boolean;
     isUninstalling?: boolean;
     /**
@@ -220,21 +219,11 @@
 {#if command}
   <div class="panel-header">
     <div class="panel-icon">
-      {#if command.cmd.icon && isBuiltInIcon(command.cmd.icon)}
-        <Icon name={getBuiltInIconName(command.cmd.icon)} size={28} />
-      {:else if command.cmd.icon && isIconImage(command.cmd.icon)}
-        <img src={command.cmd.icon} alt={command.cmd.name} class="panel-icon-img" />
-      {:else if command.cmd.icon}
-        <span class="panel-icon-emoji">{command.cmd.icon}</span>
-      {:else if command.parent.iconUrl && isBuiltInIcon(command.parent.iconUrl)}
-        <Icon name={getBuiltInIconName(command.parent.iconUrl)} size={28} />
-      {:else if command.parent.iconUrl && isIconImage(command.parent.iconUrl)}
-        <img src={command.parent.iconUrl} alt={command.parent.title} class="panel-icon-img" />
-      {:else if command.parent.iconUrl}
-        <span class="panel-icon-emoji">{command.parent.iconUrl}</span>
-      {:else}
-        <span class="panel-icon-letter">{command.parent.title[0]?.toUpperCase() ?? 'E'}</span>
-      {/if}
+      <AppIcon icon={command.cmd.resolvedIcon} size={28} alt={command.cmd.name}>
+        {#snippet fallback()}
+          <span class="panel-icon-letter">{command.parent.title[0]?.toUpperCase() ?? 'E'}</span>
+        {/snippet}
+      </AppIcon>
     </div>
     <div class="panel-meta">
       <div class="panel-title">{command.cmd.name}</div>
@@ -280,15 +269,11 @@
 {:else if extension}
   <div class="panel-header">
     <div class="panel-icon">
-      {#if extension.iconUrl && isBuiltInIcon(extension.iconUrl)}
-        <Icon name={getBuiltInIconName(extension.iconUrl)} size={28} />
-      {:else if extension.iconUrl && isIconImage(extension.iconUrl)}
-        <img src={extension.iconUrl} alt={extension.title} class="panel-icon-img" />
-      {:else if extension.iconUrl}
-        <span class="panel-icon-emoji">{extension.iconUrl}</span>
-      {:else}
-        <span class="panel-icon-letter">{extension.title[0]?.toUpperCase() ?? 'E'}</span>
-      {/if}
+      <AppIcon icon={extension.icon} size={28} alt={extension.title}>
+        {#snippet fallback()}
+          <span class="panel-icon-letter">{extension.title[0]?.toUpperCase() ?? 'E'}</span>
+        {/snippet}
+      </AppIcon>
     </div>
     <div class="panel-meta">
       <div class="panel-title">{extension.title}</div>
@@ -462,18 +447,6 @@
     color: var(--accent-primary);
     flex-shrink: 0;
     overflow: hidden;
-  }
-
-  .panel-icon-img {
-    width: 28px;
-    height: 28px;
-    object-fit: contain;
-    border-radius: var(--radius-sm);
-  }
-
-  .panel-icon-emoji {
-    font-size: 24px; /* design-ok: emoji precise optical size beyond type scale */
-    line-height: 1;
   }
 
   .panel-icon-letter {

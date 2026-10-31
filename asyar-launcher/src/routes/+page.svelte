@@ -615,9 +615,7 @@
     {@const manifest = extensionManager.getManifestById(request.extensionId)}
     <ShellConsentDialog
       extensionName={manifest?.name ?? request.extensionId}
-      extensionIcon={manifest?.icon
-        ? `asyar-icon://${request.extensionId}/${manifest.icon}`
-        : undefined}
+      extensionIcon={manifest?.resolvedIcon}
       program={request.program}
       resolvedPath={request.resolvedPath}
       onAllow={() => shellConsentService.approveCurrent()}

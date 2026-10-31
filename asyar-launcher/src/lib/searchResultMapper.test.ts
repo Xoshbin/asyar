@@ -71,8 +71,11 @@ const noManifest = (_id: string) => null;
 
 describe('icon resolution', () => {
   it('uses the result icon when provided', () => {
-    const { icon } = resolveItemMeta(makeResult({ icon: '🎯' }), noManifest);
-    expect(icon).toBe('🎯');
+    const { icon } = resolveItemMeta(
+      makeResult({ icon: { kind: 'emoji', value: '🎯' } }),
+      noManifest,
+    );
+    expect(icon).toEqual({ kind: 'emoji', value: '🎯' });
   });
 
   it('falls back to 🖥️ for application type with no icon', () => {
@@ -94,8 +97,11 @@ describe('icon resolution', () => {
   });
 
   it('does not override a provided icon even for application type', () => {
-    const { icon } = resolveItemMeta(makeResult({ type: 'application', icon: '📦' }), noManifest);
-    expect(icon).toBe('📦');
+    const { icon } = resolveItemMeta(
+      makeResult({ type: 'application', icon: { kind: 'emoji', value: '📦' } }),
+      noManifest,
+    );
+    expect(icon).toEqual({ kind: 'emoji', value: '📦' });
   });
 });
 
@@ -239,7 +245,7 @@ describe('buildMappedItems preserves calculator fields', () => {
       description: '6 * 7',
       type: 'command',
       score: 1.0,
-      icon: '🧮',
+      icon: { kind: 'emoji', value: '🧮' },
       style: 'large',
       action: () => {},
     });
@@ -256,7 +262,7 @@ describe('buildMappedItems preserves calculator fields', () => {
     expect(mappedItems).toHaveLength(1);
     expect(mappedItems[0].style).toBe('large');
     expect(mappedItems[0].subtitle).toBe('6 * 7');
-    expect(mappedItems[0].icon).toBe('🧮');
+    expect(mappedItems[0].icon).toEqual({ kind: 'emoji', value: '🧮' });
   });
 
   it('maps style: undefined for non-calculator results', () => {
