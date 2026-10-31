@@ -10,6 +10,15 @@ export function nameToGradient(name: string): { from: string; to: string } {
   };
 }
 
+/**
+ * The Store API's `iconUrl` is an https URL when asyar.org serves the icon
+ * it took out of the package; otherwise it is the raw manifest value (emoji,
+ * `icon:` name, SVG path), which the Store shows as initials.
+ */
+export function storeIconSrc(iconUrl: string | null | undefined): string | undefined {
+  return iconUrl?.startsWith('https://') ? iconUrl : undefined;
+}
+
 export function nameToInitials(name: string): string {
   return name
     .split(/\s+/)

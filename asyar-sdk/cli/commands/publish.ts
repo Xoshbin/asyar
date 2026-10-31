@@ -17,6 +17,9 @@ import {
   ensureInitialCommit,
   findEnclosingParentOrigin,
 } from '../lib/extensionRepo';
+import { checkPublishGitState, checkReleaseTagMatchesHead } from '../lib/publishGitGuard';
+import { rewriteReadmeLinks, findMissingFiles } from '../lib/readme';
+import { checkStoreIcon } from '../lib/storeIcon';
 
 /**
  * Get the newest file modification time in a directory (recursive).
@@ -85,6 +88,17 @@ export function registerPublish(program: Command) {
         }
       } else {
         console.log(chalk.green('✓ Theme extension — skipping build step'));
+      }
+
+      // 2c. The Store takes the icon out of the package, so it must be in it.
+      const iconCheck = checkStoreIcon(
+        (manifest as unknown as Record<string, unknown>).icon,
+        manifest.type === 'theme' ? cwd : path.join(cwd, 'dist'),
+      );
+      iconCheck.warnings.forEach((w) => console.log(chalk.yellow('  ⚠️ ') + `icon: ${w}`));
+      if (iconCheck.errors.length > 0) {
+        iconCheck.errors.forEach((e) => console.error(chalk.red(`✗ icon: ${e}`)));
+        process.exit(1);
       }
 
       // 3. Authenticate with store (GitHub OAuth)
@@ -295,9 +309,61 @@ export function registerPublish(program: Command) {
       }
       const [, owner, repo] = repoMatch;
 
+      // 5b. The zip is built from local files, but the Store reads the tag
+      // on GitHub. Make them the same commit.
+      let targetSha: string | undefined;
+      const gitState = checkPublishGitState(cwd, { owner, repo });
+      if (gitState.status === 'blocked') {
+        console.error(chalk.red('\n✗ ' + gitState.reason));
+        console.error(chalk.gray('  ' + gitState.hint));
+        process.exit(1);
+      } else if (gitState.status === 'unverifiable') {
+        console.log(
+          chalk.yellow('⚠') +
+            ` Can't check that GitHub has the same files as your build: ${gitState.reason}.` +
+            ' The release will tag the default branch on GitHub.',
+        );
+      } else {
+        targetSha = gitState.headSha;
+        console.log(chalk.green('✓') + ` Commit ${targetSha.slice(0, 7)} is pushed`);
+      }
+
       // 6. Check version not already released
       const releaseTag = `v${manifest.version}`;
       const existingRelease = await github.getRelease(owner, repo, releaseTag);
+
+      // 6b. An existing tag (a resumed publish, or one made by hand) must
+      // already point at this commit.
+      if (targetSha) {
+        const tagSha = await github.getCommitSha(owner, repo, releaseTag).catch(() => null);
+        if (tagSha) {
+          const tagCheck = checkReleaseTagMatchesHead(releaseTag, tagSha, targetSha);
+          if (tagCheck.status === 'blocked') {
+            console.error(chalk.red('\n✗ ' + tagCheck.reason));
+            console.error(chalk.gray('  ' + tagCheck.hint));
+            process.exit(1);
+          }
+        }
+      }
+
+      // 6c. README ships inside the package, with relative links pinned to
+      // this release tag so they work on asyar.org and in the launcher.
+      let packagedReadme: string | undefined;
+      const readmePath = path.join(cwd, 'README.md');
+      if (fs.existsSync(readmePath)) {
+        const { markdown, relativeImages } = rewriteReadmeLinks(
+          fs.readFileSync(readmePath, 'utf8'),
+          { owner, repo, ref: releaseTag },
+        );
+        const missing = findMissingFiles(cwd, relativeImages);
+        if (missing.length > 0) {
+          console.error(chalk.red('\n✗ README.md shows images that do not exist:'));
+          missing.forEach((file) => console.error(chalk.red(`    ${file}`)));
+          console.error(chalk.gray('  Fix the paths or add the files, then publish again.'));
+          process.exit(1);
+        }
+        packagedReadme = markdown;
+      }
 
       // 7. Package
       const pkgSpinner = ora('Packaging extension...').start();
@@ -306,6 +372,7 @@ export function registerPublish(program: Command) {
         manifest.id,
         manifest.version,
         manifest.type === 'theme',
+        packagedReadme,
       );
       pkgSpinner.succeed(`Extension packaged (${(sizeBytes / 1024).toFixed(1)} kB)`);
 
@@ -379,6 +446,7 @@ export function registerPublish(program: Command) {
           tag: releaseTag,
           name: `${manifest.name} ${releaseTag}`,
           body: releaseBody,
+          targetCommitish: targetSha,
         });
         releaseSpinner.succeed(`GitHub Release created: ${releaseTag}`);
 

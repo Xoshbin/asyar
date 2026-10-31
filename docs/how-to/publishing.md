@@ -42,23 +42,41 @@ The command finds your repository in this priority order:
 3. `~/.asyar/config.json` (stored from a previous publish run).
 4. **Auto-creates a new public GitHub repository** named `asyar-<last-segment-of-id>-extension`.
 
-#### Step 5 — Check for existing release
+#### Step 5 — Check that GitHub has your files
 
-Queries GitHub for a release with tag `v<version>`. If both the release and its zip asset already exist, the command jumps directly to Step 8.
+The release tag must point at the same commit your zip is built from. When your extension folder is its own git repository and `origin` is the repository being published, the command stops if:
 
-#### Step 6 — Package
+- you have changes that are not committed (files ignored by `.gitignore`, like `dist/`, don't count), or
+- your current commit is not pushed to GitHub yet.
+
+Commit and push, then run `asyar publish` again. When the folder is not its own git repository (for example with `--repo` from a plain folder), the command can't check this, so it warns and continues.
+
+#### Step 6 — Check for existing release
+
+Queries GitHub for a release with tag `v<version>`. If the tag already exists, it must point at your current commit; otherwise the command stops and asks you to bump the version. If both the release and its zip asset already exist, the command jumps directly to Step 9.
+
+#### Step 7 — Package
 
 Creates a zip from `dist/` and `manifest.json`. Computes a **SHA-256 checksum** for integrity verification.
 
-#### Step 7 — Create GitHub Release
+Your `README.md` goes into the zip too. Relative links in it are made absolute and pinned to the release tag, the same way `vsce` does for VS Code extensions, so they work in the Store:
 
-Creates a GitHub Release tagged `v<version>` and uploads the zip as a release asset.
+- images such as `docs/screenshot.png` become `https://raw.githubusercontent.com/<owner>/<repo>/v<version>/docs/screenshot.png`
+- links such as `LICENSE` become `https://github.com/<owner>/<repo>/blob/v<version>/LICENSE`
 
-#### Step 8 — Submit to the Asyar Store
+Code blocks are left alone. If the README shows an image that doesn't exist in your project, the command stops and lists it.
 
-Sends to the Store API: repo URL, extension ID, version, release tag, download URL, and checksum.
+The Store also takes your **icon** out of the zip, like the VS Code Marketplace does. If `icon` in `manifest.json` points to an image file (for example `assets/icon.png`, which Vite copies from `public/assets/` into `dist/`), that file must be in the package or the command stops. Use PNG (or JPEG, WebP, GIF): the Store never shows SVG icons, so an SVG icon still works in the launcher but the Store shows your initials instead. Emoji and `icon:` names are shown as before.
 
-#### Step 9 — Review
+#### Step 8 — Create GitHub Release
+
+Creates a GitHub Release tagged `v<version>` on your current commit and uploads the zip as a release asset.
+
+#### Step 9 — Submit to the Asyar Store
+
+Sends to the Store API: repo URL, extension ID, version, release tag, download URL, and checksum. The Store downloads the zip, checks the checksum, and reads `manifest.json` and `README.md` from inside it, so the Store page always describes exactly what users install.
+
+#### Step 10 — Review
 
 Your extension enters a review queue. When approved, it appears in the Asyar Store for users to discover and install.
 

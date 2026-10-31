@@ -228,8 +228,9 @@ asyar publish --repo https://github.com/my-user/my-extension.git
 2. **Production Build:** Executes `vite build` (skipped for pure themes) and validates that `dist/` is newer than source files.
 3. **Store Authentication:** Authenticates against Asyar Store using GitHub OAuth.
 4. **Version Collision Guard:** Confirms that the target version is not already live in the store.
-5. **GitHub Release:** Packages the bundle, computes SHA-256 checksums, creates a git tag, and uploads the `.zip` asset.
-6. **Store Catalog Submission:** Submits metadata and release URLs to the Asyar Store API.
+5. **Git Guard:** Stops on uncommitted or unpushed changes, so the release tag is the exact commit being built. An existing `v<version>` tag must already point at that commit.
+6. **GitHub Release:** Packages the bundle with `README.md` (relative links pinned to the release tag), computes SHA-256 checksums, tags the current commit, and uploads the `.zip` asset.
+7. **Store Catalog Submission:** Submits metadata and release URLs to the Asyar Store API, which reads the manifest, README and icon from the uploaded zip. An image `icon` must be in the package; SVG icons are not shown in the Store.
 
 ---
 
