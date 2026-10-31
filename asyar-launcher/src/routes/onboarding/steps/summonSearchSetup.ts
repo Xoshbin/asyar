@@ -47,7 +47,7 @@ export function getWaylandBindingGuide(
           return {
             compositorLabel: 'Hyprland (Omarchy)',
             configPath: '~/.config/hypr/bindings.lua',
-            command: 'o.rebind("SUPER + SPACE", "Asyar", "asyar-summon")',
+            command: 'hl.unbind("SUPER + SPACE")\no.bind("SUPER + SPACE", "Asyar", "asyar-summon")',
             shortcutDisplay: 'Super+Space',
             isOmarchy: true,
           };

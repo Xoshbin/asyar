@@ -17,7 +17,8 @@ If pressing your global hotkey does nothing:
    - **Omarchy (Hyprland):** Omarchy binds `SUPER + SPACE` to its default app launcher (`omarchy-launch-walker`) out of the box. Override it in your Omarchy bindings config:
      - **Omarchy v4+ (`~/.config/hypr/bindings.lua`):**
        ```lua
-       o.rebind("SUPER + SPACE", "Asyar", "asyar-summon")
+       hl.unbind("SUPER + SPACE")
+       o.bind("SUPER + SPACE", "Asyar", "asyar-summon")
        ```
      - **Omarchy v3 (`~/.config/hypr/bindings.conf`):**
        ```ini

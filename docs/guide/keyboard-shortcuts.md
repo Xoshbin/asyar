@@ -31,7 +31,7 @@ With an empty search field and the first result selected, press `↑` to recall 
 
 **Windows & Linux:** Action shortcuts (everything listed under _In a view_ and _Per-feature_, and the hints in the `⌘K` panel) adapt to your platform: **⌘** on macOS is **Ctrl** on Windows and Linux, so `⌘N` is `Ctrl+N` there. The tables below are written with the macOS symbols. Global hotkeys you record yourself keep the exact keys you pressed.
 
-**Linux on Wayland:** Because Wayland protocol security blocks background hotkey grabs, assign your shortcut inside your desktop compositor settings to run `asyar-summon` (for example, `bind = $mainMod, SPACE, exec, asyar-summon` in `~/.config/hypr/hyprland.conf`, `o.rebind("SUPER + SPACE", "Asyar", "asyar-summon")` in `~/.config/hypr/bindings.lua` on Omarchy v4+, or `unbind = SUPER, SPACE` + `bindd = SUPER, SPACE, Asyar, exec, asyar-summon` in `~/.config/hypr/bindings.conf` on Omarchy v3). Executing `asyar-summon` while the daemon is running acts as an instant D-Bus toggle.
+**Linux on Wayland:** Because Wayland protocol security blocks background hotkey grabs, assign your shortcut inside your desktop compositor settings to run `asyar-summon` (for example, `bind = $mainMod, SPACE, exec, asyar-summon` in `~/.config/hypr/hyprland.conf`, `hl.unbind("SUPER + SPACE")` + `o.bind("SUPER + SPACE", "Asyar", "asyar-summon")` in `~/.config/hypr/bindings.lua` on Omarchy v4+, or `unbind = SUPER, SPACE` + `bindd = SUPER, SPACE, Asyar, exec, asyar-summon` in `~/.config/hypr/bindings.conf` on Omarchy v3). Executing `asyar-summon` while the daemon is running acts as an instant D-Bus toggle.
 
 ## In a view
 

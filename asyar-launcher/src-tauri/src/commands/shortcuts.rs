@@ -105,9 +105,8 @@ where
         Some("other".to_string())
     };
 
-    let is_omarchy = get_var("OMARCHY_PATH").is_some_and(|v| !v.trim().is_empty())
-        || omarchy_dir_exists
-        || omarchy_lua_config_exists;
+    let is_omarchy =
+        get_var("OMARCHY_PATH").is_some_and(|v| !v.trim().is_empty()) || omarchy_dir_exists;
     let omarchy_lua_config = is_omarchy && omarchy_lua_config_exists;
 
     ShortcutBackendInfo {
@@ -1349,7 +1348,28 @@ mod tests {
             }
         );
 
-        let v4_lua_only = detect_shortcut_backend_info_with(
+        let v4_with_env = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("Hyprland".to_string()),
+                "OMARCHY_PATH" => Some("/usr/share/omarchy".to_string()),
+                _ => None,
+            },
+            false,
+            true,
+        );
+        assert_eq!(
+            v4_with_env,
+            ShortcutBackendInfo {
+                is_wayland: true,
+                compositor: Some("hyprland".to_string()),
+                is_omarchy: true,
+                omarchy_lua_config: true,
+            }
+        );
+
+        let vanilla_hyprland_with_lua = detect_shortcut_backend_info_with(
             true,
             |key| match key {
                 "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
@@ -1360,12 +1380,12 @@ mod tests {
             true,
         );
         assert_eq!(
-            v4_lua_only,
+            vanilla_hyprland_with_lua,
             ShortcutBackendInfo {
                 is_wayland: true,
                 compositor: Some("hyprland".to_string()),
-                is_omarchy: true,
-                omarchy_lua_config: true,
+                is_omarchy: false,
+                omarchy_lua_config: false,
             }
         );
     }
