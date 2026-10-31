@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::storage::agents::{
     get_agent, insert_agent, list_agents, update_agent, AgentRow, SilentInputSource,
-    SilentOutputAction,
+    SilentOutputAction, ThreadRow,
 };
 use rusqlite::Connection;
 
@@ -251,6 +251,42 @@ pub fn provider_is_usable(
         })
 }
 
+/// Fails with the re-enter error when `provider_id`'s run would send a stored
+/// API key that can no longer be decrypted (the keychain master key changed).
+///
+/// A stale key only matters when the run will actually send it: a CLI-mode
+/// provider keeps its old key row but never reads it (and hides the key field,
+/// so it couldn't be fixed). Shared by the agent's own provider and a thread's
+/// override so both report the same problem the same way.
+fn ensure_stored_key_decryptable(
+    conn: &Connection,
+    master_key: &[u8; 32],
+    provider_id: &str,
+    providers: &[crate::agents::editor::AgentProviderDescriptor],
+    configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
+) -> Result<(), AppError> {
+    let uses_stored_key = configs.get(provider_id).is_some_and(|config| {
+        let engine = config.provider_type.as_deref().unwrap_or(provider_id);
+        config.enabled
+            && config.connection_mode.as_deref() != Some("cli")
+            && providers
+                .iter()
+                .any(|provider| provider.id == engine && provider.requires_api_key)
+    });
+    let cred_id = format!("provider:{provider_id}");
+    if uses_stored_key
+        && matches!(
+            crate::storage::ai_credentials::status(conn, &cred_id, master_key),
+            Ok(crate::storage::ai_credentials::CredentialState::NeedsReentry)
+        )
+    {
+        return Err(AppError::Validation(format!(
+            "API key for provider '{provider_id}' cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI."
+        )));
+    }
+    Ok(())
+}
+
 /// Resolves the agent that should actually run for `agent_id`. If the
 /// agent's own provider is unusable (disabled, missing, or missing required
 /// credentials) and the current default agent's provider IS usable, persists
@@ -274,31 +310,7 @@ pub fn resolve_runnable_agent(
     let agent = get_agent(conn, agent_id)?
         .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found")))?;
 
-    // A stale key only matters when the run will actually send it: a CLI-mode provider keeps
-    // its old key row but never reads it (and hides the key field, so it couldn't be fixed).
-    let uses_stored_key = configs.get(&agent.provider_id).is_some_and(|config| {
-        let engine = config
-            .provider_type
-            .as_deref()
-            .unwrap_or(agent.provider_id.as_str());
-        config.enabled
-            && config.connection_mode.as_deref() != Some("cli")
-            && providers
-                .iter()
-                .any(|provider| provider.id == engine && provider.requires_api_key)
-    });
-    let cred_id = format!("provider:{}", agent.provider_id);
-    if uses_stored_key
-        && matches!(
-            crate::storage::ai_credentials::status(conn, &cred_id, master_key),
-            Ok(crate::storage::ai_credentials::CredentialState::NeedsReentry)
-        )
-    {
-        return Err(AppError::Validation(format!(
-            "API key for provider '{}' cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.",
-            agent.provider_id
-        )));
-    }
+    ensure_stored_key_decryptable(conn, master_key, &agent.provider_id, providers, configs)?;
 
     if provider_is_usable(conn, master_key, &agent.provider_id, providers, configs) {
         return Ok((agent, false));
@@ -319,6 +331,43 @@ pub fn resolve_runnable_agent(
     healed.updated_at = Some(now_ms());
     update_agent(conn, &healed)?;
     Ok((healed, true))
+}
+
+/// Resolves the agent a thread's run uses. A usable thread override wins
+/// outright: the agent's own provider is then never checked or healed, since
+/// this run won't use it. Only this run sees the swap; the agent row is
+/// untouched. An override whose provider has since been disabled, deleted or
+/// never had a key is ignored, and the agent resolves as usual through
+/// [`resolve_runnable_agent`]. An override whose stored key can't be decrypted
+/// fails with the same re-enter error as an agent's own provider, so the user
+/// isn't silently answered by a different provider than the one they picked.
+pub fn resolve_thread_agent(
+    conn: &Connection,
+    master_key: &[u8; 32],
+    agent_id: &str,
+    default_agent_id: Option<&str>,
+    thread: &ThreadRow,
+    providers: &[crate::agents::editor::AgentProviderDescriptor],
+    configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
+) -> Result<(AgentRow, bool), AppError> {
+    if let (Some(provider_id), Some(model_id)) = (&thread.provider_id, &thread.model_id) {
+        ensure_stored_key_decryptable(conn, master_key, provider_id, providers, configs)?;
+        if provider_is_usable(conn, master_key, provider_id, providers, configs) {
+            let mut agent = get_agent(conn, agent_id)?
+                .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found")))?;
+            agent.provider_id = provider_id.clone();
+            agent.model_id = model_id.clone();
+            return Ok((agent, false));
+        }
+    }
+    resolve_runnable_agent(
+        conn,
+        master_key,
+        agent_id,
+        default_agent_id,
+        providers,
+        configs,
+    )
 }
 
 pub fn derive_thread_title(user_text: &str) -> String {
@@ -853,6 +902,271 @@ mod tests {
 
         assert!(!healed);
         assert_eq!(resolved, agent);
+    }
+
+    fn thread_with_override(provider_id: Option<&str>, model_id: Option<&str>) -> ThreadRow {
+        ThreadRow {
+            id: "t".into(),
+            agent_id: "a".into(),
+            title: None,
+            is_pinned: false,
+            provider_id: provider_id.map(Into::into),
+            model_id: model_id.map(Into::into),
+            created_at: None,
+            updated_at: None,
+        }
+    }
+
+    fn store_key(conn: &Connection, provider_id: &str, master_key: &[u8; 32]) {
+        crate::storage::ai_credentials::set(
+            conn,
+            &format!("provider:{provider_id}"),
+            "sk-fake-thread-override-key",
+            master_key,
+        )
+        .unwrap();
+    }
+
+    /// Runs `resolve_thread_agent` for `agent` with `thread`'s override and no default agent.
+    fn resolve_for_thread(
+        conn: &Connection,
+        master_key: &[u8; 32],
+        agent: &AgentRow,
+        thread: &ThreadRow,
+        providers: &[crate::agents::editor::AgentProviderDescriptor],
+        configs: &HashMap<String, crate::ai::types::ProviderConfig>,
+    ) -> Result<(AgentRow, bool), AppError> {
+        resolve_thread_agent(
+            conn, master_key, &agent.id, None, thread, providers, configs,
+        )
+    }
+
+    #[test]
+    fn resolve_thread_agent_uses_a_usable_thread_provider() {
+        let conn = conn();
+        let master_key = crate::crypto::test_master_key();
+        let mut agent = emoji_fallback_agent();
+        agent.provider_id = "openai".into();
+        agent.model_id = "gpt".into();
+        insert_agent(&conn, &agent).unwrap();
+        let providers = vec![provider("anthropic", true, false)];
+        let configs = HashMap::from([("anthropic".to_string(), provider_config(true, None))]);
+        store_key(&conn, "anthropic", &master_key);
+
+        let (resolved, healed) = resolve_for_thread(
+            &conn,
+            &master_key,
+            &agent,
+            &thread_with_override(Some("anthropic"), Some("claude")),
+            &providers,
+            &configs,
+        )
+        .unwrap();
+
+        assert_eq!(resolved.provider_id, "anthropic");
+        assert_eq!(resolved.model_id, "claude");
+        assert_eq!(resolved.id, agent.id);
+        assert!(!healed);
+        assert_eq!(get_agent(&conn, &agent.id).unwrap().unwrap(), agent);
+    }
+
+    #[test]
+    fn resolve_thread_agent_follows_the_agent_without_an_override() {
+        let conn = conn();
+        let master_key = crate::crypto::test_master_key();
+        let agent = emoji_fallback_agent();
+        insert_agent(&conn, &agent).unwrap();
+
+        let (resolved, healed) = resolve_for_thread(
+            &conn,
+            &master_key,
+            &agent,
+            &thread_with_override(None, None),
+            &[],
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        assert_eq!(resolved, agent);
+        assert!(!healed);
+    }
+
+    #[test]
+    fn resolve_thread_agent_ignores_a_disabled_thread_provider() {
+        let conn = conn();
+        let master_key = crate::crypto::test_master_key();
+        let agent = emoji_fallback_agent();
+        insert_agent(&conn, &agent).unwrap();
+        let providers = vec![provider("anthropic", true, false)];
+        let configs = HashMap::from([("anthropic".to_string(), provider_config(false, None))]);
+        store_key(&conn, "anthropic", &master_key);
+
+        let (resolved, _) = resolve_for_thread(
+            &conn,
+            &master_key,
+            &agent,
+            &thread_with_override(Some("anthropic"), Some("claude")),
+            &providers,
+            &configs,
+        )
+        .unwrap();
+
+        assert_eq!(resolved, agent);
+    }
+
+    #[test]
+    fn resolve_thread_agent_falls_back_to_the_agent_when_the_provider_has_no_key() {
+        let conn = conn();
+        let master_key = crate::crypto::test_master_key();
+        let agent = emoji_fallback_agent();
+        insert_agent(&conn, &agent).unwrap();
+        let providers = vec![provider("anthropic", true, false)];
+        let configs = HashMap::from([("anthropic".to_string(), provider_config(true, None))]);
+
+        let (resolved, _) = resolve_for_thread(
+            &conn,
+            &master_key,
+            &agent,
+            &thread_with_override(Some("anthropic"), Some("claude")),
+            &providers,
+            &configs,
+        )
+        .unwrap();
+
+        assert_eq!(resolved, agent);
+    }
+
+    #[test]
+    fn resolve_thread_agent_with_needs_reentry_fails_with_the_reenter_error() {
+        let conn = conn();
+        let old_master_key = crate::crypto::test_master_key();
+        let new_master_key = crate::crypto::test_master_key();
+        let agent = emoji_fallback_agent();
+        insert_agent(&conn, &agent).unwrap();
+        let providers = vec![provider("anthropic", true, false)];
+        let configs = HashMap::from([("anthropic".to_string(), provider_config(true, None))]);
+        store_key(&conn, "anthropic", &old_master_key);
+
+        let result = resolve_for_thread(
+            &conn,
+            &new_master_key,
+            &agent,
+            &thread_with_override(Some("anthropic"), Some("claude")),
+            &providers,
+            &configs,
+        );
+
+        match result {
+            Err(crate::error::AppError::Validation(msg)) => assert!(
+                msg.contains("'anthropic'")
+                    && msg.contains("cannot be decrypted")
+                    && msg.contains("re-enter your key"),
+                "{msg}"
+            ),
+            other => panic!("expected the re-enter error, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_thread_agent_in_cli_mode_ignores_a_stale_key_row() {
+        let conn = conn();
+        let old_master_key = crate::crypto::test_master_key();
+        let new_master_key = crate::crypto::test_master_key();
+        let agent = emoji_fallback_agent();
+        insert_agent(&conn, &agent).unwrap();
+        let providers = vec![provider("anthropic", true, false)];
+        let mut config = provider_config(true, None);
+        config.connection_mode = Some("cli".to_string());
+        let configs = HashMap::from([("anthropic".to_string(), config)]);
+        store_key(&conn, "anthropic", &old_master_key);
+
+        let (resolved, _) = resolve_for_thread(
+            &conn,
+            &new_master_key,
+            &agent,
+            &thread_with_override(Some("anthropic"), Some("claude")),
+            &providers,
+            &configs,
+        )
+        .expect("a CLI-mode run never reads the stored key");
+
+        assert_eq!(resolved.provider_id, "anthropic");
+        assert_eq!(resolved.model_id, "claude");
+    }
+
+    #[test]
+    fn resolve_thread_agent_uses_the_override_when_the_agents_own_key_needs_reentry() {
+        let conn = conn();
+        let old_master_key = crate::crypto::test_master_key();
+        let new_master_key = crate::crypto::test_master_key();
+        let mut agent = emoji_fallback_agent();
+        agent.provider_id = "openai".into();
+        agent.model_id = "gpt".into();
+        insert_agent(&conn, &agent).unwrap();
+        let providers = vec![
+            provider("openai", true, false),
+            provider("anthropic", true, false),
+        ];
+        let configs = HashMap::from([
+            ("openai".to_string(), provider_config(true, None)),
+            ("anthropic".to_string(), provider_config(true, None)),
+        ]);
+        // The agent's own key predates the keychain change; only Anthropic was re-entered.
+        store_key(&conn, "openai", &old_master_key);
+        store_key(&conn, "anthropic", &new_master_key);
+
+        let (resolved, healed) = resolve_for_thread(
+            &conn,
+            &new_master_key,
+            &agent,
+            &thread_with_override(Some("anthropic"), Some("claude")),
+            &providers,
+            &configs,
+        )
+        .expect("the thread never sends the agent's own key");
+
+        assert_eq!(resolved.provider_id, "anthropic");
+        assert_eq!(resolved.model_id, "claude");
+        assert!(!healed);
+    }
+
+    #[test]
+    fn resolve_thread_agent_with_a_usable_override_does_not_heal_the_agent() {
+        let conn = conn();
+        let master_key = crate::crypto::test_master_key();
+        let agent = emoji_fallback_agent();
+        insert_agent(&conn, &agent).unwrap();
+        let default_agent =
+            upsert_default_agent(&conn, None, "anthropic", "claude-sonnet-5").unwrap();
+        let providers = vec![
+            provider("ollama", false, true),
+            provider("anthropic", true, false),
+        ];
+        let configs = HashMap::from([
+            ("ollama".to_string(), provider_config(false, None)),
+            ("anthropic".to_string(), provider_config(true, None)),
+        ]);
+        store_key(&conn, "anthropic", &master_key);
+
+        let (resolved, healed) = resolve_thread_agent(
+            &conn,
+            &master_key,
+            &agent.id,
+            Some(&default_agent.id),
+            &thread_with_override(Some("anthropic"), Some("claude-opus")),
+            &providers,
+            &configs,
+        )
+        .unwrap();
+
+        assert_eq!(resolved.provider_id, "anthropic");
+        assert_eq!(resolved.model_id, "claude-opus");
+        assert!(!healed);
+        let persisted = get_agent(&conn, &agent.id).unwrap().unwrap();
+        assert_eq!(
+            persisted.provider_id, "ollama",
+            "the agent row must stay as it was"
+        );
     }
 
     #[test]

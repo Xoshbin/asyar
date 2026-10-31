@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./agentService.svelte', () => ({
   agentService: {
+    agents: [],
     getById: vi.fn(),
     listThreads: vi.fn(),
     listMessages: vi.fn(),
@@ -46,6 +47,8 @@ vi.mock('../../lib/ipc/commands', () => ({
   agentsBackfillThreadTitles: vi.fn(),
   replaceDynamicCommandsBuiltin: vi.fn(),
   showSettingsWindow: vi.fn(),
+  aiListModels: vi.fn().mockResolvedValue([]),
+  aiGetCredentialStatus: vi.fn().mockResolvedValue({ providers: {}, webSearch: {} }),
 }));
 
 vi.mock('../../utils/copyText', () => ({ copyText: vi.fn() }));
@@ -55,6 +58,9 @@ import AgentChatView from './AgentChatView.svelte';
 import { agentService } from './agentService.svelte';
 import { agentsManager } from './agentsManager.svelte';
 import type { MessageDef } from './types';
+import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+import { settingsService } from '../../services/settings/settingsService.svelte';
 
 const mockedAgentService = vi.mocked(agentService);
 
@@ -92,6 +98,8 @@ function deferred<T>() {
 }
 
 describe('AgentChatView', () => {
+  let savedProviders: typeof settingsService.currentSettings.ai.providers;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockedAgentService.getById.mockReturnValue(agent);
@@ -102,10 +110,21 @@ describe('AgentChatView', () => {
     agentsManager.sending = false;
     agentsManager.lastAssistantMessageText = null;
     agentsManager.threadsVersion = 0;
+    agentsManager.streamingText = '';
+    agentsManager.streamingTextPersisted = false;
+    agentsManager.streamingThreadId = null;
+    savedProviders = settingsService.currentSettings.ai.providers;
+    // jsdom has no scrollIntoView; the thread list calls it on re-render.
+    Element.prototype.scrollIntoView = vi.fn();
+    (mockedAgentService as any).agents = [];
+    searchBarAccessoryService.clear();
+    searchBarAccessoryService.popoverOpen = false;
+    viewManager.activeViewSubtitle = null;
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    settingsService.currentSettings.ai.providers = savedProviders;
   });
 
   it('offers keyboard-accessible whole-message copy and preserves native copy', async () => {
@@ -318,6 +337,214 @@ describe('AgentChatView', () => {
     const secondThread = await screen.findByText('Second Thread');
     await fireEvent.click(secondThread);
     expect(agentsManager.currentThreadId).toBe('thread-2');
+  });
+
+  it('keeps a streaming reply on screen when messages reload mid-stream', async () => {
+    render(AgentChatView);
+    await screen.findByText(thread.title);
+
+    agentsManager.sending = true;
+    agentsManager.streamingThreadId = thread.id;
+    agentsManager.streamingText = 'Half an answer';
+    await screen.findByText('Half an answer');
+
+    await waitFor(() => expect(mockedAgentService.listMessages).toHaveBeenCalled());
+    const loadsBefore = mockedAgentService.listMessages.mock.calls.length;
+    agentsManager.messagesVersion += 1; // e.g. the user message was saved
+    await waitFor(() =>
+      expect(mockedAgentService.listMessages.mock.calls.length).toBeGreaterThan(loadsBefore),
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByText('Half an answer')).toBeTruthy();
+    expect(agentsManager.streamingText).toBe('Half an answer');
+  });
+
+  it('keeps the saved reply on screen after the run ends until the reload lands', async () => {
+    const reload = deferred<MessageDef[]>();
+    render(AgentChatView);
+    await screen.findByText(thread.title);
+
+    agentsManager.sending = true;
+    agentsManager.streamingThreadId = thread.id;
+    agentsManager.streamingText = 'Streamed answer';
+    await screen.findByText('Streamed answer');
+
+    mockedAgentService.listMessages.mockReturnValue(reload.promise);
+    agentsManager.streamingTextPersisted = true;
+    agentsManager.sending = false;
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByText('Streamed answer')).toBeTruthy();
+
+    reload.resolve([
+      {
+        id: 'persisted',
+        threadId: thread.id,
+        role: 'assistant',
+        content: { text: 'Persisted answer' },
+        createdAt: 2,
+        runId: null,
+      },
+    ]);
+    await screen.findByText('Persisted answer');
+    expect(screen.queryByText('Streamed answer')).toBeNull();
+    expect(agentsManager.streamingText).toBe('');
+    expect(agentsManager.streamingTextPersisted).toBe(false);
+  });
+
+  it('shows the agent, provider and model in the bottom bar, and clears it on leave', async () => {
+    const view = render(AgentChatView);
+    await waitFor(() =>
+      expect(viewManager.activeViewSubtitle).toBe('Asyar Assistant · provider-1 · model-1'),
+    );
+    view.unmount();
+    expect(viewManager.activeViewSubtitle).toBeNull();
+  });
+
+  it("shows the thread's own provider and model in the bottom bar when it has an override", async () => {
+    settingsService.currentSettings.ai.providers = {
+      'provider-2': { enabled: true, connectionMode: 'cli' },
+    };
+    mockedAgentService.listThreads.mockResolvedValue([
+      { ...thread, providerId: 'provider-2', modelId: 'model-2' },
+    ]);
+    render(AgentChatView);
+    await waitFor(() =>
+      expect(viewManager.activeViewSubtitle).toBe('Asyar Assistant · provider-2 · model-2'),
+    );
+  });
+
+  it("shows the agent's provider in the bottom bar when the override's provider is off", async () => {
+    settingsService.currentSettings.ai.providers = { 'provider-2': { enabled: false } };
+    mockedAgentService.listThreads.mockResolvedValue([
+      { ...thread, providerId: 'provider-2', modelId: 'model-2' },
+    ]);
+    render(AgentChatView);
+    await waitFor(() =>
+      expect(viewManager.activeViewSubtitle).toBe('Asyar Assistant · provider-1 · model-1'),
+    );
+  });
+
+  it("never shows another thread's streamed reply, nor clears it on that thread's reload", async () => {
+    const second = { ...thread, id: 'thread-2', title: 'Second Thread' };
+    mockedAgentService.listThreads.mockResolvedValue([thread, second]);
+    agentsManager.sending = true;
+    agentsManager.streamingThreadId = thread.id;
+    agentsManager.streamingText = 'Answer for the first thread';
+    agentsManager.currentThreadId = second.id;
+    render(AgentChatView);
+    await screen.findByText('Second Thread');
+
+    expect(screen.queryByText('Answer for the first thread')).toBeNull();
+
+    // The first thread's turn is saved while the second one is open.
+    const loadsBefore = mockedAgentService.listMessages.mock.calls.length;
+    agentsManager.streamingTextPersisted = true;
+    agentsManager.sending = false;
+    agentsManager.messagesVersion += 1;
+    await waitFor(() =>
+      expect(mockedAgentService.listMessages.mock.calls.length).toBeGreaterThan(loadsBefore),
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText('Answer for the first thread')).toBeNull();
+    expect(agentsManager.streamingText).toBe('Answer for the first thread');
+
+    // Back on its own thread, the reload renders the saved turn and drops the copy.
+    mockedAgentService.listMessages.mockResolvedValue([
+      {
+        id: 'persisted',
+        threadId: thread.id,
+        role: 'assistant',
+        content: { text: 'Saved answer' },
+        createdAt: 2,
+        runId: null,
+      },
+    ]);
+    agentsManager.currentThreadId = thread.id;
+    await screen.findByText('Saved answer');
+    expect(agentsManager.streamingText).toBe('');
+  });
+
+  it("clears the previous agent's messages on switch, even when the new agent's threads fail to load", async () => {
+    const research = { ...agent, id: 'agent-2', name: 'Research' };
+    (mockedAgentService as any).agents = [agent, research];
+    mockedAgentService.getById.mockImplementation((id: string) =>
+      id === research.id ? research : agent,
+    );
+    mockedAgentService.listMessages.mockResolvedValue([
+      {
+        id: 'old',
+        threadId: thread.id,
+        role: 'assistant',
+        content: { text: 'Message from the first agent' },
+        createdAt: 2,
+        runId: null,
+      },
+    ]);
+    render(AgentChatView);
+    await screen.findByText('Message from the first agent');
+    await waitFor(() => expect(searchBarAccessoryService.active).not.toBeNull());
+
+    mockedAgentService.listThreads.mockRejectedValue(new Error('offline'));
+    await searchBarAccessoryService.set('agents', { value: research.id });
+
+    await waitFor(() => expect(agentsManager.currentAgentId).toBe(research.id));
+    await waitFor(() => expect(screen.queryByText('Message from the first agent')).toBeNull());
+  });
+
+  it('offers a ⌘P agent switcher seeded with the open agent, not the saved pick', async () => {
+    const research = { ...agent, id: 'agent-2', name: 'Research' };
+    const silent = { ...agent, id: 'agent-3', name: 'Fix Grammar', silent: true };
+    (mockedAgentService as any).agents = [agent, research, silent];
+    render(AgentChatView);
+
+    await waitFor(() => expect(searchBarAccessoryService.active).not.toBeNull());
+    expect(searchBarAccessoryService.active).toMatchObject({
+      extensionId: 'agents',
+      commandId: 'ask',
+      value: agent.id,
+      options: [
+        { value: agent.id, title: 'Asyar Assistant' },
+        { value: research.id, title: 'Research' },
+      ],
+    });
+    expect(agentsManager.currentAgentId).toBe(agent.id);
+  });
+
+  it('switches to the picked agent and lands on its latest thread', async () => {
+    const research = { ...agent, id: 'agent-2', name: 'Research' };
+    (mockedAgentService as any).agents = [agent, research];
+    mockedAgentService.getById.mockImplementation((id: string) =>
+      id === research.id ? research : agent,
+    );
+    render(AgentChatView);
+    await waitFor(() => expect(searchBarAccessoryService.active).not.toBeNull());
+
+    const researchThread = { ...thread, id: 'thread-r', agentId: research.id };
+    mockedAgentService.listThreads.mockResolvedValue([researchThread]);
+    await searchBarAccessoryService.set('agents', { value: research.id });
+
+    expect(agentsManager.currentAgentId).toBe(research.id);
+    await waitFor(() => expect(agentsManager.currentThreadId).toBe('thread-r'));
+  });
+
+  it('shows no agent switcher when there is only one agent', async () => {
+    (mockedAgentService as any).agents = [agent];
+    render(AgentChatView);
+    await screen.findByText(thread.title);
+    expect(searchBarAccessoryService.active).toBeNull();
+  });
+
+  it('leaves arrow keys to the ⌘P dropdown while it is open', async () => {
+    const second = { ...thread, id: 'thread-2', title: 'Second Thread' };
+    mockedAgentService.listThreads.mockResolvedValue([thread, second]);
+    render(AgentChatView);
+    await screen.findByText('Second Thread');
+
+    searchBarAccessoryService.popoverOpen = true;
+    const event = new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(agentsManager.currentThreadId).toBe(thread.id);
   });
 
   it('renders tools unavailable notice when populated in agentsManager for active thread', async () => {

@@ -1326,6 +1326,18 @@
       "tools_unavailable_cli": "{engine} (CLI) can't use these tools: {tools}. To use them, switch this provider to an API key in Settings → AI.",
       "tools_unavailable_agy": "Antigravity (CLI) can't use tools, so this chat runs without: {tools}. To use tools, switch this provider to an API key in Settings → AI.",
       "you": "You",
+      "tool_result": "Tool result",
+      "error_set_thread_provider": "Could not change the thread’s provider",
+      "model_picker": {
+        "title_provider": "Change Provider",
+        "title_model": "Change Model · {provider}",
+        "filter_providers": "Search providers…",
+        "filter_models": "Search models…",
+        "loading": "Loading models…",
+        "no_providers": "No providers set up. Add one in Settings → AI.",
+        "no_models": "No models found",
+        "load_error": "Couldn’t load models: {error}"
+      },
       "copy_message": "Copy message",
       "copy_last_response": "Copy Last Response",
       "copy_last_response_description": "Copy the latest assistant response in this thread",
@@ -1349,7 +1361,11 @@
         "unpin_thread": "Unpin Current Thread",
         "unpin_thread_desc": "Stop keeping the active thread at the top of the list",
         "cancel": "Cancel Run",
-        "cancel_desc": "Abort the in-flight assistant response"
+        "cancel_desc": "Abort the in-flight assistant response",
+        "change_provider": "Change Provider…",
+        "change_provider_desc": "Pick another of your providers for the current thread",
+        "change_model": "Change Model…",
+        "change_model_desc": "Pick another model of the current provider for this thread"
       },
       "edit": {
         "name_placeholder": "My Agent",

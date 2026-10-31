@@ -125,8 +125,30 @@ pub struct ThreadRow {
     pub title: Option<String>,
     #[serde(default)]
     pub is_pinned: bool,
+    /// Per-thread provider override; `None` follows the agent. Set together
+    /// with `model_id`.
+    #[serde(default)]
+    pub provider_id: Option<String>,
+    #[serde(default)]
+    pub model_id: Option<String>,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
+}
+
+const THREAD_COLUMNS: &str =
+    "id, agent_id, title, is_pinned, provider_id, model_id, created_at, updated_at";
+
+fn thread_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ThreadRow> {
+    Ok(ThreadRow {
+        id: row.get(0)?,
+        agent_id: row.get(1)?,
+        title: row.get(2)?,
+        is_pinned: row.get::<_, i64>(3)? != 0,
+        provider_id: row.get(4)?,
+        model_id: row.get(5)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
+    })
 }
 
 /// The role of a participant in a conversation.
@@ -182,6 +204,8 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
             agent_id    TEXT    NOT NULL,
             title       TEXT,
             is_pinned   INTEGER NOT NULL DEFAULT 0,
+            provider_id TEXT,
+            model_id    TEXT,
             created_at  INTEGER NOT NULL,
             updated_at  INTEGER NOT NULL,
             FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
@@ -492,13 +516,15 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
 /// Insert a new thread row.
 pub fn insert_thread(conn: &Connection, thread: &ThreadRow) -> Result<(), AppError> {
     conn.execute(
-        "INSERT INTO threads (id, agent_id, title, is_pinned, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO threads (id, agent_id, title, is_pinned, provider_id, model_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             thread.id,
             thread.agent_id,
             thread.title,
             thread.is_pinned as i64,
+            thread.provider_id,
+            thread.model_id,
             thread.created_at,
             thread.updated_at,
         ],
@@ -510,24 +536,13 @@ pub fn insert_thread(conn: &Connection, thread: &ThreadRow) -> Result<(), AppErr
 /// Return a single thread by id, or `None` if not found.
 pub fn get_thread(conn: &Connection, id: &str) -> Result<Option<ThreadRow>, AppError> {
     let mut stmt = conn
-        .prepare(
-            "SELECT id, agent_id, title, is_pinned, created_at, updated_at
-             FROM threads
-             WHERE id = ?1",
-        )
+        .prepare(&format!(
+            "SELECT {THREAD_COLUMNS} FROM threads WHERE id = ?1"
+        ))
         .map_err(|error| AppError::Database(error.to_string()))?;
 
     let mut rows = stmt
-        .query_map(params![id], |row| {
-            Ok(ThreadRow {
-                id: row.get(0)?,
-                agent_id: row.get(1)?,
-                title: row.get(2)?,
-                is_pinned: row.get::<_, i64>(3)? != 0,
-                created_at: row.get(4)?,
-                updated_at: row.get(5)?,
-            })
-        })
+        .query_map(params![id], thread_from_row)
         .map_err(|error| AppError::Database(error.to_string()))?;
 
     rows.next()
@@ -665,25 +680,15 @@ pub fn list_threads_for_agent(
     agent_id: &str,
 ) -> Result<Vec<ThreadRow>, AppError> {
     let mut stmt = conn
-        .prepare(
-            "SELECT id, agent_id, title, is_pinned, created_at, updated_at
-             FROM threads
+        .prepare(&format!(
+            "SELECT {THREAD_COLUMNS} FROM threads
              WHERE agent_id = ?1
-             ORDER BY is_pinned DESC, updated_at DESC",
-        )
+             ORDER BY is_pinned DESC, updated_at DESC"
+        ))
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let rows = stmt
-        .query_map(params![agent_id], |row| {
-            Ok(ThreadRow {
-                id: row.get(0)?,
-                agent_id: row.get(1)?,
-                title: row.get(2)?,
-                is_pinned: row.get::<_, i64>(3)? != 0,
-                created_at: row.get(4)?,
-                updated_at: row.get(5)?,
-            })
-        })
+        .query_map(params![agent_id], thread_from_row)
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let mut threads = Vec::new();
@@ -769,6 +774,26 @@ pub fn set_thread_pinned(conn: &Connection, id: &str, pinned: bool) -> Result<()
         .execute(
             "UPDATE threads SET is_pinned = ?1 WHERE id = ?2",
             params![pinned as i64, id],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    if rows == 0 {
+        return Err(AppError::NotFound(format!("thread '{id}' not found")));
+    }
+    Ok(())
+}
+
+/// Set or clear a thread's provider override. `None` makes the thread follow
+/// its agent again. Callers validate that provider and model come as a pair.
+pub fn set_thread_provider(
+    conn: &Connection,
+    id: &str,
+    provider_id: Option<&str>,
+    model_id: Option<&str>,
+) -> Result<(), AppError> {
+    let rows = conn
+        .execute(
+            "UPDATE threads SET provider_id = ?1, model_id = ?2 WHERE id = ?3",
+            params![provider_id, model_id, id],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
     if rows == 0 {

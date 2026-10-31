@@ -931,23 +931,26 @@ where
 {
     let (agent, healed, thread) = {
         let conn = store.conn()?;
-        let (agent, healed) = resolve_runnable_agent(
+        let thread = get_thread(&conn, thread_id)?
+            .ok_or_else(|| AppError::NotFound(format!("thread '{thread_id}' not found")))?;
+        if thread.agent_id != agent_id {
+            return Err(AppError::Validation(format!(
+                "thread '{thread_id}' does not belong to agent '{agent_id}'"
+            )));
+        }
+        // Before `cli_dropped_tool_names`, so the tools-unavailable notice
+        // reflects the thread's provider rather than the agent's.
+        let (agent, healed) = crate::agents::lifecycle::resolve_thread_agent(
             &conn,
             master_key,
             agent_id,
             config.default_agent_id.as_deref(),
+            &thread,
             &config.providers,
             &config.configs,
         )?;
-        let thread = get_thread(&conn, thread_id)?
-            .ok_or_else(|| AppError::NotFound(format!("thread '{thread_id}' not found")))?;
         (agent, healed, thread)
     };
-    if thread.agent_id != agent_id {
-        return Err(AppError::Validation(format!(
-            "thread '{thread_id}' does not belong to agent '{agent_id}'"
-        )));
-    }
     let run_id = run_id.unwrap_or_else(|| Uuid::new_v4().to_string());
     if !user_text.trim().is_empty() {
         let derived_title = thread

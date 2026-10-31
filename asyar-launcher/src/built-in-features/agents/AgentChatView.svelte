@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openerService } from '../../services/opener/openerService';
   import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, onDestroy, tick, untrack } from 'svelte';
   import { agentService } from './agentService.svelte';
   import { agentsManager } from './agentsManager.svelte';
   import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
@@ -15,6 +15,10 @@
     messageBubbleVariant,
     resolveThreadId,
     lastAssistantMessageText,
+    agentSwitcherOptions,
+    chatSubtitle,
+    threadRunTarget,
+    overrideCanRun,
     formatToolsUnavailableNotice,
   } from './agentChatView.helpers';
   import {
@@ -27,14 +31,25 @@
     GoogleSearchSuggestions,
     WarningBanner,
   } from '../../components';
-  import type { AgentDef, ThreadDef, MessageDef } from './types';
-  import { showSettingsWindow } from '../../lib/ipc/commands';
+  import ModelPickerModal from './ModelPickerModal.svelte';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
+  import { providerRegistry } from '../../services/ai/providerRegistry';
+  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
+  import type { ThreadDef, MessageDef } from './types';
+  import { aiGetCredentialStatus, showSettingsWindow } from '../../lib/ipc/commands';
+  import type { CredentialState } from '../../bindings';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { t } from '../../services/i18n';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
+  // The ⌘P agent switcher is owned by the Ask AI command's view.
+  const ACCESSORY_EXTENSION_ID = 'agents';
+  const ACCESSORY_COMMAND_ID = 'ask';
+
   const agentId = $derived(agentsManager.currentAgentId);
-  let agent = $state<AgentDef | null>(null);
+  // Live from the service, so a provider switch (⌘K) shows up immediately.
+  const agent = $derived(agentId ? (agentService.getById(agentId) ?? null) : null);
   let threads = $state<ThreadDef[]>([]);
   // False until this agent's thread list is known, so the sidebar shows
   // nothing rather than an empty state that is not true yet.
@@ -52,6 +67,108 @@
   const streamingText = $derived(agentsManager.streamingText);
   const streamingStatus = $derived(agentsManager.streamingStatus);
   const toolsUnavailableNotice = $derived(agentsManager.toolsUnavailableNotice);
+  // The streamed reply belongs to the thread it was sent in; another thread
+  // selected meanwhile never shows it.
+  const streamingHere = $derived(
+    agentsManager.streamingThreadId === selectedThreadId && (sending || streamingText.length > 0),
+  );
+
+  const agentOptions = $derived(agentSwitcherOptions(agentService.agents));
+
+  // ⌘P switches agent. Threads belong to an agent, so this filters the
+  // sidebar the way ⌘P filters Clipboard History. The current agent seeds the
+  // dropdown (not its persisted value), so opening a specific agent from root
+  // search is never overridden. Leaving the view clears it
+  // (ExtensionViewContainer owns that for the `ask` command).
+  $effect(() => {
+    const options = agentOptions;
+    const current = agentId;
+    if (!current || options.length < 2 || !options.some((o) => o.value === current)) {
+      const active = untrack(() => searchBarAccessoryService.active);
+      if (active?.extensionId === ACCESSORY_EXTENSION_ID) searchBarAccessoryService.clear();
+      return;
+    }
+    void searchBarAccessoryService.declare({
+      extensionId: ACCESSORY_EXTENSION_ID,
+      commandId: ACCESSORY_COMMAND_ID,
+      options,
+      value: current,
+    });
+  });
+
+  $effect(() =>
+    untrack(() =>
+      searchBarAccessoryService.subscribe(ACCESSORY_EXTENSION_ID, ACCESSORY_COMMAND_ID, (value) => {
+        if (value !== agentsManager.currentAgentId) void switchAgent(value);
+      }),
+    ),
+  );
+
+  /** Show another agent's threads, landing on its latest one like root search does. */
+  async function switchAgent(nextAgentId: string) {
+    // The previous agent's messages must not linger under the new agent's
+    // name while its threads load, or stay there if that load fails.
+    messages = [];
+    agentsManager.lastAssistantMessageText = null;
+    agentsManager.currentAgentId = nextAgentId;
+    agentsManager.currentThreadId = agentsManager.threadsFor(nextAgentId)?.[0]?.id ?? null;
+    try {
+      const latest = (await agentService.listThreads(nextAgentId))[0];
+      if (agentsManager.currentAgentId === nextAgentId && !agentsManager.currentThreadId) {
+        agentsManager.currentThreadId = latest?.id ?? null;
+      }
+    } catch (err) {
+      logService.warn(`[agents] listThreads for agent switch failed: ${err}`);
+    }
+  }
+
+  const selectedThread = $derived(threads.find((th) => th.id === selectedThreadId) ?? null);
+
+  // Key states decide whether a thread's override would really run. Fetched on
+  // open and again after each run or provider change, never per keystroke;
+  // null (loading or failed) trusts the override.
+  let credentialStates = $state<Record<string, CredentialState> | null>(null);
+  $effect(() => {
+    void settingsService.currentSettings.ai.providers;
+    void agentsManager.messagesVersion;
+    void selectedThread?.providerId;
+    let cancelled = false;
+    aiGetCredentialStatus()
+      .then((status) => {
+        if (!cancelled) credentialStates = status.providers;
+      })
+      .catch(() => {
+        // Unknown: keep showing the thread's override.
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  // Bottom-bar subtitle: who you are talking to, and the provider and model
+  // this thread's next run uses (its override when that can run, else its agent's).
+  $effect(() => {
+    if (!agent) return;
+    const providers = settingsService.currentSettings.ai.providers;
+    const plugins = providerRegistry.list();
+    const subtitle = sending
+      ? `${agent.name} · ${t('features.agents.streaming_cancel')}`
+      : chatSubtitle(
+          {
+            ...agent,
+            ...threadRunTarget(agent, selectedThread, (id) =>
+              overrideCanRun(id, providers, plugins, credentialStates),
+            ),
+          },
+          providers,
+          plugins,
+        );
+    viewManager.activeViewSubtitle = subtitle;
+    return () => {
+      // Only clear our own text; the next view may already have set its own.
+      if (viewManager.activeViewSubtitle === subtitle) viewManager.activeViewSubtitle = null;
+    };
+  });
 
   function threadLabel(thread: ThreadDef): string {
     const title = thread.title?.trim();
@@ -66,18 +183,17 @@
     const currentThreadId = agentsManager.currentThreadId;
     void agentsManager.sending;
     void agentsManager.threadsVersion;
+    void agentsManager.messagesVersion;
     let cancelled = false;
 
     void (async () => {
       if (!currentAgentId) {
-        agent = null;
         threads = [];
         messages = [];
         agentsManager.lastAssistantMessageText = null;
         return;
       }
 
-      agent = agentService.getById(currentAgentId) ?? null;
       loadError = null;
       const known = agentsManager.threadsFor(currentAgentId);
       threads = known ?? [];
@@ -116,6 +232,16 @@
         const nextMessages = await agentService.listMessages(resolvedThreadId);
         if (!cancelled) {
           messages = nextMessages;
+          // The saved turn now renders; drop its streamed copy. A turn still
+          // streaming is left alone so it never blinks out mid-reply, and only
+          // the reply's own thread may clear it.
+          if (
+            agentsManager.streamingTextPersisted &&
+            agentsManager.streamingThreadId === resolvedThreadId
+          ) {
+            agentsManager.streamingText = '';
+            agentsManager.streamingTextPersisted = false;
+          }
           agentsManager.lastAssistantMessageText = lastAssistantMessageText(nextMessages);
         }
       } catch (err) {
@@ -191,6 +317,8 @@
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     // When the action panel (Cmd+K) is open, let it own keyboard navigation.
     if (document.querySelector('.action-popup')) return;
+    // The ⌘P agent dropdown owns arrows while it is open.
+    if (searchBarAccessoryService.popoverOpen) return;
     // A modal dialog can open on top of this view — don't steal its keys.
     if (isAnyModalOpen(document)) return;
     if (event.key === 'ArrowUp') {
@@ -286,13 +414,6 @@
 
       {#snippet detail()}
         <div class="chat-main">
-          <header class="chat-header">
-            <h2>{agent?.name}</h2>
-            {#if sending}
-              <span class="streaming-tag">{t('features.agents.streaming_cancel')}</span>
-            {/if}
-          </header>
-
           {#if toolsUnavailableNotice && toolsUnavailableNotice.threadId === selectedThreadId}
             <div class="chat-notice-container" data-testid="tools-unavailable-notice">
               <WarningBanner>
@@ -315,7 +436,7 @@
           >
             {#if loadError}
               <p class="error">{loadError}</p>
-            {:else if messages.length === 0 && !sending}
+            {:else if messages.length === 0 && !streamingHere}
               <EmptyState
                 message={t('features.agents.start_chatting')}
                 description={t('features.agents.start_chatting_description')}
@@ -331,13 +452,6 @@
                   {@const sources = extractSourcesFromMessage(message, messages)}
                   {@const toolUses = extractToolUsesFromMessage(message)}
                   <div class="message-row {variant}">
-                    {#if variant === 'assistant'}
-                      <div class="avatar assistant-avatar">AI</div>
-                    {:else if variant === 'user'}
-                      <div class="avatar user-avatar">{t('features.agents.you')}</div>
-                    {:else}
-                      <div class="avatar tool-avatar">⚙</div>
-                    {/if}
                     <div class="message-bubble {variant}">
                       {#if variant === 'assistant'}
                         {#if text.length > 0}
@@ -366,10 +480,10 @@
                           {/if}
                         {/each}
                         {#each toolUses as tu (tu.id)}
-                          <div class="tool-use-chip">
-                            <span class="chip-name">{tu.name}</span>
+                          <details class="tool-use-chip">
+                            <summary class="chip-name">⚙ {tu.name}</summary>
                             <pre class="chip-input">{JSON.stringify(tu.input, null, 2)}</pre>
-                          </div>
+                          </details>
                         {/each}
                       {:else if variant === 'tool'}
                         {#if sources.length > 0}
@@ -386,7 +500,10 @@
                             {/each}
                           </div>
                         {/if}
-                        <pre class="tool-result">{text}</pre>
+                        <details class="tool-use-chip">
+                          <summary class="chip-name">{t('features.agents.tool_result')}</summary>
+                          <pre class="tool-result">{text}</pre>
+                        </details>
                       {:else}
                         <span class="user-text">{text}</span>
                       {/if}
@@ -414,27 +531,20 @@
                   </div>
                 {/each}
 
-                {#if sending && streamingText.length > 0}
+                <!-- Stays after the run ends until the reload renders the
+                     persisted turn (which clears streamingText), so the reply
+                     never blinks out in between. Only in the reply's own thread. -->
+                {#if streamingHere}
                   <div class="message-row assistant">
-                    <div class="avatar assistant-avatar">AI</div>
                     <div class="message-bubble assistant">
-                      <div class="md-content">{@html renderMarkdown(streamingText)}</div>
-                      <span class="streaming-cursor">▊</span>
-                    </div>
-                  </div>
-                {:else if sending && streamingStatus === 'searching'}
-                  <div class="message-row assistant">
-                    <div class="avatar assistant-avatar">AI</div>
-                    <div class="message-bubble assistant activity-status">
-                      <span class="activity-label">{t('features.agents.searching')}</span>
-                      <span class="streaming-cursor">▊</span>
-                    </div>
-                  </div>
-                {:else if sending}
-                  <div class="message-row assistant">
-                    <div class="avatar assistant-avatar">AI</div>
-                    <div class="message-bubble assistant">
-                      <span class="streaming-cursor">▊</span>
+                      {#if streamingText.length > 0}
+                        <div class="md-content">{@html renderMarkdown(streamingText)}</div>
+                      {:else if streamingStatus === 'searching'}
+                        <span class="activity-label">{t('features.agents.searching')}</span>
+                      {/if}
+                      {#if sending}
+                        <span class="streaming-cursor">▊</span>
+                      {/if}
                     </div>
                   </div>
                 {/if}
@@ -444,6 +554,7 @@
         </div>
       {/snippet}
     </SplitListDetail>
+    <ModelPickerModal />
   {/if}
 </div>
 
@@ -468,19 +579,6 @@
   .pin-badge {
     color: var(--accent-primary);
   }
-  .chat-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--border-color);
-  }
-  .chat-header h2 {
-    margin: 0;
-    font-size: var(--font-size-md);
-    font-weight: 600;
-    color: var(--text-primary);
-  }
   .chat-notice-container {
     padding: var(--space-3) var(--space-6) 0;
   }
@@ -489,11 +587,6 @@
     font-size: var(--font-size-sm);
     color: var(--text-primary);
     line-height: 1.4;
-  }
-  .streaming-tag {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    font-style: italic;
   }
   .messages-container {
     flex: 1;
@@ -511,38 +604,9 @@
   }
   .message-row {
     display: flex;
-    align-items: flex-start;
-    gap: var(--space-4);
   }
   .message-row.user {
-    flex-direction: row-reverse;
-  }
-
-  .avatar {
-    flex-shrink: 0;
-    width: var(--size-lg);
-    height: var(--size-lg);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-    margin-top: var(--space-0-5);
-  }
-  .assistant-avatar {
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
-  }
-  .user-avatar {
-    background: var(--accent-primary-fill);
-    color: var(--text-on-accent);
-  }
-  .tool-avatar {
-    background: var(--bg-tertiary);
-    color: var(--text-tertiary);
-    border: 1px solid var(--border-color);
+    justify-content: flex-end;
   }
 
   .message-bubble {
@@ -558,19 +622,22 @@
   .message-bubble.assistant {
     background: var(--bg-secondary);
     color: var(--text-primary);
-    border-top-left-radius: var(--radius-xs);
+    border-bottom-left-radius: var(--radius-xs);
+  }
+  /* Tool turns are just collapsed chips, no bubble. */
+  .message-bubble.tool {
+    flex: 1;
+    max-width: none;
+    padding: 0;
   }
   .message-bubble.user {
     background: var(--accent-primary-fill);
     color: var(--text-on-accent);
-    border-top-right-radius: var(--radius-xs);
+    border-bottom-right-radius: var(--radius-xs);
   }
   .message-bubble.tool {
-    background: var(--bg-tertiary);
     color: var(--text-secondary);
-    font-family: var(--font-mono);
     font-size: var(--font-size-sm);
-    border-top-left-radius: var(--radius-xs);
   }
 
   :global(.copy-message-btn) {
@@ -621,10 +688,12 @@
   .chip-name {
     font-weight: 600;
     color: var(--text-secondary);
+    cursor: pointer;
   }
   .chip-input,
   .tool-result {
     margin: var(--space-1) 0 0;
+    font-family: var(--font-mono);
     white-space: pre-wrap;
     word-break: break-word;
   }
@@ -635,10 +704,8 @@
     font-weight: bold;
     animation: blink 0.8s step-end infinite;
   }
-  .activity-status {
-    color: var(--text-tertiary);
-  }
   .activity-label {
+    color: var(--text-tertiary);
     font-style: italic;
   }
   @keyframes blink {

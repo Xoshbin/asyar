@@ -73,6 +73,15 @@ export async function agentsThreadSetPinned(id: string, pinned: boolean): Promis
   await invokeSafe('agents_thread_set_pinned', { id, pinned });
 }
 
+/** Point a thread at another provider/model, or back at its agent with nulls. */
+export async function agentsThreadSetProvider(
+  id: string,
+  providerId: string | null,
+  modelId: string | null,
+): Promise<void> {
+  await invokeSafe('agents_thread_set_provider', { id, providerId, modelId });
+}
+
 export async function agentsThreadsPrune(
   maxRetained: number,
   activeThreadId?: string | null,

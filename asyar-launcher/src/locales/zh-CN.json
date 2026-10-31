@@ -1326,6 +1326,18 @@
       "tools_unavailable_cli": "{engine}（CLI）无法使用这些工具：{tools}。如需使用，请在“设置 → AI”中将此提供商切换为 API 密钥。",
       "tools_unavailable_agy": "Antigravity（CLI）无法使用工具，因此此聊天将在没有以下工具的情况下运行：{tools}。如需使用工具，请在“设置 → AI”中将此提供商切换为 API 密钥。",
       "you": "你",
+      "tool_result": "工具结果",
+      "error_set_thread_provider": "无法更改对话的提供商",
+      "model_picker": {
+        "title_provider": "更改提供商",
+        "title_model": "更改模型 · {provider}",
+        "filter_providers": "搜索提供商…",
+        "filter_models": "搜索模型…",
+        "loading": "正在加载模型…",
+        "no_providers": "尚未设置提供商。请在设置 → AI 中添加。",
+        "no_models": "未找到模型",
+        "load_error": "无法加载模型：{error}"
+      },
       "copy_message": "复制消息",
       "copy_last_response": "复制上一条回复",
       "copy_last_response_description": "复制本会话中最新的一条助手回复",
@@ -1349,7 +1361,11 @@
         "unpin_thread": "取消置顶当前对话",
         "unpin_thread_desc": "不再将当前对话固定在列表顶部",
         "cancel": "取消运行",
-        "cancel_desc": "中止正在进行的助手回复"
+        "cancel_desc": "中止正在进行的助手回复",
+        "change_provider": "更改提供商…",
+        "change_provider_desc": "为当前对话选择你的另一个提供商",
+        "change_model": "更改模型…",
+        "change_model_desc": "为此对话选择当前提供商的另一个模型"
       },
       "edit": {
         "name_placeholder": "我的智能体",
