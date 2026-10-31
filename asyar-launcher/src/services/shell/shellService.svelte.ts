@@ -86,6 +86,8 @@ class ShellService {
      * When provided, standard input is closed right after writing.
      */
     stdin?: string,
+    /** Suppress success surfacing for the auto-promoted run; failures always surface. */
+    quietSuccess?: boolean,
   ): Promise<{ streaming: true }> {
     const resolvedPath = await shellResolvePath(program);
     if (resolvedPath === null) {
@@ -115,6 +117,7 @@ class ShellService {
         cancellable: true,
         extensionId,
         subjectId,
+        quietSuccess,
       });
     } catch (err) {
       logService.warn(

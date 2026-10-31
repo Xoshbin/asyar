@@ -62,6 +62,7 @@ mod tests {
             error_message: None,
             subject_id: subject_id.map(|s| s.to_string()),
             tail_output: None,
+            quiet_success: false,
         }
     }
 

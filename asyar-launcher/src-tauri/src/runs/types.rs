@@ -19,6 +19,7 @@ mod tests {
             error_message: None,
             subject_id: None,
             tail_output: None,
+            quiet_success: false,
         }
     }
 

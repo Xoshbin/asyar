@@ -26,6 +26,11 @@ export interface Run {
    * the capture logic; absent for non-script run kinds.
    */
   tailOutput?: string;
+  /**
+   * When `true`, a successful completion is not surfaced (no notification, no
+   * lingering result row). Failures always surface regardless.
+   */
+  quietSuccess?: boolean;
 }
 
 export interface RunHandle {
@@ -46,6 +51,8 @@ export interface RunStartInput {
   label: string;
   kind: RunKind;
   cancellable?: boolean;
+  /** Suppress success surfacing; failures still notify. Defaults to `false`. */
+  quietSuccess?: boolean;
 }
 
 export interface IRunService {
