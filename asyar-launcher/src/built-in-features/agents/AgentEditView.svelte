@@ -12,18 +12,21 @@
     agentsForgetCached,
     agentsClearCached,
     agentsPromoteCached,
+    agentsEditorDroppedTools,
     type AgentEditorForm,
     type AgentProviderOption,
     type AgentToolGroup,
   } from '../../lib/ipc/commands';
   import { providerRegistry } from '../../services/ai/providerRegistry';
   import { settingsService } from '../../services/settings/settingsService.svelte';
+  import { agentService } from './agentService.svelte';
   import type { ModelInfo, ProviderId } from '../../services/ai/IProviderPlugin';
   import { extractErrorMessage } from '../../lib/errors';
   import ToolPickerTree from './ToolPickerTree.svelte';
   import Button from '../../components/base/Button.svelte';
   import Input from '../../components/base/Input.svelte';
   import { fetchPlaceholders } from '../../lib/placeholders/placeholderResolver';
+  import { formatEditorToolsUnavailableWarning } from './agentChatView.helpers';
 
   const editAgentId = $derived(agentsManager.currentAgentId);
 
@@ -69,6 +72,52 @@
   const modelFetchErrorForProvider = $derived(
     form?.providerId ? (modelFetchError[form.providerId] ?? null) : null,
   );
+
+  let droppedToolIds = $state<string[]>([]);
+  let droppedEngine = $state<string>('');
+
+  const effectiveProviderId = $derived(
+    form?.providerId || agentService.getDefaultAgent()?.providerId || '',
+  );
+  const effectiveConfig = $derived(
+    effectiveProviderId
+      ? settingsService.getSettings().ai.providers[effectiveProviderId as ProviderId]
+      : undefined,
+  );
+  const effectiveEngine = $derived(effectiveConfig?.providerType || effectiveProviderId || '');
+  const effectiveConnectionMode = $derived(effectiveConfig?.connectionMode ?? null);
+
+  $effect(() => {
+    const engine = effectiveEngine;
+    const connectionMode = effectiveConnectionMode;
+    const tools = form?.toolSelection ?? [];
+
+    if (connectionMode !== 'cli' || tools.length === 0 || !engine) {
+      droppedToolIds = [];
+      droppedEngine = '';
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await agentsEditorDroppedTools(engine, connectionMode, tools);
+        if (!cancelled) {
+          droppedToolIds = res.dropped;
+          droppedEngine = res.engine;
+        }
+      } catch {
+        if (!cancelled) {
+          droppedToolIds = [];
+          droppedEngine = '';
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  });
 
   async function fetchModelsForProvider(providerId: string): Promise<void> {
     if (!form || fetchingModels[providerId]) return;
@@ -333,10 +382,16 @@
           <ToolPickerTree
             {groups}
             selectedIds={activeForm.toolSelection}
+            {droppedToolIds}
             onChange={(s) => {
               activeForm.toolSelection = s;
             }}
           />
+          {#if droppedToolIds.length > 0}
+            <p class="field-hint tools-dropped-warning">
+              {formatEditorToolsUnavailableWarning(droppedEngine)}
+            </p>
+          {/if}
         </div>
       {/if}
 
@@ -687,5 +742,10 @@
   .clear-button:hover {
     background: var(--accent-danger-fill);
     color: var(--text-on-accent);
+  }
+
+  .tools-dropped-warning {
+    color: var(--accent-warning);
+    margin-top: var(--space-2);
   }
 </style>

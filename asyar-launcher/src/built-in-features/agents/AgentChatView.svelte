@@ -15,6 +15,7 @@
     messageBubbleVariant,
     resolveThreadId,
     lastAssistantMessageText,
+    formatToolsUnavailableNotice,
   } from './agentChatView.helpers';
   import {
     Button,
@@ -24,6 +25,7 @@
     LauncherListRow,
     SplitListDetail,
     GoogleSearchSuggestions,
+    WarningBanner,
   } from '../../components';
   import type { AgentDef, ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
@@ -49,6 +51,7 @@
   const sending = $derived(agentsManager.sending);
   const streamingText = $derived(agentsManager.streamingText);
   const streamingStatus = $derived(agentsManager.streamingStatus);
+  const toolsUnavailableNotice = $derived(agentsManager.toolsUnavailableNotice);
 
   function threadLabel(thread: ThreadDef): string {
     const title = thread.title?.trim();
@@ -97,6 +100,7 @@
       const resolvedThreadId = resolveThreadId(currentThreadId, nextThreads);
       if (resolvedThreadId !== currentThreadId) {
         agentsManager.currentThreadId = resolvedThreadId;
+        agentsManager.toolsUnavailableNotice = null;
         messages = [];
         agentsManager.lastAssistantMessageText = null;
         return;
@@ -289,6 +293,19 @@
             {/if}
           </header>
 
+          {#if toolsUnavailableNotice && toolsUnavailableNotice.threadId === selectedThreadId}
+            <div class="chat-notice-container" data-testid="tools-unavailable-notice">
+              <WarningBanner>
+                <p class="chat-notice-text">
+                  {formatToolsUnavailableNotice(
+                    toolsUnavailableNotice.engine,
+                    toolsUnavailableNotice.tools,
+                  )}
+                </p>
+              </WarningBanner>
+            </div>
+          {/if}
+
           <div
             class="messages-container custom-scrollbar"
             data-no-focus-steal
@@ -463,6 +480,15 @@
     font-size: var(--font-size-md);
     font-weight: 600;
     color: var(--text-primary);
+  }
+  .chat-notice-container {
+    padding: var(--space-3) var(--space-6) 0;
+  }
+  .chat-notice-text {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    line-height: 1.4;
   }
   .streaming-tag {
     font-size: var(--font-size-xs);

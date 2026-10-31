@@ -16,7 +16,7 @@ use rusqlite::Connection;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 fn now_ms() -> i64 {
     SystemTime::now()
@@ -534,6 +534,15 @@ pub async fn agents_run_thread(
     stream_id: String,
     on_event: Channel<AgentStreamEvent>,
 ) -> Result<(), AppError> {
+    // Resolve every fallible path before `begin_run`: a `?` after it would skip `finish_run`
+    // and leak the run entry.
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))?;
+    let workspace_dir = crate::ai::cli::resolve_cli_workspace_dir(&app_data_dir)?;
+    let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
+
     let cancellation = runner_state.begin_run(&stream_id)?;
 
     // Per-caller event sink: the channel is scoped to the invoking view,
@@ -558,6 +567,9 @@ pub async fn agents_run_thread(
         async move { execute_agent_tool(&registry, &runtime, &agent_id, &request).await }
     };
 
+    let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
+    let master_key = *keystore.master_key();
+
     let result = crate::agents::runner::run_thread_loop_impl(
         &store,
         &registry,
@@ -569,6 +581,9 @@ pub async fn agents_run_thread(
         emit_event,
         dispatch_external,
         Some(cancellation),
+        Some(&workspace_dir),
+        Some(&codex_home_dir),
+        &master_key,
     )
     .await;
     if matches!(&result, Ok(true)) {
@@ -592,10 +607,14 @@ pub async fn agents_run_silent(
     stream_id: String,
     on_event: Channel<AgentStreamEvent>,
 ) -> Result<String, AppError> {
+    let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
+    let master_key = *keystore.master_key();
+
     let agent = {
         let conn = store.conn()?;
         let (agent, healed) = crate::agents::lifecycle::resolve_runnable_agent(
             &conn,
+            &master_key,
             &agent_id,
             config.default_agent_id.as_deref(),
             &config.providers,
@@ -607,7 +626,6 @@ pub async fn agents_run_silent(
         agent
     };
 
-    use tauri::Manager;
     if agent.cache_responses {
         if let Some(cache) = app.try_state::<crate::agents::cache::AgentResponseCache>() {
             if let Some(cached_output) = cache.get(&agent.id, &user_text) {
@@ -617,6 +635,15 @@ pub async fn agents_run_silent(
     }
 
     let cache_key = user_text.clone();
+    // Resolve every fallible path before `begin_run`: a `?` after it would skip `finish_run`
+    // and leak the run entry.
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))?;
+    let workspace_dir = crate::ai::cli::resolve_cli_workspace_dir(&app_data_dir)?;
+    let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
+
     let cancellation = runner_state.begin_run(&stream_id)?;
 
     // Per-caller event sink (see agents_run_thread).
@@ -649,6 +676,10 @@ pub async fn agents_run_silent(
         emit_event,
         dispatch_external,
         Some(cancellation),
+        Some(&workspace_dir),
+        Some(&codex_home_dir),
+        &store,
+        &master_key,
     )
     .await;
     let cleanup = runner_state.finish_run(&stream_id);

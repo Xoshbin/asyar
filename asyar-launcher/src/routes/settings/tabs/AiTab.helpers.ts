@@ -4,6 +4,7 @@ import type {
   ProviderConfig,
   ReasoningEffort,
 } from '../../../services/ai/IProviderPlugin';
+import type { CredentialState } from '../../../bindings';
 
 /**
  * Returns all registered plugins available to be added as a new provider row.
@@ -24,11 +25,12 @@ export function availableProvidersForNewRow(
 export function canTestAndFetch(
   plugin: IProviderPlugin | null | undefined,
   config: ProviderConfig | null | undefined,
+  credentialState?: CredentialState,
 ): boolean {
   if (!plugin) return false;
   if (!config) return false;
   if (config.connectionMode === 'cli') return true;
-  if (plugin.requiresApiKey && !config.apiKey?.trim()) return false;
+  if (plugin.requiresApiKey && credentialState !== 'configured') return false;
   if (plugin.requiresBaseUrl && !config.baseUrl?.trim()) return false;
   return true;
 }

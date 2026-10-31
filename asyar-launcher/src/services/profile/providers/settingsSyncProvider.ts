@@ -19,7 +19,7 @@ export class SettingsSyncProvider implements ISyncProvider {
   readonly syncTier = 'core' as const;
   readonly defaultEnabled = true;
   readonly defaultConflictStrategy = 'replace' as const;
-  readonly sensitiveFields: string[] = [];
+  readonly sensitiveFields: string[] = ['ai'];
 
   async exportFull(): Promise<SyncProviderData> {
     return {
@@ -49,7 +49,9 @@ export class SettingsSyncProvider implements ISyncProvider {
       return { success: true, itemsAdded: 0, itemsUpdated: 0, itemsRemoved: 0, warnings: [] };
     }
 
-    const incomingSettings = incoming.data as Partial<AppSettings>;
+    // The AI Settings category is the only owner of `ai`: an old backup's Application Settings
+    // category can still carry it (with plaintext API keys), so drop it here as sync does.
+    const incomingSettings = sanitizeIncomingAppSettings(incoming.data as Partial<AppSettings>);
 
     if (strategy === 'replace') {
       for (const section of Object.keys(incomingSettings) as Array<keyof AppSettings>) {
@@ -90,9 +92,10 @@ export class SettingsSyncProvider implements ISyncProvider {
   }
 
   async applyItemUpsert(item: SyncItem): Promise<void> {
-    const incomingSettings = item.content as Partial<AppSettings>;
-    for (const section of Object.keys(incomingSettings) as Array<keyof AppSettings>) {
-      const value = incomingSettings[section];
+    const incomingSettings = item.content as Partial<AppSettings> | null | undefined;
+    const sanitized = sanitizeIncomingAppSettings(incomingSettings);
+    for (const section of Object.keys(sanitized) as Array<keyof AppSettings>) {
+      const value = sanitized[section];
       if (value !== undefined) {
         await settingsService.updateSettings(
           section,
@@ -124,4 +127,19 @@ export class SettingsSyncProvider implements ISyncProvider {
     });
     return unsub;
   }
+}
+
+/**
+ * Normalizes incoming application settings for imports and delta sync upserts.
+ * The 'ai' section is managed separately by AISettingsSyncProvider and is omitted here.
+ */
+function sanitizeIncomingAppSettings(
+  incoming: Partial<AppSettings> | null | undefined,
+): Partial<AppSettings> {
+  if (!incoming || typeof incoming !== 'object') {
+    return {};
+  }
+  const sanitized: Partial<AppSettings> = { ...incoming };
+  delete sanitized.ai;
+  return sanitized;
 }

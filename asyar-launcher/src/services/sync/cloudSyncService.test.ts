@@ -33,12 +33,18 @@ vi.mock('../auth/authService.svelte', () => ({
   },
 }));
 
-vi.mock('../settings/settingsService.svelte', () => ({
-  settingsService: {
-    getSettings: vi.fn(),
-    subscribe: vi.fn(),
-  },
-}));
+vi.mock('../settings/settingsService.svelte', () => {
+  const getSettingsMock = vi.fn();
+  return {
+    settingsService: {
+      getSettings: getSettingsMock,
+      get currentSettings() {
+        return getSettingsMock();
+      },
+      subscribe: vi.fn(),
+    },
+  };
+});
 
 vi.mock('../feedback/feedbackService.svelte', () => ({
   feedbackService: {
@@ -65,7 +71,9 @@ import { settingsService } from '../settings/settingsService.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { logService } from '../log/logService';
 import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/types';
-import type { AppSettings } from '../settings/types/AppSettingsType';
+import type { AppSettings, AISettings } from '../settings/types/AppSettingsType';
+import { SettingsSyncProvider } from '../profile/providers/settingsSyncProvider';
+import { AISettingsSyncProvider } from '../profile/providers/aiSettingsSyncProvider';
 
 /** Shorthand: point the settings mock at a given `user.syncEnabled` shape. */
 function mockUserSettings(user: AppSettings['user']): void {
@@ -344,7 +352,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
           {
             id: 'ai-settings',
             categoryId: 'ai-settings',
-            content: { providers: { openai: { apiKey: 'sk-secret' } }, other: 'public' },
+            content: { providers: { openai: { apiKey: 'sk-or-TEST-0000' } }, other: 'public' },
           },
         ],
       });
@@ -356,6 +364,109 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       const handed = JSON.parse(sources[0].content);
       expect(handed.providers).toBeUndefined();
       expect(handed.other).toBe('public');
+    });
+
+    it('guard test: collectSources excludes secret keys from all serialized source content', async () => {
+      const secretKeys = [
+        'sk-or-TEST-OPENAI-KEY-9999',
+        'sk-or-TEST-ANTHROPIC-KEY-9999',
+        'sk-or-TEST-GOOGLE-KEY-9999',
+        'sk-or-TEST-OPENROUTER-KEY-9999',
+        'sk-or-TEST-CUSTOM-KEY-9999',
+        'sk-or-TEST-WEBSEARCH-KEY-9999',
+        'Bearer sk-or-TEST-PROXY-HEADER-9999',
+      ];
+
+      const seededAi: AISettings = {
+        providers: {
+          openai: { enabled: true, apiKey: secretKeys[0] },
+          anthropic: { enabled: true, apiKey: secretKeys[1] },
+          google: { enabled: true, apiKey: secretKeys[2] },
+          openrouter: { enabled: true, apiKey: secretKeys[3] },
+          custom: {
+            enabled: true,
+            apiKey: secretKeys[4],
+            customHeaders: { Authorization: secretKeys[6] },
+          },
+        } as any,
+        temperature: 0.7,
+        maxTokens: 2048,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+        historyRetentionCap: 100,
+        webSearch: {
+          engine: 'brave',
+          apiKey: secretKeys[5],
+          baseUrl: 'https://api.search.brave.com',
+        } as any,
+      };
+
+      const seededSettings = {
+        user: { syncEnabled: true },
+        general: { startAtLogin: false, showDockIcon: false, showTrayIcon: true },
+        search: {
+          searchApplications: true,
+          searchSystemPreferences: true,
+          fuzzySearch: true,
+          enableExtensionSearch: false,
+          additionalScanPaths: [],
+          applicationEnabled: {},
+        },
+        shortcut: { modifier: 'Alt', key: 'Space' },
+        appearance: {
+          theme: 'system' as const,
+          launchView: 'default' as const,
+          windowWidth: 800,
+          windowHeight: 600,
+        },
+        extensions: { enabled: {} },
+        onboarding: { completed: true },
+        privacy: { crashReportMode: 'off' as const, usageShareMode: 'off' as const },
+        fileSearch: {
+          enabled: true,
+          rootSearchEnabled: true,
+          includeRoots: [],
+          excludePatterns: [],
+          indexHidden: false,
+          recentIgnorePatterns: [],
+        },
+        ai: seededAi,
+      } as unknown as AppSettings;
+
+      vi.mocked(settingsService.getSettings).mockReturnValue(seededSettings);
+
+      const settingsProvider = new SettingsSyncProvider();
+      const aiSettingsProvider = new AISettingsSyncProvider();
+
+      vi.mocked(profileService.getProviders).mockReturnValue(
+        asProviderList(
+          settingsProvider as unknown as FakeProvider,
+          aiSettingsProvider as unknown as FakeProvider,
+        ),
+      );
+
+      await cloudSyncService.syncNow();
+
+      expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      const sources: commands.LocalItemSourceWire[] = vi.mocked(commands.syncRun).mock.calls[0][0];
+      expect(sources.length).toBeGreaterThanOrEqual(2);
+
+      // Verify non-sensitive configuration is kept
+      const aiSource = sources.find((s) => s.categoryId === 'ai-settings');
+      expect(aiSource).toBeDefined();
+      const aiParsed = JSON.parse(aiSource!.content);
+      expect(aiParsed.temperature).toBe(0.7);
+      // Provider configs (customHeaders, base URLs, paths) never leave the device
+      expect(aiParsed.providers).toBeUndefined();
+      expect(aiParsed.webSearch?.engine).toBe('brave');
+      expect(aiParsed.webSearch?.baseUrl).toBe('https://api.search.brave.com');
+
+      // Assert that NO secret key string appears anywhere in the serialized content of ANY source
+      for (const source of sources) {
+        for (const secretKey of secretKeys) {
+          expect(source.content).not.toContain(secretKey);
+        }
+      }
     });
 
     it('serializes content backed by a Proxy (Svelte 5 $state) without DataCloneError', async () => {

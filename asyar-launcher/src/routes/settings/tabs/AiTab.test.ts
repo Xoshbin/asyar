@@ -14,13 +14,14 @@ vi.mock('../../../components', async () => ({
   Toggle: (await import('../../../components/base/Toggle.svelte')).default,
   ModelSelector: (await import('../../../components/form/ModelSelector.svelte')).default,
   Select: (await import('../../../components/base/Select.svelte')).default,
+  CredentialField: (await import('../../../components/settings/CredentialField.svelte')).default,
 }));
 vi.mock('../../../services/settings/settingsService.svelte', () => ({
   settingsService: {
     currentSettings: {
       ai: {
         providers: {
-          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+          anthropic: { enabled: true, lastModelId: 'claude-sonnet-5' },
         },
         maxTokens: 1024,
         temperature: 0.7,
@@ -40,6 +41,8 @@ vi.mock('../../../services/ai/providerRegistry', () => ({
         name: 'Anthropic',
         requiresApiKey: true,
         requiresBaseUrl: false,
+        supportsCliMode: true,
+        cliName: 'claude',
         getModels: vi.fn(),
       },
     ]),
@@ -54,16 +57,48 @@ vi.mock('../../../built-in-features/agents/agentService.svelte', () => ({
 }));
 vi.mock('../../../lib/ipc/commands', () => ({
   agentsProviderRemovalBlockers: vi.fn(),
+  aiCheckCliStatus: vi.fn(),
+  aiGetCredentialStatus: vi.fn().mockResolvedValue({ providers: {}, webSearch: {} }),
+  aiSaveCredential: vi.fn().mockResolvedValue(undefined),
+  aiDeleteCredential: vi.fn().mockResolvedValue(true),
 }));
 
 import AiTab from './AiTab.svelte';
-import { agentsProviderRemovalBlockers } from '../../../lib/ipc/commands';
+import {
+  agentsProviderRemovalBlockers,
+  aiGetCredentialStatus,
+  aiSaveCredential,
+  aiDeleteCredential,
+} from '../../../lib/ipc/commands';
 import { settingsService } from '../../../services/settings/settingsService.svelte';
 import { providerRegistry } from '../../../services/ai/providerRegistry';
 
 describe('AiTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(settingsService).currentSettings = {
+      ai: {
+        providers: {
+          anthropic: { enabled: true, lastModelId: 'claude-sonnet-5' },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+        historyRetentionCap: 100,
+      },
+    } as any;
+    vi.mocked(providerRegistry.list).mockReturnValue([
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        supportsCliMode: true,
+        cliName: 'claude',
+        getModels: vi.fn(),
+      },
+    ]);
   });
 
   it('blocks removing the last usable provider and shows why', async () => {
@@ -134,7 +169,7 @@ describe('AiTab', () => {
     vi.mocked(settingsService).currentSettings = {
       ai: {
         providers: {
-          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+          anthropic: { enabled: true, lastModelId: 'claude-sonnet-5' },
         },
         maxTokens: 1024,
         temperature: 0.7,
@@ -229,7 +264,7 @@ describe('AiTab', () => {
     vi.mocked(settingsService).currentSettings = {
       ai: {
         providers: {
-          anthropic: { enabled: true, apiKey: 'sk-ant' },
+          anthropic: { enabled: true },
         },
         maxTokens: 1024,
         temperature: 0.7,
@@ -237,6 +272,10 @@ describe('AiTab', () => {
         tabContinuesLastThread: false,
       },
     } as any;
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: { anthropic: 'configured' },
+      webSearch: {},
+    });
     vi.mocked(providerRegistry.list).mockReturnValue([
       {
         id: 'anthropic',
@@ -252,8 +291,9 @@ describe('AiTab', () => {
     // Expand Anthropic row
     await fireEvent.click(screen.getByText('Anthropic'));
 
-    // Fetch models
+    // Fetch models — only once the stored key is reported, so the button is really enabled
     const fetchBtn = screen.getByRole('button', { name: 'Test & Fetch Models' });
+    await vi.waitFor(() => expect((fetchBtn as HTMLButtonElement).disabled).toBe(false));
     await fireEvent.click(fetchBtn);
 
     // Open model selector
@@ -277,11 +317,57 @@ describe('AiTab', () => {
     });
   });
 
+  it('fetches models with the connection instance id, not the plugin id', async () => {
+    const getModelsMock = vi.fn().mockResolvedValue([{ id: 'claude-3-7-sonnet', label: 'Sonnet' }]);
+
+    vi.mocked(settingsService).currentSettings = {
+      ai: {
+        providers: {
+          anthropic_abc123: {
+            enabled: true,
+            name: 'Work Anthropic',
+            providerType: 'anthropic',
+          },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: { anthropic_abc123: 'configured' },
+      webSearch: {},
+    });
+    vi.mocked(providerRegistry.list).mockReturnValue([
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        getModels: getModelsMock,
+      },
+    ]);
+
+    render(AiTab, { mode: 'providers-only' });
+
+    await fireEvent.click(screen.getByText('Work Anthropic'));
+    const fetchBtn = screen.getByRole('button', { name: 'Test & Fetch Models' });
+    await vi.waitFor(() => expect((fetchBtn as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.click(fetchBtn);
+
+    await screen.findByText('Sonnet');
+    expect(getModelsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ providerType: 'anthropic' }),
+      'anthropic_abc123',
+    );
+  });
+
   it('renders ModelSelector with saved lastModelId even before manual fetch', async () => {
     vi.mocked(settingsService).currentSettings = {
       ai: {
         providers: {
-          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+          anthropic: { enabled: true, lastModelId: 'claude-sonnet-5' },
         },
         maxTokens: 1024,
         temperature: 0.7,
@@ -312,7 +398,7 @@ describe('AiTab', () => {
     settingsService.currentSettings = {
       ai: {
         providers: {
-          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+          anthropic: { enabled: true, lastModelId: 'claude-sonnet-5' },
         },
         maxTokens: 1024,
         temperature: 0.7,
@@ -339,67 +425,246 @@ describe('AiTab', () => {
     });
   });
 
-  it('renders api key input when brave engine is configured', async () => {
-    settingsService.currentSettings = {
+  it('saves provider key, clears input, and shows "Key saved"', async () => {
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: {},
+      webSearch: {},
+    });
+
+    render(AiTab, { mode: 'providers-only' });
+
+    // Expand Anthropic row
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    const input = screen.getByPlaceholderText('sk-••••••••••••••••') as HTMLInputElement;
+    expect(input).toBeTruthy();
+
+    await fireEvent.input(input, { target: { value: 'sk-ant-test12345' } });
+    const saveButton = screen.getByRole('button', { name: 'Save' });
+    await fireEvent.click(saveButton);
+
+    expect(aiSaveCredential).toHaveBeenCalledWith(
+      { type: 'provider', id: 'anthropic' },
+      'sk-ant-test12345',
+    );
+    expect(await screen.findByText('Key saved')).toBeTruthy();
+  });
+
+  it('supports Replace and Remove actions on configured key', async () => {
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: { anthropic: 'configured' },
+      webSearch: {},
+    });
+
+    render(AiTab, { mode: 'providers-only' });
+
+    // Expand Anthropic row
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    expect(screen.getByText('Key saved')).toBeTruthy();
+    const replaceBtn = screen.getByRole('button', { name: 'Replace' });
+    const removeBtn = screen.getByRole('button', { name: 'Remove' });
+
+    // Click Replace reveals input and Cancel
+    await fireEvent.click(replaceBtn);
+    expect(screen.getByPlaceholderText('sk-••••••••••••••••')).toBeTruthy();
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    await fireEvent.click(cancelBtn);
+    expect(screen.getByText('Key saved')).toBeTruthy();
+
+    // Click Remove deletes key
+    const newRemoveBtn = screen.getByRole('button', { name: 'Remove' });
+    await fireEvent.click(newRemoveBtn);
+    expect(aiDeleteCredential).toHaveBeenCalledWith({
+      type: 'provider',
+      id: 'anthropic',
+    });
+    expect(await screen.findByPlaceholderText('sk-••••••••••••••••')).toBeTruthy();
+  });
+
+  it('displays warning when key needs reentry', async () => {
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: { anthropic: 'needsReentry' },
+      webSearch: {},
+    });
+
+    render(AiTab, { mode: 'providers-only' });
+
+    // Expand Anthropic row
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    expect(screen.getByText("This key can't be read anymore. Please enter it again.")).toBeTruthy();
+    expect(screen.getByPlaceholderText('sk-••••••••••••••••')).toBeTruthy();
+  });
+
+  it('deleting a custom provider calls aiDeleteCredential with its id', async () => {
+    vi.mocked(agentsProviderRemovalBlockers).mockResolvedValue(null);
+    vi.mocked(settingsService).currentSettings = {
       ai: {
         providers: {
-          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+          custom_1: {
+            enabled: true,
+            name: 'Local Ollama',
+            providerType: 'custom' as any,
+            baseUrl: 'http://localhost:11434',
+          },
         },
         maxTokens: 1024,
         temperature: 0.7,
         defaultAgentId: null,
         tabContinuesLastThread: false,
-        webSearch: {
-          engine: 'brave',
-        },
       },
     } as any;
 
-    render(AiTab, { mode: 'full' });
+    render(AiTab, { mode: 'providers-only' });
 
-    const apiKeyInput = screen.getByPlaceholderText('BSA...') as HTMLInputElement;
-    expect(apiKeyInput).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove Local Ollama' }));
 
-    apiKeyInput.value = 'test-brave-key';
-    await fireEvent.blur(apiKeyInput);
+    expect(aiDeleteCredential).toHaveBeenCalledWith({
+      type: 'provider',
+      id: 'custom_1',
+    });
+  });
+
+  it('switching to CLI mode does not delete the stored API key', async () => {
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: { anthropic: 'configured' },
+      webSearch: {},
+    });
+
+    render(AiTab, { mode: 'providers-only' });
+
+    // Expand Anthropic row
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    const modeSelect = screen.getByLabelText('Connection method') as HTMLSelectElement;
+    expect(modeSelect.value).toBe('api_key');
+
+    await fireEvent.change(modeSelect, { target: { value: 'cli' } });
+
+    expect(aiDeleteCredential).not.toHaveBeenCalled();
     expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
-      webSearch: {
-        engine: 'brave',
-        apiKey: 'test-brave-key',
+      providers: {
+        anthropic: expect.objectContaining({
+          connectionMode: 'cli',
+        }),
       },
     });
   });
 
-  it('renders api key input when serply engine is configured', async () => {
+  function webSearchSettings(engine: string) {
     settingsService.currentSettings = {
       ai: {
-        providers: {
-          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
-        },
+        providers: { anthropic: { enabled: true, lastModelId: 'claude-sonnet-5' } },
         maxTokens: 1024,
         temperature: 0.7,
         defaultAgentId: null,
         tabContinuesLastThread: false,
-        webSearch: {
-          engine: 'serply',
-        },
+        webSearch: { engine },
       },
     } as any;
+  }
+
+  it('saves a web search key for the selected engine', async () => {
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({ providers: {}, webSearch: {} });
+    webSearchSettings('brave');
 
     render(AiTab, { mode: 'full' });
 
-    const apiKeyInput = screen.getByLabelText('Serply API key') as HTMLInputElement;
-    expect(apiKeyInput).toBeTruthy();
-    expect(apiKeyInput.placeholder).toBe('Enter your API key');
+    const keyInput = (await screen.findByPlaceholderText('BSA...')) as HTMLInputElement;
+    await fireEvent.input(keyInput, { target: { value: 'BSA-testkey' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    apiKeyInput.value = 'test-serply-key';
-    await fireEvent.blur(apiKeyInput);
-    expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
-      webSearch: {
-        engine: 'serply',
-        apiKey: 'test-serply-key',
-      },
+    expect(aiSaveCredential).toHaveBeenCalledWith(
+      { type: 'webSearch', engine: 'brave' },
+      'BSA-testkey',
+    );
+    expect(await screen.findByText('Key saved')).toBeTruthy();
+  });
+
+  it('changing the search engine never deletes a stored key', async () => {
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: {},
+      webSearch: { brave: 'configured', tavily: 'notConfigured', serply: 'notConfigured' },
     });
+    webSearchSettings('brave');
+
+    render(AiTab, { mode: 'full' });
+    expect(await screen.findByText('Key saved')).toBeTruthy();
+
+    const select = screen.getByLabelText('Search engine') as HTMLSelectElement;
+    await fireEvent.change(select, { target: { value: 'tavily' } });
+
+    expect(aiDeleteCredential).not.toHaveBeenCalled();
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
+      webSearch: { engine: 'tavily' },
+    });
+  });
+
+  it('each keyed engine shows only its own key state', async () => {
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: {},
+      webSearch: { brave: 'configured', tavily: 'notConfigured', serply: 'needsReentry' },
+    });
+
+    webSearchSettings('brave');
+    const brave = render(AiTab, { mode: 'full' });
+    expect(await screen.findByText('Key saved')).toBeTruthy();
+    brave.unmount();
+
+    webSearchSettings('tavily');
+    const tavily = render(AiTab, { mode: 'full' });
+    expect(await screen.findByPlaceholderText('tvly-...')).toBeTruthy();
+    expect(screen.queryByText('Key saved')).toBeNull();
+    tavily.unmount();
+
+    webSearchSettings('serply');
+    render(AiTab, { mode: 'full' });
+    expect(
+      await screen.findByText("This key can't be read anymore. Please enter it again."),
+    ).toBeTruthy();
+    expect(screen.queryByText('Key saved')).toBeNull();
+  });
+
+  it('does not render key fields until the credential status has loaded', async () => {
+    let resolveStatus!: (v: {
+      providers: Record<string, never>;
+      webSearch: Record<string, never>;
+    }) => void;
+    vi.mocked(aiGetCredentialStatus).mockReturnValue(
+      new Promise((resolve) => {
+        resolveStatus = resolve as typeof resolveStatus;
+      }),
+    );
+
+    render(AiTab, { mode: 'providers-only' });
+    await fireEvent.click(screen.getByText('Anthropic'));
+    expect(screen.queryByPlaceholderText('sk-••••••••••••••••')).toBeNull();
+
+    resolveStatus({ providers: {}, webSearch: {} });
+    expect(await screen.findByPlaceholderText('sk-••••••••••••••••')).toBeTruthy();
+  });
+
+  it('shows key fields as not configured when the credential status fails to load', async () => {
+    vi.mocked(aiGetCredentialStatus).mockRejectedValue(new Error('boom'));
+
+    render(AiTab, { mode: 'providers-only' });
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    expect(await screen.findByPlaceholderText('sk-••••••••••••••••')).toBeTruthy();
+  });
+
+  it('keeps a provider and shows why when its saved key cannot be deleted', async () => {
+    vi.mocked(agentsProviderRemovalBlockers).mockResolvedValue(null);
+    vi.mocked(aiDeleteCredential).mockRejectedValueOnce(new Error('db locked'));
+
+    render(AiTab, { mode: 'providers-only' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove Anthropic' }));
+
+    expect(
+      await screen.findByText("Couldn't remove this provider's saved key. Please try again."),
+    ).toBeTruthy();
+    expect(settingsService.updateSettings).not.toHaveBeenCalled();
   });
 
   it('renders history retention cap and handles option change', async () => {

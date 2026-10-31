@@ -229,7 +229,9 @@ pub fn sanitize_emoji_fallback_output(text: &str) -> String {
     }
 }
 
-fn provider_is_usable(
+pub fn provider_is_usable(
+    conn: &Connection,
+    master_key: &[u8; 32],
     provider_id: &str,
     providers: &[crate::agents::editor::AgentProviderDescriptor],
     configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
@@ -238,10 +240,15 @@ fn provider_is_usable(
         return false;
     };
     let ptype = config.provider_type.as_deref().unwrap_or(provider_id);
+    let cred_id = format!("provider:{provider_id}");
+    let cred_state = crate::storage::ai_credentials::status(conn, &cred_id, master_key)
+        .unwrap_or(crate::storage::ai_credentials::CredentialState::NotConfigured);
     providers
         .iter()
         .find(|provider| provider.id == ptype)
-        .is_some_and(|provider| crate::agents::editor::is_provider_usable(provider, Some(config)))
+        .is_some_and(|provider| {
+            crate::agents::editor::is_provider_usable(provider, Some(config), cred_state)
+        })
 }
 
 /// Resolves the agent that should actually run for `agent_id`. If the
@@ -258,6 +265,7 @@ fn provider_is_usable(
 /// provider-validation error handling for that case.
 pub fn resolve_runnable_agent(
     conn: &Connection,
+    master_key: &[u8; 32],
     agent_id: &str,
     default_agent_id: Option<&str>,
     providers: &[crate::agents::editor::AgentProviderDescriptor],
@@ -266,14 +274,42 @@ pub fn resolve_runnable_agent(
     let agent = get_agent(conn, agent_id)?
         .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found")))?;
 
-    if provider_is_usable(&agent.provider_id, providers, configs) {
+    // A stale key only matters when the run will actually send it: a CLI-mode provider keeps
+    // its old key row but never reads it (and hides the key field, so it couldn't be fixed).
+    let uses_stored_key = configs.get(&agent.provider_id).is_some_and(|config| {
+        let engine = config
+            .provider_type
+            .as_deref()
+            .unwrap_or(agent.provider_id.as_str());
+        config.enabled
+            && config.connection_mode.as_deref() != Some("cli")
+            && providers
+                .iter()
+                .any(|provider| provider.id == engine && provider.requires_api_key)
+    });
+    let cred_id = format!("provider:{}", agent.provider_id);
+    if uses_stored_key
+        && matches!(
+            crate::storage::ai_credentials::status(conn, &cred_id, master_key),
+            Ok(crate::storage::ai_credentials::CredentialState::NeedsReentry)
+        )
+    {
+        return Err(AppError::Validation(format!(
+            "API key for provider '{}' cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.",
+            agent.provider_id
+        )));
+    }
+
+    if provider_is_usable(conn, master_key, &agent.provider_id, providers, configs) {
         return Ok((agent, false));
     }
 
     let Some(fallback) = resolve_default_agent(conn, default_agent_id)? else {
         return Ok((agent, false));
     };
-    if fallback.id == agent.id || !provider_is_usable(&fallback.provider_id, providers, configs) {
+    if fallback.id == agent.id
+        || !provider_is_usable(conn, master_key, &fallback.provider_id, providers, configs)
+    {
         return Ok((agent, false));
     }
 
@@ -315,7 +351,7 @@ mod tests {
 
     fn conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
-        crate::storage::agents::init_table(&conn).unwrap();
+        crate::storage::migrations::run(&conn).unwrap();
         conn
     }
 
@@ -574,16 +610,11 @@ mod tests {
         }
     }
 
-    fn provider_config(
-        enabled: bool,
-        api_key: Option<&str>,
-        base_url: Option<&str>,
-    ) -> crate::ai::types::ProviderConfig {
+    fn provider_config(enabled: bool, base_url: Option<&str>) -> crate::ai::types::ProviderConfig {
         crate::ai::types::ProviderConfig {
             enabled,
             name: None,
             provider_type: None,
-            api_key: api_key.map(str::to_owned),
             base_url: base_url.map(str::to_owned),
             ..Default::default()
         }
@@ -611,18 +642,24 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_returns_agent_unchanged_when_its_own_provider_is_usable() {
         let conn = conn();
+        let master_key = crate::crypto::test_master_key();
         let mut agent = emoji_fallback_agent();
         agent.provider_id = "anthropic".to_string();
         agent.model_id = "claude-sonnet-5".to_string();
         insert_agent(&conn, &agent).unwrap();
         let providers = vec![provider("anthropic", true, false)];
-        let configs = HashMap::from([(
-            "anthropic".to_string(),
-            provider_config(true, Some("sk-ant"), None),
-        )]);
+        let configs = HashMap::from([("anthropic".to_string(), provider_config(true, None))]);
+        crate::storage::ai_credentials::set(
+            &conn,
+            "provider:anthropic",
+            "sk-fake-ant-key",
+            &master_key,
+        )
+        .unwrap();
 
         let (resolved, healed) =
-            resolve_runnable_agent(&conn, &agent.id, None, &providers, &configs).unwrap();
+            resolve_runnable_agent(&conn, &master_key, &agent.id, None, &providers, &configs)
+                .unwrap();
 
         assert_eq!(resolved, agent);
         assert!(!healed);
@@ -631,6 +668,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_falls_back_and_persists_when_own_provider_is_disabled() {
         let conn = conn();
+        let master_key = crate::crypto::test_master_key();
         let agent = emoji_fallback_agent();
         insert_agent(&conn, &agent).unwrap();
         let default_agent =
@@ -640,15 +678,20 @@ mod tests {
             provider("anthropic", true, false),
         ];
         let configs = HashMap::from([
-            ("ollama".to_string(), provider_config(false, None, None)),
-            (
-                "anthropic".to_string(),
-                provider_config(true, Some("sk-ant"), None),
-            ),
+            ("ollama".to_string(), provider_config(false, None)),
+            ("anthropic".to_string(), provider_config(true, None)),
         ]);
+        crate::storage::ai_credentials::set(
+            &conn,
+            "provider:anthropic",
+            "sk-fake-ant-key",
+            &master_key,
+        )
+        .unwrap();
 
         let (resolved, healed) = resolve_runnable_agent(
             &conn,
+            &master_key,
             &agent.id,
             Some(&default_agent.id),
             &providers,
@@ -669,6 +712,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_falls_back_when_own_provider_has_no_config_entry() {
         let conn = conn();
+        let master_key = crate::crypto::test_master_key();
         let mut agent = emoji_fallback_agent();
         agent.provider_id = "openrouter".to_string();
         agent.model_id = "openrouter/free".to_string();
@@ -676,13 +720,18 @@ mod tests {
         let default_agent =
             upsert_default_agent(&conn, None, "anthropic", "claude-sonnet-5").unwrap();
         let providers = vec![provider("anthropic", true, false)];
-        let configs = HashMap::from([(
-            "anthropic".to_string(),
-            provider_config(true, Some("sk-ant"), None),
-        )]);
+        let configs = HashMap::from([("anthropic".to_string(), provider_config(true, None))]);
+        crate::storage::ai_credentials::set(
+            &conn,
+            "provider:anthropic",
+            "sk-fake-ant-key",
+            &master_key,
+        )
+        .unwrap();
 
         let (resolved, healed) = resolve_runnable_agent(
             &conn,
+            &master_key,
             &agent.id,
             Some(&default_agent.id),
             &providers,
@@ -697,6 +746,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_falls_back_when_missing_required_api_key() {
         let conn = conn();
+        let master_key = crate::crypto::test_master_key();
         let mut agent = emoji_fallback_agent();
         agent.provider_id = "anthropic".to_string();
         agent.model_id = "claude-old".to_string();
@@ -707,19 +757,22 @@ mod tests {
             provider("anthropic", true, false),
             provider("openrouter", true, false),
         ];
+        // Note: anthropic has no credential stored, but openrouter does.
         let configs = HashMap::from([
-            (
-                "anthropic".to_string(),
-                provider_config(true, Some("   "), None),
-            ),
-            (
-                "openrouter".to_string(),
-                provider_config(true, Some("sk-or"), None),
-            ),
+            ("anthropic".to_string(), provider_config(true, None)),
+            ("openrouter".to_string(), provider_config(true, None)),
         ]);
+        crate::storage::ai_credentials::set(
+            &conn,
+            "provider:openrouter",
+            "sk-fake-or-key",
+            &master_key,
+        )
+        .unwrap();
 
         let (resolved, healed) = resolve_runnable_agent(
             &conn,
+            &master_key,
             &agent.id,
             Some(&default_agent.id),
             &providers,
@@ -734,15 +787,22 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_does_not_fall_back_onto_itself() {
         let conn = conn();
+        let master_key = crate::crypto::test_master_key();
         let mut agent = emoji_fallback_agent();
         agent.id = "default-agent".to_string();
         insert_agent(&conn, &agent).unwrap();
         let providers = vec![provider("ollama", false, true)];
-        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None, None))]);
+        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None))]);
 
-        let (resolved, healed) =
-            resolve_runnable_agent(&conn, &agent.id, Some(&agent.id), &providers, &configs)
-                .unwrap();
+        let (resolved, healed) = resolve_runnable_agent(
+            &conn,
+            &master_key,
+            &agent.id,
+            Some(&agent.id),
+            &providers,
+            &configs,
+        )
+        .unwrap();
 
         assert!(!healed);
         assert_eq!(resolved, agent);
@@ -751,13 +811,15 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_leaves_unchanged_when_no_default_agent() {
         let conn = conn();
+        let master_key = crate::crypto::test_master_key();
         let agent = emoji_fallback_agent();
         insert_agent(&conn, &agent).unwrap();
         let providers = vec![provider("ollama", false, true)];
-        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None, None))]);
+        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None))]);
 
         let (resolved, healed) =
-            resolve_runnable_agent(&conn, &agent.id, None, &providers, &configs).unwrap();
+            resolve_runnable_agent(&conn, &master_key, &agent.id, None, &providers, &configs)
+                .unwrap();
 
         assert!(!healed);
         assert_eq!(resolved, agent);
@@ -766,6 +828,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_leaves_unchanged_when_default_is_also_unusable() {
         let conn = conn();
+        let master_key = crate::crypto::test_master_key();
         let agent = emoji_fallback_agent();
         insert_agent(&conn, &agent).unwrap();
         let default_agent = upsert_default_agent(&conn, None, "openai", "gpt-4o").unwrap();
@@ -774,12 +837,13 @@ mod tests {
             provider("openai", true, false),
         ];
         let configs = HashMap::from([
-            ("ollama".to_string(), provider_config(false, None, None)),
-            ("openai".to_string(), provider_config(false, None, None)),
+            ("ollama".to_string(), provider_config(false, None)),
+            ("openai".to_string(), provider_config(false, None)),
         ]);
 
         let (resolved, healed) = resolve_runnable_agent(
             &conn,
+            &master_key,
             &agent.id,
             Some(&default_agent.id),
             &providers,
@@ -794,7 +858,196 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_errors_on_missing_agent_id() {
         let conn = conn();
-        let result = resolve_runnable_agent(&conn, "nonexistent", None, &[], &HashMap::new());
+        let master_key = crate::crypto::test_master_key();
+        let result = resolve_runnable_agent(
+            &conn,
+            &master_key,
+            "nonexistent",
+            None,
+            &[],
+            &HashMap::new(),
+        );
         assert!(matches!(result, Err(crate::error::AppError::NotFound(_))));
+    }
+
+    #[test]
+    fn resolve_runnable_agent_with_key_only_in_ai_credentials_is_not_healed() {
+        let conn = conn();
+        let master_key = crate::crypto::test_master_key();
+
+        // Agent configured with openai, but config has no api_key
+        let agent = existing_agent("agent-1", "My OpenAI Agent");
+        insert_agent(&conn, &agent).unwrap();
+
+        // Fallback default agent configured with anthropic
+        let default_agent =
+            upsert_default_agent(&conn, None, "anthropic", "claude-sonnet").unwrap();
+
+        let providers = vec![
+            provider("openai", true, false),
+            provider("anthropic", true, false),
+        ];
+
+        // Notice: configs have NO api_key!
+        let configs = HashMap::from([
+            ("openai".to_string(), provider_config(true, None)),
+            ("anthropic".to_string(), provider_config(true, None)),
+        ]);
+
+        // Key exists ONLY in ai_credentials
+        crate::storage::ai_credentials::set(
+            &conn,
+            "provider:openai",
+            "sk-fake-openai-test-key",
+            &master_key,
+        )
+        .unwrap();
+
+        let (resolved, healed) = resolve_runnable_agent(
+            &conn,
+            &master_key,
+            &agent.id,
+            Some(&default_agent.id),
+            &providers,
+            &configs,
+        )
+        .unwrap();
+
+        assert!(
+            !healed,
+            "Agent must NOT be healed when key is in ai_credentials"
+        );
+        assert_eq!(resolved.provider_id, "openai");
+
+        // Verify row in database was untouched
+        let persisted = get_agent(&conn, &agent.id).unwrap().unwrap();
+        assert_eq!(persisted.provider_id, "openai");
+    }
+
+    #[test]
+    fn resolve_runnable_agent_with_needs_reentry_fails_with_reenter_error_and_does_not_heal() {
+        let conn = conn();
+        let old_master_key = crate::crypto::test_master_key();
+        let new_master_key = crate::crypto::test_master_key();
+
+        let agent = existing_agent("agent-2", "My OpenAI Agent");
+        insert_agent(&conn, &agent).unwrap();
+
+        let default_agent =
+            upsert_default_agent(&conn, None, "anthropic", "claude-sonnet").unwrap();
+
+        let providers = vec![
+            provider("openai", true, false),
+            provider("anthropic", true, false),
+        ];
+
+        let configs = HashMap::from([
+            ("openai".to_string(), provider_config(true, None)),
+            ("anthropic".to_string(), provider_config(true, None)),
+        ]);
+
+        // Key was encrypted under old_master_key
+        crate::storage::ai_credentials::set(
+            &conn,
+            "provider:openai",
+            "sk-fake-openai-test-key",
+            &old_master_key,
+        )
+        .unwrap();
+
+        // Under new_master_key, decrypt fails -> NeedsReentry
+        let result = resolve_runnable_agent(
+            &conn,
+            &new_master_key,
+            &agent.id,
+            Some(&default_agent.id),
+            &providers,
+            &configs,
+        );
+
+        match result {
+            Err(crate::error::AppError::Validation(msg)) => {
+                assert!(
+                    msg.contains("cannot be decrypted") && msg.contains("re-enter your key"),
+                    "Error message must instruct user to re-enter key: {msg}"
+                );
+            }
+            other => panic!("Expected AppError::Validation with re-enter error, got: {other:?}"),
+        }
+
+        // Verify agent was NOT healed/reassigned in DB
+        let persisted = get_agent(&conn, &agent.id).unwrap().unwrap();
+        assert_eq!(
+            persisted.provider_id, "openai",
+            "Agent must NOT be reassigned to default when NeedsReentry"
+        );
+    }
+
+    #[test]
+    fn resolve_runnable_agent_in_cli_mode_ignores_a_stale_key_row() {
+        let conn = conn();
+        let old_master_key = crate::crypto::test_master_key();
+        let new_master_key = crate::crypto::test_master_key();
+
+        let agent = existing_agent("agent-cli", "My CLI Agent");
+        insert_agent(&conn, &agent).unwrap();
+
+        let providers = vec![provider("openai", true, false)];
+        let mut config = provider_config(true, None);
+        config.connection_mode = Some("cli".to_string());
+        let configs = HashMap::from([("openai".to_string(), config)]);
+
+        // The key was kept when the provider switched to CLI mode, then the keychain changed.
+        crate::storage::ai_credentials::set(
+            &conn,
+            "provider:openai",
+            "sk-fake-openai-test-key",
+            &old_master_key,
+        )
+        .unwrap();
+
+        let (resolved, healed) = resolve_runnable_agent(
+            &conn,
+            &new_master_key,
+            &agent.id,
+            None,
+            &providers,
+            &configs,
+        )
+        .expect("a CLI-mode run never reads the stored key");
+
+        assert_eq!(resolved.id, agent.id);
+        assert!(!healed);
+    }
+
+    #[test]
+    fn resolve_runnable_agent_in_api_mode_with_needs_reentry_keeps_the_reenter_error() {
+        let conn = conn();
+        let old_master_key = crate::crypto::test_master_key();
+        let new_master_key = crate::crypto::test_master_key();
+        let agent = existing_agent("agent-api", "My API Agent");
+        insert_agent(&conn, &agent).unwrap();
+
+        let providers = vec![provider("openai", true, false)];
+        let configs = HashMap::from([("openai".to_string(), provider_config(true, None))]);
+        crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-fake", &old_master_key)
+            .unwrap();
+
+        let result = resolve_runnable_agent(
+            &conn,
+            &new_master_key,
+            &agent.id,
+            None,
+            &providers,
+            &configs,
+        );
+
+        match result {
+            Err(crate::error::AppError::Validation(msg)) => assert!(
+                msg.contains("cannot be decrypted") && msg.contains("re-enter your key"),
+                "{msg}"
+            ),
+            other => panic!("expected the re-enter error, got: {other:?}"),
+        }
     }
 }

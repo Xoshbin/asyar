@@ -10,6 +10,16 @@ const mockLogWarn = vi.hoisted(() => vi.fn());
 const mockCheckRuntimes = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const mockDownload = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 const mockDiagnosticsReport = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockGetCredentialStatus = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    providers: { anthropic: 'configured' },
+    webSearch: 'notConfigured',
+  }),
+);
+
+vi.mock('../../../lib/ipc/commands', () => ({
+  aiGetCredentialStatus: mockGetCredentialStatus,
+}));
 
 vi.mock('./questionBridge', () => ({ presentQuestion: mockPresentQuestion }));
 vi.mock('./finalizeBuild', () => ({ finalizeBuild: mockFinalize }));
@@ -147,23 +157,35 @@ describe('startBuild', () => {
     mockCheckRuntimes.mockClear().mockResolvedValue([]);
     mockDownload.mockClear().mockResolvedValue(true);
     mockDiagnosticsReport.mockClear();
+    mockGetCredentialStatus.mockResolvedValue({
+      providers: { anthropic: 'configured' },
+      webSearch: 'notConfigured',
+    });
   });
 
-  it('refuses when no Anthropic key is configured', async () => {
-    const res = await startBuild('build a notion ext', { anthropicKey: '' });
+  it('refuses when Anthropic credential is not configured', async () => {
+    mockGetCredentialStatus.mockResolvedValueOnce({
+      providers: { anthropic: 'notConfigured' },
+      webSearch: 'notConfigured',
+    });
+    const res = await startBuild('build a notion ext');
     expect(res.ok).toBe(false);
     expect(res.reason).toContain('Anthropic');
     expect(mockSidecarStart).not.toHaveBeenCalled();
   });
 
-  it('refuses a whitespace-only key', async () => {
-    const res = await startBuild('p', { anthropicKey: '   ' });
+  it('refuses when Anthropic credential needs re-entry', async () => {
+    mockGetCredentialStatus.mockResolvedValueOnce({
+      providers: { anthropic: 'needsReentry' },
+      webSearch: 'notConfigured',
+    });
+    const res = await startBuild('p');
     expect(res.ok).toBe(false);
     expect(mockSidecarStart).not.toHaveBeenCalled();
   });
 
-  it('starts a WORKING job and spawns the sidecar when a key is present', async () => {
-    const res = await startBuild('build a notion ext', { anthropicKey: '  sk-ant-xxx  ' });
+  it('starts a WORKING job and spawns the sidecar when Anthropic is configured', async () => {
+    const res = await startBuild('build a notion ext');
     expect(res.ok).toBe(true);
     expect(buildJobStore.job!.status).toBe('working');
     expect(mockSidecarStart).toHaveBeenCalledTimes(1);
@@ -171,12 +193,11 @@ describe('startBuild', () => {
       prompt: 'build a notion ext',
       targetDir: '/home/u/AsyarExtensions',
       capabilitySpecDir: '/res/capabilitySpec',
-      anthropicKey: 'sk-ant-xxx',
     });
   });
 
-  it('subscribes to the Tauri event exactly once when a key is present', async () => {
-    await startBuild('build a notion ext', { anthropicKey: 'sk-ant-xxx' });
+  it('subscribes to the Tauri event exactly once when starting', async () => {
+    await startBuild('build a notion ext');
     expect(mockListen).toHaveBeenCalledTimes(1);
     expect(mockListen).toHaveBeenCalledWith('asyar:ext-builder:event', expect.any(Function));
   });
@@ -192,7 +213,7 @@ describe('startBuild', () => {
       return true;
     });
 
-    const promise = startBuild('build a notion ext', { anthropicKey: 'sk-ant-xxx' });
+    const promise = startBuild('build a notion ext');
     await waitForConsentPrompt();
     expect(extBuilderRuntimeConsentStore.prompt!.runtimes).toEqual([
       { name: 'bun', sizeBytes: 10 },
@@ -211,7 +232,7 @@ describe('startBuild', () => {
   it('declined consent leaves the builder retryable: no job started, sidecar never called', async () => {
     mockCheckRuntimes.mockResolvedValue([{ name: 'bun', sizeBytes: 10 }]);
 
-    const promise = startBuild('build a notion ext', { anthropicKey: 'sk-ant-xxx' });
+    const promise = startBuild('build a notion ext');
     await waitForConsentPrompt();
     extBuilderRuntimeConsentStore.decide(false);
 
@@ -226,7 +247,7 @@ describe('startBuild', () => {
   it('marks the job failed when sidecarClient.start rejects', async () => {
     mockSidecarStart.mockRejectedValueOnce(new Error('spawn failed'));
 
-    const res = await startBuild('build a notion ext', { anthropicKey: 'sk-ant-xxx' });
+    const res = await startBuild('build a notion ext');
 
     expect(res.ok).toBe(false);
     expect(buildJobStore.job?.status).toBe('failed');
@@ -239,7 +260,7 @@ describe('startBuild', () => {
     ]);
     mockDownload.mockImplementation(async (name: string) => name !== 'claude');
 
-    const promise = startBuild('build a notion ext', { anthropicKey: 'sk-ant-xxx' });
+    const promise = startBuild('build a notion ext');
     await waitForConsentPrompt();
     extBuilderRuntimeConsentStore.decide(true);
 

@@ -9,7 +9,7 @@ function descriptor(
 ): IProviderPlugin {
   return {
     ...metadata,
-    getModels: (config) => aiListModels(metadata.id, config),
+    getModels: (config, instanceId) => aiListModels(instanceId ?? metadata.id, config),
   };
 }
 

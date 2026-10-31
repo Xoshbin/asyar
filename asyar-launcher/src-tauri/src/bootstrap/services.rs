@@ -55,8 +55,13 @@ pub fn register_builtin_tools(
     registry
         .register_builtin(Arc::new(WebFetchTool::new()))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    let data_store = app_handle.state::<crate::storage::DataStore>();
+    let keystore = app_handle.state::<crate::crypto::keystore::KeystoreState>();
     registry
-        .register_builtin(Arc::new(WebSearchTool::new()))
+        .register_builtin(Arc::new(WebSearchTool::with_store(
+            (*data_store).clone(),
+            *keystore.master_key(),
+        )))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
         .register_builtin(Arc::new(SearchTool::new(search_state)))
@@ -596,6 +601,14 @@ pub fn init_daemons(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         let handle = app.handle().clone();
         tauri::async_runtime::spawn(async move {
             crate::app_updater::service::apply_on_start(&handle).await;
+        });
+    }
+
+    // One-time cleanup of legacy "asyar" MCP server entries in external CLI configs
+    {
+        let handle = app.handle().clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            crate::ai::cli_config_cleanup::run_cleanup_if_needed(&handle);
         });
     }
 

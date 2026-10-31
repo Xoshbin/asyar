@@ -73,6 +73,7 @@ export { default as ExtensionPreferencesForm } from './settings/ExtensionPrefere
 export { default as LanHostList } from './settings/LanHostList.svelte';
 export { default as LanDeviceBrowser } from './settings/LanDeviceBrowser.svelte';
 export { default as LanScanSheet } from './settings/LanScanSheet.svelte';
+export { default as CredentialField } from './settings/CredentialField.svelte';
 
 // Form
 export { default as FormField } from './form/FormField.svelte';

@@ -25,13 +25,11 @@ export async function extBuilderStart(opts: {
   prompt: string;
   targetDir: string;
   capabilitySpecDir: string;
-  anthropicKey: string;
 }): Promise<ExtBuilderStartResult> {
   return invokeSafe<ExtBuilderStartResult>('ext_builder_start', {
     prompt: opts.prompt,
     targetDir: opts.targetDir,
     capabilitySpecDir: opts.capabilitySpecDir,
-    anthropicKey: opts.anthropicKey,
   });
 }
 

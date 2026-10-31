@@ -1,14 +1,13 @@
 use super::models::{
-    list_models_impl, ollama_reasoning_efforts_from_capabilities, parse_ollama_show_capabilities,
+    list_models, ollama_reasoning_efforts_from_capabilities, parse_ollama_show_capabilities,
     parse_provider_models, provider_model_request,
 };
 use crate::ai::types::ProviderConfig;
 use serde_json::json;
 
-fn config(api_key: Option<&str>, base_url: Option<&str>) -> ProviderConfig {
+fn config(base_url: Option<&str>) -> ProviderConfig {
     ProviderConfig {
         enabled: true,
-        api_key: api_key.map(str::to_owned),
         base_url: base_url.map(str::to_owned),
         ..Default::default()
     }
@@ -18,7 +17,8 @@ fn config(api_key: Option<&str>, base_url: Option<&str>) -> ProviderConfig {
 fn custom_model_request_normalizes_base_url_and_optional_key() {
     let request = provider_model_request(
         "custom",
-        &config(Some("secret"), Some("https://models.example/api/")),
+        &config(Some("https://models.example/api/")),
+        Some("secret"),
     )
     .unwrap();
 
@@ -31,12 +31,12 @@ fn custom_model_request_normalizes_base_url_and_optional_key() {
 
 #[test]
 fn custom_model_request_resolves_via_provider_type() {
-    let mut cfg = config(Some("secret"), Some("http://localhost:11434"));
+    let mut cfg = config(Some("http://localhost:11434"));
     cfg.name = Some("Local Ollama".into());
     cfg.provider_type = Some("ollama".into());
 
     let engine = cfg.provider_type.as_deref().unwrap_or("custom_ollama");
-    let request = provider_model_request(engine, &cfg).unwrap();
+    let request = provider_model_request(engine, &cfg, Some("secret")).unwrap();
 
     assert_eq!(request.url, "http://localhost:11434/api/tags");
 }
@@ -116,7 +116,7 @@ fn openrouter_uses_model_specific_supported_efforts() {
 
 #[test]
 fn unknown_provider_is_rejected() {
-    let error = provider_model_request("missing", &config(None, None)).unwrap_err();
+    let error = provider_model_request("missing", &config(None), None).unwrap_err();
     assert!(error.to_string().contains("Unknown AI provider"));
 }
 
@@ -205,7 +205,7 @@ async fn list_models_impl_only_offers_reasoning_effort_for_thinking_capable_olla
         .create_async()
         .await;
 
-    let models = list_models_impl("ollama", &config(None, Some(&server.url())))
+    let models = list_models("ollama", &config(Some(&server.url())), None)
         .await
         .unwrap();
 
@@ -246,12 +246,97 @@ fn cli_models_claude_offers_effort_only_where_supported() {
 
 #[tokio::test]
 async fn list_models_impl_returns_claude_models_in_cli_mode() {
-    let mut cfg = config(None, None);
+    let mut cfg = config(None);
     cfg.provider_type = Some("anthropic".to_string());
     cfg.connection_mode = Some("cli".to_string());
-    let models = list_models_impl("anthropic_1", &cfg).await.unwrap();
+    let models = list_models("anthropic_1", &cfg, None).await.unwrap();
     assert_eq!(
         models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
         ["opus", "sonnet", "haiku"]
+    );
+}
+
+fn credential_conn() -> rusqlite::Connection {
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::storage::migrations::run(&conn).unwrap();
+    conn
+}
+
+#[test]
+fn model_listing_reads_the_key_stored_under_the_connection_instance_id() {
+    let master = crate::crypto::test_master_key();
+    let conn = credential_conn();
+    crate::storage::ai_credentials::set(&conn, "provider:custom_60f9a975", "sk-custom", &master)
+        .unwrap();
+    crate::storage::ai_credentials::set(&conn, "provider:custom", "sk-other-connection", &master)
+        .unwrap();
+
+    let key = super::models::resolve_model_listing_key_in(
+        &conn,
+        &master,
+        "custom_60f9a975",
+        &config(None),
+    )
+    .unwrap()
+    .expect("the instance's own key");
+
+    assert_eq!(key.as_str(), "sk-custom");
+}
+
+#[test]
+fn model_listing_does_not_fall_back_to_another_connections_key() {
+    let master = crate::crypto::test_master_key();
+    let conn = credential_conn();
+    crate::storage::ai_credentials::set(&conn, "provider:custom", "sk-other-connection", &master)
+        .unwrap();
+
+    let key = super::models::resolve_model_listing_key_in(
+        &conn,
+        &master,
+        "custom_60f9a975",
+        &config(None),
+    )
+    .unwrap();
+
+    assert!(key.is_none());
+}
+
+#[test]
+fn model_listing_in_cli_mode_ignores_an_unreadable_key_row() {
+    let conn = credential_conn();
+    let old_master_key = crate::crypto::test_master_key();
+    let new_master_key = crate::crypto::test_master_key();
+    crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-old", &old_master_key)
+        .unwrap();
+    let mut cli = config(None);
+    cli.connection_mode = Some("cli".into());
+
+    // The keychain master key changed, so the stored row can no longer be decrypted.
+    let key = super::models::resolve_model_listing_key_in(&conn, &new_master_key, "openai", &cli)
+        .expect("a CLI-mode listing never reads the stored key");
+
+    assert!(key.is_none());
+}
+
+#[test]
+fn model_listing_in_api_mode_still_reports_an_unreadable_key_row() {
+    let conn = credential_conn();
+    let old_master_key = crate::crypto::test_master_key();
+    let new_master_key = crate::crypto::test_master_key();
+    crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-old", &old_master_key)
+        .unwrap();
+
+    let err = super::models::resolve_model_listing_key_in(
+        &conn,
+        &new_master_key,
+        "openai",
+        &config(None),
+    )
+    .expect_err("API mode needs the key");
+
+    let message = err.to_string();
+    assert!(
+        message.contains("cannot be decrypted") && message.contains("re-enter your key"),
+        "{message}"
     );
 }

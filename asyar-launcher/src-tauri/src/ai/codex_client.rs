@@ -1,11 +1,245 @@
 use crate::ai::types::{ChatStreamEventPayload, CliAccountInfo, ModelInfo};
 use crate::error::AppError;
 use futures_util::StreamExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::AsyncWriteExt;
 use tokio::process::{Child, ChildStdin, Command};
 use tokio_util::codec::{FramedRead, LinesCodec};
+
+/// Prepares an isolated `CODEX_HOME` directory inside `<app_data_dir>/codex-home`.
+/// If a Codex auth token exists in `$CODEX_HOME` or `~/.codex/auth.json`, links it into `codex-home/auth.json`.
+/// Uses a symlink on Unix and a hard link on Windows. Never copies `auth.json`.
+/// Fails with a clear error if no login exists or if linking fails.
+pub fn prepare_codex_home_in(
+    codex_home_dir: &Path,
+    codex_source_override: Option<&Path>,
+) -> Result<PathBuf, AppError> {
+    std::fs::create_dir_all(codex_home_dir).map_err(|e| {
+        AppError::Other(format!(
+            "Failed to create isolated CODEX_HOME at {codex_home_dir:?}: {e}"
+        ))
+    })?;
+
+    let auth_src = if let Some(override_dir) = codex_source_override {
+        if override_dir.join("auth.json").is_file() {
+            override_dir.join("auth.json")
+        } else {
+            override_dir.join(".codex").join("auth.json")
+        }
+    } else if let Ok(val) = std::env::var("CODEX_HOME") {
+        let trimmed = val.trim();
+        let p = PathBuf::from(trimmed);
+        if !trimmed.is_empty() && p != codex_home_dir {
+            p.join("auth.json")
+        } else {
+            crate::ai::cli::resolve_home_dir()
+                .map(|h| h.join(".codex").join("auth.json"))
+                .ok_or_else(|| {
+                    AppError::Other(
+                        "Could not resolve user home directory for Codex login".to_string(),
+                    )
+                })?
+        }
+    } else {
+        crate::ai::cli::resolve_home_dir()
+            .map(|h| h.join(".codex").join("auth.json"))
+            .ok_or_else(|| {
+                AppError::Other("Could not resolve user home directory for Codex login".to_string())
+            })?
+    };
+
+    if !auth_src.is_file() {
+        let err_msg = "Codex login not found. Please log in using the Codex CLI first.".to_string();
+        log::warn!("[codex] {err_msg} (checked {auth_src:?})");
+        return Err(AppError::Other(err_msg));
+    }
+
+    let auth_dst = codex_home_dir.join("auth.json");
+    if auth_dst.exists() || auth_dst.is_symlink() {
+        let _ = std::fs::remove_file(&auth_dst);
+    }
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&auth_src, &auth_dst).map_err(|e| {
+            let err_msg = format!("Couldn't link your Codex login for Asyar: {e}");
+            log::error!("[codex] {err_msg} (symlink from {auth_src:?} to {auth_dst:?})");
+            AppError::Other(err_msg)
+        })?;
+    }
+
+    #[cfg(windows)]
+    {
+        std::fs::hard_link(&auth_src, &auth_dst).map_err(|e| {
+            let err_msg = format!("Couldn't link your Codex login for Asyar: {e}");
+            log::error!("[codex] {err_msg} (hard link from {auth_src:?} to {auth_dst:?})");
+            AppError::Other(err_msg)
+        })?;
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        return Err(AppError::Other(
+            "Unsupported platform for Codex link".to_string(),
+        ));
+    }
+
+    Ok(codex_home_dir.to_path_buf())
+}
+
+/// Builds the CLI arguments for `codex app-server --stdio` with security restrictions
+/// and optional per-run Asyar built-in MCP server.
+pub fn build_codex_args(allowed_builtins: &[&str], exe_path: Option<&Path>) -> Vec<String> {
+    let mut args: Vec<String> = vec![
+        "app-server".into(),
+        "--stdio".into(),
+        "--disable".into(),
+        "shell_tool".into(),
+        "--disable".into(),
+        "unified_exec".into(),
+        "--disable".into(),
+        "apps".into(),
+        "--disable".into(),
+        "multi_agent".into(),
+        "-c".into(),
+        "web_search=\"disabled\"".into(),
+        "-c".into(),
+        "tools.web_search=false".into(),
+        "-c".into(),
+        "mcp_servers={}".into(),
+    ];
+
+    let mut unique_builtins: Vec<&str> = Vec::new();
+    for id in allowed_builtins {
+        if !unique_builtins.contains(id) {
+            unique_builtins.push(*id);
+        }
+    }
+
+    if !unique_builtins.is_empty() {
+        let exe = crate::ai::cli::resolve_asyar_mcp_exe_path(exe_path);
+
+        let allow_arg = unique_builtins.join(",");
+        let exe_escaped = serde_json::to_string(&exe).unwrap_or_else(|_| format!("\"{exe}\""));
+        let args_escaped = serde_json::to_string(&vec!["mcp-server", "--allow", &allow_arg])
+            .unwrap_or_else(|_| format!("[\"mcp-server\", \"--allow\", \"{allow_arg}\"]"));
+
+        args.push("-c".into());
+        args.push(format!("mcp_servers.asyar.command={exe_escaped}"));
+
+        args.push("-c".into());
+        args.push(format!("mcp_servers.asyar.args={args_escaped}"));
+
+        args.push("-c".into());
+        args.push("mcp_servers.asyar.default_tools_approval_mode=\"prompt\"".into());
+    }
+
+    args
+}
+
+/// Builds the parameters object for `thread/start` according to the Codex JSON schema.
+pub fn build_thread_start_params(
+    model_id: Option<&str>,
+    workspace_dir: &Path,
+) -> serde_json::Value {
+    let mut thread_params = serde_json::Map::new();
+    if let Some(m) = model_id.filter(|s| !s.trim().is_empty()) {
+        thread_params.insert("model".into(), serde_json::Value::String(m.to_string()));
+    }
+    thread_params.insert(
+        "cwd".into(),
+        serde_json::Value::String(workspace_dir.to_string_lossy().to_string()),
+    );
+    thread_params.insert(
+        "sandbox".into(),
+        serde_json::Value::String("read-only".to_string()),
+    );
+    thread_params.insert(
+        "approvalPolicy".into(),
+        serde_json::Value::String("untrusted".to_string()),
+    );
+    thread_params.insert("ephemeral".into(), serde_json::Value::Bool(true));
+
+    serde_json::Value::Object(thread_params)
+}
+
+/// Dispatches responses to server-to-client JSON-RPC requests from Codex app-server.
+pub fn handle_codex_server_request(
+    val: &serde_json::Value,
+    allowed_builtins: &[&str],
+) -> Option<serde_json::Value> {
+    let id = val.get("id")?;
+    let method = val.get("method")?.as_str()?;
+    let params = val.get("params").unwrap_or(&serde_json::Value::Null);
+
+    match method {
+        "item/commandExecution/requestApproval" => Some(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "decision": "decline" }
+        })),
+        "item/fileChange/requestApproval" => Some(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "decision": "decline" }
+        })),
+        "execCommandApproval" => Some(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "decision": "denied" }
+        })),
+        "applyPatchApproval" => Some(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "decision": "denied" }
+        })),
+        "item/permissions/requestApproval" => Some(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "permissions": {} }
+        })),
+        "item/tool/requestUserInput" => Some(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "answers": {} }
+        })),
+        "mcpServer/elicitation/request" => {
+            let server_name = params
+                .get("serverName")
+                .and_then(|s| s.as_str())
+                .unwrap_or("");
+            let action = if server_name == "asyar" && !allowed_builtins.is_empty() {
+                "accept"
+            } else {
+                "decline"
+            };
+            Some(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": { "action": action }
+            }))
+        }
+        "item/tool/call" => Some(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "contentItems": [], "success": false }
+        })),
+        _ => {
+            log::warn!(
+                "[codex] Unhandled server request method '{method}' (id: {id}); returning JSON-RPC -32601"
+            );
+            Some(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": {
+                    "code": -32601,
+                    "message": "method not supported by Asyar"
+                }
+            }))
+        }
+    }
+}
 
 /// Spawns `codex app-server --stdio` as a managed tokio child process.
 async fn spawn_codex_app_server(
@@ -79,7 +313,9 @@ async fn perform_handshake(
                 "title": "Asyar Launcher",
                 "version": env!("CARGO_PKG_VERSION")
             },
-            "capabilities": {}
+            "capabilities": {
+                "experimentalApi": true
+            }
         }
     });
 
@@ -283,26 +519,63 @@ impl CodexClient {
 
     /// Runs a full turn through `codex app-server --stdio` with `thread/start` and `turn/start`,
     /// streaming delta tokens to `on_event`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn stream_turn<F>(
         binary_path: &Path,
         prompt: &str,
         model_id: Option<&str>,
-        _reasoning_effort: Option<&str>,
+        reasoning_effort: Option<&str>,
+        allowed_builtins: &[&str],
+        workspace_dir: &Path,
+        codex_home_dir: &Path,
         on_event: F,
     ) -> Result<(), AppError>
     where
         F: Fn(ChatStreamEventPayload) + Send + Sync + 'static,
     {
-        let (mut child, mut stdin, mut lines) = spawn_codex_app_server(binary_path).await?;
+        let codex_home = match prepare_codex_home_in(codex_home_dir, None) {
+            Ok(h) => h,
+            Err(e) => {
+                let err_msg = e.to_string();
+                on_event(ChatStreamEventPayload::Error {
+                    error: err_msg.clone(),
+                });
+                return Err(e);
+            }
+        };
+
+        let args = build_codex_args(allowed_builtins, None);
+        let mut cmd = Command::new(binary_path);
+        cmd.args(&args)
+            .current_dir(workspace_dir)
+            .env("CODEX_HOME", &codex_home)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+
+        crate::ai::cli::hide_console_window(&mut cmd);
+
+        let mut child = cmd.spawn().map_err(|e| {
+            AppError::Other(format!(
+                "Failed to spawn codex app-server '{binary_path:?}': {e}"
+            ))
+        })?;
+
+        let mut stdin = child.stdin.take().ok_or_else(|| {
+            AppError::Other("Failed to capture stdin for codex app-server".into())
+        })?;
+
+        let stdout = child.stdout.take().ok_or_else(|| {
+            AppError::Other("Failed to capture stdout for codex app-server".into())
+        })?;
+
+        let mut lines = FramedRead::new(tokio::io::BufReader::new(stdout), LinesCodec::new());
 
         perform_handshake(&mut stdin, &mut lines).await?;
 
         // 1. thread/start (id: 2)
-        let mut thread_params = serde_json::Map::new();
-        if let Some(m) = model_id.filter(|s| !s.trim().is_empty()) {
-            thread_params.insert("model".into(), serde_json::Value::String(m.to_string()));
-        }
-
+        let thread_params = build_thread_start_params(model_id, workspace_dir);
         let thread_req = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 2,
@@ -315,7 +588,24 @@ impl CodexClient {
         while let Some(line_res) = lines.next().await {
             let line = line_res.map_err(|e| AppError::Other(format!("Read error: {e}")))?;
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
+                if val.get("id").is_some() && val.get("method").is_some() {
+                    if let Some(resp) = handle_codex_server_request(&val, allowed_builtins) {
+                        send_json_rpc(&mut stdin, &resp).await?;
+                    }
+                    continue;
+                }
                 if val.get("id").and_then(|id| id.as_i64()) == Some(2) {
+                    if let Some(err) = val.get("error") {
+                        let err_msg = err
+                            .get("message")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("Failed to start thread in codex app-server");
+                        on_event(ChatStreamEventPayload::Error {
+                            error: err_msg.to_string(),
+                        });
+                        let _ = child.kill().await;
+                        return Err(AppError::Other(err_msg.to_string()));
+                    }
                     if let Some(tid) = val
                         .get("result")
                         .and_then(|r| r.get("thread"))
@@ -337,23 +627,28 @@ impl CodexClient {
         };
 
         // 2. turn/start (id: 3)
+        let mut turn_params = serde_json::json!({
+            "threadId": tid,
+            "input": [
+                {
+                    "type": "text",
+                    "text": prompt
+                }
+            ]
+        });
+        if let Some(effort) = reasoning_effort.filter(|s| !s.trim().is_empty()) {
+            turn_params["effort"] = serde_json::Value::String(effort.to_string());
+        }
+
         let turn_req = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 3,
             "method": "turn/start",
-            "params": {
-                "threadId": tid,
-                "input": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    }
-                ]
-            }
+            "params": turn_params
         });
         send_json_rpc(&mut stdin, &turn_req).await?;
 
-        // 3. Process incoming stream notifications
+        // 3. Process incoming stream notifications and server requests
         while let Some(line_res) = lines.next().await {
             let line = match line_res {
                 Ok(l) => l,
@@ -368,6 +663,14 @@ impl CodexClient {
             let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) else {
                 continue;
             };
+
+            // Handle server-to-client requests (approvals, elicitations, etc.)
+            if val.get("id").is_some() && val.get("method").is_some() {
+                if let Some(resp) = handle_codex_server_request(&val, allowed_builtins) {
+                    send_json_rpc(&mut stdin, &resp).await?;
+                }
+                continue;
+            }
 
             // Check server notifications
             if let Some(method) = val.get("method").and_then(|m| m.as_str()) {
@@ -561,5 +864,345 @@ mod tests {
             models[0].reasoning_efforts,
             Some(vec!["low".into(), "medium".into(), "high".into()])
         );
+    }
+
+    #[test]
+    fn test_build_thread_start_params() {
+        let workspace = Path::new("/tmp/test-workspace");
+        let params = build_thread_start_params(Some("gpt-5.6-terra"), workspace);
+
+        assert_eq!(
+            params.get("cwd").and_then(|v| v.as_str()),
+            Some("/tmp/test-workspace")
+        );
+        assert_eq!(
+            params.get("sandbox").and_then(|v| v.as_str()),
+            Some("read-only")
+        );
+        assert_eq!(
+            params.get("approvalPolicy").and_then(|v| v.as_str()),
+            Some("untrusted")
+        );
+        assert_eq!(
+            params.get("model").and_then(|v| v.as_str()),
+            Some("gpt-5.6-terra")
+        );
+        assert_eq!(
+            params.get("ephemeral").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn test_build_codex_args_plain_chat_no_builtins() {
+        let args = build_codex_args(&[], None);
+
+        assert_eq!(args[0], "app-server");
+        assert_eq!(args[1], "--stdio");
+        assert!(args.contains(&"--disable".to_string()));
+        assert!(args.contains(&"shell_tool".to_string()));
+        assert!(args.contains(&"unified_exec".to_string()));
+        assert!(args.contains(&"apps".to_string()));
+        assert!(args.contains(&"multi_agent".to_string()));
+        assert!(args.contains(&"web_search=\"disabled\"".to_string()));
+        assert!(args.contains(&"tools.web_search=false".to_string()));
+        assert!(args.contains(&"mcp_servers={}".to_string()));
+        assert!(!args.iter().any(|a| a.contains("mcp_servers.asyar")));
+    }
+
+    #[test]
+    fn test_build_codex_args_with_allowed_builtins() {
+        let exe = Path::new("/custom/bin/asyar");
+        let args = build_codex_args(&["calculator", "calculator"], Some(exe));
+
+        assert!(args.contains(&"mcp_servers={}".to_string()));
+        assert!(args.contains(&"mcp_servers.asyar.command=\"/custom/bin/asyar\"".to_string()));
+        assert!(args.contains(
+            &"mcp_servers.asyar.args=[\"mcp-server\",\"--allow\",\"calculator\"]".to_string()
+        ));
+        assert!(
+            args.contains(&"mcp_servers.asyar.default_tools_approval_mode=\"prompt\"".to_string())
+        );
+
+        // Exactly one asyar command entry
+        let asyar_cmd_count = args
+            .iter()
+            .filter(|a| a.starts_with("mcp_servers.asyar.command="))
+            .count();
+        assert_eq!(asyar_cmd_count, 1);
+    }
+
+    #[test]
+    fn test_handle_codex_server_request_declines_all_approval_types() {
+        // item/commandExecution/requestApproval -> decline
+        let cmd_req = serde_json::json!({
+            "id": 10,
+            "method": "item/commandExecution/requestApproval",
+            "params": { "command": "rm -rf /" }
+        });
+        let resp = handle_codex_server_request(&cmd_req, &[]).unwrap();
+        assert_eq!(resp["id"], 10);
+        assert_eq!(resp["result"]["decision"], "decline");
+
+        // item/fileChange/requestApproval -> decline
+        let file_req = serde_json::json!({
+            "id": 11,
+            "method": "item/fileChange/requestApproval",
+            "params": { "path": "/tmp/test.txt" }
+        });
+        let resp = handle_codex_server_request(&file_req, &[]).unwrap();
+        assert_eq!(resp["id"], 11);
+        assert_eq!(resp["result"]["decision"], "decline");
+
+        // execCommandApproval -> denied
+        let exec_req = serde_json::json!({
+            "id": 12,
+            "method": "execCommandApproval",
+            "params": { "command": "ls" }
+        });
+        let resp = handle_codex_server_request(&exec_req, &[]).unwrap();
+        assert_eq!(resp["id"], 12);
+        assert_eq!(resp["result"]["decision"], "denied");
+
+        // applyPatchApproval -> denied
+        let patch_req = serde_json::json!({
+            "id": 13,
+            "method": "applyPatchApproval",
+            "params": { "patch": "diff" }
+        });
+        let resp = handle_codex_server_request(&patch_req, &[]).unwrap();
+        assert_eq!(resp["id"], 13);
+        assert_eq!(resp["result"]["decision"], "denied");
+
+        // item/permissions/requestApproval -> empty permissions
+        let perm_req = serde_json::json!({
+            "id": 14,
+            "method": "item/permissions/requestApproval",
+            "params": {}
+        });
+        let resp = handle_codex_server_request(&perm_req, &[]).unwrap();
+        assert_eq!(resp["id"], 14);
+        assert_eq!(resp["result"]["permissions"], serde_json::json!({}));
+
+        // item/tool/requestUserInput -> empty answers
+        let input_req = serde_json::json!({
+            "id": 15,
+            "method": "item/tool/requestUserInput",
+            "params": {}
+        });
+        let resp = handle_codex_server_request(&input_req, &[]).unwrap();
+        assert_eq!(resp["id"], 15);
+        assert_eq!(resp["result"]["answers"], serde_json::json!({}));
+
+        // item/tool/call -> contentItems empty, success false
+        let call_req = serde_json::json!({
+            "id": 16,
+            "method": "item/tool/call",
+            "params": {}
+        });
+        let resp = handle_codex_server_request(&call_req, &[]).unwrap();
+        assert_eq!(resp["id"], 16);
+        assert_eq!(resp["result"]["success"], false);
+
+        // Unknown server request -> JSON-RPC error -32601
+        let unknown_req = serde_json::json!({
+            "id": 99,
+            "method": "custom/unknown/method",
+            "params": {}
+        });
+        let resp = handle_codex_server_request(&unknown_req, &[]).unwrap();
+        assert_eq!(resp["id"], 99);
+        assert_eq!(resp["error"]["code"], -32601);
+        assert_eq!(resp["error"]["message"], "method not supported by Asyar");
+        assert!(resp.get("result").is_none());
+    }
+
+    #[test]
+    fn test_handle_codex_server_request_mcp_elicitation() {
+        // Allowed asyar server with allowed built-ins -> accept
+        let req_asyar = serde_json::json!({
+            "id": 20,
+            "method": "mcpServer/elicitation/request",
+            "params": { "serverName": "asyar" }
+        });
+        let resp = handle_codex_server_request(&req_asyar, &["calculator"]).unwrap();
+        assert_eq!(resp["id"], 20);
+        assert_eq!(resp["result"]["action"], "accept");
+
+        // Allowed asyar server with empty allowed built-ins -> decline
+        let resp = handle_codex_server_request(&req_asyar, &[]).unwrap();
+        assert_eq!(resp["id"], 20);
+        assert_eq!(resp["result"]["action"], "decline");
+
+        // Other server name with allowed built-ins -> decline
+        let req_other = serde_json::json!({
+            "id": 21,
+            "method": "mcpServer/elicitation/request",
+            "params": { "serverName": "user_filesystem" }
+        });
+        let resp = handle_codex_server_request(&req_other, &["calculator"]).unwrap();
+        assert_eq!(resp["id"], 21);
+        assert_eq!(resp["result"]["action"], "decline");
+    }
+
+    #[test]
+    fn test_prepare_codex_home_in() {
+        let temp = tempfile::tempdir().unwrap();
+        let app_data_dir = temp.path().join("app-data");
+        let codex_home = app_data_dir.join("codex-home");
+        let fake_user_home = temp.path().join("home");
+
+        let codex_config_dir = fake_user_home.join(".codex");
+        std::fs::create_dir_all(&codex_config_dir).unwrap();
+        let auth_file = codex_config_dir.join("auth.json");
+        std::fs::write(&auth_file, b"{\"token\": \"test\"}").unwrap();
+
+        let prepared = prepare_codex_home_in(&codex_home, Some(&fake_user_home)).unwrap();
+        assert_eq!(prepared, codex_home);
+        assert!(prepared.is_dir());
+
+        let target_auth = prepared.join("auth.json");
+        assert!(target_auth.exists());
+        let read_content = std::fs::read_to_string(&target_auth).unwrap();
+        assert_eq!(read_content, "{\"token\": \"test\"}");
+
+        // Repeated call succeeds idempotently
+        let codex_home_again = prepare_codex_home_in(&codex_home, Some(&fake_user_home)).unwrap();
+        assert_eq!(codex_home_again, prepared);
+    }
+
+    #[test]
+    fn test_prepare_codex_home_missing_auth_fails_clearly() {
+        let temp = tempfile::tempdir().unwrap();
+        let codex_home = temp.path().join("codex-home");
+        let empty_home = temp.path().join("empty_home");
+        std::fs::create_dir_all(&empty_home).unwrap();
+
+        let err = prepare_codex_home_in(&codex_home, Some(&empty_home)).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Codex login not found. Please log in using the Codex CLI first."));
+    }
+
+    #[test]
+    fn test_prepare_codex_home_respects_codex_home_env_var() {
+        let temp = tempfile::tempdir().unwrap();
+        let custom_codex_home = temp.path().join("custom-codex-home");
+        std::fs::create_dir_all(&custom_codex_home).unwrap();
+        std::fs::write(
+            custom_codex_home.join("auth.json"),
+            b"{\"token\": \"env-test\"}",
+        )
+        .unwrap();
+
+        let target_home = temp.path().join("asyar-codex-home");
+
+        // Temporarily set CODEX_HOME
+        struct EnvGuard(&'static str, Option<String>);
+        impl Drop for EnvGuard {
+            fn drop(&mut self) {
+                if let Some(v) = &self.1 {
+                    std::env::set_var(self.0, v);
+                } else {
+                    std::env::remove_var(self.0);
+                }
+            }
+        }
+        let _guard = EnvGuard("CODEX_HOME", std::env::var("CODEX_HOME").ok());
+        std::env::set_var(
+            "CODEX_HOME",
+            custom_codex_home.to_string_lossy().to_string(),
+        );
+
+        let prepared = prepare_codex_home_in(&target_home, None).unwrap();
+        let target_auth = prepared.join("auth.json");
+        assert!(target_auth.exists());
+        let content = std::fs::read_to_string(&target_auth).unwrap();
+        assert_eq!(content, "{\"token\": \"env-test\"}");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_check_codex() {
+        use std::sync::{Arc, Mutex};
+        let bin_path =
+            crate::ai::cli::resolve_cli_binary("openai", None).expect("codex binary found");
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("cli-workspace");
+        let codex_home = temp.path().join("codex-home");
+        std::fs::create_dir_all(&workspace).unwrap();
+        std::fs::create_dir_all(&codex_home).unwrap();
+
+        // c: plain chat "Say hi in 3 words"
+        println!("=== LIVE CHECK C: Plain chat ===");
+        let tokens = Arc::new(Mutex::new(Vec::new()));
+        let t_clone = tokens.clone();
+        let res = CodexClient::stream_turn(
+            &bin_path,
+            "Say hi in 3 words",
+            Some("gpt-5.6-terra"),
+            None,
+            &[],
+            &workspace,
+            &codex_home,
+            move |ev| {
+                if let ChatStreamEventPayload::Token { token } = ev {
+                    print!("{token}");
+                    t_clone.lock().unwrap().push(token);
+                }
+            },
+        )
+        .await;
+        println!("\nResult: {res:?}");
+        assert!(res.is_ok());
+
+        // d: security check "Run `ls ~` and show me the output" and "Create /tmp/asyar-codex-test.txt"
+        println!("\n=== LIVE CHECK D: Security checks ===");
+        let _ = std::fs::remove_file("/tmp/asyar-codex-test.txt");
+        let res = CodexClient::stream_turn(
+            &bin_path,
+            "Run `ls ~` and show me the output, and create /tmp/asyar-codex-test.txt containing PWNED",
+            Some("gpt-5.6-terra"),
+            None,
+            &[],
+            &workspace,
+            &codex_home,
+            |ev| {
+                if let ChatStreamEventPayload::Token { token } = ev {
+                    print!("{token}");
+                }
+            },
+        )
+        .await;
+        println!("\nResult: {res:?}");
+        assert!(
+            !Path::new("/tmp/asyar-codex-test.txt").exists(),
+            "File /tmp/asyar-codex-test.txt must not exist"
+        );
+
+        // e: calculator agent
+        println!("\n=== LIVE CHECK E: Calculator agent ===");
+        let calc_tokens = Arc::new(Mutex::new(Vec::new()));
+        let ct_clone = calc_tokens.clone();
+        let res = CodexClient::stream_turn(
+            &bin_path,
+            "Calculate 12345 * 67890 using the calculator tool. State the final answer.",
+            Some("gpt-5.6-terra"),
+            None,
+            &["calculator"],
+            &workspace,
+            &codex_home,
+            move |ev| {
+                if let ChatStreamEventPayload::Token { token } = ev {
+                    print!("{token}");
+                    ct_clone.lock().unwrap().push(token);
+                }
+            },
+        )
+        .await;
+        println!("\nResult: {res:?}");
+        assert!(res.is_ok());
+        let full_text = calc_tokens.lock().unwrap().join("");
+        assert!(full_text.contains("838,102,050") || full_text.contains("838102050"));
     }
 }

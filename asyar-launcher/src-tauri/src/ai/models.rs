@@ -39,6 +39,7 @@ fn normalize_openai_base(raw_base: &str) -> String {
 pub(super) fn provider_model_request(
     provider_id: &str,
     config: &ProviderConfig,
+    api_key: Option<&str>,
 ) -> Result<ProviderModelRequest, AppError> {
     let request = match provider_id {
         "openai" => {
@@ -49,16 +50,13 @@ pub(super) fn provider_model_request(
                 .trim_end_matches('/');
             ProviderModelRequest {
                 url: format!("{base}/v1/models"),
-                headers: authorization_header(config.api_key.as_deref()),
+                headers: authorization_header(api_key),
             }
         }
         "anthropic" => ProviderModelRequest {
             url: "https://api.anthropic.com/v1/models?limit=100".into(),
             headers: HashMap::from([
-                (
-                    "x-api-key".into(),
-                    config.api_key.clone().unwrap_or_default(),
-                ),
+                ("x-api-key".into(), api_key.unwrap_or_default().to_string()),
                 ("anthropic-version".into(), "2023-06-01".into()),
                 (
                     "anthropic-dangerous-direct-browser-access".into(),
@@ -70,7 +68,7 @@ pub(super) fn provider_model_request(
             url: "https://generativelanguage.googleapis.com/v1beta/models".into(),
             headers: HashMap::from([(
                 "x-goog-api-key".into(),
-                config.api_key.clone().unwrap_or_default(),
+                api_key.unwrap_or_default().to_string(),
             )]),
         },
         "ollama" => {
@@ -89,7 +87,7 @@ pub(super) fn provider_model_request(
             headers: HashMap::from([
                 (
                     "Authorization".into(),
-                    format!("Bearer {}", config.api_key.as_deref().unwrap_or_default()),
+                    format!("Bearer {}", api_key.unwrap_or_default()),
                 ),
                 ("HTTP-Referer".into(), "https://asyar.app".into()),
                 ("X-Title".into(), "Asyar".into()),
@@ -99,7 +97,7 @@ pub(super) fn provider_model_request(
             let raw_base = config.base_url.as_deref().ok_or_else(|| {
                 AppError::Validation("Custom AI provider requires a base URL".into())
             })?;
-            let mut headers = authorization_header(config.api_key.as_deref());
+            let mut headers = authorization_header(api_key);
             headers.insert(
                 "anthropic-dangerous-direct-browser-access".into(),
                 "true".into(),
@@ -518,9 +516,10 @@ pub fn cli_models(engine: &str) -> Vec<ModelInfo> {
     }
 }
 
-pub async fn list_models_impl(
+pub async fn list_models(
     provider_id: &str,
     config: &ProviderConfig,
+    api_key: Option<&str>,
 ) -> Result<Vec<ModelInfo>, AppError> {
     let engine_type = config.provider_type.as_deref().unwrap_or(provider_id);
     if config.connection_mode.as_deref() == Some("cli") {
@@ -579,7 +578,7 @@ pub async fn list_models_impl(
         }
         return Ok(cli_models(engine_type));
     }
-    let spec = provider_model_request(engine_type, config)?;
+    let spec = provider_model_request(engine_type, config, api_key)?;
     let client = reqwest::Client::new();
     let mut request = client
         .get(&spec.url)
@@ -613,10 +612,52 @@ pub async fn list_models_impl(
     Ok(models)
 }
 
+/// Looks up the stored key for the connection `provider_id` — the settings key of the
+/// connection instance (`custom_60f9a975`), which is also where its key is stored
+/// (`provider:<instance>`), not the engine it uses.
+///
+/// A CLI-mode connection never sends a key, so it returns `Ok(None)` without touching the
+/// store: an old, unreadable key row must not break its model list (the key field is hidden
+/// in CLI mode, so the user couldn't fix it).
+pub(crate) fn resolve_model_listing_key_in(
+    conn: &rusqlite::Connection,
+    master_key: &[u8; 32],
+    provider_id: &str,
+    config: &ProviderConfig,
+) -> Result<Option<zeroize::Zeroizing<String>>, AppError> {
+    if config.connection_mode.as_deref() == Some("cli") {
+        return Ok(None);
+    }
+    let cred_id = format!("provider:{provider_id}");
+    match crate::storage::ai_credentials::get(conn, &cred_id, master_key) {
+        Ok(Some(k)) => Ok(Some(k)),
+        Ok(None) => Ok(None),
+        Err(asyar_storage::StorageError::Encryption(_)) => Err(AppError::Validation(format!(
+            "API key for provider '{provider_id}' cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI."
+        ))),
+        Err(e) => Err(e.into()),
+    }
+}
+
+pub fn resolve_model_listing_key(
+    app: &tauri::AppHandle,
+    provider_id: &str,
+    config: &ProviderConfig,
+) -> Result<Option<zeroize::Zeroizing<String>>, AppError> {
+    use tauri::Manager;
+    let data_store = app.state::<crate::storage::DataStore>();
+    let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
+    let conn = data_store.conn()?;
+    resolve_model_listing_key_in(&conn, keystore.master_key(), provider_id, config)
+}
+
 #[tauri::command]
 pub async fn ai_list_models(
+    app: tauri::AppHandle,
     provider_id: String,
     config: ProviderConfig,
 ) -> Result<Vec<ModelInfo>, AppError> {
-    list_models_impl(&provider_id, &config).await
+    let resolved = resolve_model_listing_key(&app, &provider_id, &config)?;
+    let key_to_use = resolved.as_deref().map(|s| s.as_str());
+    list_models(&provider_id, &config, key_to_use).await
 }
