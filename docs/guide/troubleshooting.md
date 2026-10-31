@@ -14,11 +14,16 @@ If pressing your global hotkey does nothing:
 
 4. **Linux Wayland Shortcut Setup:** On Wayland (GNOME, KDE, Hyprland, Sway), applications cannot intercept global keystrokes in the background. Bind a custom shortcut in your desktop or compositor settings to execute `asyar-summon` (the lightweight ~3.5ms D-Bus summon binary installed alongside `asyar`):
    - **Hyprland:** Add `bind = $mainMod, SPACE, exec, asyar-summon` to `~/.config/hypr/hyprland.conf`.
-   - **Omarchy (Hyprland):** Omarchy binds `SUPER, SPACE` to its default app launcher (`omarchy-launch-walker`) out of the box. Override it in `~/.config/hypr/bindings.conf`:
-     ```ini
-     unbind = SUPER, SPACE
-     bindd = SUPER, SPACE, Asyar, exec, asyar-summon
-     ```
+   - **Omarchy (Hyprland):** Omarchy binds `SUPER + SPACE` to its default app launcher (`omarchy-launch-walker`) out of the box. Override it in your Omarchy bindings config:
+     - **Omarchy v4+ (`~/.config/hypr/bindings.lua`):**
+       ```lua
+       o.rebind("SUPER + SPACE", "Asyar", "asyar-summon")
+       ```
+     - **Omarchy v3 (`~/.config/hypr/bindings.conf`):**
+       ```ini
+       unbind = SUPER, SPACE
+       bindd = SUPER, SPACE, Asyar, exec, asyar-summon
+       ```
    - **Sway:** Add `bindsym $mod+space exec asyar-summon` to `~/.config/sway/config`.
    - **GNOME:** **Settings** → **Keyboard** → **View and Customize Shortcuts** → **Custom Shortcuts** → Add Name `Asyar`, Command `asyar-summon`, and set your shortcut (e.g. `Ctrl+Space`).
    - **KDE Plasma:** **System Settings** → **Shortcuts** → **Custom Shortcuts** / **Command/URL** → set Command to `asyar-summon`.

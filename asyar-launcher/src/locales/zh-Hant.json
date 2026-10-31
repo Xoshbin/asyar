@@ -800,6 +800,7 @@
     "wayland_custom_shortcut_cmd": "桌面快速鍵設定中使用的指令：",
     "wayland_copy_snippet": "複製程式碼片段",
     "wayland_copied": "✓ 已複製",
+    "wayland_hint_bind_and_press": "在下方綁定 asyar-summon，然後按 {shortcut}",
     "theme_title": "讓它變成你的",
     "theme_heading": "挑一個適合你工作環境的外觀",
     "theme_desc": "隨時可在設定（⌘,）→ 外觀中切換。主題會改變配色、對比度和高亮強調色。",

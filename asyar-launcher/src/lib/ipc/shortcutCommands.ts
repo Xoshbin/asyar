@@ -59,6 +59,7 @@ export interface ShortcutBackendInfo {
   isWayland: boolean;
   compositor: 'hyprland' | 'sway' | 'kde' | 'gnome' | 'other' | null;
   isOmarchy: boolean;
+  omarchyLuaConfig?: boolean;
 }
 
 export async function getShortcutBackendInfo(): Promise<ShortcutBackendInfo> {

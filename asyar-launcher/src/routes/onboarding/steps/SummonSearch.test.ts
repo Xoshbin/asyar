@@ -44,13 +44,36 @@ describe('getWaylandBindingGuide', () => {
     ).toBeNull();
   });
 
-  it('returns Omarchy Hyprland binding snippet when isOmarchy is true', () => {
+  it('returns Omarchy v4 Lua binding snippet when isOmarchy and omarchyLuaConfig are true', () => {
     expect(
-      getWaylandBindingGuide({ isWayland: true, compositor: 'hyprland', isOmarchy: true }),
+      getWaylandBindingGuide({
+        isWayland: true,
+        compositor: 'hyprland',
+        isOmarchy: true,
+        omarchyLuaConfig: true,
+      }),
+    ).toEqual({
+      compositorLabel: 'Hyprland (Omarchy)',
+      configPath: '~/.config/hypr/bindings.lua',
+      command: 'o.rebind("SUPER + SPACE", "Asyar", "asyar-summon")',
+      shortcutDisplay: 'Super+Space',
+      isOmarchy: true,
+    });
+  });
+
+  it('returns Omarchy v3 conf binding snippet when isOmarchy is true and omarchyLuaConfig is false', () => {
+    expect(
+      getWaylandBindingGuide({
+        isWayland: true,
+        compositor: 'hyprland',
+        isOmarchy: true,
+        omarchyLuaConfig: false,
+      }),
     ).toEqual({
       compositorLabel: 'Hyprland (Omarchy)',
       configPath: '~/.config/hypr/bindings.conf',
       command: 'unbind = SUPER, SPACE\nbindd = SUPER, SPACE, Asyar, exec, asyar-summon',
+      shortcutDisplay: 'Super+Space',
       isOmarchy: true,
     });
   });
@@ -62,6 +85,7 @@ describe('getWaylandBindingGuide', () => {
       compositorLabel: 'Hyprland',
       configPath: '~/.config/hypr/hyprland.conf',
       command: 'bind = $mainMod, SPACE, exec, asyar-summon',
+      shortcutDisplay: 'Super+Space',
       isOmarchy: false,
     });
   });
@@ -73,6 +97,7 @@ describe('getWaylandBindingGuide', () => {
       compositorLabel: 'Sway',
       configPath: '~/.config/sway/config',
       command: 'bindsym $mod+space exec asyar-summon',
+      shortcutDisplay: 'Super+Space',
       isOmarchy: false,
     });
   });
@@ -84,6 +109,7 @@ describe('getWaylandBindingGuide', () => {
       compositorLabel: 'KDE Plasma',
       configPath: null,
       command: 'asyar-summon',
+      shortcutDisplay: 'asyar-summon',
       isOmarchy: false,
     });
 
@@ -93,6 +119,7 @@ describe('getWaylandBindingGuide', () => {
       compositorLabel: 'GNOME',
       configPath: null,
       command: 'asyar-summon',
+      shortcutDisplay: 'asyar-summon',
       isOmarchy: false,
     });
 
@@ -102,6 +129,7 @@ describe('getWaylandBindingGuide', () => {
       compositorLabel: 'Wayland',
       configPath: null,
       command: 'asyar-summon',
+      shortcutDisplay: 'asyar-summon',
       isOmarchy: false,
     });
 
@@ -110,6 +138,7 @@ describe('getWaylandBindingGuide', () => {
         compositorLabel: 'Wayland',
         configPath: null,
         command: 'asyar-summon',
+        shortcutDisplay: 'asyar-summon',
         isOmarchy: false,
       },
     );
@@ -124,11 +153,13 @@ describe('fetchShortcutBackendInfo', () => {
       isWayland: true,
       compositor: 'hyprland',
       isOmarchy: true,
+      omarchyLuaConfig: true,
     });
     await expect(fetchShortcutBackendInfo()).resolves.toEqual({
       isWayland: true,
       compositor: 'hyprland',
       isOmarchy: true,
+      omarchyLuaConfig: true,
     });
   });
 
@@ -138,6 +169,7 @@ describe('fetchShortcutBackendInfo', () => {
       isWayland: false,
       compositor: null,
       isOmarchy: false,
+      omarchyLuaConfig: false,
     });
   });
 });

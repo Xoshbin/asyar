@@ -800,6 +800,7 @@
     "wayland_custom_shortcut_cmd": "Command for your desktop shortcut settings:",
     "wayland_copy_snippet": "Copy snippet",
     "wayland_copied": "✓ Copied",
+    "wayland_hint_bind_and_press": "Bind asyar-summon below, then press {shortcut}",
     "theme_title": "Make it yours",
     "theme_heading": "Pick a look that fits your workspace",
     "theme_desc": "Switch anytime from Settings (⌘,) → Appearance. Themes change the palette, contrast, and accent highlights.",

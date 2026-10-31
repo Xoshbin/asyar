@@ -44,14 +44,17 @@
     <p class="step__kicker">{t('onboarding.summon_title')}</p>
     <h1 class="step__title">{t('onboarding.summon_heading')}</h1>
     <p class="step__lede">
-      {t('onboarding.summon_lede_pre')} <kbd>{modifier}+{key}</kbd>
+      {t('onboarding.summon_lede_pre')}
+      <kbd>{waylandGuide ? waylandGuide.shortcutDisplay : `${modifier}+${key}`}</kbd>
       {t('onboarding.summon_lede_mid')} <code>1234 * 56</code>
       {t('onboarding.summon_lede_post')}
     </p>
 
     <LauncherHint
       steps={[
-        t('onboarding.hint_press_shortcut', { shortcut: `${modifier}+${key}` }),
+        waylandGuide
+          ? t('onboarding.wayland_hint_bind_and_press', { shortcut: waylandGuide.shortcutDisplay })
+          : t('onboarding.hint_press_shortcut', { shortcut: `${modifier}+${key}` }),
         t('onboarding.summon_hint_type'),
         t('onboarding.summon_hint_enter'),
       ]}

@@ -43,14 +43,18 @@ pub struct ShortcutBackendInfo {
     /// `"gnome"`, or `"other"`) when `is_wayland` is true, or `None` otherwise.
     pub compositor: Option<String>,
     /// True when an Omarchy environment is detected on Linux (`OMARCHY_PATH` set
-    /// or `~/.local/share/omarchy` exists).
+    /// or `~/.local/share/omarchy` or `/usr/share/omarchy` exists).
     pub is_omarchy: bool,
+    /// True when Omarchy v4+ Lua configuration (`~/.config/hypr/bindings.lua`
+    /// or `~/.config/hypr/hyprland.lua`) is present on disk.
+    pub omarchy_lua_config: bool,
 }
 
 pub(crate) fn detect_shortcut_backend_info_with<F>(
     is_linux: bool,
     get_var: F,
     omarchy_dir_exists: bool,
+    omarchy_lua_config_exists: bool,
 ) -> ShortcutBackendInfo
 where
     F: Fn(&str) -> Option<String>,
@@ -60,6 +64,7 @@ where
             is_wayland: false,
             compositor: None,
             is_omarchy: false,
+            omarchy_lua_config: false,
         };
     }
 
@@ -71,6 +76,7 @@ where
             is_wayland: false,
             compositor: None,
             is_omarchy: false,
+            omarchy_lua_config: false,
         };
     }
 
@@ -99,30 +105,39 @@ where
         Some("other".to_string())
     };
 
-    let is_omarchy =
-        get_var("OMARCHY_PATH").is_some_and(|v| !v.trim().is_empty()) || omarchy_dir_exists;
+    let is_omarchy = get_var("OMARCHY_PATH").is_some_and(|v| !v.trim().is_empty())
+        || omarchy_dir_exists
+        || omarchy_lua_config_exists;
+    let omarchy_lua_config = is_omarchy && omarchy_lua_config_exists;
 
     ShortcutBackendInfo {
         is_wayland: true,
         compositor,
         is_omarchy,
+        omarchy_lua_config,
     }
 }
 
 /// Returns information about the active display/compositor backend for global shortcuts.
 #[tauri::command]
 pub fn get_shortcut_backend_info() -> ShortcutBackendInfo {
-    let omarchy_dir_exists = std::env::var_os("HOME")
-        .map(|home| {
-            std::path::PathBuf::from(home)
-                .join(".local/share/omarchy")
-                .exists()
-        })
-        .unwrap_or(false);
+    let home_dir = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let omarchy_dir_exists = std::path::Path::new("/usr/share/omarchy").exists()
+        || home_dir
+            .as_ref()
+            .is_some_and(|home| home.join(".local/share/omarchy").exists());
+    let config_dir = std::env::var_os("XDG_CONFIG_HOME")
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| home_dir.map(|home| home.join(".config")));
+    let omarchy_lua_config_exists = config_dir.is_some_and(|cfg| {
+        cfg.join("hypr/bindings.lua").exists() || cfg.join("hypr/hyprland.lua").exists()
+    });
     detect_shortcut_backend_info_with(
         cfg!(target_os = "linux"),
         |key| std::env::var(key).ok(),
         omarchy_dir_exists,
+        omarchy_lua_config_exists,
     )
 }
 
@@ -1210,6 +1225,7 @@ mod tests {
                 _ => None,
             },
             true,
+            true,
         );
         assert_eq!(
             info,
@@ -1217,6 +1233,7 @@ mod tests {
                 is_wayland: false,
                 compositor: None,
                 is_omarchy: false,
+                omarchy_lua_config: false,
             }
         );
     }
@@ -1230,6 +1247,7 @@ mod tests {
                 _ => None,
             },
             false,
+            false,
         );
         assert_eq!(
             info,
@@ -1237,6 +1255,7 @@ mod tests {
                 is_wayland: false,
                 compositor: None,
                 is_omarchy: false,
+                omarchy_lua_config: false,
             }
         );
     }
@@ -1251,6 +1270,7 @@ mod tests {
                 _ => None,
             },
             false,
+            false,
         );
         assert_eq!(
             info,
@@ -1258,6 +1278,7 @@ mod tests {
                 is_wayland: true,
                 compositor: Some("hyprland".to_string()),
                 is_omarchy: false,
+                omarchy_lua_config: false,
             }
         );
     }
@@ -1272,6 +1293,7 @@ mod tests {
                 _ => None,
             },
             true,
+            false,
         );
         assert_eq!(
             by_dir,
@@ -1279,6 +1301,7 @@ mod tests {
                 is_wayland: true,
                 compositor: Some("hyprland".to_string()),
                 is_omarchy: true,
+                omarchy_lua_config: false,
             }
         );
 
@@ -1291,6 +1314,7 @@ mod tests {
                 _ => None,
             },
             false,
+            false,
         );
         assert_eq!(
             by_env,
@@ -1298,6 +1322,50 @@ mod tests {
                 is_wayland: true,
                 compositor: Some("hyprland".to_string()),
                 is_omarchy: true,
+                omarchy_lua_config: false,
+            }
+        );
+    }
+
+    #[test]
+    fn detect_shortcut_backend_linux_omarchy_v4_lua_config() {
+        let v4_with_dir = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("Hyprland".to_string()),
+                _ => None,
+            },
+            true,
+            true,
+        );
+        assert_eq!(
+            v4_with_dir,
+            ShortcutBackendInfo {
+                is_wayland: true,
+                compositor: Some("hyprland".to_string()),
+                is_omarchy: true,
+                omarchy_lua_config: true,
+            }
+        );
+
+        let v4_lua_only = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("Hyprland".to_string()),
+                _ => None,
+            },
+            false,
+            true,
+        );
+        assert_eq!(
+            v4_lua_only,
+            ShortcutBackendInfo {
+                is_wayland: true,
+                compositor: Some("hyprland".to_string()),
+                is_omarchy: true,
+                omarchy_lua_config: true,
             }
         );
     }
@@ -1312,6 +1380,7 @@ mod tests {
                 _ => None,
             },
             false,
+            false,
         );
         assert_eq!(sway.compositor.as_deref(), Some("sway"));
 
@@ -1322,6 +1391,7 @@ mod tests {
                 "XDG_CURRENT_DESKTOP" => Some("KDE".to_string()),
                 _ => None,
             },
+            false,
             false,
         );
         assert_eq!(kde.compositor.as_deref(), Some("kde"));
@@ -1334,6 +1404,7 @@ mod tests {
                 _ => None,
             },
             false,
+            false,
         );
         assert_eq!(gnome.compositor.as_deref(), Some("gnome"));
 
@@ -1344,6 +1415,7 @@ mod tests {
                 "XDG_CURRENT_DESKTOP" => Some("niri".to_string()),
                 _ => None,
             },
+            false,
             false,
         );
         assert_eq!(other.compositor.as_deref(), Some("other"));

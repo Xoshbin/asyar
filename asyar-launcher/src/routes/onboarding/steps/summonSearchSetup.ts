@@ -8,6 +8,7 @@ export interface WaylandBindingGuide {
   compositorLabel: string;
   configPath: string | null;
   command: string;
+  shortcutDisplay: string;
   isOmarchy: boolean;
 }
 
@@ -23,7 +24,12 @@ export async function fetchShortcutBackendInfo(): Promise<ShortcutBackendInfo> {
   try {
     return await getShortcutBackendInfo();
   } catch {
-    return { isWayland: false, compositor: null, isOmarchy: false };
+    return {
+      isWayland: false,
+      compositor: null,
+      isOmarchy: false,
+      omarchyLuaConfig: false,
+    };
   }
 }
 
@@ -37,10 +43,20 @@ export function getWaylandBindingGuide(
   switch (info.compositor) {
     case 'hyprland':
       if (info.isOmarchy) {
+        if (info.omarchyLuaConfig) {
+          return {
+            compositorLabel: 'Hyprland (Omarchy)',
+            configPath: '~/.config/hypr/bindings.lua',
+            command: 'o.rebind("SUPER + SPACE", "Asyar", "asyar-summon")',
+            shortcutDisplay: 'Super+Space',
+            isOmarchy: true,
+          };
+        }
         return {
           compositorLabel: 'Hyprland (Omarchy)',
           configPath: '~/.config/hypr/bindings.conf',
           command: 'unbind = SUPER, SPACE\nbindd = SUPER, SPACE, Asyar, exec, asyar-summon',
+          shortcutDisplay: 'Super+Space',
           isOmarchy: true,
         };
       }
@@ -48,6 +64,7 @@ export function getWaylandBindingGuide(
         compositorLabel: 'Hyprland',
         configPath: '~/.config/hypr/hyprland.conf',
         command: 'bind = $mainMod, SPACE, exec, asyar-summon',
+        shortcutDisplay: 'Super+Space',
         isOmarchy: false,
       };
     case 'sway':
@@ -55,6 +72,7 @@ export function getWaylandBindingGuide(
         compositorLabel: 'Sway',
         configPath: '~/.config/sway/config',
         command: 'bindsym $mod+space exec asyar-summon',
+        shortcutDisplay: 'Super+Space',
         isOmarchy: false,
       };
     case 'kde':
@@ -62,6 +80,7 @@ export function getWaylandBindingGuide(
         compositorLabel: 'KDE Plasma',
         configPath: null,
         command: 'asyar-summon',
+        shortcutDisplay: 'asyar-summon',
         isOmarchy: false,
       };
     case 'gnome':
@@ -69,6 +88,7 @@ export function getWaylandBindingGuide(
         compositorLabel: 'GNOME',
         configPath: null,
         command: 'asyar-summon',
+        shortcutDisplay: 'asyar-summon',
         isOmarchy: false,
       };
     default:
@@ -76,6 +96,7 @@ export function getWaylandBindingGuide(
         compositorLabel: 'Wayland',
         configPath: null,
         command: 'asyar-summon',
+        shortcutDisplay: 'asyar-summon',
         isOmarchy: false,
       };
   }

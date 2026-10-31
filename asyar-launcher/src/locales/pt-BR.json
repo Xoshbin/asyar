@@ -800,6 +800,7 @@
     "wayland_custom_shortcut_cmd": "Comando para as configurações de atalho da sua área de trabalho:",
     "wayland_copy_snippet": "Copiar trecho",
     "wayland_copied": "✓ Copiado",
+    "wayland_hint_bind_and_press": "Vincule o asyar-summon abaixo e pressione {shortcut}",
     "theme_title": "Deixe com a sua cara",
     "theme_heading": "Escolha um visual que combine com seu espaço de trabalho",
     "theme_desc": "Alterne a qualquer momento em Configurações (⌘,) → Aparência. Os temas alteram a paleta de cores, o contraste e os destaques.",

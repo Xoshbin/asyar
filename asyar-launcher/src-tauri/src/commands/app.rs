@@ -101,10 +101,12 @@ pub fn commit_show(
         let window = app_handle
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        log_placement_if_err(
+        if !log_placement_if_err(
             crate::launcher_placement::service::apply(&app_handle),
             "commit_show",
-        );
+        ) {
+            let _ = window.center();
+        }
         #[cfg(target_os = "linux")]
         let _ = crate::platform::linux::present_and_focus_spotlight_window(&window);
         #[cfg(not(target_os = "linux"))]
@@ -162,10 +164,12 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         let window = app_handle
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        log_placement_if_err(
+        if !log_placement_if_err(
             crate::launcher_placement::service::apply(&app_handle),
             "show",
-        );
+        ) {
+            let _ = window.center();
+        }
         let _ = window.show();
         #[cfg(target_os = "linux")]
         let _ = crate::platform::linux::present_and_focus_spotlight_window(&window);
@@ -505,10 +509,12 @@ pub fn show_launcher(app: &AppHandle) -> Result<(), AppError> {
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         #[cfg(target_os = "linux")]
         let _ = crate::platform::linux::setup_spotlight_window(&window);
-        log_placement_if_err(
+        if !log_placement_if_err(
             crate::launcher_placement::service::apply(app),
             "show_launcher",
-        );
+        ) {
+            let _ = window.center();
+        }
         let _ = window.show();
         #[cfg(target_os = "linux")]
         let _ = crate::platform::linux::present_and_focus_spotlight_window(&window);
@@ -670,6 +676,30 @@ mod tests {
             "show_launcher must not abort on placement errors with `?`"
         );
 
+        let commit_show_body = source
+            .split("pub fn commit_show")
+            .nth(1)
+            .expect("commit_show function")
+            .split("pub fn show(")
+            .next()
+            .expect("commit_show body");
+        assert!(
+            commit_show_body.contains("window.center()"),
+            "commit_show must fall back to window.center() if placement fails after off-screen prepare_show"
+        );
+
+        let show_body = source
+            .split("pub fn show(")
+            .nth(1)
+            .expect("show function")
+            .split("pub fn is_visible")
+            .next()
+            .expect("show body");
+        assert!(
+            show_body.contains("window.center()"),
+            "show must fall back to window.center() if placement fails"
+        );
+
         let show_launcher_body = source
             .split("pub fn show_launcher")
             .nth(1)
@@ -677,6 +707,10 @@ mod tests {
             .split("pub fn quit_app")
             .next()
             .expect("show_launcher body");
+        assert!(
+            show_launcher_body.contains("window.center()"),
+            "show_launcher must fall back to window.center() if placement fails"
+        );
         assert!(
             show_launcher_body.contains("setup_spotlight_window"),
             "show_launcher must call setup_spotlight_window on Linux"
