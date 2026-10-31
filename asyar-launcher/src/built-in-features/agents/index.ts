@@ -407,6 +407,7 @@ class AgentsExtension implements Extension {
     agentsManager.sending = true;
     agentsManager.streamingText = '';
     agentsManager.streamingTextPersisted = false;
+    agentsManager.streamingThreadId = threadId;
     agentsManager.streamingStatus = null;
     agentsManager.toolsUnavailableNotice = null;
 

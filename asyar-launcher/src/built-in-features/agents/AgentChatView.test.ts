@@ -48,6 +48,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   replaceDynamicCommandsBuiltin: vi.fn(),
   showSettingsWindow: vi.fn(),
   aiListModels: vi.fn().mockResolvedValue([]),
+  aiGetCredentialStatus: vi.fn().mockResolvedValue({ providers: {}, webSearch: {} }),
 }));
 
 vi.mock('../../utils/copyText', () => ({ copyText: vi.fn() }));
@@ -59,6 +60,7 @@ import { agentsManager } from './agentsManager.svelte';
 import type { MessageDef } from './types';
 import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
+import { settingsService } from '../../services/settings/settingsService.svelte';
 
 const mockedAgentService = vi.mocked(agentService);
 
@@ -96,6 +98,8 @@ function deferred<T>() {
 }
 
 describe('AgentChatView', () => {
+  let savedProviders: typeof settingsService.currentSettings.ai.providers;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockedAgentService.getById.mockReturnValue(agent);
@@ -108,6 +112,8 @@ describe('AgentChatView', () => {
     agentsManager.threadsVersion = 0;
     agentsManager.streamingText = '';
     agentsManager.streamingTextPersisted = false;
+    agentsManager.streamingThreadId = null;
+    savedProviders = settingsService.currentSettings.ai.providers;
     // jsdom has no scrollIntoView; the thread list calls it on re-render.
     Element.prototype.scrollIntoView = vi.fn();
     (mockedAgentService as any).agents = [];
@@ -118,6 +124,7 @@ describe('AgentChatView', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    settingsService.currentSettings.ai.providers = savedProviders;
   });
 
   it('offers keyboard-accessible whole-message copy and preserves native copy', async () => {
@@ -337,6 +344,7 @@ describe('AgentChatView', () => {
     await screen.findByText(thread.title);
 
     agentsManager.sending = true;
+    agentsManager.streamingThreadId = thread.id;
     agentsManager.streamingText = 'Half an answer';
     await screen.findByText('Half an answer');
 
@@ -357,6 +365,7 @@ describe('AgentChatView', () => {
     await screen.findByText(thread.title);
 
     agentsManager.sending = true;
+    agentsManager.streamingThreadId = thread.id;
     agentsManager.streamingText = 'Streamed answer';
     await screen.findByText('Streamed answer');
 
@@ -392,6 +401,9 @@ describe('AgentChatView', () => {
   });
 
   it("shows the thread's own provider and model in the bottom bar when it has an override", async () => {
+    settingsService.currentSettings.ai.providers = {
+      'provider-2': { enabled: true, connectionMode: 'cli' },
+    };
     mockedAgentService.listThreads.mockResolvedValue([
       { ...thread, providerId: 'provider-2', modelId: 'model-2' },
     ]);
@@ -399,6 +411,84 @@ describe('AgentChatView', () => {
     await waitFor(() =>
       expect(viewManager.activeViewSubtitle).toBe('Asyar Assistant · provider-2 · model-2'),
     );
+  });
+
+  it("shows the agent's provider in the bottom bar when the override's provider is off", async () => {
+    settingsService.currentSettings.ai.providers = { 'provider-2': { enabled: false } };
+    mockedAgentService.listThreads.mockResolvedValue([
+      { ...thread, providerId: 'provider-2', modelId: 'model-2' },
+    ]);
+    render(AgentChatView);
+    await waitFor(() =>
+      expect(viewManager.activeViewSubtitle).toBe('Asyar Assistant · provider-1 · model-1'),
+    );
+  });
+
+  it("never shows another thread's streamed reply, nor clears it on that thread's reload", async () => {
+    const second = { ...thread, id: 'thread-2', title: 'Second Thread' };
+    mockedAgentService.listThreads.mockResolvedValue([thread, second]);
+    agentsManager.sending = true;
+    agentsManager.streamingThreadId = thread.id;
+    agentsManager.streamingText = 'Answer for the first thread';
+    agentsManager.currentThreadId = second.id;
+    render(AgentChatView);
+    await screen.findByText('Second Thread');
+
+    expect(screen.queryByText('Answer for the first thread')).toBeNull();
+
+    // The first thread's turn is saved while the second one is open.
+    const loadsBefore = mockedAgentService.listMessages.mock.calls.length;
+    agentsManager.streamingTextPersisted = true;
+    agentsManager.sending = false;
+    agentsManager.messagesVersion += 1;
+    await waitFor(() =>
+      expect(mockedAgentService.listMessages.mock.calls.length).toBeGreaterThan(loadsBefore),
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText('Answer for the first thread')).toBeNull();
+    expect(agentsManager.streamingText).toBe('Answer for the first thread');
+
+    // Back on its own thread, the reload renders the saved turn and drops the copy.
+    mockedAgentService.listMessages.mockResolvedValue([
+      {
+        id: 'persisted',
+        threadId: thread.id,
+        role: 'assistant',
+        content: { text: 'Saved answer' },
+        createdAt: 2,
+        runId: null,
+      },
+    ]);
+    agentsManager.currentThreadId = thread.id;
+    await screen.findByText('Saved answer');
+    expect(agentsManager.streamingText).toBe('');
+  });
+
+  it("clears the previous agent's messages on switch, even when the new agent's threads fail to load", async () => {
+    const research = { ...agent, id: 'agent-2', name: 'Research' };
+    (mockedAgentService as any).agents = [agent, research];
+    mockedAgentService.getById.mockImplementation((id: string) =>
+      id === research.id ? research : agent,
+    );
+    mockedAgentService.listMessages.mockResolvedValue([
+      {
+        id: 'old',
+        threadId: thread.id,
+        role: 'assistant',
+        content: { text: 'Message from the first agent' },
+        createdAt: 2,
+        runId: null,
+      },
+    ]);
+    render(AgentChatView);
+    await screen.findByText('Message from the first agent');
+    await waitFor(() => expect(searchBarAccessoryService.active).not.toBeNull());
+
+    mockedAgentService.listThreads.mockRejectedValue(new Error('offline'));
+    await searchBarAccessoryService.set('agents', { value: research.id });
+
+    await waitFor(() => expect(agentsManager.currentAgentId).toBe(research.id));
+    await waitFor(() => expect(screen.queryByText('Message from the first agent')).toBeNull());
   });
 
   it('offers a ⌘P agent switcher seeded with the open agent, not the saved pick', async () => {

@@ -1,5 +1,5 @@
 import type { AgentDef, ThreadDef, MessageDef } from './types';
-import type { GeminiGrounding, GroundingSource } from '../../bindings';
+import type { CredentialState, GeminiGrounding, GroundingSource } from '../../bindings';
 import type { ProviderConfig, ToolCall } from '../../services/ai/IProviderPlugin';
 import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
 import { t } from '../../services/i18n';
@@ -243,7 +243,12 @@ export function extractSourcesFromMessage(
   return [];
 }
 
-type ProviderPlugins = Array<{ id: string; name: string }>;
+type ProviderPlugins = Array<{
+  id: string;
+  name: string;
+  requiresApiKey?: boolean;
+  requiresBaseUrl?: boolean;
+}>;
 
 /** A provider's display name, as the AI settings rows label it. */
 export function providerLabel(
@@ -270,15 +275,44 @@ export function agentSwitcherOptions(
 }
 
 /**
+ * Whether a run would use `providerId` as a thread override, mirroring
+ * `resolve_thread_agent` in Rust: the provider is enabled, and either in CLI
+ * mode or has what it needs (a key when it requires one, a base URL when it
+ * requires one). A `needsReentry` key counts: the run then fails with the
+ * re-enter error naming this provider rather than switching away. Null
+ * `credentialStates` (not loaded) trusts the key.
+ */
+export function overrideCanRun(
+  providerId: string,
+  providers: Record<string, ProviderConfig>,
+  plugins: ProviderPlugins,
+  credentialStates: Record<string, CredentialState> | null,
+): boolean {
+  const config = providers[providerId];
+  if (!config?.enabled) return false;
+  if (config.connectionMode === 'cli') return true;
+  const plugin = plugins.find((p) => p.id === (config.providerType ?? providerId));
+  const state = credentialStates?.[providerId];
+  const keyOk =
+    !plugin?.requiresApiKey ||
+    !credentialStates ||
+    state === 'configured' ||
+    state === 'needsReentry';
+  const baseUrlOk = !plugin?.requiresBaseUrl || Boolean(config.baseUrl?.trim());
+  return keyOk && baseUrlOk;
+}
+
+/**
  * The provider and model a thread's next run uses: its override when it has
- * one, otherwise its agent's. Mirrors `resolve_thread_agent` in Rust, minus
- * the usability fallback, which only the run can judge.
+ * one that can run (`canRun`, see `overrideCanRun`), otherwise its agent's.
+ * Without `canRun` every override counts.
  */
 export function threadRunTarget(
   agent: Pick<AgentDef, 'providerId' | 'modelId'>,
   thread: Pick<ThreadDef, 'providerId' | 'modelId'> | null | undefined,
+  canRun?: (providerId: string) => boolean,
 ): { providerId: string; modelId: string } {
-  if (thread?.providerId && thread.modelId) {
+  if (thread?.providerId && thread.modelId && (!canRun || canRun(thread.providerId))) {
     return { providerId: thread.providerId, modelId: thread.modelId };
   }
   return { providerId: agent.providerId, modelId: agent.modelId };

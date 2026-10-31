@@ -14,6 +14,7 @@ import {
   agentSwitcherOptions,
   chatSubtitle,
   threadRunTarget,
+  overrideCanRun,
   formatToolsUnavailableNotice,
   formatEditorToolsUnavailableWarning,
   isAgyEngine,
@@ -571,6 +572,71 @@ describe('threadRunTarget', () => {
     expect(threadRunTarget(agent, null)).toEqual(agent);
     expect(threadRunTarget(agent, { providerId: null, modelId: null })).toEqual(agent);
     expect(threadRunTarget(agent, { providerId: 'anthropic', modelId: null })).toEqual(agent);
+  });
+
+  it("follows the agent when the override's provider can't run", () => {
+    const override = { providerId: 'anthropic', modelId: 'claude' };
+    expect(threadRunTarget(agent, override, () => false)).toEqual(agent);
+    expect(threadRunTarget(agent, override, (id) => id === 'anthropic')).toEqual({
+      providerId: 'anthropic',
+      modelId: 'claude',
+    });
+  });
+});
+
+describe('overrideCanRun', () => {
+  const plugins = [
+    { id: 'anthropic', name: 'Anthropic', requiresApiKey: true, requiresBaseUrl: false },
+    { id: 'ollama', name: 'Ollama', requiresApiKey: false, requiresBaseUrl: true },
+  ];
+
+  it('needs the provider enabled', () => {
+    expect(overrideCanRun('anthropic', {}, plugins, null)).toBe(false);
+    expect(overrideCanRun('anthropic', { anthropic: { enabled: false } }, plugins, null)).toBe(
+      false,
+    );
+  });
+
+  it('runs a keyed provider with a saved key, or one that needs re-entry (the run then names it)', () => {
+    const providers = { anthropic: { enabled: true } };
+    expect(overrideCanRun('anthropic', providers, plugins, { anthropic: 'configured' })).toBe(true);
+    expect(overrideCanRun('anthropic', providers, plugins, { anthropic: 'needsReentry' })).toBe(
+      true,
+    );
+    expect(overrideCanRun('anthropic', providers, plugins, { anthropic: 'notConfigured' })).toBe(
+      false,
+    );
+    expect(overrideCanRun('anthropic', providers, plugins, {})).toBe(false);
+  });
+
+  it('trusts the key while states are unknown, and in CLI mode', () => {
+    expect(overrideCanRun('anthropic', { anthropic: { enabled: true } }, plugins, null)).toBe(true);
+    expect(
+      overrideCanRun(
+        'anthropic',
+        { anthropic: { enabled: true, connectionMode: 'cli' } },
+        plugins,
+        { anthropic: 'notConfigured' },
+      ),
+    ).toBe(true);
+  });
+
+  it('looks the plugin up by provider type for a named instance', () => {
+    const providers = { work: { enabled: true, providerType: 'anthropic' as const } };
+    expect(overrideCanRun('work', providers, plugins, { work: 'notConfigured' })).toBe(false);
+    expect(overrideCanRun('work', providers, plugins, { work: 'configured' })).toBe(true);
+  });
+
+  it('needs a base URL when the provider requires one', () => {
+    expect(overrideCanRun('ollama', { ollama: { enabled: true } }, plugins, {})).toBe(false);
+    expect(
+      overrideCanRun(
+        'ollama',
+        { ollama: { enabled: true, baseUrl: 'http://localhost:11434' } },
+        plugins,
+        {},
+      ),
+    ).toBe(true);
   });
 });
 

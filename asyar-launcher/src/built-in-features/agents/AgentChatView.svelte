@@ -18,6 +18,7 @@
     agentSwitcherOptions,
     chatSubtitle,
     threadRunTarget,
+    overrideCanRun,
     formatToolsUnavailableNotice,
   } from './agentChatView.helpers';
   import {
@@ -36,7 +37,8 @@
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import type { ThreadDef, MessageDef } from './types';
-  import { showSettingsWindow } from '../../lib/ipc/commands';
+  import { aiGetCredentialStatus, showSettingsWindow } from '../../lib/ipc/commands';
+  import type { CredentialState } from '../../bindings';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { t } from '../../services/i18n';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
@@ -65,6 +67,11 @@
   const streamingText = $derived(agentsManager.streamingText);
   const streamingStatus = $derived(agentsManager.streamingStatus);
   const toolsUnavailableNotice = $derived(agentsManager.toolsUnavailableNotice);
+  // The streamed reply belongs to the thread it was sent in; another thread
+  // selected meanwhile never shows it.
+  const streamingHere = $derived(
+    agentsManager.streamingThreadId === selectedThreadId && (sending || streamingText.length > 0),
+  );
 
   const agentOptions = $derived(agentSwitcherOptions(agentService.agents));
 
@@ -99,6 +106,10 @@
 
   /** Show another agent's threads, landing on its latest one like root search does. */
   async function switchAgent(nextAgentId: string) {
+    // The previous agent's messages must not linger under the new agent's
+    // name while its threads load, or stay there if that load fails.
+    messages = [];
+    agentsManager.lastAssistantMessageText = null;
     agentsManager.currentAgentId = nextAgentId;
     agentsManager.currentThreadId = agentsManager.threadsFor(nextAgentId)?.[0]?.id ?? null;
     try {
@@ -113,16 +124,44 @@
 
   const selectedThread = $derived(threads.find((th) => th.id === selectedThreadId) ?? null);
 
+  // Key states decide whether a thread's override would really run. Fetched on
+  // open and again after each run or provider change, never per keystroke;
+  // null (loading or failed) trusts the override.
+  let credentialStates = $state<Record<string, CredentialState> | null>(null);
+  $effect(() => {
+    void settingsService.currentSettings.ai.providers;
+    void agentsManager.messagesVersion;
+    void selectedThread?.providerId;
+    let cancelled = false;
+    aiGetCredentialStatus()
+      .then((status) => {
+        if (!cancelled) credentialStates = status.providers;
+      })
+      .catch(() => {
+        // Unknown: keep showing the thread's override.
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+
   // Bottom-bar subtitle: who you are talking to, and the provider and model
-  // this thread runs on (its own override, else its agent's).
+  // this thread's next run uses (its override when that can run, else its agent's).
   $effect(() => {
     if (!agent) return;
+    const providers = settingsService.currentSettings.ai.providers;
+    const plugins = providerRegistry.list();
     const subtitle = sending
       ? `${agent.name} · ${t('features.agents.streaming_cancel')}`
       : chatSubtitle(
-          { ...agent, ...threadRunTarget(agent, selectedThread) },
-          settingsService.currentSettings.ai.providers,
-          providerRegistry.list(),
+          {
+            ...agent,
+            ...threadRunTarget(agent, selectedThread, (id) =>
+              overrideCanRun(id, providers, plugins, credentialStates),
+            ),
+          },
+          providers,
+          plugins,
         );
     viewManager.activeViewSubtitle = subtitle;
     return () => {
@@ -194,8 +233,12 @@
         if (!cancelled) {
           messages = nextMessages;
           // The saved turn now renders; drop its streamed copy. A turn still
-          // streaming is left alone so it never blinks out mid-reply.
-          if (agentsManager.streamingTextPersisted) {
+          // streaming is left alone so it never blinks out mid-reply, and only
+          // the reply's own thread may clear it.
+          if (
+            agentsManager.streamingTextPersisted &&
+            agentsManager.streamingThreadId === resolvedThreadId
+          ) {
             agentsManager.streamingText = '';
             agentsManager.streamingTextPersisted = false;
           }
@@ -393,7 +436,7 @@
           >
             {#if loadError}
               <p class="error">{loadError}</p>
-            {:else if messages.length === 0 && !sending && streamingText.length === 0}
+            {:else if messages.length === 0 && !streamingHere}
               <EmptyState
                 message={t('features.agents.start_chatting')}
                 description={t('features.agents.start_chatting_description')}
@@ -490,8 +533,8 @@
 
                 <!-- Stays after the run ends until the reload renders the
                      persisted turn (which clears streamingText), so the reply
-                     never blinks out in between. -->
-                {#if sending || streamingText.length > 0}
+                     never blinks out in between. Only in the reply's own thread. -->
+                {#if streamingHere}
                   <div class="message-row assistant">
                     <div class="message-bubble assistant">
                       {#if streamingText.length > 0}

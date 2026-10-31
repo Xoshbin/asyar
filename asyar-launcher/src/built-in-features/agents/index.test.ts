@@ -189,6 +189,7 @@ describe('AgentsExtension', () => {
       expect(agentsManager.sending).toBe(false);
       expect(agentsManager.streamingText).toBe('Hi there');
       expect(agentsManager.streamingTextPersisted).toBe(true);
+      expect(agentsManager.streamingThreadId).toBe('thread-1');
     });
 
     it('clears a streamed reply that was never saved (aborted or failed run)', async () => {

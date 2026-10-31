@@ -37,6 +37,12 @@ export class AgentsManager {
    * on any reload would blink the reply out mid-stream.
    */
   streamingTextPersisted = $state(false);
+  /**
+   * The thread `streamingText` belongs to. The chat view shows the streamed
+   * copy, and clears it after a reload, only while that thread is selected, so
+   * a reply never appears in, or is cleared by, another thread.
+   */
+  streamingThreadId = $state<string | null>(null);
   /** Which of the chat's ⌘K pickers is open: Change Provider or Change Model. */
   picker = $state<'provider' | 'model' | null>(null);
   /** True while a `runAgent` invocation is in-flight for the active thread. */
