@@ -20,6 +20,7 @@
     shortcut,
     shortcutPlacement = 'inline',
     typeLabel,
+    sourceLabel,
     status = null,
     leading,
     trailing,
@@ -39,7 +40,10 @@
     alias?: string;
     shortcut?: string;
     shortcutPlacement?: 'inline' | 'trailing';
+    /** What the row is, on the right edge. */
     typeLabel?: string;
+    /** Where the row comes from; muted after the title, yields to `subtitle`. */
+    sourceLabel?: string;
     /**
      * Run-state dot rendered between the title and shortcut. `'active'` is
      * info-coloured + pulsing (a live run), `'done'` is success-coloured + static
@@ -68,7 +72,7 @@
     {:else if icon}
       {#if isBuiltInIcon(icon)}
         <div class="builtin-icon-tile">
-          <Icon name={getBuiltInIconName(icon)} size={15} />
+          <Icon name={getBuiltInIconName(icon)} size={14} />
         </div>
       {:else if isIconImage(icon)}
         <img src={icon} alt={title} class="row-icon-img" />
@@ -90,10 +94,10 @@
           size={6}
         />
       {/if}
-      {#if subtitle}
+      {#if subtitle || sourceLabel}
         <span
           class="font-medium text-[var(--text-secondary)] truncate flex-shrink"
-          style="font-size: var(--font-size-md)">{subtitle}</span
+          style="font-size: var(--font-size-md)">{subtitle || sourceLabel}</span
         >
       {/if}
       {#if alias}
@@ -128,7 +132,7 @@
     display: flex;
     align-items: center;
     width: 100%;
-    gap: var(--space-5-5);
+    gap: var(--space-5);
   }
 
   .row-body {
@@ -136,20 +140,22 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: var(--space-5-5);
+    gap: var(--space-5);
   }
 
   .row-icon-img {
-    width: var(--size-lg);
-    height: var(--size-lg);
+    /* design-ok: 22px row icon matches the reference density; off the 4px size grid until the design language is revised */
+    width: 22px;
+    height: 22px;
     object-fit: contain;
     border-radius: var(--radius-xs);
     flex-shrink: 0;
   }
 
   .row-icon-fallback {
-    width: var(--size-lg);
-    height: var(--size-lg);
+    /* design-ok: 22px row icon matches the reference density; off the 4px size grid until the design language is revised */
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -160,8 +166,9 @@
   }
 
   .builtin-icon-tile {
-    width: var(--size-lg);
-    height: var(--size-lg);
+    /* design-ok: 22px row icon matches the reference density; off the 4px size grid until the design language is revised */
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -175,14 +182,15 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: var(--size-md);
-    min-width: var(--size-md);
+    /* design-ok: 18px alias pill matches the reference density; off the 4px size grid until the design language is revised */
+    height: 18px;
+    min-width: 18px;
     padding: 0 var(--space-2);
-    border-radius: var(--radius-xs);
-    border: 1px solid var(--border-color);
-    background-color: transparent;
+    border-radius: var(--radius-sm);
+    border: none;
+    background-color: var(--bg-hover);
     color: var(--text-secondary);
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-sm);
     font-weight: 500;
     line-height: 1;
     letter-spacing: 0.02em;

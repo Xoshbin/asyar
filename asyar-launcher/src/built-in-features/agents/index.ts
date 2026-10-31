@@ -136,6 +136,7 @@ class AgentsExtension implements Extension {
       // The user may have switched agent while the thread was being created;
       // selecting it then would point the new agent at a foreign thread.
       if (agentsManager.currentAgentId !== agentId) return;
+      agentsManager.toolsUnavailableNotice = null;
       agentsManager.currentThreadId = thread.id;
     } catch (err) {
       logService.warn(`[agents] new-thread action failed: ${err}`);
@@ -407,6 +408,7 @@ class AgentsExtension implements Extension {
     agentsManager.streamingText = '';
     agentsManager.streamingTextPersisted = false;
     agentsManager.streamingStatus = null;
+    agentsManager.toolsUnavailableNotice = null;
 
     try {
       await runAgent({
@@ -433,6 +435,9 @@ class AgentsExtension implements Extension {
           agentsManager.streamingTextPersisted = true;
           agentsManager.streamingStatus = null;
           agentsManager.messagesVersion++;
+        },
+        onToolsUnavailable: (tools, engine) => {
+          agentsManager.toolsUnavailableNotice = { threadId, tools, engine };
         },
       });
     } catch (err) {

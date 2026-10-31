@@ -66,7 +66,7 @@ describe('SettingsSyncProvider', () => {
     expect(provider.syncTier).toBe('core');
     expect(provider.defaultEnabled).toBe(true);
     expect(provider.defaultConflictStrategy).toBe('replace');
-    expect(provider.sensitiveFields).toEqual([]);
+    expect(provider.sensitiveFields).toEqual(['ai']);
   });
 
   describe('exportFull', () => {
@@ -145,6 +145,33 @@ describe('SettingsSyncProvider', () => {
       expect(result.itemsUpdated).toBe(1);
     });
 
+    it.each(['replace', 'merge'] as const)(
+      'old-format backup with ai.providers.*.apiKey never writes the ai section (%s)',
+      async (strategy) => {
+        // COMPAT(remove in 0.2.0): old password-protected backups carried the `ai` section
+        // (with plaintext API keys) inside Application Settings.
+        const { settingsService } =
+          await import('../../../services/settings/settingsService.svelte');
+        const incoming: SyncProviderData = {
+          providerId: 'settings',
+          version: 1,
+          exportedAt: Date.now(),
+          data: {
+            general: { startAtLogin: true, showDockIcon: false },
+            ai: { providers: { openai: { enabled: true, apiKey: 'sk-old-backup-key' } } },
+          },
+        };
+
+        await provider.applyImport(incoming, strategy);
+
+        expect(settingsService.updateSettings).toHaveBeenCalledTimes(1);
+        expect(settingsService.updateSettings).toHaveBeenCalledWith('general', expect.anything());
+        for (const call of vi.mocked(settingsService.updateSettings).mock.calls) {
+          expect(call[0]).not.toBe('ai');
+        }
+      },
+    );
+
     it('skip — does nothing', async () => {
       const { settingsService } = await import('../../../services/settings/settingsService.svelte');
       const incoming: SyncProviderData = {
@@ -198,6 +225,30 @@ describe('SettingsSyncProvider', () => {
         modifier: 'Cmd',
         key: 'Space',
       });
+    });
+
+    it('ignores incoming ai section completely when applying upsert', async () => {
+      const { settingsService } = await import('../../../services/settings/settingsService.svelte');
+      await provider.applyItemUpsert({
+        id: 'settings',
+        categoryId: 'settings',
+        content: {
+          general: { startAtLogin: true },
+          ai: {
+            providers: {
+              openai: { enabled: true, apiKey: 'sk-or-TEST-0000' },
+            },
+            webSearch: {
+              engine: 'brave',
+              apiKey: 'sk-or-TEST-0001',
+            },
+          },
+        },
+      });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith('general', {
+        startAtLogin: true,
+      });
+      expect(settingsService.updateSettings).not.toHaveBeenCalledWith('ai', expect.anything());
     });
   });
 

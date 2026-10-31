@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod file_search_inline;
+pub mod file_search_path;
 pub mod models;
 pub mod ranker;
 

@@ -64,13 +64,27 @@ If the AI chip is missing or AI queries return no response:
 
 1. **Check that a provider is configured.** Open **Settings → AI**. If the providers list is empty, click **+ Add provider**, choose a provider (for example, Anthropic or OpenAI), and enter your API key.
 
-2. **Check your API key.** An incorrect or expired API key causes silent failures. In the provider row, expand it and re-enter the key, then use the Test connection option if available.
+2. **Check your API key.** An incorrect or expired API key causes silent failures. Expand the provider row. A saved key shows **Key saved**: click **Replace**, paste the new key, and click **Save**. Then click **Test & Fetch Models** to confirm it works.
 
 3. **Check your network.** AI responses require an internet connection to the provider's API. Make sure your computer is online and not behind a firewall that blocks the provider's domain.
 
 4. **Check the default provider.** In **Settings → AI**, confirm that the star (★) is set next to the provider you want to use. The starred provider powers the `Tab` AI chip.
 
 5. **Check the model selection.** If you recently changed your model and the new model is unavailable on your plan, responses may fail silently. Click the provider row to expand it and pick a model you have access to.
+
+## "This key can't be read anymore"
+
+API keys are stored encrypted on your device, and the encryption key is kept in your OS keychain (on Linux without a keyring, in a file only your user can read). If that keychain entry or file changes, for example after a keychain reset or when your data is moved to a new computer, Asyar can no longer unlock the saved key. It then shows this warning next to the key.
+
+To fix it, enter the key again in **Settings → AI** and click **Save**.
+
+## My API keys are missing
+
+Asyar keeps API keys only on the device where you entered them. They are missing, and you need to enter them again in **Settings → AI**, when:
+
+- you set up Asyar on a **new device**, because keys are never synced;
+- you **restored a backup**, because backups never include keys;
+- you went back to an **older version** of Asyar, because older versions can't read the encrypted keys.
 
 ## Browser bookmarks/history aren't showing
 

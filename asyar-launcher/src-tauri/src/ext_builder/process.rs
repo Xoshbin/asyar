@@ -222,7 +222,7 @@ pub async fn spawn_build(
     prompt: String,
     target_dir: String,
     capability_spec_dir: String,
-    anthropic_key: String,
+    anthropic_key: zeroize::Zeroizing<String>,
 ) -> Result<(), String> {
     let bun = resolve_bun(&app).ok_or_else(|| "bundled bun runtime not found".to_string())?;
     let sidecar_js = resolve_sidecar_js(&app).ok_or_else(|| {
@@ -242,7 +242,7 @@ pub async fn spawn_build(
         .arg(&target_dir)
         .arg("--capability-spec")
         .arg(&capability_spec_dir)
-        .env("ANTHROPIC_API_KEY", &anthropic_key);
+        .env("ANTHROPIC_API_KEY", anthropic_key.as_str());
 
     if let Some(ref claude) = claude_path {
         cmd.env("CLAUDE_CODE_EXECUTABLE_PATH", claude);
@@ -370,7 +370,7 @@ pub(crate) async fn start_checking_runtimes_ensuring(
     prompt: String,
     target_dir: String,
     capability_spec_dir: String,
-    anthropic_key: String,
+    anthropic_key: zeroize::Zeroizing<String>,
 ) -> Result<StartOutcome, String> {
     let missing = missing_runtimes(&app, runtime_manager)
         .await

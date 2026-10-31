@@ -11,9 +11,9 @@ vi.mock('./threadProvider', () => ({
 vi.mock('../../services/ai/providerRegistry', () => ({
   providerRegistry: {
     list: () => [
-      { id: 'anthropic', name: 'Anthropic' },
-      { id: 'openai', name: 'OpenAI' },
-      { id: 'google', name: 'Google Gemini' },
+      { id: 'anthropic', name: 'Anthropic', requiresApiKey: true },
+      { id: 'openai', name: 'OpenAI', requiresApiKey: true },
+      { id: 'google', name: 'Google Gemini', requiresApiKey: true },
     ],
   },
 }));
@@ -32,6 +32,10 @@ vi.mock('../../services/settings/settingsService.svelte', () => ({
   },
 }));
 vi.mock('../../lib/ipc/commands', () => ({
+  aiGetCredentialStatus: vi.fn(async () => ({
+    providers: { anthropic: 'configured', openai: 'configured', google: 'configured' },
+    webSearch: {},
+  })),
   aiListModels: vi.fn(async (providerId: string) =>
     providerId === 'anthropic'
       ? [
@@ -59,6 +63,7 @@ import { agentsManager } from './agentsManager.svelte';
 import { agentService } from './agentService.svelte';
 import { setActiveThreadModel } from './threadProvider';
 import { modelCatalog } from './modelCatalog.svelte';
+import { aiGetCredentialStatus } from '../../lib/ipc/commands';
 
 function labels() {
   return screen.getAllByRole('option').map((row) => row.textContent?.trim());
@@ -91,6 +96,17 @@ describe('ModelPickerModal', () => {
 
       expect(labels()).toEqual(['Anthropic', 'OpenAI', 'Google Gemini']);
       expect(screen.getAllByRole('option')[0].getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('leaves out providers whose API key is not configured, but not the one in use', async () => {
+      vi.mocked(aiGetCredentialStatus).mockResolvedValueOnce({
+        providers: { anthropic: 'needsReentry', openai: 'configured', google: 'notConfigured' },
+        webSearch: {},
+      });
+      render(ModelPickerModal);
+
+      await waitFor(() => expect(labels()).toEqual(['Anthropic', 'OpenAI']));
+      expect(aiGetCredentialStatus).toHaveBeenCalledTimes(1);
     });
 
     it("switches the thread to the provider's last-used model", async () => {

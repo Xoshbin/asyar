@@ -18,6 +18,7 @@
     agentSwitcherOptions,
     chatSubtitle,
     threadRunTarget,
+    formatToolsUnavailableNotice,
   } from './agentChatView.helpers';
   import {
     Button,
@@ -27,6 +28,7 @@
     LauncherListRow,
     SplitListDetail,
     GoogleSearchSuggestions,
+    WarningBanner,
   } from '../../components';
   import ModelPickerModal from './ModelPickerModal.svelte';
   import { settingsService } from '../../services/settings/settingsService.svelte';
@@ -62,6 +64,7 @@
   const sending = $derived(agentsManager.sending);
   const streamingText = $derived(agentsManager.streamingText);
   const streamingStatus = $derived(agentsManager.streamingStatus);
+  const toolsUnavailableNotice = $derived(agentsManager.toolsUnavailableNotice);
 
   const agentOptions = $derived(agentSwitcherOptions(agentService.agents));
 
@@ -174,6 +177,7 @@
       const resolvedThreadId = resolveThreadId(currentThreadId, nextThreads);
       if (resolvedThreadId !== currentThreadId) {
         agentsManager.currentThreadId = resolvedThreadId;
+        agentsManager.toolsUnavailableNotice = null;
         messages = [];
         agentsManager.lastAssistantMessageText = null;
         return;
@@ -367,6 +371,19 @@
 
       {#snippet detail()}
         <div class="chat-main">
+          {#if toolsUnavailableNotice && toolsUnavailableNotice.threadId === selectedThreadId}
+            <div class="chat-notice-container" data-testid="tools-unavailable-notice">
+              <WarningBanner>
+                <p class="chat-notice-text">
+                  {formatToolsUnavailableNotice(
+                    toolsUnavailableNotice.engine,
+                    toolsUnavailableNotice.tools,
+                  )}
+                </p>
+              </WarningBanner>
+            </div>
+          {/if}
+
           <div
             class="messages-container custom-scrollbar"
             data-no-focus-steal
@@ -518,6 +535,15 @@
   }
   .pin-badge {
     color: var(--accent-primary);
+  }
+  .chat-notice-container {
+    padding: var(--space-3) var(--space-6) 0;
+  }
+  .chat-notice-text {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    line-height: 1.4;
   }
   .messages-container {
     flex: 1;

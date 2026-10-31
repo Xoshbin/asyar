@@ -2,6 +2,7 @@ import type { AgentDef, ThreadDef, MessageDef } from './types';
 import type { GeminiGrounding, GroundingSource } from '../../bindings';
 import type { ProviderConfig, ToolCall } from '../../services/ai/IProviderPlugin';
 import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
+import { t } from '../../services/i18n';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -270,7 +271,7 @@ export function agentSwitcherOptions(
 
 /**
  * The provider and model a thread's next run uses: its override when it has
- * one, otherwise its agent's. Mirrors `apply_thread_override` in Rust, minus
+ * one, otherwise its agent's. Mirrors `resolve_thread_agent` in Rust, minus
  * the usability fallback, which only the run can judge.
  */
 export function threadRunTarget(
@@ -292,4 +293,36 @@ export function chatSubtitle(
   const parts = [agent.name, providerLabel(agent.providerId, providers, plugins)];
   if (agent.modelId) parts.push(agent.modelId);
   return parts.join(' · ');
+}
+
+/** Returns true if the normalized engine corresponds to Google Antigravity (agy). */
+export function isAgyEngine(engine: string): boolean {
+  const normalized = engine.toLowerCase();
+  return normalized === 'google' || normalized === 'agy' || normalized.includes('antigravity');
+}
+
+/**
+ * Formats user-facing notice text when tools are dropped for an agent run
+ * using a CLI-mode provider.
+ */
+export function formatToolsUnavailableNotice(engine: string, tools: string[]): string {
+  const toolsList = tools.join(', ');
+  if (isAgyEngine(engine)) {
+    return t('features.agents.tools_unavailable_agy', { tools: toolsList });
+  }
+  const normalized = engine.toLowerCase();
+  const name = normalized === 'openai' || normalized.includes('codex') ? 'Codex' : 'Claude Code';
+  return t('features.agents.tools_unavailable_cli', { engine: name, tools: toolsList });
+}
+
+/**
+ * Formats user-facing explanation in the agent editor when selected tools are
+ * dropped because the active provider is running in CLI mode.
+ */
+export function formatEditorToolsUnavailableWarning(engine: string): string {
+  return t(
+    isAgyEngine(engine)
+      ? 'features.agents.edit.tools_dropped_agy'
+      : 'features.agents.edit.tools_dropped_cli',
+  );
 }

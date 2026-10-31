@@ -33,6 +33,7 @@ pub fn init_storage(
     let store: Arc<dyn crate::crypto::keystore::KeyStore> =
         Arc::from(crate::crypto::keystore::select_keystore(&app_data_dir));
     let keystore_state = crate::crypto::keystore::KeystoreState::from_keystore(&*store)?;
+    let master_key = *keystore_state.master_key();
     log::info!(
         "[crypto] keystore initialised — os-backed: {}",
         keystore_state.is_os_backed()
@@ -48,6 +49,13 @@ pub fn init_storage(
     // Prune all expired cache entries on setup
     if let Ok(conn) = data_store.conn() {
         let _ = crate::storage::extension_cache::prune_all_expired(&conn);
+    }
+
+    // Migrate any plaintext AI & web search credentials from settings.dat to encrypted SQLite table
+    if let Err(e) =
+        crate::ai::migration::migrate_settings_dat(app.handle(), &data_store, &master_key)
+    {
+        log::error!("[ai::migration] Failed to migrate credentials from settings.dat: {e}");
     }
 
     Ok(data_store)

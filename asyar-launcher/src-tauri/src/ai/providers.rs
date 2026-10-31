@@ -6,17 +6,18 @@ use std::collections::{BTreeMap, HashMap};
 pub fn build_request(
     provider_id: &str,
     config: &ProviderConfig,
+    api_key: Option<&str>,
     messages: &[ChatMessage],
     params: &ChatParams,
 ) -> Result<RequestSpec, AppError> {
     let engine_type = config.provider_type.as_deref().unwrap_or(provider_id);
     let mut spec = match engine_type {
-        "openai" => build_openai_request(config, messages, params),
-        "anthropic" => build_anthropic_request(config, messages, params),
-        "google" => build_google_request(config, messages, params),
+        "openai" => build_openai_request(config, api_key, messages, params),
+        "anthropic" => build_anthropic_request(config, api_key, messages, params),
+        "google" => build_google_request(config, api_key, messages, params),
         "ollama" => build_ollama_request(config, messages, params),
-        "openrouter" => build_openrouter_request(config, messages, params),
-        "custom" => build_custom_request(config, messages, params),
+        "openrouter" => build_openrouter_request(config, api_key, messages, params),
+        "custom" => build_custom_request(config, api_key, messages, params),
         _ => Err(AppError::Other(format!("Unknown provider: {provider_id}"))),
     }?;
     if let Some(ref custom) = config.custom_headers {
@@ -546,10 +547,11 @@ fn openai_responses_input(messages: &[ChatMessage], system_prompt: Option<&str>)
 
 fn build_openai_request(
     config: &ProviderConfig,
+    api_key: Option<&str>,
     messages: &[ChatMessage],
     params: &ChatParams,
 ) -> Result<RequestSpec, AppError> {
-    let api_key = config.api_key.as_deref().unwrap_or("");
+    let api_key = api_key.unwrap_or("");
     let base_url = config
         .base_url
         .as_deref()
@@ -651,10 +653,11 @@ fn build_openai_request(
 
 fn build_anthropic_request(
     config: &ProviderConfig,
+    api_key: Option<&str>,
     messages: &[ChatMessage],
     params: &ChatParams,
 ) -> Result<RequestSpec, AppError> {
-    let api_key = config.api_key.as_deref().unwrap_or("");
+    let api_key = api_key.unwrap_or("");
     let base_url = config
         .base_url
         .as_deref()
@@ -767,6 +770,7 @@ fn build_anthropic_request(
 
 fn build_google_request(
     config: &ProviderConfig,
+    api_key: Option<&str>,
     messages: &[ChatMessage],
     params: &ChatParams,
 ) -> Result<RequestSpec, AppError> {
@@ -779,7 +783,7 @@ fn build_google_request(
             "Google Search with agent tools requires Gemini 3. Select a Gemini 3 model, remove the agent's tools, or disable Google Search in AI settings.".into(),
         ));
     }
-    let api_key = config.api_key.as_deref().unwrap_or("");
+    let api_key = api_key.unwrap_or("");
     let url = format!(
         "https://generativelanguage.googleapis.com/v1beta/models/{}:streamGenerateContent?alt=sse",
         params.model_id
@@ -1010,10 +1014,11 @@ fn build_ollama_request(
 
 fn build_openrouter_request(
     config: &ProviderConfig,
+    api_key: Option<&str>,
     messages: &[ChatMessage],
     params: &ChatParams,
 ) -> Result<RequestSpec, AppError> {
-    let api_key = config.api_key.as_deref().unwrap_or("");
+    let api_key = api_key.unwrap_or("");
     let url = "https://openrouter.ai/api/v1/chat/completions".to_string();
 
     let mut headers = HashMap::new();
@@ -1062,10 +1067,11 @@ fn build_openrouter_request(
 
 fn build_custom_request(
     config: &ProviderConfig,
+    api_key: Option<&str>,
     messages: &[ChatMessage],
     params: &ChatParams,
 ) -> Result<RequestSpec, AppError> {
-    let api_key = config.api_key.as_deref().unwrap_or("");
+    let api_key = api_key.unwrap_or("");
     let base_url = config.base_url.as_deref().unwrap_or("");
     if base_url.trim().is_empty() {
         return Err(AppError::Other(

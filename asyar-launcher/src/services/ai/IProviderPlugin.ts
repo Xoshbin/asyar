@@ -16,7 +16,6 @@ export interface ProviderConfig {
   enabled: boolean;
   name?: string;
   providerType?: ProviderId;
-  apiKey?: string;
   baseUrl?: string;
   lastModelId?: string;
   openAIApiMode?: OpenAIApiMode;
@@ -60,5 +59,10 @@ export interface IProviderPlugin {
   readonly cliName?: string;
   readonly reasoningEfforts?: readonly ReasoningEffort[];
 
-  getModels(config: ProviderConfig): Promise<ModelInfo[]>;
+  /**
+   * `instanceId` is the settings key of the connection being queried (e.g. `custom_60f9a975`);
+   * the stored API key is looked up under it. Omit it for the built-in row, whose id is the
+   * plugin id.
+   */
+  getModels(config: ProviderConfig, instanceId?: string): Promise<ModelInfo[]>;
 }

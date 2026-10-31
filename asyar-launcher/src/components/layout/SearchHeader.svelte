@@ -283,22 +283,38 @@
 <div class="search-header">
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
-    class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[var(--shell-header-h)] px-4 gap-3"
+    class="relative w-full flex items-center min-h-[var(--shell-header-h)] px-4 gap-3"
     class:border-transparent={hideSeparator}
     onpointerdown={onHeaderPointerDown}
   >
-    {#if showBack}
-      <button
-        type="button"
-        class="back-button-new"
-        tabindex="-1"
-        onclick={handleBackClick}
-        title={t('search_header.go_back_title')}
-        aria-label={t('search_header.go_back')}
-      >
-        <KeyboardHint keys="←" />
-      </button>
-    {/if}
+    <!-- The leading slot sits in the row-icon column, so the query starts on
+         the same x as every row title below it. Inside a view the back button
+         takes the slot; at the root it shows the Asyar mark. -->
+    <span class="leading-slot">
+      {#if showBack}
+        <button
+          type="button"
+          class="back-button-new"
+          tabindex="-1"
+          onclick={handleBackClick}
+          title={t('search_header.go_back_title')}
+          aria-label={t('search_header.go_back')}
+        >
+          <KeyboardHint keys="←" />
+        </button>
+      {:else}
+        <svg class="asyar-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 3.5 5.4 18.8h13.2L12 3.5Z" fill="currentColor" opacity="0.28" />
+          <path
+            d="M12 3.5 5.4 18.8M12 3.5l6.6 15.3"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+          <ellipse cx="12" cy="18.8" rx="6.6" ry="2" fill="currentColor" />
+        </svg>
+      {/if}
+    </span>
 
     {#if activeContext && !argumentMode}
       <div class="context-search-row">
@@ -442,7 +458,7 @@
               </span>
               <span class="hint-label">{hintLabel}</span>
             </span>
-            <KeyboardHint keys="Tab" />
+            <KeyboardHint keys="⇥" />
           </span>
         {/if}
         {@render accessoryDropdown()}
@@ -506,6 +522,20 @@
     color: var(--text-tertiary);
     font-weight: 500;
     letter-spacing: var(--tracking-tight);
+  }
+  .leading-slot {
+    /* design-ok: matches the 22px row icon so the query aligns with row titles */
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+  }
+  .asyar-mark {
+    width: 100%;
+    height: 100%;
   }
   .back-button-new {
     display: inline-flex;

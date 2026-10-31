@@ -23,6 +23,7 @@ export interface RunAgentInput {
   onAssistantTextDelta?: (delta: string, accumulated: string) => void;
   onAssistantStatus?: (status: ChatStreamStatus | null) => void;
   onAssistantTurnPersisted?: () => void;
+  onToolsUnavailable?: (tools: string[], engine: string) => void;
 }
 
 async function loadAgent(agentId: string): Promise<AgentDef> {
@@ -51,6 +52,9 @@ function presentEvent(
       break;
     case 'assistant_turn_persisted':
       input.onAssistantTurnPersisted?.();
+      break;
+    case 'tools_unavailable':
+      input.onToolsUnavailable?.(event.tools, event.engine);
       break;
     default:
       break;
@@ -89,7 +93,6 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     webSearch: settings.ai.webSearch
       ? {
           engine: settings.ai.webSearch.engine,
-          apiKey: settings.ai.webSearch.apiKey ?? null,
           baseUrl: settings.ai.webSearch.baseUrl ?? null,
         }
       : undefined,

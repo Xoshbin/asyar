@@ -2,9 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AISettingsSyncProvider } from './aiSettingsSyncProvider';
 import type { SyncProviderData } from '../types';
 
+const mockAiSaveCredential = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('../../../lib/ipc/commands', () => ({
+  aiSaveCredential: mockAiSaveCredential,
+}));
+vi.mock('../../../services/log/logService', () => ({
+  logService: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
+
 const mockAiSettings = vi.hoisted(() => ({
   providers: {
-    openai: { enabled: true, apiKey: 'sk-secret' },
+    openai: { enabled: true },
     anthropic: { enabled: false },
     google: { enabled: false },
     ollama: { enabled: false },
@@ -15,6 +23,9 @@ const mockAiSettings = vi.hoisted(() => ({
   maxTokens: 2048,
   defaultAgentId: 'agent-abc',
   tabContinuesLastThread: true,
+  webSearch: {
+    engine: 'duckduckgo' as const,
+  },
 }));
 
 const mockUpdateSettings = vi.hoisted(() => vi.fn());
@@ -53,12 +64,62 @@ describe('AISettingsSyncProvider', () => {
     expect(provider.sensitiveFields).toEqual(['providers']);
   });
 
-  it('exportFull returns current AI settings', async () => {
+  it('exportFull returns current AI settings without any apiKey', async () => {
     const result = await provider.exportFull();
     expect(result.providerId).toBe('ai-settings');
     expect(result.version).toBe(2);
     expect(result.data).toMatchObject({ temperature: 0.7 });
     expect(result.binaryAssets).toBeUndefined();
+    const data = result.data as Record<string, any>;
+    expect(data.providers.openai).not.toHaveProperty('apiKey');
+    expect(data.webSearch).not.toHaveProperty('apiKey');
+  });
+
+  it('exportFull keeps provider config (customHeaders included) but never apiKey', async () => {
+    (mockAiSettings.providers as any).custom.customHeaders = {
+      Authorization: 'Bearer proxy-token',
+    };
+    (mockAiSettings.providers as any).custom.apiKey = 'sk-dirty-key';
+
+    const result = await provider.exportFull();
+    const data = result.data as Record<string, any>;
+    expect(data.providers.custom.customHeaders).toEqual({ Authorization: 'Bearer proxy-token' });
+    expect(data.providers.custom).not.toHaveProperty('apiKey');
+
+    delete (mockAiSettings.providers as any).custom.customHeaders;
+    delete (mockAiSettings.providers as any).custom.apiKey;
+  });
+
+  it('a password-less export (providers: null) imports without erasing local providers', async () => {
+    // `providers` is a sensitive field, so a password-less export writes `providers: null`.
+    // That is the normal shape now, not only a legacy one.
+    const res = await provider.applyImport(
+      {
+        providerId: 'ai-settings',
+        version: 2,
+        exportedAt: 1,
+        data: { providers: null, temperature: 0.4, maxTokens: 256 },
+      },
+      'replace',
+    );
+
+    expect(res.success).toBe(true);
+    const updated = mockUpdateSettings.mock.calls[0][1];
+    expect('providers' in updated).toBe(false);
+    expect(updated.temperature).toBe(0.4);
+  });
+
+  it('exportFull explicitly strips any apiKey found in providers or webSearch', async () => {
+    (mockAiSettings.providers as any).openai.apiKey = 'sk-dirty-key';
+    (mockAiSettings as any).webSearch.apiKey = 'dirty-search-key';
+
+    const result = await provider.exportFull();
+    const data = result.data as Record<string, any>;
+    expect(data.providers.openai).not.toHaveProperty('apiKey');
+    expect(data.webSearch).not.toHaveProperty('apiKey');
+
+    delete (mockAiSettings.providers as any).openai.apiKey;
+    delete (mockAiSettings as any).webSearch.apiKey;
   });
 
   it('export snapshot contains only the new AI settings shape', async () => {
@@ -84,6 +145,155 @@ describe('AISettingsSyncProvider', () => {
       Record<string, unknown>
     >;
     expect(providers['openai']).not.toHaveProperty('apiKey');
+  });
+
+  it('old-export fixture: imports legacy apiKey into aiSaveCredential and deletes from updateSettings payload', async () => {
+    // COMPAT(remove in 0.2.0): old .asyar exports carry apiKey
+    const oldExportData: SyncProviderData = {
+      providerId: 'ai-settings',
+      version: 2,
+      exportedAt: 123456789,
+      data: {
+        providers: {
+          openai: { enabled: true, apiKey: 'sk-ant-test-provider-key' },
+          custom: { enabled: true, apiKey: null },
+          ollama: { enabled: true, apiKey: '   ' },
+        },
+        webSearch: {
+          engine: 'brave',
+          apiKey: 'brave-search-key-123',
+        },
+        temperature: 0.8,
+        maxTokens: 1024,
+      },
+    };
+
+    const res = await provider.applyImport(oldExportData, 'replace');
+    expect(res.success).toBe(true);
+    expect(res.warnings).toEqual([]);
+
+    // Stored keys must be forwarded to aiSaveCredential
+    expect(mockAiSaveCredential).toHaveBeenCalledWith(
+      { type: 'provider', id: 'openai' },
+      'sk-ant-test-provider-key',
+    );
+    expect(mockAiSaveCredential).toHaveBeenCalledWith(
+      { type: 'webSearch', engine: 'brave' },
+      'brave-search-key-123',
+    );
+    // null and empty keys must NOT be saved
+    expect(mockAiSaveCredential).not.toHaveBeenCalledWith(
+      { type: 'provider', id: 'custom' },
+      expect.anything(),
+    );
+    expect(mockAiSaveCredential).not.toHaveBeenCalledWith(
+      { type: 'provider', id: 'ollama' },
+      expect.anything(),
+    );
+
+    // Plaintext apiKey must NEVER reach updateSettings
+    const updated = mockUpdateSettings.mock.calls[0][1];
+    expect(updated.providers.openai).not.toHaveProperty('apiKey');
+    expect(updated.providers.custom).not.toHaveProperty('apiKey');
+    expect(updated.providers.ollama).not.toHaveProperty('apiKey');
+    expect(updated.webSearch).not.toHaveProperty('apiKey');
+    expect(updated.webSearch.engine).toBe('brave');
+  });
+
+  it("old-export fixture: a web-search key is saved for the export's own engine", async () => {
+    // COMPAT(remove in 0.2.0): old .asyar exports carry apiKey
+    const res = await provider.applyImport(
+      {
+        providerId: 'ai-settings',
+        version: 2,
+        exportedAt: 1,
+        data: { webSearch: { engine: 'tavily', apiKey: 'tvly-key' } },
+      },
+      'replace',
+    );
+
+    expect(res.warnings).toEqual([]);
+    expect(mockAiSaveCredential).toHaveBeenCalledTimes(1);
+    expect(mockAiSaveCredential).toHaveBeenCalledWith(
+      { type: 'webSearch', engine: 'tavily' },
+      'tvly-key',
+    );
+    expect(mockUpdateSettings.mock.calls[0][1].webSearch).toEqual({ engine: 'tavily' });
+  });
+
+  it.each(['duckduckgo', 'searxng', undefined])(
+    'old-export fixture: a web-search key with engine %s is skipped with a warning',
+    async (engine) => {
+      // COMPAT(remove in 0.2.0): old .asyar exports carry apiKey
+      const res = await provider.applyImport(
+        {
+          providerId: 'ai-settings',
+          version: 2,
+          exportedAt: 1,
+          data: { webSearch: { ...(engine ? { engine } : {}), apiKey: 'orphan-key' } },
+        },
+        'replace',
+      );
+
+      expect(mockAiSaveCredential).not.toHaveBeenCalled();
+      expect(res.warnings).toEqual(["some API keys couldn't be imported; please re-enter them"]);
+      expect(mockUpdateSettings.mock.calls[0][1].webSearch).not.toHaveProperty('apiKey');
+    },
+  );
+
+  it('old-export fixture: null providers/webSearch (password-less export) never reach updateSettings', async () => {
+    // COMPAT(remove in 0.2.0): old unencrypted exports wrote `providers: null`
+    const res = await provider.applyImport(
+      {
+        providerId: 'ai-settings',
+        version: 2,
+        exportedAt: 1,
+        data: { providers: null, webSearch: null, temperature: 0.9, maxTokens: 512 },
+      },
+      'replace',
+    );
+
+    expect(res.success).toBe(true);
+    const updated = mockUpdateSettings.mock.calls[0][1];
+    expect('providers' in updated).toBe(false);
+    expect('webSearch' in updated).toBe(false);
+    expect(updated.maxTokens).toBe(512);
+    expect(mockAiSaveCredential).not.toHaveBeenCalled();
+  });
+
+  it('reports warning and continues when credential save fails during import', async () => {
+    mockAiSaveCredential.mockRejectedValueOnce(new Error('keystore locked'));
+
+    const oldExportData: SyncProviderData = {
+      providerId: 'ai-settings',
+      version: 2,
+      exportedAt: 123456789,
+      data: {
+        providers: {
+          openai: { enabled: true, apiKey: 'sk-fail-key' },
+          anthropic: { enabled: true, apiKey: 'sk-success-key' },
+        },
+      },
+    };
+
+    const res = await provider.applyImport(oldExportData, 'replace');
+    expect(res.success).toBe(true);
+    expect(res.warnings).toEqual(["some API keys couldn't be imported; please re-enter them"]);
+
+    // Both saves were attempted
+    expect(mockAiSaveCredential).toHaveBeenCalledWith(
+      { type: 'provider', id: 'openai' },
+      'sk-fail-key',
+    );
+    expect(mockAiSaveCredential).toHaveBeenCalledWith(
+      { type: 'provider', id: 'anthropic' },
+      'sk-success-key',
+    );
+
+    // Neither key leaked into updateSettings
+    const updated = mockUpdateSettings.mock.calls[0][1];
+    expect(updated.providers.openai).not.toHaveProperty('apiKey');
+    expect(updated.providers.anthropic).not.toHaveProperty('apiKey');
   });
 
   it('import snapshot writes defaultAgentId and tabContinuesLastThread into settings', async () => {
@@ -210,14 +420,62 @@ describe('AISettingsSyncProvider', () => {
   });
 
   describe('applyItemUpsert_writes_full_state', () => {
-    it('hands the full settings object to settingsService.updateSettings', async () => {
+    it('hands the sanitized settings object to settingsService.updateSettings without providers', async () => {
       const newSettings = { ...mockAiSettings };
       await provider.applyItemUpsert({
         id: 'ai-settings',
         categoryId: 'ai-settings',
         content: newSettings,
       });
-      expect(mockUpdateSettings).toHaveBeenCalledWith('ai', newSettings);
+      expect(mockUpdateSettings).toHaveBeenCalledWith(
+        'ai',
+        expect.not.objectContaining({ providers: expect.anything() }),
+      );
+    });
+
+    it('pulling an ai-settings item with webSearch {engine: "brave"} merges webSearch', async () => {
+      await provider.applyItemUpsert({
+        id: 'ai-settings',
+        categoryId: 'ai-settings',
+        content: {
+          webSearch: {
+            engine: 'brave',
+          },
+        },
+      });
+
+      expect(mockUpdateSettings).toHaveBeenCalledWith('ai', {
+        webSearch: {
+          engine: 'brave',
+        },
+      });
+    });
+
+    it('pulling an ai-settings item that contains webSearch.apiKey and providers.x.apiKey ignores both and keeps local values', async () => {
+      await provider.applyItemUpsert({
+        id: 'ai-settings',
+        categoryId: 'ai-settings',
+        content: {
+          providers: {
+            openai: { enabled: true, apiKey: 'sk-or-TEST-REMOTE-PROVIDER' },
+          },
+          webSearch: {
+            engine: 'tavily',
+            apiKey: 'sk-or-TEST-REMOTE-SEARCH',
+          },
+          temperature: 0.9,
+        } as any,
+      });
+
+      const calledWith = mockUpdateSettings.mock.calls[0]?.[1] as Record<string, unknown>;
+      // providers key must be ignored completely
+      expect(calledWith).not.toHaveProperty('providers');
+      // webSearch engine updated to tavily, but apiKey is stripped
+      expect(calledWith.webSearch).toEqual({
+        engine: 'tavily',
+      });
+      // other non-sensitive fields sync normally
+      expect(calledWith.temperature).toBe(0.9);
     });
   });
 

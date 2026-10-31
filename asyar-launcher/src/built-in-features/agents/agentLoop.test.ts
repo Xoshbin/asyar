@@ -282,4 +282,26 @@ describe('runAgent', () => {
       expect.anything(),
     );
   });
+
+  it('notifies onToolsUnavailable when tools_unavailable event is received', async () => {
+    const onToolsUnavailable = vi.fn();
+    vi.mocked(agentsRunThread).mockImplementation(async () => {
+      const emit = streamMock.options?.onEvent;
+      emit?.({
+        type: 'tools_unavailable',
+        tools: ['Weather', 'GitHub Issues'],
+        engine: 'anthropic',
+      });
+      emit?.({ type: 'completed' });
+    });
+
+    await runAgent({
+      agentId: 'agent-1',
+      threadId: 'thread-1',
+      userText: 'hello',
+      onToolsUnavailable,
+    });
+
+    expect(onToolsUnavailable).toHaveBeenCalledWith(['Weather', 'GitHub Issues'], 'anthropic');
+  });
 });

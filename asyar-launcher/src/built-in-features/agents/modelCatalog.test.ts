@@ -33,6 +33,53 @@ describe('providerOptions', () => {
   });
 });
 
+describe('providerOptions credential filter', () => {
+  const keyed = [
+    { id: 'anthropic', name: 'Anthropic', requiresApiKey: true },
+    { id: 'ollama', name: 'Ollama', requiresApiKey: false },
+  ];
+  const providers = {
+    anthropic: { enabled: true },
+    work: { enabled: true, providerType: 'anthropic' as const, name: 'Work' },
+    cli: {
+      enabled: true,
+      providerType: 'anthropic' as const,
+      name: 'CLI',
+      connectionMode: 'cli' as const,
+    },
+    ollama: { enabled: true },
+  };
+  const ids = (options: { id: string }[]) => options.map((o) => o.id);
+
+  it('hides API-mode providers that need a key and lack a configured one', () => {
+    const states = {
+      anthropic: 'configured',
+      work: 'notConfigured',
+      cli: 'notConfigured',
+      ollama: 'notConfigured',
+    } as const;
+    expect(ids(providerOptions(providers, keyed, states))).toEqual(['anthropic', 'cli', 'ollama']);
+  });
+
+  it('hides a provider whose key needs re-entry', () => {
+    const states = { anthropic: 'needsReentry', work: 'configured' } as const;
+    expect(ids(providerOptions(providers, keyed, states))).toEqual(['work', 'cli', 'ollama']);
+  });
+
+  it('lists every enabled provider while the credential states are unknown', () => {
+    expect(ids(providerOptions(providers, keyed, null))).toEqual([
+      'anthropic',
+      'work',
+      'cli',
+      'ollama',
+    ]);
+  });
+
+  it('keeps the provider already in use even when it is hidden', () => {
+    expect(ids(providerOptions(providers, keyed, {}, 'work'))).toEqual(['work', 'cli', 'ollama']);
+  });
+});
+
 describe('modelOptions', () => {
   const models = [
     { id: 'opus', label: 'Claude Opus' },
@@ -93,7 +140,7 @@ describe('modelForProvider', () => {
 });
 
 describe('ModelCatalog', () => {
-  it("fetches a provider's models once, by its provider type", async () => {
+  it("fetches a provider's models once, by its instance id", async () => {
     const list = vi.fn().mockResolvedValue([{ id: 'm', label: 'M' }]);
     const catalog = new ModelCatalog(list);
     const config = { enabled: true, providerType: 'anthropic' as const };
@@ -102,9 +149,19 @@ describe('ModelCatalog', () => {
     await catalog.load('work', config);
 
     expect(list).toHaveBeenCalledTimes(1);
-    expect(list).toHaveBeenCalledWith('anthropic', config);
+    expect(list).toHaveBeenCalledWith('work', config);
     expect(catalog.models.work).toEqual([{ id: 'm', label: 'M' }]);
     expect(catalog.loading.work).toBe(false);
+  });
+
+  it('passes the instance id, not the provider type, so the right key is used', async () => {
+    const list = vi.fn().mockResolvedValue([]);
+    const config = { enabled: true, providerType: 'openai' as const };
+
+    await new ModelCatalog(list).load('work', config);
+
+    expect(list).toHaveBeenCalledWith('work', config);
+    expect(list).not.toHaveBeenCalledWith('openai', expect.anything());
   });
 
   it('records a failure instead of throwing, and retries on the next load', async () => {

@@ -1,5 +1,6 @@
 import { aiListModels } from '../../lib/ipc/commands';
-import type { ModelInfo, ProviderConfig, ProviderId } from '../../services/ai/IProviderPlugin';
+import type { CredentialState } from '../../bindings';
+import type { ModelInfo, ProviderConfig } from '../../services/ai/IProviderPlugin';
 import { providerLabel } from './agentChatView.helpers';
 
 /** A provider/model pair, as stored on a thread or an agent. */
@@ -14,15 +15,29 @@ export interface PickerOption {
   label: string;
 }
 
-type ProviderPlugins = Array<{ id: string; name: string }>;
+type ProviderPlugins = Array<{ id: string; name: string; requiresApiKey?: boolean }>;
 
-/** The providers the user has set up and enabled, in the order they were configured. */
+/**
+ * The providers the user has set up and can run, in the order they were
+ * configured. An API-mode provider that needs a key is listed only once its
+ * key is `configured`; CLI-mode providers and key-less ones (Ollama) always
+ * are. `credentialStates` (by instance id) is `null` until known, which lists
+ * every enabled provider rather than flashing an empty picker. The provider
+ * in use (`currentProviderId`) stays listed so the checkmark has a row.
+ */
 export function providerOptions(
   providers: Record<string, ProviderConfig>,
   plugins: ProviderPlugins,
+  credentialStates: Record<string, CredentialState> | null = null,
+  currentProviderId: string | null = null,
 ): PickerOption[] {
+  const canRun = (id: string, config: ProviderConfig): boolean => {
+    if (!credentialStates || config.connectionMode === 'cli') return true;
+    const plugin = plugins.find((p) => p.id === (config.providerType ?? id));
+    return !plugin?.requiresApiKey || credentialStates[id] === 'configured';
+  };
   return Object.entries(providers)
-    .filter(([, config]) => config.enabled)
+    .filter(([id, config]) => config.enabled && (id === currentProviderId || canRun(id, config)))
     .map(([id]) => ({ id, label: providerLabel(id, providers, plugins) }));
 }
 
@@ -83,8 +98,10 @@ export class ModelCatalog {
     const { [providerId]: _previous, ...otherErrors } = this.errors;
     this.errors = otherErrors;
     try {
+      // By instance id: the backend looks the key up as `provider:<id>` and reads the
+      // engine from `config.providerType`.
       const list = this.listModels ?? aiListModels;
-      const models = await list((config.providerType ?? providerId) as ProviderId, config);
+      const models = await list(providerId, config);
       this.models = { ...this.models, [providerId]: models };
     } catch (err) {
       this.errors = {

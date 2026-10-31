@@ -98,7 +98,7 @@
   Non-macOS: hidden via CSS since the window really shrinks.
 -->
 <div
-  class="fixed bottom-0 left-0 right-0 border-t border-[var(--border-color)] flex items-center justify-between px-3 bottom-action-bar"
+  class="fixed bottom-0 left-0 right-0 flex items-center justify-between px-4 bottom-action-bar"
   class:is-compact={isCompactIdle}
   style="height: var(--shell-footer-h); z-index: var(--z-footer); background-color: var(--bg-secondary-full-opacity);"
 >
@@ -171,7 +171,7 @@
   Non-macOS: the window really shrinks, same geometry applies.
 -->
 <div
-  class="fixed left-0 right-0 flex items-center justify-between gap-3 px-3 show-more-bar"
+  class="fixed left-0 right-0 flex items-center justify-between gap-3 px-4 show-more-bar"
   class:is-visible={isCompactIdle}
   style="top: var(--shell-header-h); height: var(--shell-footer-h); z-index: var(--z-footer); background-color: var(--bg-secondary-full-opacity);"
 >

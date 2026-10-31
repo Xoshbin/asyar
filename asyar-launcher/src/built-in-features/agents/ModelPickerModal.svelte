@@ -16,6 +16,8 @@
     type PickerOption,
   } from './modelCatalog.svelte';
   import { setActiveThreadModel } from './threadProvider';
+  import { aiGetCredentialStatus } from '../../lib/ipc/commands';
+  import type { CredentialState } from '../../bindings';
   import { t } from '../../services/i18n';
 
   let query = $state('');
@@ -25,6 +27,9 @@
   let pendingProviderId = $state<string | null>(null);
   let inputRef = $state<HTMLInputElement | null>(null);
   let listRef = $state<HTMLUListElement | null>(null);
+
+  // Fetched once per open (not per keystroke); null until it lands or if it fails.
+  let credentialStates = $state<Record<string, CredentialState> | null>(null);
 
   const mode = $derived(agentsManager.picker);
   const providers = $derived(settingsService.currentSettings.ai.providers);
@@ -48,7 +53,13 @@
   const modelProviderId = $derived(pendingProviderId ?? current?.providerId ?? null);
 
   const options = $derived.by((): PickerOption[] => {
-    if (mode === 'provider') return providerOptions(providers, providerRegistry.list());
+    if (mode === 'provider')
+      return providerOptions(
+        providers,
+        providerRegistry.list(),
+        credentialStates,
+        current?.providerId ?? null,
+      );
     if (mode === 'model' && modelProviderId) {
       const inUse = current?.providerId === modelProviderId ? current.modelId : null;
       return modelOptions(modelCatalog.models[modelProviderId] ?? [], inUse);
@@ -92,6 +103,7 @@
   $effect(() => {
     if (!mode) {
       pendingProviderId = null;
+      credentialStates = null;
       return;
     }
     const providerId = modelProviderId;
@@ -100,6 +112,21 @@
       if (mode === 'model' && providerId) void modelCatalog.load(providerId, providers[providerId]);
     });
     void tick().then(() => inputRef?.focus());
+  });
+
+  $effect(() => {
+    if (mode !== 'provider') return;
+    let cancelled = false;
+    aiGetCredentialStatus()
+      .then((status) => {
+        if (!cancelled) credentialStates = status.providers;
+      })
+      .catch(() => {
+        // Unknown: keep listing every enabled provider.
+      });
+    return () => {
+      cancelled = true;
+    };
   });
 
   // Start on the item in use, also once a model list arrives. Typing moves

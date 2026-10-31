@@ -32,6 +32,8 @@ When sync is enabled:
 
 If a sync error occurs, an error message appears below the Last Synced row.
 
+AI provider and web-search **API keys are never synced**. They stay encrypted on the device where you entered them, so on each new device you enter them once in **Settings → AI**.
+
 You can turn Cloud Sync on or off at any time using the **Sync** toggle in **Settings → Account**. When turned off or when signed out, Asyar operates in strict local-first mode: all outbound sync egress is blocked at the native core, and your data stays completely on this device.
 
 ## End-to-end encryption
@@ -70,8 +72,10 @@ Local backups let you save a snapshot of your Asyar data to a file and restore i
 
 1. Open **Settings → Backup**.
 2. Check the data categories you want to include (for example, Snippets, Agents, Shortcuts).
-3. If the backup includes sensitive data such as API keys, Asyar warns you. You can set an optional password to encrypt the file; if you leave it blank, sensitive fields are stripped from the exported file automatically.
+3. Optionally set a password to encrypt sensitive fields in the file. If you leave it blank, those fields are stripped from the exported file automatically.
 4. Click **Export…** and choose where to save the file.
+
+> **API keys are never included in a backup**, with or without a password. After you restore a backup on another device, enter your keys again in **Settings → AI**. If you import an older backup that still contains keys, Asyar moves them into its encrypted key store on this device.
 
 **Importing a backup:**
 

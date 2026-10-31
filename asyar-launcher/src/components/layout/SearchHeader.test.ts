@@ -30,7 +30,7 @@ describe('SearchHeader context hints', () => {
     expect(view.container.querySelector('kbd')).toBeNull();
   });
 
-  it('keeps the AI affordance on the right with its Tab key hint', () => {
+  it('keeps the AI affordance on the right with its ⇥ key hint', () => {
     const view = render(SearchHeader, {
       value: 'hi there',
       contextHint: {
@@ -42,7 +42,7 @@ describe('SearchHeader context hints', () => {
     });
 
     expect(view.container.querySelector('.context-hint .hint-label')?.textContent).toBe('Ask AI');
-    expect(view.container.querySelector('.context-hint kbd')?.textContent?.trim()).toBe('Tab');
+    expect(view.container.querySelector('.context-hint kbd')?.textContent?.trim()).toBe('⇥');
     expect(view.container.querySelector('.arg-ghost-text')).toBeNull();
   });
 });

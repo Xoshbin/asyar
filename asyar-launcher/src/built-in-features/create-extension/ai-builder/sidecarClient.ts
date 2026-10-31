@@ -11,7 +11,6 @@ export const sidecarClient = {
     prompt: string;
     targetDir: string;
     capabilitySpecDir: string;
-    anthropicKey: string;
   }): Promise<ExtBuilderStartResult> {
     return extBuilderStart(opts);
   },
