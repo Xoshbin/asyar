@@ -41,7 +41,7 @@
     "@tauri-apps/plugin-updater": "~2.10.0",
     "asyar-sdk": "^4.16.0",
     "date-fns": "^4.1.0",
-    "katex": "^0.18.3",
+    "katex": "^0.18.4",
     "marked": "^17.0.5",
     "mathjs": "^15.2.0",
     "mermaid": "^11.16.1",
@@ -76,7 +76,7 @@
     "svelte-eslint-parser": "^1.1.0",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.28.0",
-    "vite": "^6.4.4",
+    "vite": "^6.4.5",
     "vitest": "^5.0.5"
   }
 }
