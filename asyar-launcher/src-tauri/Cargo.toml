@@ -117,7 +117,7 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 # reqwest is host-side Rust HTTP (downloads, the auth/API client, sidecar
 # fetches) that runs in the Rust process with no webview origin.
 reqwest = { version = "0.12", features = ["json", "stream"] } # host-side Rust HTTP
-zip = { version = "2.1", default-features = false, features = ["deflate"] } # For extracting zip files
+zip = { version = "4.6", default-features = false, features = ["deflate"] } # For extracting zip files
 futures-util = "0.3" # For stream handling
 tokio-util = { version = "0.7", features = ["codec"] } # For async file I/O helpers
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
