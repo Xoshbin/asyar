@@ -73,8 +73,9 @@ vi.mock('../mcp/extensionMcpService', () => ({
 vi.mock('../oauth/extensionOAuthService.svelte', () => ({
   extensionOAuthService: {},
 }));
+const mockShellSpawn = vi.hoisted(() => vi.fn());
 vi.mock('../shell/shellService.svelte', () => ({
-  shellService: {},
+  shellService: { spawn: mockShellSpawn },
 }));
 vi.mock('../fileManager/fileManagerService', () => ({
   fileManagerService: {},
@@ -194,6 +195,37 @@ describe('buildServiceRegistry feedback entry', () => {
     expect(mockStartProgressForExtension).toHaveBeenCalledWith('ext.test', {
       title: 'Downloading',
     });
+  });
+});
+
+describe('buildServiceRegistry shell entry', () => {
+  it('shell.spawn forwards stdin, background as quietSuccess, and originRole positionally', async () => {
+    mockShellSpawn.mockResolvedValueOnce({ streaming: true });
+    const registry = makeRegistry();
+
+    await registry.shell.spawn('ext.test', 'cat', ['-n'], 'sp-1', 'view', true, 'worker');
+
+    expect(mockShellSpawn).toHaveBeenCalledWith(
+      'ext.test',
+      'cat',
+      ['-n'],
+      'sp-1',
+      'worker',
+      undefined,
+      undefined,
+      'view',
+      true,
+    );
+  });
+
+  it('shell.spawn defaults quietSuccess to false when background is omitted', async () => {
+    mockShellSpawn.mockResolvedValueOnce({ streaming: true });
+    const registry = makeRegistry();
+
+    await registry.shell.spawn('ext.test', 'ls', [], 'sp-2', undefined, undefined, 'worker');
+
+    expect(mockShellSpawn.mock.calls.at(-1)?.[8]).toBe(false);
+    expect(mockShellSpawn.mock.calls.at(-1)?.[4]).toBe('worker');
   });
 });
 

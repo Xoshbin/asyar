@@ -363,7 +363,15 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
       'worker',
     );
 
-    expect(spawn).toHaveBeenCalledWith('ext.demo', 'ls', ['-la'], 'sp-1', 'worker');
+    expect(spawn).toHaveBeenCalledWith(
+      'ext.demo',
+      'ls',
+      ['-la'],
+      'sp-1',
+      undefined,
+      undefined,
+      'worker',
+    );
   });
 
   it.each(['worker', 'view'] as const)(
@@ -386,6 +394,50 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
       expect(spawn).toHaveBeenCalledWith('ext.demo', 'ls', [], 'sp-4', 'in', true, role);
     },
   );
+
+  it('shell:spawn keeps originRole in the last slot when the SDK sends background/stdin as undefined keys', async () => {
+    const spawn = vi.fn(async () => ({ streaming: true }));
+    const registry = {
+      shell: { spawn, attach: vi.fn(), list: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:shell:spawn',
+      { program: 'ls', args: [], spawnId: 'sp-5', stdin: undefined, background: undefined },
+      'ext.demo',
+      false,
+      'worker',
+    );
+
+    expect(spawn).toHaveBeenCalledWith(
+      'ext.demo',
+      'ls',
+      [],
+      'sp-5',
+      undefined,
+      undefined,
+      'worker',
+    );
+  });
+
+  it('shell:spawn keeps stdin "view" as stdin, not as the role', async () => {
+    const spawn = vi.fn(async () => ({ streaming: true }));
+    const registry = {
+      shell: { spawn, attach: vi.fn(), list: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:shell:spawn',
+      { program: 'cat', args: [], spawnId: 'sp-6', stdin: 'view' },
+      'ext.demo',
+      false,
+      'worker',
+    );
+
+    expect(spawn).toHaveBeenCalledWith('ext.demo', 'cat', [], 'sp-6', 'view', undefined, 'worker');
+  });
 
   it('shell:attach from a view iframe receives originRole=view as the trailing argument', async () => {
     const attach = vi.fn(async () => ({ spawnId: 'sp-2' }));

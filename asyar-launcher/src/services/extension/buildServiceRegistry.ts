@@ -147,30 +147,11 @@ export function buildServiceRegistry(deps: {
         program: string,
         args: string[] = [],
         spawnId: string,
-        stdinOrRole?: string,
-        backgroundOrRole?: boolean | 'view' | 'worker',
-        trailingRole?: 'view' | 'worker',
-      ) => {
-        let stdin: string | undefined;
-        let background = false;
-        let originRole: 'view' | 'worker' | undefined;
-
-        // The router appends originRole after the mapped params, so its position
-        // shifts depending on which optional params the SDK sent.
-        if (stdinOrRole === 'view' || stdinOrRole === 'worker') {
-          originRole = stdinOrRole;
-        } else {
-          stdin = stdinOrRole;
-        }
-
-        if (typeof backgroundOrRole === 'boolean') {
-          background = backgroundOrRole;
-          originRole = trailingRole;
-        } else if (backgroundOrRole === 'view' || backgroundOrRole === 'worker') {
-          originRole = backgroundOrRole;
-        }
-
-        return shellService.spawn(
+        stdin?: string,
+        background?: boolean,
+        originRole?: 'view' | 'worker',
+      ) =>
+        shellService.spawn(
           extensionId,
           program,
           args,
@@ -179,9 +160,8 @@ export function buildServiceRegistry(deps: {
           undefined,
           undefined,
           stdin,
-          background,
-        );
-      },
+          background === true,
+        ),
       list: (extensionId: string) => shellService.list(extensionId),
       attach: (extensionId: string, spawnId: string, originRole?: 'view' | 'worker') =>
         shellService.attach(extensionId, spawnId, originRole),
