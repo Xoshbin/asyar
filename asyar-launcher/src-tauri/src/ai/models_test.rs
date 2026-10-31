@@ -264,7 +264,7 @@ fn credential_conn() -> rusqlite::Connection {
 
 #[test]
 fn model_listing_reads_the_key_stored_under_the_connection_instance_id() {
-    let master = [7u8; 32];
+    let master = crate::crypto::test_master_key();
     let conn = credential_conn();
     crate::storage::ai_credentials::set(&conn, "provider:custom_60f9a975", "sk-custom", &master)
         .unwrap();
@@ -285,7 +285,7 @@ fn model_listing_reads_the_key_stored_under_the_connection_instance_id() {
 
 #[test]
 fn model_listing_does_not_fall_back_to_another_connections_key() {
-    let master = [7u8; 32];
+    let master = crate::crypto::test_master_key();
     let conn = credential_conn();
     crate::storage::ai_credentials::set(&conn, "provider:custom", "sk-other-connection", &master)
         .unwrap();
@@ -304,12 +304,15 @@ fn model_listing_does_not_fall_back_to_another_connections_key() {
 #[test]
 fn model_listing_in_cli_mode_ignores_an_unreadable_key_row() {
     let conn = credential_conn();
-    crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-old", &[11u8; 32]).unwrap();
+    let old_master_key = crate::crypto::test_master_key();
+    let new_master_key = crate::crypto::test_master_key();
+    crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-old", &old_master_key)
+        .unwrap();
     let mut cli = config(None);
     cli.connection_mode = Some("cli".into());
 
     // The keychain master key changed, so the stored row can no longer be decrypted.
-    let key = super::models::resolve_model_listing_key_in(&conn, &[22u8; 32], "openai", &cli)
+    let key = super::models::resolve_model_listing_key_in(&conn, &new_master_key, "openai", &cli)
         .expect("a CLI-mode listing never reads the stored key");
 
     assert!(key.is_none());
@@ -318,11 +321,18 @@ fn model_listing_in_cli_mode_ignores_an_unreadable_key_row() {
 #[test]
 fn model_listing_in_api_mode_still_reports_an_unreadable_key_row() {
     let conn = credential_conn();
-    crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-old", &[11u8; 32]).unwrap();
+    let old_master_key = crate::crypto::test_master_key();
+    let new_master_key = crate::crypto::test_master_key();
+    crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-old", &old_master_key)
+        .unwrap();
 
-    let err =
-        super::models::resolve_model_listing_key_in(&conn, &[22u8; 32], "openai", &config(None))
-            .expect_err("API mode needs the key");
+    let err = super::models::resolve_model_listing_key_in(
+        &conn,
+        &new_master_key,
+        "openai",
+        &config(None),
+    )
+    .expect_err("API mode needs the key");
 
     let message = err.to_string();
     assert!(

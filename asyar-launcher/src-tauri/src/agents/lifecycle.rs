@@ -642,7 +642,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_returns_agent_unchanged_when_its_own_provider_is_usable() {
         let conn = conn();
-        let master_key = [42u8; 32];
+        let master_key = crate::crypto::test_master_key();
         let mut agent = emoji_fallback_agent();
         agent.provider_id = "anthropic".to_string();
         agent.model_id = "claude-sonnet-5".to_string();
@@ -668,7 +668,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_falls_back_and_persists_when_own_provider_is_disabled() {
         let conn = conn();
-        let master_key = [42u8; 32];
+        let master_key = crate::crypto::test_master_key();
         let agent = emoji_fallback_agent();
         insert_agent(&conn, &agent).unwrap();
         let default_agent =
@@ -712,7 +712,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_falls_back_when_own_provider_has_no_config_entry() {
         let conn = conn();
-        let master_key = [42u8; 32];
+        let master_key = crate::crypto::test_master_key();
         let mut agent = emoji_fallback_agent();
         agent.provider_id = "openrouter".to_string();
         agent.model_id = "openrouter/free".to_string();
@@ -746,7 +746,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_falls_back_when_missing_required_api_key() {
         let conn = conn();
-        let master_key = [42u8; 32];
+        let master_key = crate::crypto::test_master_key();
         let mut agent = emoji_fallback_agent();
         agent.provider_id = "anthropic".to_string();
         agent.model_id = "claude-old".to_string();
@@ -787,7 +787,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_does_not_fall_back_onto_itself() {
         let conn = conn();
-        let master_key = [42u8; 32];
+        let master_key = crate::crypto::test_master_key();
         let mut agent = emoji_fallback_agent();
         agent.id = "default-agent".to_string();
         insert_agent(&conn, &agent).unwrap();
@@ -811,7 +811,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_leaves_unchanged_when_no_default_agent() {
         let conn = conn();
-        let master_key = [42u8; 32];
+        let master_key = crate::crypto::test_master_key();
         let agent = emoji_fallback_agent();
         insert_agent(&conn, &agent).unwrap();
         let providers = vec![provider("ollama", false, true)];
@@ -828,7 +828,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_leaves_unchanged_when_default_is_also_unusable() {
         let conn = conn();
-        let master_key = [42u8; 32];
+        let master_key = crate::crypto::test_master_key();
         let agent = emoji_fallback_agent();
         insert_agent(&conn, &agent).unwrap();
         let default_agent = upsert_default_agent(&conn, None, "openai", "gpt-4o").unwrap();
@@ -858,7 +858,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_errors_on_missing_agent_id() {
         let conn = conn();
-        let master_key = [42u8; 32];
+        let master_key = crate::crypto::test_master_key();
         let result = resolve_runnable_agent(
             &conn,
             &master_key,
@@ -873,7 +873,7 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_with_key_only_in_ai_credentials_is_not_healed() {
         let conn = conn();
-        let master_key = [42u8; 32];
+        let master_key = crate::crypto::test_master_key();
 
         // Agent configured with openai, but config has no api_key
         let agent = existing_agent("agent-1", "My OpenAI Agent");
@@ -927,8 +927,8 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_with_needs_reentry_fails_with_reenter_error_and_does_not_heal() {
         let conn = conn();
-        let old_master_key = [11u8; 32];
-        let new_master_key = [22u8; 32];
+        let old_master_key = crate::crypto::test_master_key();
+        let new_master_key = crate::crypto::test_master_key();
 
         let agent = existing_agent("agent-2", "My OpenAI Agent");
         insert_agent(&conn, &agent).unwrap();
@@ -986,8 +986,8 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_in_cli_mode_ignores_a_stale_key_row() {
         let conn = conn();
-        let old_master_key = [11u8; 32];
-        let new_master_key = [22u8; 32];
+        let old_master_key = crate::crypto::test_master_key();
+        let new_master_key = crate::crypto::test_master_key();
 
         let agent = existing_agent("agent-cli", "My CLI Agent");
         insert_agent(&conn, &agent).unwrap();
@@ -1023,16 +1023,24 @@ mod tests {
     #[test]
     fn resolve_runnable_agent_in_api_mode_with_needs_reentry_keeps_the_reenter_error() {
         let conn = conn();
+        let old_master_key = crate::crypto::test_master_key();
+        let new_master_key = crate::crypto::test_master_key();
         let agent = existing_agent("agent-api", "My API Agent");
         insert_agent(&conn, &agent).unwrap();
 
         let providers = vec![provider("openai", true, false)];
         let configs = HashMap::from([("openai".to_string(), provider_config(true, None))]);
-        crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-fake", &[11u8; 32])
+        crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-fake", &old_master_key)
             .unwrap();
 
-        let result =
-            resolve_runnable_agent(&conn, &[22u8; 32], &agent.id, None, &providers, &configs);
+        let result = resolve_runnable_agent(
+            &conn,
+            &new_master_key,
+            &agent.id,
+            None,
+            &providers,
+            &configs,
+        );
 
         match result {
             Err(crate::error::AppError::Validation(msg)) => assert!(

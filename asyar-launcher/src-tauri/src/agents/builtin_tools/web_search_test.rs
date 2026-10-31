@@ -9,12 +9,12 @@ static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn test_tool() -> WebSearchTool {
     let store = crate::storage::DataStore::in_memory().unwrap();
-    WebSearchTool::with_store(store, [0u8; 32])
+    WebSearchTool::with_store(store, crate::crypto::test_master_key())
 }
 
 fn test_tool_with_base_url(url: String) -> WebSearchTool {
     let store = crate::storage::DataStore::in_memory().unwrap();
-    WebSearchTool::with_store_and_base_url(store, [0u8; 32], url)
+    WebSearchTool::with_store_and_base_url(store, crate::crypto::test_master_key(), url)
 }
 
 #[test]
@@ -469,7 +469,7 @@ async fn test_web_search_uses_stored_key_even_when_ipc_config_carries_different_
 
     let data_store = crate::storage::DataStore::in_memory().unwrap();
     let conn = data_store.conn().unwrap();
-    let master_key = [77u8; 32];
+    let master_key = crate::crypto::test_master_key();
 
     crate::storage::ai_credentials::set(
         &conn,
@@ -522,7 +522,7 @@ async fn test_web_search_model_injected_tavily_config_ignored_user_brave_used() 
 
     let data_store = crate::storage::DataStore::in_memory().unwrap();
     let conn = data_store.conn().unwrap();
-    let master_key = [77u8; 32];
+    let master_key = crate::crypto::test_master_key();
 
     crate::storage::ai_credentials::set(
         &conn,
@@ -579,12 +579,16 @@ async fn test_web_search_model_injected_config_with_no_user_config_uses_duckduck
 
     let data_store = crate::storage::DataStore::in_memory().unwrap();
     let conn = data_store.conn().unwrap();
-    let stored_master_key = [1u8; 32];
+    let stored_master_key = crate::crypto::test_master_key();
     crate::storage::ai_credentials::set(&conn, "web_search:brave", "dummy-key", &stored_master_key)
         .unwrap();
 
-    // Tool has wrong master key [99u8; 32]. If resolve_key were called, it would fail with decrypt error.
-    let tool = WebSearchTool::with_store_and_base_url(data_store, [99u8; 32], server.url());
+    // Tool has a different (wrong) master key. If resolve_key were called, it would fail with decrypt error.
+    let tool = WebSearchTool::with_store_and_base_url(
+        data_store,
+        crate::crypto::test_master_key(),
+        server.url(),
+    );
 
     // User has no web_search config (None)
     let context = crate::agents::tools::ToolContext { web_search: None };
@@ -724,7 +728,7 @@ async fn test_web_search_brave_key_is_never_sent_when_engine_is_tavily() {
 
     let data_store = crate::storage::DataStore::in_memory().unwrap();
     let conn = data_store.conn().unwrap();
-    let master_key = [42u8; 32];
+    let master_key = crate::crypto::test_master_key();
     crate::storage::ai_credentials::set(&conn, "web_search:brave", "brave-secret-key", &master_key)
         .unwrap();
 
@@ -763,7 +767,7 @@ async fn test_web_search_each_engine_uses_only_its_own_stored_key() {
 
     let data_store = crate::storage::DataStore::in_memory().unwrap();
     let conn = data_store.conn().unwrap();
-    let master_key = [43u8; 32];
+    let master_key = crate::crypto::test_master_key();
     crate::storage::ai_credentials::set(&conn, "web_search:brave", "brave-own-key", &master_key)
         .unwrap();
     crate::storage::ai_credentials::set(&conn, "web_search:tavily", "tavily-own-key", &master_key)

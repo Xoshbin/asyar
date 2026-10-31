@@ -17,7 +17,8 @@ fn make_store() -> crate::storage::DataStore {
     crate::storage::create_test_store_with_foreign_keys()
 }
 
-const TEST_MASTER_KEY: [u8; 32] = [42u8; 32];
+static TEST_MASTER_KEY: std::sync::LazyLock<[u8; 32]> =
+    std::sync::LazyLock::new(crate::crypto::test_master_key);
 
 fn seed_test_credential(store: &crate::storage::DataStore, provider_id: &str, key: &str) {
     crate::storage::ai_credentials::set(
@@ -32,7 +33,7 @@ fn seed_test_credential(store: &crate::storage::DataStore, provider_id: &str, ke
 fn test_db_and_key() -> (rusqlite::Connection, [u8; 32]) {
     let conn = rusqlite::Connection::open_in_memory().unwrap();
     crate::storage::migrations::run(&conn).unwrap();
-    (conn, [42u8; 32])
+    (conn, *TEST_MASTER_KEY)
 }
 
 fn chat_message(role: &str, content: &str) -> crate::ai::types::ChatMessage {
@@ -1253,7 +1254,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
     registry
         .register_builtin(Arc::new(WebSearchTool::with_store_and_base_url(
             store.clone(),
-            TEST_MASTER_KEY,
+            *TEST_MASTER_KEY,
             search_server.url(),
         )))
         .unwrap();

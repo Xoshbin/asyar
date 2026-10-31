@@ -412,9 +412,15 @@ mod web_search_status_tests {
     fn web_search_status_is_reported_per_keyed_engine() {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         crate::storage::migrations::run(&conn).unwrap();
-        let key = [5u8; 32];
+        let key = crate::crypto::test_master_key();
         ai_credentials::set(&conn, "web_search:brave", "k", &key).unwrap();
-        ai_credentials::set(&conn, "web_search:serply", "k", &[6u8; 32]).unwrap();
+        ai_credentials::set(
+            &conn,
+            "web_search:serply",
+            "k",
+            &crate::crypto::test_master_key(),
+        )
+        .unwrap();
 
         let all = ai_credentials::list_all_statuses(&conn, &key).unwrap();
         let states = web_search_states(&all);
