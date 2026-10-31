@@ -137,7 +137,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'oauth:revokeToken': ['providerId'],
 
   // shell
-  'shell:spawn': ['program', 'args', 'spawnId', 'stdin'],
+  'shell:spawn': ['program', 'args', 'spawnId', 'stdin', 'background'],
   'shell:list': [],
   'shell:attach': ['spawnId'],
   'shell:writeStdin': ['spawnId', 'data'],

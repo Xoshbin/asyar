@@ -366,6 +366,27 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
     expect(spawn).toHaveBeenCalledWith('ext.demo', 'ls', ['-la'], 'sp-1', 'worker');
   });
 
+  it.each(['worker', 'view'] as const)(
+    'shell:spawn with background:true from a %s iframe forwards background then originRole',
+    async (role) => {
+      const spawn = vi.fn(async () => ({ streaming: true }));
+      const registry = {
+        shell: { spawn, attach: vi.fn(), list: vi.fn() },
+      } as unknown as ServiceRegistry;
+      const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+      await dispatchAs(router)(
+        'asyar:api:shell:spawn',
+        { program: 'ls', args: [], spawnId: 'sp-4', stdin: 'in', background: true },
+        'ext.demo',
+        false,
+        role,
+      );
+
+      expect(spawn).toHaveBeenCalledWith('ext.demo', 'ls', [], 'sp-4', 'in', true, role);
+    },
+  );
+
   it('shell:attach from a view iframe receives originRole=view as the trailing argument', async () => {
     const attach = vi.fn(async () => ({ spawnId: 'sp-2' }));
     const registry = {
