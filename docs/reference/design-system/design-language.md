@@ -1087,7 +1087,9 @@ accent colour, and the short token it will type or press as a chip.
 - **It is the one place Principle III is bent.** Exactly one element is meant to
   be the thing `⏎` acts on; a hint competes for the eye on purpose. The effect is
   held mild — a 10% tint, never a solid fill, no border — so it is noticed
-  without outranking the selected row. The selected state is never restyled.
+  without outranking the selected row. The selected band is never restyled;
+  the accent title and chip stay when a hint is selected, since that is the
+  moment `⏎` is about to act on it.
 - **One look, defined once.** Hints that each chose their own treatment would
   drift into a second visual language. The look lives in `LauncherListRow`,
   is reached through `variant: 'hint'`, and `hintLookGuard.test.ts` fails if its

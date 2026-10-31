@@ -191,7 +191,8 @@
 
   /* The hint row, shared by every hint in the launcher. The tint and the text come from the
      same accent ramp (the house formula), so they always agree. The selected
-     state is left to .selected-result, which is never restyled. */
+     band is left to .selected-result, which is never restyled; the accent title
+     and chip stay on purpose, so a selected hint still reads as an offer. */
   .hint-row:not(.selected-result) {
     background-color: color-mix(in srgb, var(--accent-primary) 10%, transparent);
   }

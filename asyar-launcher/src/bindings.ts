@@ -451,7 +451,7 @@ export type ReadAlign = "none" | "line";
  */
 export type ResultPriority = "top";
 
-// The one extension a query names, offered as a "search only in <name>" row.
+// The one extension a query names, offered as a "Search only in Coffee" row.
 export type ScopeHint = {
 	extensionId: string,
 	extensionName: string,

@@ -25,7 +25,7 @@ Asyar uses a **Two-Loop Verification Model** to balance developer/agent velocity
 | :-------------- | :------------------------------ | :------------------------------------------------------------------------------- |
 | **Full Matrix** | `pnpm check:ci` (or `--all`)    | Runs complete workspace format, design, Vitest, and Rust test suite.             |
 | **Frontend**    | `pnpm check:ci:frontend` (`-f`) | Runs Prettier check, Design System compliance, and all frontend Vitest suites.   |
-| **Rust**        | `pnpm check:ci:rust` (`-r`)     | Runs `cargo fmt --check`, `cargo clippy`, and all Rust unit/integration tests.   |
+| **Rust**        | `pnpm check:ci:rust` (`-r`)     | Runs `cargo fmt --check`, `cargo clippy`, `cargo doc`, and all Rust tests.       |
 | **Changed**     | `pnpm check:ci:changed` (`-c`)  | Inspects `git status` / `git diff` to automatically verify only touched domains. |
 
 ### Steps Executed in Full Matrix (`pnpm check:ci`):
@@ -35,7 +35,8 @@ Asyar uses a **Two-Loop Verification Model** to balance developer/agent velocity
 3. **Full Frontend & Workspace Tests**: `pnpm -r --if-present test:run`
 4. **Rust Formatting**: `cargo fmt --check` (in `asyar-launcher/src-tauri`)
 5. **Rust Clippy**: `cargo clippy --workspace --all-targets -- -D warnings` (in `asyar-launcher/src-tauri`)
-6. **Rust Test Suite**: `cargo test --workspace` (in `asyar-launcher/src-tauri`)
+6. **Rust Docs**: `RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items` (in `asyar-launcher/src-tauri`)
+7. **Rust Test Suite**: `cargo test --workspace` (in `asyar-launcher/src-tauri`)
 
 > **Always pass `--workspace` to `cargo test` and `cargo clippy`.** The Cargo workspace sets
 > `default-members = ["."]`, so the bare commands silently skip the ~610 tests in

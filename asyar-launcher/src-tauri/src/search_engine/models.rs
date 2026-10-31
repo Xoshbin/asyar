@@ -138,7 +138,7 @@ pub struct AliasMatch {
     pub auto_execute: bool,
 }
 
-/// The one extension a query names, offered as a "search only in <name>" row.
+/// The one extension a query names, offered as a "Search only in Coffee" row.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ScopeHint {

@@ -668,10 +668,15 @@ impl SearchState {
                 })
             });
             let subquery = subquery.as_str();
+            let exact = extension_name::exact_scope_ids(&first_word, &names);
+            let in_scope = |cmd: &Command| match &exact {
+                Some(ids) => ids.contains(cmd.extension.as_str()),
+                None => ext_matches(cmd, &first_word),
+            };
 
             let has_extension_match = !first_word.is_empty()
                 && guard.iter().any(|item| match item {
-                    SearchableItem::Command(cmd) => ext_matches(cmd, &first_word),
+                    SearchableItem::Command(cmd) => in_scope(cmd),
                     SearchableItem::Application(_) => false,
                 });
 
@@ -681,7 +686,7 @@ impl SearchState {
                 let matching_items: Vec<&SearchableItem> = guard
                     .iter()
                     .filter(|item| match item {
-                        SearchableItem::Command(cmd) => ext_matches(cmd, &first_word),
+                        SearchableItem::Command(cmd) => in_scope(cmd),
                         SearchableItem::Application(_) => false,
                     })
                     .collect();
@@ -739,12 +744,14 @@ impl SearchState {
                 let mut matching_items: Vec<&SearchableItem> = guard
                     .iter()
                     .filter(|item| match item {
+                        // A command named like a loose scope joins it; under an
+                        // exact name, only that extension's commands do.
                         SearchableItem::Command(cmd) => {
-                            ext_matches(cmd, &first_word)
-                                || item
-                                    .search_names()
-                                    .iter()
-                                    .any(|name| matcher.fuzzy_match(name, &first_word).is_some())
+                            in_scope(cmd)
+                                || (exact.is_none()
+                                    && item.search_names().iter().any(|name| {
+                                        matcher.fuzzy_match(name, &first_word).is_some()
+                                    }))
                         }
                         SearchableItem::Application(_) => false,
                     })
@@ -1390,11 +1397,16 @@ impl SearchState {
                 .extension_names
                 .read()
                 .map_err(|_| SearchError::LockError)?;
+            let exact = extension_name::exact_scope_ids(&scope_token, &extension_names);
 
             let mut combined: Vec<models::SearchResult> = raw;
             for ext in external_results {
                 let matches_scope = if scope_token.is_empty() {
                     true
+                } else if let Some(ids) = &exact {
+                    ext.extension_id
+                        .as_deref()
+                        .is_some_and(|id| ids.contains(id))
                 } else {
                     let ext_matches = ext
                         .extension_id
