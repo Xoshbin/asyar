@@ -304,6 +304,32 @@ pub async fn runs_write(app: AppHandle, id: String, line: String) -> Result<(), 
     runs_write_impl(registry, buffer, &emit, id, line)
 }
 
+/// Pure parser for the `settings.scripts.notifyOnSuccess` flag. Defaults to
+/// `true` when the path is absent or not a boolean so a fresh install (or a
+/// settings blob from before this field existed) keeps notifying.
+///
+/// `settings_root` is the value under the `"settings"` key of `settings.dat`,
+/// as written by `settingsService.save()`. Guarded on the TS side by the
+/// `rust runs_done notify-on-success contract` block in
+/// `settingsService.test.ts`.
+pub fn parse_notify_on_script_success(settings_root: Option<&serde_json::Value>) -> bool {
+    settings_root
+        .and_then(|s| s.get("scripts"))
+        .and_then(|s| s.get("notifyOnSuccess"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
+}
+
+/// Reads `settings.scripts.notifyOnSuccess` from `settings.dat`, defaulting to
+/// `true` when the store cannot be opened.
+fn read_notify_on_script_success(app: &tauri::AppHandle) -> bool {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store("settings.dat") else {
+        return true;
+    };
+    parse_notify_on_script_success(store.get("settings").as_ref())
+}
+
 #[tauri::command]
 pub async fn runs_done(
     app: AppHandle,
@@ -318,8 +344,12 @@ pub async fn runs_done(
     let emit = |event: &str, payload: &serde_json::Value| app.emit(event, payload);
     runs_done_impl(run_registry, buffer, &emit, &conn, id.clone())?;
 
-    if let Some(run) = run_registry.get(&id) {
-        let _ = maybe_send_run_notification(registry.inner(), backend.inner().as_ref(), &run);
+    // Success notifications are user-gated; `runs_fail` deliberately has no
+    // such gate so failures always notify.
+    if read_notify_on_script_success(&app) {
+        if let Some(run) = run_registry.get(&id) {
+            let _ = maybe_send_run_notification(registry.inner(), backend.inner().as_ref(), &run);
+        }
     }
     Ok(())
 }
@@ -424,6 +454,30 @@ pub async fn runs_upsert_bucket(
 mod tests {
     use super::*;
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn parse_notify_on_script_success_reads_true() {
+        let s = serde_json::json!({ "scripts": { "notifyOnSuccess": true } });
+        assert!(parse_notify_on_script_success(Some(&s)));
+    }
+
+    #[test]
+    fn parse_notify_on_script_success_reads_false() {
+        let s = serde_json::json!({ "scripts": { "notifyOnSuccess": false } });
+        assert!(!parse_notify_on_script_success(Some(&s)));
+    }
+
+    #[test]
+    fn parse_notify_on_script_success_defaults_true_when_scripts_missing() {
+        assert!(parse_notify_on_script_success(Some(&serde_json::json!({}))));
+        let non_bool = serde_json::json!({ "scripts": { "notifyOnSuccess": "no" } });
+        assert!(parse_notify_on_script_success(Some(&non_bool)));
+    }
+
+    #[test]
+    fn parse_notify_on_script_success_defaults_true_when_none() {
+        assert!(parse_notify_on_script_success(None));
+    }
 
     // ── EventCapture ─────────────────────────────────────────────────────────
 

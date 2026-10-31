@@ -575,7 +575,12 @@
       "no_directories": "尚未新增指令碼目錄",
       "section_directories": "指令碼目錄",
       "directories_description": "在此新增的目錄會被監視其中的可執行指令碼。指令碼會自動被發現 —— 無需重新啟動。",
-      "add_directory": "新增目錄……"
+      "add_directory": "新增目錄……",
+      "section_behavior": "執行與回饋",
+      "notify_on_success": "腳本完成時通知",
+      "notify_on_success_description": "腳本成功完成時顯示系統通知。失敗時一律會通知。",
+      "keep_in_launcher": "在啟動器清單中保留成功的腳本",
+      "keep_in_launcher_description": "在啟動器中保留「已完成」列直到被關閉，以便查看其輸出。失敗的腳本一律會保留。"
     },
     "runtimes": {
       "title": "已安裝的執行時",

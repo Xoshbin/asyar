@@ -4,6 +4,7 @@ import type { Run, RunKind } from 'asyar-sdk/contracts';
 
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { postToExtension } from '../extension/extensionDelivery';
+import { settingsService } from '../settings/settingsService.svelte';
 import { shiftIndex } from '../../lib/listSelection.svelte';
 
 export interface LocalRunHandle {
@@ -212,7 +213,17 @@ export class RunService {
         this.keptAgents = await this.upsertBucket(this.keptAgents, run, 'kept-agent');
       }
 
-      if (run.status === 'succeeded' && run.kind === 'shell-script' && !run.quietSuccess) {
+      // Effective quiet = global setting off OR the run asked for quiet; a run
+      // can only be quieter than the setting, never louder. Failures above are
+      // unaffected.
+      const keepSuccessful =
+        settingsService.currentSettings.scripts?.keepSuccessfulInLauncher ?? true;
+      if (
+        run.status === 'succeeded' &&
+        run.kind === 'shell-script' &&
+        keepSuccessful &&
+        !run.quietSuccess
+      ) {
         // Scripts persist after success so the user can read the output.
         // Rust dedupes by subjectId when present so re-running the same
         // script row collapses into one entry; anonymous (no subjectId)

@@ -575,7 +575,12 @@
       "no_directories": "No script directories added yet",
       "section_directories": "Script directories",
       "directories_description": "Directories added here will be watched for executable scripts. Scripts are discovered automatically — no restart required.",
-      "add_directory": "Add directory…"
+      "add_directory": "Add directory…",
+      "section_behavior": "Execution & feedback",
+      "notify_on_success": "Notify when a script finishes",
+      "notify_on_success_description": "Show a system notification when a script completes successfully. Failures always notify.",
+      "keep_in_launcher": "Keep successful scripts in launcher list",
+      "keep_in_launcher_description": "Keep a Done row in the launcher until dismissed so you can read its output. Failures are always kept."
     },
     "runtimes": {
       "title": "Installed Runtimes",
