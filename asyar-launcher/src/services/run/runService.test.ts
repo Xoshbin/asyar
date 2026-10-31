@@ -11,6 +11,11 @@ vi.mock('../../lib/ipc/invokeSafe', () => ({ invokeSafe: vi.fn() }));
 vi.mock('../feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn() },
 }));
+vi.mock('../settings/settingsService.svelte', () => ({
+  settingsService: {
+    currentSettings: { scripts: { notifyOnSuccess: true, keepSuccessfulInLauncher: true } },
+  },
+}));
 vi.mock('../extension/extensionIframeSelector', () => ({
   pickExtensionIframe: vi.fn(),
 }));
@@ -19,6 +24,7 @@ import { runService } from './runService.svelte';
 import { invokeSafe } from '../../lib/ipc/invokeSafe';
 import { listen } from '@tauri-apps/api/event';
 import { feedbackService } from '../feedback/feedbackService.svelte';
+import { settingsService } from '../settings/settingsService.svelte';
 import { pickExtensionIframe } from '../extension/extensionIframeSelector';
 import type { Run } from 'asyar-sdk/contracts';
 
@@ -57,6 +63,10 @@ function mockBucketUpsertDefault() {
 }
 
 beforeEach(() => {
+  (settingsService.currentSettings as any).scripts = {
+    notifyOnSuccess: true,
+    keepSuccessfulInLauncher: true,
+  };
   runService.reset();
   vi.clearAllMocks();
   mockBucketUpsertDefault();
@@ -291,6 +301,20 @@ describe('onStateChanged', () => {
 
     await runService['onStateChanged'](
       makeRun({ id: 'q2', status: 'failed', kind: 'shell-script', quietSuccess: true }),
+    );
+    expect(runService.unacknowledgedFailures).toHaveLength(1);
+  });
+
+  it('keepSuccessfulInLauncher_false_skips_scriptResults_but_failures_still_surface', async () => {
+    (settingsService.currentSettings as any).scripts.keepSuccessfulInLauncher = false;
+
+    await runService['onStateChanged'](
+      makeRun({ id: 's1', status: 'succeeded', kind: 'shell-script' }),
+    );
+    expect(runService.unacknowledgedScriptResults).toHaveLength(0);
+
+    await runService['onStateChanged'](
+      makeRun({ id: 's2', status: 'failed', kind: 'shell-script' }),
     );
     expect(runService.unacknowledgedFailures).toHaveLength(1);
   });

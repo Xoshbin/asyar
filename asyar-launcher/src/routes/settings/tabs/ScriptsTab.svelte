@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Icon, EmptyState, SettingsCard } from '../../../components';
+  import { Button, Icon, EmptyState, SettingsCard, SettingsRow, Toggle } from '../../../components';
   import {
     scriptsListDirectories,
     scriptsPickDirectory,
@@ -9,11 +9,27 @@
   } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
   import { t } from '../../../services/i18n';
+  import { settingsService } from '../../../services/settings/settingsService.svelte';
 
   let directories = $state<string[]>([]);
   let isLoading = $state(true);
   let isBrowsing = $state(false);
   let errorMessage = $state<string | null>(null);
+
+  let notifyOnSuccess = $derived(settingsService.currentSettings.scripts?.notifyOnSuccess ?? true);
+  let keepSuccessfulInLauncher = $derived(
+    settingsService.currentSettings.scripts?.keepSuccessfulInLauncher ?? true,
+  );
+
+  async function handleToggleNotifyOnSuccess() {
+    await settingsService.updateSettings('scripts', { notifyOnSuccess: !notifyOnSuccess });
+  }
+
+  async function handleToggleKeepSuccessful() {
+    await settingsService.updateSettings('scripts', {
+      keepSuccessfulInLauncher: !keepSuccessfulInLauncher,
+    });
+  }
 
   async function fetchDirectories() {
     try {
@@ -64,6 +80,24 @@
     }
   }
 </script>
+
+<div class="section-header">{t('settings.scripts.section_behavior')}</div>
+<div id="scripts-behavior">
+  <SettingsCard>
+    <SettingsRow
+      label={t('settings.scripts.notify_on_success')}
+      description={t('settings.scripts.notify_on_success_description')}
+    >
+      <Toggle checked={notifyOnSuccess} onchange={handleToggleNotifyOnSuccess} />
+    </SettingsRow>
+    <SettingsRow
+      label={t('settings.scripts.keep_in_launcher')}
+      description={t('settings.scripts.keep_in_launcher_description')}
+    >
+      <Toggle checked={keepSuccessfulInLauncher} onchange={handleToggleKeepSuccessful} />
+    </SettingsRow>
+  </SettingsCard>
+</div>
 
 <div class="section-header">{t('settings.scripts.section_directories')}</div>
 <div id="scripts-directories">

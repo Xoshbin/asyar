@@ -575,7 +575,12 @@
       "no_directories": "Nenhum diretório de scripts adicionado ainda",
       "section_directories": "Diretórios de scripts",
       "directories_description": "Os diretórios adicionados aqui serão monitorados para scripts executáveis. Os scripts são descobertos automaticamente — não é necessário reiniciar.",
-      "add_directory": "Adicionar diretório…"
+      "add_directory": "Adicionar diretório…",
+      "section_behavior": "Execução e feedback",
+      "notify_on_success": "Notificar quando um script terminar",
+      "notify_on_success_description": "Mostrar uma notificação do sistema quando um script for concluído com sucesso. Falhas sempre notificam.",
+      "keep_in_launcher": "Manter scripts bem-sucedidos na lista do launcher",
+      "keep_in_launcher_description": "Mantém uma linha \"Concluído\" no launcher até ser dispensada, para você ler a saída. Falhas são sempre mantidas."
     },
     "runtimes": {
       "title": "Ambientes de Execução Instalados",

@@ -85,6 +85,7 @@ const DEFAULT: AppSettings = {
     indexHidden: false,
     recentIgnorePatterns: [],
   },
+  scripts: { notifyOnSuccess: true, keepSuccessfulInLauncher: true },
 };
 
 const svc = settingsService as any;
@@ -433,6 +434,42 @@ describe('rust merged_search disabled-app contract', () => {
     };
     const serialized = JSON.parse(JSON.stringify(settings));
     expect(serialized.search.applicationEnabled.app_x).toBe(false);
+  });
+});
+
+// ── scripts ───────────────────────────────────────────────────────────────────
+
+describe('scripts settings', () => {
+  const merge = (stored: unknown) => svc.mergeWithDefaults(stored);
+
+  it('defaults both flags to true', () => {
+    const merged = merge(null);
+    expect(merged.scripts).toEqual({ notifyOnSuccess: true, keepSuccessfulInLauncher: true });
+  });
+
+  it('fills the scripts section for stored settings that predate it', () => {
+    const { scripts: _omit, ...legacy } = JSON.parse(JSON.stringify(DEFAULT));
+    expect(merge(legacy).scripts).toEqual({
+      notifyOnSuccess: true,
+      keepSuccessfulInLauncher: true,
+    });
+  });
+
+  it('merges a partial scripts section over the defaults', () => {
+    const merged = merge({ ...DEFAULT, scripts: { notifyOnSuccess: false } });
+    expect(merged.scripts).toEqual({ notifyOnSuccess: false, keepSuccessfulInLauncher: true });
+  });
+});
+
+describe('rust runs_done notify-on-success contract', () => {
+  it('serializes the flag at settings.scripts.notifyOnSuccess as a literal boolean', () => {
+    svc.currentSettings = svc.mergeWithDefaults({
+      ...DEFAULT,
+      scripts: { notifyOnSuccess: false },
+    });
+    const serialized = JSON.parse(JSON.stringify(svc.currentSettings));
+    expect(serialized.scripts.notifyOnSuccess).toBe(false);
+    expect(Object.keys(serialized)).toContain('scripts');
   });
 });
 

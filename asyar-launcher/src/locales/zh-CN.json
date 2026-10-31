@@ -575,7 +575,12 @@
       "no_directories": "尚未添加脚本目录",
       "section_directories": "脚本目录",
       "directories_description": "在此添加的目录会被监视其中的可执行脚本。脚本会自动被发现 —— 无需重启。",
-      "add_directory": "添加目录……"
+      "add_directory": "添加目录……",
+      "section_behavior": "执行与反馈",
+      "notify_on_success": "脚本完成时通知",
+      "notify_on_success_description": "脚本成功完成时显示系统通知。失败时始终会通知。",
+      "keep_in_launcher": "在启动器列表中保留成功的脚本",
+      "keep_in_launcher_description": "在启动器中保留“已完成”行直到被关闭，以便查看其输出。失败的脚本始终会保留。"
     },
     "runtimes": {
       "title": "已安装的运行时",

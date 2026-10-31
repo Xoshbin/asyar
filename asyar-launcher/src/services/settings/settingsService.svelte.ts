@@ -105,6 +105,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   clipboardHistory: {
     retentionMs: 90 * 24 * 60 * 60 * 1000, // 90 days
   },
+  scripts: { notifyOnSuccess: true, keepSuccessfulInLauncher: true },
 };
 
 /** Returns the canonical settings store path shared by every window. */
@@ -454,6 +455,10 @@ class SettingsService implements ISettingsService {
         clipboardHistory: typedStored?.clipboardHistory
           ? { ...DEFAULT_SETTINGS.clipboardHistory, ...typedStored.clipboardHistory }
           : DEFAULT_SETTINGS.clipboardHistory,
+        scripts: {
+          ...DEFAULT_SETTINGS.scripts,
+          ...(typedStored?.scripts ?? {}),
+        },
       };
     } catch (error) {
       logService.error(`Error merging settings: ${error}`);
