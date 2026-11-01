@@ -6,6 +6,7 @@ import { logService } from '../log/logService';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { emit } from '@tauri-apps/api/event';
 import * as commands from '../../lib/ipc/commands';
+import { IpcError, isFeedbackShape } from '../../lib/ipc/invokeSafe';
 import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/types';
 
 /**
@@ -15,6 +16,96 @@ import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/typ
  * pin a magic number twice.
  */
 export const PERIODIC_SYNC_INTERVAL_MS = 60 * 1000;
+
+export const BACKOFF_SCHEDULE_MS = [1 * 60 * 1000, 2 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000];
+
+export type CloudSyncStatus = 'idle' | 'syncing' | 'error' | 'not_entitled' | 'quota_exceeded';
+
+export type SyncErrorClassification =
+  | { type: 'auth_expired'; message: string }
+  | { type: 'entitlement_required'; code: string }
+  | { type: 'quota_exceeded'; usedBytes: number; limitBytes: number; message: string }
+  | { type: 'transient'; kind: string; retryAfterSecs?: number; message: string }
+  | { type: 'other'; message: string };
+
+export function classifySyncError(err: unknown): SyncErrorClassification {
+  const diagnostic =
+    err instanceof IpcError
+      ? err.diagnostic
+      : isFeedbackShape(err)
+        ? err
+        : typeof err === 'object' &&
+            err !== null &&
+            'kind' in err &&
+            typeof (err as any).kind === 'string'
+          ? (err as { kind: string; message?: string; context?: Record<string, string> })
+          : null;
+  const errMsg =
+    typeof err === 'object' &&
+    err !== null &&
+    'message' in err &&
+    typeof (err as any).message === 'string'
+      ? (err as any).message
+      : err instanceof Error
+        ? err.message
+        : String(err);
+
+  if (diagnostic) {
+    if (diagnostic.kind === 'auth_failure') {
+      return { type: 'auth_expired', message: errMsg };
+    }
+    if (diagnostic.kind === 'sync_entitlement_required') {
+      const code = diagnostic.context?.code ?? 'sync.entitlement-required';
+      if (code === 'sync.ai-entitlement-required') {
+        return { type: 'other', message: errMsg || 'sync.ai-entitlement-required' };
+      }
+      return { type: 'entitlement_required', code };
+    }
+    if (diagnostic.kind === 'sync_quota_exceeded') {
+      const usedBytes = Number(diagnostic.context?.usedBytes ?? 0);
+      const limitBytes = Number(diagnostic.context?.limitBytes ?? 0);
+      return { type: 'quota_exceeded', usedBytes, limitBytes, message: errMsg };
+    }
+    if (diagnostic.kind === 'sync_rate_limited') {
+      const retryAfterSecs = diagnostic.context?.retryAfter
+        ? Number(diagnostic.context.retryAfter)
+        : 60;
+      return { type: 'transient', kind: diagnostic.kind, retryAfterSecs, message: errMsg };
+    }
+    if (diagnostic.kind === 'sync_server_unavailable' || diagnostic.kind === 'network_failure') {
+      return { type: 'transient', kind: diagnostic.kind, message: errMsg };
+    }
+  }
+
+  // Fallbacks for non-IPC / string / mock errors without false 401 substring traps:
+  if (
+    errMsg.includes('Token expired') ||
+    errMsg.includes('Not logged in') ||
+    /\b401\s+(?:unauthorized|token)/i.test(errMsg) ||
+    /unauthenticated/i.test(errMsg)
+  ) {
+    return { type: 'auth_expired', message: errMsg };
+  }
+  if (errMsg.includes('sync.ai-entitlement-required')) {
+    return { type: 'other', message: errMsg };
+  }
+  if (errMsg.includes('sync_entitlement_required') || errMsg.includes('entitlement required')) {
+    return { type: 'entitlement_required', code: 'sync.entitlement-required' };
+  }
+  if (errMsg.includes('sync_quota_exceeded') || errMsg.includes('quota exceeded')) {
+    return { type: 'quota_exceeded', usedBytes: 0, limitBytes: 0, message: errMsg };
+  }
+  if (
+    errMsg.includes('sync_rate_limited') ||
+    errMsg.includes('sync_server_unavailable') ||
+    errMsg.includes('network_failure') ||
+    errMsg.includes('Network error')
+  ) {
+    return { type: 'transient', kind: 'network_failure', message: errMsg };
+  }
+
+  return { type: 'other', message: errMsg };
+}
 
 /**
  * Per-item cloud sync (Layer 4a, delta-sync).
@@ -41,9 +132,13 @@ export const PERIODIC_SYNC_INTERVAL_MS = 60 * 1000;
  * stops sync when that preference flips; [`stop`] (logout) pauses operations while lifetime listeners stay armed.
  */
 class CloudSyncService {
-  status = $state<'idle' | 'syncing' | 'error'>('idle');
+  status = $state<CloudSyncStatus>('idle');
   lastSyncedAt = $state<Date | null>(null);
   lastError = $state<string | null>(null);
+  quota = $state<{ usedBytes: number; limitBytes: number } | null>(null);
+  isTransient = $state<boolean>(false);
+  nextRetryAt = $state<Date | null>(null);
+  retryCount = 0;
   /**
    * Most recent [`commands.SyncRunReport`] response — useful for the
    * privacy / settings UI to render counts.
@@ -160,7 +255,7 @@ class CloudSyncService {
   startPeriodicSync(): void {
     if (this.syncTimer !== null) return;
     this.syncTimer = setInterval(() => {
-      this.syncNow().catch((err) => {
+      this.syncNow(false).catch((err) => {
         logService.warn(`Periodic cloud sync failed: ${err}`);
       });
     }, PERIODIC_SYNC_INTERVAL_MS);
@@ -198,6 +293,11 @@ class CloudSyncService {
    */
   dispose(): void {
     this.stop();
+    this.retryCount = 0;
+    this.nextRetryAt = null;
+    this.isTransient = false;
+    this.quota = null;
+    this.lastLoggedFailureSummary = null;
     if (this.authUnsub !== null) {
       this.authUnsub();
       this.authUnsub = null;
@@ -214,18 +314,26 @@ class CloudSyncService {
   }
 
   /**
-   * Manually trigger one delta-sync round-trip. Replaces the old
-   * `upload()` + `restore()` split — a single `sync_run` performs the
-   * pull then the push.
+   * Manually or automatically trigger one delta-sync round-trip.
+   *
+   * When `manual` is true (the default), bypasses any active backoff.
+   * Automatic triggers (periodic ticks, provider changes) pass `false`
+   * and are suppressed while backing off.
    *
    * Concurrency: implemented as a promise-singleton — concurrent callers
    * all await the in-flight run. This collapses bursts of provider change
    * events into one HTTP round-trip without any extra state.
    */
-  async syncNow(): Promise<void> {
+  async syncNow(manual = true): Promise<void> {
     const blocked = this.blockedReason();
     if (blocked !== null) {
       throw new Error(blocked);
+    }
+    if (!manual && this.nextRetryAt && Date.now() < this.nextRetryAt.getTime()) {
+      logService.debug?.(
+        `Cloud sync: skipping automatic run during backoff (retry after ${this.nextRetryAt.toISOString()})`,
+      );
+      return;
     }
     if (this.currentRun) {
       return this.currentRun;
@@ -284,33 +392,127 @@ class CloudSyncService {
       }
 
       this.lastReport = report;
-      this.lastSyncedAt = new Date();
-      this.lastError = null;
-      this.status = 'idle';
-    } catch (err: unknown) {
-      this.status = 'error';
-      const errMsg = err instanceof Error ? err.message : String(err);
-      this.lastError = errMsg;
 
-      if (
-        errMsg.includes('Token expired') ||
-        errMsg.includes('Not logged in') ||
-        errMsg.includes('401')
-      ) {
-        logService.warn(`Cloud sync: auth token rejected/expired (${errMsg}); stopping sync`);
-        this.stop();
-        authService.logout().catch(() => {});
+      if (report.pushFailure) {
+        await this.handleSyncFailure(report.pushFailure);
         return;
       }
 
-      logService.error(`Cloud sync run failed: ${err}`);
-      await feedbackService.report({
-        source: 'frontend',
-        kind: 'sync.run-failed',
-        severity: 'warning',
-        retryable: true,
-        developerDetail: `Cloud sync run did not complete: ${errMsg}`,
-      });
+      this.lastSyncedAt = new Date();
+      this.lastError = null;
+      this.retryCount = 0;
+      this.nextRetryAt = null;
+      this.isTransient = false;
+      this.quota = null;
+      this.status = 'idle';
+    } catch (err: unknown) {
+      await this.handleSyncFailure(err);
+    }
+  }
+
+  private async handleSyncFailure(errOrFailure: unknown): Promise<void> {
+    const classification = classifySyncError(errOrFailure);
+    switch (classification.type) {
+      case 'auth_expired': {
+        logService.warn(
+          `Cloud sync: auth token rejected/expired (${classification.message}); stopping sync`,
+        );
+        this.stop();
+        authService.logout().catch(() => {});
+        this.status = 'error';
+        this.lastError = classification.message;
+        return;
+      }
+      case 'entitlement_required': {
+        logService.info(
+          `Cloud sync: entitlement required (${classification.code}); stopping sync timer`,
+        );
+        this.stop();
+        this.status = 'not_entitled';
+        this.lastError = null;
+        this.isTransient = false;
+        this.quota = null;
+        authService.refreshEntitlements().catch((refreshErr) => {
+          logService.warn(`Cloud sync: refreshEntitlements failed: ${refreshErr}`);
+        });
+        return;
+      }
+      case 'quota_exceeded': {
+        this.status = 'quota_exceeded';
+        this.quota = {
+          usedBytes: classification.usedBytes,
+          limitBytes: classification.limitBytes,
+        };
+        this.lastError = null;
+        this.isTransient = false;
+        const delayMs = BACKOFF_SCHEDULE_MS[BACKOFF_SCHEDULE_MS.length - 1];
+        this.nextRetryAt = new Date(Date.now() + delayMs);
+        logService.warn(
+          `Cloud sync: quota exceeded: used ${classification.usedBytes} / limit ${classification.limitBytes}; backing off automatic sync for ${delayMs / 1000}s until ${this.nextRetryAt.toISOString()}`,
+        );
+        const summary = `quota_exceeded:${classification.usedBytes}:${classification.limitBytes}`;
+        if (this.lastLoggedFailureSummary !== summary) {
+          this.lastLoggedFailureSummary = summary;
+          await feedbackService.report({
+            source: 'frontend',
+            kind: 'sync_quota_exceeded',
+            severity: 'warning',
+            retryable: false,
+            context: {
+              usedBytes: String(classification.usedBytes),
+              limitBytes: String(classification.limitBytes),
+            },
+            developerDetail: classification.message,
+          });
+        }
+        return;
+      }
+      case 'transient': {
+        this.retryCount++;
+        const stepIndex = Math.min(this.retryCount - 1, BACKOFF_SCHEDULE_MS.length - 1);
+        let delayMs = BACKOFF_SCHEDULE_MS[stepIndex];
+        if (classification.retryAfterSecs && classification.retryAfterSecs * 1000 > delayMs) {
+          delayMs = classification.retryAfterSecs * 1000;
+        }
+        this.nextRetryAt = new Date(Date.now() + delayMs);
+        this.isTransient = true;
+        this.status = 'error';
+        this.lastError = null;
+        logService.warn(
+          `Cloud sync: transient failure (${classification.kind}: ${classification.message}), backing off for ${delayMs / 1000}s until ${this.nextRetryAt.toISOString()}`,
+        );
+        const summary = `transient:${classification.kind}`;
+        if (this.lastLoggedFailureSummary !== summary) {
+          this.lastLoggedFailureSummary = summary;
+          await feedbackService.report({
+            source: 'frontend',
+            kind: 'sync.run-failed',
+            severity: 'warning',
+            retryable: true,
+            developerDetail: `Cloud sync run transient failure: ${classification.message}`,
+          });
+        }
+        return;
+      }
+      case 'other':
+      default: {
+        this.status = 'error';
+        this.lastError = classification.message;
+        this.isTransient = false;
+        logService.error(`Cloud sync run failed: ${classification.message}`);
+        const summary = `error:${classification.message}`;
+        if (this.lastLoggedFailureSummary !== summary) {
+          this.lastLoggedFailureSummary = summary;
+          await feedbackService.report({
+            source: 'frontend',
+            kind: 'sync.run-failed',
+            severity: 'warning',
+            retryable: true,
+            developerDetail: `Cloud sync run did not complete: ${classification.message}`,
+          });
+        }
+        return;
+      }
     }
   }
 
@@ -434,8 +636,8 @@ class CloudSyncService {
   private surfaceWarnings(report: commands.SyncRunReport): void {
     if (report.lwwWarnings.length > 0) {
       const count = report.lwwWarnings.length;
-      feedbackService
-        .report({
+      Promise.resolve(
+        feedbackService.report({
           source: 'frontend',
           kind: 'sync.item-overwritten',
           severity: 'warning',
@@ -448,10 +650,10 @@ class CloudSyncService {
             count === 1
               ? '1 item was overwritten by a newer version from another device.'
               : `${count} items were overwritten by newer versions from another device.`,
-        })
-        .catch((err) => {
-          logService.warn(`Cloud sync: failed to surface LWW diagnostic: ${err}`);
-        });
+        }),
+      ).catch((err) => {
+        logService.warn(`Cloud sync: failed to surface LWW diagnostic: ${err}`);
+      });
     }
     if (report.failed.length > 0) {
       const summary = `${report.failed.length}:${report.failed
@@ -469,8 +671,8 @@ class CloudSyncService {
 
       // Mirror the failure into the diagnostic bar so the user sees it
       // alongside other sync warnings.
-      feedbackService
-        .report({
+      Promise.resolve(
+        feedbackService.report({
           source: 'frontend',
           kind: 'sync.apply-failed',
           severity: 'warning',
@@ -479,10 +681,10 @@ class CloudSyncService {
             count: String(report.failed.length),
           },
           developerDetail: `${report.failed.length} item${report.failed.length === 1 ? '' : 's'} failed to upload: ${detail}`,
-        })
-        .catch((err) => {
-          logService.warn(`Cloud sync: failed to surface push-failure diagnostic: ${err}`);
-        });
+        }),
+      ).catch((err) => {
+        logService.warn(`Cloud sync: failed to surface push-failure diagnostic: ${err}`);
+      });
     } else {
       this.lastLoggedFailureSummary = null;
     }
@@ -536,7 +738,7 @@ class CloudSyncService {
                 // next change event or on the next periodic tick.
               }
             }
-            await this.syncNow();
+            await this.syncNow(false);
           })().catch((err) => {
             logService.warn(`Cloud sync: change-triggered run failed for ${provider.id}: ${err}`);
           });

@@ -18,6 +18,9 @@ pnpm-lock.yaml
 .superpowers/
 docs/superpowers/
 .remember/
+# Third-party skill installed via `npx skills add` (cloudflare/security-audit-skill)
+.agents/skills/security-audit/
+skills-lock.json
 
 # Dogfood extensions live in their own repos; setup.mjs clones them here
 /extensions/

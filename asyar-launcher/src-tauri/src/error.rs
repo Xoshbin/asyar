@@ -57,6 +57,18 @@ pub enum AppError {
     #[error("run {id} failed: {message}")]
     RunFailed { id: String, message: String },
 
+    #[error("Sync entitlement required: {code}")]
+    SyncEntitlementRequired { code: String },
+
+    #[error("Sync quota exceeded: used {used_bytes} bytes of {limit_bytes} bytes")]
+    SyncQuotaExceeded { used_bytes: u64, limit_bytes: u64 },
+
+    #[error("Sync rate limited: retry after {retry_after_secs}s")]
+    SyncRateLimited { retry_after_secs: u64 },
+
+    #[error("Sync server unavailable: {0}")]
+    SyncServerUnavailable(String),
+
     #[error("mcp_permission_required: server={server_id} tool={tool_id}")]
     McpPermissionRequired { server_id: String, tool_id: String },
 
@@ -120,6 +132,10 @@ impl HasSeverity for AppError {
             AppError::OAuth(_) => "oauth_failure",
             AppError::Power(_) => "power_failure",
             AppError::RunFailed { .. } => "run_failed",
+            AppError::SyncEntitlementRequired { .. } => "sync_entitlement_required",
+            AppError::SyncQuotaExceeded { .. } => "sync_quota_exceeded",
+            AppError::SyncRateLimited { .. } => "sync_rate_limited",
+            AppError::SyncServerUnavailable(_) => "sync_server_unavailable",
             AppError::McpPermissionRequired { .. } => "mcp_permission_required",
             AppError::Other(_) => "unknown",
         }
@@ -133,6 +149,9 @@ impl HasSeverity for AppError {
             | AppError::Validation(_)
             | AppError::NotFound(_)
             | AppError::RunFailed { .. }
+            | AppError::SyncEntitlementRequired { .. }
+            | AppError::SyncQuotaExceeded { .. }
+            | AppError::SyncRateLimited { .. }
             | AppError::McpPermissionRequired { .. } => Severity::Warning,
             _ => Severity::Error,
         }
@@ -141,7 +160,12 @@ impl HasSeverity for AppError {
     fn retryable(&self) -> bool {
         matches!(
             self,
-            AppError::Network(_) | AppError::Io(_) | AppError::Auth(_) | AppError::OAuth(_)
+            AppError::Network(_)
+                | AppError::Io(_)
+                | AppError::Auth(_)
+                | AppError::OAuth(_)
+                | AppError::SyncRateLimited { .. }
+                | AppError::SyncServerUnavailable(_)
         )
     }
 
@@ -174,6 +198,22 @@ impl HasSeverity for AppError {
             }
             AppError::RunFailed { id, .. } => {
                 ctx.insert("id", id.clone());
+            }
+            AppError::SyncEntitlementRequired { code } => {
+                ctx.insert("code", code.clone());
+            }
+            AppError::SyncQuotaExceeded {
+                used_bytes,
+                limit_bytes,
+            } => {
+                ctx.insert("usedBytes", used_bytes.to_string());
+                ctx.insert("limitBytes", limit_bytes.to_string());
+            }
+            AppError::SyncRateLimited { retry_after_secs } => {
+                ctx.insert("retryAfter", retry_after_secs.to_string());
+            }
+            AppError::SyncServerUnavailable(s) => {
+                ctx.insert("detail", s.clone());
             }
             AppError::McpPermissionRequired { server_id, tool_id } => {
                 ctx.insert("serverId", server_id.clone());

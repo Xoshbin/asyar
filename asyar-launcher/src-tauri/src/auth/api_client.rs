@@ -99,6 +99,8 @@ fn build_http_client() -> reqwest::Client {
         reqwest::header::HeaderValue::from_static("application/json"),
     );
     reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(60))
         .default_headers(headers)
         .build()
         .expect("reqwest client construction must not fail")
@@ -217,12 +219,12 @@ impl ApiClient {
     /// with each item's id, plus the new max `serverVersion` for this user.
     ///
     /// # Errors
-    /// - `401` → [`AppError::Auth`] with `"Token expired or invalid"` (matches
-    ///   the convention used by [`Self::fetch_entitlements`]).
-    /// - `403` → [`AppError::Auth`] with `"sync entitlement required"` — likely
-    ///   the user lacks `sync:ai-conversations` for an ai-conversations item.
-    /// - `422` → [`AppError::Validation`] (oversize batch, malformed item).
-    /// - Other non-2xx → [`AppError::Auth`] with the status code in the message.
+    /// - `401` → [`AppError::Auth`] with `"Token expired or invalid"`.
+    /// - `403` → [`AppError::SyncEntitlementRequired`].
+    /// - `413` → [`AppError::SyncQuotaExceeded`].
+    /// - `429` → [`AppError::SyncRateLimited`].
+    /// - `422` → [`AppError::Validation`].
+    /// - 5xx → [`AppError::SyncServerUnavailable`].
     /// - Network / serde failures propagate via `?`.
     pub async fn push_items_batch(
         &self,
@@ -237,24 +239,8 @@ impl ApiClient {
             .send()
             .await?;
 
-        let status = response.status();
-        if status == reqwest::StatusCode::UNAUTHORIZED {
-            return Err(AppError::Auth("Token expired or invalid".to_string()));
-        }
-        if status == reqwest::StatusCode::FORBIDDEN {
-            return Err(AppError::Auth("sync entitlement required".to_string()));
-        }
-        if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
-            let detail = response.text().await.unwrap_or_default();
-            let message = if detail.is_empty() {
-                "Server rejected push batch: 422".to_string()
-            } else {
-                format!("Server rejected push batch (422): {detail}")
-            };
-            return Err(AppError::Validation(message));
-        }
-        if !status.is_success() {
-            return Err(AppError::Auth(format!("Push items batch failed: {status}")));
+        if !response.status().is_success() {
+            return Err(map_sync_http_error("push batch", response).await);
         }
 
         Ok(response
@@ -272,9 +258,11 @@ impl ApiClient {
     ///
     /// # Errors
     /// - `401` → [`AppError::Auth`] with `"Token expired or invalid"`.
-    /// - `403` → [`AppError::Auth`] with `"sync entitlement required"`.
+    /// - `403` → [`AppError::SyncEntitlementRequired`].
+    /// - `413` → [`AppError::SyncQuotaExceeded`].
+    /// - `429` → [`AppError::SyncRateLimited`].
     /// - `422` → [`AppError::Validation`].
-    /// - Other non-2xx → [`AppError::Auth`] with the status code in the message.
+    /// - 5xx → [`AppError::SyncServerUnavailable`].
     /// - Network / serde failures propagate via `?`.
     pub async fn pull_items_since(
         &self,
@@ -290,29 +278,94 @@ impl ApiClient {
             .send()
             .await?;
 
-        let status = response.status();
-        if status == reqwest::StatusCode::UNAUTHORIZED {
-            return Err(AppError::Auth("Token expired or invalid".to_string()));
-        }
-        if status == reqwest::StatusCode::FORBIDDEN {
-            return Err(AppError::Auth("sync entitlement required".to_string()));
-        }
-        if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
-            let detail = response.text().await.unwrap_or_default();
-            let message = if detail.is_empty() {
-                "Server rejected pull request: 422".to_string()
-            } else {
-                format!("Server rejected pull request (422): {detail}")
-            };
-            return Err(AppError::Validation(message));
-        }
-        if !status.is_success() {
-            return Err(AppError::Auth(format!("Pull items failed: {status}")));
+        if !response.status().is_success() {
+            return Err(map_sync_http_error("pull items", response).await);
         }
 
         Ok(response.json::<crate::sync::types::ItemPullPage>().await?)
     }
+}
 
+/// Map HTTP error responses from `/api/sync/items` into typed `AppError` variants.
+pub(crate) async fn map_sync_http_error(op: &'static str, response: reqwest::Response) -> AppError {
+    let status = response.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return AppError::Auth("Token expired or invalid".to_string());
+    }
+
+    if status == reqwest::StatusCode::FORBIDDEN {
+        let code = match response.json::<serde_json::Value>().await {
+            Ok(val) => val
+                .get("code")
+                .and_then(|c| c.as_str())
+                .unwrap_or("sync.entitlement-required")
+                .to_string(),
+            Err(_) => "sync.entitlement-required".to_string(),
+        };
+        return AppError::SyncEntitlementRequired { code };
+    }
+
+    if status == reqwest::StatusCode::PAYLOAD_TOO_LARGE {
+        let (used_bytes, limit_bytes) = match response.json::<serde_json::Value>().await {
+            Ok(val) => {
+                let used = val
+                    .get("usedBytes")
+                    .and_then(|v| {
+                        v.as_u64()
+                            .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                    })
+                    .unwrap_or(0);
+                let limit = val
+                    .get("limitBytes")
+                    .and_then(|v| {
+                        v.as_u64()
+                            .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                    })
+                    .unwrap_or(0);
+                (used, limit)
+            }
+            Err(_) => (0, 0),
+        };
+        return AppError::SyncQuotaExceeded {
+            used_bytes,
+            limit_bytes,
+        };
+    }
+
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        let retry_after_secs = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|val| val.to_str().ok())
+            .and_then(|s| s.trim().parse::<u64>().ok())
+            .unwrap_or(60);
+        return AppError::SyncRateLimited { retry_after_secs };
+    }
+
+    if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        let detail = response.text().await.unwrap_or_default();
+        let message = if detail.is_empty() {
+            format!("Server rejected {op}: 422")
+        } else {
+            format!("Server rejected {op} (422): {detail}")
+        };
+        return AppError::Validation(message);
+    }
+
+    if status.is_server_error() {
+        let detail = response.text().await.unwrap_or_default();
+        let message = if detail.is_empty() {
+            format!("{op} server unavailable ({status})")
+        } else {
+            format!("{op} server unavailable ({status}): {detail}")
+        };
+        return AppError::SyncServerUnavailable(message);
+    }
+
+    AppError::Other(format!("{op} failed: {status}"))
+}
+
+impl ApiClient {
     // ── E2EE state endpoints ─────────────────────────────────────────────────────
     //
     // 401 / 403 map to `AppError::Auth(_)` so the re-auth and entitlement-required
@@ -558,7 +611,7 @@ mod tests {
         };
 
         let result = client.push_items_batch("my-token", &request).await;
-        assert!(matches!(result, Err(AppError::Auth(_))));
+        assert!(matches!(result, Err(AppError::SyncServerUnavailable(_))));
     }
 
     #[tokio::test]
@@ -597,13 +650,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn push_items_batch_handles_403_by_returning_typed_error() {
+    async fn push_items_batch_handles_403_with_entitlement_required_code() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
         let _m = server
             .mock("POST", "/api/sync/items")
             .with_status(403)
+            .with_header("Content-Type", "application/json")
+            .with_body(r#"{"code":"sync.entitlement-required"}"#)
             .create_async()
             .await;
 
@@ -615,13 +670,209 @@ mod tests {
 
         let result = client.push_items_batch("my-token", &request).await;
         match result {
-            Err(AppError::Auth(message)) => {
-                assert!(
-                    message.contains("sync entitlement required"),
-                    "expected 'sync entitlement required' in {message}"
-                );
+            Err(AppError::SyncEntitlementRequired { code }) => {
+                assert_eq!(code, "sync.entitlement-required");
             }
-            other => panic!("expected AppError::Auth, got {other:?}"),
+            other => panic!("expected AppError::SyncEntitlementRequired, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn push_items_batch_handles_403_with_ai_entitlement_required_code() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/sync/items")
+            .with_status(403)
+            .with_header("Content-Type", "application/json")
+            .with_body(r#"{"code":"sync.ai-entitlement-required"}"#)
+            .create_async()
+            .await;
+
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            key_version: None,
+            items: vec![],
+        };
+
+        let result = client.push_items_batch("my-token", &request).await;
+        match result {
+            Err(AppError::SyncEntitlementRequired { code }) => {
+                assert_eq!(code, "sync.ai-entitlement-required");
+            }
+            other => panic!("expected AppError::SyncEntitlementRequired, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn push_items_batch_handles_403_older_server_without_code() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/sync/items")
+            .with_status(403)
+            .with_body("Forbidden")
+            .create_async()
+            .await;
+
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            key_version: None,
+            items: vec![],
+        };
+
+        let result = client.push_items_batch("my-token", &request).await;
+        match result {
+            Err(AppError::SyncEntitlementRequired { code }) => {
+                assert_eq!(code, "sync.entitlement-required");
+            }
+            other => panic!("expected AppError::SyncEntitlementRequired fallback, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn push_items_batch_handles_413_quota_exceeded() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/sync/items")
+            .with_status(413)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                r#"{"code":"sync.quota-exceeded","usedBytes":10485760,"limitBytes":5242880}"#,
+            )
+            .create_async()
+            .await;
+
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            key_version: None,
+            items: vec![],
+        };
+
+        let result = client.push_items_batch("my-token", &request).await;
+        match result {
+            Err(AppError::SyncQuotaExceeded {
+                used_bytes,
+                limit_bytes,
+            }) => {
+                assert_eq!(used_bytes, 10485760);
+                assert_eq!(limit_bytes, 5242880);
+            }
+            other => panic!("expected AppError::SyncQuotaExceeded, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn push_items_batch_handles_413_without_numbers() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/sync/items")
+            .with_status(413)
+            .create_async()
+            .await;
+
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            key_version: None,
+            items: vec![],
+        };
+
+        let result = client.push_items_batch("my-token", &request).await;
+        match result {
+            Err(AppError::SyncQuotaExceeded {
+                used_bytes,
+                limit_bytes,
+            }) => {
+                assert_eq!(used_bytes, 0);
+                assert_eq!(limit_bytes, 0);
+            }
+            other => panic!("expected AppError::SyncQuotaExceeded, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn push_items_batch_handles_429_with_retry_after() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/sync/items")
+            .with_status(429)
+            .with_header("Retry-After", "120")
+            .create_async()
+            .await;
+
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            key_version: None,
+            items: vec![],
+        };
+
+        let result = client.push_items_batch("my-token", &request).await;
+        match result {
+            Err(AppError::SyncRateLimited { retry_after_secs }) => {
+                assert_eq!(retry_after_secs, 120);
+            }
+            other => panic!("expected AppError::SyncRateLimited(120), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn push_items_batch_handles_429_without_retry_after_defaults_to_60() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/sync/items")
+            .with_status(429)
+            .create_async()
+            .await;
+
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            key_version: None,
+            items: vec![],
+        };
+
+        let result = client.push_items_batch("my-token", &request).await;
+        match result {
+            Err(AppError::SyncRateLimited { retry_after_secs }) => {
+                assert_eq!(retry_after_secs, 60);
+            }
+            other => panic!("expected AppError::SyncRateLimited(60), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn push_items_batch_handles_429_with_invalid_retry_after_defaults_to_60() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/sync/items")
+            .with_status(429)
+            .with_header("Retry-After", "not-a-number")
+            .create_async()
+            .await;
+
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            key_version: None,
+            items: vec![],
+        };
+
+        let result = client.push_items_batch("my-token", &request).await;
+        match result {
+            Err(AppError::SyncRateLimited { retry_after_secs }) => {
+                assert_eq!(retry_after_secs, 60);
+            }
+            other => panic!("expected AppError::SyncRateLimited(60), got {other:?}"),
         }
     }
 
@@ -825,19 +1076,56 @@ mod tests {
             .mock("GET", "/api/sync/items")
             .match_query(mockito::Matcher::Any)
             .with_status(403)
+            .with_header("Content-Type", "application/json")
+            .with_body(r#"{"code":"sync.entitlement-required"}"#)
             .create_async()
             .await;
 
         let result = client.pull_items_since("my-token", 0, 100).await;
         match result {
-            Err(AppError::Auth(message)) => {
-                assert!(
-                    message.contains("sync entitlement required"),
-                    "expected 'sync entitlement required' in {message}"
-                );
+            Err(AppError::SyncEntitlementRequired { code }) => {
+                assert_eq!(code, "sync.entitlement-required");
             }
-            other => panic!("expected AppError::Auth, got {other:?}"),
+            other => panic!("expected AppError::SyncEntitlementRequired, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn pull_items_since_handles_429_by_returning_rate_limited() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("GET", "/api/sync/items")
+            .match_query(mockito::Matcher::Any)
+            .with_status(429)
+            .with_header("Retry-After", "90")
+            .create_async()
+            .await;
+
+        let result = client.pull_items_since("my-token", 0, 100).await;
+        match result {
+            Err(AppError::SyncRateLimited { retry_after_secs }) => {
+                assert_eq!(retry_after_secs, 90);
+            }
+            other => panic!("expected AppError::SyncRateLimited, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn pull_items_since_handles_503_by_returning_server_unavailable() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("GET", "/api/sync/items")
+            .match_query(mockito::Matcher::Any)
+            .with_status(503)
+            .create_async()
+            .await;
+
+        let result = client.pull_items_since("my-token", 0, 100).await;
+        assert!(matches!(result, Err(AppError::SyncServerUnavailable(_))));
     }
 
     #[tokio::test]
