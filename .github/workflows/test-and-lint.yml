@@ -114,6 +114,10 @@ jobs:
           chmod 600 "$KEYRING_DIR/Default_keyring.keyring" "$KEYRING_DIR/default"
 
           eval $(printf "" | gnome-keyring-daemon --daemonize --login --components=secrets)
+          eval "$(gnome-keyring-daemon --start --components=secrets)"
+          printf 'probe' | secret-tool store --label='Asyar Secret Service probe' service org.asyar.keystore-test account ci-probe
+          test "$(secret-tool lookup service org.asyar.keystore-test account ci-probe)" = probe
+          secret-tool clear service org.asyar.keystore-test account ci-probe
 
           cargo test --lib crypto::keystore -- --ignored --skip os_keystore_persist
           cargo test --lib crypto::keystore::tests::os_keystore_persist_write -- --ignored
@@ -228,8 +232,11 @@ jobs:
           ASYAR_EXPECT_KEYSTORE: os
         run: |
           cargo test --lib crypto::keystore -- --ignored --skip os_keystore_persist
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --lib crypto::keystore::tests::os_keystore_persist_write -- --ignored
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --lib crypto::keystore::tests::os_keystore_persist_read -- --ignored
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   # macOS-only Rust build/test/lint run. Deliberately lean — no frontend/
   # pnpm/doc steps (those are platform-agnostic and covered by
