@@ -69,6 +69,30 @@ pub enum AppError {
     #[error("Sync server unavailable: {0}")]
     SyncServerUnavailable(String),
 
+    #[error("Sync E2EE locked: recovery phrase or approval required")]
+    SyncE2eeLocked,
+
+    #[error("Sync E2EE already enrolled")]
+    SyncE2eeAlreadyEnrolled,
+
+    #[error("Sync E2EE not enrolled")]
+    SyncE2eeNotEnrolled,
+
+    #[error("Sync E2EE wrong mode: {0}")]
+    SyncE2eeWrongMode(String),
+
+    #[error("Sync pairing not found")]
+    SyncPairingNotFound,
+
+    #[error("Sync pairing not pending: {status}")]
+    SyncPairingNotPending { status: String },
+
+    #[error("Sync pairing too many")]
+    SyncPairingTooMany,
+
+    #[error("Sync finalize behind: plaintext max version {plaintext_max_version}")]
+    SyncFinalizeBehind { plaintext_max_version: i64 },
+
     #[error("mcp_permission_required: server={server_id} tool={tool_id}")]
     McpPermissionRequired { server_id: String, tool_id: String },
 
@@ -136,6 +160,14 @@ impl HasSeverity for AppError {
             AppError::SyncQuotaExceeded { .. } => "sync_quota_exceeded",
             AppError::SyncRateLimited { .. } => "sync_rate_limited",
             AppError::SyncServerUnavailable(_) => "sync_server_unavailable",
+            AppError::SyncE2eeLocked => "sync_e2ee_locked",
+            AppError::SyncE2eeAlreadyEnrolled => "sync_e2ee_already_enrolled",
+            AppError::SyncE2eeNotEnrolled => "sync_e2ee_not_enrolled",
+            AppError::SyncE2eeWrongMode(_) => "sync_e2ee_wrong_mode",
+            AppError::SyncPairingNotFound => "sync_pairing_not_found",
+            AppError::SyncPairingNotPending { .. } => "sync_pairing_not_pending",
+            AppError::SyncPairingTooMany => "sync_pairing_too_many",
+            AppError::SyncFinalizeBehind { .. } => "sync_finalize_behind",
             AppError::McpPermissionRequired { .. } => "mcp_permission_required",
             AppError::Other(_) => "unknown",
         }
@@ -152,6 +184,14 @@ impl HasSeverity for AppError {
             | AppError::SyncEntitlementRequired { .. }
             | AppError::SyncQuotaExceeded { .. }
             | AppError::SyncRateLimited { .. }
+            | AppError::SyncE2eeLocked
+            | AppError::SyncE2eeAlreadyEnrolled
+            | AppError::SyncE2eeNotEnrolled
+            | AppError::SyncE2eeWrongMode(_)
+            | AppError::SyncPairingNotFound
+            | AppError::SyncPairingNotPending { .. }
+            | AppError::SyncPairingTooMany
+            | AppError::SyncFinalizeBehind { .. }
             | AppError::McpPermissionRequired { .. } => Severity::Warning,
             _ => Severity::Error,
         }
@@ -166,6 +206,7 @@ impl HasSeverity for AppError {
                 | AppError::OAuth(_)
                 | AppError::SyncRateLimited { .. }
                 | AppError::SyncServerUnavailable(_)
+                | AppError::SyncFinalizeBehind { .. }
         )
     }
 
@@ -216,6 +257,20 @@ impl HasSeverity for AppError {
             }
             AppError::SyncServerUnavailable(s) => {
                 ctx.insert("detail", s.clone());
+            }
+            AppError::SyncE2eeLocked => {}
+            AppError::SyncE2eeNotEnrolled => {}
+            AppError::SyncE2eeWrongMode(mode) => {
+                ctx.insert("mode", mode.clone());
+            }
+            AppError::SyncPairingNotFound => {}
+            AppError::SyncPairingNotPending { status } => {
+                ctx.insert("status", status.clone());
+            }
+            AppError::SyncFinalizeBehind {
+                plaintext_max_version,
+            } => {
+                ctx.insert("plaintextMaxVersion", plaintext_max_version.to_string());
             }
             AppError::McpPermissionRequired { server_id, tool_id } => {
                 ctx.insert("serverId", server_id.clone());

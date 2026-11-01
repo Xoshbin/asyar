@@ -266,36 +266,171 @@ pub struct MergeReport {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct E2eeStatePayload {
-    /// `enc:v1:<base64(...)>` envelope of the master_seed encrypted under
-    /// the passphrase-derived wrap_key.
-    pub wrapped_master_seed: String,
-    /// Base64-encoded random salt used as Argon2id input. 32 bytes after decode.
-    pub kdf_salt: String,
-    /// Always `"argon2id"` in v1; carried for forward compatibility.
-    pub kdf_algorithm: String,
-    /// Memory cost in KiB (default 65536 = 64 MiB).
-    pub kdf_m_cost: u32,
-    /// Time cost / iterations (default 3).
-    pub kdf_t_cost: u32,
-    /// Parallelism (default 1).
-    pub kdf_p_cost: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kcv: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wrapped_master_seed: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kdf_salt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kdf_algorithm: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kdf_m_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kdf_t_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kdf_p_cost: Option<u32>,
+}
+
+impl E2eeStatePayload {
+    pub fn device_key(kcv: String) -> Self {
+        Self {
+            mode: Some("device-key".into()),
+            kcv: Some(kcv),
+            wrapped_master_seed: None,
+            kdf_salt: None,
+            kdf_algorithm: None,
+            kdf_m_cost: None,
+            kdf_t_cost: None,
+            kdf_p_cost: None,
+        }
+    }
+
+    pub fn passphrase(
+        wrapped_master_seed: String,
+        kdf_salt: String,
+        kdf_algorithm: String,
+        kdf_m_cost: u32,
+        kdf_t_cost: u32,
+        kdf_p_cost: u32,
+    ) -> Self {
+        Self {
+            mode: None,
+            kcv: None,
+            wrapped_master_seed: Some(wrapped_master_seed),
+            kdf_salt: Some(kdf_salt),
+            kdf_algorithm: Some(kdf_algorithm),
+            kdf_m_cost: Some(kdf_m_cost),
+            kdf_t_cost: Some(kdf_t_cost),
+            kdf_p_cost: Some(kdf_p_cost),
+        }
+    }
 }
 
 /// Body of `GET /api/sync/e2ee/state` (200) and the response of `POST` / `PUT`.
-/// Differs from the request by including server-assigned `keyVersion` and
-/// `enrolledAt`.
+/// Supports both passphrase mode and device-key mode.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct E2eeStateResponse {
-    pub wrapped_master_seed: String,
-    pub kdf_salt: String,
-    pub kdf_algorithm: String,
-    pub kdf_m_cost: u32,
-    pub kdf_t_cost: u32,
-    pub kdf_p_cost: u32,
+    #[serde(default)]
+    pub mode: Option<String>,
+    #[serde(default)]
+    pub kcv: Option<String>,
+    #[serde(default)]
+    pub wrapped_master_seed: Option<String>,
+    #[serde(default)]
+    pub kdf_salt: Option<String>,
+    #[serde(default)]
+    pub kdf_algorithm: Option<String>,
+    #[serde(default)]
+    pub kdf_m_cost: Option<u32>,
+    #[serde(default)]
+    pub kdf_t_cost: Option<u32>,
+    #[serde(default)]
+    pub kdf_p_cost: Option<u32>,
     /// Server-assigned, monotonic per user. Always `1` in v1; bumps when a
     /// future "Reset E2EE" flow regenerates the master_seed.
     pub key_version: u64,
     /// ISO-8601 UTC timestamp of when the user first enrolled.
     pub enrolled_at: String,
+    #[serde(default)]
+    pub plaintext_rows: Option<u64>,
+}
+
+/// Body of `POST /api/sync/e2ee/finalize`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinalizeRequest {
+    pub pulled_through_version: i64,
+}
+
+/// Response of `POST /api/sync/e2ee/finalize`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinalizeResponse {
+    pub deleted_rows: u64,
+}
+
+/// Deleted counts in `POST /api/sync/reset`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResetDeletedCounts {
+    #[serde(default)]
+    pub items: u64,
+}
+
+/// Response of `POST /api/sync/reset`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResetResponse {
+    #[serde(default)]
+    pub deleted: ResetDeletedCounts,
+}
+
+/// Body of `POST /api/sync/e2ee/pairings`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingCreateRequest {
+    pub device_name: String,
+    pub device_public_key: String,
+}
+
+/// Response of `POST /api/sync/e2ee/pairings`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingCreateResponse {
+    pub id: String,
+    pub expires_at: String,
+}
+
+/// Item in `GET /api/sync/e2ee/pairings` pending list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingPendingItem {
+    pub id: String,
+    pub device_name: String,
+    pub device_public_key: String,
+    pub created_at: String,
+    pub expires_at: String,
+}
+
+/// Response of `GET /api/sync/e2ee/pairings/{id}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingPollResponse {
+    pub status: String,
+    #[serde(default)]
+    pub sealed_seed: Option<String>,
+    #[serde(default)]
+    pub approver_public_key: Option<String>,
+}
+
+/// Body of `POST /api/sync/e2ee/pairings/{id}/approve`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingApproveRequest {
+    pub sealed_seed: String,
+    pub approver_public_key: String,
+}
+
+/// Pending pairing request enriched for UI display.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct IncomingPairingRequest {
+    pub id: String,
+    pub device_name: String,
+    pub device_public_key: String,
+    pub fingerprint: String,
+    pub created_at: String,
+    pub expires_at: String,
 }

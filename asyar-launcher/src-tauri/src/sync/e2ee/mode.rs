@@ -3,10 +3,13 @@
 
 use zeroize::Zeroizing;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Mode {
     /// E2EE is disabled. Transforms are identity.
     Off,
+    /// E2EE is enrolled, but master seed is unavailable in keystore.
+    /// Sync must refuse to run (neither pull nor push).
+    Locked,
     /// E2EE is enabled. The cached `master_seed` is used to encrypt
     /// outgoing payloads and decrypt incoming ones; `key_version` is
     /// echoed in the push body so the server can reject stale-key
@@ -22,9 +25,13 @@ impl Mode {
         matches!(self, Mode::On { .. })
     }
 
+    pub fn is_locked(&self) -> bool {
+        matches!(self, Mode::Locked)
+    }
+
     pub fn key_version(&self) -> Option<u64> {
         match self {
-            Mode::Off => None,
+            Mode::Off | Mode::Locked => None,
             Mode::On { key_version, .. } => Some(*key_version),
         }
     }
@@ -38,6 +45,15 @@ mod tests {
     fn off_is_disabled() {
         let m = Mode::Off;
         assert!(!m.is_enabled());
+        assert!(!m.is_locked());
+        assert_eq!(m.key_version(), None);
+    }
+
+    #[test]
+    fn locked_is_locked_and_not_enabled() {
+        let m = Mode::Locked;
+        assert!(!m.is_enabled());
+        assert!(m.is_locked());
         assert_eq!(m.key_version(), None);
     }
 
@@ -48,6 +64,7 @@ mod tests {
             key_version: 3,
         };
         assert!(m.is_enabled());
+        assert!(!m.is_locked());
         assert_eq!(m.key_version(), Some(3));
     }
 }

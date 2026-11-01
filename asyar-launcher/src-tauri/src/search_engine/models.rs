@@ -546,7 +546,11 @@ mod bindings_export {
             .register::<crate::commands::sync::SyncRunReport>()
             .register::<crate::commands::sync::SyncPushFailure>()
             .register::<crate::commands::sync::AppliedRecord>()
-            .register::<crate::commands::sync::SyncRunFailure>();
+            .register::<crate::commands::sync::SyncRunFailure>()
+            .register::<crate::sync::e2ee::service::E2eeStatusReport>()
+            .register::<crate::sync::types::IncomingPairingRequest>()
+            .register::<crate::commands::sync_e2ee::PairingRequestResult>()
+            .register::<crate::commands::sync_e2ee::PairingPollResult>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

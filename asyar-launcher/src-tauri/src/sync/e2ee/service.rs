@@ -42,19 +42,22 @@ pub struct EnrolmentResult {
     pub recovery_phrase: String,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct E2eeStatusReport {
     pub enabled: bool,
     /// Enrolled but no cached master_seed (e.g. fresh second-device install).
     pub locked: bool,
     pub key_version: Option<u64>,
+    pub mode: Option<String>,
+    pub keystore_is_os_backed: bool,
+    pub finalize_pending: bool,
 }
 
 impl<'a> E2eeService<'a> {
     /// Compute the current sync mode by reading the keychain + local mirror.
-    /// Returns `Mode::Off` if disabled OR if enrolled-but-locked (caller is
-    /// responsible for prompting the user to unlock).
+    /// Returns `Mode::Off` if disabled, `Mode::Locked` if enrolled but locked,
+    /// or `Mode::On` with the cached seed.
     pub fn load_mode(&self) -> Result<Mode, AppError> {
         let conn = self.data_store.conn()?;
         let local = cloud_sync_e2ee_local::get(&conn)?;
@@ -62,7 +65,7 @@ impl<'a> E2eeService<'a> {
             None => Ok(Mode::Off),
             Some(state) if !state.enrolled => Ok(Mode::Off),
             Some(state) => match self.keystore.read_slot(KEYCHAIN_SLOT)? {
-                None => Ok(Mode::Off), // enrolled but locked
+                None => Ok(Mode::Locked), // enrolled but locked
                 Some(seed_bytes) => {
                     if seed_bytes.len() != 32 {
                         return Err(AppError::Encryption(
@@ -84,18 +87,73 @@ impl<'a> E2eeService<'a> {
         let conn = self.data_store.conn()?;
         let local = cloud_sync_e2ee_local::get(&conn)?;
         let cached = self.keystore.read_slot(KEYCHAIN_SLOT)?.is_some();
+        let os_backed = self.keystore.is_os_backed();
         Ok(match local {
             None => E2eeStatusReport {
                 enabled: false,
                 locked: false,
                 key_version: None,
+                mode: None,
+                keystore_is_os_backed: os_backed,
+                finalize_pending: false,
             },
             Some(s) => E2eeStatusReport {
                 enabled: s.enrolled,
                 locked: s.enrolled && !cached,
                 key_version: Some(s.key_version as u64),
+                mode: Some(s.mode.clone()),
+                keystore_is_os_backed: os_backed,
+                finalize_pending: s.finalize_pending,
             },
         })
+    }
+
+    /// Ensure the local mirror exists, fetching from server if missing.
+    ///
+    /// Returns current Mode:
+    /// - `Mode::Off` if genuinely not enrolled (server 404 and no mirror)
+    /// - `Mode::Locked` if enrolled on server/locally but seed not in keystore
+    /// - `Mode::On` if enrolled and seed present in keystore
+    ///
+    /// Transient errors (server unreachable while mirror is absent) return `AppError::SyncServerUnavailable`.
+    pub async fn ensure_mirror_and_load_mode(&self, token: &str) -> Result<Mode, AppError> {
+        let conn = self.data_store.conn()?;
+        let local = cloud_sync_e2ee_local::get(&conn)?;
+        if local.is_none() {
+            match self.api.get_e2ee_state(token).await {
+                Ok(Some(remote)) => {
+                    let kcv_bytes = remote.kcv.as_deref().and_then(|s| B64.decode(s).ok());
+                    let mode_str = remote.mode.as_deref().unwrap_or("passphrase");
+                    let finalize_pending = remote.plaintext_rows.unwrap_or(0) > 0;
+                    cloud_sync_e2ee_local::upsert(
+                        &conn,
+                        &cloud_sync_e2ee_local::E2eeLocalState {
+                            enrolled: true,
+                            key_version: remote.key_version as i64,
+                            wrapped_master_seed: remote.wrapped_master_seed,
+                            kdf_salt: remote.kdf_salt.and_then(|s| B64.decode(s).ok()),
+                            kdf_m_cost: remote.kdf_m_cost.map(|c| c as i64),
+                            kdf_t_cost: remote.kdf_t_cost.map(|c| c as i64),
+                            kdf_p_cost: remote.kdf_p_cost.map(|c| c as i64),
+                            updated_at_ms: current_unix_ms(),
+                            mode: mode_str.to_string(),
+                            kcv: kcv_bytes,
+                            finalize_pending,
+                        },
+                    )?;
+                }
+                Ok(None) => {
+                    return Ok(Mode::Off);
+                }
+                Err(e) => {
+                    log::warn!("[sync] failed to check remote e2ee state: {e:?}");
+                    return Err(AppError::SyncServerUnavailable(format!(
+                        "cannot verify E2EE state: {e}"
+                    )));
+                }
+            }
+        }
+        self.load_mode()
     }
 
     /// Generate fresh master_seed, derive wrap_key, wrap, POST to server,
@@ -113,14 +171,14 @@ impl<'a> E2eeService<'a> {
         )?;
         let wrapped = cipher::encrypt(&B64.encode(*seed), &wrap_key)?;
 
-        let payload = E2eeStatePayload {
-            wrapped_master_seed: wrapped,
-            kdf_salt: B64.encode(salt),
-            kdf_algorithm: "argon2id".into(),
-            kdf_m_cost: kdf::ARGON2_M_COST,
-            kdf_t_cost: kdf::ARGON2_T_COST,
-            kdf_p_cost: kdf::ARGON2_P_COST,
-        };
+        let payload = E2eeStatePayload::passphrase(
+            wrapped,
+            B64.encode(salt),
+            "argon2id".into(),
+            kdf::ARGON2_M_COST,
+            kdf::ARGON2_T_COST,
+            kdf::ARGON2_P_COST,
+        );
         let resp = self.api.post_e2ee_state(token, &payload).await?;
 
         self.apply_local_state_after_enrol(&seed, &payload, &salt, resp.key_version)?;
@@ -137,14 +195,34 @@ impl<'a> E2eeService<'a> {
         let conn = self.data_store.conn()?;
         let local = cloud_sync_e2ee_local::get(&conn)?
             .ok_or_else(|| AppError::Validation("not enrolled".into()))?;
-        let wrap_key = kdf::derive_wrap_key(
-            passphrase,
-            &local.kdf_salt,
-            local.kdf_m_cost as u32,
-            local.kdf_t_cost as u32,
-            local.kdf_p_cost as u32,
-        )?;
-        let seed_b64 = cipher::decrypt(&local.wrapped_master_seed, &wrap_key)
+        if local.mode != "passphrase" {
+            return Err(AppError::SyncE2eeWrongMode(
+                "account is in device-key mode; use recovery phrase or approval to unlock".into(),
+            ));
+        }
+        let wrapped_seed = local
+            .wrapped_master_seed
+            .as_ref()
+            .ok_or_else(|| AppError::Validation("missing wrapped seed".into()))?;
+        let kdf_salt = local
+            .kdf_salt
+            .as_ref()
+            .ok_or_else(|| AppError::Validation("missing kdf salt".into()))?;
+        let m_cost = local
+            .kdf_m_cost
+            .ok_or_else(|| AppError::Validation("missing kdf m_cost".into()))?
+            as u32;
+        let t_cost = local
+            .kdf_t_cost
+            .ok_or_else(|| AppError::Validation("missing kdf t_cost".into()))?
+            as u32;
+        let p_cost = local
+            .kdf_p_cost
+            .ok_or_else(|| AppError::Validation("missing kdf p_cost".into()))?
+            as u32;
+
+        let wrap_key = kdf::derive_wrap_key(passphrase, kdf_salt, m_cost, t_cost, p_cost)?;
+        let seed_b64 = cipher::decrypt(wrapped_seed, &wrap_key)
             .map_err(|_| AppError::Validation("incorrect passphrase".into()))?;
         let seed_bytes = B64
             .decode(seed_b64.as_bytes())
@@ -152,7 +230,7 @@ impl<'a> E2eeService<'a> {
         if seed_bytes.len() != 32 {
             return Err(AppError::Encryption("decoded seed wrong length".into()));
         }
-        self.keystore.write_slot(KEYCHAIN_SLOT, &seed_bytes)?;
+        write_slot_with_read_back(self.keystore, KEYCHAIN_SLOT, &seed_bytes)?;
         Ok(())
     }
 
@@ -171,14 +249,24 @@ impl<'a> E2eeService<'a> {
                 .read_slot(KEYCHAIN_SLOT)?
                 .ok_or_else(|| AppError::Encryption("master_seed missing".into()))?;
 
-            let new_salt = local.kdf_salt.clone(); // keep same salt — only passphrase changes
-            let new_wrap_key = kdf::derive_wrap_key(
-                new,
-                &new_salt,
-                local.kdf_m_cost as u32,
-                local.kdf_t_cost as u32,
-                local.kdf_p_cost as u32,
-            )?;
+            let new_salt = local
+                .kdf_salt
+                .as_ref()
+                .ok_or_else(|| AppError::Validation("missing kdf salt".into()))?
+                .clone();
+            let m_cost = local
+                .kdf_m_cost
+                .ok_or_else(|| AppError::Validation("missing kdf m_cost".into()))?
+                as u32;
+            let t_cost = local
+                .kdf_t_cost
+                .ok_or_else(|| AppError::Validation("missing kdf t_cost".into()))?
+                as u32;
+            let p_cost = local
+                .kdf_p_cost
+                .ok_or_else(|| AppError::Validation("missing kdf p_cost".into()))?
+                as u32;
+            let new_wrap_key = kdf::derive_wrap_key(new, &new_salt, m_cost, t_cost, p_cost)?;
             let new_wrapped = cipher::encrypt(&B64.encode(&*seed_bytes), &new_wrap_key)?;
 
             let salt_array: [u8; 32] = new_salt
@@ -186,14 +274,14 @@ impl<'a> E2eeService<'a> {
                 .try_into()
                 .map_err(|_| AppError::Encryption("kdf_salt wrong length".into()))?;
 
-            let payload = E2eeStatePayload {
-                wrapped_master_seed: new_wrapped,
-                kdf_salt: B64.encode(salt_array),
-                kdf_algorithm: "argon2id".into(),
-                kdf_m_cost: local.kdf_m_cost as u32,
-                kdf_t_cost: local.kdf_t_cost as u32,
-                kdf_p_cost: local.kdf_p_cost as u32,
-            };
+            let payload = E2eeStatePayload::passphrase(
+                new_wrapped,
+                B64.encode(salt_array),
+                "argon2id".into(),
+                m_cost,
+                t_cost,
+                p_cost,
+            );
             (payload, salt_array)
         }; // conn guard dropped here
 
@@ -229,21 +317,199 @@ impl<'a> E2eeService<'a> {
             kdf::ARGON2_P_COST,
         )?;
         let wrapped = cipher::encrypt(&B64.encode(*recovered_seed), &wrap_key)?;
-        let payload = E2eeStatePayload {
-            wrapped_master_seed: wrapped,
-            kdf_salt: B64.encode(salt),
-            kdf_algorithm: "argon2id".into(),
-            kdf_m_cost: kdf::ARGON2_M_COST,
-            kdf_t_cost: kdf::ARGON2_T_COST,
-            kdf_p_cost: kdf::ARGON2_P_COST,
-        };
+        let payload = E2eeStatePayload::passphrase(
+            wrapped,
+            B64.encode(salt),
+            "argon2id".into(),
+            kdf::ARGON2_M_COST,
+            kdf::ARGON2_T_COST,
+            kdf::ARGON2_P_COST,
+        );
         let resp = self.api.put_e2ee_state(token, &payload).await?;
         self.keystore.write_slot(KEYCHAIN_SLOT, &*recovered_seed)?;
         self.persist_local(&payload, &salt, resp.key_version)?;
         Ok(())
     }
 
+    pub async fn auto_enrol(&self, token: &str) -> Result<(), AppError> {
+        if self.keystore.read_slot(KEYCHAIN_SLOT)?.is_some() {
+            log::warn!(
+                "[e2ee] auto_enrol called but keystore slot already populated; inconsistent state"
+            );
+            return Err(AppError::SyncE2eeLocked);
+        }
+
+        let mut seed = Zeroizing::new([0u8; 32]);
+        rand::fill(&mut *seed);
+
+        let kcv = crate::sync::e2ee::pairing::compute_kcv(&seed);
+        let kcv_b64 = B64.encode(kcv);
+
+        write_slot_with_read_back(self.keystore, KEYCHAIN_SLOT, &*seed)?;
+
+        let resp = match self.api.post_e2ee_device_key(token, &kcv_b64).await {
+            Ok(resp) => resp,
+            Err(AppError::SyncE2eeAlreadyEnrolled) => {
+                let _ = self.keystore.delete_slot(KEYCHAIN_SLOT);
+                if let Ok(Some(remote)) = self.api.get_e2ee_state(token).await {
+                    let conn = self.data_store.conn()?;
+                    let kcv_bytes = remote.kcv.as_deref().and_then(|s| B64.decode(s).ok());
+                    let mode_str = remote.mode.as_deref().unwrap_or("device-key");
+                    let _ = cloud_sync_e2ee_local::upsert(
+                        &conn,
+                        &cloud_sync_e2ee_local::E2eeLocalState {
+                            enrolled: true,
+                            key_version: remote.key_version as i64,
+                            wrapped_master_seed: remote.wrapped_master_seed,
+                            kdf_salt: remote.kdf_salt.and_then(|s| B64.decode(s).ok()),
+                            kdf_m_cost: remote.kdf_m_cost.map(|c| c as i64),
+                            kdf_t_cost: remote.kdf_t_cost.map(|c| c as i64),
+                            kdf_p_cost: remote.kdf_p_cost.map(|c| c as i64),
+                            updated_at_ms: current_unix_ms(),
+                            mode: mode_str.to_string(),
+                            kcv: kcv_bytes,
+                            finalize_pending: remote.plaintext_rows.unwrap_or(0) > 0,
+                        },
+                    );
+                }
+                return Err(AppError::SyncE2eeLocked);
+            }
+            Err(e) => {
+                let _ = self.keystore.delete_slot(KEYCHAIN_SLOT);
+                return Err(e);
+            }
+        };
+
+        let conn = self.data_store.conn()?;
+        cloud_sync_e2ee_local::upsert(
+            &conn,
+            &cloud_sync_e2ee_local::E2eeLocalState {
+                enrolled: true,
+                key_version: resp.key_version as i64,
+                wrapped_master_seed: None,
+                kdf_salt: None,
+                kdf_m_cost: None,
+                kdf_t_cost: None,
+                kdf_p_cost: None,
+                updated_at_ms: current_unix_ms(),
+                mode: "device-key".into(),
+                kcv: Some(kcv.to_vec()),
+                finalize_pending: true,
+            },
+        )?;
+        let n = crate::storage::cloud_sync_state::mark_all_dirty(&conn)?;
+        log::info!(
+            "[e2ee] auto_enrol complete: marked {n} rows dirty for initial ciphertext upload"
+        );
+        Ok(())
+    }
+
+    pub async fn finalize_if_pending(
+        &self,
+        token: &str,
+        pulled_through_version: i64,
+    ) -> Result<(), AppError> {
+        let conn = self.data_store.conn()?;
+        let local = cloud_sync_e2ee_local::get(&conn)?;
+        let Some(state) = local else {
+            return Ok(());
+        };
+        if !state.enrolled || !state.finalize_pending {
+            return Ok(());
+        }
+        match self.api.finalize_e2ee(token, pulled_through_version).await {
+            Ok(resp) => {
+                log::info!(
+                    "[e2ee] finalized: deleted {} plaintext rows",
+                    resp.deleted_rows
+                );
+                cloud_sync_e2ee_local::set_finalize_pending(&conn, false)?;
+            }
+            Err(AppError::SyncFinalizeBehind {
+                plaintext_max_version,
+            }) => {
+                log::info!(
+                    "[e2ee] finalize-behind (plaintext max version {}); retaining finalize_pending",
+                    plaintext_max_version
+                );
+            }
+            Err(e) => {
+                log::warn!("[e2ee] finalize call failed: {e:?}; retaining finalize_pending");
+            }
+        }
+        Ok(())
+    }
+
+    pub fn unlock_with_recovery_phrase(&self, phrase: &str) -> Result<(), AppError> {
+        let recovered_seed = mnemonic::decode(phrase)?;
+        let conn = self.data_store.conn()?;
+        let local =
+            cloud_sync_e2ee_local::get(&conn)?.ok_or_else(|| AppError::SyncE2eeNotEnrolled)?;
+        if local.mode != "device-key" {
+            return Err(AppError::SyncE2eeWrongMode(
+                "account is in passphrase mode; use passphrase to unlock".into(),
+            ));
+        }
+        let Some(expected_kcv) = local.kcv.as_ref() else {
+            return Err(AppError::Validation("missing KCV in local mirror".into()));
+        };
+        if expected_kcv.len() != 32 {
+            return Err(AppError::Validation("corrupt KCV in local mirror".into()));
+        }
+        let mut expected = [0u8; 32];
+        expected.copy_from_slice(expected_kcv);
+
+        if !crate::sync::e2ee::pairing::verify_kcv(&recovered_seed, &expected) {
+            return Err(AppError::Validation(
+                "recovery phrase doesn't match this account".into(),
+            ));
+        }
+
+        write_slot_with_read_back(self.keystore, KEYCHAIN_SLOT, &*recovered_seed)?;
+        Ok(())
+    }
+
+    pub fn show_recovery_phrase_device_key(&self) -> Result<String, AppError> {
+        let conn = self.data_store.conn()?;
+        let local =
+            cloud_sync_e2ee_local::get(&conn)?.ok_or_else(|| AppError::SyncE2eeNotEnrolled)?;
+        if local.mode != "device-key" {
+            return Err(AppError::SyncE2eeWrongMode(
+                "account is in passphrase mode; use show_recovery_phrase with passphrase".into(),
+            ));
+        }
+        let seed_bytes = self
+            .keystore
+            .read_slot(KEYCHAIN_SLOT)?
+            .ok_or_else(|| AppError::SyncE2eeLocked)?;
+        if seed_bytes.len() != 32 {
+            return Err(AppError::Encryption(
+                "cached master_seed wrong length".into(),
+            ));
+        }
+        let mut seed = Zeroizing::new([0u8; 32]);
+        seed.copy_from_slice(&seed_bytes);
+        mnemonic::encode(&seed)
+    }
+
+    pub async fn reset(&self, token: &str) -> Result<crate::sync::types::ResetResponse, AppError> {
+        let resp = self.api.reset_sync(token).await?;
+        let _ = self.keystore.delete_slot(KEYCHAIN_SLOT);
+        let conn = self.data_store.conn()?;
+        cloud_sync_e2ee_local::clear(&conn)?;
+        crate::storage::cloud_sync_state::mark_all_dirty(&conn)?;
+        Ok(resp)
+    }
+
     pub async fn disable(&self, token: &str) -> Result<(), AppError> {
+        let conn = self.data_store.conn()?;
+        if let Some(local) = cloud_sync_e2ee_local::get(&conn)? {
+            if local.mode == "device-key" {
+                return Err(AppError::SyncE2eeWrongMode(
+                    "disable is not allowed for device-key accounts; use reset instead".into(),
+                ));
+            }
+        }
         self.api.delete_e2ee_state(token).await?;
         self.apply_local_state_after_disable()?;
         Ok(())
@@ -253,16 +519,36 @@ impl<'a> E2eeService<'a> {
         let conn = self.data_store.conn()?;
         let local = cloud_sync_e2ee_local::get(&conn)?
             .ok_or_else(|| AppError::Validation("not enrolled".into()))?;
+        if local.mode != "passphrase" {
+            return Err(AppError::SyncE2eeWrongMode(
+                "passphrase recovery is only available for passphrase accounts".into(),
+            ));
+        }
+
+        let wrapped_seed = local
+            .wrapped_master_seed
+            .as_ref()
+            .ok_or_else(|| AppError::Validation("missing wrapped seed".into()))?;
+        let kdf_salt = local
+            .kdf_salt
+            .as_ref()
+            .ok_or_else(|| AppError::Validation("missing kdf salt".into()))?;
+        let m_cost = local
+            .kdf_m_cost
+            .ok_or_else(|| AppError::Validation("missing kdf m_cost".into()))?
+            as u32;
+        let t_cost = local
+            .kdf_t_cost
+            .ok_or_else(|| AppError::Validation("missing kdf t_cost".into()))?
+            as u32;
+        let p_cost = local
+            .kdf_p_cost
+            .ok_or_else(|| AppError::Validation("missing kdf p_cost".into()))?
+            as u32;
 
         // Verify passphrase by trial-decrypting the stored wrapped seed.
-        let wrap_key = kdf::derive_wrap_key(
-            passphrase,
-            &local.kdf_salt,
-            local.kdf_m_cost as u32,
-            local.kdf_t_cost as u32,
-            local.kdf_p_cost as u32,
-        )?;
-        cipher::decrypt(&local.wrapped_master_seed, &wrap_key)
+        let wrap_key = kdf::derive_wrap_key(passphrase, kdf_salt, m_cost, t_cost, p_cost)?;
+        cipher::decrypt(wrapped_seed, &wrap_key)
             .map_err(|_| AppError::Validation("incorrect passphrase".into()))?;
 
         // Read seed from keychain and BIP-39 encode.
@@ -337,15 +623,39 @@ impl<'a> E2eeService<'a> {
             enrolled: true,
             key_version: key_version as i64,
             wrapped_master_seed: payload.wrapped_master_seed.clone(),
-            kdf_salt: salt.to_vec(),
-            kdf_m_cost: payload.kdf_m_cost as i64,
-            kdf_t_cost: payload.kdf_t_cost as i64,
-            kdf_p_cost: payload.kdf_p_cost as i64,
+            kdf_salt: Some(salt.to_vec()),
+            kdf_m_cost: payload.kdf_m_cost.map(|c| c as i64),
+            kdf_t_cost: payload.kdf_t_cost.map(|c| c as i64),
+            kdf_p_cost: payload.kdf_p_cost.map(|c| c as i64),
             updated_at_ms: current_unix_ms(),
+            mode: "passphrase".into(),
+            kcv: None,
+            finalize_pending: false,
         };
         let conn = self.data_store.conn()?;
         cloud_sync_e2ee_local::upsert(&conn, &state)?;
         Ok(())
+    }
+}
+
+/// Write raw bytes to a keystore slot and immediately read them back,
+/// comparing in constant time. On mismatch or read failure, deletes the slot
+/// and returns an error, ensuring unreadable secrets are never accepted.
+pub fn write_slot_with_read_back(
+    keystore: &dyn KeyStore,
+    slot: &str,
+    secret: &[u8],
+) -> Result<(), AppError> {
+    keystore.write_slot(slot, secret)?;
+    let read_back = keystore.read_slot(slot)?;
+    match read_back {
+        Some(bytes) if crate::sync::e2ee::pairing::constant_time_eq(&bytes, secret) => Ok(()),
+        _ => {
+            let _ = keystore.delete_slot(slot);
+            Err(AppError::Encryption(
+                "keystore write verification failed: read-back did not match".into(),
+            ))
+        }
     }
 }
 
@@ -365,14 +675,14 @@ mod tests {
     // can be verified without standing up an HTTP fake.
 
     fn dummy_payload() -> E2eeStatePayload {
-        E2eeStatePayload {
-            wrapped_master_seed: "enc:v1:dummy".into(),
-            kdf_salt: B64.encode([7u8; 32]),
-            kdf_algorithm: "argon2id".into(),
-            kdf_m_cost: kdf::ARGON2_M_COST,
-            kdf_t_cost: kdf::ARGON2_T_COST,
-            kdf_p_cost: kdf::ARGON2_P_COST,
-        }
+        E2eeStatePayload::passphrase(
+            "enc:v1:dummy".into(),
+            B64.encode([7u8; 32]),
+            "argon2id".into(),
+            kdf::ARGON2_M_COST,
+            kdf::ARGON2_T_COST,
+            kdf::ARGON2_P_COST,
+        )
     }
 
     fn make_hash(byte: u8) -> Vec<u8> {
@@ -441,7 +751,7 @@ mod tests {
         let mirror = cloud_sync_e2ee_local::get(&conn).unwrap().unwrap();
         assert!(mirror.enrolled);
         assert_eq!(mirror.key_version, 1);
-        assert_eq!(mirror.kdf_salt, salt.to_vec());
+        assert_eq!(mirror.kdf_salt.as_deref(), Some(&salt[..]));
 
         // (c) journal row is dirty AND its hash is cleared. Without
         // either half, the next sync push silently skips this row.
@@ -487,12 +797,15 @@ mod tests {
                 &E2eeLocalState {
                     enrolled: true,
                     key_version: 1,
-                    wrapped_master_seed: "enc:v1:wrapped".into(),
-                    kdf_salt: test_salt.to_vec(),
-                    kdf_m_cost: 16384,
-                    kdf_t_cost: 2,
-                    kdf_p_cost: 1,
+                    wrapped_master_seed: Some("enc:v1:wrapped".into()),
+                    kdf_salt: Some(test_salt.to_vec()),
+                    kdf_m_cost: Some(16384),
+                    kdf_t_cost: Some(2),
+                    kdf_p_cost: Some(1),
                     updated_at_ms: 0,
+                    mode: "passphrase".into(),
+                    kcv: None,
+                    finalize_pending: false,
                 },
             )
             .unwrap();
@@ -539,12 +852,15 @@ mod tests {
             &E2eeLocalState {
                 enrolled: true,
                 key_version: 1,
-                wrapped_master_seed: wrapped.clone(),
-                kdf_salt: salt.to_vec(),
-                kdf_m_cost: 16384,
-                kdf_t_cost: 2,
-                kdf_p_cost: 1,
+                wrapped_master_seed: Some(wrapped.clone()),
+                kdf_salt: Some(salt.to_vec()),
+                kdf_m_cost: Some(16384),
+                kdf_t_cost: Some(2),
+                kdf_p_cost: Some(1),
                 updated_at_ms: 0,
+                mode: "passphrase".into(),
+                kcv: None,
+                finalize_pending: false,
             },
         )
         .unwrap();
@@ -567,5 +883,315 @@ mod tests {
         // E2EE slot survived.
         let seed = store.read_slot(KEYCHAIN_SLOT).unwrap().unwrap();
         assert_eq!(*seed, test_seed.to_vec());
+    }
+
+    #[test]
+    fn test_load_mode_when_enrolled_but_seed_missing_returns_locked() {
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::new();
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        // Mirror indicates enrolled, but keystore slot has no seed.
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_e2ee_local::upsert(
+                &conn,
+                &E2eeLocalState {
+                    enrolled: true,
+                    key_version: 1,
+                    wrapped_master_seed: None,
+                    kdf_salt: None,
+                    kdf_m_cost: None,
+                    kdf_t_cost: None,
+                    kdf_p_cost: None,
+                    updated_at_ms: 0,
+                    mode: "device-key".into(),
+                    kcv: Some(vec![1u8; 32]),
+                    finalize_pending: false,
+                },
+            )
+            .unwrap();
+        }
+
+        let mode = svc.load_mode().unwrap();
+        assert!(matches!(mode, Mode::Locked));
+        assert!(mode.is_locked());
+    }
+
+    #[test]
+    fn test_unlock_with_recovery_phrase_device_key_success_and_failure() {
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::new();
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        let seed: [u8; 32] = rand::random();
+        let phrase = mnemonic::encode(&seed).unwrap();
+        let kcv = crate::sync::e2ee::pairing::compute_kcv(&seed);
+
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_e2ee_local::upsert(
+                &conn,
+                &E2eeLocalState {
+                    enrolled: true,
+                    key_version: 1,
+                    wrapped_master_seed: None,
+                    kdf_salt: None,
+                    kdf_m_cost: None,
+                    kdf_t_cost: None,
+                    kdf_p_cost: None,
+                    updated_at_ms: 0,
+                    mode: "device-key".into(),
+                    kcv: Some(kcv.to_vec()),
+                    finalize_pending: false,
+                },
+            )
+            .unwrap();
+        }
+
+        // 1. Wrong phrase (mismatched KCV) returns Validation error without writing keystore
+        let wrong_seed: [u8; 32] = rand::random();
+        let wrong_phrase = mnemonic::encode(&wrong_seed).unwrap();
+        let err = svc.unlock_with_recovery_phrase(&wrong_phrase).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
+        assert!(keystore.read_slot(KEYCHAIN_SLOT).unwrap().is_none());
+
+        // 2. Correct phrase writes seed to keystore
+        svc.unlock_with_recovery_phrase(&phrase).unwrap();
+        let cached = keystore.read_slot(KEYCHAIN_SLOT).unwrap().unwrap();
+        assert_eq!(*cached, seed.to_vec());
+    }
+
+    #[test]
+    fn test_show_recovery_phrase_device_key() {
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::new();
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        let seed: [u8; 32] = rand::random();
+        let expected_phrase = mnemonic::encode(&seed).unwrap();
+
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_e2ee_local::upsert(
+                &conn,
+                &E2eeLocalState {
+                    enrolled: true,
+                    key_version: 1,
+                    wrapped_master_seed: None,
+                    kdf_salt: None,
+                    kdf_m_cost: None,
+                    kdf_t_cost: None,
+                    kdf_p_cost: None,
+                    updated_at_ms: 0,
+                    mode: "device-key".into(),
+                    kcv: Some(vec![1u8; 32]),
+                    finalize_pending: false,
+                },
+            )
+            .unwrap();
+        }
+
+        // Locked (no seed in keystore) returns SyncE2eeLocked
+        let err = svc.show_recovery_phrase_device_key().unwrap_err();
+        assert!(matches!(err, AppError::SyncE2eeLocked));
+
+        // When cached in keystore, returns 24 BIP-39 words
+        keystore.write_slot(KEYCHAIN_SLOT, &seed).unwrap();
+        let phrase = svc.show_recovery_phrase_device_key().unwrap();
+        assert_eq!(phrase, expected_phrase);
+    }
+
+    #[tokio::test]
+    async fn test_disable_rejects_device_key_accounts() {
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::new();
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_e2ee_local::upsert(
+                &conn,
+                &E2eeLocalState {
+                    enrolled: true,
+                    key_version: 1,
+                    wrapped_master_seed: None,
+                    kdf_salt: None,
+                    kdf_m_cost: None,
+                    kdf_t_cost: None,
+                    kdf_p_cost: None,
+                    updated_at_ms: 0,
+                    mode: "device-key".into(),
+                    kcv: Some(vec![1u8; 32]),
+                    finalize_pending: false,
+                },
+            )
+            .unwrap();
+        }
+
+        let err = svc.disable("tok").await.unwrap_err();
+        assert!(matches!(err, AppError::SyncE2eeWrongMode(_)));
+    }
+
+    #[tokio::test]
+    async fn test_auto_enrol_device_key_success() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/sync/e2ee/state")
+            .with_status(201)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "mode": "device-key",
+                    "keyVersion": 1,
+                    "enrolledAt": "2026-11-01T12:00:00Z"
+                })
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::with_base(server.url());
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        svc.auto_enrol("tok").await.unwrap();
+
+        // (a) Seed cached in keystore
+        let cached = keystore.read_slot(KEYCHAIN_SLOT).unwrap().unwrap();
+        assert_eq!(cached.len(), 32);
+
+        // (b) Local mirror is device-key with finalize_pending
+        let conn = store.conn().unwrap();
+        let mirror = cloud_sync_e2ee_local::get(&conn).unwrap().unwrap();
+        assert!(mirror.enrolled);
+        assert_eq!(mirror.mode, "device-key");
+        assert!(mirror.finalize_pending);
+        assert_eq!(mirror.key_version, 1);
+        let expected_kcv =
+            crate::sync::e2ee::pairing::compute_kcv(cached.as_slice().try_into().unwrap());
+        assert_eq!(mirror.kcv.as_deref(), Some(&expected_kcv[..]));
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_auto_enrol_device_key_409_already_enrolled_clears_seed_and_locks() {
+        let mut server = mockito::Server::new_async().await;
+        let _m_post = server
+            .mock("POST", "/api/sync/e2ee/state")
+            .with_status(409)
+            .with_body(r#"{"code":"sync.e2ee.already-enrolled"}"#)
+            .create_async()
+            .await;
+
+        let _m_get = server
+            .mock("GET", "/api/sync/e2ee/state")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "mode": "device-key",
+                    "keyVersion": 1,
+                    "enrolledAt": "2026-11-01T12:00:00Z",
+                    "kcv": "AAAA"
+                })
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::with_base(server.url());
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        let err = svc.auto_enrol("tok").await.unwrap_err();
+        assert!(matches!(err, AppError::SyncE2eeLocked));
+
+        // Seed deleted from keystore
+        assert!(keystore.read_slot(KEYCHAIN_SLOT).unwrap().is_none());
+
+        // Mode is now locked
+        let mode = svc.load_mode().unwrap();
+        assert!(mode.is_locked());
+    }
+
+    #[tokio::test]
+    async fn test_finalize_if_pending() {
+        let mut server = mockito::Server::new_async().await;
+        let mock_finalize = server
+            .mock("POST", "/api/sync/e2ee/finalize")
+            .with_status(200)
+            .with_body(r#"{"deletedRows":10}"#)
+            .create_async()
+            .await;
+
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::with_base(server.url());
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        // Mirror with finalize_pending: true
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_e2ee_local::upsert(
+                &conn,
+                &E2eeLocalState {
+                    enrolled: true,
+                    key_version: 1,
+                    wrapped_master_seed: None,
+                    kdf_salt: None,
+                    kdf_m_cost: None,
+                    kdf_t_cost: None,
+                    kdf_p_cost: None,
+                    updated_at_ms: 0,
+                    mode: "device-key".into(),
+                    kcv: Some(vec![1u8; 32]),
+                    finalize_pending: true,
+                },
+            )
+            .unwrap();
+        }
+
+        svc.finalize_if_pending("tok", 25).await.unwrap();
+
+        let conn = store.conn().unwrap();
+        let mirror = cloud_sync_e2ee_local::get(&conn).unwrap().unwrap();
+        assert!(!mirror.finalize_pending);
+        mock_finalize.assert_async().await;
     }
 }

@@ -101,6 +101,8 @@ asyar-platform = { path = "crates/asyar-platform" }
 sysinfo = "0.31" # cross-platform process enumeration + kill
 sha2 = "0.10"
 hmac = "0.12"
+hkdf = "0.12"
+x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
 aes-gcm = "0.10"
 aes = "0.8"           # Raycast classic .rayconfig decryption (CBC)
 cbc = { version = "0.1", features = ["alloc"] }

@@ -263,8 +263,25 @@ pub async fn sync_run(
         keystore: &**keystore,
         data_store: &data_store,
     };
-    let mode = svc.load_mode()?;
+    let mut mode = svc.ensure_mirror_and_load_mode(&token).await?;
+    if mode.is_locked() {
+        return Err(AppError::SyncE2eeLocked);
+    }
+    if !mode.is_enabled() {
+        // Mode::Off: Account is entitled (passed Gate::evaluate above); auto-enrol into device-key mode
+        svc.auto_enrol(&token).await?;
+        mode = svc.load_mode()?;
+        if mode.is_locked() {
+            return Err(AppError::SyncE2eeLocked);
+        }
+    }
     let result = sync_run_inner(&sources, &token, &*api_client, &data_store, &mode).await;
+
+    if let Ok(ref report) = result {
+        if report.push_failure.is_none() {
+            let _ = svc.finalize_if_pending(&token, report.server_version).await;
+        }
+    }
 
     if let Err(AppError::Auth(ref msg)) = result {
         if msg.contains("Token expired") || msg.contains("Not logged in") || msg.contains("401") {
@@ -364,6 +381,10 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
     data_store: &DataStore,
     mode: &Mode,
 ) -> Result<SyncRunReport, AppError> {
+    if mode.is_locked() {
+        return Err(AppError::SyncE2eeLocked);
+    }
+
     let mut report = SyncRunReport::default();
 
     // ── Pull phase ───────────────────────────────────────────────────────────
@@ -1570,5 +1591,35 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[tokio::test]
+    async fn sync_run_inner_locked_mode_refuses_to_pull_or_push() {
+        let store = create_test_store();
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_state::mark_dirty(&conn, "dirty-item", "snippets").unwrap();
+        }
+
+        let http = MockSyncHttp::new();
+        http.enqueue_pull(ItemPullPage {
+            items: vec![live_record("server-1", "snippets", "enc:v1:ciphertext", 7)],
+            server_version: 7,
+            has_more: false,
+        });
+
+        let sources = vec![local_wire("dirty-item", "snippets", "plaintext-data")];
+        let result = sync_run_inner(&sources, "tok", &http, &store, &Mode::Locked).await;
+
+        assert!(matches!(result, Err(AppError::SyncE2eeLocked)));
+        assert_eq!(http.pull_calls().len(), 0, "must not perform any pull");
+        assert_eq!(http.push_calls().len(), 0, "must not perform any push");
+
+        let conn = store.conn().unwrap();
+        let cursor = cloud_sync_state::get_cursor(&conn).unwrap();
+        assert_eq!(cursor.cursor, 0, "cursor must not advance");
+
+        let dirty = cloud_sync_state::get_dirty(&conn).unwrap();
+        assert_eq!(dirty.len(), 1, "dirty row must remain unpushed");
     }
 }
