@@ -115,7 +115,6 @@ impl<'a> E2eeService<'a> {
     pub fn status(&self) -> Result<E2eeStatusReport, AppError> {
         let conn = self.data_store.conn()?;
         let local = cloud_sync_e2ee_local::get(&conn)?;
-        let cached = self.keystore.read_slot(KEYCHAIN_SLOT)?.is_some();
         let os_backed = self.keystore.is_os_backed();
         Ok(match local {
             None => E2eeStatusReport {
@@ -128,7 +127,10 @@ impl<'a> E2eeService<'a> {
             },
             Some(s) => E2eeStatusReport {
                 enabled: s.enrolled,
-                locked: s.enrolled && !cached,
+                // Same decision `sync_run` makes: a cached seed that fails the
+                // mirror's key check is locked too, otherwise the UI would show
+                // "unlocked" while every sync is refused.
+                locked: s.enrolled && !matches!(self.load_mode(), Ok(Mode::On { .. })),
                 key_version: Some(s.key_version as u64),
                 mode: Some(s.mode.clone()),
                 keystore_is_os_backed: os_backed,
@@ -1086,6 +1088,49 @@ mod tests {
         let mode = svc.load_mode().unwrap();
         assert!(matches!(mode, Mode::Locked));
         assert!(mode.is_locked());
+    }
+
+    #[test]
+    fn status_reports_locked_when_cached_seed_fails_mirror_kcv() {
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::new();
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        let mirror_seed: [u8; 32] = rand::random();
+        let stale_seed: [u8; 32] = rand::random();
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_e2ee_local::upsert(
+                &conn,
+                &E2eeLocalState {
+                    enrolled: true,
+                    key_version: 1,
+                    wrapped_master_seed: None,
+                    kdf_salt: None,
+                    kdf_m_cost: None,
+                    kdf_t_cost: None,
+                    kdf_p_cost: None,
+                    updated_at_ms: 0,
+                    mode: "device-key".into(),
+                    kcv: Some(crate::sync::e2ee::pairing::compute_kcv(&mirror_seed).to_vec()),
+                    finalize_pending: false,
+                },
+            )
+            .unwrap();
+        }
+        keystore.write_slot(KEYCHAIN_SLOT, &stale_seed).unwrap();
+
+        // sync_run would refuse (Mode::Locked); the settings UI must agree.
+        assert!(svc.load_mode().unwrap().is_locked());
+        assert!(svc.status().unwrap().locked);
+
+        keystore.write_slot(KEYCHAIN_SLOT, &mirror_seed).unwrap();
+        assert!(!svc.status().unwrap().locked);
     }
 
     #[test]
