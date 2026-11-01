@@ -421,6 +421,7 @@ class CloudSyncService {
         authService.logout().catch(() => {});
         this.status = 'error';
         this.lastError = classification.message;
+        this.quota = null;
         return;
       }
       case 'entitlement_required': {
@@ -476,6 +477,7 @@ class CloudSyncService {
         }
         this.nextRetryAt = new Date(Date.now() + delayMs);
         this.isTransient = true;
+        this.quota = null;
         this.status = 'error';
         this.lastError = null;
         logService.warn(
@@ -499,6 +501,7 @@ class CloudSyncService {
         this.status = 'error';
         this.lastError = classification.message;
         this.isTransient = false;
+        this.quota = null;
         logService.error(`Cloud sync run failed: ${classification.message}`);
         const summary = `error:${classification.message}`;
         if (this.lastLoggedFailureSummary !== summary) {

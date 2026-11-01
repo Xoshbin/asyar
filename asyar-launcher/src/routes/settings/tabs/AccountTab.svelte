@@ -352,13 +352,15 @@
                   ? formatRelativeTime(cloudSyncService.lastSyncedAt)
                   : t('settings.account.not_yet_synced')}
               </span>
-              {#if cloudSyncService.quota}
+              {#if cloudSyncService.quota && cloudSyncService.quota.limitBytes > 0}
                 <span class="error-text">
                   {t('settings.account.sync_quota_exceeded', {
                     used: formatBytes(cloudSyncService.quota.usedBytes),
                     limit: formatBytes(cloudSyncService.quota.limitBytes),
                   })}
                 </span>
+              {:else if cloudSyncService.quota}
+                <span class="error-text">{t('settings.account.sync_quota_exceeded_generic')}</span>
               {:else if cloudSyncService.isTransient}
                 <span class="error-text">{t('settings.account.sync_transient_error')}</span>
               {:else if cloudSyncService.lastError}

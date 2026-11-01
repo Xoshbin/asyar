@@ -184,6 +184,22 @@ describe('AccountTab sync section hardening', () => {
     ).toBeTruthy();
   });
 
+  it('displays generic quota-exceeded message when limitBytes is zero or missing', () => {
+    authService.isLoggedIn = true;
+    authService.entitlements = ['sync:settings'];
+    cloudSyncService.status = 'quota_exceeded';
+    cloudSyncService.quota = {
+      usedBytes: 0,
+      limitBytes: 0,
+    };
+
+    render(AccountTab, { props: { handler: createMockHandler() } });
+
+    expect(
+      screen.getByText(/^Sync storage quota exceeded\. Delete items to free up space\.$/i),
+    ).toBeTruthy();
+  });
+
   it('displays friendly transient line instead of raw error string', () => {
     authService.isLoggedIn = true;
     authService.entitlements = ['sync:settings'];

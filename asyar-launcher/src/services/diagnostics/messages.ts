@@ -21,7 +21,7 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
     message ? `Run failed: ${message}` : `Run ${id ?? 'unknown'} failed`,
   sync_entitlement_required: () => 'Cloud sync requires an active plan',
   sync_quota_exceeded: ({ usedBytes, limitBytes }) =>
-    usedBytes && limitBytes
+    Number(limitBytes) > 0
       ? `Cloud sync storage quota exceeded (${usedBytes} / ${limitBytes} bytes)`
       : 'Cloud sync storage quota exceeded',
   sync_rate_limited: ({ retryAfter }) =>

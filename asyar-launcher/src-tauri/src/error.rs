@@ -206,8 +206,10 @@ impl HasSeverity for AppError {
                 used_bytes,
                 limit_bytes,
             } => {
-                ctx.insert("usedBytes", used_bytes.to_string());
-                ctx.insert("limitBytes", limit_bytes.to_string());
+                if *limit_bytes > 0 {
+                    ctx.insert("usedBytes", used_bytes.to_string());
+                    ctx.insert("limitBytes", limit_bytes.to_string());
+                }
             }
             AppError::SyncRateLimited { retry_after_secs } => {
                 ctx.insert("retryAfter", retry_after_secs.to_string());
@@ -386,5 +388,28 @@ mod severity_tests {
     fn validation_is_warning() {
         let err = AppError::Validation("bad input".into());
         assert_eq!(err.severity(), Severity::Warning);
+    }
+
+    #[test]
+    fn sync_quota_exceeded_context_requires_positive_limit() {
+        let with_limit = AppError::SyncQuotaExceeded {
+            used_bytes: 100,
+            limit_bytes: 500,
+        };
+        assert_eq!(
+            with_limit.context().get("usedBytes"),
+            Some(&"100".to_string())
+        );
+        assert_eq!(
+            with_limit.context().get("limitBytes"),
+            Some(&"500".to_string())
+        );
+
+        let without_limit = AppError::SyncQuotaExceeded {
+            used_bytes: 0,
+            limit_bytes: 0,
+        };
+        assert_eq!(without_limit.context().get("usedBytes"), None);
+        assert_eq!(without_limit.context().get("limitBytes"), None);
     }
 }

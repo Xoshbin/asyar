@@ -222,6 +222,7 @@
       "recovery_phrase": "恢復短語",
       "plan_no_sync": "雲端同步需要有效的訂閱方案。此裝置上的資料不受影響。已儲存在雲端的資料將保留一段有限時間後被移除。",
       "sync_quota_exceeded": "同步儲存配額已超出 ({used} / {limit})。請刪除項目以釋放空間。",
+      "sync_quota_exceeded_generic": "同步儲存配額已超出。請刪除項目以釋放空間。",
       "sync_transient_error": "無法連線至 Asyar Cloud，稍後重試",
       "sync_enabled_desc": "正在跨裝置同步你的資料。",
       "sync_disabled_desc": "你的資料僅保留在此裝置上。",

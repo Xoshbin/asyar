@@ -222,6 +222,7 @@
       "recovery_phrase": "Recovery phrase",
       "plan_no_sync": "Cloud Sync requires an active plan. Data on this device is unaffected. Data already stored in the cloud is kept for a limited time and will then be removed.",
       "sync_quota_exceeded": "Sync storage quota exceeded ({used} / {limit}). Delete items to free up space.",
+      "sync_quota_exceeded_generic": "Sync storage quota exceeded. Delete items to free up space.",
       "sync_transient_error": "Couldn't reach Asyar Cloud, will retry",
       "sync_enabled_desc": "Syncing your data across devices.",
       "sync_disabled_desc": "Your data stays on this device.",

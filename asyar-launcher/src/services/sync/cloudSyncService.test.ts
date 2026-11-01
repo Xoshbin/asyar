@@ -1181,6 +1181,53 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       expect(feedbackService.report).toHaveBeenCalledTimes(1);
     });
 
+    it('clears stale quota state on subsequent transient, other, or auth failures', async () => {
+      const quotaErr = new IpcError(
+        'sync_run',
+        {
+          source: 'rust',
+          kind: 'sync_quota_exceeded',
+          severity: 'warning',
+          retryable: false,
+          context: { usedBytes: '15000000', limitBytes: '10000000' },
+          developerDetail: 'Sync quota exceeded',
+        },
+        null,
+      );
+      vi.mocked(commands.syncRun).mockRejectedValue(quotaErr);
+      await cloudSyncService.syncNow();
+      expect(cloudSyncService.quota).not.toBeNull();
+
+      // Next failure is transient (server unavailable)
+      const transientErr = new IpcError(
+        'sync_run',
+        {
+          source: 'rust',
+          kind: 'sync_server_unavailable',
+          severity: 'error',
+          retryable: true,
+          developerDetail: 'Server 503',
+        },
+        null,
+      );
+      vi.mocked(commands.syncRun).mockRejectedValue(transientErr);
+      await cloudSyncService.syncNow();
+      expect(cloudSyncService.status).toBe('error');
+      expect(cloudSyncService.isTransient).toBe(true);
+      expect(cloudSyncService.quota).toBeNull();
+
+      // Re-trigger quota
+      vi.mocked(commands.syncRun).mockRejectedValue(quotaErr);
+      await cloudSyncService.syncNow();
+      expect(cloudSyncService.quota).not.toBeNull();
+
+      // Next failure is other
+      vi.mocked(commands.syncRun).mockRejectedValue(new Error('Unknown crash'));
+      await cloudSyncService.syncNow();
+      expect(cloudSyncService.quota).toBeNull();
+      expect(cloudSyncService.status).toBe('error');
+    });
+
     describe('transient errors and backoff', () => {
       beforeEach(() => {
         vi.useFakeTimers();
