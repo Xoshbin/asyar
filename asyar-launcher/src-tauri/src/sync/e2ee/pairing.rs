@@ -31,7 +31,21 @@ use zeroize::Zeroizing;
 /// An ephemeral secret key generated on the new device during `pairing_request`
 /// must survive between the request and the poll. Entries expire after 15 minutes
 /// and are dropped/zeroized on completion or cancel.
-type PendingSessionMap = HashMap<String, (Zeroizing<[u8; 32]>, Instant)>;
+#[derive(Clone)]
+pub enum PairingSession {
+    Requested {
+        requester_secret: Zeroizing<[u8; 32]>,
+        requester_pub: [u8; 32],
+        created_at: Instant,
+    },
+    AwaitingConfirmation {
+        decrypted_seed: Zeroizing<[u8; 32]>,
+        confirmation_words: String,
+        created_at: Instant,
+    },
+}
+
+type PendingSessionMap = HashMap<String, PairingSession>;
 
 #[derive(Default)]
 pub struct PairingSessionStore(pub Mutex<PendingSessionMap>);
@@ -41,29 +55,69 @@ impl PairingSessionStore {
         Self(Mutex::new(HashMap::new()))
     }
 
-    pub fn insert(&self, id: String, secret: Zeroizing<[u8; 32]>) {
+    fn cleanup(lock: &mut PendingSessionMap) {
+        let now = Instant::now();
+        lock.retain(|_, session| match session {
+            PairingSession::Requested { created_at, .. } => {
+                now.duration_since(*created_at).as_secs() < 900
+            }
+            PairingSession::AwaitingConfirmation { created_at, .. } => {
+                now.duration_since(*created_at).as_secs() < 900
+            }
+        });
+    }
+
+    pub fn insert_request(&self, id: String, secret: Zeroizing<[u8; 32]>, requester_pub: [u8; 32]) {
         if let Ok(mut lock) = self.0.lock() {
-            let now = Instant::now();
-            lock.retain(|_, (_, time)| now.duration_since(*time).as_secs() < 900);
-            lock.insert(id, (secret, now));
+            Self::cleanup(&mut lock);
+            lock.insert(
+                id,
+                PairingSession::Requested {
+                    requester_secret: secret,
+                    requester_pub,
+                    created_at: Instant::now(),
+                },
+            );
         }
     }
 
-    pub fn get(&self, id: &str) -> Option<Zeroizing<[u8; 32]>> {
+    pub fn get(&self, id: &str) -> Option<PairingSession> {
         if let Ok(mut lock) = self.0.lock() {
-            let now = Instant::now();
-            lock.retain(|_, (_, time)| now.duration_since(*time).as_secs() < 900);
-            lock.get(id).map(|(s, _)| s.clone())
+            Self::cleanup(&mut lock);
+            lock.get(id).cloned()
         } else {
             None
         }
     }
 
-    pub fn take(&self, id: &str) -> Option<Zeroizing<[u8; 32]>> {
+    pub fn set_awaiting_confirmation(
+        &self,
+        id: &str,
+        decrypted_seed: Zeroizing<[u8; 32]>,
+        confirmation_words: String,
+    ) {
         if let Ok(mut lock) = self.0.lock() {
-            let now = Instant::now();
-            lock.retain(|_, (_, time)| now.duration_since(*time).as_secs() < 900);
-            lock.remove(id).map(|(s, _)| s)
+            Self::cleanup(&mut lock);
+            lock.insert(
+                id.to_string(),
+                PairingSession::AwaitingConfirmation {
+                    decrypted_seed,
+                    confirmation_words,
+                    created_at: Instant::now(),
+                },
+            );
+        }
+    }
+
+    pub fn take_awaiting_confirmation(&self, id: &str) -> Option<Zeroizing<[u8; 32]>> {
+        if let Ok(mut lock) = self.0.lock() {
+            Self::cleanup(&mut lock);
+            match lock.remove(id) {
+                Some(PairingSession::AwaitingConfirmation { decrypted_seed, .. }) => {
+                    Some(decrypted_seed)
+                }
+                _ => None,
+            }
         } else {
             None
         }
@@ -113,23 +167,49 @@ pub fn verify_kcv(seed: &[u8; 32], expected_kcv: &[u8]) -> bool {
     mac.verify_slice(expected_kcv).is_ok()
 }
 
-/// Format a pairing fingerprint from a requester's 32-byte X25519 public key.
-///
-/// Formula: first 4 bytes of SHA-256(b"asyar-pair-v1" || requester_public_key)
-/// as big-endian u32 modulo 1,000,000, zero-padded as "123 456".
+pub const CONFIRMATION_PREFIX: &[u8] = b"asyar-pair-confirm-v1";
+
+/// Extract the first 66 bits of a SHA-256 digest as 6 BIP-39 English words
+/// (11 bits per word, big-endian bit order).
+pub fn bits_66_to_bip39_words(digest: &[u8; 32]) -> String {
+    let mut words = Vec::with_capacity(6);
+    for word_idx in 0..6 {
+        let start_bit = word_idx * 11;
+        let mut index = 0usize;
+        for bit_offset in 0..11 {
+            let bit_idx = start_bit + bit_offset;
+            let byte_idx = bit_idx / 8;
+            let bit_in_byte = 7 - (bit_idx % 8);
+            let bit = (digest[byte_idx] >> bit_in_byte) & 1;
+            index = (index << 1) | (bit as usize);
+        }
+        words.push(crate::crypto::mnemonic::word_by_index(index));
+    }
+    words.join(" ")
+}
+
+/// Format a pairing fingerprint from a requester's 32-byte X25519 public key:
+/// first 66 bits of SHA-256(b"asyar-pair-v1" || requester_public_key) as 6 BIP-39 words.
 pub fn compute_pairing_fingerprint(requester_public_key: &[u8; 32]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(FINGERPRINT_PREFIX);
     hasher.update(requester_public_key);
-    let hash = hasher.finalize();
+    let hash: [u8; 32] = hasher.finalize().into();
+    bits_66_to_bip39_words(&hash)
+}
 
-    let num = u32::from_be_bytes(
-        hash[..4]
-            .try_into()
-            .expect("slice of length 4 converts to [u8; 4]"),
-    );
-    let code = num % 1_000_000;
-    format!("{:03} {:03}", code / 1000, code % 1000)
+/// Compute a two-way confirmation code from the requester and approver public keys:
+/// first 66 bits of SHA-256(b"asyar-pair-confirm-v1" || requester_pub || approver_pub) as 6 BIP-39 words.
+pub fn compute_confirmation_words(
+    requester_public_key: &[u8; 32],
+    approver_public_key: &[u8; 32],
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(CONFIRMATION_PREFIX);
+    hasher.update(requester_public_key);
+    hasher.update(approver_public_key);
+    let hash: [u8; 32] = hasher.finalize().into();
+    bits_66_to_bip39_words(&hash)
 }
 
 /// Generate a fresh ephemeral X25519 keypair.
@@ -294,7 +374,7 @@ mod tests {
 
         let (requester_secret, requester_pub) = generate_keypair();
         let fingerprint = compute_pairing_fingerprint(&requester_pub);
-        assert_eq!(fingerprint.len(), 7); // "123 456"
+        assert_eq!(fingerprint.split_whitespace().count(), 6);
 
         let (sealed_b64, approver_pub) =
             seal_seed_for_pairing(&master_seed, &requester_pub).unwrap();
@@ -405,9 +485,11 @@ mod tests {
         let fp1 = compute_pairing_fingerprint(&key);
         let fp2 = compute_pairing_fingerprint(&key);
         assert_eq!(fp1, fp2);
-        assert_eq!(fp1.len(), 7);
-        assert_eq!(&fp1[3..4], " ");
-        assert!(fp1.chars().all(|c| c.is_ascii_digit() || c == ' '));
+        let words: Vec<&str> = fp1.split_whitespace().collect();
+        assert_eq!(words.len(), 6);
+        for w in &words {
+            assert!(w.chars().all(|c| c.is_ascii_lowercase()));
+        }
 
         let other_key = [0x43u8; 32];
         let fp_other = compute_pairing_fingerprint(&other_key);
@@ -421,11 +503,30 @@ mod tests {
         let mut hasher = Sha256::new();
         hasher.update(b"asyar-pair-v1");
         hasher.update(zero_key);
-        let h = hasher.finalize();
-        let expected_num = u32::from_be_bytes(h[..4].try_into().unwrap()) % 1_000_000;
-        let expected_fp = format!("{:03} {:03}", expected_num / 1000, expected_num % 1000);
+        let h: [u8; 32] = hasher.finalize().into();
+        let expected_fp = bits_66_to_bip39_words(&h);
 
         assert_eq!(compute_pairing_fingerprint(&zero_key), expected_fp);
+        assert_eq!(expected_fp, "nature laptop expect boil rent cost");
+    }
+
+    #[test]
+    fn test_known_answer_confirmation_words() {
+        let zero_key = [0u8; 32];
+        let words = compute_confirmation_words(&zero_key, &zero_key);
+        assert_eq!(words.split_whitespace().count(), 6);
+        assert_eq!(words, "balance patch patch extend copper twin");
+    }
+
+    #[test]
+    fn test_confirmation_words_mismatching_approver_key_changes_code() {
+        let req_pub = [1u8; 32];
+        let app_pub_1 = [2u8; 32];
+        let app_pub_2 = [3u8; 32];
+
+        let code1 = compute_confirmation_words(&req_pub, &app_pub_1);
+        let code2 = compute_confirmation_words(&req_pub, &app_pub_2);
+        assert_ne!(code1, code2);
     }
 
     #[test]
@@ -461,26 +562,61 @@ mod tests {
     }
 
     #[test]
-    fn test_pairing_session_store_insert_take_remove() {
+    fn test_pairing_session_store_lifecycle_and_ttl() {
         let store = PairingSessionStore::new();
         let secret = Zeroizing::new([42u8; 32]);
-        store.insert("pair-1".into(), secret);
+        let pub_key = [10u8; 32];
+        store.insert_request("pair-1".into(), secret, pub_key);
 
         assert!(store.get("pair-unknown").is_none());
-        assert!(store.take("pair-unknown").is_none());
 
-        // get() reads without consuming
-        let peeked = store.get("pair-1").expect("must get pair-1");
-        assert_eq!(*peeked, [42u8; 32]);
-        assert!(store.get("pair-1").is_some(), "still present after get");
+        // get() returns Requested
+        match store.get("pair-1") {
+            Some(PairingSession::Requested { requester_pub, .. }) => {
+                assert_eq!(requester_pub, pub_key);
+            }
+            _ => panic!("expected Requested session"),
+        }
 
-        let taken = store.take("pair-1").expect("must take pair-1");
-        assert_eq!(*taken, [42u8; 32]);
-        assert!(store.take("pair-1").is_none(), "already taken");
+        // Transition to AwaitingConfirmation
+        let seed = Zeroizing::new([77u8; 32]);
+        store.set_awaiting_confirmation(
+            "pair-1",
+            seed,
+            "word1 word2 word3 word4 word5 word6".into(),
+        );
 
-        let secret2 = Zeroizing::new([99u8; 32]);
-        store.insert("pair-2".into(), secret2);
-        store.remove("pair-2");
-        assert!(store.take("pair-2").is_none());
+        match store.get("pair-1") {
+            Some(PairingSession::AwaitingConfirmation {
+                confirmation_words, ..
+            }) => {
+                assert_eq!(confirmation_words, "word1 word2 word3 word4 word5 word6");
+            }
+            _ => panic!("expected AwaitingConfirmation session"),
+        }
+
+        // take_awaiting_confirmation retrieves seed and removes it
+        let taken = store
+            .take_awaiting_confirmation("pair-1")
+            .expect("must take seed");
+        assert_eq!(*taken, [77u8; 32]);
+        assert!(store.get("pair-1").is_none(), "already taken");
+
+        // TTL expiry drops the secret
+        {
+            let mut map = store.0.lock().unwrap();
+            map.insert(
+                "expired-pair".into(),
+                PairingSession::Requested {
+                    requester_secret: Zeroizing::new([99u8; 32]),
+                    requester_pub: [0u8; 32],
+                    created_at: Instant::now() - std::time::Duration::from_secs(901),
+                },
+            );
+        }
+        assert!(
+            store.get("expired-pair").is_none(),
+            "expired session must be dropped"
+        );
     }
 }

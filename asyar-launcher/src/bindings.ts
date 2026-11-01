@@ -440,8 +440,13 @@ export type NumberFormat =
 // `1.234,56` — comma decimal, point grouping.
 "comma";
 
+export type PairingApproveResult = {
+	confirmationWords: string,
+};
+
 export type PairingPollResult = {
 	status: string,
+	confirmationWords: string | null,
 };
 
 export type PairingRequestResult = {

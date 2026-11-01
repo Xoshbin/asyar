@@ -588,6 +588,8 @@ macro_rules! browser_and_sync_commands {
                 $crate::commands::sync_e2ee::sync_e2ee_pairing_poll,
                 $crate::commands::sync_e2ee::sync_e2ee_pairing_incoming,
                 $crate::commands::sync_e2ee::sync_e2ee_pairing_approve,
+                $crate::commands::sync_e2ee::sync_e2ee_pairing_confirm,
+                $crate::commands::sync_e2ee::sync_e2ee_pairing_reject,
                 $crate::commands::sync_e2ee::sync_e2ee_pairing_cancel,
                 $crate::commands::sync_e2ee::sync_e2ee_reset,
                 $crate::commands::export_profile,

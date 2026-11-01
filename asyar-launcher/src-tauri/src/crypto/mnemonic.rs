@@ -11,6 +11,11 @@ use zeroize::Zeroizing;
 pub const SEED_LEN: usize = 32;
 pub const PHRASE_WORD_COUNT: usize = 24;
 
+/// Returns the BIP-39 English word for an 11-bit index (0..2048).
+pub fn word_by_index(index: usize) -> &'static str {
+    Language::English.word_list()[index]
+}
+
 /// Encode a 32-byte seed as 24 BIP-39 English words separated by single spaces.
 pub fn encode(seed: &[u8; SEED_LEN]) -> Result<String, AppError> {
     let mnemonic = Mnemonic::from_entropy_in(Language::English, seed)

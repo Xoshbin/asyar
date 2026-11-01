@@ -30,6 +30,13 @@ pub struct PairingRequestResult {
 #[serde(rename_all = "camelCase")]
 pub struct PairingPollResult {
     pub status: String,
+    pub confirmation_words: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingApproveResult {
+    pub confirmation_words: String,
 }
 
 const MIN_PASSPHRASE_LEN: usize = 12;
@@ -236,7 +243,7 @@ pub async fn sync_e2ee_pairing_request(
         .create_pairing(&token, &device_name, &b64_pub)
         .await?;
     let fingerprint = crate::sync::e2ee::pairing::compute_pairing_fingerprint(&public_key);
-    pairing_store.insert(resp.id.clone(), secret);
+    pairing_store.insert_request(resp.id.clone(), secret, public_key);
     Ok(PairingRequestResult {
         id: resp.id,
         fingerprint,
@@ -244,22 +251,49 @@ pub async fn sync_e2ee_pairing_request(
     })
 }
 
-#[tauri::command]
-pub async fn sync_e2ee_pairing_poll(
-    id: String,
-    auth_state: State<'_, AuthState>,
-    api_client: State<'_, ApiClient>,
-    keystore: State<'_, Arc<dyn KeyStore>>,
-    data_store: State<'_, DataStore>,
-    pairing_store: State<'_, PairingSessionStore>,
+pub async fn pairing_poll_inner(
+    id: &str,
+    token: &str,
+    api_client: &ApiClient,
+    pairing_store: &PairingSessionStore,
 ) -> Result<PairingPollResult, AppError> {
-    let token = read_token(&auth_state)?;
-    let poll_resp = api_client.poll_pairing(&token, &id).await?;
+    // If already awaiting confirmation, return immediately and idempotently (do not call server again).
+    if let Some(crate::sync::e2ee::pairing::PairingSession::AwaitingConfirmation {
+        confirmation_words,
+        ..
+    }) = pairing_store.get(id)
+    {
+        return Ok(PairingPollResult {
+            status: "awaiting-confirmation".into(),
+            confirmation_words: Some(confirmation_words),
+        });
+    }
+
+    let poll_resp = api_client.poll_pairing(token, id).await?;
 
     if poll_resp.status == "approved" {
-        let secret = pairing_store
-            .get(&id)
-            .ok_or_else(|| AppError::Validation("pairing session expired or not found".into()))?;
+        let (secret, requester_pub) = match pairing_store.get(id) {
+            Some(crate::sync::e2ee::pairing::PairingSession::Requested {
+                requester_secret,
+                requester_pub,
+                ..
+            }) => (requester_secret, requester_pub),
+            Some(crate::sync::e2ee::pairing::PairingSession::AwaitingConfirmation {
+                confirmation_words,
+                ..
+            }) => {
+                return Ok(PairingPollResult {
+                    status: "awaiting-confirmation".into(),
+                    confirmation_words: Some(confirmation_words),
+                });
+            }
+            None => {
+                return Err(AppError::Validation(
+                    "pairing session expired or not found".into(),
+                ))
+            }
+        };
+
         let sealed_b64 = poll_resp.sealed_seed.ok_or_else(|| {
             AppError::Validation("missing sealed seed in approved response".into())
         })?;
@@ -275,7 +309,7 @@ pub async fn sync_e2ee_pairing_poll(
 
         // Retrieve server E2EE state to verify KCV
         let remote = api_client
-            .get_e2ee_state(&token)
+            .get_e2ee_state(token)
             .await?
             .ok_or(AppError::SyncE2eeNotEnrolled)?;
         let kcv_b64 = remote.kcv.as_deref().unwrap_or_default();
@@ -291,38 +325,42 @@ pub async fn sync_e2ee_pairing_poll(
             &expected_kcv,
         )?;
 
-        // Write to keystore with constant-time verification
-        crate::sync::e2ee::service::write_slot_with_read_back(
-            &**keystore,
-            crate::sync::e2ee::service::KEYCHAIN_SLOT,
-            &*seed,
-        )?;
+        // Compute 6-word confirmation code from SHA-256("asyar-pair-confirm-v1" || R || A)
+        let confirmation_words = crate::sync::e2ee::pairing::compute_confirmation_words(
+            &requester_pub,
+            &approver_pub_bytes,
+        );
 
-        // Now that the seed is safely verified and written, consume the ephemeral secret.
-        pairing_store.take(&id);
-
-        // Fetch remote state to persist local mirror
-        let svc = E2eeService {
-            api: &api_client,
-            keystore: &**keystore,
-            data_store: &data_store,
-        };
-        let _ = svc.ensure_mirror_and_load_mode(&token).await;
+        // Store decrypted seed in memory awaiting user confirmation (keystore NOT written yet!)
+        pairing_store.set_awaiting_confirmation(id, seed, confirmation_words.clone());
 
         Ok(PairingPollResult {
-            status: "approved".into(),
+            status: "awaiting-confirmation".into(),
+            confirmation_words: Some(confirmation_words),
         })
     } else {
         if matches!(
             poll_resp.status.as_str(),
             "expired" | "cancelled" | "consumed"
         ) {
-            pairing_store.remove(&id);
+            pairing_store.remove(id);
         }
         Ok(PairingPollResult {
             status: poll_resp.status,
+            confirmation_words: None,
         })
     }
+}
+
+#[tauri::command]
+pub async fn sync_e2ee_pairing_poll(
+    id: String,
+    auth_state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
+    pairing_store: State<'_, PairingSessionStore>,
+) -> Result<PairingPollResult, AppError> {
+    let token = read_token(&auth_state)?;
+    pairing_poll_inner(&id, &token, &api_client, &pairing_store).await
 }
 
 #[tauri::command]
@@ -360,7 +398,7 @@ pub async fn sync_e2ee_pairing_approve(
     auth_state: State<'_, AuthState>,
     api_client: State<'_, ApiClient>,
     keystore: State<'_, Arc<dyn KeyStore>>,
-) -> Result<(), AppError> {
+) -> Result<PairingApproveResult, AppError> {
     let token = read_token(&auth_state)?;
     let seed_bytes = keystore
         .read_slot(crate::sync::e2ee::service::KEYCHAIN_SLOT)?
@@ -394,7 +432,87 @@ pub async fn sync_e2ee_pairing_approve(
 
     api_client
         .approve_pairing(&token, &id, &sealed_b64, &approver_pub_b64)
-        .await
+        .await?;
+
+    let confirmation_words =
+        crate::sync::e2ee::pairing::compute_confirmation_words(&requester_pub, &approver_pub);
+
+    Ok(PairingApproveResult { confirmation_words })
+}
+
+pub async fn pairing_confirm_inner(
+    id: &str,
+    token: &str,
+    api_client: &ApiClient,
+    keystore: &dyn KeyStore,
+    data_store: &DataStore,
+    pairing_store: &PairingSessionStore,
+) -> Result<(), AppError> {
+    let seed = pairing_store
+        .take_awaiting_confirmation(id)
+        .ok_or_else(|| {
+            AppError::Validation("pairing session expired or not awaiting confirmation".into())
+        })?;
+
+    // Write to keystore with constant-time verification
+    crate::sync::e2ee::service::write_slot_with_read_back(
+        keystore,
+        crate::sync::e2ee::service::KEYCHAIN_SLOT,
+        &*seed,
+    )?;
+
+    // Fetch remote state to persist local mirror
+    let svc = E2eeService {
+        api: api_client,
+        keystore,
+        data_store,
+    };
+    let _ = svc.ensure_mirror_and_load_mode(token).await?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sync_e2ee_pairing_confirm(
+    id: String,
+    auth_state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
+    keystore: State<'_, Arc<dyn KeyStore>>,
+    data_store: State<'_, DataStore>,
+    pairing_store: State<'_, PairingSessionStore>,
+) -> Result<(), AppError> {
+    let token = read_token(&auth_state)?;
+    pairing_confirm_inner(
+        &id,
+        &token,
+        &api_client,
+        &**keystore,
+        &data_store,
+        &pairing_store,
+    )
+    .await
+}
+
+pub async fn pairing_reject_inner(
+    id: &str,
+    token: &str,
+    api_client: &ApiClient,
+    pairing_store: &PairingSessionStore,
+) -> Result<(), AppError> {
+    pairing_store.remove(id);
+    let _ = api_client.cancel_pairing(token, id).await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sync_e2ee_pairing_reject(
+    id: String,
+    auth_state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
+    pairing_store: State<'_, PairingSessionStore>,
+) -> Result<(), AppError> {
+    let token = read_token(&auth_state)?;
+    pairing_reject_inner(&id, &token, &api_client, &pairing_store).await
 }
 
 #[tauri::command]
@@ -458,5 +576,162 @@ mod tests {
         // 12 emoji = 12 chars but >12 bytes; should be accepted on length.
         let unicode = "🔒".repeat(12);
         assert!(validate_passphrase(&unicode).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_pairing_confirm_and_reject_keystore_invariants() {
+        use crate::crypto::keystore::InMemoryKeyStore;
+        use crate::storage::create_test_store;
+
+        let mut server = mockito::Server::new_async().await;
+        let seed = [55u8; 32];
+        let kcv = crate::sync::e2ee::pairing::compute_kcv(&seed);
+        let kcv_b64 = B64.encode(kcv);
+
+        // Mock get_e2ee_state
+        let _m_e2ee = server
+            .mock("GET", "/api/sync/e2ee/state")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "mode": "device-key",
+                    "keyVersion": 1,
+                    "kcv": kcv_b64,
+                    "enrolledAt": "2026-11-01T12:00:00Z"
+                })
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        // Requester generates keypair
+        let (req_secret, req_pub) = crate::sync::e2ee::pairing::generate_keypair();
+        // Approver seals the seed
+        let (sealed_b64, app_pub) =
+            crate::sync::e2ee::pairing::seal_seed_for_pairing(&seed, &req_pub).unwrap();
+        let app_pub_b64 = B64.encode(app_pub);
+
+        // Mock poll approved
+        let _m_poll = server
+            .mock("GET", "/api/sync/e2ee/pairings/pair-test-1")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "status": "approved",
+                    "sealedSeed": sealed_b64,
+                    "approverPublicKey": app_pub_b64
+                })
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let pairing_store = PairingSessionStore::new();
+        pairing_store.insert_request("pair-test-1".into(), req_secret, req_pub);
+
+        let api = ApiClient::with_base(server.url());
+        let keystore = InMemoryKeyStore::new();
+        let data_store = create_test_store();
+
+        // 1. Poll pairing: returns awaiting-confirmation
+        let poll_res = pairing_poll_inner("pair-test-1", "tok", &api, &pairing_store)
+            .await
+            .unwrap();
+        assert_eq!(poll_res.status, "awaiting-confirmation");
+        assert!(poll_res.confirmation_words.is_some());
+
+        // INVARIANT 1: seed is NOT in keystore before confirm!
+        assert!(
+            keystore
+                .read_slot(crate::sync::e2ee::service::KEYCHAIN_SLOT)
+                .unwrap()
+                .is_none(),
+            "keystore must NOT have seed before confirm"
+        );
+
+        // INVARIANT 2: polling again while awaiting-confirmation is idempotent
+        let poll_res_2 = pairing_poll_inner("pair-test-1", "tok", &api, &pairing_store)
+            .await
+            .unwrap();
+        assert_eq!(poll_res_2.status, "awaiting-confirmation");
+        assert_eq!(poll_res_2.confirmation_words, poll_res.confirmation_words);
+
+        // 2. Reject leaves keystore untouched
+        let _m_cancel = server
+            .mock("DELETE", "/api/sync/e2ee/pairings/pair-test-1")
+            .with_status(200)
+            .with_body(r#"{"status":"cancelled"}"#)
+            .create_async()
+            .await;
+
+        pairing_reject_inner("pair-test-1", "tok", &api, &pairing_store)
+            .await
+            .unwrap();
+
+        // INVARIANT 3: reject leaves keystore untouched and session discarded
+        assert!(keystore
+            .read_slot(crate::sync::e2ee::service::KEYCHAIN_SLOT)
+            .unwrap()
+            .is_none());
+        assert!(pairing_store.get("pair-test-1").is_none());
+
+        // 3. Confirm flow with fresh session
+        let (req_secret2, req_pub2) = crate::sync::e2ee::pairing::generate_keypair();
+        let (sealed_b64_2, app_pub2) =
+            crate::sync::e2ee::pairing::seal_seed_for_pairing(&seed, &req_pub2).unwrap();
+        let app_pub_b64_2 = B64.encode(app_pub2);
+
+        let _m_poll2 = server
+            .mock("GET", "/api/sync/e2ee/pairings/pair-test-2")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "status": "approved",
+                    "sealedSeed": sealed_b64_2,
+                    "approverPublicKey": app_pub_b64_2
+                })
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        pairing_store.insert_request("pair-test-2".into(), req_secret2, req_pub2);
+        let poll2 = pairing_poll_inner("pair-test-2", "tok", &api, &pairing_store)
+            .await
+            .unwrap();
+        assert_eq!(poll2.status, "awaiting-confirmation");
+
+        // Confirm
+        pairing_confirm_inner(
+            "pair-test-2",
+            "tok",
+            &api,
+            &keystore,
+            &data_store,
+            &pairing_store,
+        )
+        .await
+        .unwrap();
+
+        // INVARIANT 4: confirm writes seed to keystore
+        let stored_seed = keystore
+            .read_slot(crate::sync::e2ee::service::KEYCHAIN_SLOT)
+            .unwrap()
+            .expect("seed must be in keystore after confirm");
+        assert_eq!(stored_seed.as_slice(), &seed);
+
+        // INVARIANT 5: confirm drops session
+        assert!(pairing_store.get("pair-test-2").is_none());
+
+        // INVARIANT 6: mirror persisted in data_store
+        let conn = data_store.conn().unwrap();
+        let mirror = crate::storage::cloud_sync_e2ee_local::get(&conn)
+            .unwrap()
+            .expect("mirror must exist");
+        assert!(mirror.enrolled);
+        assert_eq!(mirror.mode, "device-key");
     }
 }
