@@ -24,6 +24,7 @@
   import RecoveryPhraseDialog from '../../../components/settings/RecoveryPhraseDialog.svelte';
   import DisableE2eeDialog from '../../../components/settings/DisableE2eeDialog.svelte';
   import { t } from '../../../services/i18n';
+  import { formatBytes } from '../../../services/action/actionService.svelte';
 
   function reportSyncFailure(err: unknown): void {
     logService.error(`[AccountTab] cloud sync failed: ${err}`);
@@ -333,8 +334,8 @@
           <div class="sync-enable-row">
             <span class="secondary-text">
               {syncToggleState
-                ? 'Syncing your data across devices.'
-                : 'Your data stays on this device.'}
+                ? t('settings.account.sync_enabled_desc')
+                : t('settings.account.sync_disabled_desc')}
             </span>
             <Toggle
               bind:checked={syncToggleState}
@@ -349,9 +350,20 @@
               <span class="secondary-text">
                 {cloudSyncService.lastSyncedAt
                   ? formatRelativeTime(cloudSyncService.lastSyncedAt)
-                  : 'Not yet synced'}
+                  : t('settings.account.not_yet_synced')}
               </span>
-              {#if cloudSyncService.lastError}
+              {#if cloudSyncService.quota && cloudSyncService.quota.limitBytes > 0}
+                <span class="error-text">
+                  {t('settings.account.sync_quota_exceeded', {
+                    used: formatBytes(cloudSyncService.quota.usedBytes),
+                    limit: formatBytes(cloudSyncService.quota.limitBytes),
+                  })}
+                </span>
+              {:else if cloudSyncService.quota}
+                <span class="error-text">{t('settings.account.sync_quota_exceeded_generic')}</span>
+              {:else if cloudSyncService.isTransient}
+                <span class="error-text">{t('settings.account.sync_transient_error')}</span>
+              {:else if cloudSyncService.lastError}
                 <span class="error-text">{cloudSyncService.lastError}</span>
               {/if}
             </div>

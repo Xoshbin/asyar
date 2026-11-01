@@ -19,6 +19,15 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   power_failure: () => 'Power management error',
   run_failed: ({ id, message }) =>
     message ? `Run failed: ${message}` : `Run ${id ?? 'unknown'} failed`,
+  sync_entitlement_required: () => 'Cloud sync requires an active plan',
+  sync_quota_exceeded: ({ usedBytes, limitBytes }) =>
+    Number(limitBytes) > 0
+      ? `Cloud sync storage quota exceeded (${usedBytes} / ${limitBytes} bytes)`
+      : 'Cloud sync storage quota exceeded',
+  sync_rate_limited: ({ retryAfter }) =>
+    `Cloud sync is rate limited. Retrying in ${retryAfter ?? '60'}s`,
+  sync_server_unavailable: ({ detail }) =>
+    `Cloud sync server is temporarily unavailable${detail ? `: ${detail}` : ''}`,
   io_failure: () => 'I/O error',
   json_failure: () => 'Data format error',
   unknown: ({ message }) => message ?? 'Unexpected error',

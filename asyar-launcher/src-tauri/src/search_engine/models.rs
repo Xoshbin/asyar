@@ -542,7 +542,11 @@ mod bindings_export {
             .register::<crate::locale::ParsedLocale>()
             .register::<crate::locale::NumberFormat>()
             .register::<crate::window_management::types::AppWindowInfo>()
-            .register::<crate::storage::snippets::Snippet>();
+            .register::<crate::storage::snippets::Snippet>()
+            .register::<crate::commands::sync::SyncRunReport>()
+            .register::<crate::commands::sync::SyncPushFailure>()
+            .register::<crate::commands::sync::AppliedRecord>()
+            .register::<crate::commands::sync::SyncRunFailure>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

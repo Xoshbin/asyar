@@ -17,35 +17,9 @@ export interface LocalItemSourceWire {
   isTombstone?: boolean;
 }
 
-export interface SyncRunFailure {
-  itemId: string;
-  reason: string;
-}
+import type { AppliedRecord, SyncPushFailure, SyncRunFailure, SyncRunReport } from '../../bindings';
 
-/**
- * One server-applied record from a pull pass. The TS sync service fans
- * these out through `provider.applyItemUpsert` (live rows) or
- * `provider.applyItemDelete` (tombstones, where `deleted=true` and
- * `content` is `null`).
- */
-export interface AppliedRecord {
-  itemId: string;
-  categoryId: string;
-  content: string | null;
-  deleted: boolean;
-}
-
-export interface SyncRunReport {
-  uploaded: string[];
-  skipped: string[];
-  failed: SyncRunFailure[];
-  /** Cheap id-only mirror of `appliedRecords`, kept for diagnostic counts. */
-  appliedFromPull: string[];
-  /** Full applied records — drives provider.applyItemUpsert / applyItemDelete. */
-  appliedRecords: AppliedRecord[];
-  lwwWarnings: string[];
-  serverVersion: number;
-}
+export type { AppliedRecord, SyncPushFailure, SyncRunFailure, SyncRunReport };
 
 /**
  * Status DTO returned by sync_get_status. Cursor + device id + counts

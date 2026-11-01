@@ -25,6 +25,7 @@
 use crate::auth::api_client::ApiClient;
 use crate::auth::state::{AuthState, AuthStateResponse};
 use crate::auth::token_store;
+use crate::diagnostics::HasSeverity;
 use crate::error::AppError;
 use crate::storage::cloud_sync_state::{self, ItemJournalEntry};
 use crate::storage::DataStore;
@@ -35,6 +36,7 @@ use crate::sync::types::{
     SyncStatus, UploadDecision,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::future::Future;
 use tauri::{AppHandle, Emitter, State};
 
@@ -77,8 +79,36 @@ impl From<LocalItemSourceWire> for LocalItemSource {
     }
 }
 
+/// Push phase failure details returned in [`SyncRunReport`] when push encounters
+/// an error after pull has succeeded.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncPushFailure {
+    /// Diagnostic kind string (e.g. `"sync_entitlement_required"`, `"sync_quota_exceeded"`,
+    /// `"sync_rate_limited"`, `"sync_server_unavailable"`, `"network_failure"`, `"auth_failure"`).
+    pub kind: String,
+    /// Error display message.
+    pub message: String,
+    /// Context map (e.g. `code`, `usedBytes`, `limitBytes`, `retryAfter`, `detail`).
+    pub context: HashMap<String, String>,
+}
+
+impl From<&AppError> for SyncPushFailure {
+    fn from(err: &AppError) -> Self {
+        Self {
+            kind: err.kind().to_string(),
+            message: err.to_string(),
+            context: err
+                .context()
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+        }
+    }
+}
+
 /// Result of one [`sync_run`] pull-then-push round-trip.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncRunReport {
     /// Item ids successfully pushed (live items + tombstones).
@@ -103,6 +133,10 @@ pub struct SyncRunReport {
     pub lww_warnings: Vec<String>,
     /// New cursor value after the pull pass.
     pub server_version: i64,
+    /// Set when the push phase encounters a fatal or rate-limited error
+    /// after a successful pull phase. The pull results are preserved in
+    /// [`Self::applied_records`].
+    pub push_failure: Option<SyncPushFailure>,
 }
 
 /// One server-applied record in [`SyncRunReport::applied_records`].
@@ -111,7 +145,7 @@ pub struct SyncRunReport {
 /// the launcher pushed, after a round-trip). `None` indicates a tombstone
 /// — the TS layer should treat the entry as a delete and call
 /// `provider.applyItemDelete(item_id)`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppliedRecord {
     /// Stable item id.
@@ -125,7 +159,7 @@ pub struct AppliedRecord {
 }
 
 /// One failed push entry inside a [`SyncRunReport`].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncRunFailure {
     /// The item id that failed.
@@ -552,12 +586,16 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
                     report.uploaded.push(assignment.id.clone());
                 }
             }
-            Err(AppError::Auth(msg))
-                if msg.contains("Token expired")
-                    || msg.contains("Not logged in")
-                    || msg.contains("401") =>
-            {
-                return Err(AppError::Auth(msg));
+            Err(
+                err @ (AppError::Auth(_)
+                | AppError::SyncEntitlementRequired { .. }
+                | AppError::SyncQuotaExceeded { .. }
+                | AppError::SyncRateLimited { .. }
+                | AppError::SyncServerUnavailable(_)
+                | AppError::Network(_)),
+            ) => {
+                report.push_failure = Some(SyncPushFailure::from(&err));
+                break;
             }
             Err(e) => {
                 let reason = e.to_string();
@@ -1005,7 +1043,7 @@ mod tests {
 
     #[tokio::test]
     async fn sync_run_keeps_failed_items_dirty() {
-        // Defensive — push HTTP error must NOT clear the journal entry,
+        // Defensive — push chunk validation error must NOT clear the journal entry,
         // and must surface in `failed`.
         let store = create_test_store();
         {
@@ -1015,7 +1053,7 @@ mod tests {
 
         let http = MockSyncHttp::new();
         http.enqueue_pull(empty_pull_page(0));
-        http.enqueue_push_err(AppError::Auth("token expired".into()));
+        http.enqueue_push_err(AppError::Validation("chunk validation failed".into()));
 
         let sources = vec![local_wire("item-1", "snippets", "body")];
         let report = sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
@@ -1025,11 +1063,70 @@ mod tests {
         assert!(report.uploaded.is_empty());
         assert_eq!(report.failed.len(), 1);
         assert_eq!(report.failed[0].item_id, "item-1");
-        assert!(report.failed[0].reason.contains("token expired"));
+        assert!(report.failed[0].reason.contains("chunk validation failed"));
 
         let conn = store.conn().unwrap();
         let dirty = cloud_sync_state::get_dirty(&conn).unwrap();
         assert_eq!(dirty.len(), 1, "failed push must leave row dirty");
+    }
+
+    #[tokio::test]
+    async fn sync_run_returns_ok_with_push_failure_on_entitlement_required() {
+        let store = create_test_store();
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_state::mark_dirty(&conn, "item-1", "snippets").unwrap();
+        }
+
+        let http = MockSyncHttp::new();
+        http.enqueue_pull(empty_pull_page(0));
+        http.enqueue_push_err(AppError::SyncEntitlementRequired {
+            code: "sync.entitlement-required".into(),
+        });
+
+        let sources = vec![local_wire("item-1", "snippets", "body")];
+        let report = sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
+            .await
+            .expect("push error must return Ok(report)");
+
+        let failure = report.push_failure.expect("push_failure must be set");
+        assert_eq!(failure.kind, "sync_entitlement_required");
+        assert_eq!(
+            failure.context.get("code").map(|s| s.as_str()),
+            Some("sync.entitlement-required")
+        );
+    }
+
+    #[tokio::test]
+    async fn sync_run_returns_ok_with_push_failure_on_quota_exceeded() {
+        let store = create_test_store();
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_state::mark_dirty(&conn, "item-1", "snippets").unwrap();
+        }
+
+        let http = MockSyncHttp::new();
+        http.enqueue_pull(empty_pull_page(0));
+        http.enqueue_push_err(AppError::SyncQuotaExceeded {
+            used_bytes: 1234,
+            limit_bytes: 1000,
+        });
+
+        let sources = vec![local_wire("item-1", "snippets", "body")];
+        let report = sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
+            .await
+            .expect("push error must return Ok(report)");
+
+        let failure = report.push_failure.expect("push_failure must be set");
+        assert_eq!(failure.kind, "sync_quota_exceeded");
+        assert_eq!(
+            failure.context.get("usedBytes").map(|s| s.as_str()),
+            Some("1234")
+        );
+        assert_eq!(
+            failure.context.get("limitBytes").map(|s| s.as_str()),
+            Some("1000")
+        );
     }
 
     // ── required test #6 ─────────────────────────────────────────────────────
@@ -1192,6 +1289,11 @@ mod tests {
             }],
             lww_warnings: vec!["i5".into()],
             server_version: 7,
+            push_failure: Some(SyncPushFailure {
+                kind: "sync_quota_exceeded".into(),
+                message: "quota exceeded".into(),
+                context: HashMap::from([("usedBytes".into(), "100".into())]),
+            }),
         };
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("\"uploaded\":[\"i1\"]"));
@@ -1200,6 +1302,8 @@ mod tests {
         assert!(json.contains("\"lwwWarnings\":[\"i5\"]"));
         assert!(json.contains("\"serverVersion\":7"));
         assert!(json.contains("\"itemId\":\"i3\""));
+        assert!(json.contains("\"pushFailure\""));
+        assert!(json.contains("\"usedBytes\":\"100\""));
     }
 
     #[tokio::test]
@@ -1342,14 +1446,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sync_run_pull_401_aborts_with_auth_error() {
+    async fn sync_run_pull_phase_error_returns_err() {
         let http = MockSyncHttp::new();
         http.enqueue_pull_err(AppError::Auth("Token expired or invalid".into()));
         let store = create_test_store();
 
         let err = sync_run_inner(&[], "tok", &http, &store, &Mode::Off)
             .await
-            .expect_err("pull 401 must fail sync_run");
+            .expect_err("pull error must return Err");
 
         match err {
             AppError::Auth(msg) => assert!(msg.contains("Token expired")),
@@ -1358,20 +1462,113 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sync_run_push_401_aborts_with_auth_error() {
-        let http = MockSyncHttp::new();
-        http.enqueue_pull(empty_pull_page(0));
-        http.enqueue_push_err(AppError::Auth("Token expired or invalid".into()));
-        let store = create_test_store();
+    async fn sync_run_push_failure_preserves_pull_and_returns_ok_with_push_failure() {
+        use crate::diagnostics::HasSeverity;
 
-        let sources = vec![local_wire("item-1", "snippets", "test-payload")];
-        let err = sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
+        let network_err = reqwest::Client::new()
+            .get("http://127.0.0.1:1/")
+            .send()
             .await
-            .expect_err("push 401 must fail sync_run");
+            .expect_err("connection to port 1 must fail with Network error");
 
-        match err {
-            AppError::Auth(msg) => assert!(msg.contains("Token expired")),
-            other => panic!("expected AppError::Auth, got {other:?}"),
+        let error_cases = vec![
+            AppError::Auth("Token expired or invalid".into()),
+            AppError::SyncEntitlementRequired {
+                code: "sync.entitlement-required".into(),
+            },
+            AppError::SyncQuotaExceeded {
+                used_bytes: 15_000_000,
+                limit_bytes: 10_000_000,
+            },
+            AppError::SyncRateLimited {
+                retry_after_secs: 45,
+            },
+            AppError::SyncServerUnavailable("503 Service Unavailable".into()),
+            AppError::Network(network_err),
+        ];
+
+        for push_err in error_cases {
+            let expected_kind = push_err.kind();
+            let expected_msg = push_err.to_string();
+            let expected_ctx = push_err.context();
+            let quota_nums = match &push_err {
+                AppError::SyncQuotaExceeded {
+                    used_bytes,
+                    limit_bytes,
+                } => Some((*used_bytes, *limit_bytes)),
+                _ => None,
+            };
+            let rate_limit_secs = match &push_err {
+                AppError::SyncRateLimited { retry_after_secs } => Some(*retry_after_secs),
+                _ => None,
+            };
+
+            let store = create_test_store();
+            {
+                let conn = store.conn().unwrap();
+                cloud_sync_state::mark_dirty(&conn, "local-1", "snippets").unwrap();
+            }
+            let http = MockSyncHttp::new();
+
+            // Pull phase returns 2 items
+            let pull_page = ItemPullPage {
+                items: vec![
+                    live_record("pulled-1", "snippets", "payload-1", 5),
+                    live_record("pulled-2", "snippets", "payload-2", 10),
+                ],
+                server_version: 10,
+                has_more: false,
+            };
+            http.enqueue_pull(pull_page);
+            http.enqueue_push_err(push_err);
+
+            let sources = vec![local_wire("local-1", "snippets", "local-payload")];
+            let report = sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
+                .await
+                .expect("push error must NOT discard pull; expected Ok(report)");
+
+            // 1. Pull results preserved in report
+            assert_eq!(report.applied_records.len(), 2);
+            assert_eq!(report.applied_records[0].item_id, "pulled-1");
+            assert_eq!(report.applied_records[1].item_id, "pulled-2");
+            assert_eq!(report.applied_from_pull, vec!["pulled-1", "pulled-2"]);
+            assert_eq!(report.server_version, 10);
+
+            // 2. Cursor advanced in store
+            let conn = store.conn().unwrap();
+            let cursor = cloud_sync_state::get_cursor(&conn).unwrap();
+            assert_eq!(cursor.cursor, 10);
+
+            // 3. Local dirty rows remain dirty (not pushed)
+            let dirty = cloud_sync_state::get_dirty(&conn).unwrap();
+            assert_eq!(dirty.len(), 1);
+            assert_eq!(dirty[0].item_id, "local-1");
+            assert!(dirty[0].is_dirty);
+
+            // 4. push_failure is populated with kind, message, context
+            let failure = report
+                .push_failure
+                .as_ref()
+                .expect("push_failure must be set on push error");
+            assert_eq!(failure.kind, expected_kind);
+            assert_eq!(failure.message, expected_msg);
+            assert_eq!(failure.context.get("code"), expected_ctx.get("code"));
+            if let Some((used_bytes, limit_bytes)) = quota_nums {
+                assert_eq!(
+                    failure.context.get("usedBytes"),
+                    Some(&used_bytes.to_string())
+                );
+                assert_eq!(
+                    failure.context.get("limitBytes"),
+                    Some(&limit_bytes.to_string())
+                );
+            }
+            if let Some(retry_after_secs) = rate_limit_secs {
+                assert_eq!(
+                    failure.context.get("retryAfter"),
+                    Some(&retry_after_secs.to_string())
+                );
+            }
         }
     }
 }

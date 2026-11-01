@@ -29,6 +29,7 @@ vi.mock('../auth/authService.svelte', () => ({
     isLoggedIn: true,
     entitlements: ['sync:settings', 'sync:ai-conversations'],
     logout: vi.fn().mockResolvedValue(undefined),
+    refreshEntitlements: vi.fn().mockResolvedValue(undefined),
     onAuthChange: vi.fn(() => () => {}),
   },
 }));
@@ -62,7 +63,14 @@ vi.mock('../log/logService', () => ({
 }));
 
 // Import AFTER mocks are declared.
-import { cloudSyncService, PERIODIC_SYNC_INTERVAL_MS } from './cloudSyncService.svelte';
+import {
+  cloudSyncService,
+  PERIODIC_SYNC_INTERVAL_MS,
+  classifySyncError,
+  BACKOFF_SCHEDULE_MS,
+} from './cloudSyncService.svelte';
+import { IpcError } from '../../lib/ipc/invokeSafe';
+import type { Feedback } from 'asyar-sdk/contracts';
 import { emit } from '@tauri-apps/api/event';
 import * as commands from '../../lib/ipc/commands';
 import { profileService } from '../profile/profileService';
@@ -88,6 +96,7 @@ const okReport: commands.SyncRunReport = {
   appliedRecords: [],
   lwwWarnings: [],
   serverVersion: 0,
+  pushFailure: null,
 };
 
 interface FakeProvider {
@@ -1064,6 +1073,628 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       expect(logService.warn).toHaveBeenCalledWith(
         expect.stringContaining('auth token rejected/expired'),
       );
+    });
+
+    it('401-substring regression guard: item-401 error does NOT log out', async () => {
+      vi.mocked(commands.syncRun).mockRejectedValue(
+        new Error('Server rejected batch: item-401 has malformed content'),
+      );
+
+      await cloudSyncService.syncNow();
+
+      expect(authService.logout).not.toHaveBeenCalled();
+      expect(cloudSyncService.status).toBe('error');
+      expect(cloudSyncService.lastError).toContain('item-401');
+      expect(feedbackService.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'sync.run-failed',
+        }),
+      );
+    });
+
+    it('entitlement required: stops sync, refreshes entitlements, sets calm state, does NOT report or log out', async () => {
+      const err = new IpcError(
+        'sync_run',
+        {
+          source: 'rust',
+          kind: 'sync_entitlement_required',
+          severity: 'warning',
+          retryable: false,
+          context: { code: 'sync.entitlement-required' },
+          developerDetail: 'Sync entitlement required: sync.entitlement-required',
+        },
+        null,
+      );
+      vi.mocked(commands.syncRun).mockRejectedValue(err);
+
+      await cloudSyncService.syncNow();
+
+      expect(authService.logout).not.toHaveBeenCalled();
+      expect(feedbackService.report).not.toHaveBeenCalled();
+      expect(authService.refreshEntitlements).toHaveBeenCalledTimes(1);
+      expect(cloudSyncService.status).toBe('not_entitled');
+      expect(cloudSyncService.lastError).toBeNull();
+    });
+
+    it('category-level 403 (sync.ai-entitlement-required): does NOT stop sync or set not_entitled, classifies as other and reports once', async () => {
+      const err = new IpcError(
+        'sync_run',
+        {
+          source: 'rust',
+          kind: 'sync_entitlement_required',
+          severity: 'warning',
+          retryable: false,
+          context: { code: 'sync.ai-entitlement-required' },
+          developerDetail: 'AI conversation history sync required',
+        },
+        null,
+      );
+      vi.mocked(commands.syncRun).mockRejectedValue(err);
+
+      await cloudSyncService.syncNow();
+
+      expect(authService.logout).not.toHaveBeenCalled();
+      expect(cloudSyncService.status).toBe('error');
+      expect(cloudSyncService.lastError).toContain('AI conversation history sync required');
+      expect(feedbackService.report).toHaveBeenCalledTimes(1);
+      expect(cloudSyncService.status).not.toBe('not_entitled');
+      expect(authService.refreshEntitlements).not.toHaveBeenCalled();
+    });
+
+    it('quota exceeded: exposes numbers, sets quota_exceeded status, deduplicates reports, does NOT log out', async () => {
+      const err = new IpcError(
+        'sync_run',
+        {
+          source: 'rust',
+          kind: 'sync_quota_exceeded',
+          severity: 'warning',
+          retryable: false,
+          context: { usedBytes: '15000000', limitBytes: '10000000' },
+          developerDetail: 'Sync quota exceeded',
+        },
+        null,
+      );
+      vi.mocked(commands.syncRun).mockRejectedValue(err);
+
+      // First run: reports
+      await cloudSyncService.syncNow();
+
+      expect(authService.logout).not.toHaveBeenCalled();
+      expect(cloudSyncService.status).toBe('quota_exceeded');
+      expect(cloudSyncService.quota).toEqual({
+        usedBytes: 15000000,
+        limitBytes: 10000000,
+      });
+      expect(feedbackService.report).toHaveBeenCalledTimes(1);
+      expect(feedbackService.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'sync_quota_exceeded',
+          context: {
+            usedBytes: '15000000',
+            limitBytes: '10000000',
+          },
+        }),
+      );
+
+      // Second run with same quota: deduplicated, no second report
+      await cloudSyncService.syncNow();
+      expect(feedbackService.report).toHaveBeenCalledTimes(1);
+    });
+
+    it('clears stale quota state on subsequent transient, other, or auth failures', async () => {
+      const quotaErr = new IpcError(
+        'sync_run',
+        {
+          source: 'rust',
+          kind: 'sync_quota_exceeded',
+          severity: 'warning',
+          retryable: false,
+          context: { usedBytes: '15000000', limitBytes: '10000000' },
+          developerDetail: 'Sync quota exceeded',
+        },
+        null,
+      );
+      vi.mocked(commands.syncRun).mockRejectedValue(quotaErr);
+      await cloudSyncService.syncNow();
+      expect(cloudSyncService.quota).not.toBeNull();
+
+      // Next failure is transient (server unavailable)
+      const transientErr = new IpcError(
+        'sync_run',
+        {
+          source: 'rust',
+          kind: 'sync_server_unavailable',
+          severity: 'error',
+          retryable: true,
+          developerDetail: 'Server 503',
+        },
+        null,
+      );
+      vi.mocked(commands.syncRun).mockRejectedValue(transientErr);
+      await cloudSyncService.syncNow();
+      expect(cloudSyncService.status).toBe('error');
+      expect(cloudSyncService.isTransient).toBe(true);
+      expect(cloudSyncService.quota).toBeNull();
+
+      // Re-trigger quota
+      vi.mocked(commands.syncRun).mockRejectedValue(quotaErr);
+      await cloudSyncService.syncNow();
+      expect(cloudSyncService.quota).not.toBeNull();
+
+      // Next failure is other
+      vi.mocked(commands.syncRun).mockRejectedValue(new Error('Unknown crash'));
+      await cloudSyncService.syncNow();
+      expect(cloudSyncService.quota).toBeNull();
+      expect(cloudSyncService.status).toBe('error');
+    });
+
+    describe('transient errors and backoff', () => {
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('applies exponential backoff schedule (1m, 2m, 5m, 15m cap) on transient failures', async () => {
+        const transientErr = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'sync_server_unavailable',
+            severity: 'error',
+            retryable: true,
+            developerDetail: 'Server unavailable',
+          },
+          null,
+        );
+        vi.mocked(commands.syncRun).mockRejectedValue(transientErr);
+
+        // Fail 1: backoff 1m (60s)
+        await cloudSyncService.syncNow(false);
+        expect(cloudSyncService.status).toBe('error');
+        expect(cloudSyncService.isTransient).toBe(true);
+        expect(cloudSyncService.retryCount).toBe(1);
+        const retry1 = cloudSyncService.nextRetryAt?.getTime() ?? 0;
+        expect(retry1).toBe(Date.now() + 60_000);
+
+        // Automatic run within backoff is skipped
+        vi.mocked(commands.syncRun).mockClear();
+        vi.advanceTimersByTime(30_000);
+        await cloudSyncService.syncNow(false);
+        expect(commands.syncRun).not.toHaveBeenCalled();
+
+        // Fail 2 after 1m: backoff 2m (120s)
+        vi.advanceTimersByTime(30_001);
+        await cloudSyncService.syncNow(false);
+        expect(cloudSyncService.retryCount).toBe(2);
+        const retry2 = cloudSyncService.nextRetryAt?.getTime() ?? 0;
+        expect(retry2).toBe(Date.now() + 120_000);
+
+        // Fail 3 after 2m: backoff 5m (300s)
+        vi.advanceTimersByTime(120_001);
+        await cloudSyncService.syncNow(false);
+        expect(cloudSyncService.retryCount).toBe(3);
+        const retry3 = cloudSyncService.nextRetryAt?.getTime() ?? 0;
+        expect(retry3).toBe(Date.now() + 300_000);
+
+        // Fail 4 after 5m: backoff 15m (900s)
+        vi.advanceTimersByTime(300_001);
+        await cloudSyncService.syncNow(false);
+        expect(cloudSyncService.retryCount).toBe(4);
+        const retry4 = cloudSyncService.nextRetryAt?.getTime() ?? 0;
+        expect(retry4).toBe(Date.now() + 900_000);
+
+        // Fail 5 after 15m: capped at 15m (900s)
+        vi.advanceTimersByTime(900_001);
+        await cloudSyncService.syncNow(false);
+        expect(cloudSyncService.retryCount).toBe(5);
+        const retry5 = cloudSyncService.nextRetryAt?.getTime() ?? 0;
+        expect(retry5).toBe(Date.now() + 900_000);
+
+        // Success resets retry count and backoff state
+        vi.mocked(commands.syncRun).mockResolvedValue(okReport);
+        vi.advanceTimersByTime(900_001);
+        await cloudSyncService.syncNow(false);
+        expect(cloudSyncService.retryCount).toBe(0);
+        expect(cloudSyncService.nextRetryAt).toBeNull();
+        expect(cloudSyncService.isTransient).toBe(false);
+        expect(cloudSyncService.status).toBe('idle');
+      });
+
+      it('honors Retry-After header when it exceeds the backoff step', async () => {
+        const rateLimitErr = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'sync_rate_limited',
+            severity: 'warning',
+            retryable: true,
+            context: { retryAfter: '180' },
+            developerDetail: 'Rate limited',
+          },
+          null,
+        );
+        vi.mocked(commands.syncRun).mockRejectedValue(rateLimitErr);
+
+        // Step 1 would be 60s, but retryAfter is 180s -> should be 180s
+        await cloudSyncService.syncNow(false);
+        const retry = cloudSyncService.nextRetryAt?.getTime() ?? 0;
+        expect(retry).toBe(Date.now() + 180_000);
+      });
+
+      it('manual sync bypasses backoff schedule', async () => {
+        const transientErr = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'network_failure',
+            severity: 'error',
+            retryable: true,
+            developerDetail: 'Network failure',
+          },
+          null,
+        );
+        vi.mocked(commands.syncRun).mockRejectedValue(transientErr);
+
+        await cloudSyncService.syncNow(false);
+        expect(cloudSyncService.nextRetryAt).not.toBeNull();
+
+        // Automatic run within backoff is skipped
+        vi.mocked(commands.syncRun).mockClear();
+        await cloudSyncService.syncNow(false);
+        expect(commands.syncRun).not.toHaveBeenCalled();
+
+        // Manual syncNow() runs even within backoff!
+        await cloudSyncService.syncNow(true);
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
+
+      it('deduplicates transient feedback reports across periodic ticks', async () => {
+        const transientErr = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'sync_server_unavailable',
+            severity: 'error',
+            retryable: true,
+            developerDetail: 'Server unavailable',
+          },
+          null,
+        );
+        vi.mocked(commands.syncRun).mockRejectedValue(transientErr);
+
+        await cloudSyncService.syncNow(true);
+        expect(feedbackService.report).toHaveBeenCalledTimes(1);
+
+        // Second failure with same kind: does not report again
+        await cloudSyncService.syncNow(true);
+        expect(feedbackService.report).toHaveBeenCalledTimes(1);
+      });
+
+      it('backs off automatic sync for 15 minutes after quota_exceeded while manual sync bypasses', async () => {
+        const quotaErr = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'sync_quota_exceeded',
+            severity: 'warning',
+            retryable: false,
+            context: { usedBytes: '2000', limitBytes: '1000' },
+            developerDetail: 'Quota exceeded',
+          },
+          null,
+        );
+        vi.mocked(commands.syncRun).mockRejectedValue(quotaErr);
+
+        await cloudSyncService.syncNow(false);
+        expect(cloudSyncService.status).toBe('quota_exceeded');
+        expect(cloudSyncService.nextRetryAt?.getTime()).toBe(Date.now() + 15 * 60 * 1000);
+
+        // Automatic run within 15m is skipped
+        vi.mocked(commands.syncRun).mockClear();
+        vi.advanceTimersByTime(5 * 60 * 1000);
+        await cloudSyncService.syncNow(false);
+        expect(commands.syncRun).not.toHaveBeenCalled();
+
+        // Manual run bypasses backoff
+        await cloudSyncService.syncNow(true);
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+
+        // After 15 minutes from the last quota failure elapses, automatic run proceeds
+        vi.mocked(commands.syncRun).mockClear();
+        vi.advanceTimersByTime(15 * 60 * 1000 + 1);
+        await cloudSyncService.syncNow(false);
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('push failure preservation of pull records', () => {
+      it('applies pull records before handling entitlement_required push failure', async () => {
+        const provider = makeProvider({ id: 'snippets' });
+        vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+        const reportWithFailure: commands.SyncRunReport = {
+          ...okReport,
+          appliedFromPull: ['p1'],
+          appliedRecords: [
+            {
+              itemId: 'p1',
+              categoryId: 'snippets',
+              content: JSON.stringify({ id: 'p1', title: 'Server Note' }),
+              deleted: false,
+            },
+          ],
+          pushFailure: {
+            kind: 'sync_entitlement_required',
+            message: 'Sync entitlement required: sync.entitlement-required',
+            context: { code: 'sync.entitlement-required' },
+          },
+        };
+
+        vi.mocked(commands.syncRun).mockResolvedValue(reportWithFailure);
+
+        cloudSyncService.lastSyncedAt = null;
+        await cloudSyncService.syncNow();
+
+        // 1. Pulled records are applied to provider
+        expect(provider.applyItemUpsert).toHaveBeenCalledWith({
+          id: 'p1',
+          categoryId: 'snippets',
+          content: { id: 'p1', title: 'Server Note' },
+        });
+
+        // 2. Push failure is handled
+        expect(cloudSyncService.status).toBe('not_entitled');
+        expect(authService.refreshEntitlements).toHaveBeenCalledTimes(1);
+
+        // 3. lastSyncedAt is NOT marked as a clean success
+        expect(cloudSyncService.lastSyncedAt).toBeNull();
+      });
+
+      it('applies pull records before handling quota_exceeded push failure', async () => {
+        const provider = makeProvider({ id: 'snippets' });
+        vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+        const reportWithFailure: commands.SyncRunReport = {
+          ...okReport,
+          appliedFromPull: ['p1'],
+          appliedRecords: [
+            {
+              itemId: 'p1',
+              categoryId: 'snippets',
+              content: JSON.stringify({ id: 'p1', title: 'Pulled' }),
+              deleted: false,
+            },
+          ],
+          pushFailure: {
+            kind: 'sync_quota_exceeded',
+            message: 'Quota exceeded',
+            context: { usedBytes: '15000000', limitBytes: '10000000' },
+          },
+        };
+
+        vi.mocked(commands.syncRun).mockResolvedValue(reportWithFailure);
+
+        cloudSyncService.lastSyncedAt = null;
+        await cloudSyncService.syncNow();
+
+        expect(provider.applyItemUpsert).toHaveBeenCalledWith({
+          id: 'p1',
+          categoryId: 'snippets',
+          content: { id: 'p1', title: 'Pulled' },
+        });
+
+        expect(cloudSyncService.status).toBe('quota_exceeded');
+        expect(cloudSyncService.quota).toEqual({ usedBytes: 15000000, limitBytes: 10000000 });
+        expect(cloudSyncService.lastSyncedAt).toBeNull();
+      });
+
+      it('applies pull records before handling transient push failure', async () => {
+        const provider = makeProvider({ id: 'snippets' });
+        vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+        const reportWithFailure: commands.SyncRunReport = {
+          ...okReport,
+          appliedFromPull: ['p1'],
+          appliedRecords: [
+            {
+              itemId: 'p1',
+              categoryId: 'snippets',
+              content: JSON.stringify({ id: 'p1', title: 'Pulled' }),
+              deleted: false,
+            },
+          ],
+          pushFailure: {
+            kind: 'sync_server_unavailable',
+            message: '503 Service Unavailable',
+            context: {},
+          },
+        };
+
+        vi.mocked(commands.syncRun).mockResolvedValue(reportWithFailure);
+
+        cloudSyncService.lastSyncedAt = null;
+        await cloudSyncService.syncNow();
+
+        expect(provider.applyItemUpsert).toHaveBeenCalledWith({
+          id: 'p1',
+          categoryId: 'snippets',
+          content: { id: 'p1', title: 'Pulled' },
+        });
+
+        expect(cloudSyncService.status).toBe('error');
+        expect(cloudSyncService.isTransient).toBe(true);
+        expect(cloudSyncService.lastSyncedAt).toBeNull();
+      });
+
+      it('applies pull records before handling auth_expired push failure', async () => {
+        const provider = makeProvider({ id: 'snippets' });
+        vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+        const reportWithFailure: commands.SyncRunReport = {
+          ...okReport,
+          appliedFromPull: ['p1'],
+          appliedRecords: [
+            {
+              itemId: 'p1',
+              categoryId: 'snippets',
+              content: JSON.stringify({ id: 'p1', title: 'Pulled' }),
+              deleted: false,
+            },
+          ],
+          pushFailure: {
+            kind: 'auth_failure',
+            message: 'Token expired or invalid',
+            context: {},
+          },
+        };
+
+        vi.mocked(commands.syncRun).mockResolvedValue(reportWithFailure);
+
+        cloudSyncService.lastSyncedAt = null;
+        await cloudSyncService.syncNow();
+
+        expect(provider.applyItemUpsert).toHaveBeenCalledWith({
+          id: 'p1',
+          categoryId: 'snippets',
+          content: { id: 'p1', title: 'Pulled' },
+        });
+
+        expect(authService.logout).toHaveBeenCalledTimes(1);
+        expect(cloudSyncService.status).toBe('error');
+        expect(cloudSyncService.lastSyncedAt).toBeNull();
+      });
+    });
+
+    describe('classifySyncError', () => {
+      it('classifies auth_failure as auth_expired', () => {
+        const err = new IpcError(
+          'sync_run',
+          { source: 'rust', kind: 'auth_failure', severity: 'error', retryable: false },
+          null,
+        );
+        expect(classifySyncError(err)).toEqual({
+          type: 'auth_expired',
+          message: expect.any(String),
+        });
+      });
+
+      it('classifies sync_entitlement_required with sync.entitlement-required as entitlement_required', () => {
+        const err = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'sync_entitlement_required',
+            severity: 'warning',
+            retryable: false,
+            context: { code: 'sync.entitlement-required' },
+          },
+          null,
+        );
+        expect(classifySyncError(err)).toEqual({
+          type: 'entitlement_required',
+          code: 'sync.entitlement-required',
+        });
+      });
+
+      it('classifies sync_entitlement_required with missing code as entitlement_required', () => {
+        const err = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'sync_entitlement_required',
+            severity: 'warning',
+            retryable: false,
+            context: {},
+          },
+          null,
+        );
+        expect(classifySyncError(err)).toEqual({
+          type: 'entitlement_required',
+          code: 'sync.entitlement-required',
+        });
+      });
+
+      it('classifies sync_entitlement_required with sync.ai-entitlement-required as other', () => {
+        const err = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'sync_entitlement_required',
+            severity: 'warning',
+            retryable: false,
+            context: { code: 'sync.ai-entitlement-required' },
+            developerDetail: 'AI sync refused',
+          },
+          null,
+        );
+        expect(classifySyncError(err)).toEqual({
+          type: 'other',
+          message: expect.any(String),
+        });
+      });
+
+      it('classifies sync_quota_exceeded as quota_exceeded with parsed numbers', () => {
+        const err = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'sync_quota_exceeded',
+            severity: 'warning',
+            retryable: false,
+            context: { usedBytes: '2048', limitBytes: '1024' },
+          },
+          null,
+        );
+        expect(classifySyncError(err)).toEqual({
+          type: 'quota_exceeded',
+          usedBytes: 2048,
+          limitBytes: 1024,
+          message: expect.any(String),
+        });
+      });
+
+      it('classifies sync_rate_limited as transient with retryAfterSecs', () => {
+        const err = new IpcError(
+          'sync_run',
+          {
+            source: 'rust',
+            kind: 'sync_rate_limited',
+            severity: 'warning',
+            retryable: true,
+            context: { retryAfter: '120' },
+          },
+          null,
+        );
+        expect(classifySyncError(err)).toEqual({
+          type: 'transient',
+          kind: 'sync_rate_limited',
+          retryAfterSecs: 120,
+          message: expect.any(String),
+        });
+      });
+
+      it('classifies network_failure and sync_server_unavailable as transient', () => {
+        const err = new IpcError(
+          'sync_run',
+          { source: 'rust', kind: 'network_failure', severity: 'error', retryable: true },
+          null,
+        );
+        expect(classifySyncError(err)).toEqual({
+          type: 'transient',
+          kind: 'network_failure',
+          message: expect.any(String),
+        });
+      });
+
+      it('classifies unknown string or error as other without false auth matching', () => {
+        expect(classifySyncError(new Error('item-401 failure'))).toEqual({
+          type: 'other',
+          message: 'item-401 failure',
+        });
+      });
     });
   });
 
