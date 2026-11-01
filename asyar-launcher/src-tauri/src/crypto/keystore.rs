@@ -527,10 +527,17 @@ mod tests {
     #[test]
     #[ignore = "interacts with the user's real OS keychain; run manually with --ignored"]
     fn os_keystore_round_trips_via_real_keychain() {
+        assert_ne!(
+            KEYCHAIN_SERVICE, "org.asyar.app",
+            "Refusing to run OS keychain test against production service 'org.asyar.app'. \
+             Recompile with ASYAR_KEYCHAIN_SERVICE=org.asyar.keystore-test"
+        );
         let store = OsKeyStore::new();
+        let _ = store.delete_slot(KEYCHAIN_ACCOUNT);
         let k1 = store.load_or_create().unwrap();
         let k2 = store.load_or_create().unwrap();
         assert_eq!(*k1, *k2);
+        let _ = store.delete_slot(KEYCHAIN_ACCOUNT);
     }
 
     // --- InMemoryKeyStore multi-slot tests ---
@@ -649,6 +656,8 @@ mod tests {
         let path = dir.path().join("keystore-slot-e2ee.dat");
         let mode = std::fs::metadata(&path).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o600, "slot file must be 0600");
+        let read_back = store.read_slot("e2ee").unwrap().expect("slot must exist");
+        assert_eq!(*read_back, vec![1, 2, 3]);
     }
 
     #[test]
@@ -703,6 +712,11 @@ mod tests {
     #[test]
     #[ignore = "interacts with the user's real OS keychain; run manually with --ignored"]
     fn os_keystore_slot_round_trip() {
+        assert_ne!(
+            KEYCHAIN_SERVICE, "org.asyar.app",
+            "Refusing to run OS keychain test against production service 'org.asyar.app'. \
+             Recompile with ASYAR_KEYCHAIN_SERVICE=org.asyar.keystore-test"
+        );
         let store = OsKeyStore::new();
         let test_account = "test-slot-multislot-roundtrip";
         // Cleanup any prior leftovers.
@@ -712,5 +726,144 @@ mod tests {
         assert_eq!(*got, vec![1, 2, 3, 4]);
         store.delete_slot(test_account).unwrap();
         assert!(store.read_slot(test_account).unwrap().is_none());
+    }
+
+    #[test]
+    #[ignore = "interacts with the user's real OS keychain; run manually with --ignored"]
+    fn os_keystore_sync_seed_slot_round_trip() {
+        assert_ne!(
+            KEYCHAIN_SERVICE, "org.asyar.app",
+            "Refusing to run OS keychain test against production service 'org.asyar.app'. \
+             Recompile with ASYAR_KEYCHAIN_SERVICE=org.asyar.keystore-test"
+        );
+        let store = OsKeyStore::new();
+        let slot = crate::sync::e2ee::service::KEYCHAIN_SLOT;
+
+        // Clean up before the test in case of prior interrupted runs.
+        let _ = store.delete_slot(slot);
+
+        let mut val1 = [0u8; 32];
+        rand::rng().fill(&mut val1[..]);
+
+        // Write and assert read equals.
+        store.write_slot(slot, &val1).unwrap();
+        let got1 = store
+            .read_slot(slot)
+            .unwrap()
+            .expect("slot must exist after write");
+        assert_eq!(*got1, val1);
+
+        // Overwrite with a different value and read back.
+        let mut val2 = [0u8; 32];
+        rand::rng().fill(&mut val2[..]);
+        while val2 == val1 {
+            rand::rng().fill(&mut val2[..]);
+        }
+        store.write_slot(slot, &val2).unwrap();
+        let got2 = store
+            .read_slot(slot)
+            .unwrap()
+            .expect("slot must exist after overwrite");
+        assert_eq!(*got2, val2);
+
+        // Delete slot, assert read_slot is None.
+        store.delete_slot(slot).unwrap();
+        assert!(store.read_slot(slot).unwrap().is_none());
+
+        // Delete again is Ok (idempotent).
+        assert!(store.delete_slot(slot).is_ok());
+
+        // Clean up after.
+        let _ = store.delete_slot(slot);
+    }
+
+    const PERSIST_TEST_SLOT: &str = "test-slot-cross-process-persistence";
+    const PERSIST_TEST_VALUE: [u8; 32] = [
+        0x41, 0x53, 0x59, 0x41, 0x52, 0x2d, 0x50, 0x45, // "ASYAR-PE"
+        0x52, 0x53, 0x49, 0x53, 0x54, 0x2d, 0x54, 0x45, // "RSIST-TE"
+        0x53, 0x54, 0x2d, 0x56, 0x41, 0x4c, 0x55, 0x45, // "ST-VALUE"
+        0x2d, 0x33, 0x32, 0x42, 0x59, 0x54, 0x45, 0x21, // "-32BYTE!"
+    ];
+
+    #[test]
+    #[ignore = "interacts with the user's real OS keychain; run manually with --ignored"]
+    fn os_keystore_persist_write() {
+        assert_ne!(
+            KEYCHAIN_SERVICE, "org.asyar.app",
+            "Refusing to run OS keychain test against production service 'org.asyar.app'. \
+             Recompile with ASYAR_KEYCHAIN_SERVICE=org.asyar.keystore-test"
+        );
+        let store = OsKeyStore::new();
+
+        // Fail with a clear message if run out of order (slot already exists from an unread previous write).
+        assert!(
+            store.read_slot(PERSIST_TEST_SLOT).unwrap().is_none(),
+            "Slot '{PERSIST_TEST_SLOT}' already exists before write. \
+             A previous os_keystore_persist_write was not followed by os_keystore_persist_read, \
+             or tests were run out of order. Delete the slot or run os_keystore_persist_read to clear."
+        );
+
+        store
+            .write_slot(PERSIST_TEST_SLOT, &PERSIST_TEST_VALUE)
+            .unwrap();
+    }
+
+    #[test]
+    #[ignore = "interacts with the user's real OS keychain; run manually with --ignored"]
+    fn os_keystore_persist_read() {
+        assert_ne!(
+            KEYCHAIN_SERVICE, "org.asyar.app",
+            "Refusing to run OS keychain test against production service 'org.asyar.app'. \
+             Recompile with ASYAR_KEYCHAIN_SERVICE=org.asyar.keystore-test"
+        );
+        let store = OsKeyStore::new();
+
+        // Fail with a clear message if run out of order (slot does not exist).
+        let val = store
+            .read_slot(PERSIST_TEST_SLOT)
+            .unwrap()
+            .expect(
+                "Slot 'test-slot-cross-process-persistence' not found. \
+                 os_keystore_persist_read must be run after os_keystore_persist_write in a separate process."
+            );
+
+        assert_eq!(
+            *val, PERSIST_TEST_VALUE,
+            "Persisted value did not match expected value"
+        );
+
+        // Delete after reading and verify it is gone.
+        store.delete_slot(PERSIST_TEST_SLOT).unwrap();
+        assert!(store.read_slot(PERSIST_TEST_SLOT).unwrap().is_none());
+    }
+
+    #[test]
+    #[ignore = "interacts with the user's real OS keychain; run manually with --ignored"]
+    fn select_keystore_matches_expected_backend() {
+        assert_ne!(
+            KEYCHAIN_SERVICE, "org.asyar.app",
+            "Refusing to run OS keychain test against production service 'org.asyar.app'. \
+             Recompile with ASYAR_KEYCHAIN_SERVICE=org.asyar.keystore-test"
+        );
+        let expected = match std::env::var("ASYAR_EXPECT_KEYSTORE") {
+            Ok(val) => match val.as_str() {
+                "os" => true,
+                "file" => false,
+                other => {
+                    panic!("Invalid ASYAR_EXPECT_KEYSTORE value '{other}': expected 'os' or 'file'")
+                }
+            },
+            Err(e) => panic!("ASYAR_EXPECT_KEYSTORE must be set to 'os' or 'file': {e}"),
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = select_keystore(dir.path());
+        assert_eq!(
+            store.is_os_backed(),
+            expected,
+            "select_keystore.is_os_backed() was {}, but expected ASYAR_EXPECT_KEYSTORE={}",
+            store.is_os_backed(),
+            if expected { "os" } else { "file" }
+        );
     }
 }

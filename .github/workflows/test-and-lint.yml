@@ -87,6 +87,39 @@ jobs:
         run: cargo test --workspace
         working-directory: asyar-launcher/src-tauri
 
+      # Proves select_keystore falls back to FileKeyStore when Secret Service is absent.
+      - name: Test fallback keystore (no Secret Service)
+        working-directory: asyar-launcher/src-tauri
+        env:
+          ASYAR_KEYCHAIN_SERVICE: org.asyar.keystore-test
+          ASYAR_EXPECT_KEYSTORE: file
+        run: |
+          cargo test --lib crypto::keystore::tests::select_keystore_matches_expected_backend -- --ignored
+          cargo test --lib crypto::keystore::tests::file_keystore
+
+      # Proves select_keystore and OsKeyStore work when a real Secret Service daemon is running.
+      - name: Test OS keychain integration (with Secret Service)
+        working-directory: asyar-launcher/src-tauri
+        env:
+          ASYAR_KEYCHAIN_SERVICE: org.asyar.keystore-test
+          ASYAR_EXPECT_KEYSTORE: os
+        run: |
+          sudo apt-get install -y gnome-keyring libsecret-tools dbus
+          dbus-run-session -- bash -euo pipefail << 'EOF'
+          KEYRING_DIR="$HOME/.local/share/keyrings"
+          mkdir -p "$KEYRING_DIR"
+          chmod 700 "$KEYRING_DIR"
+          printf "[keyring]\ndisplay-name=Default keyring\nctime=0\nmtime=0\nlock-on-idle=false\nlock-after=false\n" > "$KEYRING_DIR/Default_keyring.keyring"
+          printf "Default_keyring\n" > "$KEYRING_DIR/default"
+          chmod 600 "$KEYRING_DIR/Default_keyring.keyring" "$KEYRING_DIR/default"
+
+          eval $(printf "" | gnome-keyring-daemon --daemonize --login --components=secrets)
+
+          cargo test --lib crypto::keystore -- --ignored --skip os_keystore_persist
+          cargo test --lib crypto::keystore::tests::os_keystore_persist_write -- --ignored
+          cargo test --lib crypto::keystore::tests::os_keystore_persist_read -- --ignored
+          EOF
+
       # Regenerates launcher and SDK bindings (specta) from Rust types registered in
       # search_engine/models.rs::export_bindings — normally run manually, so
       # this is the only thing that catches "added/changed a #[derive(Type)]
@@ -188,6 +221,16 @@ jobs:
         run: cargo test --workspace -- --skip resolve_keypress_routes_to_windows_resolver_for_shift_colon
         working-directory: asyar-launcher/src-tauri
 
+      - name: Test OS keychain integration
+        working-directory: asyar-launcher/src-tauri
+        env:
+          ASYAR_KEYCHAIN_SERVICE: org.asyar.keystore-test
+          ASYAR_EXPECT_KEYSTORE: os
+        run: |
+          cargo test --lib crypto::keystore -- --ignored --skip os_keystore_persist
+          cargo test --lib crypto::keystore::tests::os_keystore_persist_write -- --ignored
+          cargo test --lib crypto::keystore::tests::os_keystore_persist_read -- --ignored
+
   # macOS-only Rust build/test/lint run. Deliberately lean — no frontend/
   # pnpm/doc steps (those are platform-agnostic and covered by
   # `test-and-lint` above). Exists because this crate contains real
@@ -232,6 +275,16 @@ jobs:
       - name: Run Rust tests
         run: cargo test --workspace
         working-directory: asyar-launcher/src-tauri
+
+      - name: Test OS keychain integration
+        working-directory: asyar-launcher/src-tauri
+        env:
+          ASYAR_KEYCHAIN_SERVICE: org.asyar.keystore-test
+          ASYAR_EXPECT_KEYSTORE: os
+        run: |
+          cargo test --lib crypto::keystore -- --ignored --skip os_keystore_persist
+          cargo test --lib crypto::keystore::tests::os_keystore_persist_write -- --ignored
+          cargo test --lib crypto::keystore::tests::os_keystore_persist_read -- --ignored
 
       # `cargo clippy --all-targets -D warnings` on ubuntu never compiles
       # `#[cfg(target_os = "macos")]` code, so this is the only job that
