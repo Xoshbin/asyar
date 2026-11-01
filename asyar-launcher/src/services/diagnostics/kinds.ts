@@ -45,6 +45,7 @@ export const DIAGNOSTIC_KINDS = [
   "sync_e2ee_wrong_mode",
   "sync_entitlement_required",
   "sync_finalize_behind",
+  "sync_pairing_fingerprint_mismatch",
   "sync_pairing_not_found",
   "sync_pairing_not_pending",
   "sync_pairing_too_many",

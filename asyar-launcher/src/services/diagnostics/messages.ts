@@ -36,6 +36,8 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   sync_finalize_behind: () => 'Cloud sync finalization was postponed until local state catches up',
   sync_pairing_not_found: () => 'Device pairing request not found or expired',
   sync_pairing_not_pending: () => 'Device pairing request is no longer pending',
+  sync_pairing_fingerprint_mismatch: () =>
+    'Device pairing fingerprint mismatch: the verification words do not match the requesting device.',
   sync_pairing_too_many: () => 'Too many active pairing requests; please try again later',
   io_failure: () => 'I/O error',
   json_failure: () => 'Data format error',

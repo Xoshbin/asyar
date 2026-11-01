@@ -363,13 +363,18 @@ pub async fn sync_e2ee_pairing_poll(
     pairing_poll_inner(&id, &token, &api_client, &pairing_store).await
 }
 
-#[tauri::command]
-pub async fn sync_e2ee_pairing_incoming(
-    auth_state: State<'_, AuthState>,
-    api_client: State<'_, ApiClient>,
+fn normalize_fingerprint(s: &str) -> String {
+    s.split_whitespace()
+        .map(|w| w.to_lowercase())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+pub async fn pairing_incoming_inner(
+    token: &str,
+    api_client: &ApiClient,
 ) -> Result<Vec<crate::sync::types::IncomingPairingRequest>, AppError> {
-    let token = read_token(&auth_state)?;
-    let items = api_client.list_pairings(&token).await?;
+    let items = api_client.list_pairings(token).await?;
     let mut out = Vec::with_capacity(items.len());
     for item in items {
         let pub_bytes = B64.decode(&item.device_public_key).unwrap_or_default();
@@ -393,13 +398,21 @@ pub async fn sync_e2ee_pairing_incoming(
 }
 
 #[tauri::command]
-pub async fn sync_e2ee_pairing_approve(
-    id: String,
+pub async fn sync_e2ee_pairing_incoming(
     auth_state: State<'_, AuthState>,
     api_client: State<'_, ApiClient>,
-    keystore: State<'_, Arc<dyn KeyStore>>,
-) -> Result<PairingApproveResult, AppError> {
+) -> Result<Vec<crate::sync::types::IncomingPairingRequest>, AppError> {
     let token = read_token(&auth_state)?;
+    pairing_incoming_inner(&token, &api_client).await
+}
+
+pub async fn pairing_approve_inner(
+    id: &str,
+    expected_fingerprint: &str,
+    token: &str,
+    api_client: &ApiClient,
+    keystore: &dyn KeyStore,
+) -> Result<PairingApproveResult, AppError> {
     let seed_bytes = keystore
         .read_slot(crate::sync::e2ee::service::KEYCHAIN_SLOT)?
         .ok_or_else(|| AppError::SyncE2eeLocked)?;
@@ -412,7 +425,7 @@ pub async fn sync_e2ee_pairing_approve(
     seed.copy_from_slice(&seed_bytes);
 
     // Get the pending pairing to get requester's device_public_key
-    let pending_items = api_client.list_pairings(&token).await?;
+    let pending_items = api_client.list_pairings(token).await?;
     let target = pending_items
         .into_iter()
         .find(|item| item.id == id)
@@ -424,6 +437,13 @@ pub async fn sync_e2ee_pairing_approve(
         .try_into()
         .map_err(|_| AppError::Validation("requester public key wrong length".into()))?;
 
+    // Verify expected fingerprint matches the key we are about to seal to
+    let actual_fingerprint =
+        crate::sync::e2ee::pairing::compute_pairing_fingerprint(&requester_pub);
+    if normalize_fingerprint(&actual_fingerprint) != normalize_fingerprint(expected_fingerprint) {
+        return Err(AppError::SyncPairingFingerprintMismatch);
+    }
+
     // Seal seed under ephemeral approver keypair
     let (sealed_b64, approver_pub) =
         crate::sync::e2ee::pairing::seal_seed_for_pairing(&seed, &requester_pub)?;
@@ -431,13 +451,25 @@ pub async fn sync_e2ee_pairing_approve(
     let approver_pub_b64 = B64.encode(approver_pub);
 
     api_client
-        .approve_pairing(&token, &id, &sealed_b64, &approver_pub_b64)
+        .approve_pairing(token, id, &sealed_b64, &approver_pub_b64)
         .await?;
 
     let confirmation_words =
         crate::sync::e2ee::pairing::compute_confirmation_words(&requester_pub, &approver_pub);
 
     Ok(PairingApproveResult { confirmation_words })
+}
+
+#[tauri::command]
+pub async fn sync_e2ee_pairing_approve(
+    id: String,
+    expected_fingerprint: String,
+    auth_state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
+    keystore: State<'_, Arc<dyn KeyStore>>,
+) -> Result<PairingApproveResult, AppError> {
+    let token = read_token(&auth_state)?;
+    pairing_approve_inner(&id, &expected_fingerprint, &token, &api_client, &**keystore).await
 }
 
 pub async fn pairing_confirm_inner(
@@ -733,5 +765,196 @@ mod tests {
             .expect("mirror must exist");
         assert!(mirror.enrolled);
         assert_eq!(mirror.mode, "device-key");
+    }
+
+    #[tokio::test]
+    async fn test_pairing_approve_matching_words_success() {
+        use crate::crypto::keystore::InMemoryKeyStore;
+
+        let mut server = mockito::Server::new_async().await;
+        let seed = [42u8; 32];
+        let keystore = InMemoryKeyStore::new();
+        keystore
+            .write_slot(crate::sync::e2ee::service::KEYCHAIN_SLOT, &seed)
+            .unwrap();
+
+        let (_req_secret, req_pub) = crate::sync::e2ee::pairing::generate_keypair();
+        let req_pub_b64 = B64.encode(req_pub);
+        let fp = crate::sync::e2ee::pairing::compute_pairing_fingerprint(&req_pub);
+
+        let _m_list = server
+            .mock("GET", "/api/sync/e2ee/pairings")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!([{
+                    "id": "pair-app-1",
+                    "deviceName": "Laptop",
+                    "devicePublicKey": req_pub_b64,
+                    "createdAt": "2026-11-01T12:00:00Z",
+                    "expiresAt": "2026-11-01T12:10:00Z"
+                }])
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let m_approve = server
+            .mock("POST", "/api/sync/e2ee/pairings/pair-app-1/approve")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"status":"approved"}"#)
+            .create_async()
+            .await;
+
+        let api = ApiClient::with_base(server.url());
+
+        // Test with uppercase and extra whitespace to verify normalization
+        let fp_input = format!("  {}  ", fp.to_uppercase());
+        let res = pairing_approve_inner("pair-app-1", &fp_input, "tok", &api, &keystore)
+            .await
+            .unwrap();
+
+        m_approve.assert_async().await;
+        assert!(!res.confirmation_words.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_pairing_approve_mismatched_words_refused_no_post() {
+        use crate::crypto::keystore::InMemoryKeyStore;
+
+        let mut server = mockito::Server::new_async().await;
+        let seed = [42u8; 32];
+        let keystore = InMemoryKeyStore::new();
+        keystore
+            .write_slot(crate::sync::e2ee::service::KEYCHAIN_SLOT, &seed)
+            .unwrap();
+
+        let (_req_secret, req_pub) = crate::sync::e2ee::pairing::generate_keypair();
+        let req_pub_b64 = B64.encode(req_pub);
+
+        let _m_list = server
+            .mock("GET", "/api/sync/e2ee/pairings")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!([{
+                    "id": "pair-app-2",
+                    "deviceName": "Laptop",
+                    "devicePublicKey": req_pub_b64,
+                    "createdAt": "2026-11-01T12:00:00Z",
+                    "expiresAt": "2026-11-01T12:10:00Z"
+                }])
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let m_approve = server
+            .mock("POST", "/api/sync/e2ee/pairings/pair-app-2/approve")
+            .with_status(200)
+            .expect(0)
+            .create_async()
+            .await;
+
+        let api = ApiClient::with_base(server.url());
+
+        let res = pairing_approve_inner(
+            "pair-app-2",
+            "wrong words totally different words here",
+            "tok",
+            &api,
+            &keystore,
+        )
+        .await;
+
+        assert!(matches!(res, Err(AppError::SyncPairingFingerprintMismatch)));
+        m_approve.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_pairing_approve_swapped_key_refused_no_post() {
+        use crate::crypto::keystore::InMemoryKeyStore;
+
+        let mut server = mockito::Server::new_async().await;
+        let seed = [42u8; 32];
+        let keystore = InMemoryKeyStore::new();
+        keystore
+            .write_slot(crate::sync::e2ee::service::KEYCHAIN_SLOT, &seed)
+            .unwrap();
+
+        let (_req_secret_1, req_pub_1) = crate::sync::e2ee::pairing::generate_keypair();
+        let fp_1 = crate::sync::e2ee::pairing::compute_pairing_fingerprint(&req_pub_1);
+
+        // Server originally showed key 1 to user (fp_1), but when approver fetches list, server returns key 2!
+        let (_req_secret_2, req_pub_2) = crate::sync::e2ee::pairing::generate_keypair();
+        let req_pub_2_b64 = B64.encode(req_pub_2);
+
+        let _m_list = server
+            .mock("GET", "/api/sync/e2ee/pairings")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!([{
+                    "id": "pair-app-3",
+                    "deviceName": "Laptop",
+                    "devicePublicKey": req_pub_2_b64,
+                    "createdAt": "2026-11-01T12:00:00Z",
+                    "expiresAt": "2026-11-01T12:10:00Z"
+                }])
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let m_approve = server
+            .mock("POST", "/api/sync/e2ee/pairings/pair-app-3/approve")
+            .with_status(200)
+            .expect(0)
+            .create_async()
+            .await;
+
+        let api = ApiClient::with_base(server.url());
+
+        // Approver passes fp_1 (the words that were shown to the user)
+        let res = pairing_approve_inner("pair-app-3", &fp_1, "tok", &api, &keystore).await;
+
+        assert!(matches!(res, Err(AppError::SyncPairingFingerprintMismatch)));
+        m_approve.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_pairing_incoming_computes_fingerprint_from_server_key() {
+        let mut server = mockito::Server::new_async().await;
+        let (_req_secret, req_pub) = crate::sync::e2ee::pairing::generate_keypair();
+        let req_pub_b64 = B64.encode(req_pub);
+        let expected_fp = crate::sync::e2ee::pairing::compute_pairing_fingerprint(&req_pub);
+
+        let _m_list = server
+            .mock("GET", "/api/sync/e2ee/pairings")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!([{
+                    "id": "pair-inc-1",
+                    "deviceName": "Alice's Phone",
+                    "devicePublicKey": req_pub_b64,
+                    "createdAt": "2026-11-01T12:00:00Z",
+                    "expiresAt": "2026-11-01T12:10:00Z"
+                }])
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let api = ApiClient::with_base(server.url());
+        let items = pairing_incoming_inner("tok", &api).await.unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, "pair-inc-1");
+        assert_eq!(items[0].device_name, "Alice's Phone");
+        assert_eq!(items[0].fingerprint, expected_fp);
+        assert_eq!(items[0].created_at, "2026-11-01T12:00:00Z");
+        assert_eq!(items[0].expires_at, "2026-11-01T12:10:00Z");
     }
 }

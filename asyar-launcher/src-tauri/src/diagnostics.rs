@@ -67,6 +67,7 @@ mod kinds_contract {
             "sync_e2ee_wrong_mode",
             "sync_pairing_not_found",
             "sync_pairing_not_pending",
+            "sync_pairing_fingerprint_mismatch",
             "sync_pairing_too_many",
             "sync_finalize_behind",
             "io_failure",

@@ -87,6 +87,9 @@ pub enum AppError {
     #[error("Sync pairing not pending: {status}")]
     SyncPairingNotPending { status: String },
 
+    #[error("Sync pairing fingerprint mismatch")]
+    SyncPairingFingerprintMismatch,
+
     #[error("Sync pairing too many")]
     SyncPairingTooMany,
 
@@ -166,6 +169,7 @@ impl HasSeverity for AppError {
             AppError::SyncE2eeWrongMode(_) => "sync_e2ee_wrong_mode",
             AppError::SyncPairingNotFound => "sync_pairing_not_found",
             AppError::SyncPairingNotPending { .. } => "sync_pairing_not_pending",
+            AppError::SyncPairingFingerprintMismatch => "sync_pairing_fingerprint_mismatch",
             AppError::SyncPairingTooMany => "sync_pairing_too_many",
             AppError::SyncFinalizeBehind { .. } => "sync_finalize_behind",
             AppError::McpPermissionRequired { .. } => "mcp_permission_required",
@@ -190,6 +194,7 @@ impl HasSeverity for AppError {
             | AppError::SyncE2eeWrongMode(_)
             | AppError::SyncPairingNotFound
             | AppError::SyncPairingNotPending { .. }
+            | AppError::SyncPairingFingerprintMismatch
             | AppError::SyncPairingTooMany
             | AppError::SyncFinalizeBehind { .. }
             | AppError::McpPermissionRequired { .. } => Severity::Warning,
