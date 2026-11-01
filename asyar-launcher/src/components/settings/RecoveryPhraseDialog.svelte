@@ -69,7 +69,20 @@
   }
 
   $effect(() => {
-    if (stage === 'passphrase' && passphraseInput) {
+    if (isOpen && syncEncryptionService.mode === 'device-key' && stage === 'passphrase') {
+      stage = 'submitting';
+      syncEncryptionService
+        .showRecoveryPhraseDevice()
+        .then((phrase) => {
+          recoveryPhrase = phrase;
+          stage = 'phrase';
+        })
+        .catch((err) => {
+          logService.warn(`device recovery phrase fetch failed: ${String(err)}`);
+          errorMessage = String(err);
+          stage = 'passphrase';
+        });
+    } else if (stage === 'passphrase' && passphraseInput) {
       queueMicrotask(() => passphraseInput?.focus());
     }
   });
@@ -104,7 +117,9 @@
     {:else if stage === 'phrase'}
       <h2 id="phrase-title" class="dialog-title">{t('settings.e2ee.phrase_title')}</h2>
       <p class="dialog-body">
-        {t('settings.e2ee.phrase_body_view')}
+        {syncEncryptionService.mode === 'device-key'
+          ? t('settings.e2ee.device_key_phrase_note')
+          : t('settings.e2ee.phrase_body_view')}
       </p>
       <div class="phrase-blob">{recoveryPhrase}</div>
       <div class="phrase-actions-row">

@@ -121,7 +121,9 @@ export { default as ShellConsentDialog } from './shell/ShellConsentDialog.svelte
 // Settings — sections
 export { default as ClipboardPrivacySection } from './settings/ClipboardPrivacySection.svelte';
 export { default as CrashReportSection } from './settings/CrashReportSection.svelte';
+export { default as DeviceKeyLockedCard } from './settings/DeviceKeyLockedCard.svelte';
 export { default as EncryptionStatusSection } from './settings/EncryptionStatusSection.svelte';
+export { default as IncomingPairingRequests } from './settings/IncomingPairingRequests.svelte';
 export { default as RuntimesSection } from './settings/RuntimesSection.svelte';
 export { default as ScheduledTasksSection } from './settings/ScheduledTasksSection.svelte';
 export { default as SecretRedactionSection } from './settings/SecretRedactionSection.svelte';
@@ -140,6 +142,7 @@ export { default as PreferencesPromptHost } from './settings/PreferencesPromptHo
 export { default as RecoverWithMnemonicDialog } from './settings/RecoverWithMnemonicDialog.svelte';
 export { default as RecoveryPhraseDialog } from './settings/RecoveryPhraseDialog.svelte';
 export { default as RequiredPreferencesDialog } from './settings/RequiredPreferencesDialog.svelte';
+export { default as ResetCloudSyncDialog } from './settings/ResetCloudSyncDialog.svelte';
 export { default as RotatePassphraseDialog } from './settings/RotatePassphraseDialog.svelte';
 
 // Dev — the extension inspector. Only the shell is exported; its panels are

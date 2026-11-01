@@ -62,6 +62,15 @@ vi.mock('../log/logService', () => ({
   },
 }));
 
+vi.mock('./syncEncryptionService.svelte', () => ({
+  syncEncryptionService: {
+    enabled: false,
+    locked: false,
+    mode: null,
+    checkIncomingPairings: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 // Import AFTER mocks are declared.
 import {
   cloudSyncService,
@@ -78,6 +87,7 @@ import { authService } from '../auth/authService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { logService } from '../log/logService';
+import { syncEncryptionService } from './syncEncryptionService.svelte';
 import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/types';
 import type { AppSettings, AISettings } from '../settings/types/AppSettingsType';
 import { SettingsSyncProvider } from '../profile/providers/settingsSyncProvider';
@@ -701,6 +711,19 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       expect(commands.syncRun).not.toHaveBeenCalled();
     });
 
+    it('periodic tick calls checkIncomingPairings when unlocked device-key mode', async () => {
+      (syncEncryptionService as any).enabled = true;
+      (syncEncryptionService as any).locked = false;
+      (syncEncryptionService as any).mode = 'device-key';
+      vi.mocked(commands.syncRun).mockResolvedValue(okReport);
+
+      cloudSyncService.startPeriodicSync();
+      await vi.advanceTimersByTimeAsync(PERIODIC_SYNC_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(syncEncryptionService.checkIncomingPairings).toHaveBeenCalledTimes(1);
+    });
+
     it('dispose(): unsubscribes provider change handlers AND stops the timer', async () => {
       const provider = makeProvider({ id: 'snippets' });
       vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
@@ -1113,6 +1136,39 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       expect(feedbackService.report).not.toHaveBeenCalled();
       expect(authService.refreshEntitlements).toHaveBeenCalledTimes(1);
       expect(cloudSyncService.status).toBe('not_entitled');
+      expect(cloudSyncService.lastError).toBeNull();
+    });
+
+    it('locked error: sets status locked, stops periodic timer, does NOT report feedback or logout', async () => {
+      const err = new IpcError(
+        'sync_run',
+        {
+          source: 'rust',
+          kind: 'sync_e2ee_locked',
+          severity: 'warning',
+          retryable: false,
+        },
+        null,
+      );
+      vi.mocked(commands.syncRun).mockRejectedValue(err);
+
+      await cloudSyncService.syncNow();
+
+      expect(authService.logout).not.toHaveBeenCalled();
+      expect(feedbackService.report).not.toHaveBeenCalled();
+      expect(cloudSyncService.status).toBe('locked');
+      expect(cloudSyncService.isTransient).toBe(false);
+      expect(cloudSyncService.nextRetryAt).toBeNull();
+      expect(cloudSyncService.retryCount).toBe(0);
+    });
+
+    it('when in locked status, successful syncNow transitions status to idle and resumes periodic timer', async () => {
+      cloudSyncService.status = 'locked';
+      vi.mocked(commands.syncRun).mockResolvedValue(okReport);
+
+      await cloudSyncService.syncNow();
+
+      expect(cloudSyncService.status).toBe('idle');
       expect(cloudSyncService.lastError).toBeNull();
     });
 
@@ -1686,6 +1742,25 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
           type: 'transient',
           kind: 'network_failure',
           message: expect.any(String),
+        });
+      });
+
+      it('classifies sync_e2ee_locked as locked', () => {
+        const err = new IpcError(
+          'sync_run',
+          { source: 'rust', kind: 'sync_e2ee_locked', severity: 'warning', retryable: false },
+          null,
+        );
+        expect(classifySyncError(err)).toEqual({
+          type: 'locked',
+          message: expect.any(String),
+        });
+      });
+
+      it('classifies string or error containing sync_e2ee_locked as locked', () => {
+        expect(classifySyncError(new Error('backend sync_e2ee_locked occurred'))).toEqual({
+          type: 'locked',
+          message: 'backend sync_e2ee_locked occurred',
         });
       });
 

@@ -19,6 +19,10 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
   openUrl: vi.fn(),
 }));
 
+vi.mock('@tauri-apps/plugin-os', () => ({
+  hostname: vi.fn().mockResolvedValue('test-machine'),
+}));
+
 vi.mock('../../../services/auth/authService.svelte', () => {
   let entitlements = ['sync:settings'];
   let isLoggedIn = true;
@@ -100,15 +104,55 @@ vi.mock('../../../services/sync/cloudSyncService.svelte', () => {
   };
 });
 
-vi.mock('../../../services/sync/syncEncryptionService.svelte', () => ({
-  syncEncryptionService: {
-    enabled: false,
-    locked: false,
-    enrol: vi.fn(),
-    unlock: vi.fn(),
-    refreshStatus: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+vi.mock('../../../services/sync/syncEncryptionService.svelte', () => {
+  let enabled = false;
+  let locked = false;
+  let mode: string | null = null;
+  let keystoreIsOsBacked = true;
+  let incomingPairings: any[] = [];
+  return {
+    syncEncryptionService: {
+      get enabled() {
+        return enabled;
+      },
+      set enabled(v: boolean) {
+        enabled = v;
+      },
+      get locked() {
+        return locked;
+      },
+      set locked(v: boolean) {
+        locked = v;
+      },
+      get mode() {
+        return mode;
+      },
+      set mode(v: string | null) {
+        mode = v;
+      },
+      get keystoreIsOsBacked() {
+        return keystoreIsOsBacked;
+      },
+      set keystoreIsOsBacked(v: boolean) {
+        keystoreIsOsBacked = v;
+      },
+      get incomingPairings() {
+        return incomingPairings;
+      },
+      set incomingPairings(v: any[]) {
+        incomingPairings = v;
+      },
+      enrol: vi.fn(),
+      unlock: vi.fn(),
+      unlockWithPhrase: vi.fn(),
+      refreshStatus: vi.fn().mockResolvedValue(undefined),
+      checkIncomingPairings: vi.fn().mockResolvedValue([]),
+      approvePairing: vi.fn(),
+      cancelPairing: vi.fn(),
+      reset: vi.fn().mockResolvedValue(undefined),
+    },
+  };
+});
 
 vi.mock('../../../services/settings/settingsService.svelte', () => ({
   settingsService: {
@@ -122,6 +166,7 @@ vi.mock('../../../services/settings/settingsService.svelte', () => ({
 import AccountTab from './AccountTab.svelte';
 import { authService } from '../../../services/auth/authService.svelte';
 import { cloudSyncService } from '../../../services/sync/cloudSyncService.svelte';
+import { syncEncryptionService } from '../../../services/sync/syncEncryptionService.svelte';
 import type { SettingsHandler } from '../settingsHandlers.svelte';
 
 function createMockHandler(): SettingsHandler {
@@ -143,6 +188,10 @@ describe('AccountTab sync section hardening', () => {
     cloudSyncService.lastError = null;
     cloudSyncService.quota = null;
     cloudSyncService.isTransient = false;
+    syncEncryptionService.enabled = false;
+    syncEncryptionService.locked = false;
+    syncEncryptionService.mode = null;
+    syncEncryptionService.keystoreIsOsBacked = true;
   });
 
   it('not-entitled branch displays accurate explanation with NO upgrade links or buttons', () => {
@@ -220,5 +269,51 @@ describe('AccountTab sync section hardening', () => {
 
     expect(screen.getByText('Encrypted Sync')).toBeTruthy();
     expect(screen.getByText('Server can read your synced data.')).toBeTruthy();
+  });
+
+  it('renders locked card for locked device-key accounts', () => {
+    authService.isLoggedIn = true;
+    authService.entitlements = ['sync:settings'];
+    syncEncryptionService.enabled = true;
+    syncEncryptionService.locked = true;
+    syncEncryptionService.mode = 'device-key';
+
+    render(AccountTab, { props: { handler: createMockHandler() } });
+
+    expect(
+      screen.getAllByText("This device can't read your synced data yet").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText('Enter recovery phrase')).toBeTruthy();
+    expect(screen.getByText('Approve from another device')).toBeTruthy();
+  });
+
+  it('renders keychain status line and no disable toggle for unlocked device-key accounts', () => {
+    authService.isLoggedIn = true;
+    authService.entitlements = ['sync:settings'];
+    syncEncryptionService.enabled = true;
+    syncEncryptionService.locked = false;
+    syncEncryptionService.mode = 'device-key';
+    syncEncryptionService.keystoreIsOsBacked = true;
+
+    render(AccountTab, { props: { handler: createMockHandler() } });
+
+    expect(screen.getByText('Key stored in your system keychain')).toBeTruthy();
+    expect(screen.getByText('Reset Cloud Sync')).toBeTruthy();
+    expect(screen.getByText('Show')).toBeTruthy();
+  });
+
+  it('renders file storage status line when keystore is not OS backed', () => {
+    authService.isLoggedIn = true;
+    authService.entitlements = ['sync:settings'];
+    syncEncryptionService.enabled = true;
+    syncEncryptionService.locked = false;
+    syncEncryptionService.mode = 'device-key';
+    syncEncryptionService.keystoreIsOsBacked = false;
+
+    render(AccountTab, { props: { handler: createMockHandler() } });
+
+    expect(
+      screen.getByText('Key stored in a file on this device, not the system keychain'),
+    ).toBeTruthy();
   });
 });
