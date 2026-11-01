@@ -293,8 +293,15 @@ pub async fn sync_run(
         keystore: &**keystore,
         data_store: &data_store,
     };
-    let mut mode = match svc.ensure_mirror_and_load_mode(&token).await {
-        Ok(m) => m,
+    let mut mode = match svc.reconcile_server_state_if_due(&token).await {
+        Ok(Some(reconciled)) => reconciled,
+        Ok(None) => match svc.ensure_mirror_and_load_mode(&token).await {
+            Ok(m) => m,
+            Err(e) => {
+                purge_auth_if_expired(&e, &auth_state, &app);
+                return Err(e);
+            }
+        },
         Err(e) => {
             purge_auth_if_expired(&e, &auth_state, &app);
             return Err(e);

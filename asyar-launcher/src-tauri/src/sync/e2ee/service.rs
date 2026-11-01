@@ -15,6 +15,7 @@ use crate::storage::DataStore;
 use crate::sync::e2ee::mode::Mode;
 use crate::sync::types::E2eeStatePayload;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
+use std::sync::atomic::{AtomicU64, Ordering};
 use zeroize::Zeroizing;
 
 fn current_unix_ms() -> i64 {
@@ -23,6 +24,26 @@ fn current_unix_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+fn current_unix_secs() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+static LAST_RECONCILIATION_UNIX_SECS: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(test)]
+pub fn reset_last_reconciliation_for_tests() {
+    LAST_RECONCILIATION_UNIX_SECS.store(0, Ordering::SeqCst);
+}
+
+#[cfg(test)]
+pub fn set_last_reconciliation_for_tests(secs: u64) {
+    LAST_RECONCILIATION_UNIX_SECS.store(secs, Ordering::SeqCst);
 }
 
 /// Keychain slot for the cached master_seed. Distinct from the
@@ -165,6 +186,102 @@ impl<'a> E2eeService<'a> {
             }
         }
         self.load_mode()
+    }
+
+    /// Reconcile local mirror with remote E2EE state, once per app session and at most every 24 hours.
+    ///
+    /// Only runs when a local mirror already exists and the account is enrolled.
+    pub async fn reconcile_server_state_if_due(
+        &self,
+        token: &str,
+    ) -> Result<Option<Mode>, AppError> {
+        let now = current_unix_secs();
+        let last = LAST_RECONCILIATION_UNIX_SECS.load(Ordering::SeqCst);
+        let is_due = last == 0 || now.saturating_sub(last) >= 86_400;
+        if !is_due {
+            return Ok(None);
+        }
+
+        let res = self.reconcile_server_state(token).await;
+        if res.is_ok() {
+            LAST_RECONCILIATION_UNIX_SECS.store(now, Ordering::SeqCst);
+        }
+        res
+    }
+
+    /// Perform server-state reconciliation unconditionally (if local mirror is enrolled):
+    /// - (a) If `plaintextRows > 0`, sets `finalize_pending = true`.
+    /// - (b) If server says 404 not-enrolled while mirror is enrolled, clears mirror, deletes keystore slot, marks all rows dirty, and returns `Ok(Some(Mode::Off))` so auto-enrol can run.
+    /// - (c) If server `kcv` or `mode` differs from mirror, updates mirror, deletes keystore slot, and returns `Ok(Some(Mode::Locked))`.
+    ///
+    /// Transient errors (network down, 5xx) are caught non-fatally and return `Ok(None)`.
+    pub async fn reconcile_server_state(&self, token: &str) -> Result<Option<Mode>, AppError> {
+        let conn = self.data_store.conn()?;
+        let local = cloud_sync_e2ee_local::get(&conn)?;
+        let Some(local_state) = local else {
+            return Ok(None);
+        };
+        if !local_state.enrolled {
+            return Ok(None);
+        }
+
+        let remote_opt = match self.api.get_e2ee_state(token).await {
+            Ok(opt) => opt,
+            Err(AppError::Auth(msg)) => return Err(AppError::Auth(msg)),
+            Err(e) => {
+                log::warn!("[e2ee] server-state reconciliation transient error: {e}");
+                return Ok(None);
+            }
+        };
+
+        // (b) Server returned 404 not-enrolled while mirror was enrolled
+        let Some(remote) = remote_opt else {
+            log::info!("[e2ee] reconciliation: server returned 404 not-enrolled while mirror was enrolled; resetting local mirror");
+            cloud_sync_e2ee_local::clear(&conn)?;
+            let _ = self.keystore.delete_slot(KEYCHAIN_SLOT);
+            crate::storage::cloud_sync_state::mark_all_dirty(&conn)?;
+            return Ok(Some(Mode::Off));
+        };
+
+        let remote_mode = remote.mode.as_deref().unwrap_or("passphrase");
+        let remote_kcv = remote.kcv.as_deref().and_then(|s| B64.decode(s).ok());
+        let mode_changed = local_state.mode != remote_mode;
+        let kcv_changed = local_state.kcv != remote_kcv;
+
+        // (c) Server kcv or mode differs from mirror
+        if mode_changed || kcv_changed {
+            log::info!(
+                "[e2ee] reconciliation: server state changed (mode_changed={mode_changed}, kcv_changed={kcv_changed}); updating mirror and locking"
+            );
+            cloud_sync_e2ee_local::upsert(
+                &conn,
+                &cloud_sync_e2ee_local::E2eeLocalState {
+                    enrolled: true,
+                    key_version: remote.key_version as i64,
+                    wrapped_master_seed: remote.wrapped_master_seed,
+                    kdf_salt: remote.kdf_salt.and_then(|s| B64.decode(s).ok()),
+                    kdf_m_cost: remote.kdf_m_cost.map(|c| c as i64),
+                    kdf_t_cost: remote.kdf_t_cost.map(|c| c as i64),
+                    kdf_p_cost: remote.kdf_p_cost.map(|c| c as i64),
+                    updated_at_ms: current_unix_ms(),
+                    mode: remote_mode.to_string(),
+                    kcv: remote_kcv,
+                    finalize_pending: remote.plaintext_rows.unwrap_or(0) > 0,
+                },
+            )?;
+            let _ = self.keystore.delete_slot(KEYCHAIN_SLOT);
+            return Ok(Some(Mode::Locked));
+        }
+
+        // (a) Plaintext rows need finalization
+        if remote.plaintext_rows.unwrap_or(0) > 0 && !local_state.finalize_pending {
+            log::info!(
+                "[e2ee] reconciliation: plaintextRows > 0 detected; setting finalize_pending"
+            );
+            cloud_sync_e2ee_local::set_finalize_pending(&conn, true)?;
+        }
+
+        Ok(None)
     }
 
     /// Generate fresh master_seed, derive wrap_key, wrap, POST to server,
@@ -1363,5 +1480,305 @@ mod tests {
 
         let mode = svc.load_mode().unwrap();
         assert!(mode.is_locked());
+    }
+
+    #[tokio::test]
+    async fn test_reconcile_branch_a_sets_finalize_pending_when_plaintext_rows_exist() {
+        reset_last_reconciliation_for_tests();
+        let mut server = mockito::Server::new_async().await;
+        let seed = [11u8; 32];
+        let kcv = crate::sync::e2ee::pairing::compute_kcv(&seed);
+        let kcv_b64 = B64.encode(kcv);
+
+        let mock_get = server
+            .mock("GET", "/api/sync/e2ee/state")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "mode": "device-key",
+                    "keyVersion": 1,
+                    "kcv": kcv_b64,
+                    "plaintextRows": 8,
+                    "enrolledAt": "2026-11-01T12:00:00Z"
+                })
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        keystore.write_slot(KEYCHAIN_SLOT, &seed).unwrap();
+
+        let conn = store.conn().unwrap();
+        cloud_sync_e2ee_local::upsert(
+            &conn,
+            &E2eeLocalState {
+                enrolled: true,
+                key_version: 1,
+                wrapped_master_seed: None,
+                kdf_salt: None,
+                kdf_m_cost: None,
+                kdf_t_cost: None,
+                kdf_p_cost: None,
+                updated_at_ms: 0,
+                mode: "device-key".into(),
+                kcv: Some(kcv.to_vec()),
+                finalize_pending: false,
+            },
+        )
+        .unwrap();
+
+        let api = ApiClient::with_base(server.url());
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        let result = svc.reconcile_server_state("tok").await.unwrap();
+        assert_eq!(result, None);
+
+        let mirror = cloud_sync_e2ee_local::get(&conn).unwrap().unwrap();
+        assert!(mirror.finalize_pending);
+        mock_get.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_reconcile_branch_b_server_404_resets_local_state_and_marks_dirty() {
+        let mut server = mockito::Server::new_async().await;
+        let mock_get = server
+            .mock("GET", "/api/sync/e2ee/state")
+            .with_status(404)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"code":"sync.e2ee.not-enrolled"}"#)
+            .create_async()
+            .await;
+
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        keystore.write_slot(KEYCHAIN_SLOT, &[1u8; 32]).unwrap();
+
+        let conn = store.conn().unwrap();
+        cloud_sync_e2ee_local::upsert(
+            &conn,
+            &E2eeLocalState {
+                enrolled: true,
+                key_version: 1,
+                wrapped_master_seed: None,
+                kdf_salt: None,
+                kdf_m_cost: None,
+                kdf_t_cost: None,
+                kdf_p_cost: None,
+                updated_at_ms: 0,
+                mode: "device-key".into(),
+                kcv: Some(vec![1u8; 32]),
+                finalize_pending: false,
+            },
+        )
+        .unwrap();
+
+        seed_dirty_journal_row(&conn, "item-1", "snippets", Some(make_hash(9)));
+        assert_eq!(cloud_sync_state::get_dirty(&conn).unwrap().len(), 0);
+
+        let api = ApiClient::with_base(server.url());
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        let result = svc.reconcile_server_state("tok").await.unwrap();
+        assert_eq!(result, Some(Mode::Off));
+
+        // Mirror cleared
+        assert!(cloud_sync_e2ee_local::get(&conn).unwrap().is_none());
+        // Keystore slot deleted
+        assert!(keystore.read_slot(KEYCHAIN_SLOT).unwrap().is_none());
+        // Rows marked dirty
+        assert_eq!(cloud_sync_state::get_dirty(&conn).unwrap().len(), 1);
+        mock_get.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_reconcile_branch_c_server_kcv_or_mode_mismatch_updates_mirror_and_locks() {
+        let mut server = mockito::Server::new_async().await;
+        let kcv2 = vec![99u8; 32];
+        let kcv2_b64 = B64.encode(&kcv2);
+
+        let mock_get = server
+            .mock("GET", "/api/sync/e2ee/state")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "mode": "device-key",
+                    "keyVersion": 2,
+                    "kcv": kcv2_b64,
+                    "plaintextRows": 0,
+                    "enrolledAt": "2026-11-01T12:00:00Z"
+                })
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        keystore.write_slot(KEYCHAIN_SLOT, &[1u8; 32]).unwrap();
+
+        let conn = store.conn().unwrap();
+        cloud_sync_e2ee_local::upsert(
+            &conn,
+            &E2eeLocalState {
+                enrolled: true,
+                key_version: 1,
+                wrapped_master_seed: None,
+                kdf_salt: None,
+                kdf_m_cost: None,
+                kdf_t_cost: None,
+                kdf_p_cost: None,
+                updated_at_ms: 0,
+                mode: "device-key".into(),
+                kcv: Some(vec![1u8; 32]),
+                finalize_pending: false,
+            },
+        )
+        .unwrap();
+
+        let api = ApiClient::with_base(server.url());
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        let result = svc.reconcile_server_state("tok").await.unwrap();
+        assert_eq!(result, Some(Mode::Locked));
+
+        // Mirror updated with kcv2 and key_version 2
+        let mirror = cloud_sync_e2ee_local::get(&conn).unwrap().unwrap();
+        assert_eq!(mirror.key_version, 2);
+        assert_eq!(mirror.kcv, Some(kcv2));
+        // Keystore slot deleted
+        assert!(keystore.read_slot(KEYCHAIN_SLOT).unwrap().is_none());
+        mock_get.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_reconcile_transient_error_tolerance() {
+        let mut server = mockito::Server::new_async().await;
+        let mock_get = server
+            .mock("GET", "/api/sync/e2ee/state")
+            .with_status(500)
+            .with_body("Internal Server Error")
+            .create_async()
+            .await;
+
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        keystore.write_slot(KEYCHAIN_SLOT, &[1u8; 32]).unwrap();
+
+        let conn = store.conn().unwrap();
+        cloud_sync_e2ee_local::upsert(
+            &conn,
+            &E2eeLocalState {
+                enrolled: true,
+                key_version: 1,
+                wrapped_master_seed: None,
+                kdf_salt: None,
+                kdf_m_cost: None,
+                kdf_t_cost: None,
+                kdf_p_cost: None,
+                updated_at_ms: 0,
+                mode: "device-key".into(),
+                kcv: Some(vec![1u8; 32]),
+                finalize_pending: false,
+            },
+        )
+        .unwrap();
+
+        let api = ApiClient::with_base(server.url());
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        let result = svc.reconcile_server_state("tok").await.unwrap();
+        // Transient error caught and returns None; does not fail sync!
+        assert_eq!(result, None);
+
+        // State remains intact
+        assert!(cloud_sync_e2ee_local::get(&conn).unwrap().is_some());
+        assert!(keystore.read_slot(KEYCHAIN_SLOT).unwrap().is_some());
+        mock_get.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_reconcile_frequency_skips_within_24_hours() {
+        reset_last_reconciliation_for_tests();
+        let mut server = mockito::Server::new_async().await;
+        let seed = [22u8; 32];
+        let kcv = crate::sync::e2ee::pairing::compute_kcv(&seed);
+        let kcv_b64 = B64.encode(kcv);
+
+        let mock_get = server
+            .mock("GET", "/api/sync/e2ee/state")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "mode": "device-key",
+                    "keyVersion": 1,
+                    "kcv": kcv_b64,
+                    "enrolledAt": "2026-11-01T12:00:00Z"
+                })
+                .to_string(),
+            )
+            .expect(1)
+            .create_async()
+            .await;
+
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        keystore.write_slot(KEYCHAIN_SLOT, &seed).unwrap();
+
+        let conn = store.conn().unwrap();
+        cloud_sync_e2ee_local::upsert(
+            &conn,
+            &E2eeLocalState {
+                enrolled: true,
+                key_version: 1,
+                wrapped_master_seed: None,
+                kdf_salt: None,
+                kdf_m_cost: None,
+                kdf_t_cost: None,
+                kdf_p_cost: None,
+                updated_at_ms: 0,
+                mode: "device-key".into(),
+                kcv: Some(kcv.to_vec()),
+                finalize_pending: false,
+            },
+        )
+        .unwrap();
+
+        let api = ApiClient::with_base(server.url());
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        // 1st call in session: executes
+        let res1 = svc.reconcile_server_state_if_due("tok").await.unwrap();
+        assert_eq!(res1, None);
+
+        // 2nd call: within 24h, must NOT hit server (expect 1 would fail if called)
+        let res2 = svc.reconcile_server_state_if_due("tok").await.unwrap();
+        assert_eq!(res2, None);
+
+        mock_get.assert_async().await;
     }
 }
