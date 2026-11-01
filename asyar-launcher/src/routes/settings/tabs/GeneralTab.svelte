@@ -16,7 +16,12 @@
     Toggle,
     WindowModeSelector,
   } from '../../../components';
-  import { discoverExtensions, onboardingCommands } from '../../../lib/ipc/commands';
+  import {
+    discoverExtensions,
+    getShortcutBackendInfo,
+    onboardingCommands,
+    type ShortcutBackendInfo,
+  } from '../../../lib/ipc/commands';
   import { setUiScale } from '../../../lib/ipc/windowCommands';
   import { clampUiScale, DEFAULT_UI_SCALE, UI_SCALE_OPTIONS } from '../../../lib/launcher/uiScale';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
@@ -25,6 +30,7 @@
   import { logService } from '../../../services/log/logService';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { applyTheme, removeTheme } from '../../../services/theme/themeService';
+  import { getWaylandBindingGuide } from '../../onboarding/steps/summonSearchSetup';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
 
   let {
@@ -40,8 +46,26 @@
   let selectedUiScale = $state(
     clampUiScale(settingsService.currentSettings.appearance.uiScale ?? DEFAULT_UI_SCALE),
   );
+  let shortcutBackendInfo = $state<ShortcutBackendInfo | null>(null);
+  let waylandCopied = $state(false);
+  const waylandGuide = $derived(getWaylandBindingGuide(shortcutBackendInfo));
+
+  async function copyWaylandCommand() {
+    if (!waylandGuide) return;
+    try {
+      await navigator.clipboard.writeText(waylandGuide.command);
+      waylandCopied = true;
+    } catch {
+      // Clipboard write may fail in restricted environments; ignore.
+    }
+  }
 
   onMount(async () => {
+    try {
+      shortcutBackendInfo = await getShortcutBackendInfo();
+    } catch {
+      shortcutBackendInfo = { isWayland: false, compositor: null, isOmarchy: false };
+    }
     // Separate from the theme-extension load below: Rust owns the placement,
     // so a failure there must not blank the placement controls (and vice
     // versa).
@@ -239,6 +263,21 @@
         {conflictChecker}
       />
     </SettingsRow>
+    {#if waylandGuide}
+      <div class="wayland-hotkey-hint">
+        <p class="wayland-hotkey-text">
+          {t('settings.general.wayland_hotkey_hint', { compositor: waylandGuide.compositorLabel })}
+        </p>
+        <div class="wayland-hotkey-row">
+          <pre class="wayland-hotkey-code"><code>{waylandGuide.command}</code></pre>
+          <Button variant="secondary" size="sm" onclick={copyWaylandCommand}>
+            {waylandCopied
+              ? t('settings.general.wayland_copied')
+              : t('settings.general.wayland_copy_cmd')}
+          </Button>
+        </div>
+      </div>
+    {/if}
     <SettingsRow
       label={t('settings.general.show_tray_icon')}
       description={handler.settings.general.showTrayIcon
@@ -492,5 +531,39 @@
     color: var(--text-secondary);
     font-family: var(--font-ui);
     margin-top: var(--space-1);
+  }
+
+  .wayland-hotkey-hint {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-6);
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--separator);
+  }
+
+  .wayland-hotkey-text {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .wayland-hotkey-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .wayland-hotkey-code {
+    flex: 1;
+    margin: 0;
+    padding: var(--space-2);
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--text-primary);
+    overflow-x: auto;
   }
 </style>

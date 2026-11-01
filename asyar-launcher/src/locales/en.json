@@ -139,7 +139,10 @@
       "error_save_display": "Could not save the launcher display",
       "error_save_interface_size": "Could not save the interface size",
       "error_save_position": "Could not save the launcher position",
-      "error_save_snap": "Could not save the launcher snap setting"
+      "error_save_snap": "Could not save the launcher snap setting",
+      "wayland_hotkey_hint": "On Wayland ({compositor}), bind asyar-summon in your compositor or desktop shortcut settings for instant global summon.",
+      "wayland_copy_cmd": "Copy",
+      "wayland_copied": "✓ Copied"
     },
     "appearance": {
       "theme": "Theme",
@@ -792,6 +795,12 @@
     "summon_heading": "Summon Asyar, then just type",
     "summon_desc": "Press Option+Space from anywhere to open Asyar. Try searching an app, or do quick math — type 24 * 7 and press Enter.",
     "change_hotkey_hint": "Prefer a different key? Change it",
+    "wayland_hotkey_notice": "On Wayland ({compositor}), global shortcuts are managed by your compositor. Bind asyar-summon to summon Asyar instantly:",
+    "wayland_config_file": "Add to {path}:",
+    "wayland_custom_shortcut_cmd": "Command for your desktop shortcut settings:",
+    "wayland_copy_snippet": "Copy snippet",
+    "wayland_copied": "✓ Copied",
+    "wayland_hint_bind_and_press": "Bind asyar-summon below, then press {shortcut}",
     "theme_title": "Make it yours",
     "theme_heading": "Pick a look that fits your workspace",
     "theme_desc": "Switch anytime from Settings (⌘,) → Appearance. Themes change the palette, contrast, and accent highlights.",

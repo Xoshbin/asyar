@@ -30,6 +30,116 @@ impl Default for ShortcutConfig {
     }
 }
 
+/// Information about the active display/compositor backend for global shortcuts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShortcutBackendInfo {
+    /// True when running on Linux under a Wayland session (`WAYLAND_DISPLAY` or
+    /// `XDG_SESSION_TYPE=wayland`), where X11 `XGrabKey` cannot capture global
+    /// hotkeys from native Wayland windows and `asyar-summon` should be bound
+    /// in the compositor.
+    pub is_wayland: bool,
+    /// Detected Wayland compositor family (`"hyprland"`, `"sway"`, `"kde"`,
+    /// `"gnome"`, or `"other"`) when `is_wayland` is true, or `None` otherwise.
+    pub compositor: Option<String>,
+    /// True when an Omarchy environment is detected on Linux (`OMARCHY_PATH` set
+    /// or `~/.local/share/omarchy` or `/usr/share/omarchy` exists).
+    pub is_omarchy: bool,
+    /// True when Omarchy v4+ Lua configuration (`~/.config/hypr/bindings.lua`
+    /// or `~/.config/hypr/hyprland.lua`) is present on disk.
+    pub omarchy_lua_config: bool,
+}
+
+pub(crate) fn detect_shortcut_backend_info_with<F>(
+    is_linux: bool,
+    get_var: F,
+    omarchy_dir_exists: bool,
+    omarchy_lua_config_exists: bool,
+) -> ShortcutBackendInfo
+where
+    F: Fn(&str) -> Option<String>,
+{
+    if !is_linux {
+        return ShortcutBackendInfo {
+            is_wayland: false,
+            compositor: None,
+            is_omarchy: false,
+            omarchy_lua_config: false,
+        };
+    }
+
+    let is_wayland = get_var("WAYLAND_DISPLAY").is_some_and(|v| !v.trim().is_empty())
+        || get_var("XDG_SESSION_TYPE").is_some_and(|v| v.trim().eq_ignore_ascii_case("wayland"));
+
+    if !is_wayland {
+        return ShortcutBackendInfo {
+            is_wayland: false,
+            compositor: None,
+            is_omarchy: false,
+            omarchy_lua_config: false,
+        };
+    }
+
+    let desktop = get_var("XDG_CURRENT_DESKTOP")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let session = get_var("DESKTOP_SESSION")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    let compositor = if get_var("HYPRLAND_INSTANCE_SIGNATURE").is_some_and(|v| !v.trim().is_empty())
+        || desktop.contains("hyprland")
+        || session.contains("hyprland")
+    {
+        Some("hyprland".to_string())
+    } else if get_var("SWAYSOCK").is_some_and(|v| !v.trim().is_empty())
+        || desktop.contains("sway")
+        || session.contains("sway")
+    {
+        Some("sway".to_string())
+    } else if desktop.contains("kde") || desktop.contains("plasma") || session.contains("plasma") {
+        Some("kde".to_string())
+    } else if desktop.contains("gnome") || session.contains("gnome") {
+        Some("gnome".to_string())
+    } else {
+        Some("other".to_string())
+    };
+
+    let is_omarchy =
+        get_var("OMARCHY_PATH").is_some_and(|v| !v.trim().is_empty()) || omarchy_dir_exists;
+    let omarchy_lua_config = is_omarchy && omarchy_lua_config_exists;
+
+    ShortcutBackendInfo {
+        is_wayland: true,
+        compositor,
+        is_omarchy,
+        omarchy_lua_config,
+    }
+}
+
+/// Returns information about the active display/compositor backend for global shortcuts.
+#[tauri::command]
+pub fn get_shortcut_backend_info() -> ShortcutBackendInfo {
+    let home_dir = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let omarchy_dir_exists = std::path::Path::new("/usr/share/omarchy").exists()
+        || home_dir
+            .as_ref()
+            .is_some_and(|home| home.join(".local/share/omarchy").exists());
+    let config_dir = std::env::var_os("XDG_CONFIG_HOME")
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| home_dir.map(|home| home.join(".config")));
+    let omarchy_lua_config_exists = config_dir.is_some_and(|cfg| {
+        cfg.join("hypr/bindings.lua").exists() || cfg.join("hypr/hyprland.lua").exists()
+    });
+    detect_shortcut_backend_info_with(
+        cfg!(target_os = "linux"),
+        |key| std::env::var(key).ok(),
+        omarchy_dir_exists,
+        omarchy_lua_config_exists,
+    )
+}
+
 /// Replaces the global launcher shortcut with a new modifier+key combination.
 #[tauri::command]
 pub async fn update_global_shortcut(
@@ -1101,5 +1211,233 @@ mod tests {
         assert_eq!(canonicalize_shortcut("F16").unwrap(), "F16");
         assert_eq!(canonicalize_shortcut("+F16").unwrap(), "F16");
         assert_eq!(canonicalize_shortcut(" F16 ").unwrap(), "F16");
+    }
+
+    #[test]
+    fn detect_shortcut_backend_non_linux_ignores_wayland_env() {
+        let info = detect_shortcut_backend_info_with(
+            false,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "HYPRLAND_INSTANCE_SIGNATURE" => Some("abc".to_string()),
+                "OMARCHY_PATH" => Some("/home/user/.local/share/omarchy".to_string()),
+                _ => None,
+            },
+            true,
+            true,
+        );
+        assert_eq!(
+            info,
+            ShortcutBackendInfo {
+                is_wayland: false,
+                compositor: None,
+                is_omarchy: false,
+                omarchy_lua_config: false,
+            }
+        );
+    }
+
+    #[test]
+    fn detect_shortcut_backend_linux_x11() {
+        let info = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "XDG_SESSION_TYPE" => Some("x11".to_string()),
+                _ => None,
+            },
+            false,
+            false,
+        );
+        assert_eq!(
+            info,
+            ShortcutBackendInfo {
+                is_wayland: false,
+                compositor: None,
+                is_omarchy: false,
+                omarchy_lua_config: false,
+            }
+        );
+    }
+
+    #[test]
+    fn detect_shortcut_backend_linux_hyprland_via_signature() {
+        let info = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "HYPRLAND_INSTANCE_SIGNATURE" => Some("deadbeef".to_string()),
+                _ => None,
+            },
+            false,
+            false,
+        );
+        assert_eq!(
+            info,
+            ShortcutBackendInfo {
+                is_wayland: true,
+                compositor: Some("hyprland".to_string()),
+                is_omarchy: false,
+                omarchy_lua_config: false,
+            }
+        );
+    }
+
+    #[test]
+    fn detect_shortcut_backend_linux_omarchy_via_dir_or_env() {
+        let by_dir = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("Hyprland".to_string()),
+                _ => None,
+            },
+            true,
+            false,
+        );
+        assert_eq!(
+            by_dir,
+            ShortcutBackendInfo {
+                is_wayland: true,
+                compositor: Some("hyprland".to_string()),
+                is_omarchy: true,
+                omarchy_lua_config: false,
+            }
+        );
+
+        let by_env = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "XDG_SESSION_TYPE" => Some("wayland".to_string()),
+                "DESKTOP_SESSION" => Some("hyprland".to_string()),
+                "OMARCHY_PATH" => Some("/home/user/.local/share/omarchy".to_string()),
+                _ => None,
+            },
+            false,
+            false,
+        );
+        assert_eq!(
+            by_env,
+            ShortcutBackendInfo {
+                is_wayland: true,
+                compositor: Some("hyprland".to_string()),
+                is_omarchy: true,
+                omarchy_lua_config: false,
+            }
+        );
+    }
+
+    #[test]
+    fn detect_shortcut_backend_linux_omarchy_v4_lua_config() {
+        let v4_with_dir = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("Hyprland".to_string()),
+                _ => None,
+            },
+            true,
+            true,
+        );
+        assert_eq!(
+            v4_with_dir,
+            ShortcutBackendInfo {
+                is_wayland: true,
+                compositor: Some("hyprland".to_string()),
+                is_omarchy: true,
+                omarchy_lua_config: true,
+            }
+        );
+
+        let v4_with_env = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("Hyprland".to_string()),
+                "OMARCHY_PATH" => Some("/usr/share/omarchy".to_string()),
+                _ => None,
+            },
+            false,
+            true,
+        );
+        assert_eq!(
+            v4_with_env,
+            ShortcutBackendInfo {
+                is_wayland: true,
+                compositor: Some("hyprland".to_string()),
+                is_omarchy: true,
+                omarchy_lua_config: true,
+            }
+        );
+
+        let vanilla_hyprland_with_lua = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("Hyprland".to_string()),
+                _ => None,
+            },
+            false,
+            true,
+        );
+        assert_eq!(
+            vanilla_hyprland_with_lua,
+            ShortcutBackendInfo {
+                is_wayland: true,
+                compositor: Some("hyprland".to_string()),
+                is_omarchy: false,
+                omarchy_lua_config: false,
+            }
+        );
+    }
+
+    #[test]
+    fn detect_shortcut_backend_linux_sway_kde_gnome_and_other() {
+        let sway = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-1".to_string()),
+                "SWAYSOCK" => Some("/run/user/1000/sway-ipc.sock".to_string()),
+                _ => None,
+            },
+            false,
+            false,
+        );
+        assert_eq!(sway.compositor.as_deref(), Some("sway"));
+
+        let kde = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-0".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("KDE".to_string()),
+                _ => None,
+            },
+            false,
+            false,
+        );
+        assert_eq!(kde.compositor.as_deref(), Some("kde"));
+
+        let gnome = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-0".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("ubuntu:GNOME".to_string()),
+                _ => None,
+            },
+            false,
+            false,
+        );
+        assert_eq!(gnome.compositor.as_deref(), Some("gnome"));
+
+        let other = detect_shortcut_backend_info_with(
+            true,
+            |key| match key {
+                "WAYLAND_DISPLAY" => Some("wayland-0".to_string()),
+                "XDG_CURRENT_DESKTOP" => Some("niri".to_string()),
+                _ => None,
+            },
+            false,
+            false,
+        );
+        assert_eq!(other.compositor.as_deref(), Some("other"));
     }
 }

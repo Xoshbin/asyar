@@ -55,6 +55,17 @@ export async function getValidShortcutKeys(): Promise<string[]> {
   return invokeSafe<string[]>('get_valid_shortcut_keys');
 }
 
+export interface ShortcutBackendInfo {
+  isWayland: boolean;
+  compositor: 'hyprland' | 'sway' | 'kde' | 'gnome' | 'other' | null;
+  isOmarchy: boolean;
+  omarchyLuaConfig?: boolean;
+}
+
+export async function getShortcutBackendInfo(): Promise<ShortcutBackendInfo> {
+  return invokeSafe<ShortcutBackendInfo>('get_shortcut_backend_info');
+}
+
 // ── Storage: Shortcuts ───────────────────────────────────────────────────────
 
 export interface StoredItemShortcut {

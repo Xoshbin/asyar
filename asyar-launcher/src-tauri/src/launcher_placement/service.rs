@@ -188,19 +188,19 @@ fn apply_placement<R: Runtime + 'static>(
     let (origin, frames) = monitor_frames(&monitor);
 
     let scale = monitor.scale_factor();
-    let window_size = window
+    let window_width = window
         .outer_size()
-        .map_err(|e| AppError::Platform(format!("outer_size: {e}")))?
-        .to_logical::<f64>(scale);
+        .map(|s| s.to_logical::<f64>(scale).width)
+        .unwrap_or_else(|_| 750.0 * app.state::<AppState>().ui_scale());
 
     let reserve_height = reserve_height(app);
-    let space = TravelSpace::new(frames.monitor, window_size.width, reserve_height);
+    let space = TravelSpace::new(frames.monitor, window_width, reserve_height);
     let anchor = migrate_on_reveal(app, placement, space);
     let (dx, dy) = resolve_origin(
         &anchor,
         frames.monitor,
         frames.work,
-        window_size.width,
+        window_width,
         reserve_height,
     );
 
@@ -598,6 +598,22 @@ mod snap_persistence_tests {
         let (adjusted, state) = apply_snap_absolute(205.0, 45.0, origin, target, 12.0);
         assert_eq!(adjusted, target);
         assert_eq!(state, resolve::SnapState { x: true, y: true });
+    }
+
+    #[test]
+    fn non_macos_apply_placement_falls_back_when_outer_size_fails() {
+        let source = include_str!("service.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
+        assert!(
+            !source.contains(r#"map_err(|e| AppError::Platform(format!("outer_size: {e}")))?"#),
+            "apply_placement must not abort when outer_size() fails on an unmapped Wayland window"
+        );
+        assert!(
+            source.contains("unwrap_or_else(|_| 750.0 * app.state::<AppState>().ui_scale())"),
+            "apply_placement must fall back to scaled 750.0 width when outer_size() fails"
+        );
     }
 }
 

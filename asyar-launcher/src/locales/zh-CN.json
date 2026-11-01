@@ -139,7 +139,10 @@
       "error_save_display": "无法保存启动器显示器设置",
       "error_save_interface_size": "无法保存界面大小",
       "error_save_position": "无法保存启动器位置",
-      "error_save_snap": "无法保存启动器吸附设置"
+      "error_save_snap": "无法保存启动器吸附设置",
+      "wayland_hotkey_hint": "在 Wayland（{compositor}）上，请在合成器或桌面快捷键设置中绑定 asyar-summon，以实现瞬时全局唤起。",
+      "wayland_copy_cmd": "复制",
+      "wayland_copied": "✓ 已复制"
     },
     "appearance": {
       "theme": "主题",
@@ -792,6 +795,12 @@
     "summon_heading": "唤起 Asyar，然后直接输入",
     "summon_desc": "在任何地方按 Option+Space 即可打开 Asyar。试着搜索一个应用，或做道算术题 —— 输入 24 * 7 然后按回车。",
     "change_hotkey_hint": "想换个按键？去改一下",
+    "wayland_hotkey_notice": "在 Wayland（{compositor}）上，全局快捷键由你的合成器管理。绑定 asyar-summon 即可立即唤起 Asyar：",
+    "wayland_config_file": "添加到 {path}：",
+    "wayland_custom_shortcut_cmd": "桌面快捷键设置中使用的命令：",
+    "wayland_copy_snippet": "复制代码片段",
+    "wayland_copied": "✓ 已复制",
+    "wayland_hint_bind_and_press": "在下方绑定 asyar-summon，然后按 {shortcut}",
     "theme_title": "让它变成你的",
     "theme_heading": "挑一个适合你工作环境的外观",
     "theme_desc": "随时可在设置（⌘,）→ 外观中切换。主题会改变配色、对比度和高亮强调色。",
