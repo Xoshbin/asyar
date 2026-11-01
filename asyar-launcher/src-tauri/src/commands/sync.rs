@@ -213,6 +213,36 @@ impl SyncHttp for ApiClient {
     }
 }
 
+fn purge_auth_if_expired(err: &AppError, auth_state: &State<'_, AuthState>, app: &AppHandle) {
+    if let AppError::Auth(ref msg) = err {
+        if msg.contains("Token expired") || msg.contains("Not logged in") || msg.contains("401") {
+            log::warn!("[sync] auth token expired or invalid; purging local auth state");
+            if let Ok(mut t) = auth_state.token.lock() {
+                *t = None;
+            }
+            if let Ok(mut u) = auth_state.user.lock() {
+                *u = None;
+            }
+            if let Ok(mut e) = auth_state.entitlements.lock() {
+                *e = vec![];
+            }
+            if let Ok(mut c) = auth_state.entitlements_cached_at.lock() {
+                *c = None;
+            }
+            let _ = token_store::clear_auth(app);
+            let _ = app.emit(
+                "asyar:auth-changed",
+                AuthStateResponse {
+                    is_logged_in: false,
+                    user: None,
+                    entitlements: vec![],
+                    entitlements_cached_at: None,
+                },
+            );
+        }
+    }
+}
+
 // ── Tauri command surface ────────────────────────────────────────────────────
 
 /// Run one delta-sync round-trip: pull all server changes since the cursor,
@@ -263,14 +293,29 @@ pub async fn sync_run(
         keystore: &**keystore,
         data_store: &data_store,
     };
-    let mut mode = svc.ensure_mirror_and_load_mode(&token).await?;
+    let mut mode = match svc.ensure_mirror_and_load_mode(&token).await {
+        Ok(m) => m,
+        Err(e) => {
+            purge_auth_if_expired(&e, &auth_state, &app);
+            return Err(e);
+        }
+    };
     if mode.is_locked() {
         return Err(AppError::SyncE2eeLocked);
     }
     if !mode.is_enabled() {
         // Mode::Off: Account is entitled (passed Gate::evaluate above); auto-enrol into device-key mode
-        svc.auto_enrol(&token).await?;
-        mode = svc.load_mode()?;
+        if let Err(e) = svc.auto_enrol(&token).await {
+            purge_auth_if_expired(&e, &auth_state, &app);
+            return Err(e);
+        }
+        mode = match svc.load_mode() {
+            Ok(m) => m,
+            Err(e) => {
+                purge_auth_if_expired(&e, &auth_state, &app);
+                return Err(e);
+            }
+        };
         if mode.is_locked() {
             return Err(AppError::SyncE2eeLocked);
         }
@@ -278,37 +323,13 @@ pub async fn sync_run(
     let result = sync_run_inner(&sources, &token, &*api_client, &data_store, &mode).await;
 
     if let Ok(ref report) = result {
-        if report.push_failure.is_none() {
+        if report.push_failure.is_none() && report.failed.is_empty() {
             let _ = svc.finalize_if_pending(&token, report.server_version).await;
         }
     }
 
-    if let Err(AppError::Auth(ref msg)) = result {
-        if msg.contains("Token expired") || msg.contains("Not logged in") || msg.contains("401") {
-            log::warn!("[sync] auth token expired or invalid; purging local auth state");
-            if let Ok(mut t) = auth_state.token.lock() {
-                *t = None;
-            }
-            if let Ok(mut u) = auth_state.user.lock() {
-                *u = None;
-            }
-            if let Ok(mut e) = auth_state.entitlements.lock() {
-                *e = vec![];
-            }
-            if let Ok(mut c) = auth_state.entitlements_cached_at.lock() {
-                *c = None;
-            }
-            let _ = token_store::clear_auth(&app);
-            let _ = app.emit(
-                "asyar:auth-changed",
-                AuthStateResponse {
-                    is_logged_in: false,
-                    user: None,
-                    entitlements: vec![],
-                    entitlements_cached_at: None,
-                },
-            );
-        }
+    if let Err(ref e) = result {
+        purge_auth_if_expired(e, &auth_state, &app);
     }
 
     result

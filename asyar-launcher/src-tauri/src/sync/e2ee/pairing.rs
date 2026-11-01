@@ -49,6 +49,16 @@ impl PairingSessionStore {
         }
     }
 
+    pub fn get(&self, id: &str) -> Option<Zeroizing<[u8; 32]>> {
+        if let Ok(mut lock) = self.0.lock() {
+            let now = Instant::now();
+            lock.retain(|_, (_, time)| now.duration_since(*time).as_secs() < 900);
+            lock.get(id).map(|(s, _)| s.clone())
+        } else {
+            None
+        }
+    }
+
     pub fn take(&self, id: &str) -> Option<Zeroizing<[u8; 32]>> {
         if let Ok(mut lock) = self.0.lock() {
             let now = Instant::now();
@@ -456,7 +466,14 @@ mod tests {
         let secret = Zeroizing::new([42u8; 32]);
         store.insert("pair-1".into(), secret);
 
+        assert!(store.get("pair-unknown").is_none());
         assert!(store.take("pair-unknown").is_none());
+
+        // get() reads without consuming
+        let peeked = store.get("pair-1").expect("must get pair-1");
+        assert_eq!(*peeked, [42u8; 32]);
+        assert!(store.get("pair-1").is_some(), "still present after get");
+
         let taken = store.take("pair-1").expect("must take pair-1");
         assert_eq!(*taken, [42u8; 32]);
         assert!(store.take("pair-1").is_none(), "already taken");

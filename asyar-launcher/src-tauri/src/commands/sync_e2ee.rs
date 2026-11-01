@@ -258,7 +258,7 @@ pub async fn sync_e2ee_pairing_poll(
 
     if poll_resp.status == "approved" {
         let secret = pairing_store
-            .take(&id)
+            .get(&id)
             .ok_or_else(|| AppError::Validation("pairing session expired or not found".into()))?;
         let sealed_b64 = poll_resp.sealed_seed.ok_or_else(|| {
             AppError::Validation("missing sealed seed in approved response".into())
@@ -297,6 +297,9 @@ pub async fn sync_e2ee_pairing_poll(
             crate::sync::e2ee::service::KEYCHAIN_SLOT,
             &*seed,
         )?;
+
+        // Now that the seed is safely verified and written, consume the ephemeral secret.
+        pairing_store.take(&id);
 
         // Fetch remote state to persist local mirror
         let svc = E2eeService {
