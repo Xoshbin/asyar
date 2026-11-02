@@ -43,6 +43,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'preferences',
   'power',
   'media',
+  'calendar',
   'screen',
   'process',
   'systemEvents',
@@ -158,6 +159,15 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'media:getNowPlaying': ['playerId'],
   'media:listSessions': [],
   'media:control': ['action', 'playerId'],
+
+  // calendar
+  'calendar:listCalendars': [],
+  'calendar:listEvents': ['startAt', 'endAt', 'calendarIds'],
+  'calendar:createEvent': ['input'],
+  'calendar:listReminderLists': [],
+  'calendar:listReminders': ['listIds', 'includeCompleted'],
+  'calendar:createReminder': ['input'],
+  'calendar:setReminderCompleted': ['id', 'completed'],
 
   // screen
   'screen:pickColor': [],

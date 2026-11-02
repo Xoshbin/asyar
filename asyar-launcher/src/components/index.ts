@@ -127,6 +127,8 @@ export { default as IncomingPairingRequests } from './settings/IncomingPairingRe
 export { default as RuntimesSection } from './settings/RuntimesSection.svelte';
 export { default as ScheduledTasksSection } from './settings/ScheduledTasksSection.svelte';
 export { default as SecretRedactionSection } from './settings/SecretRedactionSection.svelte';
+export { default as CalendarAccessRows } from './settings/CalendarAccessRows.svelte';
+export { default as SystemAccessSection } from './settings/SystemAccessSection.svelte';
 export { default as UsageShareSection } from './settings/UsageShareSection.svelte';
 
 // Settings — controls and lists

@@ -169,6 +169,22 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     description:
       'Read what is playing in media players and apps (such as Music, TV, Spotify, VLC, or a browser) and send play, pause, and skip commands.',
   },
+  'calendar:read': {
+    title: 'Read calendars and events',
+    description: 'List your calendars and read the events in them.',
+  },
+  'calendar:write': {
+    title: 'Create calendar events',
+    description: 'Add new events to your calendars.',
+  },
+  'reminders:read': {
+    title: 'Read reminders',
+    description: 'List your reminder lists and the reminders in them.',
+  },
+  'reminders:write': {
+    title: 'Create and complete reminders',
+    description: 'Add new reminders and mark existing ones as done or not done.',
+  },
   'process:read': {
     title: 'List processes',
     description: 'List running processes with CPU and memory usage.',

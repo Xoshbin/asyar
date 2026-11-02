@@ -4,7 +4,15 @@
 <dict>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Asyar reads what is playing and controls playback in media apps such as Music and Spotify when an extension you approve asks it to.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Asyar reads and updates your calendar events when an extension you approve asks it to.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Asyar reads and updates your calendar events when an extension you approve asks it to.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Asyar finds devices on your local network, such as speakers and smart home hubs, and lets extensions you approve connect to them.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Asyar reads and updates your reminders when an extension you approve asks it to.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Asyar reads and updates your reminders when an extension you approve asks it to.</string>
 </dict>
 </plist>

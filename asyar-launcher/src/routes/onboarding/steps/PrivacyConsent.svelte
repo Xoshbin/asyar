@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GuidanceStep, SettingsRadioGroup } from '../../../components';
+  import { GuidanceStep, SettingsRadioGroup, SystemAccessSection } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { advanceStep } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
@@ -86,5 +86,6 @@
       onchange={handleUsageChange}
       noBorder={true}
     />
+    <SystemAccessSection />
   {/snippet}
 </GuidanceStep>

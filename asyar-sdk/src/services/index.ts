@@ -87,6 +87,17 @@ export type {
 export { MediaServiceProxy } from './MediaServiceProxy';
 
 export type {
+  ICalendarService,
+  CalendarSource,
+  CalendarEvent,
+  CreateEventInput,
+  ReminderList,
+  ReminderItem,
+  CreateReminderInput,
+} from './ICalendarService';
+export { CalendarServiceProxy } from './CalendarServiceProxy';
+
+export type {
   IPowerService,
   KeepAwakeOptions,
   ResolvedKeepAwakeOptions,

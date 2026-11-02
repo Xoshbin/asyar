@@ -296,6 +296,14 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:media:getNowPlaying" => Some("media:control"),
         "asyar:api:media:listSessions" => Some("media:control"),
         "asyar:api:media:control" => Some("media:control"),
+        // Calendar & reminders (EventKit)
+        "asyar:api:calendar:listCalendars" => Some("calendar:read"),
+        "asyar:api:calendar:listEvents" => Some("calendar:read"),
+        "asyar:api:calendar:createEvent" => Some("calendar:write"),
+        "asyar:api:calendar:listReminderLists" => Some("reminders:read"),
+        "asyar:api:calendar:listReminders" => Some("reminders:read"),
+        "asyar:api:calendar:createReminder" => Some("reminders:write"),
+        "asyar:api:calendar:setReminderCompleted" => Some("reminders:write"),
         // Process service (list/kill)
         "asyar:api:process:list" => Some("process:read"),
         "asyar:api:process:kill" => Some("process:kill"),
