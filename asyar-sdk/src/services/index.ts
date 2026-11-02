@@ -79,6 +79,14 @@ export type { IWindowManagementService, WindowBounds } from './WindowManagementS
 export { WindowManagementServiceProxy } from './WindowManagementService';
 
 export type {
+  IMediaService,
+  MediaSessionInfo,
+  MediaTransportAction,
+  PlaybackStatus,
+} from './IMediaService';
+export { MediaServiceProxy } from './MediaServiceProxy';
+
+export type {
   IPowerService,
   KeepAwakeOptions,
   ResolvedKeepAwakeOptions,

@@ -1,5 +1,7 @@
 #![cfg(target_os = "windows")]
 
+pub mod media;
+
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;

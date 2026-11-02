@@ -292,6 +292,10 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:power:keepAwake" => Some("power:inhibit"),
         "asyar:api:power:release" => Some("power:inhibit"),
         "asyar:api:power:list" => Some("power:inhibit"),
+        // Media control (now-playing + transport)
+        "asyar:api:media:getNowPlaying" => Some("media:control"),
+        "asyar:api:media:listSessions" => Some("media:control"),
+        "asyar:api:media:control" => Some("media:control"),
         // Process service (list/kill)
         "asyar:api:process:list" => Some("process:read"),
         "asyar:api:process:kill" => Some("process:kill"),

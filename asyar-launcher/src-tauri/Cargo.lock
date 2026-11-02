@@ -347,6 +347,8 @@ dependencies = [
  "png 0.17.16",
  "raw-window-handle",
  "rdev",
+ "serde",
+ "serde_json",
  "serial_test",
  "sys-locale",
  "tempfile",

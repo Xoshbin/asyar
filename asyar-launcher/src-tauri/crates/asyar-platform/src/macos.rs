@@ -7,6 +7,7 @@
 //! - `haptics` — trackpad haptic feedback (drag-to-snap)
 //! - `input` — global key monitors (Cmd-Q, snippet expansion) + press-and-hold
 //! - `system` — accessibility, frontmost app, and the native Show-More bar
+//! - `media` — media-key transport + Music/Spotify now-playing (no MediaRemote)
 //! - `quicklook` — native QLPreviewPanel hosting (file preview)
 
 /// The resolved (OS-actual) appearance at window creation time.
@@ -22,6 +23,7 @@ pub mod haptics;
 pub mod icon;
 pub mod input;
 pub mod launcher_resize;
+pub mod media;
 pub mod quicklook;
 pub mod system;
 pub mod window;

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Asyar reads what is playing and controls playback in media apps such as Music and Spotify when an extension you approve asks it to.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Asyar finds devices on your local network, such as speakers and smart home hubs, and lets extensions you approve connect to them.</string>
 </dict>
