@@ -9,12 +9,16 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const SHORTCUTS_BIN: &str = "/usr/bin/shortcuts";
 /// Only the start of stderr is kept for error messages.
 const MAX_STDERR_BYTES: usize = 64 * 1024;
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
+/// Upper bound on one run. Keep at or above the SDK's `RUN_TIMEOUT_MS` so the
+/// host never stops a run the caller is still waiting for; it also frees the
+/// child and blocking-pool thread of a shortcut stuck on a prompt.
+const RUN_DEADLINE: Duration = Duration::from_secs(300);
 
 #[derive(Debug)]
 struct Captured {
@@ -109,9 +113,18 @@ fn wait_or_kill(
     exceeded: &AtomicBool,
 ) -> Result<std::process::ExitStatus, PlatformError> {
     let wait_err = |e| PlatformError::OsError(format!("Failed to wait for shortcuts: {e}"));
+    let deadline = Instant::now() + RUN_DEADLINE;
     loop {
         if let Some(status) = child.try_wait().map_err(wait_err)? {
             return Ok(status);
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(PlatformError::OsError(format!(
+                "Shortcut did not finish within {} seconds and was stopped",
+                RUN_DEADLINE.as_secs()
+            )));
         }
         if exceeded.load(Ordering::SeqCst) {
             let _ = child.kill();
