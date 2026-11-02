@@ -14,6 +14,11 @@ use serde::{Deserialize, Serialize};
 /// Upper bound on the text piped to a shortcut's stdin.
 pub const MAX_SHORTCUT_INPUT_BYTES: usize = 1024 * 1024;
 
+/// Upper bound on the text a shortcut may return; a run that emits more is
+/// stopped and reported as an error (macOS backend).
+#[cfg(target_os = "macos")]
+pub const MAX_SHORTCUT_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShortcutInfo {

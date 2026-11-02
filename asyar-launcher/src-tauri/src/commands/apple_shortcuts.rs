@@ -21,26 +21,43 @@ fn platform_err(e: asyar_platform::PlatformError) -> AppError {
     }
 }
 
-// Both commands block on a child process (a user shortcut can run for
-// minutes), so they run on the async runtime's pool, not the main thread.
-#[tauri::command(async)]
-pub fn shortcuts_list(
+// Both commands wait on a child process (a user shortcut can run for
+// minutes). A sync `#[tauri::command(async)]` body would hold one of the async
+// runtime's worker threads for that whole time, so the wait goes to the
+// blocking pool instead. The permission check stays on the caller's task so a
+// denied call never spawns anything.
+#[tauri::command]
+pub async fn shortcuts_list(
     permissions: State<'_, ExtensionPermissionRegistry>,
     extension_id: Option<String>,
 ) -> Result<Vec<ShortcutInfo>, AppError> {
-    shortcuts_list_inner(&permissions, extension_id)
+    permissions.check(&extension_id, SHORTCUTS_READ)?;
+    blocking(asyar_platform::list_shortcuts).await
 }
 
-#[tauri::command(async)]
-pub fn shortcuts_run(
+#[tauri::command]
+pub async fn shortcuts_run(
     permissions: State<'_, ExtensionPermissionRegistry>,
     extension_id: Option<String>,
     id_or_name: String,
     input: Option<String>,
 ) -> Result<String, AppError> {
-    shortcuts_run_inner(&permissions, extension_id, id_or_name, input)
+    permissions.check(&extension_id, SHORTCUTS_RUN)?;
+    blocking(move || asyar_platform::run_shortcut(RunShortcutInput { id_or_name, input })).await
 }
 
+async fn blocking<T, F>(f: F) -> Result<T, AppError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, asyar_platform::PlatformError> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| AppError::Platform(format!("Shortcuts task failed: {e}")))?
+        .map_err(platform_err)
+}
+
+#[cfg(test)]
 pub(crate) fn shortcuts_list_inner(
     permissions: &ExtensionPermissionRegistry,
     extension_id: Option<String>,
@@ -49,6 +66,7 @@ pub(crate) fn shortcuts_list_inner(
     asyar_platform::list_shortcuts().map_err(platform_err)
 }
 
+#[cfg(test)]
 pub(crate) fn shortcuts_run_inner(
     permissions: &ExtensionPermissionRegistry,
     extension_id: Option<String>,
