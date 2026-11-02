@@ -66,6 +66,10 @@ fn digits(s: &str) -> Option<i64> {
 /// date-only (all-day) value.
 pub(crate) fn parse_ics_datetime(value: &str) -> Option<(i64, bool)> {
     let v = value.trim();
+    // All slicing below is by byte offset, so reject anything non-ASCII first.
+    if !v.is_ascii() {
+        return None;
+    }
     let date_part = v.get(..8)?;
     let (y, m, d) = (
         digits(&date_part[..4])?,
@@ -326,9 +330,15 @@ fn blocks(lines: &[Line], kind: &str) -> Vec<Block> {
         let mut closed = false;
         while j < lines.len() {
             let t = &lines[j].text;
-            if t.trim().len() >= 6 && t.trim()[..6].eq_ignore_ascii_case("BEGIN:") {
+            let trimmed = t.trim();
+            let starts = |prefix: &str| {
+                trimmed
+                    .get(..prefix.len())
+                    .is_some_and(|p| p.eq_ignore_ascii_case(prefix))
+            };
+            if starts("BEGIN:") {
                 depth += 1;
-            } else if t.trim().len() >= 4 && t.trim()[..4].eq_ignore_ascii_case("END:") {
+            } else if starts("END:") {
                 if depth == 0 {
                     closed = is_marker(t, "END", kind);
                     break;
@@ -553,6 +563,20 @@ fn insert_block(content: &str, block: &[String]) -> Result<String, PlatformError
     Ok(out)
 }
 
+/// Existing content of a file about to be extended. Only a missing file counts
+/// as empty: any other failure (permissions, a non-UTF-8 encoding) must abort,
+/// or the write would replace the user's calendar with just the new item.
+fn read_for_write(path: &Path) -> Result<String, PlatformError> {
+    match fs::read_to_string(path) {
+        Ok(c) => Ok(c),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(os_err(format!(
+            "could not read {} (left unchanged): {e}",
+            path.display()
+        ))),
+    }
+}
+
 fn new_uid() -> String {
     format!("{}@asyar", uuid::Uuid::new_v4())
 }
@@ -707,11 +731,14 @@ impl Store {
             block.push(format!("DESCRIPTION:{}", escape(v)));
         }
         if let Some(v) = input.url.as_deref().filter(|v| !v.is_empty()) {
+            if v.chars().any(char::is_control) {
+                return Err(os_err("url must not contain control characters"));
+            }
             block.push(format!("URL:{v}"));
         }
         block.push("END:VEVENT".to_string());
 
-        let existing = fs::read_to_string(&path).unwrap_or_default();
+        let existing = read_for_write(&path)?;
         write_file(&path, &insert_block(&existing, &block)?)?;
 
         let src = self.source_for(path, Some("Asyar".into()), false);
@@ -791,7 +818,7 @@ impl Store {
         }
         block.push("END:VTODO".to_string());
 
-        let existing = fs::read_to_string(&path).unwrap_or_default();
+        let existing = read_for_write(&path)?;
         write_file(&path, &insert_block(&existing, &block)?)?;
 
         let src = self.source_for(path, Some("Asyar".into()), false);
@@ -1238,6 +1265,65 @@ mod tests {
         assert_eq!(text.matches("STATUS:NEEDS-ACTION").count(), 2);
 
         assert!(s.set_reminder_completed("missing", true, NOW).is_err());
+    }
+
+    #[test]
+    fn non_ascii_input_does_not_panic_the_parser() {
+        assert_eq!(parse_ics_datetime("20231114Té\u{e9}é"), None);
+        assert_eq!(parse_ics_datetime("é2023111"), None);
+        let ics = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:a\nDTSTART:20231114T100000Z\n\u{e9}clair\nSUMMARY:x\nEND:VEVENT\nEND:VCALENDAR\n";
+        let lines = split_lines(ics);
+        assert_eq!(blocks(&lines, "VEVENT").len(), 1);
+    }
+
+    #[test]
+    fn url_with_newline_cannot_inject_lines() {
+        let dir = TempDir::new().unwrap();
+        let s = store(&dir);
+        let err = s
+            .create_event(
+                &CreateEventInput {
+                    calendar_id: None,
+                    title: "x".into(),
+                    start_at: 0,
+                    end_at: 1,
+                    is_all_day: None,
+                    location: None,
+                    notes: None,
+                    url: Some("https://a.example\r\nEND:VEVENT".into()),
+                },
+                NOW,
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("control characters"));
+        assert!(!dir.path().join("asyar/default.ics").exists());
+    }
+
+    #[test]
+    fn unreadable_calendar_is_never_overwritten() {
+        let dir = TempDir::new().unwrap();
+        let s = store(&dir);
+        fs::create_dir_all(dir.path().join("asyar")).unwrap();
+        // Latin-1 bytes: not valid UTF-8, so read_to_string fails.
+        let bytes: &[u8] = b"BEGIN:VCALENDAR\nSUMMARY:caf\xe9\nEND:VCALENDAR\n";
+        fs::write(dir.path().join("asyar/latin1.ics"), bytes).unwrap();
+        let err = s
+            .create_reminder(
+                &CreateReminderInput {
+                    list_id: None,
+                    title: "x".into(),
+                    due_at: None,
+                    priority: None,
+                    notes: None,
+                },
+                NOW,
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("left unchanged"));
+        assert_eq!(
+            fs::read(dir.path().join("asyar/latin1.ics")).unwrap(),
+            bytes
+        );
     }
 
     #[test]

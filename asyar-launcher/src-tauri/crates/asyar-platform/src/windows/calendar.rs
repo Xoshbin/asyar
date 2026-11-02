@@ -15,8 +15,8 @@ use crate::calendar::{
 use crate::error::PlatformError;
 use windows::core::HSTRING;
 use windows::ApplicationModel::Appointments::{
-    Appointment, AppointmentCalendar, AppointmentCalendarOtherAppWriteAccess, AppointmentManager,
-    AppointmentStore, AppointmentStoreAccessType,
+    Appointment, AppointmentCalendar, AppointmentManager, AppointmentStore,
+    AppointmentStoreAccessType,
 };
 use windows::Foundation::{DateTime, TimeSpan, Uri};
 
@@ -88,11 +88,18 @@ fn open_store(access: AppointmentStoreAccessType) -> Result<AppointmentStore, Pl
         })
 }
 
-fn read_only_of(calendar: &AppointmentCalendar) -> bool {
-    calendar
-        .OtherAppWriteAccess()
-        .map(|a| a != AppointmentCalendarOtherAppWriteAccess::Limited)
-        .unwrap_or(true)
+/// Ids of the calendars Asyar itself can write: the ones an
+/// `AppCalendarsReadWrite` store returns. (`OtherAppWriteAccess` describes what
+/// *other* apps may do to a calendar the owning app made, not what we can.)
+fn writable_ids() -> Vec<String> {
+    open_store(AppointmentStoreAccessType::AppCalendarsReadWrite)
+        .and_then(|store| calendars_of(&store))
+        .map(|list| {
+            list.iter()
+                .filter_map(|c| c.LocalId().ok().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn calendars_of(store: &AppointmentStore) -> Result<Vec<AppointmentCalendar>, PlatformError> {
@@ -128,17 +135,19 @@ pub fn request_access(kind: AccessKind) -> Result<AccessState, PlatformError> {
 pub fn list_calendars() -> Result<Vec<CalendarSource>, PlatformError> {
     on_worker_thread(|| {
         let store = open_store(AppointmentStoreAccessType::AllCalendarsReadOnly)?;
+        let writable = writable_ids();
         calendars_of(&store)?
             .iter()
             .map(|c| {
+                let id = c
+                    .LocalId()
+                    .map_err(|e| os_err("calendar id", e))?
+                    .to_string();
                 Ok(CalendarSource {
-                    id: c
-                        .LocalId()
-                        .map_err(|e| os_err("calendar id", e))?
-                        .to_string(),
+                    read_only: !writable.contains(&id),
+                    id,
                     title: c.DisplayName().map(|s| s.to_string()).unwrap_or_default(),
                     source_title: c.UserDataAccountId().ok().and_then(non_empty),
-                    read_only: read_only_of(c),
                 })
             })
             .collect()
@@ -244,9 +253,6 @@ pub fn create_event(input: CreateEventInput) -> Result<CalendarEvent, PlatformEr
     on_worker_thread(move || {
         let store = open_store(AppointmentStoreAccessType::AppCalendarsReadWrite)?;
         let calendar = write_calendar(&store, input.calendar_id.as_deref())?;
-        if read_only_of(&calendar) && input.calendar_id.is_some() {
-            return Err(PlatformError::OsError("that calendar is read-only".into()));
-        }
         let calendar_id = calendar
             .LocalId()
             .map(|s| s.to_string())

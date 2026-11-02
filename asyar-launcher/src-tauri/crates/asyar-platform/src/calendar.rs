@@ -206,6 +206,13 @@ pub(crate) fn validate_create_event(input: &CreateEventInput) -> Result<(), Plat
     if input.end_at < input.start_at {
         return Err(invalid("endAt must not be before startAt"));
     }
+    if input
+        .url
+        .as_deref()
+        .is_some_and(|u| u.chars().any(char::is_control))
+    {
+        return Err(invalid("url must not contain control characters"));
+    }
     Ok(())
 }
 
@@ -318,6 +325,15 @@ mod tests {
     #[test]
     fn create_event_rejects_end_before_start() {
         assert!(validate_create_event(&event("Standup", 10, 5)).is_err());
+    }
+
+    #[test]
+    fn create_event_rejects_control_characters_in_url() {
+        let mut e = event("Standup", 0, 1);
+        e.url = Some("https://a.example\nEND:VEVENT".into());
+        assert!(validate_create_event(&e).is_err());
+        e.url = Some("https://a.example/ok".into());
+        assert!(validate_create_event(&e).is_ok());
     }
 
     #[test]
