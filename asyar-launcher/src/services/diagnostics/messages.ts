@@ -28,6 +28,17 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
     `Cloud sync is rate limited. Retrying in ${retryAfter ?? '60'}s`,
   sync_server_unavailable: ({ detail }) =>
     `Cloud sync server is temporarily unavailable${detail ? `: ${detail}` : ''}`,
+  sync_e2ee_locked: () =>
+    'Cloud sync is locked on this device. Enter your recovery phrase or approve from another device.',
+  sync_e2ee_not_enrolled: () => 'End-to-end encryption is not enabled for this account',
+  sync_e2ee_already_enrolled: () => 'End-to-end encryption is already enabled for this account',
+  sync_e2ee_wrong_mode: () => 'Operation not supported for this encryption mode',
+  sync_finalize_behind: () => 'Cloud sync finalization was postponed until local state catches up',
+  sync_pairing_not_found: () => 'Device pairing request not found or expired',
+  sync_pairing_not_pending: () => 'Device pairing request is no longer pending',
+  sync_pairing_fingerprint_mismatch: () =>
+    'Device pairing fingerprint mismatch: the verification words do not match the requesting device.',
+  sync_pairing_too_many: () => 'Too many active pairing requests; please try again later',
   io_failure: () => 'I/O error',
   json_failure: () => 'Data format error',
   unknown: ({ message }) => message ?? 'Unexpected error',

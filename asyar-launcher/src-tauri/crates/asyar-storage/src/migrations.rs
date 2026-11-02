@@ -70,6 +70,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "threads_provider_override",
         up: migration_9_threads_provider_override,
     },
+    Migration {
+        version: 10,
+        name: "e2ee_local_v2",
+        up: migration_10_e2ee_local_v2,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -279,6 +284,60 @@ fn migration_9_threads_provider_override(conn: &Connection) -> Result<(), AppErr
             conn.execute(&format!("ALTER TABLE threads ADD COLUMN {column} TEXT"), [])
                 .map_err(|e| AppError::Database(format!("Failed to add {column} column: {e}")))?;
         }
+    }
+    Ok(())
+}
+
+/// Extends `cloud_sync_e2ee_local` mirror with:
+/// - `mode` ("passphrase" default for existing rows, "device-key" for new)
+/// - `kcv` (BLOB nullable for device-key HMAC-SHA256 check value)
+/// - `finalize_pending` (INTEGER boolean flag for deferred plaintext purging)
+/// - wrapped-seed and KDF fields become optional (NULL) for device-key rows.
+fn migration_10_e2ee_local_v2(conn: &Connection) -> Result<(), AppError> {
+    let has_mode: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('cloud_sync_e2ee_local') WHERE name = 'mode'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !has_mode {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS cloud_sync_e2ee_local_v2 (
+                scope                 TEXT PRIMARY KEY CHECK (scope = 'global'),
+                enrolled              INTEGER NOT NULL,
+                key_version           INTEGER NOT NULL,
+                wrapped_master_seed   TEXT,
+                kdf_salt              BLOB,
+                kdf_m_cost            INTEGER,
+                kdf_t_cost            INTEGER,
+                kdf_p_cost            INTEGER,
+                updated_at_ms         INTEGER NOT NULL,
+                mode                  TEXT NOT NULL DEFAULT 'passphrase',
+                kcv                   BLOB,
+                finalize_pending      INTEGER NOT NULL DEFAULT 0
+            );
+
+            INSERT INTO cloud_sync_e2ee_local_v2 (
+                scope, enrolled, key_version, wrapped_master_seed,
+                kdf_salt, kdf_m_cost, kdf_t_cost, kdf_p_cost, updated_at_ms,
+                mode, kcv, finalize_pending
+            )
+            SELECT
+                scope, enrolled, key_version, wrapped_master_seed,
+                kdf_salt, kdf_m_cost, kdf_t_cost, kdf_p_cost, updated_at_ms,
+                'passphrase', NULL, 0
+            FROM cloud_sync_e2ee_local;
+
+            DROP TABLE cloud_sync_e2ee_local;
+
+            ALTER TABLE cloud_sync_e2ee_local_v2 RENAME TO cloud_sync_e2ee_local;
+            "#,
+        )
+        .map_err(|e| AppError::Database(format!("migration 10 failed: {e}")))?;
     }
     Ok(())
 }
@@ -620,7 +679,7 @@ mod tests {
 
         run(&conn).unwrap();
 
-        assert_eq!(user_version(&conn), 9);
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
         assert!(names_of(&conn, "table").contains(&"ai_credentials".to_string()));
         let columns = column_names(&conn, "threads");
         assert!(columns.contains(&"provider_id".to_string()));
@@ -775,5 +834,64 @@ mod tests {
             "create_test_store() and the production bootstrap must build the same schema"
         );
         assert_eq!(user_version(&guard), user_version(&production));
+    }
+
+    #[test]
+    fn migration_10_preserves_existing_passphrase_row_and_allows_null_kdf() {
+        let conn = Connection::open_in_memory().unwrap();
+        // Migrate through version 9
+        run_ledger(&conn, &MIGRATIONS[..9]).unwrap();
+        assert_eq!(user_version(&conn), 9);
+
+        // Insert a v1 passphrase row with NOT NULL constraints:
+        conn.execute(
+            r#"
+            INSERT INTO cloud_sync_e2ee_local
+              (scope, enrolled, key_version, wrapped_master_seed,
+               kdf_salt, kdf_m_cost, kdf_t_cost, kdf_p_cost, updated_at_ms)
+            VALUES ('global', 1, 3, 'enc:v1:testpass', X'01020304', 65536, 3, 1, 1700000000000)
+            "#,
+            [],
+        )
+        .unwrap();
+
+        // Run remaining migrations (which applies migration 10):
+        run(&conn).unwrap();
+        assert_eq!(user_version(&conn), 10);
+
+        // Verify the existing row survived untouched:
+        let state = crate::cloud_sync_e2ee_local::get(&conn).unwrap().unwrap();
+        assert!(state.enrolled);
+        assert_eq!(state.key_version, 3);
+        assert_eq!(
+            state.wrapped_master_seed.as_deref(),
+            Some("enc:v1:testpass")
+        );
+        assert_eq!(state.kdf_salt.as_deref(), Some(&[1, 2, 3, 4][..]));
+        assert_eq!(state.kdf_m_cost, Some(65536));
+        assert_eq!(state.kdf_t_cost, Some(3));
+        assert_eq!(state.kdf_p_cost, Some(1));
+        assert_eq!(state.updated_at_ms, 1700000000000);
+        assert_eq!(state.mode, "passphrase");
+        assert_eq!(state.kcv, None);
+        assert!(!state.finalize_pending);
+
+        // Test device-key row insertion with NULL wrapped-seed/KDF fields:
+        let device_key_state = crate::cloud_sync_e2ee_local::E2eeLocalState {
+            enrolled: true,
+            key_version: 4,
+            wrapped_master_seed: None,
+            kdf_salt: None,
+            kdf_m_cost: None,
+            kdf_t_cost: None,
+            kdf_p_cost: None,
+            updated_at_ms: 1700000001000,
+            mode: "device-key".into(),
+            kcv: Some(vec![0xAA; 32]),
+            finalize_pending: true,
+        };
+        crate::cloud_sync_e2ee_local::upsert(&conn, &device_key_state).unwrap();
+        let fetched = crate::cloud_sync_e2ee_local::get(&conn).unwrap().unwrap();
+        assert_eq!(fetched, device_key_state);
     }
 }

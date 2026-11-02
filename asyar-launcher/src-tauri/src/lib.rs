@@ -425,6 +425,7 @@ pub fn run() {
         .manage(network::websocket::WebSocketManager::new())
         .manage(auth::state::AuthState::default())
         .manage(auth::api_client::ApiClient::new())
+        .manage(crate::sync::e2ee::pairing::PairingSessionStore::new())
         .manage(oauth::OAuthPendingFlowState::new())
         .manage(deeplink::PendingDeeplinks::default())
         .manage(hud_window::HudState::default())

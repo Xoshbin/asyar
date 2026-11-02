@@ -420,6 +420,9 @@ impl ApiClient {
         if status == reqwest::StatusCode::FORBIDDEN {
             return Err(AppError::Auth("sync entitlement required".to_string()));
         }
+        if status == reqwest::StatusCode::CONFLICT {
+            return Err(AppError::SyncE2eeAlreadyEnrolled);
+        }
         if !status.is_success() {
             return Err(AppError::Other(format!(
                 "POST /api/sync/e2ee/state status {status}"
@@ -450,6 +453,11 @@ impl ApiClient {
         }
         if status == reqwest::StatusCode::FORBIDDEN {
             return Err(AppError::Auth("sync entitlement required".to_string()));
+        }
+        if status == reqwest::StatusCode::CONFLICT {
+            return Err(AppError::SyncE2eeWrongMode(
+                "PUT /api/sync/e2ee/state is only allowed for passphrase mode".to_string(),
+            ));
         }
         if !status.is_success() {
             return Err(AppError::Other(format!(
@@ -526,9 +534,314 @@ impl ApiClient {
         if status == reqwest::StatusCode::FORBIDDEN {
             return Err(AppError::Auth("sync entitlement required".to_string()));
         }
+        if status == reqwest::StatusCode::CONFLICT {
+            return Err(AppError::SyncE2eeWrongMode(
+                "disable-not-allowed: device-key E2EE cannot be disabled".to_string(),
+            ));
+        }
         if !matches!(status.as_u16(), 200 | 204) {
             return Err(AppError::Other(format!(
                 "DELETE /api/sync/e2ee/state status {status}"
+            )));
+        }
+        Ok(())
+    }
+
+    /// POST /api/sync/e2ee/state — enrol in device-key mode.
+    pub async fn post_e2ee_device_key(
+        &self,
+        token: &str,
+        kcv: &str,
+    ) -> Result<crate::sync::types::E2eeStateResponse, AppError> {
+        let url = format!("{}/api/sync/e2ee/state", self.base_url);
+        let payload = crate::sync::types::E2eeStatePayload::device_key(kcv.to_string());
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(token)
+            .json(&payload)
+            .send()
+            .await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::FORBIDDEN {
+            return Err(AppError::SyncEntitlementRequired {
+                code: "sync.entitlement-required".into(),
+            });
+        }
+        if status == reqwest::StatusCode::CONFLICT {
+            return Err(AppError::SyncE2eeAlreadyEnrolled);
+        }
+        if !status.is_success() {
+            return Err(AppError::Other(format!(
+                "POST /api/sync/e2ee/state status {status}"
+            )));
+        }
+        Ok(response
+            .json::<crate::sync::types::E2eeStateResponse>()
+            .await?)
+    }
+
+    /// POST /api/sync/e2ee/finalize — drop pre-enrolment plaintext rows.
+    pub async fn finalize_e2ee(
+        &self,
+        token: &str,
+        pulled_through_version: i64,
+    ) -> Result<crate::sync::types::FinalizeResponse, AppError> {
+        let url = format!("{}/api/sync/e2ee/finalize", self.base_url);
+        let req = crate::sync::types::FinalizeRequest {
+            pulled_through_version,
+        };
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(token)
+            .json(&req)
+            .send()
+            .await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::FORBIDDEN {
+            return Err(AppError::SyncEntitlementRequired {
+                code: "sync.entitlement-required".into(),
+            });
+        }
+        if status == reqwest::StatusCode::CONFLICT {
+            #[derive(serde::Deserialize)]
+            struct ConflictBody {
+                #[serde(rename = "plaintextMaxVersion", default)]
+                plaintext_max_version: i64,
+            }
+            let body = response.json::<ConflictBody>().await.ok();
+            let pt_max = body.map(|b| b.plaintext_max_version).unwrap_or(0);
+            return Err(AppError::SyncFinalizeBehind {
+                plaintext_max_version: pt_max,
+            });
+        }
+        if !status.is_success() {
+            return Err(AppError::Other(format!(
+                "POST /api/sync/e2ee/finalize status {status}"
+            )));
+        }
+        Ok(response
+            .json::<crate::sync::types::FinalizeResponse>()
+            .await?)
+    }
+
+    /// POST /api/sync/reset — wipe items, sync state, e2ee state, and pairings on server.
+    pub async fn reset_sync(
+        &self,
+        token: &str,
+    ) -> Result<crate::sync::types::ResetResponse, AppError> {
+        let url = format!("{}/api/sync/reset", self.base_url);
+        let response = self.client.post(&url).bearer_auth(token).send().await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if !status.is_success() {
+            return Err(AppError::Other(format!(
+                "POST /api/sync/reset status {status}"
+            )));
+        }
+        Ok(response.json::<crate::sync::types::ResetResponse>().await?)
+    }
+
+    /// POST /api/sync/e2ee/pairings — initiate device pairing request.
+    pub async fn create_pairing(
+        &self,
+        token: &str,
+        device_name: &str,
+        device_public_key: &str,
+    ) -> Result<crate::sync::types::PairingCreateResponse, AppError> {
+        let url = format!("{}/api/sync/e2ee/pairings", self.base_url);
+        let req = crate::sync::types::PairingCreateRequest {
+            device_name: device_name.to_string(),
+            device_public_key: device_public_key.to_string(),
+        };
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(token)
+            .json(&req)
+            .send()
+            .await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Err(AppError::SyncE2eeNotEnrolled);
+        }
+        if status == reqwest::StatusCode::CONFLICT {
+            #[derive(serde::Deserialize)]
+            struct ErrBody {
+                #[serde(default)]
+                code: String,
+            }
+            let code = response
+                .json::<ErrBody>()
+                .await
+                .map(|b| b.code)
+                .unwrap_or_default();
+            if code == "sync.pairing.too-many" {
+                return Err(AppError::SyncPairingTooMany);
+            }
+            if code == "sync.e2ee.wrong-mode" {
+                return Err(AppError::SyncE2eeWrongMode(
+                    "account is not in device-key mode".into(),
+                ));
+            }
+            return Err(AppError::Other(format!("create pairing conflict: {code}")));
+        }
+        if !status.is_success() {
+            return Err(AppError::Other(format!(
+                "POST /api/sync/e2ee/pairings status {status}"
+            )));
+        }
+        Ok(response
+            .json::<crate::sync::types::PairingCreateResponse>()
+            .await?)
+    }
+
+    /// GET /api/sync/e2ee/pairings — list pending pairing requests.
+    pub async fn list_pairings(
+        &self,
+        token: &str,
+    ) -> Result<Vec<crate::sync::types::PairingPendingItem>, AppError> {
+        let url = format!("{}/api/sync/e2ee/pairings", self.base_url);
+        let response = self.client.get(&url).bearer_auth(token).send().await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Err(AppError::SyncE2eeNotEnrolled);
+        }
+        if status == reqwest::StatusCode::CONFLICT {
+            return Err(AppError::SyncE2eeWrongMode(
+                "account is not in device-key mode".into(),
+            ));
+        }
+        if !status.is_success() {
+            return Err(AppError::Other(format!(
+                "GET /api/sync/e2ee/pairings status {status}"
+            )));
+        }
+        Ok(response
+            .json::<Vec<crate::sync::types::PairingPendingItem>>()
+            .await?)
+    }
+
+    /// GET /api/sync/e2ee/pairings/{id} — poll pairing status.
+    pub async fn poll_pairing(
+        &self,
+        token: &str,
+        id: &str,
+    ) -> Result<crate::sync::types::PairingPollResponse, AppError> {
+        let url = format!("{}/api/sync/e2ee/pairings/{}", self.base_url, id);
+        let response = self.client.get(&url).bearer_auth(token).send().await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Err(AppError::SyncPairingNotFound);
+        }
+        if status == reqwest::StatusCode::CONFLICT {
+            return Err(AppError::SyncE2eeWrongMode(
+                "account is not in device-key mode".into(),
+            ));
+        }
+        if !status.is_success() {
+            return Err(AppError::Other(format!(
+                "GET /api/sync/e2ee/pairings/{} status {status}",
+                id
+            )));
+        }
+        Ok(response
+            .json::<crate::sync::types::PairingPollResponse>()
+            .await?)
+    }
+
+    /// POST /api/sync/e2ee/pairings/{id}/approve — approve pairing request.
+    pub async fn approve_pairing(
+        &self,
+        token: &str,
+        id: &str,
+        sealed_seed: &str,
+        approver_public_key: &str,
+    ) -> Result<(), AppError> {
+        let url = format!("{}/api/sync/e2ee/pairings/{}/approve", self.base_url, id);
+        let req = crate::sync::types::PairingApproveRequest {
+            sealed_seed: sealed_seed.to_string(),
+            approver_public_key: approver_public_key.to_string(),
+        };
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(token)
+            .json(&req)
+            .send()
+            .await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Err(AppError::SyncPairingNotFound);
+        }
+        if status == reqwest::StatusCode::CONFLICT {
+            #[derive(serde::Deserialize)]
+            struct ErrBody {
+                #[serde(default)]
+                code: String,
+                #[serde(default)]
+                status: Option<String>,
+            }
+            let body = response.json::<ErrBody>().await.ok();
+            let code = body.as_ref().map(|b| b.code.as_str()).unwrap_or("");
+            if code == "sync.pairing.not-pending" {
+                let st = body
+                    .and_then(|b| b.status)
+                    .unwrap_or_else(|| "unknown".into());
+                return Err(AppError::SyncPairingNotPending { status: st });
+            }
+            if code == "sync.e2ee.wrong-mode" {
+                return Err(AppError::SyncE2eeWrongMode(
+                    "account is not in device-key mode".into(),
+                ));
+            }
+            return Err(AppError::Other(format!("approve pairing conflict: {code}")));
+        }
+        if !status.is_success() {
+            return Err(AppError::Other(format!(
+                "POST /api/sync/e2ee/pairings/{}/approve status {status}",
+                id
+            )));
+        }
+        Ok(())
+    }
+
+    /// DELETE /api/sync/e2ee/pairings/{id} — cancel pairing request.
+    pub async fn cancel_pairing(&self, token: &str, id: &str) -> Result<(), AppError> {
+        let url = format!("{}/api/sync/e2ee/pairings/{}", self.base_url, id);
+        let response = self.client.delete(&url).bearer_auth(token).send().await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Err(AppError::SyncPairingNotFound);
+        }
+        if !matches!(status.as_u16(), 200 | 204) {
+            return Err(AppError::Other(format!(
+                "DELETE /api/sync/e2ee/pairings/{} status {status}",
+                id
             )));
         }
         Ok(())
@@ -1231,14 +1544,14 @@ mod tests {
                 .await;
 
             let client = ApiClient::with_base(server.url());
-            let payload = E2eeStatePayload {
-                wrapped_master_seed: "enc:v1:abc".into(),
-                kdf_salt: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
-                kdf_algorithm: "argon2id".into(),
-                kdf_m_cost: 65536,
-                kdf_t_cost: 3,
-                kdf_p_cost: 1,
-            };
+            let payload = E2eeStatePayload::passphrase(
+                "enc:v1:abc".into(),
+                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+                "argon2id".into(),
+                65536,
+                3,
+                1,
+            );
             let resp = client
                 .post_e2ee_state("test-token", &payload)
                 .await
@@ -1272,14 +1585,14 @@ mod tests {
                 .await;
 
             let client = ApiClient::with_base(server.url());
-            let payload = E2eeStatePayload {
-                wrapped_master_seed: "enc:v1:rotated".into(),
-                kdf_salt: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
-                kdf_algorithm: "argon2id".into(),
-                kdf_m_cost: 65536,
-                kdf_t_cost: 3,
-                kdf_p_cost: 1,
-            };
+            let payload = E2eeStatePayload::passphrase(
+                "enc:v1:rotated".into(),
+                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+                "argon2id".into(),
+                65536,
+                3,
+                1,
+            );
             let resp = client.put_e2ee_state("test-token", &payload).await.unwrap();
             assert_eq!(resp.key_version, 2);
             mock.assert_async().await;
@@ -1418,5 +1731,226 @@ mod tests {
         assert_eq!(json["period"], "2026-06-15");
         assert_eq!(json["active"], true);
         assert_eq!(json["launches"]["org.asyar.calculator"], 12);
+    }
+
+    // ── E2EE device-key, pairing, finalize, and reset API tests ──────────
+
+    #[tokio::test]
+    async fn post_e2ee_device_key_201_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/sync/e2ee/state")
+            .match_header("authorization", "Bearer tok")
+            .match_header("content-type", "application/json")
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "mode": "device-key",
+                "kcv": "AAAA"
+            })))
+            .with_status(201)
+            .with_header("content-type", "application/json")
+            .with_body(
+                serde_json::json!({
+                    "mode": "device-key",
+                    "kcv": "AAAA",
+                    "keyVersion": 1,
+                    "enrolledAt": "2026-11-01T12:00:00Z",
+                    "plaintextRows": 0
+                })
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::with_base(server.url());
+        let resp = client.post_e2ee_device_key("tok", "AAAA").await.unwrap();
+        assert_eq!(resp.mode.as_deref(), Some("device-key"));
+        assert_eq!(resp.key_version, 1);
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn post_e2ee_device_key_409_already_enrolled() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("POST", "/api/sync/e2ee/state")
+            .with_status(409)
+            .with_body(r#"{"code":"sync.e2ee.already-enrolled"}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::with_base(server.url());
+        let err = client
+            .post_e2ee_device_key("tok", "AAAA")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::SyncE2eeAlreadyEnrolled));
+    }
+
+    #[tokio::test]
+    async fn finalize_e2ee_200_and_409() {
+        let mut server = Server::new_async().await;
+        let mock_200 = server
+            .mock("POST", "/api/sync/e2ee/finalize")
+            .match_header("authorization", "Bearer tok")
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "pulledThroughVersion": 42
+            })))
+            .with_status(200)
+            .with_body(r#"{"deletedRows": 15}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::with_base(server.url());
+        let resp = client.finalize_e2ee("tok", 42).await.unwrap();
+        assert_eq!(resp.deleted_rows, 15);
+        mock_200.assert_async().await;
+
+        let _m_409 = server
+            .mock("POST", "/api/sync/e2ee/finalize")
+            .with_status(409)
+            .with_body(r#"{"code":"sync.e2ee.finalize-behind","plaintextMaxVersion":99}"#)
+            .create_async()
+            .await;
+
+        let err = client.finalize_e2ee("tok", 10).await.unwrap_err();
+        match err {
+            AppError::SyncFinalizeBehind {
+                plaintext_max_version,
+            } => {
+                assert_eq!(plaintext_max_version, 99);
+            }
+            other => panic!("expected SyncFinalizeBehind, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn reset_sync_200_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/sync/reset")
+            .match_header("authorization", "Bearer tok")
+            .with_status(200)
+            .with_body(r#"{"deleted":{"items":42}}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::with_base(server.url());
+        let resp = client.reset_sync("tok").await.unwrap();
+        assert_eq!(resp.deleted.items, 42);
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn pairings_api_lifecycle() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        // 1. Create pairing
+        let mock_create = server
+            .mock("POST", "/api/sync/e2ee/pairings")
+            .match_header("authorization", "Bearer tok")
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "deviceName": "MacBook Air",
+                "devicePublicKey": "pubkey-b64"
+            })))
+            .with_status(201)
+            .with_body(r#"{"id":"pair-123","expiresAt":"2026-11-01T13:00:00Z"}"#)
+            .create_async()
+            .await;
+
+        let create_resp = client
+            .create_pairing("tok", "MacBook Air", "pubkey-b64")
+            .await
+            .unwrap();
+        assert_eq!(create_resp.id, "pair-123");
+        assert_eq!(create_resp.expires_at, "2026-11-01T13:00:00Z");
+        mock_create.assert_async().await;
+
+        // 2. List pairings
+        let mock_list = server
+            .mock("GET", "/api/sync/e2ee/pairings")
+            .match_header("authorization", "Bearer tok")
+            .with_status(200)
+            .with_body(r#"[{"id":"pair-123","deviceName":"MacBook Air","devicePublicKey":"pubkey-b64","createdAt":"2026-11-01T12:00:00Z","expiresAt":"2026-11-01T13:00:00Z"}]"#)
+            .create_async()
+            .await;
+
+        let list_resp = client.list_pairings("tok").await.unwrap();
+        assert_eq!(list_resp.len(), 1);
+        assert_eq!(list_resp[0].id, "pair-123");
+        mock_list.assert_async().await;
+
+        // 3. Poll pairing (pending, then approved)
+        let mock_poll_pending = server
+            .mock("GET", "/api/sync/e2ee/pairings/pair-123")
+            .with_status(200)
+            .with_body(r#"{"status":"pending"}"#)
+            .create_async()
+            .await;
+
+        let poll_pending = client.poll_pairing("tok", "pair-123").await.unwrap();
+        assert_eq!(poll_pending.status, "pending");
+        mock_poll_pending.assert_async().await;
+
+        let mock_poll_approved = server
+            .mock("GET", "/api/sync/e2ee/pairings/pair-123")
+            .with_status(200)
+            .with_body(r#"{"status":"approved","sealedSeed":"sealed-b64","approverPublicKey":"approver-pub-b64"}"#)
+            .create_async()
+            .await;
+
+        let poll_approved = client.poll_pairing("tok", "pair-123").await.unwrap();
+        assert_eq!(poll_approved.status, "approved");
+        assert_eq!(poll_approved.sealed_seed.as_deref(), Some("sealed-b64"));
+        assert_eq!(
+            poll_approved.approver_public_key.as_deref(),
+            Some("approver-pub-b64")
+        );
+        mock_poll_approved.assert_async().await;
+
+        // 4. Approve pairing
+        let mock_approve = server
+            .mock("POST", "/api/sync/e2ee/pairings/pair-123/approve")
+            .match_header("authorization", "Bearer tok")
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "sealedSeed": "sealed-b64",
+                "approverPublicKey": "approver-pub-b64"
+            })))
+            .with_status(200)
+            .create_async()
+            .await;
+
+        let approve_res = client
+            .approve_pairing("tok", "pair-123", "sealed-b64", "approver-pub-b64")
+            .await;
+        assert!(approve_res.is_ok());
+        mock_approve.assert_async().await;
+
+        // 5. Cancel pairing
+        let mock_cancel = server
+            .mock("DELETE", "/api/sync/e2ee/pairings/pair-123")
+            .match_header("authorization", "Bearer tok")
+            .with_status(204)
+            .create_async()
+            .await;
+
+        let cancel_res = client.cancel_pairing("tok", "pair-123").await;
+        assert!(cancel_res.is_ok());
+        mock_cancel.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn delete_e2ee_state_409_device_key_disable_not_allowed() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("DELETE", "/api/sync/e2ee/state")
+            .with_status(409)
+            .with_body(r#"{"code":"sync.e2ee.disable-not-allowed"}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::with_base(server.url());
+        let err = client.delete_e2ee_state("tok").await.unwrap_err();
+        assert!(matches!(err, AppError::SyncE2eeWrongMode(_)));
     }
 }

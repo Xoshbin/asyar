@@ -195,6 +195,16 @@ export type CredentialState = "notConfigured" | "configured" | "needsReentry";
 
 export type CredentialTarget = { type: "provider"; id: string } | { type: "webSearch"; engine: string };
 
+export type E2eeStatusReport = {
+	enabled: boolean,
+	// Enrolled but no cached master_seed (e.g. fresh second-device install).
+	locked: boolean,
+	keyVersion: number | null,
+	mode: string | null,
+	keystoreIsOsBacked: boolean,
+	finalizePending: boolean,
+};
+
 /**
  *  Represents a search result contributed by a frontend extension.
  *  Sent from TypeScript to Rust for unified ranking.
@@ -331,6 +341,16 @@ export type GroundingSource = {
  */
 export type HitSource = "local" | "deep";
 
+// Pending pairing request enriched for UI display.
+export type IncomingPairingRequest = {
+	id: string,
+	deviceName: string,
+	devicePublicKey: string,
+	fingerprint: string,
+	createdAt: string,
+	expiresAt: string,
+};
+
 // Index lifecycle state, kebab-case on the wire.
 export type IndexStateKind = "disabled" | "building" | "ready" | "rescanning" | "cap-reached";
 
@@ -419,6 +439,21 @@ export type NumberFormat =
 "point" | 
 // `1.234,56` — comma decimal, point grouping.
 "comma";
+
+export type PairingApproveResult = {
+	confirmationWords: string,
+};
+
+export type PairingPollResult = {
+	status: string,
+	confirmationWords: string | null,
+};
+
+export type PairingRequestResult = {
+	id: string,
+	fingerprint: string,
+	expiresAt: string,
+};
 
 // A normalized, structured locale representation.
 export type ParsedLocale = {

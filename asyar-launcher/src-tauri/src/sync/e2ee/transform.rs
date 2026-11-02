@@ -17,40 +17,43 @@ use crate::sync::types::{ItemPullPage, UploadDecision};
 
 /// Encrypt the plaintext field of every `PushItem` decision when E2EE is on.
 /// `PushTombstone`, `Skip`, and `DropOversize` are identity in both modes.
+/// If `Mode::Locked`, returns `Err(AppError::SyncE2eeLocked)`.
 pub fn encrypt_decisions(
     mode: &Mode,
     decisions: Vec<UploadDecision>,
 ) -> Result<Vec<UploadDecision>, AppError> {
-    let Mode::On { master_seed, .. } = mode else {
-        return Ok(decisions);
-    };
-    decisions
-        .into_iter()
-        .map(|d| -> Result<UploadDecision, AppError> {
-            match d {
-                UploadDecision::PushItem {
-                    item_id,
-                    category_id,
-                    plaintext,
-                    content_hash,
-                } => {
-                    let ciphertext = sync_envelope::encrypt_payload(&plaintext, master_seed)?;
-                    Ok(UploadDecision::PushItem {
+    match mode {
+        Mode::Locked => Err(AppError::SyncE2eeLocked),
+        Mode::Off => Ok(decisions),
+        Mode::On { master_seed, .. } => decisions
+            .into_iter()
+            .map(|d| -> Result<UploadDecision, AppError> {
+                match d {
+                    UploadDecision::PushItem {
                         item_id,
                         category_id,
-                        plaintext: ciphertext,
+                        plaintext,
                         content_hash,
-                    })
+                    } => {
+                        let ciphertext = sync_envelope::encrypt_payload(&plaintext, master_seed)?;
+                        Ok(UploadDecision::PushItem {
+                            item_id,
+                            category_id,
+                            plaintext: ciphertext,
+                            content_hash,
+                        })
+                    }
+                    other => Ok(other),
                 }
-                other => Ok(other),
-            }
-        })
-        .collect()
+            })
+            .collect(),
+    }
 }
 
 /// Decrypt the `payload` of every live `ItemRecord` in the pull page
 /// when E2EE is on. Tombstones (`payload: None`) are skipped, and so
 /// are plaintext payloads (no `enc:v1:` prefix).
+/// If `Mode::Locked`, returns `Err(AppError::SyncE2eeLocked)`.
 ///
 /// **Mixed-mode tolerance is load-bearing.** When a user enables E2EE
 /// on an account that already has plaintext rows on the server (from
@@ -70,20 +73,23 @@ pub fn encrypt_decisions(
 /// in case a future flow (per-item opt-out, partial-encryption) ever
 /// re-introduces a mixed state.
 pub fn decrypt_pull_page(mode: &Mode, mut page: ItemPullPage) -> Result<ItemPullPage, AppError> {
-    let Mode::On { master_seed, .. } = mode else {
-        return Ok(page);
-    };
-    for item in page.items.iter_mut() {
-        if let Some(payload) = item.payload.as_mut() {
-            if crate::crypto::cipher::is_encrypted_value(payload) {
-                *payload = sync_envelope::decrypt_payload(payload, master_seed)?;
+    match mode {
+        Mode::Locked => Err(AppError::SyncE2eeLocked),
+        Mode::Off => Ok(page),
+        Mode::On { master_seed, .. } => {
+            for item in page.items.iter_mut() {
+                if let Some(payload) = item.payload.as_mut() {
+                    if crate::crypto::cipher::is_encrypted_value(payload) {
+                        *payload = sync_envelope::decrypt_payload(payload, master_seed)?;
+                    }
+                    // else: plaintext from a pre-enrolment push; leave as-is.
+                    // The launcher's local mark-all-dirty + next-tick push will
+                    // overwrite this row's server-side payload with ciphertext.
+                }
             }
-            // else: plaintext from a pre-enrolment push; leave as-is.
-            // The launcher's local mark-all-dirty + next-tick push will
-            // overwrite this row's server-side payload with ciphertext.
+            Ok(page)
         }
     }
-    Ok(page)
 }
 
 #[cfg(test)]
@@ -280,5 +286,19 @@ mod tests {
         let out = decrypt_pull_page(&mode, p).unwrap();
         assert_eq!(out.items[0].payload.as_deref(), Some(legacy_plaintext));
         assert_eq!(out.items[1].payload.as_deref(), Some(new_plaintext));
+    }
+
+    #[test]
+    fn encrypt_locked_fails_with_sync_e2ee_locked() {
+        let input = vec![push_item("a", "secret")];
+        let err = encrypt_decisions(&Mode::Locked, input).unwrap_err();
+        assert!(matches!(err, AppError::SyncE2eeLocked));
+    }
+
+    #[test]
+    fn decrypt_locked_fails_with_sync_e2ee_locked() {
+        let p = page(vec![live_record("a", Some("enc:v1:ciphertext"))]);
+        let err = decrypt_pull_page(&Mode::Locked, p).unwrap_err();
+        assert!(matches!(err, AppError::SyncE2eeLocked));
     }
 }
