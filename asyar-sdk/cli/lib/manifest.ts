@@ -214,6 +214,7 @@ export const VALID_PERMISSIONS = [
   'application:read',
   'entitlements:read',
   'power:inhibit',
+  'media:control',
   'systemEvents:read',
   'app:frontmost-watch',
   'timers:schedule',

@@ -22,6 +22,7 @@ describe('NAMESPACES', () => {
       'oauth',
       'opener',
       'power',
+      'media',
       'process',
       'shell',
       'systemEvents',

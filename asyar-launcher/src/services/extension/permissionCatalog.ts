@@ -164,6 +164,11 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     title: 'Keep system awake',
     description: 'Prevent the OS from sleeping while extension logic is running.',
   },
+  'media:control': {
+    title: 'Control media playback',
+    description:
+      'Read what is playing in Music or Spotify and send play, pause, and skip commands.',
+  },
   'process:read': {
     title: 'List processes',
     description: 'List running processes with CPU and memory usage.',

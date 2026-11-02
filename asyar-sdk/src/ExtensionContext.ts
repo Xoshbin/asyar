@@ -24,6 +24,7 @@ import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { InteropServiceProxy } from './services/InteropServiceProxy';
 import { WindowManagementServiceProxy } from './services/WindowManagementService';
 import { PowerServiceProxy } from './services/PowerServiceProxy';
+import { MediaServiceProxy } from './services/MediaServiceProxy';
 import { ScreenServiceProxy } from './services/ScreenServiceProxy';
 import { CalculatorServiceProxy } from './services/CalculatorServiceProxy';
 import { AiServiceProxy } from './services/AiServiceProxy';
@@ -74,6 +75,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     window: new WindowManagementServiceProxy(),
     opener: new OpenerServiceProxy(),
     power: new PowerServiceProxy(),
+    media: new MediaServiceProxy(),
     screen: new ScreenServiceProxy(),
     calculator: new CalculatorServiceProxy(),
     process: new ProcessServiceProxy(),

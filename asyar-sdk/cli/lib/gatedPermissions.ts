@@ -33,6 +33,7 @@ export const GATED_PERMISSIONS = [
   "fs:read",
   "fs:watch",
   "fs:write",
+  "media:control",
   "network",
   "network:lan",
   "network:secrets",

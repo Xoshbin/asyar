@@ -3,6 +3,8 @@ import type {
   ScheduleTimerOptions,
   TimerDescriptor,
   KeepAwakeOptions,
+  MediaSessionInfo,
+  MediaTransportAction,
   ActiveInhibitor,
   AppGroup,
   KillResult,
@@ -49,6 +51,25 @@ export async function powerRelease(extensionId: string | null, token: string): P
 
 export async function powerList(extensionId: string | null): Promise<ActiveInhibitor[]> {
   return invokeSafe<ActiveInhibitor[]>('power_list', { extensionId });
+}
+
+export async function mediaGetNowPlaying(
+  extensionId: string | null,
+  playerId: string | null,
+): Promise<MediaSessionInfo | null> {
+  return invokeSafe<MediaSessionInfo | null>('media_get_now_playing', { extensionId, playerId });
+}
+
+export async function mediaListSessions(extensionId: string | null): Promise<MediaSessionInfo[]> {
+  return invokeSafe<MediaSessionInfo[]>('media_list_sessions', { extensionId });
+}
+
+export async function mediaControl(
+  extensionId: string | null,
+  action: MediaTransportAction,
+  playerId: string | null,
+): Promise<boolean> {
+  return invokeSafeVoid('media_control', { extensionId, action, playerId });
 }
 
 export async function screenPickColor(extensionId: string | null): Promise<PickedColor | null> {

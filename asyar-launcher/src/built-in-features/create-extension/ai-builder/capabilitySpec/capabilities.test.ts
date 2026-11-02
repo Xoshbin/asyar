@@ -41,6 +41,7 @@ const GET_REQUIRED_PERMISSIONS = [
   'fs:read',
   'fs:watch',
   'fs:write',
+  'media:control',
   'network',
   'network:secrets',
   'notes:read',

@@ -42,6 +42,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'cache',
   'preferences',
   'power',
+  'media',
   'screen',
   'process',
   'systemEvents',
@@ -152,6 +153,11 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'power:keepAwake': ['options'],
   'power:release': ['token'],
   'power:list': [],
+
+  // media
+  'media:getNowPlaying': ['playerId'],
+  'media:listSessions': [],
+  'media:control': ['action', 'playerId'],
 
   // screen
   'screen:pickColor': [],
