@@ -30,13 +30,24 @@
     try {
       const phrase = joinPhraseForWire(parsed.words);
       await syncEncryptionService.unlockWithPhrase(phrase);
-      await cloudSyncService.syncNow();
-      phraseInput = '';
     } catch (err) {
       logService.warn(`Device unlock with phrase failed: ${String(err)}`);
       phraseError = t('settings.e2ee.error_invalid_phrase');
-    } finally {
       isUnlocking = false;
+      return;
+    }
+    phraseInput = '';
+    isUnlocking = false;
+    await syncAfterUnlock();
+  }
+
+  // The device is already unlocked at this point. A failed sync is not an
+  // unlock failure and the periodic sync will retry, so it is only logged.
+  async function syncAfterUnlock() {
+    try {
+      await cloudSyncService.syncNow();
+    } catch (err) {
+      logService.warn(`Sync after unlock failed: ${String(err)}`);
     }
   }
 
@@ -85,6 +96,8 @@
     pollTimer = setInterval(async () => {
       try {
         const poll = await syncEncryptionService.pollPairing(id);
+        // Ignore a result that arrives after cancel, reject or a restart.
+        if (pairingId !== id || pollTimer === null) return;
         if (poll.status === 'awaiting-confirmation' && poll.confirmationWords) {
           stopPolling();
           confirmationWords = poll.confirmationWords;
@@ -107,14 +120,15 @@
     pairingStage = 'confirming';
     try {
       await syncEncryptionService.confirmPairing(pairingId);
-      await cloudSyncService.syncNow();
-      stopPolling();
-      pairingStage = 'idle';
-      pairingId = null;
     } catch (err) {
       logService.warn(`Pairing confirm failed: ${String(err)}`);
       pairingStage = 'rejected';
+      return;
     }
+    stopPolling();
+    pairingStage = 'idle';
+    pairingId = null;
+    await syncAfterUnlock();
   }
 
   async function handleRejectPairing() {

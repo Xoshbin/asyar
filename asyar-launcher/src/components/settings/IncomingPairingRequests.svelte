@@ -39,8 +39,7 @@
       logService.error(`Approve pairing failed: ${String(err)}`);
       const errStr = String(err?.message ?? err);
       if (
-        errStr.includes('fingerprint') ||
-        errStr.includes('mismatch') ||
+        errStr.includes('sync_pairing_fingerprint_mismatch') ||
         err?.kind === 'sync_pairing_fingerprint_mismatch' ||
         err?.diagnostic?.kind === 'sync_pairing_fingerprint_mismatch'
       ) {

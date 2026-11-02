@@ -101,6 +101,22 @@ describe('DeviceKeyLockedCard', () => {
     });
   });
 
+  it('phrase flow: a failed sync after a successful unlock is not reported as a bad phrase', async () => {
+    vi.mocked(syncEncryptionService.unlockWithPhrase).mockResolvedValueOnce(undefined);
+    vi.mocked(cloudSyncService.syncNow).mockRejectedValueOnce(new Error('offline'));
+
+    render(DeviceKeyLockedCard);
+
+    const textarea = screen.getByPlaceholderText('Paste your 24-word recovery phrase here...');
+    await fireEvent.input(textarea, { target: { value: valid24Words } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Unlock' }));
+
+    await waitFor(() => expect(cloudSyncService.syncNow).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText('Incorrect recovery phrase. Please check the words and try again.'),
+    ).toBeNull();
+  });
+
   it('pairing flow: requests pairing and shows 6 fingerprint words', async () => {
     vi.mocked(syncEncryptionService.requestPairing).mockResolvedValueOnce({
       id: 'pair-123',

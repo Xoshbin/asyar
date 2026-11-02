@@ -17,6 +17,9 @@
   let savedConfirmed = $state(false);
   let copied = $state(false);
   let errorMessage = $state<string | null>(null);
+  // The effect below re-runs whenever `stage` changes, so a failed fetch that
+  // drops back to 'passphrase' must not be retried automatically.
+  let deviceFetchFailed = $state(false);
   let passphraseInput = $state<HTMLInputElement | null>(null);
 
   function reset() {
@@ -26,6 +29,7 @@
     savedConfirmed = false;
     copied = false;
     errorMessage = null;
+    deviceFetchFailed = false;
   }
 
   function cancel() {
@@ -69,7 +73,12 @@
   }
 
   $effect(() => {
-    if (isOpen && syncEncryptionService.mode === 'device-key' && stage === 'passphrase') {
+    if (
+      isOpen &&
+      syncEncryptionService.mode === 'device-key' &&
+      stage === 'passphrase' &&
+      !deviceFetchFailed
+    ) {
       stage = 'submitting';
       syncEncryptionService
         .showRecoveryPhraseDevice()
@@ -80,6 +89,7 @@
         .catch((err) => {
           logService.warn(`device recovery phrase fetch failed: ${String(err)}`);
           errorMessage = String(err);
+          deviceFetchFailed = true;
           stage = 'passphrase';
         });
     } else if (stage === 'passphrase' && passphraseInput) {
