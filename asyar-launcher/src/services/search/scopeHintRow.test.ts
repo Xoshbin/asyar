@@ -34,7 +34,7 @@ describe('buildScopeHintRow', () => {
   });
 
   it('wears the general hint icon, not a search glass, so later hints can share it', () => {
-    expect(HINT_ICON).toBe('icon:info');
+    expect(HINT_ICON).toEqual({ kind: 'glyph', name: 'info' });
     expect(buildScopeHintRow(hint, 4).icon).toBe(HINT_ICON);
   });
 

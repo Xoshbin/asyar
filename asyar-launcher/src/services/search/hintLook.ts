@@ -1,3 +1,5 @@
+import type { ResolvedIcon } from '../../bindings';
+
 /**
  * What every hint in the launcher shares. A hint is an offer to the user, not a
  * result, and it is drawn one way: `variant: HINT_VARIANT` on the row (the look
@@ -6,4 +8,4 @@
  * not need to pick its own.
  */
 export const HINT_VARIANT = 'hint' as const;
-export const HINT_ICON = 'icon:info';
+export const HINT_ICON: ResolvedIcon = { kind: 'glyph', name: 'info' };

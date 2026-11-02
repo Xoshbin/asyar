@@ -46,6 +46,7 @@ type LoadedExtensionModule = Extension | { default: Extension };
 
 import { extensionSearchAggregator } from './extensionSearchAggregator';
 import { extensionStateManager } from './extensionStateManager.svelte';
+import { legacyIconUrl } from './legacyIconUrl';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import {
   getBuiltinDynamicDispatcher,
@@ -670,7 +671,8 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   async getAllExtensionsWithState(): Promise<any[]> {
-    return extensionStateManager.getAllExtensionsWithState();
+    const all = await extensionStateManager.getAllExtensionsWithState();
+    return all.map((ext) => ({ ...ext, iconUrl: legacyIconUrl(ext.icon) }));
   }
 
   async getAllExtensions(): Promise<any[]> {

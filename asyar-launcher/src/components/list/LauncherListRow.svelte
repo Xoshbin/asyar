@@ -149,7 +149,6 @@
     gap: var(--space-5);
   }
 
-
   /* The hint row, shared by every hint in the launcher. The tint and the text come from the
      same accent ramp (the house formula), so they always agree. The selected
      band is left to .selected-result, which is never restyled; the accent title

@@ -455,11 +455,6 @@
     color: var(--accent-primary);
   }
 
-  .icon-img {
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-sm);
-  }
   .panel-meta {
     flex: 1;
     min-width: 0;
