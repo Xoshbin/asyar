@@ -188,10 +188,15 @@ fn post_media_key(key: isize) -> Result<(), PlatformError> {
     Ok(())
 }
 
+/// Longest a single script may wait on a player's Apple Event reply. The
+/// default is ~2 minutes, and these run on the main thread, so a hung player
+/// would otherwise freeze the launcher.
+const SCRIPT_TIMEOUT_SECS: u32 = 2;
+
 /// Runs AppleScript source in-process, returning the result as a string.
 fn run_script(source: &str) -> Result<String, PlatformError> {
     unsafe {
-        let source = NSString::from_str(source);
+        let source = NSString::from_str(&with_timeout(source));
         let script = NSAppleScript::alloc();
         let script = NSAppleScript::initWithSource(script, &source)
             .ok_or_else(|| PlatformError::OsError("failed to create AppleScript".into()))?;
@@ -214,6 +219,10 @@ fn run_script(source: &str) -> Result<String, PlatformError> {
         let value: Option<Retained<NSString>> = msg_send_id![&result, stringValue];
         Ok(value.map(|s| s.to_string()).unwrap_or_default())
     }
+}
+
+fn with_timeout(source: &str) -> String {
+    format!("with timeout of {SCRIPT_TIMEOUT_SECS} seconds\n{source}\nend timeout")
 }
 
 fn state_script(player: &Player) -> String {
@@ -389,6 +398,13 @@ mod tests {
         assert_eq!(resolve_player("com.apple.Music").unwrap().name, "Music");
         assert!(resolve_player("com.example.Unknown").is_none());
         assert!(resolve_player("").is_none());
+    }
+
+    #[test]
+    fn scripts_are_wrapped_in_a_timeout() {
+        let wrapped = with_timeout("return 1");
+        assert!(wrapped.starts_with("with timeout of 2 seconds\n"));
+        assert!(wrapped.ends_with("\nend timeout"));
     }
 
     #[test]

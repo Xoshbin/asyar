@@ -84,7 +84,7 @@ For the media-key path (macOS always, Windows when there is no SMTC session), `p
 
 Asyar deliberately does not use `MediaRemote.framework`; Apple blocked it for third-party apps in macOS 15.4.
 
-**First use (macOS):** the first targeted call makes macOS ask the user to allow Asyar to control that app (Automation permission). If the user denies it, calls to that player reject with an `AppleScript failed` error and `listSessions()` omits it. Media-key transport may require Accessibility permission on some macOS versions.
+**First use (macOS):** the first scripted query or targeted control for each app makes macOS ask the user to allow Asyar to control it (Automation permission). That includes an untargeted `getNowPlaying()` or `listSessions()`, which script every running supported player. Each script waits at most 2 seconds for a reply, so an unresponsive player is skipped rather than freezing the launcher. If the user denies it, calls to that player reject with an `AppleScript failed` error and `listSessions()` omits it. Media-key transport may require Accessibility permission on some macOS versions.
 
 **Linux:** with no session bus (for example a bare SSH session) every call rejects with an `MPRIS session bus unavailable` error. Players that run several instances appear as `org.mpris.MediaPlayer2.vlc.instance1234`; the bare name `"vlc"` still matches.
 

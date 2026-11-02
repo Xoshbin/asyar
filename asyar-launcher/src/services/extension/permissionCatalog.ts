@@ -167,7 +167,7 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
   'media:control': {
     title: 'Control media playback',
     description:
-      'Read what is playing in Music or Spotify and send play, pause, and skip commands.',
+      'Read what is playing in media players and apps (such as Music, TV, Spotify, VLC, or a browser) and send play, pause, and skip commands.',
   },
   'process:read': {
     title: 'List processes',
