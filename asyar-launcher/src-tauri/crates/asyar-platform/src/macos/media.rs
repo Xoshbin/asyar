@@ -9,7 +9,7 @@
 //!   running — `tell application` would otherwise launch it.
 
 use crate::error::PlatformError;
-use crate::media::{MediaSessionInfo, MediaTransportAction, PlaybackStatus};
+use crate::media::{pick_best, MediaSessionInfo, MediaTransportAction, PlaybackStatus};
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{msg_send, msg_send_id, ClassType, Encoding, RefEncode};
@@ -28,8 +28,18 @@ const HID_EVENT_TAP: u32 = 0;
 /// ASCII unit separator — cannot plausibly appear in track metadata.
 const FIELD_SEP: char = '\u{1f}';
 
+/// How a player's AppleScript dictionary is spoken to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Dialect {
+    /// `player state`, `current track`, `playpause`, `next track` (Music, TV, Spotify).
+    Music,
+    /// `playing`, `current item`, a toggling `play`, `next` (VLC).
+    Vlc,
+}
+
 struct Player {
     bundle_id: &'static str,
+    dialect: Dialect,
     name: &'static str,
     alias: &'static str,
     /// Multiplier turning the player's `duration` into seconds
@@ -37,22 +47,38 @@ struct Player {
     duration_to_seconds: f64,
 }
 
-const PLAYERS: [Player; 2] = [
+const PLAYERS: [Player; 4] = [
     Player {
         bundle_id: "com.apple.Music",
+        dialect: Dialect::Music,
         name: "Music",
         alias: "music",
         duration_to_seconds: 1.0,
     },
     Player {
         bundle_id: "com.spotify.client",
+        dialect: Dialect::Music,
         name: "Spotify",
         alias: "spotify",
         duration_to_seconds: 0.001,
     },
+    Player {
+        bundle_id: "com.apple.TV",
+        dialect: Dialect::Music,
+        name: "TV",
+        alias: "tv",
+        duration_to_seconds: 1.0,
+    },
+    Player {
+        bundle_id: "org.videolan.vlc",
+        dialect: Dialect::Vlc,
+        name: "VLC",
+        alias: "vlc",
+        duration_to_seconds: 1.0,
+    },
 ];
 
-/// Resolves a friendly alias (`"music"`, `"spotify"`) or a bundle id.
+/// Resolves a friendly alias (`"music"`, `"spotify"`, `"tv"`, `"vlc"`) or a bundle id.
 fn resolve_player(player_id: &str) -> Option<&'static Player> {
     PLAYERS
         .iter()
@@ -125,6 +151,31 @@ fn cg_event_of(event: &NSEvent) -> Result<*mut CGEventOpaque, PlatformError> {
     Ok(cg_event)
 }
 
+/// The script that performs `action` on `player`. VLC's `play` toggles and it
+/// has no `pause`, so explicit play/pause check `playing` first.
+fn transport_script(player: &Player, action: MediaTransportAction) -> String {
+    match (player.dialect, action) {
+        (Dialect::Music, _) => format!(
+            "tell application id \"{}\" to {}",
+            player.bundle_id,
+            script_verb(action)
+        ),
+        (Dialect::Vlc, _) => {
+            let body = match action {
+                MediaTransportAction::PlayPause => "play",
+                MediaTransportAction::Play => "if not playing then play",
+                MediaTransportAction::Pause => "if playing then play",
+                MediaTransportAction::Next => "next",
+                MediaTransportAction::Previous => "previous",
+            };
+            format!(
+                "tell application id \"{}\"\n{body}\nend tell",
+                player.bundle_id
+            )
+        }
+    }
+}
+
 fn post_media_key(key: isize) -> Result<(), PlatformError> {
     extern "C" {
         fn CGEventPost(tap: u32, event: *mut CGEventOpaque);
@@ -166,6 +217,43 @@ fn run_script(source: &str) -> Result<String, PlatformError> {
 }
 
 fn state_script(player: &Player) -> String {
+    match player.dialect {
+        Dialect::Music => music_state_script(player),
+        Dialect::Vlc => vlc_state_script(player),
+    }
+}
+
+/// VLC has no `player state`, artist or album: not playing with an item loaded
+/// is treated as paused, and no item as stopped. Output matches the Music
+/// dialect so `parse_session` handles both.
+fn vlc_state_script(player: &Player) -> String {
+    let sep = FIELD_SEP as u32;
+    format!(
+        r#"set sep to (ASCII character {sep})
+tell application id "{id}"
+    set isPlaying to playing
+    set n to ""
+    try
+        set n to (name of current item) as text
+    end try
+    if n is "" and not isPlaying then return "stopped"
+    set d to ""
+    try
+        set d to (duration of current item) as text
+    end try
+    set p to ""
+    try
+        set p to (current time) as text
+    end try
+    set s to "paused"
+    if isPlaying then set s to "playing"
+    return s & sep & n & sep & "" & sep & "" & sep & d & sep & p
+end tell"#,
+        id = player.bundle_id
+    )
+}
+
+fn music_state_script(player: &Player) -> String {
     let sep = FIELD_SEP as u32;
     format!(
         r#"set sep to (ASCII character {sep})
@@ -232,22 +320,6 @@ fn parse_session(player: &Player, raw: &str) -> Option<MediaSessionInfo> {
     })
 }
 
-/// Prefers a playing session over a paused one; stopped sessions never win.
-fn pick_best(sessions: Vec<MediaSessionInfo>) -> Option<MediaSessionInfo> {
-    let mut best: Option<MediaSessionInfo> = None;
-    for s in sessions {
-        match (&best, s.status) {
-            (_, PlaybackStatus::Stopped) => {}
-            (None, _) => best = Some(s),
-            (Some(b), PlaybackStatus::Playing) if b.status != PlaybackStatus::Playing => {
-                best = Some(s)
-            }
-            _ => {}
-        }
-    }
-    best
-}
-
 fn query_player(player: &Player) -> Result<Option<MediaSessionInfo>, PlatformError> {
     // Never launch a closed player.
     if !super::system::is_app_running(player.bundle_id) {
@@ -297,12 +369,7 @@ pub fn send_transport(
             player.name
         )));
     }
-    run_script(&format!(
-        "tell application id \"{}\" to {}",
-        player.bundle_id,
-        script_verb(action)
-    ))
-    .map(|_| ())
+    run_script(&transport_script(player, action)).map(|_| ())
 }
 
 #[cfg(test)]
@@ -322,6 +389,26 @@ mod tests {
         assert_eq!(resolve_player("com.apple.Music").unwrap().name, "Music");
         assert!(resolve_player("com.example.Unknown").is_none());
         assert!(resolve_player("").is_none());
+    }
+
+    #[test]
+    fn resolves_tv_and_vlc() {
+        assert_eq!(resolve_player("tv").unwrap().bundle_id, "com.apple.TV");
+        assert_eq!(resolve_player("VLC").unwrap().name, "VLC");
+        assert_eq!(resolve_player("org.videolan.vlc").unwrap().alias, "vlc");
+    }
+
+    #[test]
+    fn transport_scripts_follow_each_dialect() {
+        let tv = resolve_player("tv").unwrap();
+        assert_eq!(
+            transport_script(tv, MediaTransportAction::Next),
+            "tell application id \"com.apple.TV\" to next track"
+        );
+        let vlc = resolve_player("vlc").unwrap();
+        assert!(transport_script(vlc, MediaTransportAction::Pause).contains("if playing then play"));
+        assert!(transport_script(vlc, MediaTransportAction::Next).contains("\nnext\n"));
+        assert!(vlc_state_script(vlc).contains("org.videolan.vlc"));
     }
 
     #[test]
@@ -367,32 +454,6 @@ mod tests {
         assert_eq!(s.title, None);
         assert!(parse_session(p, "").is_none());
         assert!(parse_session(p, "buffering").is_none());
-    }
-
-    fn session(id: &str, status: PlaybackStatus) -> MediaSessionInfo {
-        MediaSessionInfo {
-            player_id: id.into(),
-            player_name: id.into(),
-            status,
-            title: None,
-            artist: None,
-            album: None,
-            duration_seconds: None,
-            position_seconds: None,
-        }
-    }
-
-    #[test]
-    fn pick_best_prefers_playing_over_paused() {
-        let best = pick_best(vec![
-            session("a", PlaybackStatus::Paused),
-            session("b", PlaybackStatus::Playing),
-            session("c", PlaybackStatus::Stopped),
-        ])
-        .unwrap();
-        assert_eq!(best.player_id, "b");
-        assert!(pick_best(vec![session("c", PlaybackStatus::Stopped)]).is_none());
-        assert!(pick_best(vec![]).is_none());
     }
 
     #[test]

@@ -18,10 +18,11 @@ export interface MediaSessionInfo {
 /**
  * Now-playing info and transport control for local media players.
  *
- * macOS supports Music (`com.apple.Music` / `"music"`) and Spotify
- * (`com.spotify.client` / `"spotify"`). A player that is not running is never
- * launched. Other platforms currently report no sessions and ignore control
- * calls. Requires the `media:control` manifest permission.
+ * Works on macOS (Music, TV, Spotify, VLC), Windows (System Media Transport
+ * Controls) and Linux (MPRIS). A player that is not running is never launched.
+ * `playerId` is platform-specific: a bundle id or alias on macOS, an app user
+ * model id (or substring) on Windows, a bus name or its suffix on Linux.
+ * Requires the `media:control` manifest permission.
  */
 export interface IMediaService {
   /**

@@ -2,6 +2,7 @@ pub mod desktop_entry;
 pub mod environment;
 #[cfg(target_os = "linux")]
 pub mod launcher_dbus;
+pub mod media;
 
 pub use desktop_entry::*;
 pub use environment::*;

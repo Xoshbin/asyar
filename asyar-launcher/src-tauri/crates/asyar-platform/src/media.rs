@@ -1,8 +1,11 @@
 //! Cross-platform media-session abstraction.
 //!
-//! macOS: media-key transport plus Music/Spotify scripting (see
-//! `macos::media`). `MediaRemote.framework` is deliberately unused — Apple
-//! blocked it for third-party apps in macOS 15.4+. Windows/Linux are stubs.
+//! - macOS: media-key transport plus scripting of Music, TV, Spotify and VLC
+//!   (`macos::media`). `MediaRemote.framework` is deliberately unused — Apple
+//!   blocked it for third-party apps in macOS 15.4+.
+//! - Linux: MPRIS over the session D-Bus (`linux::media`).
+//! - Windows: System Media Transport Controls plus `SendInput` media keys
+//!   (`windows::media`).
 
 use crate::error::PlatformError;
 use serde::{Deserialize, Serialize};
@@ -40,14 +43,24 @@ pub struct MediaSessionInfo {
     pub position_seconds: Option<f64>,
 }
 
-/// Now-playing info for `player_id` (alias or bundle id), or the best running
-/// player (playing preferred over paused) when `None`.
+/// Now-playing info for `player_id`, or the best running player (playing
+/// preferred over paused) when `None`. What `player_id` accepts is
+/// platform-specific: a bundle id or alias (macOS), a bus name or its suffix
+/// (Linux MPRIS), an app user model id or a substring of it (Windows).
 pub fn get_now_playing(player_id: Option<&str>) -> Result<Option<MediaSessionInfo>, PlatformError> {
     #[cfg(target_os = "macos")]
     {
         crate::macos::media::get_now_playing(player_id)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux::media::get_now_playing(player_id)
+    }
+    #[cfg(target_os = "windows")]
+    {
+        crate::windows::media::get_now_playing(player_id)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         let _ = player_id;
         Ok(None)
@@ -60,14 +73,22 @@ pub fn list_sessions() -> Result<Vec<MediaSessionInfo>, PlatformError> {
     {
         crate::macos::media::list_sessions()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux::media::list_sessions()
+    }
+    #[cfg(target_os = "windows")]
+    {
+        crate::windows::media::list_sessions()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         Ok(Vec::new())
     }
 }
 
-/// Sends a transport action. With `player_id == None` it goes to whichever app
-/// currently owns the system media keys.
+/// Sends a transport action. With `player_id == None` it goes to the active
+/// player (Linux, Windows) or whichever app owns the system media keys.
 pub fn send_transport(
     action: MediaTransportAction,
     player_id: Option<&str>,
@@ -76,11 +97,40 @@ pub fn send_transport(
     {
         crate::macos::media::send_transport(action, player_id)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux::media::send_transport(action, player_id)
+    }
+    #[cfg(target_os = "windows")]
+    {
+        crate::windows::media::send_transport(action, player_id)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         let _ = (action, player_id);
         Ok(())
     }
+}
+
+/// Prefers a playing session over a paused one; stopped sessions never win.
+/// Ties keep the earliest session.
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "linux", target_os = "windows")),
+    allow(dead_code)
+)]
+pub(crate) fn pick_best(sessions: Vec<MediaSessionInfo>) -> Option<MediaSessionInfo> {
+    let mut best: Option<MediaSessionInfo> = None;
+    for s in sessions {
+        match (&best, s.status) {
+            (_, PlaybackStatus::Stopped) => {}
+            (None, _) => best = Some(s),
+            (Some(b), PlaybackStatus::Playing) if b.status != PlaybackStatus::Playing => {
+                best = Some(s)
+            }
+            _ => {}
+        }
+    }
+    best
 }
 
 #[cfg(test)]
@@ -107,5 +157,31 @@ mod tests {
             serde_json::to_value(MediaTransportAction::PlayPause).unwrap(),
             "playPause"
         );
+    }
+
+    fn session(id: &str, status: PlaybackStatus) -> MediaSessionInfo {
+        MediaSessionInfo {
+            player_id: id.into(),
+            player_name: id.into(),
+            status,
+            title: None,
+            artist: None,
+            album: None,
+            duration_seconds: None,
+            position_seconds: None,
+        }
+    }
+
+    #[test]
+    fn pick_best_prefers_playing_over_paused() {
+        let best = pick_best(vec![
+            session("a", PlaybackStatus::Paused),
+            session("b", PlaybackStatus::Playing),
+            session("c", PlaybackStatus::Stopped),
+        ])
+        .unwrap();
+        assert_eq!(best.player_id, "b");
+        assert!(pick_best(vec![session("c", PlaybackStatus::Stopped)]).is_none());
+        assert!(pick_best(vec![]).is_none());
     }
 }
