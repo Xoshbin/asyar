@@ -34,6 +34,29 @@ describe('searchSettings', () => {
     expect(hits.find((h) => h.title === 'Create Note')?.target.extensionId).toBe('built-in-notes');
   });
 
+  it('points moved rows at the tab that now owns them', () => {
+    expect(searchSettings('pop to root', exts, false)[0].target.tab).toBe('general');
+    expect(searchSettings('escape key', exts, false)[0].target.tab).toBe('general');
+    expect(searchSettings('denylist', exts, false)[0].target).toEqual({
+      tab: 'built-in-features',
+      extensionId: 'clipboard-history',
+    });
+  });
+
+  it.each([
+    ['search roots', 'file-search'],
+    ['exclude patterns', 'file-search'],
+    ['script directories', 'scripts'],
+    ['text expansion', 'snippets'],
+    ['providers', 'agents'],
+    ['companion', 'browsers'],
+  ])('finds built-in feature row "%s" under %s', (query, extensionId) => {
+    expect(searchSettings(query, [], false)[0].target).toEqual({
+      tab: 'built-in-features',
+      extensionId,
+    });
+  });
+
   it('finds installed extensions under extensions', () => {
     expect(searchSettings('weath', exts, false)[0].target).toEqual({
       tab: 'extensions',

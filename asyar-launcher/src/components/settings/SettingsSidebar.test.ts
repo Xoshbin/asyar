@@ -35,6 +35,16 @@ describe('SettingsSidebar', () => {
     void component;
   });
 
+  it('fires ontabselect on every click, including the already-active tab', async () => {
+    const ontabselect = vi.fn();
+    render(SettingsSidebar, { tabs: [...tabs], activeTab: 'extensions', ontabselect });
+    await fireEvent.click(screen.getByText('Extensions'));
+    expect(ontabselect).toHaveBeenCalledWith('extensions');
+    await fireEvent.click(screen.getByText('About'));
+    expect(ontabselect).toHaveBeenLastCalledWith('about');
+    expect(ontabselect).toHaveBeenCalledTimes(2);
+  });
+
   it('filters items by the search query', async () => {
     render(SettingsSidebar, { tabs: [...tabs], activeTab: 'general' });
     const input = screen.getByRole('searchbox') as HTMLInputElement;

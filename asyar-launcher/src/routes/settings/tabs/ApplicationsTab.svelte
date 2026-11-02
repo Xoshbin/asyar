@@ -32,12 +32,16 @@
   import { aliasService } from '../../../built-in-features/aliases/aliasService';
   import AliasCapture from '../../../built-in-features/aliases/AliasCapture.svelte';
   import type { Application } from '../../../bindings';
+  import { applicationsCache, withIds, type IndexedApp } from './applicationsCache.svelte';
 
-  type IndexedApp = Application & { id: string };
-
-  let apps = $state<IndexedApp[]>([]);
-  let defaultPaths = $state<string[]>([]);
-  let isLoading = $state(true);
+  // A preloaded or previously visited tab starts from the cache: no spinner.
+  let apps = $state<IndexedApp[]>(
+    applicationsCache.hasLoadedOnce ? [...applicationsCache.apps] : [],
+  );
+  let defaultPaths = $state<string[]>(
+    applicationsCache.hasLoadedOnce ? [...applicationsCache.defaultPaths] : [],
+  );
+  let isLoading = $state(!applicationsCache.hasLoadedOnce);
   let isBrowsing = $state(false);
   let isAddingPath = $state(false);
   let pathInput = $state('');
@@ -66,10 +70,6 @@
       : sortedApps,
   );
 
-  function withIds(list: Application[]): IndexedApp[] {
-    return list.filter((a): a is IndexedApp => typeof a.id === 'string' && a.id.length > 0);
-  }
-
   onMount(async () => {
     try {
       const [paths, loaded] = await Promise.all([
@@ -83,12 +83,19 @@
       ]);
       defaultPaths = paths ?? [];
       apps = withIds(loaded ?? []);
+      applicationsCache.defaultPaths = defaultPaths;
+      applicationsCache.apps = apps;
+      applicationsCache.hasLoadedOnce = true;
+      errorMessage = null;
       void aliasStore.refresh().catch((e) => {
         logService.warn(`Failed to refresh alias store: ${e}`);
       });
     } catch (err) {
       logService.warn(`Failed to load applications: ${err}`);
-      errorMessage = 'Failed to load applications. You can try refreshing.';
+      // A silent refresh that fails keeps showing the cached list.
+      if (!applicationsCache.hasLoadedOnce) {
+        errorMessage = 'Failed to load applications. You can try refreshing.';
+      }
     } finally {
       isLoading = false;
     }
@@ -97,6 +104,7 @@
   async function reloadApps(paths = userPaths): Promise<boolean> {
     try {
       apps = withIds((await listApplications(paths)) ?? []);
+      applicationsCache.apps = apps;
       return true;
     } catch (err) {
       logService.warn(`Failed to reload applications: ${err}`);

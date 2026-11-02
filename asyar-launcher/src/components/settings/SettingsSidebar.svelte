@@ -39,6 +39,7 @@
     accountUser = null,
     results = [],
     onresult,
+    ontabselect,
   }: {
     tabs: SidebarTab[];
     activeTab: SettingsTabId;
@@ -47,6 +48,8 @@
     /** Deep matches (settings rows, features, extensions) for the current query. */
     results?: SearchResult[];
     onresult?: (result: SearchResult) => void;
+    /** Fires on every tab click, including the already-active tab. */
+    ontabselect?: (tab: SettingsTabId) => void;
   } = $props();
 
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
@@ -145,7 +148,10 @@
               class="item profile"
               class:active={activeTab === tab.id}
               aria-current={activeTab === tab.id ? 'page' : undefined}
-              onclick={() => (activeTab = tab.id)}
+              onclick={() => {
+                activeTab = tab.id;
+                ontabselect?.(tab.id);
+              }}
             >
               <span class="avatar">
                 {#if accountUser?.name}
@@ -166,7 +172,10 @@
               class="item"
               class:active={activeTab === tab.id}
               aria-current={activeTab === tab.id ? 'page' : undefined}
-              onclick={() => (activeTab = tab.id)}
+              onclick={() => {
+                activeTab = tab.id;
+                ontabselect?.(tab.id);
+              }}
             >
               <span class="icon-box"><Icon name={tab.icon} size={15} /></span>
               <span class="label">{tab.label}</span>

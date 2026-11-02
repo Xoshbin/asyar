@@ -20,6 +20,8 @@ interface CatalogEntry {
   /** i18n key of the row's visible label. */
   labelKey: string;
   tab: SettingsTabId;
+  /** Built-in feature to drill into when `tab` is 'built-in-features'. */
+  extensionId?: string;
   keywords?: string[];
 }
 
@@ -51,8 +53,8 @@ export const SETTINGS_ROW_CATALOG: CatalogEntry[] = [
     tab: 'general',
     keywords: ['onboarding', 'welcome'],
   },
-  { labelKey: 'settings.advanced.pop_to_root', tab: 'advanced', keywords: ['root search'] },
-  { labelKey: 'settings.advanced.escape_key', tab: 'advanced', keywords: ['esc'] },
+  { labelKey: 'settings.advanced.pop_to_root', tab: 'general', keywords: ['root search'] },
+  { labelKey: 'settings.advanced.escape_key', tab: 'general', keywords: ['esc'] },
   { labelKey: 'settings.advanced.developer_mode', tab: 'advanced', keywords: ['developer'] },
   { labelKey: 'settings.runtimes.title', tab: 'advanced', keywords: ['node', 'bun', 'python'] },
   { labelKey: 'settings.tasks.title', tab: 'advanced', keywords: ['background', 'schedule'] },
@@ -74,7 +76,48 @@ export const SETTINGS_ROW_CATALOG: CatalogEntry[] = [
     tab: 'privacy',
     keywords: ['approved shell binaries', 'trusted programs'],
   },
-  { labelKey: 'settings.privacy.clipboard_privacy', tab: 'privacy', keywords: ['denylist'] },
+  {
+    labelKey: 'settings.privacy.clipboard_privacy',
+    tab: 'built-in-features',
+    extensionId: 'clipboard-history',
+    keywords: ['denylist', 'clipboard'],
+  },
+  {
+    labelKey: 'settings.file_search.search_roots',
+    tab: 'built-in-features',
+    extensionId: 'file-search',
+    keywords: ['folders', 'file search'],
+  },
+  {
+    labelKey: 'settings.file_search.exclude_patterns',
+    tab: 'built-in-features',
+    extensionId: 'file-search',
+    keywords: ['exclusions', 'ignore', 'file search'],
+  },
+  {
+    labelKey: 'settings.scripts.section_directories',
+    tab: 'built-in-features',
+    extensionId: 'scripts',
+    keywords: ['script directories', 'folders'],
+  },
+  {
+    labelKey: 'settings.advanced.text_expansion',
+    tab: 'built-in-features',
+    extensionId: 'snippets',
+    keywords: ['snippets', 'expand'],
+  },
+  {
+    labelKey: 'settings.ai.providers_section',
+    tab: 'built-in-features',
+    extensionId: 'agents',
+    keywords: ['ai', 'models', 'api key', 'agents'],
+  },
+  {
+    labelKey: 'settings.tabs.browsers',
+    tab: 'built-in-features',
+    extensionId: 'browsers',
+    keywords: ['companion', 'paired browsers'],
+  },
   { labelKey: 'settings.privacy.crash_reports', tab: 'privacy', keywords: ['telemetry'] },
   {
     labelKey: 'settings.privacy.usage_share',
@@ -138,7 +181,9 @@ export function searchSettings(
       id: `setting:${entry.labelKey}`,
       title: label,
       category: t(TAB_LABEL_KEYS[entry.tab]),
-      target: { tab: entry.tab },
+      target: entry.extensionId
+        ? { tab: entry.tab, extensionId: entry.extensionId }
+        : { tab: entry.tab },
     });
   }
 

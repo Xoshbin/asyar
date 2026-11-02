@@ -109,6 +109,7 @@ function createHandler(extensions: unknown[] = []): SettingsHandler {
     isLoadingExtensions: false,
     extensionError: '',
     pendingExtensionSelection: null,
+    tabResetCounter: 0,
     togglingExtension: null,
     preferencesVersion: 0,
     loadExtensions: vi.fn(),
@@ -200,6 +201,17 @@ describe('ExtensionsTab surface settings and drill-down', () => {
     expect(
       (screen.getByRole('button', { name: 'settings.nav.forward' }) as HTMLButtonElement).disabled,
     ).toBe(false);
+  });
+
+  it('returns to the list when the active sidebar tab is clicked again', async () => {
+    const handler = createHandler([thirdParty]);
+    const { rerender } = render(ExtensionsTab, { props: { handler } });
+    await fireEvent.click(screen.getByText('Store Ext'));
+    expect(screen.getByRole('button', { name: 'settings.nav.back' })).toBeTruthy();
+
+    await rerender({ handler: { ...handler, tabResetCounter: 1 } as unknown as SettingsHandler });
+    expect(screen.queryByRole('button', { name: 'settings.nav.back' })).toBeNull();
+    expect(screen.getByText('settings.advanced.extension_search')).toBeTruthy();
   });
 
   it('consumes a pending deep-link id and drills straight in', async () => {

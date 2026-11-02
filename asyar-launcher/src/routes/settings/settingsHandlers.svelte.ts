@@ -133,6 +133,11 @@ export class SettingsHandler {
   saveMessage = $state('');
   saveError = $state(false);
   activeTab = $state<SettingsTabId>('general');
+  /**
+   * Bumped on every sidebar tab click, including a click on the already-active
+   * tab. Drill-down tabs watch it to return to their list view.
+   */
+  tabResetCounter = $state(0);
   selectedTheme = $state('system');
   selectedLaunchView = $state<'default' | 'compact'>('default');
   isLoading = $state(true);
@@ -296,6 +301,12 @@ export class SettingsHandler {
     this.unlistenWindowFocus = null;
   }
 
+  /** Sidebar tab click: switch tab and reset any drill-down inside it. */
+  selectTab(tab: SettingsTabId) {
+    this.activeTab = tab;
+    this.tabResetCounter += 1;
+  }
+
   async loadExtensions() {
     // extensions_updated and window-focus can fire close together (e.g.
     // installing from the store while Settings is visible, then refocusing
@@ -328,6 +339,23 @@ export class SettingsHandler {
             commands: typed.commands ?? [],
           };
         });
+
+      // Browsers has no manifest of its own, but is configured under Built-in Features.
+      if (!this.extensions.some((e) => e.id === 'browsers')) {
+        this.extensions = [
+          ...this.extensions,
+          {
+            id: 'browsers',
+            title: t('settings.tabs.browsers'),
+            subtitle: t('settings.browsers.companion_description'),
+            icon: { kind: 'glyph', name: 'globe' },
+            isBuiltIn: true,
+            disableable: false,
+            enabled: true,
+            commands: [],
+          },
+        ];
+      }
 
       for (const ext of this.extensions) {
         if (!ext.id) continue;

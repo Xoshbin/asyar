@@ -15,6 +15,7 @@
   import DeveloperTab from './tabs/DeveloperTab.svelte';
   import PrivacyTab from './tabs/PrivacyTab.svelte';
   import ApplicationsTab from './tabs/ApplicationsTab.svelte';
+  import { preloadApplications } from './tabs/applicationsCache.svelte';
   import { authService } from '../../services/auth/authService.svelte';
   import { registerProfileProviders } from '../../services/appInitializer';
   import { initProviders } from '../../services/ai/initProviders';
@@ -115,6 +116,7 @@
   onMount(async () => {
     void i18nService.init();
     handler.init();
+    preloadApplications(handler.settings.search?.additionalScanPaths ?? []);
     await authService.init();
     await Promise.all([
       shortcutStore.init(),
@@ -160,6 +162,7 @@
       accountUser={authService.user}
       results={searchResults}
       onresult={openSearchResult}
+      ontabselect={(id) => handler.selectTab(id)}
     />
 
     <div class="settings-main">

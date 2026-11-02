@@ -22,11 +22,21 @@ export interface NavPayload {
 
 /** Legacy top-level tabs that are now drill-downs under Built-in Features. */
 export const BUILT_IN_FEATURE_TAB_IDS = {
-  ai: 'built-in-ai',
-  'file-search': 'built-in-file-search',
-  browsers: 'built-in-browsers',
-  scripts: 'built-in-scripts',
+  ai: 'agents',
+  'file-search': 'file-search',
+  browsers: 'browsers',
+  scripts: 'scripts',
 } as const;
+
+/** Manifest ids of platform features that live under Built-in Features. */
+const BUILT_IN_FEATURE_IDS: readonly string[] = [
+  'file-search',
+  'scripts',
+  'clipboard-history',
+  'snippets',
+  'agents',
+  'browsers',
+];
 
 export type SidebarGroupId = 'top' | 'app' | 'system';
 
@@ -63,7 +73,10 @@ export function resolveNavigation(payload: NavPayload, developerEnabled: boolean
     };
   }
   if (tab === 'extensions') {
-    if (extensionId?.startsWith('built-in-')) {
+    if (
+      extensionId &&
+      (BUILT_IN_FEATURE_IDS.includes(extensionId) || extensionId.startsWith('built-in-'))
+    ) {
       return { tab: 'built-in-features', extensionId };
     }
     return { tab: 'extensions', extensionId: extensionId ?? null };

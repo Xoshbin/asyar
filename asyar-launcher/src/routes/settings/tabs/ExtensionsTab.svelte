@@ -28,6 +28,15 @@
     handler.pendingExtensionSelection = null;
   });
 
+  // Clicking the already-active sidebar tab returns to the list.
+  let lastResetCounter = handler.tabResetCounter;
+  $effect(() => {
+    const counter = handler.tabResetCounter;
+    if (counter === lastResetCounter) return;
+    lastResetCounter = counter;
+    if (!handler.pendingExtensionSelection) drill.reset();
+  });
+
   // The drilled extension disappeared (uninstalled / list reloaded): back to the list.
   $effect(() => {
     if (drill.id && !handler.isLoadingExtensions && !selected) drill.reset();

@@ -3,10 +3,10 @@ import { resolveNavigation, SIDEBAR_GROUPS } from './settingsNav';
 
 describe('resolveNavigation', () => {
   it.each([
-    ['ai', 'built-in-ai'],
-    ['file-search', 'built-in-file-search'],
-    ['browsers', 'built-in-browsers'],
-    ['scripts', 'built-in-scripts'],
+    ['ai', 'agents'],
+    ['file-search', 'file-search'],
+    ['browsers', 'browsers'],
+    ['scripts', 'scripts'],
   ])('routes legacy tab %s into the built-in drill-down', (tab, id) => {
     expect(resolveNavigation({ tab }, false)).toEqual({
       tab: 'built-in-features',
@@ -20,6 +20,16 @@ describe('resolveNavigation', () => {
       extensionId: null,
     });
   });
+
+  it.each(['file-search', 'scripts', 'clipboard-history', 'snippets', 'agents', 'browsers'])(
+    'routes the real built-in manifest id %s to built-in-features',
+    (id) => {
+      expect(resolveNavigation({ tab: 'extensions', extensionId: id }, false)).toEqual({
+        tab: 'built-in-features',
+        extensionId: id,
+      });
+    },
+  );
 
   it('routes built-in extension ids to built-in-features', () => {
     expect(resolveNavigation({ tab: 'extensions', extensionId: 'built-in-notes' }, false)).toEqual({

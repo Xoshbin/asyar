@@ -18,15 +18,15 @@
   // Feature-specific settings rendered under the detail panel (spec §3.1).
   // Features absent from this map render the detail panel alone.
   const PANELS: Record<string, Component<any>> = {
-    'built-in-ai': AiTab,
-    'built-in-file-search': FileSearchTab,
-    'built-in-browsers': BrowsersTab,
-    'built-in-scripts': ScriptsTab,
-    'built-in-clipboard-history': ClipboardPrivacySection,
-    'built-in-snippets': SnippetsTextExpansionCard,
+    'file-search': FileSearchTab,
+    scripts: ScriptsTab,
+    'clipboard-history': ClipboardPrivacySection,
+    snippets: SnippetsTextExpansionCard,
+    agents: AiTab,
+    browsers: BrowsersTab,
   };
   // Panels that take the settings handler as a prop.
-  const HANDLER_PANELS = new Set(['built-in-ai']);
+  const HANDLER_PANELS = new Set(['agents']);
 
   const drill = new DrillState();
   const idOf = (e: ExtensionItem) => e.id ?? e.title;
@@ -45,6 +45,15 @@
     const ext = handler.extensions.find((e) => e.isBuiltIn && idOf(e) === pending);
     if (ext) drill.into(idOf(ext));
     handler.pendingExtensionSelection = null;
+  });
+
+  // Clicking the already-active sidebar tab returns to the list.
+  let lastResetCounter = handler.tabResetCounter;
+  $effect(() => {
+    const counter = handler.tabResetCounter;
+    if (counter === lastResetCounter) return;
+    lastResetCounter = counter;
+    if (!handler.pendingExtensionSelection) drill.reset();
   });
 
   // The drilled feature disappeared (e.g. list reloaded): fall back to the list.

@@ -71,7 +71,7 @@ describe('SettingsHandler.loadExtensions', () => {
     const handler = new SettingsHandler();
     await handler.loadExtensions();
 
-    expect(handler.extensions).toHaveLength(1);
+    expect(handler.extensions.filter((e) => e.id !== 'browsers')).toHaveLength(1);
     expect(handler.extensions[0].commands).toEqual([
       { id: 'cmd1', name: 'Start Timer', description: 'Starts the timer', trigger: 'pomo start' },
     ]);
@@ -97,9 +97,44 @@ describe('SettingsHandler.loadExtensions', () => {
     const handler = new SettingsHandler();
     await handler.loadExtensions();
 
-    expect(handler.extensions).toHaveLength(2);
-    const titles = handler.extensions.map((e) => e.title).sort();
-    expect(titles).toEqual(['Calculator', 'GitHub']);
+    const real = handler.extensions.filter((e) => e.id !== 'browsers');
+    expect(real).toHaveLength(2);
+    expect(real.map((e) => e.title).sort()).toEqual(['Calculator', 'GitHub']);
+  });
+
+  it('adds the manifest-less Browsers built-in so it can be configured', async () => {
+    mockGetAll.mockResolvedValue([]);
+
+    const handler = new SettingsHandler();
+    await handler.loadExtensions();
+
+    expect(handler.extensions).toHaveLength(1);
+    expect(handler.extensions[0]).toMatchObject({
+      id: 'browsers',
+      isBuiltIn: true,
+      disableable: false,
+      enabled: true,
+      commands: [],
+    });
+  });
+
+  it('does not duplicate Browsers when the registry already provides it', async () => {
+    mockGetAll.mockResolvedValue([
+      { id: 'browsers', isBuiltIn: true, title: 'Browsers', enabled: true, commands: [] },
+    ]);
+
+    const handler = new SettingsHandler();
+    await handler.loadExtensions();
+
+    expect(handler.extensions.filter((e) => e.id === 'browsers')).toHaveLength(1);
+  });
+
+  it('selectTab switches the tab and bumps tabResetCounter even for the active tab', () => {
+    const handler = new SettingsHandler();
+    handler.selectTab('extensions');
+    handler.selectTab('extensions');
+    expect(handler.activeTab).toBe('extensions');
+    expect(handler.tabResetCounter).toBe(2);
   });
 
   it('deduplicates by id across repeated entries', async () => {
@@ -111,7 +146,7 @@ describe('SettingsHandler.loadExtensions', () => {
     const handler = new SettingsHandler();
     await handler.loadExtensions();
 
-    expect(handler.extensions).toHaveLength(1);
+    expect(handler.extensions.filter((e) => e.id === 'calculator')).toHaveLength(1);
   });
 
   it('ignores a call that starts while a previous call is still in flight', async () => {

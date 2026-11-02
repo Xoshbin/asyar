@@ -126,8 +126,8 @@ const builtIn = (id: string, title: string) => ({
 });
 const features = [
   builtIn('built-in-notes', 'Notes'),
-  builtIn('built-in-snippets', 'Snippets'),
-  builtIn('built-in-ai', 'AI'),
+  builtIn('snippets', 'Snippets'),
+  builtIn('agents', 'AI'),
 ];
 const storeExt = { id: 'org.x.store', title: 'Store Ext', type: 'extension', isBuiltIn: false };
 
@@ -138,6 +138,7 @@ function createHandler(extensions: unknown[] = [...features, storeExt]): Setting
     isLoadingExtensions: false,
     extensionError: '',
     pendingExtensionSelection: null,
+    tabResetCounter: 0,
     togglingExtension: null,
     preferencesVersion: 0,
     loadExtensions: vi.fn(),
@@ -181,7 +182,7 @@ describe('BuiltInFeaturesTab', () => {
 
   it('a pending built-in id drills straight in after load and is consumed', async () => {
     const handler = createHandler();
-    handler.pendingExtensionSelection = 'built-in-ai';
+    handler.pendingExtensionSelection = 'agents';
     render(BuiltInFeaturesTab, { props: { handler } });
     expect(await screen.findByTestId('panel-stub')).toBeTruthy();
     expect(handler.pendingExtensionSelection).toBeNull();
@@ -215,7 +216,7 @@ describe('BuiltInFeaturesTab', () => {
 
   it('renders the feature settings above the Commands card when drilled in', async () => {
     const ai = {
-      ...builtIn('built-in-ai', 'AI'),
+      ...builtIn('agents', 'AI'),
       commands: [{ id: 'ask', name: 'Ask AI', trigger: 'ai' }],
     };
     render(BuiltInFeaturesTab, { props: { handler: createHandler([ai]) } });
@@ -223,5 +224,30 @@ describe('BuiltInFeaturesTab', () => {
     const panel = await screen.findByTestId('panel-stub');
     const commands = screen.getByText('settings.extensions.section_commands');
     expect(panel.compareDocumentPosition(commands) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it.each([
+    ['file-search', 'File Search'],
+    ['scripts', 'Scripts'],
+    ['clipboard-history', 'Clipboard History'],
+    ['agents', 'AI'],
+    ['browsers', 'Browsers'],
+  ])('renders the settings panel for the real manifest id %s', async (id, title) => {
+    render(BuiltInFeaturesTab, {
+      props: { handler: createHandler([builtIn(id, title)]) },
+    });
+    await fireEvent.click(screen.getByText(title));
+    expect(await screen.findByTestId('panel-stub')).toBeTruthy();
+  });
+
+  it('returns to the list when the active sidebar tab is clicked again', async () => {
+    const handler = createHandler();
+    const { rerender } = render(BuiltInFeaturesTab, { props: { handler } });
+    await fireEvent.click(screen.getByText('Notes'));
+    expect(screen.getByRole('button', { name: 'settings.nav.back' })).toBeTruthy();
+
+    await rerender({ handler: { ...handler, tabResetCounter: 1 } as unknown as SettingsHandler });
+    expect(screen.queryByRole('button', { name: 'settings.nav.back' })).toBeNull();
+    expect(screen.getByText('Snippets')).toBeTruthy();
   });
 });
