@@ -1658,6 +1658,42 @@ impl SearchState {
         Ok(results)
     }
 
+    /// The result row for an indexed item, looked up by id; `None` when the id
+    /// is not indexed. Used to surface an alias target that ranking skipped.
+    /// Carries the `FrecencyOnly` tier — the caller decides whether to promote it.
+    pub fn result_for_object_id(
+        &self,
+        object_id: &str,
+    ) -> Result<Option<SearchResult>, SearchError> {
+        let guard = self.items.read().map_err(|_| SearchError::LockError)?;
+        let favorites = self.favorites.read().map_err(|_| SearchError::LockError)?;
+        Ok(guard
+            .iter()
+            .find(|item| item.id() == object_id)
+            .map(|item| SearchResult {
+                object_id: item.id().to_string(),
+                name: item.get_name().to_string(),
+                result_type: item.get_type_str().to_string(),
+                score: frecency_score(item.usage_count(), item.last_used_at()),
+                path: match item {
+                    SearchableItem::Application(app) => Some(app.path.clone()),
+                    SearchableItem::Command(_) => None,
+                },
+                icon: item.resolved_icon(),
+                extension_id: match item {
+                    SearchableItem::Application(_) => None,
+                    SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
+                },
+                description: description_for(item),
+                type_label: type_label_for(item),
+                has_arguments: has_arguments_for(item),
+                favorite: favorites.contains(item.id()),
+                style: None,
+                alias: None,
+                tier: ranker::Tier::FrecencyOnly as u8,
+            }))
+    }
+
     pub fn merged_search_with_aliases(
         &self,
         query: &str,
@@ -1717,6 +1753,31 @@ impl SearchState {
             }
         };
 
+        // An alias names its target whether or not the text resembles the
+        // target's name, so ranking may not have surfaced it (and a backfill
+        // only carries it by luck of frecency). Pull it in from the index,
+        // unless it is disabled; an orphaned alias stays absent.
+        if let Some(ref m) = alias_match {
+            if !results.iter().any(|r| r.object_id == m.object_id) {
+                if let Some(mut row) = self.result_for_object_id(&m.object_id)? {
+                    let is_disabled = (row.result_type == "application"
+                        && disabled_object_ids.iter().any(|id| id == &row.object_id))
+                        || row
+                            .extension_id
+                            .as_ref()
+                            .is_some_and(|ext| disabled_extension_ids.iter().any(|id| id == ext));
+                    if !is_disabled {
+                        row.alias = aliases.lookup_alias_for(&row.object_id).ok().flatten();
+                        // Pinned even when it will auto-execute: the list must
+                        // stay in tier order for tier-based consumers.
+                        row.tier = ranker::Tier::Pinned as u8;
+                        row.score = 1.0;
+                        results.insert(0, row);
+                    }
+                }
+            }
+        }
+
         // Pin-to-top: trimmed query equals an alias but no auto-execute
         // fired (application alias, or command alias without trailing
         // space). Move the matched object to position 0 so the user sees
@@ -1728,6 +1789,15 @@ impl SearchState {
                     if idx > 0 {
                         let pinned = results.remove(idx);
                         results.insert(0, pinned);
+                    }
+                    // An exact alias is the strongest signal there is, whatever
+                    // tier ranking gave the row (a backfilled suggestion is
+                    // FrecencyOnly with the `-1.0` marker score). Reporting it
+                    // as Pinned keeps tier-based consumers — file-row
+                    // insertion, Run-row interleaving — from sorting past it.
+                    results[0].tier = ranker::Tier::Pinned as u8;
+                    if results[0].score < 0.0 {
+                        results[0].score = 1.0;
                     }
                 }
             }
@@ -3439,6 +3509,249 @@ mod service_tests {
             resp.results[0].object_id, "cmd_clip_history",
             "alias match without auto-execute must be pinned to position 0"
         );
+    }
+
+    fn alias_test_app(id: &str, name: &str, usage: u32) -> SearchableItem {
+        SearchableItem::Application(super::models::Application {
+            id: id.into(),
+            name: name.into(),
+            path: format!("/Applications/{name}.app"),
+            usage_count: usage,
+            icon: None,
+            last_used_at: None,
+            bundle_id: None,
+        })
+    }
+
+    #[test]
+    fn alias_pin_promotes_backfilled_row_to_pinned_tier() {
+        let search_state = fresh_search_state_with(vec![
+            alias_test_app("app_keeping", "KeepingYouAwake", 5),
+            alias_test_app("app_finder", "Finder", 3),
+            alias_test_app("app_notes", "Notes", 2),
+        ]);
+        let alias_state = AliasState::new_for_test();
+        alias_state
+            .set_alias("app_keeping", "amphe", "KeepingYouAwake", "application", 1)
+            .unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases("amphe", vec![], 10, &alias_state, &[])
+            .unwrap();
+
+        assert_eq!(resp.results[0].object_id, "app_keeping");
+        assert_eq!(resp.results[0].tier, ranker::Tier::Pinned as u8);
+        assert_eq!(resp.results[0].score, 1.0);
+    }
+
+    fn alias_test_cmd(id: &str, name: &str, extension: &str) -> SearchableItem {
+        SearchableItem::Command(super::models::Command {
+            id: id.into(),
+            name: name.into(),
+            extension: extension.into(),
+            trigger: name.into(),
+            command_type: "command".into(),
+            usage_count: 0,
+            icon: None,
+            last_used_at: None,
+            subtitle: None,
+            type_label: None,
+            has_arguments: false,
+            is_dynamic: false,
+        })
+    }
+
+    /// Twelve frecent filler apps (more than `min_results` below), so a
+    /// zero-usage target is neither ranked for the query nor backfilled.
+    fn crowded_index(target: SearchableItem) -> SearchState {
+        let mut items: Vec<SearchableItem> = (0..12)
+            .map(|i| alias_test_app(&format!("app_f{i}"), &format!("Filler{i:02}"), 10 + i))
+            .collect();
+        items.push(target);
+        fresh_search_state_with(items)
+    }
+
+    fn count_of(resp: &models::MergedSearchResponse, id: &str) -> usize {
+        resp.results.iter().filter(|r| r.object_id == id).count()
+    }
+
+    #[test]
+    fn alias_target_not_ranked_and_not_frecent_is_injected_at_top() {
+        let search_state = crowded_index(alias_test_app("app_zeta", "Zeta Tool", 0));
+        let alias_state = AliasState::new_for_test();
+        alias_state
+            .set_alias("app_zeta", "amphe", "Zeta Tool", "application", 1)
+            .unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases("amphe", vec![], 10, &alias_state, &[])
+            .unwrap();
+
+        assert_eq!(resp.results[0].object_id, "app_zeta");
+        assert_eq!(resp.results[0].tier, ranker::Tier::Pinned as u8);
+        assert_eq!(resp.results[0].alias.as_deref(), Some("amphe"));
+        assert_eq!(
+            resp.results[0].path.as_deref(),
+            Some("/Applications/Zeta Tool.app"),
+            "an application row needs its path or Enter cannot open it"
+        );
+        assert!(resp.alias_match.is_some());
+    }
+
+    #[test]
+    fn alias_target_disabled_application_is_not_injected() {
+        let search_state = crowded_index(alias_test_app("app_zeta", "Zeta Tool", 0));
+        let alias_state = AliasState::new_for_test();
+        alias_state
+            .set_alias("app_zeta", "amphe", "Zeta Tool", "application", 1)
+            .unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases(
+                "amphe",
+                vec![],
+                10,
+                &alias_state,
+                &["app_zeta".to_string()],
+            )
+            .unwrap();
+
+        assert_eq!(count_of(&resp, "app_zeta"), 0);
+    }
+
+    #[test]
+    fn alias_target_of_disabled_extension_is_not_injected() {
+        let search_state = crowded_index(alias_test_app("cmd_unused", "Unused", 0));
+        search_state
+            .index_one(alias_test_cmd("cmd_ext_zeta", "Zeta", "ext_x"))
+            .unwrap();
+        let alias_state = AliasState::new_for_test();
+        alias_state
+            .set_alias("cmd_ext_zeta", "amphe", "Zeta", "command", 1)
+            .unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases_filtered(
+                "amphe",
+                vec![],
+                10,
+                &alias_state,
+                &[],
+                &["ext_x".to_string()],
+            )
+            .unwrap();
+
+        assert_eq!(count_of(&resp, "cmd_ext_zeta"), 0);
+    }
+
+    #[test]
+    fn alias_target_already_present_is_not_duplicated() {
+        let search_state = fresh_search_state_with(vec![alias_test_app("app_finder", "Finder", 3)]);
+        let alias_state = AliasState::new_for_test();
+        alias_state
+            .set_alias("app_finder", "fin", "Finder", "application", 1)
+            .unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases("fin", vec![], 10, &alias_state, &[])
+            .unwrap();
+
+        assert_eq!(count_of(&resp, "app_finder"), 1);
+        assert_eq!(resp.results[0].object_id, "app_finder");
+    }
+
+    #[test]
+    fn command_alias_with_trailing_space_injects_target_and_keeps_auto_execute() {
+        let search_state = crowded_index(alias_test_cmd("cmd_ext_zeta", "Zeta", "ext_x"));
+        let alias_state = AliasState::new_for_test();
+        alias_state
+            .set_alias("cmd_ext_zeta", "zzq", "Zeta", "command", 1)
+            .unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases("zzq ", vec![], 10, &alias_state, &[])
+            .unwrap();
+
+        assert_eq!(count_of(&resp, "cmd_ext_zeta"), 1);
+        assert_eq!(resp.results[0].object_id, "cmd_ext_zeta");
+        assert_eq!(resp.results[0].tier, ranker::Tier::Pinned as u8);
+        assert!(resp.results[0].score >= 0.0);
+        assert!(resp.alias_match.expect("alias match").auto_execute);
+    }
+
+    fn file_row(id: &str) -> SearchResult {
+        SearchResult {
+            object_id: id.into(),
+            name: id.into(),
+            result_type: "file".into(),
+            score: 0.5,
+            path: Some(format!("/home/me/{id}")),
+            icon: None,
+            extension_id: Some("file-search".into()),
+            description: None,
+            type_label: None,
+            has_arguments: false,
+            favorite: false,
+            style: None,
+            alias: None,
+            tier: ranker::Tier::Files as u8,
+        }
+    }
+
+    #[test]
+    fn reported_case_alias_beats_inline_files() {
+        // Issue #978: alias `amphe` -> KeepingYouAwake, whose name does not
+        // contain the alias, so only backfill carries it. Files used to be
+        // spliced above it.
+        let search_state = fresh_search_state_with(vec![
+            alias_test_app("app_keeping", "KeepingYouAwake", 5),
+            alias_test_app("app_finder", "Finder", 3),
+            alias_test_app("app_notes", "Notes", 2),
+        ]);
+        let alias_state = AliasState::new_for_test();
+        alias_state
+            .set_alias("app_keeping", "amphe", "KeepingYouAwake", "application", 1)
+            .unwrap();
+        let mut resp = search_state
+            .merged_search_with_aliases("amphe", vec![], 10, &alias_state, &[])
+            .unwrap();
+
+        let files = (0..4).map(|i| file_row(&format!("file_{i}"))).collect();
+        file_search_inline::splice_file_rows(&mut resp.results, files);
+        resp.results.truncate(20);
+
+        assert_eq!(resp.results[0].object_id, "app_keeping");
+        assert!(resp.results[1..5].iter().all(|r| r.result_type == "file"));
+        assert!(resp.results.len() <= 20);
+    }
+
+    #[test]
+    fn short_alias_stays_first_and_adds_no_file_rows() {
+        let search_state = fresh_search_state_with(vec![
+            alias_test_cmd("cmd_search_files", "Search Files", "file-search"),
+            alias_test_app("app_finder", "Finder", 3),
+        ]);
+        let alias_state = AliasState::new_for_test();
+        alias_state
+            .set_alias("cmd_search_files", "f", "Search Files", "command", 1)
+            .unwrap();
+        let mut resp = search_state
+            .merged_search_with_aliases("f", vec![], 10, &alias_state, &[])
+            .unwrap();
+
+        let index = crate::file_index::service::FileIndexState::new(
+            crate::file_index::types::FileIndexConfig::default(),
+        );
+        let inserted = file_search_inline::append_inline_file_results(
+            &mut resp.results,
+            "f",
+            &index,
+            100,
+            None,
+        );
+
+        assert_eq!(inserted, 0);
+        assert_eq!(resp.results[0].object_id, "cmd_search_files");
     }
 
     #[test]

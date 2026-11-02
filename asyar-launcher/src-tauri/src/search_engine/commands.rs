@@ -52,12 +52,6 @@ pub async fn merged_search(
             .as_ref()
             .map(|s| s.config().enabled)
             .unwrap_or(false);
-    // Backfilled suggestions are marked `score == -1.0` by
-    // `SearchState::merged_search`; everything else is a real match.
-    let count_matched = |results: &[super::models::SearchResult]| {
-        results.iter().filter(|r| r.score != -1.0).count()
-    };
-
     // A typed filesystem path gets one exact row (hidden files and `~` work,
     // the file index is not needed) and suppresses unrelated fuzzy file hits.
     let home = dirs::home_dir();
@@ -80,18 +74,20 @@ pub async fn merged_search(
         )
         .await
         {
-            super::file_search_path::prepend_exact_row(&mut response.results, row);
+            super::file_search_path::prepend_exact_row(
+                &mut response.results,
+                row,
+                response.alias_match.as_ref().map(|a| a.object_id.as_str()),
+            );
         }
     }
 
-    let matched_count = count_matched(&response.results);
-    if include_files.unwrap_or(false) && file_search_available && matched_count < 20 {
+    if include_files.unwrap_or(false) && file_search_available && response.results.len() < 20 {
         if let Some(file_index) = file_index.as_ref() {
             let typed_prefix = typed_path.map(|p| p.to_string_lossy().into_owned());
             super::file_search_inline::append_inline_file_results(
                 &mut response.results,
                 &query,
-                matched_count,
                 file_index,
                 crate::file_index::ranking::now_seconds(),
                 typed_prefix.as_deref(),

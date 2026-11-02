@@ -17,7 +17,8 @@ pub const MIN_FILE_QUERY_CHARS: usize = 3;
 /// be crowded out by unrelated matches ranked above the true completions.
 pub const PATH_COMPLETION_CANDIDATES: usize = crate::file_index::query::DEFAULT_LIMIT;
 
-/// Inserts bounded file-index matches after the app/command match block.
+/// Inserts bounded file-index matches after the app/command match block
+/// (see `splice_file_rows` for how that position is chosen).
 ///
 /// `typed_prefix` is the path the user typed, when the query is path-shaped.
 /// The index matches on name and ancestor *fragments*, which is wrong for a
@@ -26,7 +27,6 @@ pub const PATH_COMPLETION_CANDIDATES: usize = crate::file_index::query::DEFAULT_
 pub fn append_inline_file_results(
     results: &mut Vec<SearchResult>,
     query: &str,
-    matched_count: usize,
     file_index: &FileIndexState,
     now: i64,
     typed_prefix: Option<&str>,
@@ -97,8 +97,21 @@ pub fn append_inline_file_results(
         })
         .collect();
 
+    splice_file_rows(results, rows)
+}
+
+/// Inserts `rows` right after the last real result, or at the end when every
+/// row is one. A real result is a row ranked above `Tier::Files`, or any row
+/// that is not a `-1.0` frecency backfill: an extension answer whose title
+/// misses the query is classified `FrecencyOnly` yet still outranks files.
+/// Counting rows from the front instead breaks when the alias pin moves a
+/// backfilled row to index 0, which put files above it.
+pub fn splice_file_rows(results: &mut Vec<SearchResult>, rows: Vec<SearchResult>) -> usize {
     let inserted = rows.len();
-    let insert_at = matched_count.min(results.len());
+    let insert_at = results
+        .iter()
+        .rposition(|r| r.tier < Tier::Files as u8 || r.score != -1.0)
+        .map_or(0, |last| last + 1);
     results.splice(insert_at..insert_at, rows);
     inserted
 }
@@ -235,6 +248,75 @@ mod tests {
         }
     }
 
+    fn row_tier(id: &str, tier: Tier, score: f32) -> SearchResult {
+        SearchResult {
+            tier: tier as u8,
+            ..row(id, None, score)
+        }
+    }
+
+    fn ids(rows: &[SearchResult]) -> Vec<&str> {
+        rows.iter().map(|r| r.object_id.as_str()).collect()
+    }
+
+    #[test]
+    fn splice_puts_files_below_pinned_row_with_no_real_matches() {
+        let mut rows = vec![
+            row_tier("pinned", Tier::Pinned, 1.0),
+            row_tier("backfill", Tier::FrecencyOnly, -1.0),
+        ];
+        splice_file_rows(&mut rows, vec![row_tier("file", Tier::Files, 0.5)]);
+        assert_eq!(ids(&rows), ["pinned", "file", "backfill"]);
+    }
+
+    #[test]
+    fn splice_keeps_files_after_all_real_matches() {
+        let mut rows = vec![
+            row_tier("t1", Tier::ExactTitle, 1.0),
+            row_tier("t3", Tier::TitleFuzzy, 1.0),
+            row_tier("t6", Tier::FrecencyOnly, -1.0),
+        ];
+        splice_file_rows(&mut rows, vec![row_tier("file", Tier::Files, 0.5)]);
+        assert_eq!(ids(&rows), ["t1", "t3", "file", "t6"]);
+    }
+
+    #[test]
+    fn splice_keeps_files_below_low_tier_extension_rows() {
+        // An extension answer whose title doesn't match the query is
+        // classified FrecencyOnly but is a real result (score >= 0): files
+        // must not jump above it.
+        let mut rows = vec![
+            row_tier("t1", Tier::ExactTitle, 1.0),
+            row_tier("ext_answer", Tier::FrecencyOnly, 0.5),
+            row_tier("backfill", Tier::FrecencyOnly, -1.0),
+        ];
+        splice_file_rows(&mut rows, vec![row_tier("file", Tier::Files, 0.5)]);
+        assert_eq!(ids(&rows), ["t1", "ext_answer", "file", "backfill"]);
+    }
+
+    #[test]
+    fn splice_appends_when_no_frecency_rows() {
+        let mut rows = vec![
+            row_tier("t1", Tier::ExactTitle, 1.0),
+            row_tier("t2", Tier::TitlePrefix, 1.0),
+        ];
+        splice_file_rows(&mut rows, vec![row_tier("file", Tier::Files, 0.5)]);
+        assert_eq!(ids(&rows), ["t1", "t2", "file"]);
+    }
+
+    #[test]
+    fn splice_returns_inserted_count() {
+        let mut rows = vec![row_tier("t1", Tier::ExactTitle, 1.0)];
+        let inserted = splice_file_rows(
+            &mut rows,
+            vec![
+                row_tier("f1", Tier::Files, 0.5),
+                row_tier("f2", Tier::Files, 0.4),
+            ],
+        );
+        assert_eq!(inserted, 2);
+    }
+
     #[test]
     fn inserts_capped_file_rows_after_the_matched_block() {
         let index = state(&[
@@ -248,10 +330,10 @@ mod tests {
         let mut rows = vec![
             row("a", None, 1.0),
             row("b", None, 1.0),
-            row("c", None, -1.0),
+            row_tier("c", Tier::FrecencyOnly, -1.0),
         ];
         assert_eq!(
-            append_inline_file_results(&mut rows, "report", 2, &index, 100, None),
+            append_inline_file_results(&mut rows, "report", &index, 100, None),
             4
         );
         assert!(rows[2..6].iter().all(|row| row.result_type == "file"));
@@ -263,7 +345,7 @@ mod tests {
         let ready = state(&["/home/me/report.txt"]);
         let mut rows = Vec::new();
         assert_eq!(
-            append_inline_file_results(&mut rows, "re", 0, &ready, 100, None),
+            append_inline_file_results(&mut rows, "re", &ready, 100, None),
             0
         );
 
@@ -272,13 +354,13 @@ mod tests {
             ..Default::default()
         });
         assert_eq!(
-            append_inline_file_results(&mut rows, "report", 0, &disabled, 100, None),
+            append_inline_file_results(&mut rows, "report", &disabled, 100, None),
             0
         );
 
         let building = FileIndexState::new(FileIndexConfig::default());
         assert_eq!(
-            append_inline_file_results(&mut rows, "report", 0, &building, 100, None),
+            append_inline_file_results(&mut rows, "report", &building, 100, None),
             0
         );
     }
@@ -288,12 +370,12 @@ mod tests {
         let index = state(&["/home/me/Safari.app", "/home/me/report.txt"]);
         let mut rows = vec![row("app_safari", Some("/home/me/Safari.app"), 1.0)];
         assert_eq!(
-            append_inline_file_results(&mut rows, "safari", 1, &index, 100, None),
+            append_inline_file_results(&mut rows, "safari", &index, 100, None),
             0
         );
 
         assert_eq!(
-            append_inline_file_results(&mut rows, "report", 1, &index, 100, None),
+            append_inline_file_results(&mut rows, "report", &index, 100, None),
             1
         );
         assert_eq!(rows[1].tier, Tier::Files as u8);
@@ -302,7 +384,7 @@ mod tests {
         // Windows-style backslashes in existing row deduplicate against forward-slash indexed paths
         let mut rows_win = vec![row("app_safari", Some(r"\home\me\Safari.app"), 1.0)];
         assert_eq!(
-            append_inline_file_results(&mut rows_win, "safari", 1, &index, 100, None),
+            append_inline_file_results(&mut rows_win, "safari", &index, 100, None),
             0
         );
     }
@@ -321,7 +403,6 @@ mod tests {
         let inserted = append_inline_file_results(
             &mut rows,
             "/home/me/dev",
-            0,
             &index,
             100,
             Some("/home/me/dev"),
@@ -346,12 +427,12 @@ mod tests {
         ]);
         let mut rows = Vec::new();
         assert!(
-            append_inline_file_results(&mut rows, "/etc/hosts", 0, &index, 100, None) > 0,
+            append_inline_file_results(&mut rows, "/etc/hosts", &index, 100, None) > 0,
             "control: the fuzzy match exists"
         );
         let mut rows = Vec::new();
         assert_eq!(
-            append_inline_file_results(&mut rows, "/etc/hosts", 0, &index, 100, Some("/etc/hosts")),
+            append_inline_file_results(&mut rows, "/etc/hosts", &index, 100, Some("/etc/hosts")),
             0
         );
     }
@@ -372,7 +453,6 @@ mod tests {
         append_inline_file_results(
             &mut rows,
             "/home/me/develop",
-            0,
             &index,
             100,
             Some("/home/me/develop"),
