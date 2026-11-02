@@ -117,6 +117,22 @@ export async function openSettingsPane(bundleId: string): Promise<boolean> {
   return invokeSafe<boolean>('open_settings_pane', { bundleId });
 }
 
+export type CalendarAccessKind = 'calendar' | 'reminders';
+export type CalendarAccessState =
+  'notDetermined' | 'granted' | 'denied' | 'writeOnly' | 'unsupported';
+
+/** Current Calendar / Reminders privacy decision, without prompting. */
+export async function calendarAccessStatus(kind: CalendarAccessKind): Promise<CalendarAccessState> {
+  return invokeSafe<CalendarAccessState>('calendar_access_status', { kind });
+}
+
+/** Shows the macOS prompt when the decision is still open; resolves the resulting state. */
+export async function calendarRequestAccess(
+  kind: CalendarAccessKind,
+): Promise<CalendarAccessState> {
+  return invokeSafe<CalendarAccessState>('calendar_request_access', { kind });
+}
+
 export async function openUrl(url: string): Promise<void> {
   await invokeSafe('plugin:opener|open_url', { url });
 }

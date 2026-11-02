@@ -4,6 +4,12 @@ import type {
   TimerDescriptor,
   KeepAwakeOptions,
   MediaSessionInfo,
+  CalendarEvent,
+  CalendarSource,
+  CreateEventInput,
+  CreateReminderInput,
+  ReminderItem,
+  ReminderList,
   MediaTransportAction,
   ActiveInhibitor,
   AppGroup,
@@ -70,6 +76,68 @@ export async function mediaControl(
   playerId: string | null,
 ): Promise<boolean> {
   return invokeSafeVoid('media_control', { extensionId, action, playerId });
+}
+
+export async function calendarListCalendars(extensionId: string | null): Promise<CalendarSource[]> {
+  return invokeSafe<CalendarSource[]>('calendar_list_calendars', { extensionId });
+}
+
+export async function calendarListEvents(
+  extensionId: string | null,
+  startAt: number,
+  endAt: number,
+  calendarIds: string[] | null,
+): Promise<CalendarEvent[]> {
+  return invokeSafe<CalendarEvent[]>('calendar_list_events', {
+    extensionId,
+    startAt,
+    endAt,
+    calendarIds,
+  });
+}
+
+export async function calendarCreateEvent(
+  extensionId: string | null,
+  input: CreateEventInput,
+): Promise<CalendarEvent> {
+  return invokeSafe<CalendarEvent>('calendar_create_event', { extensionId, input });
+}
+
+export async function calendarListReminderLists(
+  extensionId: string | null,
+): Promise<ReminderList[]> {
+  return invokeSafe<ReminderList[]>('calendar_list_reminder_lists', { extensionId });
+}
+
+export async function calendarListReminders(
+  extensionId: string | null,
+  listIds: string[] | null,
+  includeCompleted: boolean,
+): Promise<ReminderItem[]> {
+  return invokeSafe<ReminderItem[]>('calendar_list_reminders', {
+    extensionId,
+    listIds,
+    includeCompleted,
+  });
+}
+
+export async function calendarCreateReminder(
+  extensionId: string | null,
+  input: CreateReminderInput,
+): Promise<ReminderItem> {
+  return invokeSafe<ReminderItem>('calendar_create_reminder', { extensionId, input });
+}
+
+export async function calendarSetReminderCompleted(
+  extensionId: string | null,
+  id: string,
+  completed: boolean,
+): Promise<ReminderItem> {
+  return invokeSafe<ReminderItem>('calendar_set_reminder_completed', {
+    extensionId,
+    id,
+    completed,
+  });
 }
 
 export async function screenPickColor(extensionId: string | null): Promise<PickedColor | null> {

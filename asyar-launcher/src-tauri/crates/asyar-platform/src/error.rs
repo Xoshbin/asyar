@@ -6,6 +6,8 @@ pub enum PlatformError {
     WindowHandle(String),
     #[error("Unsupported platform operation: {0}")]
     Unsupported(String),
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
     #[error("OS API error: {0}")]
     OsError(String),
 }

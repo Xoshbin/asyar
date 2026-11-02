@@ -45,6 +45,7 @@ import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { ApplicationServiceProxy } from './services/ApplicationService';
 import { PowerServiceProxy } from './services/PowerServiceProxy';
 import { MediaServiceProxy } from './services/MediaServiceProxy';
+import { CalendarServiceProxy } from './services/CalendarServiceProxy';
 import { ScreenServiceProxy } from './services/ScreenServiceProxy';
 import { ProcessServiceProxy } from './services/ProcessServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
@@ -85,6 +86,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     application: new ApplicationServiceProxy(),
     power: new PowerServiceProxy(),
     media: new MediaServiceProxy(),
+    calendar: new CalendarServiceProxy(),
     screen: new ScreenServiceProxy(),
     calculator: new CalculatorServiceProxy(),
     process: new ProcessServiceProxy(),

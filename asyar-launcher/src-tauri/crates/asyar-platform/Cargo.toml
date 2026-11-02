@@ -18,11 +18,12 @@ dirs = "5.0"
 sys-locale = "0.3"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["v4"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 icns = "0.3"
 block2 = "0.5"
-objc2 = "0.5"
+objc2 = { version = "0.5", features = ["exception"] }
 objc2-foundation = { version = "0.2", features = ["all"] }
 objc2-app-kit = { version = "0.2", features = ["all"] }
 core-foundation = "0.10"
@@ -42,6 +43,8 @@ windows = { version = "0.62", features = [
     "Win32_Storage_FileSystem",
     "Win32_System_Threading",
     "Media_Control",
+    "ApplicationModel_Appointments",
+    "Foundation",
     "Foundation_Collections",
 ] }
 

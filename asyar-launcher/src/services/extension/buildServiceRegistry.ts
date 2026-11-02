@@ -36,6 +36,7 @@ import { openerService } from '../opener/openerService';
 import { networkService } from '../network/networkService';
 import { powerService } from '../power/powerService';
 import { mediaService } from '../media/mediaService';
+import { calendarService } from '../calendar/calendarService';
 import { screenService } from '../screen/screenService';
 import { processService } from '../process/processService';
 import { systemEventsService } from '../systemEvents/systemEventsService';
@@ -188,6 +189,7 @@ export function buildServiceRegistry(deps: {
     network: networkService,
     power: powerService,
     media: mediaService,
+    calendar: calendarService,
     screen: screenService,
     process: processService,
     systemEvents: systemEventsService,
