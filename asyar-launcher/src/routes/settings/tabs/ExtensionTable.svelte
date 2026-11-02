@@ -1,6 +1,10 @@
 <script lang="ts">
   import { Input } from '../../../components';
-  import { Toggle, EmptyState, LoadingState, Icon } from '../../../components';
+  import { Toggle, EmptyState, LoadingState, Icon, Badge } from '../../../components';
+  import KeyboardHint from '../../../components/base/KeyboardHint.svelte';
+  import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
+  import { shortcutStore } from '../../../built-in-features/shortcuts/shortcutStore.svelte';
+  import { toDisplayString } from '../../../built-in-features/shortcuts/shortcutFormatter';
   import type { SettingsHandler, ExtensionItem } from '../settingsHandlers.svelte';
   import { extensionStateManager } from '../../../services/extension/extensionStateManager.svelte';
   import { extensionUpdateService } from '../../../services/extension/extensionUpdateService.svelte';
@@ -95,6 +99,18 @@
     filterExtensions(handler.extensions, searchQuery, activeFilter, scope),
   );
 
+  // A single-command feature shows that command's alias and hotkey on its own row.
+  function primaryAlias(ext: ExtensionItem): string | undefined {
+    if (ext.commands?.length !== 1 || !ext.id) return undefined;
+    return aliasStore.byObjectId.get(`cmd_${ext.id}_${ext.commands[0].id}`);
+  }
+
+  function primaryShortcut(ext: ExtensionItem): string | undefined {
+    if (ext.commands?.length !== 1 || !ext.id) return undefined;
+    const objectId = `cmd_${ext.id}_${ext.commands[0].id}`;
+    return shortcutStore.shortcuts.find((sc) => sc.objectId === objectId)?.shortcut;
+  }
+
   function getTypeLabel(ext: ExtensionItem): string {
     if (ext.isBuiltIn) return t('settings.extensions.type_builtin');
     if (ext.type === 'theme') return t('settings.extensions.type_theme');
@@ -143,6 +159,8 @@
 {#snippet extensionRows(list: ExtensionItem[])}
   {#each list as ext (ext.id ?? ext.title)}
     {@const isExpanded = expandedIds.has(ext.id ?? ext.title)}
+    {@const alias = primaryAlias(ext)}
+    {@const hotkey = primaryShortcut(ext)}
     <div
       class="ext-row"
       role="row"
@@ -179,41 +197,68 @@
             {/snippet}
           </AppIcon>
         </div>
-        <span class="ext-title">{ext.title}</span>
-        {#if ext.id && extensionUpdateService.getUpdateForExtension(ext.id)}
-          <button
-            class="update-link"
-            onclick={(e) => {
-              e.stopPropagation();
-              ext.id && handleUpdateExtension(ext.id);
-            }}
-            disabled={ext.id ? extensionUpdateService.isExtensionUpdating(ext.id) : false}
-          >
-            {ext.id && extensionUpdateService.isExtensionUpdating(ext.id) ? 'Updating…' : 'Update'}
-          </button>
-        {/if}
+        <div class="ext-info">
+          <div class="ext-title-row">
+            <span class="ext-title">{ext.title}</span>
+            {#if ext.commands?.length}
+              <span class="cmd-count-pill"
+                >{ext.commands.length}
+                {ext.commands.length === 1
+                  ? t('settings.extensions.command_singular')
+                  : t('settings.extensions.command_plural')}</span
+              >
+            {/if}
+            {#if ext.id && extensionUpdateService.getUpdateForExtension(ext.id)}
+              <button
+                class="update-link"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  ext.id && handleUpdateExtension(ext.id);
+                }}
+                disabled={ext.id ? extensionUpdateService.isExtensionUpdating(ext.id) : false}
+              >
+                {ext.id && extensionUpdateService.isExtensionUpdating(ext.id)
+                  ? 'Updating…'
+                  : 'Update'}
+              </button>
+            {/if}
+          </div>
+          {#if ext.subtitle}
+            <div class="ext-subtitle">{ext.subtitle}</div>
+          {/if}
+        </div>
       </div>
       {#if showType}
         <span class="col-type row-type">{getTypeLabel(ext)}</span>
       {/if}
-      <span class="col-alias row-muted">—</span>
-      <span class="col-hotkey row-muted">—</span>
+      <span class="col-alias row-muted">
+        {#if alias}<span class="alias-pill text-mono">{alias}</span>{:else}—{/if}
+      </span>
+      <span class="col-hotkey row-muted">
+        {#if hotkey}<KeyboardHint keys={toDisplayString(hotkey)} />{:else}—{/if}
+      </span>
       <div class="col-on">
-        <Toggle
-          checked={ext.isBuiltIn
-            ? ext.disableable
-              ? ext.enabled === true
-              : true
-            : ext.enabled === true}
-          disabled={(ext.isBuiltIn && !ext.disableable) ||
-            handler.togglingExtension === ext.title ||
-            extensionStateManager.extensionUninstallInProgress === ext.id ||
-            (ext.compatibility?.status !== 'compatible' && ext.compatibility?.status !== 'unknown')}
-          title={ext.isBuiltIn && !ext.disableable
-            ? t('settings.extensions.required_builtin_explanation')
-            : undefined}
-          onchange={() => handler.toggleExtension(ext)}
-        />
+        {#if ext.isBuiltIn && !ext.disableable}
+          <Badge text={t('settings.extensions.always_on')} variant="default" />
+        {:else}
+          <Toggle
+            checked={ext.isBuiltIn
+              ? ext.disableable
+                ? ext.enabled === true
+                : true
+              : ext.enabled === true}
+            disabled={(ext.isBuiltIn && !ext.disableable) ||
+              handler.togglingExtension === ext.title ||
+              extensionStateManager.extensionUninstallInProgress === ext.id ||
+              (ext.compatibility?.status !== 'compatible' &&
+                ext.compatibility?.status !== 'unknown')}
+            title={ext.isBuiltIn && !ext.disableable
+              ? t('settings.extensions.required_builtin_explanation')
+              : undefined}
+            onchange={() => handler.toggleExtension(ext)}
+          />
+        {/if}
+        <Icon name="chevron-right" size={14} class="row-drill-chevron" />
       </div>
     </div>
     {#if isExpanded && ext.commands?.length}
@@ -252,8 +297,18 @@
     </div>
   {/if}
 
-  <div class="left-panel" class:with-type={showType}>
-    <!-- toolbar: search + filter chips + plus button -->
+  <div class="section-header-row">
+    <div class="section-heading">
+      {#if isThirdParty}
+        <div class="section-title">
+          {t('settings.tabs.extensions')}
+          <span class="section-count">{filteredExtensions.length}</span>
+        </div>
+      {:else}
+        <div class="section-title">{t('settings.tabs.built_in_features')}</div>
+        <div class="section-subtitle">{t('settings.extensions.built_in_subtitle')}</div>
+      {/if}
+    </div>
     <div class="toolbar-row">
       <div class="search-box">
         <Icon name="search" size={13} strokeWidth={2} class="search-icon" />
@@ -300,7 +355,9 @@
         </div>
       {/if}
     </div>
+  </div>
 
+  <div class="left-panel" class:with-type={showType}>
     <!-- column headers -->
     <div class="col-headers">
       <span class="col-name">{t('settings.extensions.table_name')}</span>
@@ -437,7 +494,7 @@
   /* ── Shell ────────────────────────────────────────── */
   /* Same frame as SettingsCard, so the table lines up with every card around it. */
   .left-panel {
-    --ext-cols: 1fr 88px 112px 56px;
+    --ext-cols: 1fr 88px 112px 88px;
     display: flex;
     flex-direction: column;
     background: var(--bg-secondary);
@@ -447,7 +504,7 @@
   }
 
   .left-panel.with-type {
-    --ext-cols: 1fr 80px 88px 112px 56px;
+    --ext-cols: 1fr 80px 88px 112px 88px;
   }
 
   .ext-shell {
@@ -479,13 +536,45 @@
     color: var(--text-primary);
   }
 
-  /* ── Toolbar row (search + chips + plus) ─────────── */
+  /* ── Section header + toolbar (search + chips + plus) ── */
+  .section-header-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+
+  .section-heading {
+    min-width: 0;
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .section-count {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-tertiary);
+  }
+
+  .section-subtitle {
+    margin-top: var(--space-1);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
   .toolbar-row {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--separator);
     overflow-x: auto;
     flex-shrink: 0;
   }
@@ -665,7 +754,15 @@
   }
 
   .col-on {
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+  }
+
+  .col-on :global(.row-drill-chevron) {
+    color: var(--text-tertiary);
+    flex-shrink: 0;
   }
 
   /* ── Table body ───────────────────────────────────── */
@@ -736,10 +833,10 @@
   }
 
   .ext-icon {
-    width: 30px;
-    height: 30px;
+    width: var(--size-xl);
+    height: var(--size-xl);
     border-radius: var(--radius-md);
-    background: var(--bg-tertiary);
+    background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-tertiary));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -755,8 +852,50 @@
     color: var(--text-secondary);
   }
 
+  .ext-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .ext-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .cmd-count-pill {
+    flex-shrink: 0;
+    padding: var(--space-0-5) var(--space-2);
+    border-radius: var(--radius-xs);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-2xs);
+  }
+
+  .ext-subtitle {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .alias-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-0-5) var(--space-2);
+    border-radius: var(--radius-xs);
+    background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-secondary);
+    font-size: var(--font-size-2xs);
+    font-weight: 500;
+  }
+
   .ext-title {
     font-size: var(--font-size-sm);
+    font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;

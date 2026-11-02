@@ -49,8 +49,15 @@
           label: t('settings.tabs.built_in_features'),
           icon: 'layers',
           group: 'app',
+          count: handler.extensions.filter((e) => e.isBuiltIn).length,
         },
-        { id: 'extensions', label: t('settings.tabs.extensions'), icon: 'puzzle', group: 'app' },
+        {
+          id: 'extensions',
+          label: t('settings.tabs.extensions'),
+          icon: 'puzzle',
+          group: 'app',
+          count: handler.extensions.filter((e) => !e.isBuiltIn).length,
+        },
         { id: 'privacy', label: t('settings.tabs.privacy'), icon: 'lock', group: 'app' },
         { id: 'backup', label: t('settings.tabs.backup'), icon: 'cloud-upload', group: 'app' },
         { id: 'advanced', label: t('settings.tabs.advanced'), icon: 'dev-tools', group: 'system' },
@@ -61,11 +68,19 @@
                 label: t('settings.tabs.developer'),
                 icon: 'dev-tools',
                 group: 'system',
+                badge: 'DEV',
               },
             ]
           : []),
         { id: 'about', label: t('settings.tabs.about'), icon: 'info', group: 'system' },
-      ] as { id: SettingsTabId; label: string; icon: string; group: 'top' | 'app' | 'system' }[]
+      ] as {
+        id: SettingsTabId;
+        label: string;
+        icon: string;
+        group: 'top' | 'app' | 'system';
+        count?: number;
+        badge?: string;
+      }[]
     ).map((tab) => ({ ...tab, keywords: SETTINGS_TAB_KEYWORDS[tab.id] })),
   );
 
@@ -123,6 +138,7 @@
       tabs={settingsTabs}
       bind:activeTab={handler.activeTab}
       bind:query={sidebarQuery}
+      accountUser={authService.user}
     />
 
     <div class="settings-main">

@@ -81,4 +81,31 @@ describe('SettingsSidebar', () => {
     expect(input.value).toBe('');
     expect(screen.getByText('About')).toBeTruthy();
   });
+
+  it('renders the account row as a profile card with name and email when signed in', () => {
+    render(SettingsSidebar, {
+      tabs: [...tabs],
+      activeTab: 'general',
+      accountUser: { name: 'ada', email: 'ada@example.com' },
+    });
+    expect(screen.getByText('ada')).toBeTruthy();
+    expect(screen.getByText('ada@example.com')).toBeTruthy();
+    expect(screen.getByText('A')).toBeTruthy();
+  });
+
+  it('falls back to the tab label and subtitle when signed out', () => {
+    render(SettingsSidebar, { tabs: [...tabs], activeTab: 'general', accountUser: null });
+    expect(screen.getByText('Account')).toBeTruthy();
+    expect(screen.getByText('Account & Cloud Sync')).toBeTruthy();
+  });
+
+  it('shows a count and a badge on the trailing edge', () => {
+    const withExtras = [
+      { id: 'general', label: 'General', icon: 'settings', group: 'app', count: 7 },
+      { id: 'developer', label: 'Developer', icon: 'dev-tools', group: 'system', badge: 'DEV' },
+    ];
+    render(SettingsSidebar, { tabs: withExtras as never, activeTab: 'general' });
+    expect(screen.getByText('7')).toBeTruthy();
+    expect(screen.getAllByText('DEV').length).toBeGreaterThan(0);
+  });
 });

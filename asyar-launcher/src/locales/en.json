@@ -340,6 +340,10 @@
       "section_installed": "Installed Extensions",
       "type_builtin": "Built-in",
       "required_builtin_explanation": "Required core feature cannot be disabled",
+      "always_on": "Always on",
+      "built_in_subtitle": "Native capabilities built into Asyar. Click any feature to configure its settings and commands.",
+      "command_singular": "command",
+      "command_plural": "commands",
       "type_command": "Command",
       "type_extension": "Extension",
       "type_theme": "Theme",
@@ -819,6 +823,7 @@
     "nav": {
       "group_app": "App",
       "group_system": "System",
+      "account_subtitle": "Account & Cloud Sync",
       "back": "Back",
       "forward": "Forward",
       "search_placeholder": "Search settings",

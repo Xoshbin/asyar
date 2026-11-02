@@ -1,7 +1,6 @@
 <script lang="ts">
   import { EmptyState } from '../index';
   import Badge from '../base/Badge.svelte';
-  import Toggle from '../base/Toggle.svelte';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
   import PermissionList from './PermissionList.svelte';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
@@ -26,24 +25,16 @@
   let {
     extension = null,
     command = null,
-    isToggling = false,
-    isUninstalling = false,
     preferencesVersion = 0,
-    onToggle,
-    onUninstall,
   }: {
     extension?: ExtensionItem | null;
     command?: { cmd: HostCommand; parent: ExtensionItem } | null;
-    isToggling?: boolean;
-    isUninstalling?: boolean;
     /**
      * Reactive bump counter from SettingsHandler. Incremented whenever an
      * `asyar:preferences-changed` Tauri event arrives, so the load effect
      * below re-runs and picks up fresh values after a cross-webview write.
      */
     preferencesVersion?: number;
-    onToggle?: (ext: ExtensionItem) => void;
-    onUninstall?: (ext: ExtensionItem) => void;
   } = $props();
 
   let preferenceValues = $state<Record<string, any>>({});
@@ -67,12 +58,10 @@
         needsRuntimeDownload),
   );
 
-  // A built-in with nothing to show beyond its title collapses to the header alone.
+  // A built-in with nothing to show beyond its hero collapses to the hero alone.
   const hasBody = $derived(
     !!extension &&
-      (!!extension.subtitle ||
-        needsRuntimeDownload ||
-        hasBadges ||
+      (needsRuntimeDownload ||
         (!extension.isBuiltIn && (extension.permissions?.length ?? 0) > 0) ||
         !!extension.permissions?.includes('network:lan') ||
         (extension.preferences?.length ?? 0) > 0),
@@ -292,54 +281,52 @@
     </div>
   </div>
 {:else if extension}
-  <div class="panel-card">
-    <div class="panel-header">
-      <div class="panel-icon">
-        <AppIcon icon={extension.icon} size={28} alt={extension.title}>
-          {#snippet fallback()}
-            <span class="panel-icon-letter">{extension.title[0]?.toUpperCase() ?? 'E'}</span>
-          {/snippet}
-        </AppIcon>
-      </div>
-      <div class="panel-meta">
-        <div class="panel-title">{extension.title}</div>
-      </div>
-      <div class="panel-actions">
-        <Toggle
-          checked={extension.isBuiltIn
-            ? extension.disableable
-              ? extension.enabled === true
-              : true
-            : extension.enabled === true}
-          disabled={(extension.isBuiltIn && !extension.disableable) || isToggling}
-          title={extension.isBuiltIn && !extension.disableable
-            ? t('settings.extensions.required_builtin_explanation')
-            : undefined}
-          onchange={() => onToggle?.(extension!)}
-        />
-        {#if !extension.isBuiltIn}
-          <button
-            class="uninstall-btn"
-            onclick={() => onUninstall?.(extension!)}
-            disabled={isUninstalling}
-          >
-            {isUninstalling
-              ? t('settings.extensions.uninstalling')
-              : t('settings.extensions.uninstall')}
-          </button>
-        {/if}
-      </div>
+  <div class="hero">
+    <div class="hero-icon">
+      <AppIcon icon={extension.icon} size={28} alt={extension.title}>
+        {#snippet fallback()}
+          <span class="panel-icon-letter">{extension.title[0]?.toUpperCase() ?? 'E'}</span>
+        {/snippet}
+      </AppIcon>
     </div>
-
-    {#if hasBody}
-      <div class="panel-body">
-        {#if extension.subtitle}
-          <div class="panel-section">
-            <div class="section-header">{t('common.description')}</div>
-            <p class="panel-desc">{extension.subtitle}</p>
-          </div>
+    <div class="hero-title">{extension.title}</div>
+    {#if extension.subtitle}
+      <p class="hero-desc">{extension.subtitle}</p>
+    {/if}
+    {#if hasBadges}
+      <div class="panel-badges hero-badges">
+        {#if extension.isBuiltIn}
+          <!-- no type badge: the page already says Built-in Features -->
+        {:else if extension.type === 'theme'}
+          <Badge text={t('settings.extensions.type_theme')} variant="info" />
+        {:else if extension.type}
+          <Badge text={t('settings.extensions.type_extension')} variant="info" />
         {/if}
+        {#if extension.version}
+          <Badge text="v{extension.version}" variant="default" mono />
+        {/if}
+        {#if extension.compatibility?.status === 'sdkMismatch'}
+          <Badge text="Requires SDK {extension.compatibility.required}" variant="danger" />
+        {/if}
+        {#if extension.compatibility?.status === 'appVersionTooOld'}
+          <Badge text="Requires app v{extension.compatibility.required}+" variant="danger" />
+        {/if}
+        {#if extension.compatibility?.status === 'platformNotSupported'}
+          <Badge text="{extension.compatibility.platform} not supported" variant="danger" />
+        {/if}
+        {#if needsPermissionReview}
+          <Badge text={t('settings.extensions.permissions_need_review')} variant="danger" />
+        {/if}
+        {#if needsRuntimeDownload}
+          <Badge text={t('settings.extensions.needs_runtime_download')} variant="danger" />
+        {/if}
+      </div>
+    {/if}
+  </div>
 
+  {#if hasBody}
+    <div class="panel-card">
+      <div class="panel-body panel-body-flush">
         {#if needsRuntimeDownload}
           <div class="panel-section">
             <div class="section-header flex-header">
@@ -355,36 +342,6 @@
             <p class="panel-desc">
               {t('settings.extensions.runtime_failed_desc')}
             </p>
-          </div>
-        {/if}
-
-        {#if hasBadges}
-          <div class="panel-section panel-badges">
-            {#if extension.isBuiltIn}
-              <!-- no type badge: the page already says Built-in Features -->
-            {:else if extension.type === 'theme'}
-              <Badge text={t('settings.extensions.type_theme')} variant="info" />
-            {:else if extension.type}
-              <Badge text={t('settings.extensions.type_extension')} variant="info" />
-            {/if}
-            {#if extension.version}
-              <Badge text="v{extension.version}" variant="default" mono />
-            {/if}
-            {#if extension.compatibility?.status === 'sdkMismatch'}
-              <Badge text="Requires SDK {extension.compatibility.required}" variant="danger" />
-            {/if}
-            {#if extension.compatibility?.status === 'appVersionTooOld'}
-              <Badge text="Requires app v{extension.compatibility.required}+" variant="danger" />
-            {/if}
-            {#if extension.compatibility?.status === 'platformNotSupported'}
-              <Badge text="{extension.compatibility.platform} not supported" variant="danger" />
-            {/if}
-            {#if needsPermissionReview}
-              <Badge text={t('settings.extensions.permissions_need_review')} variant="danger" />
-            {/if}
-            {#if needsRuntimeDownload}
-              <Badge text={t('settings.extensions.needs_runtime_download')} variant="danger" />
-            {/if}
           </div>
         {/if}
 
@@ -450,8 +407,8 @@
           </div>
         {/if}
       </div>
-    {/if}
-  </div>
+    </div>
+  {/if}
 {:else}
   <EmptyState message={t('settings.extensions.select_extension_or_command')} />
 {/if}
@@ -468,6 +425,50 @@
     padding: 0 var(--space-6) var(--space-5);
     border-top: 1px solid var(--separator);
     padding-top: var(--space-5);
+  }
+
+  /* The hero above already separates the card, so no inner rule. */
+  .panel-body-flush {
+    border-top: none;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+    padding: var(--space-6) var(--space-6) var(--space-4);
+  }
+
+  .hero-icon {
+    width: var(--size-2xl);
+    height: var(--size-2xl);
+    border-radius: var(--radius-xl);
+    background: color-mix(in srgb, var(--accent-primary) 14%, var(--bg-secondary));
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .hero-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .hero-desc {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    max-width: 480px;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .hero-badges {
+    justify-content: center;
   }
 
   /* Same frame as SettingsCard so its edges line up with the cards around it. */
@@ -514,33 +515,6 @@
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
     margin-top: var(--space-1);
-  }
-
-  .panel-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-shrink: 0;
-    margin-top: var(--space-1);
-  }
-
-  .uninstall-btn {
-    font-size: var(--font-size-xs);
-    color: var(--accent-danger);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    transition: var(--transition-fast);
-  }
-
-  .uninstall-btn:hover {
-    opacity: 0.8;
-  }
-
-  .uninstall-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   .panel-section {

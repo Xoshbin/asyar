@@ -340,6 +340,10 @@
       "section_installed": "Extensões Instaladas",
       "type_builtin": "Integrado",
       "required_builtin_explanation": "Recurso essencial não pode ser desativado",
+      "always_on": "Sempre ativo",
+      "built_in_subtitle": "Recursos nativos integrados ao Asyar. Clique em qualquer recurso para configurar suas opções e comandos.",
+      "command_singular": "comando",
+      "command_plural": "comandos",
       "type_command": "Comando",
       "type_extension": "Extensão",
       "type_theme": "Tema",
@@ -819,6 +823,7 @@
     "nav": {
       "group_app": "App",
       "group_system": "Sistema",
+      "account_subtitle": "Conta e sincronização na nuvem",
       "back": "Voltar",
       "forward": "Avançar",
       "search_placeholder": "Buscar configurações",

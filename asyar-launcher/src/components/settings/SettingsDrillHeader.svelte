@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import Icon from '../base/Icon.svelte';
   import { t } from '../../services/i18n';
 
@@ -9,6 +10,7 @@
     canForward,
     onback,
     onforward,
+    actions,
   }: {
     title?: string;
     parentLabel: string;
@@ -16,6 +18,8 @@
     canForward: boolean;
     onback: () => void;
     onforward: () => void;
+    /** Trailing controls (e.g. the enable toggle) on the right of the bar. */
+    actions?: Snippet;
   } = $props();
 
   function isEditable(target: EventTarget | null): boolean {
@@ -74,6 +78,9 @@
       <span class="parent">{parentLabel}</span>
     {/if}
   </div>
+  {#if actions}
+    <div class="actions">{@render actions()}</div>
+  {/if}
 </div>
 
 <style>
@@ -81,6 +88,27 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    padding: var(--space-3) var(--space-6);
+    border-bottom: 1px solid var(--separator);
+    background: var(--bg-primary);
+    flex-shrink: 0;
+    /* Pinned over the padded, scrolling content area it lives in. */
+    position: sticky;
+    top: calc(-1 * var(--space-5));
+    z-index: var(--z-raised);
+    margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-6)) 0;
+  }
+
+  .breadcrumb {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
   }
 
   .nav-group {

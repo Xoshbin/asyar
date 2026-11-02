@@ -218,4 +218,10 @@ describe('ExtensionsTab surface settings and drill-down', () => {
     expect(screen.queryByRole('button', { name: 'settings.nav.back' })).toBeNull();
     expect(handler.pendingExtensionSelection).toBeNull();
   });
+
+  it('puts the Uninstall action in the drill header', async () => {
+    render(ExtensionsTab, { props: { handler: createHandler([thirdParty]) } });
+    await fireEvent.click(screen.getByText('Store Ext'));
+    expect(screen.getByRole('button', { name: 'settings.extensions.uninstall' })).toBeTruthy();
+  });
 });

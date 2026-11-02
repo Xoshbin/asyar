@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import { ExtensionDetailPanel } from '../../../components';
   import SettingsDrillHeader from '../../../components/settings/SettingsDrillHeader.svelte';
+  import { Toggle, Badge } from '../../../components';
   import ExtensionCommandRows from './ExtensionCommandRows.svelte';
   import { t } from '../../../services/i18n';
   import { extensionStateManager } from '../../../services/extension/extensionStateManager.svelte';
@@ -45,6 +46,29 @@
   );
 </script>
 
+{#snippet actions()}
+  {#if extension.isBuiltIn && !extension.disableable}
+    <Badge text={t('settings.extensions.always_on')} variant="default" />
+  {:else}
+    <Toggle
+      checked={extension.enabled === true}
+      disabled={handler.togglingExtension !== null}
+      onchange={() => handler.toggleExtension(extension)}
+    />
+  {/if}
+  {#if !extension.isBuiltIn}
+    <button
+      class="uninstall-btn"
+      onclick={() => handler.requestUninstallExtension(extension)}
+      disabled={extensionStateManager.extensionUninstallInProgress !== null}
+    >
+      {extensionStateManager.extensionUninstallInProgress !== null
+        ? t('settings.extensions.uninstalling')
+        : t('settings.extensions.uninstall')}
+    </button>
+  {/if}
+{/snippet}
+
 <div class="drill-view">
   <SettingsDrillHeader
     title={extension.title}
@@ -53,17 +77,16 @@
     {canForward}
     {onback}
     {onforward}
+    actions={command ? undefined : actions}
   />
 
   <ExtensionDetailPanel
     extension={command ? null : extension}
     {command}
-    isToggling={handler.togglingExtension !== null}
-    isUninstalling={extensionStateManager.extensionUninstallInProgress !== null}
     preferencesVersion={handler.preferencesVersion}
-    onToggle={(ext) => handler.toggleExtension(ext)}
-    onUninstall={(ext) => handler.requestUninstallExtension(ext)}
   />
+
+  {@render children?.()}
 
   {#if showCommands}
     <section class="commands-card" style="--ext-cols: 1fr 112px 112px 56px;">
@@ -79,8 +102,6 @@
       </div>
     </section>
   {/if}
-
-  {@render children?.()}
 </div>
 
 <style>
@@ -117,6 +138,25 @@
 
   .col-on {
     text-align: center;
+  }
+
+  .uninstall-btn {
+    font-size: var(--font-size-xs);
+    color: var(--accent-danger);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: var(--transition-fast);
+  }
+
+  .uninstall-btn:hover {
+    opacity: 0.8;
+  }
+
+  .uninstall-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .commands-body > :global(:last-child) {

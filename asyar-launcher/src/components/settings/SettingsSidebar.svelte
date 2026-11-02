@@ -13,16 +13,28 @@
     group: SidebarGroupId;
     /** Extra search terms matched besides the label. */
     keywords?: string[];
+    /** Trailing item count (e.g. number of features). */
+    count?: number;
+    /** Trailing badge text (e.g. DEV). */
+    badge?: string;
+  }
+
+  interface AccountUser {
+    name?: string | null;
+    email?: string | null;
+    avatarUrl?: string | null;
   }
 
   let {
     tabs,
     activeTab = $bindable(),
     query = $bindable(''),
+    accountUser = null,
   }: {
     tabs: SidebarTab[];
     activeTab: SettingsTabId;
     query?: string;
+    accountUser?: AccountUser | null;
   } = $props();
 
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
@@ -94,15 +106,45 @@
           <div class="group-label">{groupLabel(group.id)}</div>
         {/if}
         {#each group.items as tab (tab.id)}
-          <button
-            class="item"
-            class:active={activeTab === tab.id}
-            aria-current={activeTab === tab.id ? 'page' : undefined}
-            onclick={() => (activeTab = tab.id)}
-          >
-            <Icon name={tab.icon} size={16} />
-            <span class="label">{tab.label}</span>
-          </button>
+          {#if tab.id === 'account'}
+            <button
+              class="item profile"
+              class:active={activeTab === tab.id}
+              aria-current={activeTab === tab.id ? 'page' : undefined}
+              onclick={() => (activeTab = tab.id)}
+            >
+              <span class="avatar">
+                {#if accountUser?.name}
+                  {accountUser.name[0].toUpperCase()}
+                {:else}
+                  <Icon name="user" size={16} />
+                {/if}
+              </span>
+              <span class="profile-text">
+                <span class="profile-title">{accountUser?.name || t('settings.tabs.account')}</span>
+                <span class="profile-subtitle"
+                  >{accountUser?.email || t('settings.nav.account_subtitle')}</span
+                >
+              </span>
+            </button>
+          {:else}
+            <button
+              class="item"
+              class:active={activeTab === tab.id}
+              aria-current={activeTab === tab.id ? 'page' : undefined}
+              onclick={() => (activeTab = tab.id)}
+            >
+              <span class="icon-box"><Icon name={tab.icon} size={15} /></span>
+              <span class="label">{tab.label}</span>
+              {#if tab.count !== undefined}
+                <span class="count">{tab.count}</span>
+              {/if}
+              {#if tab.badge}
+                <span class="trailing-badge"><Badge text={tab.badge} variant="warning" mono /></span
+                >
+              {/if}
+            </button>
+          {/if}
         {/each}
       </div>
     {/each}
@@ -248,6 +290,73 @@
   /* The active rim is a box-shadow and would swallow the global focus ring. */
   .item:focus-visible {
     box-shadow: var(--shadow-focus);
+  }
+
+  .icon-box {
+    width: var(--size-lg);
+    height: var(--size-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: var(--radius-xs);
+    background: var(--bg-tertiary);
+  }
+
+  .item.active .icon-box {
+    background: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+    color: var(--accent-primary);
+  }
+
+  .count {
+    margin-inline-start: auto;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+  }
+
+  .trailing-badge {
+    margin-inline-start: auto;
+    display: flex;
+  }
+
+  .avatar {
+    width: var(--size-xl);
+    height: var(--size-xl);
+    border-radius: var(--radius-full);
+    background: var(--accent-primary-fill);
+    color: var(--text-on-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .profile-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .profile-title,
+  .profile-subtitle {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .profile-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .profile-subtitle {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
   }
 
   .label {

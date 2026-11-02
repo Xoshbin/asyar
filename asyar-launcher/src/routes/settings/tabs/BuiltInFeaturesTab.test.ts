@@ -194,4 +194,34 @@ describe('BuiltInFeaturesTab', () => {
     expect(screen.getByText('Notes')).toBeTruthy();
     expect(handler.pendingExtensionSelection).toBeNull();
   });
+
+  it('shows an Always on badge instead of a toggle for non-disableable features', () => {
+    const core = { ...builtIn('built-in-core', 'Core'), disableable: false };
+    render(BuiltInFeaturesTab, { props: { handler: createHandler([core]) } });
+    expect(screen.getByText('settings.extensions.always_on')).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  it('shows a subtitle and command count on the row', () => {
+    const rich = {
+      ...builtIn('built-in-rich', 'Rich'),
+      subtitle: 'Does rich things',
+      commands: [{ id: 'a', name: 'A' }],
+    };
+    render(BuiltInFeaturesTab, { props: { handler: createHandler([rich]) } });
+    expect(screen.getByText('Does rich things')).toBeTruthy();
+    expect(screen.getByText(/settings\.extensions\.command_singular/)).toBeTruthy();
+  });
+
+  it('renders the feature settings above the Commands card when drilled in', async () => {
+    const ai = {
+      ...builtIn('built-in-ai', 'AI'),
+      commands: [{ id: 'ask', name: 'Ask AI', trigger: 'ai' }],
+    };
+    render(BuiltInFeaturesTab, { props: { handler: createHandler([ai]) } });
+    await fireEvent.click(screen.getByText('AI'));
+    const panel = await screen.findByTestId('panel-stub');
+    const commands = screen.getByText('settings.extensions.section_commands');
+    expect(panel.compareDocumentPosition(commands) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
