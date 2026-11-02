@@ -619,6 +619,8 @@
       "reminders_access": "提醒事項",
       "reminders_access_desc": "允許你核准的擴充功能讀取、新增並完成提醒事項。",
       "access_no_prompt": "macOS 沒有顯示權限提示。當 Asyar 不是以應用程式套件執行（例如開發版本）時會發生這種情況。請打開系統設定手動允許。",
+      "access_allow_for": "允許存取{name}",
+      "access_open_settings_for": "打開{name}的系統設定",
       "access_granted": "已允許",
       "access_allow": "允許存取",
       "access_open_settings": "打開系統設定",

@@ -139,7 +139,7 @@ pub fn request_access(kind: AccessKind) -> Result<AccessState, PlatformError> {
 }
 
 fn invalid(msg: &str) -> PlatformError {
-    PlatformError::Unsupported(format!("invalid calendar input: {msg}"))
+    PlatformError::InvalidInput(msg.to_string())
 }
 
 pub(crate) fn validate_event_range(start_at: i64, end_at: i64) -> Result<(), PlatformError> {

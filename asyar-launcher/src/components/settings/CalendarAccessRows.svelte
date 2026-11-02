@@ -36,9 +36,17 @@
   ]);
 
   async function refresh() {
-    for (const kind of ['calendar', 'reminders'] as const) {
-      states[kind] = (await calendarAccessStatus(kind)) ?? 'unsupported';
-    }
+    // Independent reads: one failing must not hide the other row. A failed
+    // kind keeps its last known state and is re-read on the next window focus.
+    await Promise.all(
+      (['calendar', 'reminders'] as const).map(async (kind) => {
+        try {
+          states[kind] = (await calendarAccessStatus(kind)) ?? 'unsupported';
+        } catch {
+          // keep previous state
+        }
+      }),
+    );
     available = states.calendar !== 'unsupported' || states.reminders !== 'unsupported';
   }
 
@@ -76,11 +84,18 @@
       {#if state === 'granted'}
         <span class="text-caption">{t('settings.privacy.access_granted')}</span>
       {:else if state === 'notDetermined' && !noPrompt[row.kind]}
-        <Button onclick={() => allow(row.kind)} disabled={busy === row.kind}>
+        <Button
+          onclick={() => allow(row.kind)}
+          disabled={busy === row.kind}
+          aria-label={t('settings.privacy.access_allow_for', { name: row.label })}
+        >
           {t('settings.privacy.access_allow')}
         </Button>
       {:else}
-        <Button onclick={() => openSettingsPane(PRIVACY_PANE)}>
+        <Button
+          onclick={() => openSettingsPane(PRIVACY_PANE)}
+          aria-label={t('settings.privacy.access_open_settings_for', { name: row.label })}
+        >
           {t('settings.privacy.access_open_settings')}
         </Button>
       {/if}

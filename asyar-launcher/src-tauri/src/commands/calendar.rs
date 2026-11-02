@@ -19,7 +19,10 @@ const REMINDERS_READ: &str = "reminders:read";
 const REMINDERS_WRITE: &str = "reminders:write";
 
 fn platform_err(e: asyar_platform::PlatformError) -> AppError {
-    AppError::Platform(e.to_string())
+    match e {
+        asyar_platform::PlatformError::InvalidInput(msg) => AppError::Validation(msg),
+        other => AppError::Platform(other.to_string()),
+    }
 }
 
 // EventKit calls block (permission prompt, reminders fetch), so every command

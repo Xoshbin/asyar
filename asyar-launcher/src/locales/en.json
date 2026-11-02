@@ -619,6 +619,8 @@
       "reminders_access": "Reminders",
       "reminders_access_desc": "Lets extensions you approve read, add, and complete your reminders.",
       "access_no_prompt": "macOS did not show the permission prompt. This happens when Asyar runs outside an app bundle (for example a dev build). Open System Settings to allow it manually.",
+      "access_allow_for": "Allow access to {name}",
+      "access_open_settings_for": "Open System Settings for {name}",
       "access_granted": "Allowed",
       "access_allow": "Allow access",
       "access_open_settings": "Open System Settings",
