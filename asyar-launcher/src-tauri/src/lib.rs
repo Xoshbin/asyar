@@ -268,6 +268,99 @@ pub fn apply_linux_webkit_dmabuf_workaround() {
     }
 }
 
+/// Fontconfig fragment that hides COLRv1 colour fonts from the webview.
+///
+/// The AppImage is built on ubuntu-22.04, so the bundled WebKitGTK/Skia are
+/// compiled against FreeType 2.11.1 headers, while the host's
+/// `libfreetype.so.6` is loaded at runtime. FreeType 2.13.0 added a field to
+/// `FT_ColorStopIterator` (16 -> 20 bytes), so on hosts with FreeType >= 2.13
+/// Skia's COLRv1 renderer indexes a colour-stop vector out of bounds:
+///
+/// ```text
+/// stl_vector.h:1123: colrv1_configure_skpaint(...)::ColorStop:
+/// Assertion '__n < this->size()' failed.
+/// ```
+///
+/// `WebKitWebProcess` then aborts (SIGABRT) and the launcher window stays
+/// black and unresponsive. Rejecting COLRv1 fonts makes Fontconfig fall back
+/// to a CBDT/sbix emoji font, which never enters that code path.
+///
+/// Scoped to the AppImage on purpose: `.deb`/`.rpm` bundles link the host's
+/// own WebKitGTK, which matches the host FreeType and cannot hit this.
+const LINUX_COLRV1_FONTCONFIG: &str = r#"<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <include ignore_missing="no">/etc/fonts/fonts.conf</include>
+  <selectfont>
+    <rejectfont>
+      <glob>/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf</glob>
+      <glob>*/fonts/*COLR*.ttf</glob>
+      <glob>*/fonts/*colr*.ttf</glob>
+      <glob>*/fonts/*COLR*.otf</glob>
+    </rejectfont>
+  </selectfont>
+</fontconfig>
+"#;
+
+/// Decides whether the COLRv1 workaround should run. Pure, so it is testable.
+pub(crate) fn linux_colrv1_font_workaround_enabled(
+    is_linux: bool,
+    is_appimage: bool,
+    opt_out: bool,
+    existing_fontconfig_file: Option<&str>,
+) -> bool {
+    is_linux && is_appimage && !opt_out && existing_fontconfig_file.is_none()
+}
+
+fn linux_colrv1_fontconfig_path() -> Option<std::path::PathBuf> {
+    let cache_root = match std::env::var_os("XDG_CACHE_HOME") {
+        Some(dir) => std::path::PathBuf::from(dir),
+        None => std::path::PathBuf::from(std::env::var_os("HOME")?).join(".cache"),
+    };
+    Some(cache_root.join("asyar").join("fonts.conf"))
+}
+
+fn write_if_changed(path: &std::path::Path, contents: &str) -> std::io::Result<()> {
+    if let Ok(existing) = std::fs::read_to_string(path) {
+        if existing == contents {
+            return Ok(());
+        }
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, contents)
+}
+
+/// Applies the COLRv1 Fontconfig workaround before the webview is created.
+///
+/// No-ops unless this is a Linux AppImage build, and always defers to the user:
+/// an existing `FONTCONFIG_FILE` is never overwritten, and
+/// `ASYAR_ALLOW_HOST_COLRV1=1` disables the workaround entirely.
+pub fn apply_linux_colrv1_font_workaround() {
+    let existing = std::env::var("FONTCONFIG_FILE").ok();
+    let enabled = linux_colrv1_font_workaround_enabled(
+        cfg!(target_os = "linux"),
+        std::env::var_os("APPIMAGE").is_some(),
+        std::env::var("ASYAR_ALLOW_HOST_COLRV1").as_deref() == Ok("1"),
+        existing.as_deref(),
+    );
+    if !enabled {
+        return;
+    }
+    let Some(path) = linux_colrv1_fontconfig_path() else {
+        return;
+    };
+    if let Err(err) = write_if_changed(&path, LINUX_COLRV1_FONTCONFIG) {
+        eprintln!(
+            "[asyar linux] could not write fontconfig workaround at {}: {err}",
+            path.display()
+        );
+        return;
+    }
+    std::env::set_var("FONTCONFIG_FILE", &path);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let args: Vec<String> = std::env::args().collect();
@@ -675,5 +768,48 @@ mod linux_webkit_dmabuf_workaround_tests {
     #[test]
     fn does_nothing_on_non_linux() {
         assert_eq!(linux_webkit_dmabuf_env_var(false), None);
+    }
+}
+
+#[cfg(test)]
+mod linux_colrv1_font_tests {
+    use super::linux_colrv1_font_workaround_enabled;
+
+    #[test]
+    fn disabled_outside_linux() {
+        assert!(!linux_colrv1_font_workaround_enabled(
+            false, true, false, None
+        ));
+    }
+
+    #[test]
+    fn disabled_when_not_an_appimage() {
+        assert!(!linux_colrv1_font_workaround_enabled(
+            true, false, false, None
+        ));
+    }
+
+    #[test]
+    fn disabled_when_opted_out() {
+        assert!(!linux_colrv1_font_workaround_enabled(
+            true, true, true, None
+        ));
+    }
+
+    #[test]
+    fn disabled_when_user_already_set_fontconfig_file() {
+        assert!(!linux_colrv1_font_workaround_enabled(
+            true,
+            true,
+            false,
+            Some("/tmp/custom-fonts.conf")
+        ));
+    }
+
+    #[test]
+    fn enabled_on_linux_appimage() {
+        assert!(linux_colrv1_font_workaround_enabled(
+            true, true, false, None
+        ));
     }
 }
