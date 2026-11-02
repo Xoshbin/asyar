@@ -72,6 +72,7 @@ expands the placement guidance.
 | `PowerService`             | `IPowerService`             | both                           | `power:inhibit`                                                        | OS-level sleep inhibitors                                                                                                              |
 | `MediaService`             | `IMediaService`             | both                           | `media:control`                                                        | Now-playing info and transport control (Music, Spotify)                                                                                |
 | `CalendarService`          | `ICalendarService`          | both                           | `calendar:read`, `calendar:write`, `reminders:read`, `reminders:write` | Read and create calendar events and reminders (macOS EventKit)                                                                         |
+| `ShortcutsService`         | `IShortcutsService`         | both                           | `shortcuts:read`, `shortcuts:run`                                      | List and run Apple Shortcuts without `shell:spawn` (macOS)                                                                             |
 | `ProcessService`           | `IProcessService`           | both                           | `process:read`, `process:kill`                                         | List running processes grouped by app (CPU/memory) and terminate them; OS-critical processes are guard-railed                          |
 | `SystemEventsService`      | `ISystemEventsService`      | both (subscriptions: worker)   | `systemEvents:read`                                                    | OS state-change push events (sleep, wake, lid, battery)                                                                                |
 | `FileSystemWatcherService` | `IFileSystemWatcherService` | view (pending worker redesign) | `fs:watch` (+ `permissionArgs.fs:watch`)                               | Watch declared directories for changes (Apple Shortcuts, SSH config, dotfiles). Roots-up coalesced `{ type: 'change', paths }` events. |
@@ -124,6 +125,7 @@ expands the placement guidance.
 - **[WindowManagementService](./window-management-service.md)**
 - **[MediaService](./media-service.md)**
 - **[CalendarService](./calendar-service.md)**
+- **[ShortcutsService](./shortcuts-service.md)**
 - **[ProcessService](./process-service.md)**
 - **[TimerService](./timers.md)**
 - **[FileSystemWatcherService](./file-system-watcher.md)**

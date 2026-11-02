@@ -219,6 +219,8 @@ export const VALID_PERMISSIONS = [
   'calendar:write',
   'reminders:read',
   'reminders:write',
+  'shortcuts:read',
+  'shortcuts:run',
   'systemEvents:read',
   'app:frontmost-watch',
   'timers:schedule',

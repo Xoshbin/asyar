@@ -185,6 +185,15 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     title: 'Create and complete reminders',
     description: 'Add new reminders and mark existing ones as done or not done.',
   },
+  'shortcuts:read': {
+    title: 'List Apple Shortcuts',
+    description: 'See the names of the shortcuts in your Apple Shortcuts library.',
+  },
+  'shortcuts:run': {
+    title: 'Run Apple Shortcuts',
+    description:
+      'Run any of your Apple Shortcuts, optionally passing it text. A shortcut can do anything it is built to do.',
+  },
   'process:read': {
     title: 'List processes',
     description: 'List running processes with CPU and memory usage.',

@@ -21,6 +21,7 @@ use crate::calendar::{
 use crate::error::PlatformError;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 
 const DAY_MS: i64 = 86_400_000;
 const PRODID: &str = "-//Asyar//Calendar//EN";
@@ -515,6 +516,17 @@ fn file_read_only(path: &Path) -> bool {
         .unwrap_or(true)
 }
 
+/// Serializes every read-modify-replace of a calendar file. Each command builds
+/// a fresh `Store`, so the lock has to be process-wide: without it two
+/// concurrent writes both read the old file and the later rename drops the
+/// earlier item. One lock rather than one per path — writes are rare and short.
+static WRITE_LOCK: Mutex<()> = Mutex::new(());
+
+fn write_guard() -> MutexGuard<'static, ()> {
+    // The guarded data is `()`, so a poisoned lock carries no broken state.
+    WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn read_file(path: &Path) -> Result<String, PlatformError> {
     fs::read_to_string(path).map_err(|e| os_err(format!("could not read {}: {e}", path.display())))
 }
@@ -738,8 +750,11 @@ impl Store {
         }
         block.push("END:VEVENT".to_string());
 
-        let existing = read_for_write(&path)?;
-        write_file(&path, &insert_block(&existing, &block)?)?;
+        {
+            let _guard = write_guard();
+            let existing = read_for_write(&path)?;
+            write_file(&path, &insert_block(&existing, &block)?)?;
+        }
 
         let src = self.source_for(path, Some("Asyar".into()), false);
         let lines: Vec<Line> = block
@@ -818,8 +833,11 @@ impl Store {
         }
         block.push("END:VTODO".to_string());
 
-        let existing = read_for_write(&path)?;
-        write_file(&path, &insert_block(&existing, &block)?)?;
+        {
+            let _guard = write_guard();
+            let existing = read_for_write(&path)?;
+            write_file(&path, &insert_block(&existing, &block)?)?;
+        }
 
         let src = self.source_for(path, Some("Asyar".into()), false);
         let lines: Vec<Line> = block
@@ -843,6 +861,7 @@ impl Store {
         completed: bool,
         now_ms: i64,
     ) -> Result<ReminderItem, PlatformError> {
+        let _guard = write_guard();
         for src in self.sources() {
             let Ok(content) = read_file(&src.path) else {
                 continue;
@@ -1040,6 +1059,43 @@ mod tests {
         let unfolded = split_lines(&format!("{folded}\r\n"));
         assert_eq!(unfolded.len(), 1);
         assert_eq!(unfolded[0].text, line);
+    }
+
+    #[test]
+    fn concurrent_creates_through_fresh_stores_lose_nothing() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        let handles: Vec<_> = (0..16)
+            .map(|i| {
+                let root = root.clone();
+                std::thread::spawn(move || {
+                    let s = Store::new(Roots {
+                        asyar_dir: root.join("asyar"),
+                        evolution_file: None,
+                        shared_dir: None,
+                    });
+                    s.create_event(
+                        &CreateEventInput {
+                            calendar_id: None,
+                            title: format!("e{i}"),
+                            start_at: NOW,
+                            end_at: NOW + 1000,
+                            is_all_day: None,
+                            location: None,
+                            notes: None,
+                            url: None,
+                        },
+                        NOW,
+                    )
+                    .unwrap();
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+        let text = fs::read_to_string(dir.path().join("asyar/default.ics")).unwrap();
+        assert_eq!(text.matches("BEGIN:VEVENT").count(), 16);
     }
 
     #[test]

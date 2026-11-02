@@ -97,6 +97,9 @@ export type {
 } from './ICalendarService';
 export { CalendarServiceProxy } from './CalendarServiceProxy';
 
+export type { IShortcutsService, ShortcutInfo } from './IShortcutsService';
+export { ShortcutsServiceProxy } from './ShortcutsServiceProxy';
+
 export type {
   IPowerService,
   KeepAwakeOptions,

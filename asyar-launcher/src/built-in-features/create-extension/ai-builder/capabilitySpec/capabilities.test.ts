@@ -60,6 +60,8 @@ const GET_REQUIRED_PERMISSIONS = [
   'selection:read',
   'shell:open-url',
   'shell:spawn',
+  'shortcuts:read',
+  'shortcuts:run',
   'snippets:contribute',
   'storage:read',
   'storage:write',

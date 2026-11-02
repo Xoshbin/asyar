@@ -10,6 +10,7 @@ pub mod input;
 pub mod keyboard;
 pub mod locale;
 pub mod media;
+pub mod shortcuts;
 pub mod window;
 
 #[cfg(target_os = "linux")]
@@ -33,6 +34,7 @@ pub use input::*;
 pub use keyboard::*;
 pub use locale::*;
 pub use media::*;
+pub use shortcuts::*;
 pub use window::{ThemePreference, WindowStyling};
 
 #[cfg(target_os = "linux")]
