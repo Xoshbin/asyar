@@ -305,6 +305,7 @@
       "select_extension_or_command": "Select an extension or command",
       "filter_all": "All",
       "filter_commands": "Commands",
+      "section_commands": "Commands",
       "filter_extensions": "Extensions",
       "filter_theme": "Theme",
       "search_placeholder": "Search…",
@@ -820,7 +821,8 @@
       "group_system": "System",
       "back": "Back",
       "forward": "Forward",
-      "search_placeholder": "Search settings (⌘F)"
+      "search_placeholder": "Search settings",
+      "clear_search": "Clear search"
     }
   },
   "onboarding": {

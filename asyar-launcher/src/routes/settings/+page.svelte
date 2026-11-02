@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { LoadingState } from '../../components';
   import SettingsSidebar from '../../components/settings/SettingsSidebar.svelte';
-  import { resolveNavigation, type SettingsTabId } from './settingsNav';
+  import { resolveNavigation, SETTINGS_TAB_KEYWORDS, type SettingsTabId } from './settingsNav';
   import { SettingsHandler } from './settingsHandlers.svelte';
   import GeneralTab from './tabs/GeneralTab.svelte';
   import ExtensionsTab from './tabs/ExtensionsTab.svelte';
@@ -39,31 +39,35 @@
 
   let sidebarQuery = $state('');
 
-  const settingsTabs = $derived([
-    { id: 'account', label: t('settings.tabs.account'), icon: 'user', group: 'top' },
-    { id: 'general', label: t('settings.tabs.general'), icon: 'settings', group: 'app' },
-    {
-      id: 'built-in-features',
-      label: t('settings.tabs.built_in_features'),
-      icon: 'layers',
-      group: 'app',
-    },
-    { id: 'extensions', label: t('settings.tabs.extensions'), icon: 'puzzle', group: 'app' },
-    { id: 'privacy', label: t('settings.tabs.privacy'), icon: 'lock', group: 'app' },
-    { id: 'backup', label: t('settings.tabs.backup'), icon: 'cloud-upload', group: 'app' },
-    { id: 'advanced', label: t('settings.tabs.advanced'), icon: 'dev-tools', group: 'system' },
-    ...(handler.settings.developer?.enabled
-      ? [
-          {
-            id: 'developer',
-            label: t('settings.tabs.developer'),
-            icon: 'dev-tools',
-            group: 'system',
-          },
-        ]
-      : []),
-    { id: 'about', label: t('settings.tabs.about'), icon: 'info', group: 'system' },
-  ] as { id: SettingsTabId; label: string; icon: string; group: 'top' | 'app' | 'system' }[]);
+  const settingsTabs = $derived(
+    (
+      [
+        { id: 'account', label: t('settings.tabs.account'), icon: 'user', group: 'top' },
+        { id: 'general', label: t('settings.tabs.general'), icon: 'settings', group: 'app' },
+        {
+          id: 'built-in-features',
+          label: t('settings.tabs.built_in_features'),
+          icon: 'layers',
+          group: 'app',
+        },
+        { id: 'extensions', label: t('settings.tabs.extensions'), icon: 'puzzle', group: 'app' },
+        { id: 'privacy', label: t('settings.tabs.privacy'), icon: 'lock', group: 'app' },
+        { id: 'backup', label: t('settings.tabs.backup'), icon: 'cloud-upload', group: 'app' },
+        { id: 'advanced', label: t('settings.tabs.advanced'), icon: 'dev-tools', group: 'system' },
+        ...(handler.settings.developer?.enabled
+          ? [
+              {
+                id: 'developer',
+                label: t('settings.tabs.developer'),
+                icon: 'dev-tools',
+                group: 'system',
+              },
+            ]
+          : []),
+        { id: 'about', label: t('settings.tabs.about'), icon: 'info', group: 'system' },
+      ] as { id: SettingsTabId; label: string; icon: string; group: 'top' | 'app' | 'system' }[]
+    ).map((tab) => ({ ...tab, keywords: SETTINGS_TAB_KEYWORDS[tab.id] })),
+  );
 
   // Developer Mode turned off while on the Developer tab: don't leave a blank pane.
   $effect(() => {

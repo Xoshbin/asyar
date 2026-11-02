@@ -13,107 +13,9 @@
   } from '../../../lib/ipc/commands';
   import { filterExtensions, type ExtensionFilter, type ExtensionScope } from './extensionFilters';
   import type { HostCommand } from '../../../types/ExtendedManifest';
-  import { onMount } from 'svelte';
-  import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
-  import { aliasService } from '../../../built-in-features/aliases/aliasService';
-  import AliasCapture from '../../../built-in-features/aliases/AliasCapture.svelte';
   import { t } from '../../../services/i18n';
-  import ShortcutCapture from '../../../built-in-features/shortcuts/ShortcutCapture.svelte';
-  import {
-    shortcutStore,
-    type ItemShortcut,
-  } from '../../../built-in-features/shortcuts/shortcutStore.svelte';
-  import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
-  import { toDisplayString } from '../../../built-in-features/shortcuts/shortcutFormatter';
-  import KeyboardHint from '../../../components/base/KeyboardHint.svelte';
-  import { logService } from '../../../services/log/logService';
   import AppIcon from '../../../components/base/AppIcon.svelte';
-  type AliasEditTarget = {
-    objectId: string;
-    name: string;
-    currentAlias?: string;
-  };
-
-  type ShortcutEditTarget = {
-    objectId: string;
-    name: string;
-  };
-
-  let editingAliasTarget = $state<AliasEditTarget | null>(null);
-  let editingShortcutTarget = $state<ShortcutEditTarget | null>(null);
-
-  let shortcutsByObjectId = $derived(
-    new Map<string, ItemShortcut>(shortcutStore.shortcuts.map((s) => [s.objectId, s])),
-  );
-
-  onMount(() => {
-    void aliasStore.refresh().catch((e) => {
-      logService.warn(`ExtensionsTab: failed to refresh alias store: ${e}`);
-    });
-  });
-
-  function commandObjectId(extensionId: string, cmdId: string): string {
-    return `cmd_${extensionId}_${cmdId}`;
-  }
-
-  function openAliasCaptureForCommand(ext: ExtensionItem, cmd: HostCommand): void {
-    if (!ext.id) return;
-    const objectId = commandObjectId(ext.id, cmd.id);
-    editingAliasTarget = {
-      objectId,
-      name: cmd.name,
-      currentAlias: aliasStore.byObjectId.get(objectId),
-    };
-  }
-
-  async function handleRemoveCommandAlias(ext: ExtensionItem, cmd: HostCommand): Promise<void> {
-    if (!ext.id) return;
-    const alias = aliasStore.byObjectId.get(commandObjectId(ext.id, cmd.id));
-    if (!alias) return;
-    try {
-      await aliasService.unregister(alias);
-      aliasStore.removeOptimistic(alias);
-    } catch (e) {
-      logService.warn(`Failed to remove alias for ${cmd.name}: ${e}`);
-    }
-  }
-
-  function openShortcutCaptureForCommand(ext: ExtensionItem, cmd: HostCommand): void {
-    if (!ext.id) return;
-    editingShortcutTarget = {
-      objectId: commandObjectId(ext.id, cmd.id),
-      name: cmd.name,
-    };
-  }
-
-  async function handleCommandShortcutSave(detail: {
-    modifier: string;
-    key: string;
-  }): Promise<string | true> {
-    if (!editingShortcutTarget) return 'No command selected';
-    const shortcut = `${detail.modifier}+${detail.key}`;
-    const result = await shortcutService.register(
-      editingShortcutTarget.objectId,
-      editingShortcutTarget.name,
-      'command',
-      shortcut,
-    );
-    if (!result.ok) {
-      const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';
-      return `Could not assign: ${reason}`;
-    }
-    return true;
-  }
-
-  async function handleRemoveCommandShortcut(ext: ExtensionItem, cmd: HostCommand): Promise<void> {
-    if (!ext.id) return;
-    try {
-      await shortcutService.unregister(commandObjectId(ext.id, cmd.id));
-    } catch (e) {
-      logService.warn(`Failed to remove shortcut for ${cmd.name}: ${e}`);
-    }
-  }
-
+  import ExtensionCommandRows from './ExtensionCommandRows.svelte';
   let {
     handler,
     scope,
@@ -125,6 +27,8 @@
   } = $props();
 
   const isThirdParty = $derived(scope === 'third-party');
+  // Every built-in row is a built-in, so a Type column / filter chips would say nothing.
+  const showType = $derived(isThirdParty);
 
   // ── Update state (unchanged) ─────────────────────────────────────────────
   let updateCount = $derived(extensionUpdateService.updateCount);
@@ -233,10 +137,7 @@
     { id: 'theme', labelKey: 'settings.extensions.filter_theme' },
   ];
 
-  // Built-in rows are never extensions/themes, so those chips would always be empty.
-  const visibleFilters = $derived(
-    isThirdParty ? FILTERS : FILTERS.filter((f) => f.id === 'all' || f.id === 'commands'),
-  );
+  const visibleFilters = $derived(isThirdParty ? FILTERS : []);
 </script>
 
 {#snippet extensionRows(list: ExtensionItem[])}
@@ -292,7 +193,9 @@
           </button>
         {/if}
       </div>
-      <span class="col-type row-type">{getTypeLabel(ext)}</span>
+      {#if showType}
+        <span class="col-type row-type">{getTypeLabel(ext)}</span>
+      {/if}
       <span class="col-alias row-muted">—</span>
       <span class="col-hotkey row-muted">—</span>
       <div class="col-on">
@@ -314,113 +217,12 @@
       </div>
     </div>
     {#if isExpanded && ext.commands?.length}
-      {#each ext.commands as cmd (cmd.id)}
-        {@const cmdObjId = ext.id ? commandObjectId(ext.id, cmd.id) : ''}
-        {@const cmdAlias = cmdObjId ? aliasStore.byObjectId.get(cmdObjId) : undefined}
-        {@const cmdShortcut = cmdObjId ? shortcutsByObjectId.get(cmdObjId) : undefined}
-        <div
-          class="cmd-row"
-          role="row"
-          tabindex="0"
-          onclick={() => selectCommand(ext, cmd)}
-          onkeydown={(e) => e.key === 'Enter' && selectCommand(ext, cmd)}
-        >
-          <div class="col-name row-name-cell cmd-indent">
-            <div class="cmd-icon shrink-0">
-              <AppIcon icon={cmd.resolvedIcon} size={16} glyphSize={14} alt={cmd.name}>
-                {#snippet fallback()}
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  >
-                    <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
-                  </svg>
-                {/snippet}
-              </AppIcon>
-            </div>
-            <span class="ext-title">{cmd.name}</span>
-          </div>
-          <span class="col-type row-type">{t('settings.extensions.type_command')}</span>
-          <span class="col-alias">
-            {#if cmdAlias}
-              <button
-                type="button"
-                class="alias-cell-btn"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  openAliasCaptureForCommand(ext, cmd);
-                }}
-                title={t('settings.applications.change_alias_title')}
-              >
-                <span class="alias-pill text-mono">{cmdAlias}</span>
-              </button>
-              <button
-                type="button"
-                class="clear-btn"
-                aria-label="Remove alias for {cmd.name}"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  handleRemoveCommandAlias(ext, cmd);
-                }}
-              >
-                ✕
-              </button>
-            {:else}
-              <button
-                type="button"
-                class="row-action-btn"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  openAliasCaptureForCommand(ext, cmd);
-                }}
-              >
-                {t('settings.extensions.add_alias')}
-              </button>
-            {/if}
-          </span>
-          <span class="col-hotkey">
-            {#if cmdShortcut}
-              <button
-                type="button"
-                class="alias-cell-btn"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  openShortcutCaptureForCommand(ext, cmd);
-                }}
-                title={t('settings.applications.reassign_hotkey_title')}
-              >
-                <KeyboardHint keys={toDisplayString(cmdShortcut.shortcut)} />
-              </button>
-              <button
-                type="button"
-                class="clear-btn"
-                aria-label="Remove hotkey for {cmd.name}"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  handleRemoveCommandShortcut(ext, cmd);
-                }}
-              >
-                ✕
-              </button>
-            {:else}
-              <button
-                type="button"
-                class="row-action-btn"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  openShortcutCaptureForCommand(ext, cmd);
-                }}
-              >
-                {t('settings.extensions.record_hotkey')}
-              </button>
-            {/if}
-          </span>
-          <span class="col-on row-check">✓</span>
-        </div>
-      {/each}
+      <ExtensionCommandRows
+        extension={ext}
+        {showType}
+        indented
+        onselect={(cmd) => selectCommand(ext, cmd)}
+      />
     {/if}
   {/each}
 {/snippet}
@@ -450,7 +252,7 @@
     </div>
   {/if}
 
-  <div class="left-panel">
+  <div class="left-panel" class:with-type={showType}>
     <!-- toolbar: search + filter chips + plus button -->
     <div class="toolbar-row">
       <div class="search-box">
@@ -502,7 +304,9 @@
     <!-- column headers -->
     <div class="col-headers">
       <span class="col-name">{t('settings.extensions.table_name')}</span>
-      <span class="col-type">{t('settings.extensions.table_type')}</span>
+      {#if showType}
+        <span class="col-type">{t('settings.extensions.table_type')}</span>
+      {/if}
       <span class="col-alias">{t('settings.extensions.table_alias')}</span>
       <span class="col-hotkey">{t('settings.extensions.table_hotkey')}</span>
       <span class="col-on">{t('settings.extensions.table_enabled')}</span>
@@ -629,31 +433,21 @@
   </div>
 {/if}
 
-{#if editingAliasTarget}
-  <AliasCapture
-    objectId={editingAliasTarget.objectId}
-    itemName={editingAliasTarget.name}
-    itemType="command"
-    currentAlias={editingAliasTarget.currentAlias}
-    onsave={() => (editingAliasTarget = null)}
-    oncancel={() => (editingAliasTarget = null)}
-  />
-{/if}
-
-{#if editingShortcutTarget}
-  <ShortcutCapture
-    onsave={handleCommandShortcutSave}
-    oncancel={() => (editingShortcutTarget = null)}
-    ondone={() => (editingShortcutTarget = null)}
-    excludeObjectId={editingShortcutTarget.objectId}
-  />
-{/if}
-
 <style>
   /* ── Shell ────────────────────────────────────────── */
+  /* Same frame as SettingsCard, so the table lines up with every card around it. */
   .left-panel {
+    --ext-cols: 1fr 88px 112px 56px;
     display: flex;
     flex-direction: column;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .left-panel.with-type {
+    --ext-cols: 1fr 80px 88px 112px 56px;
   }
 
   .ext-shell {
@@ -712,9 +506,9 @@
     border-radius: var(--radius-sm);
     padding: 0 var(--space-3);
     height: 26px;
-    width: 150px;
-    flex-shrink: 1;
-    min-width: 80px;
+    flex: 1;
+    max-width: 280px;
+    min-width: 120px;
     transition: var(--transition-fast);
     box-sizing: border-box;
   }
@@ -862,7 +656,7 @@
   /* ── Column headers ───────────────────────────────── */
   .col-headers {
     display: grid;
-    grid-template-columns: 1fr 80px 72px 96px 48px;
+    grid-template-columns: var(--ext-cols);
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--separator);
     font-size: var(--font-size-xs);
@@ -879,12 +673,17 @@
     flex: 1;
   }
 
+  .table-body > :global(:last-child) {
+    border-bottom: none;
+  }
+
   /* ── Extension row ────────────────────────────────── */
   .ext-row {
     display: grid;
-    grid-template-columns: 1fr 80px 72px 96px 48px;
+    grid-template-columns: var(--ext-cols);
     align-items: center;
     padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+    border-bottom: 1px solid var(--separator);
     cursor: pointer;
     transition: var(--transition-fast);
     outline: none;
@@ -905,31 +704,6 @@
     align-items: center;
     gap: var(--space-3);
     min-width: 0;
-  }
-
-  /* ── Command row ──────────────────────────────────── */
-  .cmd-row {
-    display: grid;
-    grid-template-columns: 1fr 80px 72px 96px 48px;
-    align-items: center;
-    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
-    cursor: pointer;
-    transition: var(--transition-fast);
-    outline: none;
-  }
-
-  .cmd-row:hover {
-    background: var(--bg-hover);
-  }
-  .cmd-row.selected {
-    background: var(--bg-selected);
-  }
-  .cmd-row:focus-visible {
-    box-shadow: inset 0 0 0 2px var(--accent-primary);
-  }
-
-  .cmd-indent {
-    padding-left: calc(var(--space-8) + var(--space-2));
   }
 
   /* ── Row cells ────────────────────────────────────── */
@@ -970,64 +744,15 @@
     align-items: center;
     justify-content: center;
     font-size: var(--font-size-md);
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-secondary);
     overflow: hidden;
   }
 
   .ext-icon-letter {
     font-size: var(--font-size-sm);
-    font-weight: 700;
-    color: var(--text-secondary);
-  }
-
-  .cmd-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius-xs);
-    background: var(--bg-tertiary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    overflow: hidden;
-  }
-
-  .cmd-icon svg {
-    width: 12px;
-    height: 12px;
-    color: var(--text-tertiary);
-  }
-
-  .section-header-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-3) var(--space-1);
-    border-bottom: 1px solid var(--separator);
-    background: var(--bg-secondary);
-    position: sticky;
-    top: 0;
-    z-index: var(--z-base);
-  }
-
-  .section-label {
-    font-size: var(--font-size-xs);
     font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
     color: var(--text-secondary);
-  }
-
-  .section-count {
-    font-size: var(--font-size-2xs);
-    font-weight: 500;
-    color: var(--text-tertiary);
-    background: var(--bg-tertiary);
-    border-radius: var(--radius-full);
-    padding: 2px 6px; /* design-ok: compact pill needs tighter vertical padding than --space-0-5 */
-    min-width: 18px;
-    text-align: center;
   }
 
   .ext-title {
@@ -1048,10 +773,9 @@
     color: var(--text-tertiary);
   }
 
-  .row-check {
+  .row-muted {
     font-size: var(--font-size-sm);
-    color: var(--accent-primary);
-    text-align: center;
+    color: var(--text-tertiary);
   }
 
   .update-link {
@@ -1067,55 +791,5 @@
 
   .update-link:hover {
     opacity: 0.8;
-  }
-
-  /* ── Detail panel ─────────────────────────────────── */
-
-  /* ── Alias cell controls ──────────────────────────── */
-  .alias-cell-btn,
-  .row-action-btn {
-    background: transparent;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    color: var(--text-secondary);
-    font-size: var(--font-size-xs);
-  }
-
-  .row-action-btn:hover {
-    color: var(--accent-primary);
-    text-decoration: underline;
-  }
-
-  .clear-btn {
-    background: transparent;
-    border: none;
-    padding: 0;
-    margin-left: var(--space-1);
-    cursor: pointer;
-    color: var(--text-tertiary);
-    font-size: var(--font-size-xs);
-    line-height: 1;
-  }
-
-  .clear-btn:hover {
-    color: var(--accent-danger);
-  }
-
-  .alias-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 18px;
-    min-width: 18px;
-    padding: 0 var(--space-2);
-    border-radius: var(--radius-xs);
-    background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
-    color: var(--text-secondary);
-    font-size: var(--font-size-2xs);
-    font-weight: 500;
-    line-height: 1;
-    letter-spacing: 0.02em;
-    user-select: none;
   }
 </style>

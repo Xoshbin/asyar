@@ -305,6 +305,7 @@
       "select_extension_or_command": "Selecione uma extensão ou comando",
       "filter_all": "Todos",
       "filter_commands": "Comandos",
+      "section_commands": "Comandos",
       "filter_extensions": "Extensões",
       "filter_theme": "Tema",
       "search_placeholder": "Pesquisar…",
@@ -820,7 +821,8 @@
       "group_system": "Sistema",
       "back": "Voltar",
       "forward": "Avançar",
-      "search_placeholder": "Buscar configurações (⌘F)"
+      "search_placeholder": "Buscar configurações",
+      "clear_search": "Limpar pesquisa"
     }
   },
   "onboarding": {

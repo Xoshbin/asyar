@@ -48,4 +48,37 @@ describe('SettingsSidebar', () => {
     await fireEvent.keyDown(window, { key: 'f', metaKey: true });
     expect(document.activeElement).toBe(screen.getByRole('searchbox'));
   });
+
+  it('matches tabs by keyword, not only by label', async () => {
+    const kw = [
+      { id: 'general', label: 'General', icon: 'settings', group: 'app', keywords: ['theme'] },
+      {
+        id: 'built-in-features',
+        label: 'Built-in Features',
+        icon: 'layers',
+        group: 'app',
+        keywords: ['clipboard', 'ai'],
+      },
+      { id: 'about', label: 'About', icon: 'info', group: 'system' },
+    ];
+    render(SettingsSidebar, { tabs: kw as never, activeTab: 'general' });
+    const input = screen.getByRole('searchbox') as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: 'clipboard' } });
+    expect(screen.getByText('Built-in Features')).toBeTruthy();
+    expect(screen.queryByText('General')).toBeNull();
+    await fireEvent.input(input, { target: { value: 'theme' } });
+    expect(screen.getByText('General')).toBeTruthy();
+    expect(screen.queryByText('Built-in Features')).toBeNull();
+  });
+
+  it('shows the ⌘F hint when empty and a clear button once there is a query', async () => {
+    render(SettingsSidebar, { tabs: [...tabs], activeTab: 'general' });
+    expect(screen.getByText('⌘F')).toBeTruthy();
+    const input = screen.getByRole('searchbox') as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: 'ext' } });
+    expect(screen.queryByText('⌘F')).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(input.value).toBe('');
+    expect(screen.getByText('About')).toBeTruthy();
+  });
 });

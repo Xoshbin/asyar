@@ -55,6 +55,29 @@
   let needsRuntimeDownload = $state(false);
   let missingRuntimes = $state<RuntimeDownload[]>([]);
 
+  // Built-ins live under "Built-in Features", so a "Built-in" badge would repeat the page.
+  const hasBadges = $derived(
+    !!extension &&
+      ((!extension.isBuiltIn && !!extension.type) ||
+        !!extension.version ||
+        (!!extension.compatibility &&
+          extension.compatibility.status !== 'compatible' &&
+          extension.compatibility.status !== 'unknown') ||
+        needsPermissionReview ||
+        needsRuntimeDownload),
+  );
+
+  // A built-in with nothing to show beyond its title collapses to the header alone.
+  const hasBody = $derived(
+    !!extension &&
+      (!!extension.subtitle ||
+        needsRuntimeDownload ||
+        hasBadges ||
+        (!extension.isBuiltIn && (extension.permissions?.length ?? 0) > 0) ||
+        !!extension.permissions?.includes('network:lan') ||
+        (extension.preferences?.length ?? 0) > 0),
+  );
+
   const runtimeDownloadLabel = $derived(
     isDownloadingRuntime
       ? formatRuntimeDownloadStatus(runtimeService.downloadProgress, t('common.downloading'))
@@ -217,207 +240,215 @@
 </script>
 
 {#if command}
-  <div class="panel-header">
-    <div class="panel-icon">
-      <AppIcon icon={command.cmd.resolvedIcon} size={28} alt={command.cmd.name}>
-        {#snippet fallback()}
-          <span class="panel-icon-letter">{command.parent.title[0]?.toUpperCase() ?? 'E'}</span>
-        {/snippet}
-      </AppIcon>
-    </div>
-    <div class="panel-meta">
-      <div class="panel-title">{command.cmd.name}</div>
-      <div class="panel-parent">{command.parent.title}</div>
-    </div>
-  </div>
-
-  <div class="panel-body">
-    {#if command.cmd.description}
-      <div class="panel-section">
-        <div class="section-header">{t('common.description')}</div>
-        <p class="panel-desc">{command.cmd.description}</p>
+  <div class="panel-card">
+    <div class="panel-header">
+      <div class="panel-icon">
+        <AppIcon icon={command.cmd.resolvedIcon} size={28} alt={command.cmd.name}>
+          {#snippet fallback()}
+            <span class="panel-icon-letter">{command.parent.title[0]?.toUpperCase() ?? 'E'}</span>
+          {/snippet}
+        </AppIcon>
       </div>
-    {/if}
-
-    <div class="panel-section">
-      <div class="section-header">{t('settings.extensions.panel_trigger')}</div>
-      <code class="trigger-chip text-mono">{command.cmd.trigger}</code>
-    </div>
-
-    <div class="panel-section">
-      <div class="section-header">{t('common.alias')}</div>
-      <span class="placeholder-action">{t('settings.extensions.panel_add_alias')}</span>
-    </div>
-
-    <div class="panel-section">
-      <div class="section-header">{t('settings.extensions.table_hotkey')}</div>
-      <span class="placeholder-action">{t('settings.extensions.panel_record_hotkey')}</span>
-    </div>
-
-    {#if command.cmd.preferences && command.cmd.preferences.length > 0}
-      <div class="panel-section">
-        <div class="section-header">{t('settings.extensions.panel_preferences')}</div>
-        <ExtensionPreferencesForm
-          preferences={command.cmd.preferences}
-          values={preferenceValues}
-          disabled={isLoadingPrefs}
-          onChange={handlePreferenceChange}
-        />
+      <div class="panel-meta">
+        <div class="panel-title">{command.cmd.name}</div>
+        <div class="panel-parent">{command.parent.title}</div>
       </div>
-    {/if}
+    </div>
+
+    <div class="panel-body">
+      {#if command.cmd.description}
+        <div class="panel-section">
+          <div class="section-header">{t('common.description')}</div>
+          <p class="panel-desc">{command.cmd.description}</p>
+        </div>
+      {/if}
+
+      <div class="panel-section">
+        <div class="section-header">{t('settings.extensions.panel_trigger')}</div>
+        <code class="trigger-chip text-mono">{command.cmd.trigger}</code>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-header">{t('common.alias')}</div>
+        <span class="placeholder-action">{t('settings.extensions.panel_add_alias')}</span>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-header">{t('settings.extensions.table_hotkey')}</div>
+        <span class="placeholder-action">{t('settings.extensions.panel_record_hotkey')}</span>
+      </div>
+
+      {#if command.cmd.preferences && command.cmd.preferences.length > 0}
+        <div class="panel-section">
+          <div class="section-header">{t('settings.extensions.panel_preferences')}</div>
+          <ExtensionPreferencesForm
+            preferences={command.cmd.preferences}
+            values={preferenceValues}
+            disabled={isLoadingPrefs}
+            onChange={handlePreferenceChange}
+          />
+        </div>
+      {/if}
+    </div>
   </div>
 {:else if extension}
-  <div class="panel-header">
-    <div class="panel-icon">
-      <AppIcon icon={extension.icon} size={28} alt={extension.title}>
-        {#snippet fallback()}
-          <span class="panel-icon-letter">{extension.title[0]?.toUpperCase() ?? 'E'}</span>
-        {/snippet}
-      </AppIcon>
-    </div>
-    <div class="panel-meta">
-      <div class="panel-title">{extension.title}</div>
-    </div>
-    <div class="panel-actions">
-      <Toggle
-        checked={extension.isBuiltIn
-          ? extension.disableable
-            ? extension.enabled === true
-            : true
-          : extension.enabled === true}
-        disabled={(extension.isBuiltIn && !extension.disableable) || isToggling}
-        title={extension.isBuiltIn && !extension.disableable
-          ? t('settings.extensions.required_builtin_explanation')
-          : undefined}
-        onchange={() => onToggle?.(extension!)}
-      />
-      {#if !extension.isBuiltIn}
-        <button
-          class="uninstall-btn"
-          onclick={() => onUninstall?.(extension!)}
-          disabled={isUninstalling}
-        >
-          {isUninstalling
-            ? t('settings.extensions.uninstalling')
-            : t('settings.extensions.uninstall')}
-        </button>
-      {/if}
-    </div>
-  </div>
-
-  <div class="panel-body">
-    {#if extension.subtitle}
-      <div class="panel-section">
-        <div class="section-header">{t('common.description')}</div>
-        <p class="panel-desc">{extension.subtitle}</p>
+  <div class="panel-card">
+    <div class="panel-header">
+      <div class="panel-icon">
+        <AppIcon icon={extension.icon} size={28} alt={extension.title}>
+          {#snippet fallback()}
+            <span class="panel-icon-letter">{extension.title[0]?.toUpperCase() ?? 'E'}</span>
+          {/snippet}
+        </AppIcon>
       </div>
-    {/if}
-
-    {#if needsRuntimeDownload}
-      <div class="panel-section">
-        <div class="section-header flex-header">
-          <span>{t('settings.extensions.panel_runtime')}</span>
-          <button
-            class="review-link"
-            onclick={retryRuntimeDownload}
-            disabled={isDownloadingRuntime}
-          >
-            {runtimeDownloadLabel}
-          </button>
-        </div>
-        <p class="panel-desc">
-          {t('settings.extensions.runtime_failed_desc')}
-        </p>
+      <div class="panel-meta">
+        <div class="panel-title">{extension.title}</div>
       </div>
-    {/if}
-
-    <div class="panel-section panel-badges">
-      {#if extension.isBuiltIn}
-        <Badge text={t('settings.extensions.type_builtin')} variant="info" />
-      {:else if extension.type === 'theme'}
-        <Badge text={t('settings.extensions.type_theme')} variant="info" />
-      {:else if extension.type}
-        <Badge text={t('settings.extensions.type_extension')} variant="info" />
-      {/if}
-      {#if extension.version}
-        <Badge text="v{extension.version}" variant="default" mono />
-      {/if}
-      {#if extension.compatibility?.status === 'sdkMismatch'}
-        <Badge text="Requires SDK {extension.compatibility.required}" variant="danger" />
-      {/if}
-      {#if extension.compatibility?.status === 'appVersionTooOld'}
-        <Badge text="Requires app v{extension.compatibility.required}+" variant="danger" />
-      {/if}
-      {#if extension.compatibility?.status === 'platformNotSupported'}
-        <Badge text="{extension.compatibility.platform} not supported" variant="danger" />
-      {/if}
-      {#if needsPermissionReview}
-        <Badge text={t('settings.extensions.permissions_need_review')} variant="danger" />
-      {/if}
-      {#if needsRuntimeDownload}
-        <Badge text={t('settings.extensions.needs_runtime_download')} variant="danger" />
-      {/if}
-    </div>
-
-    {#if !extension.isBuiltIn && extension.permissions && extension.permissions.length > 0}
-      <div class="panel-section">
-        <div class="section-header flex-header">
-          <span>{t('settings.extensions.permissions')}</span>
-          {#if needsPermissionReview}
-            <button class="review-link" onclick={reviewPermissions}
-              >{t('settings.extensions.review_permissions')}</button
-            >
-          {:else}
-            <button class="revoke-link" onclick={revokePermissions}
-              >{t('settings.extensions.revoke')}</button
-            >
-          {/if}
-        </div>
-        <PermissionList
-          permissions={extension.permissions}
-          permissionArgs={extension.permissionArgs ?? {}}
+      <div class="panel-actions">
+        <Toggle
+          checked={extension.isBuiltIn
+            ? extension.disableable
+              ? extension.enabled === true
+              : true
+            : extension.enabled === true}
+          disabled={(extension.isBuiltIn && !extension.disableable) || isToggling}
+          title={extension.isBuiltIn && !extension.disableable
+            ? t('settings.extensions.required_builtin_explanation')
+            : undefined}
+          onchange={() => onToggle?.(extension!)}
         />
-      </div>
-    {/if}
-
-    {#if extension.permissions?.includes('network:lan')}
-      <div class="panel-section">
-        <div class="section-header">{t('settings.extensions.lan_devices')}</div>
-        {#if showScanSheet}
-          <LanScanSheet
-            extensionId={extension.id!}
-            onClose={() => (showScanSheet = false)}
-            onDeviceAdded={() => {
-              if (lanHostList) lanHostList.refresh();
-            }}
-          />
-        {:else}
-          <LanHostList
-            bind:this={lanHostList}
-            extensionId={extension.id!}
-            onOpenScan={() => (showScanSheet = true)}
-          />
+        {#if !extension.isBuiltIn}
+          <button
+            class="uninstall-btn"
+            onclick={() => onUninstall?.(extension!)}
+            disabled={isUninstalling}
+          >
+            {isUninstalling
+              ? t('settings.extensions.uninstalling')
+              : t('settings.extensions.uninstall')}
+          </button>
         {/if}
       </div>
-    {/if}
+    </div>
 
-    {#if extension.preferences && extension.preferences.length > 0}
-      <div class="panel-section">
-        <div class="section-header flex-header">
-          <span>{t('settings.extensions.panel_preferences')}</span>
-          <button
-            class="reset-link"
-            onclick={() => extensionPreferencesService.reset(extension!.id!)}
-          >
-            {t('settings.extensions.reset_to_defaults')}
-          </button>
-        </div>
-        <ExtensionPreferencesForm
-          preferences={extension.preferences}
-          values={preferenceValues}
-          disabled={isLoadingPrefs}
-          onChange={handlePreferenceChange}
-        />
+    {#if hasBody}
+      <div class="panel-body">
+        {#if extension.subtitle}
+          <div class="panel-section">
+            <div class="section-header">{t('common.description')}</div>
+            <p class="panel-desc">{extension.subtitle}</p>
+          </div>
+        {/if}
+
+        {#if needsRuntimeDownload}
+          <div class="panel-section">
+            <div class="section-header flex-header">
+              <span>{t('settings.extensions.panel_runtime')}</span>
+              <button
+                class="review-link"
+                onclick={retryRuntimeDownload}
+                disabled={isDownloadingRuntime}
+              >
+                {runtimeDownloadLabel}
+              </button>
+            </div>
+            <p class="panel-desc">
+              {t('settings.extensions.runtime_failed_desc')}
+            </p>
+          </div>
+        {/if}
+
+        {#if hasBadges}
+          <div class="panel-section panel-badges">
+            {#if extension.isBuiltIn}
+              <!-- no type badge: the page already says Built-in Features -->
+            {:else if extension.type === 'theme'}
+              <Badge text={t('settings.extensions.type_theme')} variant="info" />
+            {:else if extension.type}
+              <Badge text={t('settings.extensions.type_extension')} variant="info" />
+            {/if}
+            {#if extension.version}
+              <Badge text="v{extension.version}" variant="default" mono />
+            {/if}
+            {#if extension.compatibility?.status === 'sdkMismatch'}
+              <Badge text="Requires SDK {extension.compatibility.required}" variant="danger" />
+            {/if}
+            {#if extension.compatibility?.status === 'appVersionTooOld'}
+              <Badge text="Requires app v{extension.compatibility.required}+" variant="danger" />
+            {/if}
+            {#if extension.compatibility?.status === 'platformNotSupported'}
+              <Badge text="{extension.compatibility.platform} not supported" variant="danger" />
+            {/if}
+            {#if needsPermissionReview}
+              <Badge text={t('settings.extensions.permissions_need_review')} variant="danger" />
+            {/if}
+            {#if needsRuntimeDownload}
+              <Badge text={t('settings.extensions.needs_runtime_download')} variant="danger" />
+            {/if}
+          </div>
+        {/if}
+
+        {#if !extension.isBuiltIn && extension.permissions && extension.permissions.length > 0}
+          <div class="panel-section">
+            <div class="section-header flex-header">
+              <span>{t('settings.extensions.permissions')}</span>
+              {#if needsPermissionReview}
+                <button class="review-link" onclick={reviewPermissions}
+                  >{t('settings.extensions.review_permissions')}</button
+                >
+              {:else}
+                <button class="revoke-link" onclick={revokePermissions}
+                  >{t('settings.extensions.revoke')}</button
+                >
+              {/if}
+            </div>
+            <PermissionList
+              permissions={extension.permissions}
+              permissionArgs={extension.permissionArgs ?? {}}
+            />
+          </div>
+        {/if}
+
+        {#if extension.permissions?.includes('network:lan')}
+          <div class="panel-section">
+            <div class="section-header">{t('settings.extensions.lan_devices')}</div>
+            {#if showScanSheet}
+              <LanScanSheet
+                extensionId={extension.id!}
+                onClose={() => (showScanSheet = false)}
+                onDeviceAdded={() => {
+                  if (lanHostList) lanHostList.refresh();
+                }}
+              />
+            {:else}
+              <LanHostList
+                bind:this={lanHostList}
+                extensionId={extension.id!}
+                onOpenScan={() => (showScanSheet = true)}
+              />
+            {/if}
+          </div>
+        {/if}
+
+        {#if extension.preferences && extension.preferences.length > 0}
+          <div class="panel-section">
+            <div class="section-header flex-header">
+              <span>{t('settings.extensions.panel_preferences')}</span>
+              <button
+                class="reset-link"
+                onclick={() => extensionPreferencesService.reset(extension!.id!)}
+              >
+                {t('settings.extensions.reset_to_defaults')}
+              </button>
+            </div>
+            <ExtensionPreferencesForm
+              preferences={extension.preferences}
+              values={preferenceValues}
+              disabled={isLoadingPrefs}
+              onChange={handlePreferenceChange}
+            />
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -430,8 +461,21 @@
     display: flex;
     align-items: flex-start;
     gap: var(--space-5);
-    padding: var(--space-8) var(--space-7) var(--space-6);
-    border-bottom: 1px solid var(--border-color);
+    padding: var(--space-5) var(--space-6);
+  }
+
+  .panel-body {
+    padding: 0 var(--space-6) var(--space-5);
+    border-top: 1px solid var(--separator);
+    padding-top: var(--space-5);
+  }
+
+  /* Same frame as SettingsCard so its edges line up with the cards around it. */
+  .panel-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
   }
 
   .panel-icon {
@@ -443,7 +487,7 @@
     align-items: center;
     justify-content: center;
     font-size: var(--font-size-2xl);
-    font-weight: 700;
+    font-weight: 600;
     color: var(--accent-primary);
     flex-shrink: 0;
     overflow: hidden;
@@ -451,7 +495,7 @@
 
   .panel-icon-letter {
     font-size: var(--font-size-xl);
-    font-weight: 700;
+    font-weight: 600;
     color: var(--accent-primary);
   }
 
@@ -499,12 +543,12 @@
     cursor: not-allowed;
   }
 
-  .panel-body {
-    padding: var(--space-6) var(--space-7);
-  }
-
   .panel-section {
     margin-bottom: var(--space-4);
+  }
+
+  .panel-section:last-child {
+    margin-bottom: 0;
   }
 
   .panel-badges {

@@ -204,6 +204,16 @@ export const ICON_DATA: Record<string, string> = {
     <path d="M3 3v5h5" />
     <path d="M12 7v5l4 2" />
   `,
+  'chevron-left': `
+    <path d="m15 18-6-6 6-6" />
+  `,
+  'chevron-right': `
+    <path d="m9 18 6-6-6-6" />
+  `,
+  x: `
+    <path d="M18 6 6 18" />
+    <path d="m6 6 12 12" />
+  `,
   'arrow-up-circle': `
     <circle cx="12" cy="12" r="10" />
     <path d="m16 12-4-4-4 4" />

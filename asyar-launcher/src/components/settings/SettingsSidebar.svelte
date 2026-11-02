@@ -1,6 +1,7 @@
 <script lang="ts">
   import Badge from '../base/Badge.svelte';
   import Icon from '../base/Icon.svelte';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
   import { developmentBuildIndicator } from '../../lib/developmentBuild';
   import { t } from '../../services/i18n';
   import type { SettingsTabId, SidebarGroupId } from '../../routes/settings/settingsNav';
@@ -10,6 +11,8 @@
     label: string;
     icon: string;
     group: SidebarGroupId;
+    /** Extra search terms matched besides the label. */
+    keywords?: string[];
   }
 
   let {
@@ -26,7 +29,12 @@
 
   const visibleTabs = $derived.by(() => {
     const q = query.trim().toLowerCase();
-    return q ? tabs.filter((tab) => tab.label.toLowerCase().includes(q)) : tabs;
+    if (!q) return tabs;
+    return tabs.filter(
+      (tab) =>
+        tab.label.toLowerCase().includes(q) ||
+        tab.keywords?.some((keyword) => keyword.toLowerCase().includes(q)),
+    );
   });
 
   const groups = $derived(
@@ -52,7 +60,8 @@
 <svelte:window onkeydown={onWindowKeydown} />
 
 <nav class="settings-sidebar" aria-label={t('settings.title')}>
-  <div class="search-wrap">
+  <div class="search-box">
+    <Icon name="search" size={14} class="search-icon" />
     <input
       bind:this={searchEl}
       bind:value={query}
@@ -61,6 +70,21 @@
       placeholder={t('settings.nav.search_placeholder')}
       aria-label={t('settings.nav.search_placeholder')}
     />
+    {#if query}
+      <button
+        type="button"
+        class="clear-btn"
+        aria-label={t('settings.nav.clear_search')}
+        onclick={() => {
+          query = '';
+          searchEl?.focus();
+        }}
+      >
+        <Icon name="x" size={12} />
+      </button>
+    {:else}
+      <KeyboardHint keys="⌘F" />
+    {/if}
   </div>
 
   <div class="groups custom-scrollbar">
@@ -108,16 +132,67 @@
     overflow: hidden;
   }
 
-  .search-input {
-    width: 100%;
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    height: var(--size-xl);
     box-sizing: border-box;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-md);
-    background: var(--bg-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    transition:
+      border-color var(--dur-instant) var(--ease-travel),
+      box-shadow var(--dur-instant) var(--ease-travel);
+  }
+
+  .search-box:focus-within {
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-focus);
+  }
+
+  .search-box :global(.search-icon) {
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+
+  .search-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: none;
+    outline: none;
+    background: transparent;
     color: var(--text-primary);
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
+  }
+
+  .search-input::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  .search-input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  .clear-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-0-5);
+    border: none;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+  }
+
+  .clear-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .groups {
@@ -139,7 +214,8 @@
     font-size: var(--font-size-xs);
     font-weight: 600;
     font-family: var(--font-ui);
-    color: var(--text-secondary);
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-tertiary);
     text-transform: uppercase;
   }
 
@@ -154,7 +230,9 @@
     color: var(--text-secondary);
     cursor: pointer;
     text-align: start;
-    transition: background-color var(--transition-normal);
+    transition:
+      background-color var(--dur-instant) var(--ease-travel),
+      color var(--dur-instant) var(--ease-travel);
   }
 
   .item:hover {
@@ -163,13 +241,23 @@
 
   .item.active {
     background: var(--bg-selected);
+    box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
     color: var(--text-primary);
+  }
+
+  /* The active rim is a box-shadow and would swallow the global focus ring. */
+  .item:focus-visible {
+    box-shadow: var(--shadow-focus);
   }
 
   .label {
     font-size: var(--font-size-sm);
-    font-weight: 600;
+    font-weight: 500;
     font-family: var(--font-ui);
+  }
+
+  .item.active .label {
+    font-weight: 600;
   }
 
   .development-build-indicator {

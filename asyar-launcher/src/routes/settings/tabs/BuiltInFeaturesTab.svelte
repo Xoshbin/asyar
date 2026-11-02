@@ -65,6 +65,7 @@
     canForward={drill.canForward}
     onback={() => drill.back()}
     onforward={() => drill.forward()}
+    oncommandselect={(cmd) => drill.into(idOf(selected), cmd.id)}
   >
     {#if Panel}
       {#if HANDLER_PANELS.has(drill.id)}

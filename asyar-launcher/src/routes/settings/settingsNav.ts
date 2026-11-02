@@ -71,3 +71,37 @@ export function resolveNavigation(payload: NavPayload, developerEnabled: boolean
   if (DIRECT_TABS.includes(tab)) return { tab: tab as SettingsTabId, extensionId: null };
   return { tab: 'general', extensionId: null };
 }
+
+/**
+ * Extra terms the sidebar search matches besides a tab's label, so searching
+ * for a feature ("clipboard", "theme") finds the tab that contains it.
+ */
+export const SETTINGS_TAB_KEYWORDS: Partial<Record<SettingsTabId, string[]>> = {
+  general: ['hotkey', 'theme', 'appearance', 'window', 'onboarding', 'escape'],
+  'built-in-features': [
+    'ai',
+    'applications',
+    'clipboard',
+    'file search',
+    'snippets',
+    'browsers',
+    'scripts',
+    'calculator',
+    'notes',
+    'portals',
+    'ocr',
+    'window management',
+  ],
+  extensions: ['store', 'plugins', 'auto-update'],
+  privacy: [
+    'permissions',
+    'accessibility',
+    'calendar',
+    'reminders',
+    'encryption',
+    'shell',
+    'telemetry',
+  ],
+  backup: ['export', 'restore', 'raycast', 'migration'],
+  advanced: ['runtimes', 'node', 'bun', 'python', 'scheduled tasks', 'developer mode'],
+};

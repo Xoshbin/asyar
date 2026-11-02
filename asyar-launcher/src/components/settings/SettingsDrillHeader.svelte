@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../base/Icon.svelte';
   import { t } from '../../services/i18n';
 
   let {
@@ -16,7 +17,33 @@
     onback: () => void;
     onforward: () => void;
   } = $props();
+
+  function isEditable(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
+  }
+
+  // ⌘[ / ⌘] are the browser-style history chords; Alt+←/→ is the same pair
+  // for keyboards without ⌘. Alt+arrow moves the caret by word in a text
+  // field, so it is left alone there (⌘[ / ⌘] are not text-editing keys).
+  function onWindowKeydown(e: KeyboardEvent) {
+    const meta = e.metaKey || e.ctrlKey;
+    const alt = e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey;
+    const back = (meta && e.key === '[') || (alt && e.key === 'ArrowLeft');
+    const forward = (meta && e.key === ']') || (alt && e.key === 'ArrowRight');
+    if (!back && !forward) return;
+    if (alt && isEditable(e.target)) return;
+    if (back && canBack) {
+      e.preventDefault();
+      onback();
+    } else if (forward && canForward) {
+      e.preventDefault();
+      onforward();
+    }
+  }
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <div class="drill-header">
   <div class="nav-group" role="group">
@@ -26,16 +53,7 @@
       disabled={!canBack}
       onclick={onback}
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="14"
-        height="14"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg
-      >
+      <Icon name="chevron-left" size={14} />
     </button>
     <span class="divider"></span>
     <button
@@ -44,23 +62,16 @@
       disabled={!canForward}
       onclick={onforward}
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="14"
-        height="14"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg
-      >
+      <Icon name="chevron-right" size={14} />
     </button>
   </div>
   <div class="breadcrumb">
-    <span class="parent">{parentLabel}</span>
     {#if title}
+      <button class="parent-link" onclick={onback}>{parentLabel}</button>
       <span class="sep">›</span>
       <span class="current">{title}</span>
+    {:else}
+      <span class="parent">{parentLabel}</span>
     {/if}
   </div>
 </div>
@@ -114,6 +125,20 @@
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
+  }
+
+  .parent-link {
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    cursor: pointer;
+    transition: color var(--dur-instant) var(--ease-travel);
+  }
+
+  .parent-link:hover {
+    color: var(--text-primary);
   }
 
   .current {

@@ -305,6 +305,7 @@
       "select_extension_or_command": "选择一个扩展或命令",
       "filter_all": "全部",
       "filter_commands": "命令",
+      "section_commands": "命令",
       "filter_extensions": "扩展",
       "filter_theme": "主题",
       "search_placeholder": "搜索……",
@@ -820,7 +821,8 @@
       "group_system": "系统",
       "back": "返回",
       "forward": "前进",
-      "search_placeholder": "搜索设置 (⌘F)"
+      "search_placeholder": "搜索设置",
+      "clear_search": "清除搜索"
     }
   },
   "onboarding": {
