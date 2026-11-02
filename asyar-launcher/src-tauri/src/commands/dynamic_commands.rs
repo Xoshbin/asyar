@@ -35,7 +35,7 @@ pub struct DynamicCommandMeta {
     /// prefix). The launcher composes the persistence key when needed.
     pub command_id: String,
     pub command_name: String,
-    pub icon: Option<String>,
+    pub icon: Option<crate::icons::ResolvedIcon>,
     pub args: Vec<crate::extensions::CommandArgument>,
     /// Mirrors the manifest path's `requireAnyOf` so both resolve through the
     /// same gate in `CommandArgumentsService`.
@@ -296,10 +296,10 @@ pub async fn get_dynamic_command_meta(
     };
 
     Ok(Some(DynamicCommandMeta {
+        icon: crate::icons::resolve_opt(reg.icon.as_deref(), Some(&extension_id), true),
         extension_id,
         command_id: dynamic_id,
         command_name: reg.name,
-        icon: reg.icon,
         args: reg.arguments,
         require_any_of: reg.require_any_of,
     }))

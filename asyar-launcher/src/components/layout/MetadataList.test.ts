@@ -78,7 +78,7 @@ describe('MetadataList', () => {
       items: [{ label: 'Source', value: 'Paseo', icon: 'data:image/png;base64,123' }],
     });
 
-    const img = container.querySelector('.metadata-icon') as HTMLImageElement;
+    const img = container.querySelector('img') as HTMLImageElement;
     expect(img).not.toBeNull();
     expect(img.src).toContain('data:image/png;base64,123');
   });

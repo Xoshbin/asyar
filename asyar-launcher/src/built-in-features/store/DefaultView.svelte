@@ -57,7 +57,7 @@
       {#snippet leading()}
         <ExtensionAvatar
           name={item.name}
-          src={storeIconSrc(item.iconUrl ?? item.icon_url)}
+          icon={storeIconSrc(item.iconUrl ?? item.icon_url)}
           size="sm"
         />
       {/snippet}
@@ -85,7 +85,7 @@
       >
         <ExtensionAvatar
           name={selectedItem.name}
-          src={storeIconSrc(selectedItem.iconUrl ?? selectedItem.icon_url)}
+          icon={storeIconSrc(selectedItem.iconUrl ?? selectedItem.icon_url)}
           size="xl"
         />
 

@@ -15,6 +15,7 @@
 </script>
 
 <script lang="ts">
+  import AppIcon from '../base/AppIcon.svelte';
   let {
     items,
     title,
@@ -39,7 +40,7 @@
           <dt>{item.label}</dt>
           <dd title={item.title ?? item.value} class:mono={item.mono}>
             {#if item.icon}
-              <img src={item.icon} alt="" class="metadata-icon" />
+              <AppIcon icon={item.icon} size={16} />
             {/if}
             <span class="metadata-value-text">{item.value}</span>
           </dd>
@@ -114,13 +115,5 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .metadata-icon {
-    width: var(--size-sm);
-    height: var(--size-sm);
-    border-radius: var(--radius-xs);
-    object-fit: contain;
-    flex-shrink: 0;
   }
 </style>

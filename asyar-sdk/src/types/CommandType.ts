@@ -71,7 +71,11 @@ export interface DynamicCommandRegistration {
   name: string;
   /** Optional subtitle for the search-result row. */
   description?: string;
-  /** Icon reference (e.g. `"icon:link"` or an emoji). */
+  /**
+   * Icon reference: `"icon:<name>"`, an emoji, a relative path to an image
+   * bundled with the extension (e.g. `"icons/shortcut.png"`), or an
+   * `https://` image URL.
+   */
   icon?: string;
   /**
    * Right-side row label in root search, e.g. "Apple Shortcut" for a

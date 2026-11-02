@@ -316,7 +316,7 @@
         <div class="flex flex-col md:flex-row items-start md:items-center gap-8 mb-12">
           <ExtensionAvatar
             name={extensionDetail.name}
-            src={storeIconSrc(extensionDetail.iconUrl)}
+            icon={storeIconSrc(extensionDetail.iconUrl)}
             size="xl"
           />
 

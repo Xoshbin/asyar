@@ -18,6 +18,8 @@
   import { searchStores } from '../../services/search/stores/search.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
+  import extensionManager from '../../services/extension/extensionManager.svelte';
+  import { toResolvedIcon } from '../../lib/icon';
 
   let mode = $state<'view' | 'edit'>('view');
   let captureModifier = $state('');
@@ -133,8 +135,11 @@
     return null;
   }
 
+  // Stored icons are plain strings (synced across launcher versions); command
+  // icons come from the manifest so bundled files resolve.
   const iconForRow = (s: ItemShortcut) =>
-    s.itemIcon ?? (s.itemType === 'application' ? '📱' : '⚡');
+    toResolvedIcon(s.itemIcon) ??
+    (s.itemType === 'application' ? '📱' : (extensionManager.getCommandIcon(s.objectId) ?? '⚡'));
 </script>
 
 <div class="view-container">

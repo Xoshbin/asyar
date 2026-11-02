@@ -2,8 +2,6 @@
   import { logService } from '../../services/log/logService';
   import Input from '../base/Input.svelte';
   import LauncherListRow from '../list/LauncherListRow.svelte';
-  import Icon from '../base/Icon.svelte';
-  import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../lib/iconUtils';
   import EmptyState from '../feedback/EmptyState.svelte';
   import { invokeAction } from '../../services/action/invokeAction';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
@@ -171,21 +169,7 @@
               title={action.label}
               shortcut={action.shortcut}
               shortcutPlacement="trailing"
-            >
-              {#snippet leading()}
-                {#if action.icon && isBuiltInIcon(action.icon)}
-                  <div class="builtin-icon-tile">
-                    <Icon name={getBuiltInIconName(action.icon)} size={18} />
-                  </div>
-                {:else if action.icon && isIconImage(action.icon)}
-                  <img src={action.icon} alt={action.label} class="action-icon-img" />
-                {:else if action.icon}
-                  <div class="action-icon-fallback">
-                    {action.icon}
-                  </div>
-                {/if}
-              {/snippet}
-            </LauncherListRow>
+            />
           </div>
         {/each}
       </div>
@@ -275,34 +259,18 @@
     font-size: var(--font-size-md);
   }
 
-  .action-icon-img {
-    width: var(--size-lg);
-    height: var(--size-lg);
-    border-radius: var(--radius-xs);
-    object-fit: contain;
-    flex-shrink: 0;
-  }
-
-  .action-icon-fallback {
-    width: var(--size-lg);
-    height: var(--size-lg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    flex-shrink: 0;
-    border-radius: var(--radius-xs);
-  }
-
-  /* Flat glyph in the popup — no filled tile. */
-  .action-popup :global(.builtin-icon-tile) {
+  /* Flat, larger glyph in the popup — no filled tile. */
+  .action-popup :global(.app-icon-tile) {
     background-color: transparent;
     color: var(--text-primary);
   }
+  .action-popup :global(.app-icon-tile svg) {
+    width: 18px; /* design-ok: matches the popup's former 18px glyph */
+    height: 18px; /* design-ok: matches the popup's former 18px glyph */
+  }
 
   .action-destructive :global(.result-title),
-  .action-destructive :global(.builtin-icon-tile) {
+  .action-destructive :global(.app-icon-tile) {
     color: var(--accent-danger) !important;
   }
 </style>

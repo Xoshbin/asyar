@@ -4,8 +4,7 @@
   import { LAUNCHER_SHORTCUTS } from '../../lib/keyboard/shortcutCatalog';
   import { actionShortcutEntries } from '../../lib/keyboard/actionShortcutCatalog';
   import { actionService } from '../../services/action/actionService.svelte';
-  import Icon from '../../components/base/Icon.svelte';
-  import { getBuiltInIconName, isBuiltInIcon } from '../../lib/iconUtils';
+  import AppIcon from '../../components/base/AppIcon.svelte';
   import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
 
   let listEl = $state<HTMLDivElement | undefined>();
@@ -68,9 +67,7 @@
     <ul class="topic-list">
       {#each helpViewState.filtered as topic, i}
         <li class="topic-row" class:selected={i === helpViewState.selectedIndex} data-index={i}>
-          {#if isBuiltInIcon(topic.icon)}
-            <Icon name={getBuiltInIconName(topic.icon)} />
-          {/if}
+          <AppIcon icon={topic.icon} size={20} />
           <span class="topic-text">
             <span class="topic-title">{topic.title}</span>
             <span class="topic-subtitle">{topic.subtitle}</span>

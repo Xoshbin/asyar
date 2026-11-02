@@ -748,6 +748,7 @@ mod tests {
     ) -> ExtensionRecord {
         ExtensionRecord {
             manifest: ExtensionManifest {
+                resolved_icon: None,
                 id: id.into(),
                 name: id.into(),
                 version: "1.0.0".into(),

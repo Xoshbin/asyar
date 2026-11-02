@@ -1,7 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ExtensionBridge, ActionContext } from 'asyar-sdk/contracts';
 import type { Extension, ExtensionManifest, ExtensionCommand } from 'asyar-sdk/contracts';
-import type { ExtendedManifest } from '../../types/ExtendedManifest';
+import type { ExtendedManifest, HostManifestAction } from '../../types/ExtendedManifest';
 import { logService } from '../log/logService';
 import { extensionLoaderService } from '../extensionLoaderService';
 import { performanceService } from '../performance/performanceService.svelte';
@@ -428,7 +428,7 @@ export class ExtensionLoader {
               id: fullActionId,
               label: action.title,
               description: action.description,
-              icon: action.icon,
+              icon: (action as HostManifestAction).resolvedIcon,
               shortcut: action.shortcut,
               category: action.category,
               extensionId,
@@ -453,7 +453,7 @@ export class ExtensionLoader {
             id: fullActionId,
             label: action.title,
             description: action.description,
-            icon: action.icon,
+            icon: (action as HostManifestAction).resolvedIcon,
             shortcut: action.shortcut,
             category: action.category,
             extensionId,
