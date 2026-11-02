@@ -91,11 +91,20 @@ pub fn exact_path_row(path: &Path, home: Option<&Path>) -> Option<SearchResult> 
 }
 
 /// Puts the exact row first, dropping any row already pointing at that path.
-pub fn prepend_exact_row(results: &mut Vec<SearchResult>, row: SearchResult) {
+/// The one row it yields to is the alias-pinned target (`alias_object_id`): an
+/// exact alias is the user's own shortcut and always leads.
+pub fn prepend_exact_row(
+    results: &mut Vec<SearchResult>,
+    row: SearchResult,
+    alias_object_id: Option<&str>,
+) {
     if let Some(path) = row.path.as_deref().map(normalize_path_for_dedup) {
         results.retain(|r| r.path.as_deref().map(normalize_path_for_dedup).as_ref() != Some(&path));
     }
-    results.insert(0, row);
+    let alias_leads = alias_object_id
+        .zip(results.first())
+        .is_some_and(|(id, first)| first.object_id == id);
+    results.insert(usize::from(alias_leads), row);
 }
 
 /// Whether a typed path may produce an exact row. It needs File Search to be on
@@ -288,9 +297,51 @@ mod tests {
         ];
         let mut exact = blank_row("file_new", Some("/home/me/a.txt"));
         exact.result_type = "file".to_string();
-        prepend_exact_row(&mut rows, exact);
+        prepend_exact_row(&mut rows, exact, None);
         let ids: Vec<&str> = rows.iter().map(|r| r.object_id.as_str()).collect();
         assert_eq!(ids, ["file_new", "app"]);
+    }
+
+    fn exact_file_row(path: &str) -> SearchResult {
+        let mut exact = blank_row("file_new", Some(path));
+        exact.result_type = "file".to_string();
+        exact
+    }
+
+    fn row_ids(rows: &[SearchResult]) -> Vec<&str> {
+        rows.iter().map(|r| r.object_id.as_str()).collect()
+    }
+
+    #[test]
+    fn exact_row_goes_below_alias_pinned_row() {
+        let mut rows = vec![blank_row("alias_app", None), blank_row("other", None)];
+        prepend_exact_row(
+            &mut rows,
+            exact_file_row("/home/me/a.txt"),
+            Some("alias_app"),
+        );
+        assert_eq!(row_ids(&rows), ["alias_app", "file_new", "other"]);
+    }
+
+    #[test]
+    fn exact_row_still_first_without_alias() {
+        let mut rows = vec![blank_row("alias_app", None), blank_row("other", None)];
+        prepend_exact_row(&mut rows, exact_file_row("/home/me/a.txt"), None);
+        assert_eq!(row_ids(&rows), ["file_new", "alias_app", "other"]);
+    }
+
+    #[test]
+    fn exact_row_still_dedupes_path_when_below_alias() {
+        let mut rows = vec![
+            blank_row("alias_app", None),
+            blank_row("file_old", Some("/home/me/a.txt")),
+        ];
+        prepend_exact_row(
+            &mut rows,
+            exact_file_row("/home/me/a.txt"),
+            Some("alias_app"),
+        );
+        assert_eq!(row_ids(&rows), ["alias_app", "file_new"]);
     }
 
     #[tokio::test]
