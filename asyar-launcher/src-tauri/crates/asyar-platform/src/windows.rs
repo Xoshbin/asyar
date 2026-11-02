@@ -1,5 +1,6 @@
 #![cfg(target_os = "windows")]
 
+pub mod calendar;
 pub mod media;
 
 use std::ffi::OsStr;

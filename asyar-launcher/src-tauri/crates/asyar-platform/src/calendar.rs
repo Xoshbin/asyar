@@ -1,9 +1,12 @@
 //! Cross-platform calendar and reminders abstraction.
 //!
 //! - macOS: `EventKit` (`macos::calendar`).
-//! - Windows / Linux: not implemented yet — every call returns
-//!   [`PlatformError::Unsupported`] rather than an empty result, so callers
-//!   never mistake "no backend" for "nothing scheduled".
+//! - Linux: local `.ics` files (`linux::calendar`, via `ics`).
+//! - Windows: WinRT appointments; no Reminders store (`windows::calendar`).
+//!
+//! Platforms without a backend return [`PlatformError::Unsupported`] rather
+//! than an empty result, so callers never mistake "no backend" for "nothing
+//! scheduled".
 //!
 //! All timestamps are Unix epoch milliseconds. Input validation lives here, in
 //! front of the backends, so every platform rejects the same bad input.
@@ -111,31 +114,69 @@ pub enum AccessState {
     Unsupported,
 }
 
-/// The current access decision, without prompting.
-pub fn access_status(kind: AccessKind) -> Result<AccessState, PlatformError> {
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::calendar::access_status(kind)
+// Backend selection. Windows has no Reminders store; Linux and macOS cover
+// everything. A platform with none of the three gets the stub below.
+#[cfg(target_os = "linux")]
+use crate::linux::calendar as backend;
+#[cfg(target_os = "macos")]
+use crate::macos::calendar as backend;
+#[cfg(target_os = "windows")]
+use crate::windows::calendar as backend;
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+mod backend {
+    use super::*;
+
+    fn none<T>() -> Result<T, PlatformError> {
+        Err(PlatformError::Unsupported(
+            "calendar and reminders are not available on this platform".into(),
+        ))
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = kind;
+    pub fn access_status(_: AccessKind) -> Result<AccessState, PlatformError> {
         Ok(AccessState::Unsupported)
     }
+    pub fn request_access(_: AccessKind) -> Result<AccessState, PlatformError> {
+        Ok(AccessState::Unsupported)
+    }
+    pub fn list_calendars() -> Result<Vec<CalendarSource>, PlatformError> {
+        none()
+    }
+    pub fn list_events(
+        _: i64,
+        _: i64,
+        _: Option<&[String]>,
+    ) -> Result<Vec<CalendarEvent>, PlatformError> {
+        none()
+    }
+    pub fn create_event(_: CreateEventInput) -> Result<CalendarEvent, PlatformError> {
+        none()
+    }
+    pub fn list_reminder_lists() -> Result<Vec<ReminderList>, PlatformError> {
+        none()
+    }
+    pub fn list_reminders(
+        _: Option<&[String]>,
+        _: bool,
+    ) -> Result<Vec<ReminderItem>, PlatformError> {
+        none()
+    }
+    pub fn create_reminder(_: CreateReminderInput) -> Result<ReminderItem, PlatformError> {
+        none()
+    }
+    pub fn set_reminder_completed(_: &str, _: bool) -> Result<ReminderItem, PlatformError> {
+        none()
+    }
+}
+
+/// The current access decision, without prompting.
+pub fn access_status(kind: AccessKind) -> Result<AccessState, PlatformError> {
+    backend::access_status(kind)
 }
 
 /// Shows the system access prompt when the decision is still open, then
 /// returns the resulting state. Never re-prompts once the user has decided.
 pub fn request_access(kind: AccessKind) -> Result<AccessState, PlatformError> {
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::calendar::request_access(kind)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = kind;
-        Ok(AccessState::Unsupported)
-    }
+    backend::request_access(kind)
 }
 
 fn invalid(msg: &str) -> PlatformError {
@@ -181,23 +222,9 @@ pub(crate) fn validate_create_reminder(input: &CreateReminderInput) -> Result<()
     Ok(())
 }
 
-#[cfg(not(target_os = "macos"))]
-fn no_backend<T>() -> Result<T, PlatformError> {
-    Err(PlatformError::Unsupported(
-        "calendar and reminders are only available on macOS".into(),
-    ))
-}
-
 /// Every calendar the user has, including read-only subscribed ones.
 pub fn list_calendars() -> Result<Vec<CalendarSource>, PlatformError> {
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::calendar::list_calendars()
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        no_backend()
-    }
+    backend::list_calendars()
 }
 
 /// Events overlapping `[start_at, end_at]`, sorted by start time. `calendar_ids`
@@ -208,38 +235,16 @@ pub fn list_events(
     calendar_ids: Option<&[String]>,
 ) -> Result<Vec<CalendarEvent>, PlatformError> {
     validate_event_range(start_at, end_at)?;
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::calendar::list_events(start_at, end_at, calendar_ids)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = calendar_ids;
-        no_backend()
-    }
+    backend::list_events(start_at, end_at, calendar_ids)
 }
 
 pub fn create_event(input: CreateEventInput) -> Result<CalendarEvent, PlatformError> {
     validate_create_event(&input)?;
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::calendar::create_event(input)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        no_backend()
-    }
+    backend::create_event(input)
 }
 
 pub fn list_reminder_lists() -> Result<Vec<ReminderList>, PlatformError> {
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::calendar::list_reminder_lists()
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        no_backend()
-    }
+    backend::list_reminder_lists()
 }
 
 /// Reminders in `list_ids` (every list when `None`). Completed reminders are
@@ -248,42 +253,19 @@ pub fn list_reminders(
     list_ids: Option<&[String]>,
     include_completed: bool,
 ) -> Result<Vec<ReminderItem>, PlatformError> {
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::calendar::list_reminders(list_ids, include_completed)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (list_ids, include_completed);
-        no_backend()
-    }
+    backend::list_reminders(list_ids, include_completed)
 }
 
 pub fn create_reminder(input: CreateReminderInput) -> Result<ReminderItem, PlatformError> {
     validate_create_reminder(&input)?;
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::calendar::create_reminder(input)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        no_backend()
-    }
+    backend::create_reminder(input)
 }
 
 pub fn set_reminder_completed(id: &str, completed: bool) -> Result<ReminderItem, PlatformError> {
     if id.trim().is_empty() {
         return Err(invalid("reminder id must not be empty"));
     }
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::calendar::set_reminder_completed(id, completed)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = completed;
-        no_backend()
-    }
+    backend::set_reminder_completed(id, completed)
 }
 
 #[cfg(test)]

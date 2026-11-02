@@ -1,3 +1,4 @@
+pub mod calendar;
 pub mod desktop_entry;
 pub mod environment;
 #[cfg(target_os = "linux")]

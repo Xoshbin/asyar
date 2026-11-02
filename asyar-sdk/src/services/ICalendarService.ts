@@ -72,8 +72,9 @@ export interface CreateReminderInput {
 /**
  * Read and create calendar events and reminders.
  *
- * Available on macOS (EventKit); Windows and Linux reject every call. The first
- * call prompts the user for Calendar or Reminders access. Four manifest
+ * Available on macOS (EventKit), Linux (local `.ics` files) and Windows (calendar
+ * only; reminder calls reject). On macOS the first call prompts the user for
+ * Calendar or Reminders access. Four manifest
  * permissions gate it: `calendar:read` (`listCalendars`, `listEvents`),
  * `calendar:write` (`createEvent`), `reminders:read` (`listReminderLists`,
  * `listReminders`) and `reminders:write` (`createReminder`,

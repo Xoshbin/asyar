@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { platform } from '@tauri-apps/plugin-os';
   import { SettingsRow, Button } from '../index';
   import {
     calendarAccessStatus,
@@ -35,7 +36,12 @@
     },
   ]);
 
+  // Only macOS has a per-app privacy decision to grant; Linux is always allowed
+  // and Windows is managed in Windows Settings.
+  let isMac = $state(false);
+
   async function refresh() {
+    if (!isMac) return;
     // Independent reads: one failing must not hide the other row. A failed
     // kind keeps its last known state and is re-read on the next window focus.
     await Promise.all(
@@ -61,7 +67,8 @@
   }
 
   // The user changes the decision in System Settings, so re-read on return.
-  onMount(() => {
+  onMount(async () => {
+    isMac = (await platform()) === 'macos';
     void refresh();
     window.addEventListener('focus', refresh);
   });
@@ -69,7 +76,7 @@
 </script>
 
 {#if available}
-  {#each rows as row (row.kind)}
+  {#each rows.filter((r) => states[r.kind] !== 'unsupported') as row (row.kind)}
     {@const state = states[row.kind]}
     <SettingsRow
       label={row.label}

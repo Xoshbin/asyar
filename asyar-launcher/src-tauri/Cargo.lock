@@ -353,6 +353,7 @@ dependencies = [
  "sys-locale",
  "tempfile",
  "thiserror 2.0.20",
+ "uuid",
  "window-vibrancy 0.6.0",
  "windows 0.62.2",
  "x11rb",

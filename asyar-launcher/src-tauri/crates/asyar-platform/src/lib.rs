@@ -5,6 +5,7 @@
 
 pub mod calendar;
 pub mod error;
+pub(crate) mod ics;
 pub mod input;
 pub mod keyboard;
 pub mod locale;
