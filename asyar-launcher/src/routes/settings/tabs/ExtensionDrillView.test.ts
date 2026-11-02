@@ -145,10 +145,21 @@ describe('ExtensionDrillView commands', () => {
     expect(screen.queryByText('settings.extensions.section_commands')).toBeNull();
   });
 
-  it('reports the command picked from the list', async () => {
+  it('reports a picked command that declares preferences', async () => {
+    const oncommandselect = vi.fn();
+    const withPrefs = [
+      commands[0],
+      { ...commands[1], preferences: [{ name: 'confirm', type: 'checkbox' }] },
+    ];
+    renderDrill({ ...clipboard, commands: withPrefs }, { oncommandselect });
+    await fireEvent.click(screen.getByText('Clear History'));
+    expect(oncommandselect).toHaveBeenCalledWith(expect.objectContaining({ id: 'clear' }));
+  });
+
+  it('does not drill into a command without preferences', async () => {
     const oncommandselect = vi.fn();
     renderDrill(clipboard, { oncommandselect });
     await fireEvent.click(screen.getByText('Clear History'));
-    expect(oncommandselect).toHaveBeenCalledWith(expect.objectContaining({ id: 'clear' }));
+    expect(oncommandselect).not.toHaveBeenCalled();
   });
 });

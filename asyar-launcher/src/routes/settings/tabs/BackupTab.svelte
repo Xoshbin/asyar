@@ -60,13 +60,15 @@
       label={t('settings.backup.password_optional')}
       description={t('settings.backup.password_optional_description')}
     >
-      <Input
-        textIntent="exact"
-        id="export-password"
-        type="password"
-        placeholder={t('settings.backup.password_optional_placeholder')}
-        bind:value={backup.exportPassword}
-      />
+      <div class="password-field">
+        <Input
+          textIntent="exact"
+          id="export-password"
+          type="password"
+          placeholder={t('settings.backup.password_optional_placeholder')}
+          bind:value={backup.exportPassword}
+        />
+      </div>
     </SettingsRow>
 
     <SettingsRow label={t('settings.backup.export_backup')}>
@@ -250,11 +252,25 @@
     scroll-margin-top: var(--space-6);
   }
 
+  .category-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--border-color);
+  }
+
   .category-label {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
     cursor: pointer;
+  }
+
+  .password-field {
+    min-width: 260px; /* design-ok: keeps the password placeholder from truncating */
   }
 
   .export-note {
@@ -267,6 +283,7 @@
 
   .warning-row {
     padding: var(--space-3) var(--space-6);
+    border-bottom: 1px solid var(--border-color);
   }
 
   .action-row {

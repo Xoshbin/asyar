@@ -1,6 +1,7 @@
 export type SettingsTabId =
   | 'account'
   | 'general'
+  | 'applications'
   | 'built-in-features'
   | 'extensions'
   | 'privacy'
@@ -22,7 +23,6 @@ export interface NavPayload {
 /** Legacy top-level tabs that are now drill-downs under Built-in Features. */
 export const BUILT_IN_FEATURE_TAB_IDS = {
   ai: 'built-in-ai',
-  applications: 'built-in-applications',
   'file-search': 'built-in-file-search',
   browsers: 'built-in-browsers',
   scripts: 'built-in-scripts',
@@ -32,13 +32,17 @@ export type SidebarGroupId = 'top' | 'app' | 'system';
 
 export const SIDEBAR_GROUPS: { id: SidebarGroupId; tabs: SettingsTabId[] }[] = [
   { id: 'top', tabs: ['account'] },
-  { id: 'app', tabs: ['general', 'built-in-features', 'extensions', 'privacy', 'backup'] },
+  {
+    id: 'app',
+    tabs: ['general', 'applications', 'built-in-features', 'extensions', 'privacy', 'backup'],
+  },
   { id: 'system', tabs: ['advanced', 'developer', 'about'] },
 ];
 
 const DIRECT_TABS: readonly string[] = [
   'account',
   'general',
+  'applications',
   'privacy',
   'backup',
   'advanced',
@@ -78,9 +82,9 @@ export function resolveNavigation(payload: NavPayload, developerEnabled: boolean
  */
 export const SETTINGS_TAB_KEYWORDS: Partial<Record<SettingsTabId, string[]>> = {
   general: ['hotkey', 'theme', 'appearance', 'window', 'onboarding', 'escape'],
+  applications: ['apps', 'applications', 'search scope', 'directories', 'launch'],
   'built-in-features': [
     'ai',
-    'applications',
     'clipboard',
     'file search',
     'snippets',

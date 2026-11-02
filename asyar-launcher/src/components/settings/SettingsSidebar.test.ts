@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import SettingsSidebar from './SettingsSidebar.svelte';
 
@@ -102,10 +102,33 @@ describe('SettingsSidebar', () => {
   it('shows a count and a badge on the trailing edge', () => {
     const withExtras = [
       { id: 'general', label: 'General', icon: 'settings', group: 'app', count: 7 },
-      { id: 'developer', label: 'Developer', icon: 'dev-tools', group: 'system', badge: 'DEV' },
+      { id: 'developer', label: 'Developer', icon: 'dev-tools', group: 'system', badge: 'BETA' },
     ];
     render(SettingsSidebar, { tabs: withExtras as never, activeTab: 'general' });
     expect(screen.getByText('7')).toBeTruthy();
-    expect(screen.getAllByText('DEV').length).toBeGreaterThan(0);
+    expect(screen.getByText('BETA')).toBeTruthy();
+  });
+
+  it('renders deep results with a category line and selects on click', async () => {
+    const onresult = vi.fn();
+    const results = [{ id: 'a', title: 'Start at login', category: 'General' }];
+    render(SettingsSidebar, { tabs: [...tabs], activeTab: 'about', results, onresult });
+    expect(screen.getByText('Start at login')).toBeTruthy();
+    expect(screen.getByText('General', { selector: '.result-category' })).toBeTruthy();
+    await fireEvent.click(screen.getByText('Start at login'));
+    expect(onresult).toHaveBeenCalledWith(results[0]);
+  });
+
+  it('moves with the arrow keys and picks the highlighted result on Enter', async () => {
+    const onresult = vi.fn();
+    const results = [
+      { id: 'a', title: 'One', category: 'General' },
+      { id: 'b', title: 'Two', category: 'Backup' },
+    ];
+    render(SettingsSidebar, { tabs: [...tabs], activeTab: 'about', results, onresult });
+    const input = screen.getByRole('searchbox');
+    await fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onresult).toHaveBeenCalledWith(results[1]);
   });
 });

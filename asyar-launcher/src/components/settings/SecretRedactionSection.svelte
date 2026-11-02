@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { SettingsCard, SettingsRow, Toggle, Badge, EmptyState } from '../index';
+  import { SettingsCard, SettingsRow, Toggle, Badge, Button, EmptyState } from '../index';
   import { secretRedactionService } from '../../services/privacy/secretRedactionService.svelte';
   import { t } from '../../services/i18n';
+
+  let showDetectors = $state(false);
 
   let totalRedacted = $derived(
     Object.values(secretRedactionService.sessionStats).reduce((a, b) => a + b, 0),
@@ -94,35 +96,77 @@
     description={t('settings.privacy.active_detectors_desc')}
   >
     {#snippet children()}
+      <div class="detectors-control">
+        <Badge
+          text={t('settings.privacy.detector_count', {
+            count: secretRedactionService.catalog.length,
+          })}
+          variant="info"
+        />
+        <Button onclick={() => (showDetectors = !showDetectors)} aria-expanded={showDetectors}>
+          {showDetectors
+            ? t('settings.privacy.hide_detectors')
+            : t('settings.privacy.show_detectors')}
+        </Button>
+      </div>
+    {/snippet}
+  </SettingsRow>
+
+  {#if showDetectors}
+    <div class="detectors">
       {#if secretRedactionService.catalog.length === 0}
         <EmptyState message={t('settings.privacy.no_detectors')} />
       {:else}
         <ul class="catalog">
-          {#each secretRedactionService.catalog as rule}
+          {#each secretRedactionService.catalog as rule (rule.kind)}
             <li class="catalog-row">
-              <span class="text-body">{rule.kind}</span>
-              <span class="text-caption">{rule.description}</span>
+              <span class="catalog-kind">{rule.kind}</span>
+              <span class="catalog-desc">{rule.description}</span>
             </li>
           {/each}
         </ul>
       {/if}
-    {/snippet}
-  </SettingsRow>
+    </div>
+  {/if}
 </SettingsCard>
 
 <style>
+  .detectors-control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .detectors {
+    padding: var(--space-4) var(--space-6) var(--space-5);
+    border-top: 1px solid var(--border-color);
+  }
+
   .catalog {
     list-style: none;
     padding: 0;
     margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3) var(--space-5);
   }
 
   .catalog-row {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .catalog-kind {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--text-primary);
+  }
+
+  .catalog-desc {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
   }
 </style>

@@ -298,7 +298,7 @@ describe('AccountTab sync section hardening', () => {
     render(AccountTab, { props: { handler: createMockHandler() } });
 
     expect(screen.getByText('Key stored in your system keychain')).toBeTruthy();
-    expect(screen.getByText('Reset Cloud Sync')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reset Cloud Sync' })).toBeTruthy();
     expect(screen.getByText('Show')).toBeTruthy();
   });
 

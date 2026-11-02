@@ -501,11 +501,14 @@
             {/if}
           {/if}
 
-          <div class="reset-section">
+          <SettingsRow
+            label={t('settings.e2ee.reset_title')}
+            description={t('settings.e2ee.reset_description')}
+          >
             <Button class="btn-danger" onclick={() => (activeDialog = 'reset')}>
               {t('settings.e2ee.reset_button')}
             </Button>
-          </div>
+          </SettingsRow>
         {/if}
       {:else}
         <SettingsRow
@@ -795,14 +798,6 @@
     display: flex;
     gap: var(--space-2);
     flex-shrink: 0;
-  }
-
-  .reset-section {
-    display: flex;
-    justify-content: flex-end;
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--separator);
-    margin-top: var(--space-2);
   }
 
   :global(.btn-danger) {

@@ -34,6 +34,7 @@
     showType?: boolean;
     /** Indent the name under its parent row (table only). */
     indented?: boolean;
+    /** Only commands that declare preferences are drillable; the rest are configured inline. */
     onselect?: (cmd: HostCommand) => void;
   } = $props();
 
@@ -110,13 +111,14 @@
   {@const objectId = commandObjectId(cmd)}
   {@const alias = objectId ? aliasStore.byObjectId.get(objectId) : undefined}
   {@const shortcut = objectId ? shortcutsByObjectId.get(objectId) : undefined}
+  {@const canSelect = (cmd.preferences?.length ?? 0) > 0 && !!onselect}
   <div
     class="cmd-row"
-    class:clickable={!!onselect}
+    class:clickable={canSelect}
     role="row"
-    tabindex={onselect ? 0 : -1}
-    onclick={() => onselect?.(cmd)}
-    onkeydown={(e) => e.key === 'Enter' && onselect?.(cmd)}
+    tabindex={canSelect ? 0 : -1}
+    onclick={() => canSelect && onselect?.(cmd)}
+    onkeydown={(e) => canSelect && e.key === 'Enter' && onselect?.(cmd)}
   >
     <div class="row-name-cell" class:cmd-indent={indented}>
       <div class="cmd-icon shrink-0">

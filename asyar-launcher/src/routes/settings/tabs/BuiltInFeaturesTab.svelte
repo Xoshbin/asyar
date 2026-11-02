@@ -3,7 +3,6 @@
   import type { SettingsHandler, ExtensionItem } from '../settingsHandlers.svelte';
   import { t } from '../../../services/i18n';
   import AiTab from './AiTab.svelte';
-  import ApplicationsTab from './ApplicationsTab.svelte';
   import FileSearchTab from './FileSearchTab.svelte';
   import BrowsersTab from './BrowsersTab.svelte';
   import ScriptsTab from './ScriptsTab.svelte';
@@ -20,7 +19,6 @@
   // Features absent from this map render the detail panel alone.
   const PANELS: Record<string, Component<any>> = {
     'built-in-ai': AiTab,
-    'built-in-applications': ApplicationsTab,
     'built-in-file-search': FileSearchTab,
     'built-in-browsers': BrowsersTab,
     'built-in-scripts': ScriptsTab,

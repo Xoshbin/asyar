@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { LoadingState } from '../../components';
   import SettingsSidebar from '../../components/settings/SettingsSidebar.svelte';
+  import { searchSettings, type SettingsSearchResult } from './settingsSearch';
   import { resolveNavigation, SETTINGS_TAB_KEYWORDS, type SettingsTabId } from './settingsNav';
   import { SettingsHandler } from './settingsHandlers.svelte';
   import GeneralTab from './tabs/GeneralTab.svelte';
@@ -13,6 +14,7 @@
   import AdvancedTab from './tabs/AdvancedTab.svelte';
   import DeveloperTab from './tabs/DeveloperTab.svelte';
   import PrivacyTab from './tabs/PrivacyTab.svelte';
+  import ApplicationsTab from './tabs/ApplicationsTab.svelte';
   import { authService } from '../../services/auth/authService.svelte';
   import { registerProfileProviders } from '../../services/appInitializer';
   import { initProviders } from '../../services/ai/initProviders';
@@ -39,11 +41,29 @@
 
   let sidebarQuery = $state('');
 
+  const searchResults = $derived(
+    searchSettings(sidebarQuery, handler.extensions, handler.settings.developer?.enabled === true),
+  );
+
+  function openSearchResult(result: { id: string }) {
+    const hit = searchResults.find((r: SettingsSearchResult) => r.id === result.id);
+    if (!hit) return;
+    handler.activeTab = hit.target.tab;
+    handler.pendingExtensionSelection = hit.target.extensionId ?? null;
+    sidebarQuery = '';
+  }
+
   const settingsTabs = $derived(
     (
       [
         { id: 'account', label: t('settings.tabs.account'), icon: 'user', group: 'top' },
         { id: 'general', label: t('settings.tabs.general'), icon: 'settings', group: 'app' },
+        {
+          id: 'applications',
+          label: t('settings.tabs.applications'),
+          icon: 'layers',
+          group: 'app',
+        },
         {
           id: 'built-in-features',
           label: t('settings.tabs.built_in_features'),
@@ -68,7 +88,6 @@
                 label: t('settings.tabs.developer'),
                 icon: 'dev-tools',
                 group: 'system',
-                badge: 'DEV',
               },
             ]
           : []),
@@ -139,6 +158,8 @@
       bind:activeTab={handler.activeTab}
       bind:query={sidebarQuery}
       accountUser={authService.user}
+      results={searchResults}
+      onresult={openSearchResult}
     />
 
     <div class="settings-main">
@@ -155,6 +176,8 @@
         <div class="settings-content-inner">
           {#if handler.activeTab === 'general'}
             <GeneralTab {handler} />
+          {:else if handler.activeTab === 'applications'}
+            <ApplicationsTab />
           {:else if handler.activeTab === 'built-in-features'}
             <BuiltInFeaturesTab {handler} />
           {:else if handler.activeTab === 'extensions'}

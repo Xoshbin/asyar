@@ -19,6 +19,13 @@
     badge?: string;
   }
 
+  interface SearchResult {
+    id: string;
+    title: string;
+    /** Parent tab / feature, shown under the title. */
+    category: string;
+  }
+
   interface AccountUser {
     name?: string | null;
     email?: string | null;
@@ -30,14 +37,26 @@
     activeTab = $bindable(),
     query = $bindable(''),
     accountUser = null,
+    results = [],
+    onresult,
   }: {
     tabs: SidebarTab[];
     activeTab: SettingsTabId;
     query?: string;
     accountUser?: AccountUser | null;
+    /** Deep matches (settings rows, features, extensions) for the current query. */
+    results?: SearchResult[];
+    onresult?: (result: SearchResult) => void;
   } = $props();
 
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
+  let highlighted = $state(0);
+
+  // A new query or result set restarts the keyboard cursor at the top match.
+  $effect(() => {
+    void results;
+    highlighted = 0;
+  });
 
   const visibleTabs = $derived.by(() => {
     const q = query.trim().toLowerCase();
@@ -61,6 +80,20 @@
     return null;
   }
 
+  function onSearchKeydown(e: KeyboardEvent) {
+    if (results.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      highlighted = Math.min(highlighted + 1, results.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      highlighted = Math.max(highlighted - 1, 0);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      onresult?.(results[highlighted]);
+    }
+  }
+
   function onWindowKeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
       e.preventDefault();
@@ -77,6 +110,7 @@
     <input
       bind:this={searchEl}
       bind:value={query}
+      onkeydown={onSearchKeydown}
       class="search-input"
       type="search"
       placeholder={t('settings.nav.search_placeholder')}
@@ -148,6 +182,24 @@
         {/each}
       </div>
     {/each}
+
+    {#if results.length > 0}
+      <div class="group">
+        <div class="group-label">{t('settings.nav.group_results')}</div>
+        {#each results as result, i (result.id)}
+          <button
+            class="item result"
+            class:highlighted={i === highlighted}
+            onclick={() => onresult?.(result)}
+          >
+            <span class="result-text">
+              <span class="label result-title">{result.title}</span>
+              <span class="result-category">{result.category}</span>
+            </span>
+          </button>
+        {/each}
+      </div>
+    {/if}
   </div>
 
   {#if developmentBuildIndicator}
@@ -367,6 +419,29 @@
 
   .item.active .label {
     font-weight: 600;
+  }
+
+  .item.result.highlighted {
+    background: var(--bg-hover);
+  }
+
+  .result-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .result-title,
+  .result-category {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .result-category {
+    font-size: var(--font-size-2xs);
+    color: var(--text-tertiary);
   }
 
   .development-build-indicator {

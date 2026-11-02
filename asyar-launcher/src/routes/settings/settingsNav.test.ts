@@ -4,7 +4,6 @@ import { resolveNavigation, SIDEBAR_GROUPS } from './settingsNav';
 describe('resolveNavigation', () => {
   it.each([
     ['ai', 'built-in-ai'],
-    ['applications', 'built-in-applications'],
     ['file-search', 'built-in-file-search'],
     ['browsers', 'built-in-browsers'],
     ['scripts', 'built-in-scripts'],
@@ -12,6 +11,13 @@ describe('resolveNavigation', () => {
     expect(resolveNavigation({ tab }, false)).toEqual({
       tab: 'built-in-features',
       extensionId: id,
+    });
+  });
+
+  it('routes applications to its own sidebar tab', () => {
+    expect(resolveNavigation({ tab: 'applications' }, false)).toEqual({
+      tab: 'applications',
+      extensionId: null,
     });
   });
 
@@ -58,6 +64,7 @@ describe('SIDEBAR_GROUPS', () => {
     expect(SIDEBAR_GROUPS.flatMap((g) => g.tabs)).toEqual([
       'account',
       'general',
+      'applications',
       'built-in-features',
       'extensions',
       'privacy',
