@@ -22,6 +22,7 @@ import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
 import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
 import type { ResolvedIcon } from '../../bindings';
 import type { HostCommand } from '../../types/ExtendedManifest';
+import type { SettingsTabId } from './settingsNav';
 
 // Define interface for extension items with enabled status
 export interface ExtensionItem {
@@ -131,7 +132,7 @@ export class SettingsHandler {
   isSaving = $state(false);
   saveMessage = $state('');
   saveError = $state(false);
-  activeTab = $state('general');
+  activeTab = $state<SettingsTabId>('general');
   selectedTheme = $state('system');
   selectedLaunchView = $state<'default' | 'compact'>('default');
   isLoading = $state(true);
@@ -144,7 +145,7 @@ export class SettingsHandler {
   togglingExtension = $state<string | null>(null);
   /**
    * Extension id a deep link (asyar:navigate-settings-tab) asked to select.
-   * Consumed and cleared by ExtensionsTab once the list is loaded.
+   * Consumed and cleared by the list tab (Built-in Features / Extensions) once the list is loaded.
    */
   pendingExtensionSelection = $state<string | null>(null);
 

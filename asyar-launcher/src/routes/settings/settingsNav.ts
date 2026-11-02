@@ -1,0 +1,73 @@
+export type SettingsTabId =
+  | 'account'
+  | 'general'
+  | 'built-in-features'
+  | 'extensions'
+  | 'privacy'
+  | 'backup'
+  | 'advanced'
+  | 'developer'
+  | 'about';
+
+export interface NavTarget {
+  tab: SettingsTabId;
+  extensionId: string | null;
+}
+
+export interface NavPayload {
+  tab: string;
+  extensionId?: string | null;
+}
+
+/** Legacy top-level tabs that are now drill-downs under Built-in Features. */
+export const BUILT_IN_FEATURE_TAB_IDS = {
+  ai: 'built-in-ai',
+  applications: 'built-in-applications',
+  'file-search': 'built-in-file-search',
+  browsers: 'built-in-browsers',
+  scripts: 'built-in-scripts',
+} as const;
+
+export type SidebarGroupId = 'top' | 'app' | 'system';
+
+export const SIDEBAR_GROUPS: { id: SidebarGroupId; tabs: SettingsTabId[] }[] = [
+  { id: 'top', tabs: ['account'] },
+  { id: 'app', tabs: ['general', 'built-in-features', 'extensions', 'privacy', 'backup'] },
+  { id: 'system', tabs: ['advanced', 'developer', 'about'] },
+];
+
+const DIRECT_TABS: readonly string[] = [
+  'account',
+  'general',
+  'privacy',
+  'backup',
+  'advanced',
+  'about',
+];
+
+/**
+ * Maps an `asyar:navigate-settings-tab` payload (old and new shapes) onto a
+ * sidebar tab plus an optional drill-down id. Keeps every existing caller working.
+ */
+export function resolveNavigation(payload: NavPayload, developerEnabled: boolean): NavTarget {
+  const { tab, extensionId = null } = payload;
+
+  if (tab in BUILT_IN_FEATURE_TAB_IDS) {
+    return {
+      tab: 'built-in-features',
+      extensionId: BUILT_IN_FEATURE_TAB_IDS[tab as keyof typeof BUILT_IN_FEATURE_TAB_IDS],
+    };
+  }
+  if (tab === 'extensions') {
+    if (extensionId?.startsWith('built-in-')) {
+      return { tab: 'built-in-features', extensionId };
+    }
+    return { tab: 'extensions', extensionId: extensionId ?? null };
+  }
+  if (tab === 'built-in-features') return { tab, extensionId: extensionId ?? null };
+  if (tab === 'developer') {
+    return { tab: developerEnabled ? 'developer' : 'advanced', extensionId: null };
+  }
+  if (DIRECT_TABS.includes(tab)) return { tab: tab as SettingsTabId, extensionId: null };
+  return { tab: 'general', extensionId: null };
+}

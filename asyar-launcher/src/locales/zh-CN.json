@@ -87,10 +87,11 @@
       "backup": "备份",
       "sync": "同步",
       "account": "账户",
-      "privacy": "隐私",
+      "privacy": "隐私与权限",
       "advanced": "高级",
       "developer": "开发者",
-      "about": "关于"
+      "about": "关于",
+      "built_in_features": "内置功能"
     },
     "general": {
       "section_startup": "启动",
@@ -142,7 +143,8 @@
       "error_save_snap": "无法保存启动器吸附设置",
       "wayland_hotkey_hint": "在 Wayland（{compositor}）上，请在合成器或桌面快捷键设置中绑定 asyar-summon，以实现瞬时全局唤起。",
       "wayland_copy_cmd": "复制",
-      "wayland_copied": "✓ 已复制"
+      "wayland_copied": "✓ 已复制",
+      "section_behavior": "行为"
     },
     "appearance": {
       "theme": "主题",
@@ -699,7 +701,9 @@
       "protected": "受保护",
       "platform_note": "平台说明",
       "linux_clipboard_note": "你的 Linux 桌面环境未提供标准的剪贴板排除 API，仅支持按来源应用过滤。",
-      "source_filter_only": "仅来源过滤"
+      "source_filter_only": "仅来源过滤",
+      "accessibility_access": "辅助功能",
+      "accessibility_access_desc": "允许 Asyar 读取你的选中内容并代你输入（文本扩展、基于选中内容的命令）。"
     },
     "about": {
       "section_updates": "更新",
@@ -810,7 +814,14 @@
       "error_revoke": "无法撤销 {path} 的 Shell 信任"
     },
     "page_title": "Asyar 设置",
-    "loading": "正在加载设置..."
+    "loading": "正在加载设置...",
+    "nav": {
+      "group_app": "应用",
+      "group_system": "系统",
+      "back": "返回",
+      "forward": "前进",
+      "search_placeholder": "搜索设置 (⌘F)"
+    }
   },
   "onboarding": {
     "open_asyar": "打开 Asyar",

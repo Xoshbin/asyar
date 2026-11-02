@@ -1,8 +1,15 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { SettingsCard, SettingsRow, Input, Button, Badge, EmptyState, Select } from '../index';
   import { clipboardPrivacyService } from '../../services/privacy/clipboardPrivacyService.svelte';
   import { settingsService } from '../../services/settings/settingsService.svelte';
   import { t } from '../../services/i18n';
+
+  // The settings window is a separate webview whose appInitializer never ran;
+  // initialise the service when the section mounts (Built-in Features › Clipboard History).
+  onMount(() => {
+    void clipboardPrivacyService.init();
+  });
 
   let newEntry = $state('');
 

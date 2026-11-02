@@ -87,10 +87,11 @@
       "backup": "備份",
       "sync": "同步",
       "account": "帳戶",
-      "privacy": "隱私",
+      "privacy": "隱私與權限",
       "advanced": "高階",
       "developer": "開發者",
-      "about": "關於"
+      "about": "關於",
+      "built_in_features": "內建功能"
     },
     "general": {
       "section_startup": "啟動",
@@ -142,7 +143,8 @@
       "error_save_snap": "無法儲存啟動器吸附設定",
       "wayland_hotkey_hint": "在 Wayland（{compositor}）上，請在合成器或桌面快速鍵設定中綁定 asyar-summon，以實現瞬時全域喚起。",
       "wayland_copy_cmd": "複製",
-      "wayland_copied": "✓ 已複製"
+      "wayland_copied": "✓ 已複製",
+      "section_behavior": "行為"
     },
     "appearance": {
       "theme": "主題",
@@ -699,7 +701,9 @@
       "protected": "受保護",
       "platform_note": "平台說明",
       "linux_clipboard_note": "你的 Linux 桌面環境未提供標準的剪貼簿排除 API，僅支援依來源應用程式過濾。",
-      "source_filter_only": "僅來源過濾"
+      "source_filter_only": "僅來源過濾",
+      "accessibility_access": "輔助使用",
+      "accessibility_access_desc": "允許 Asyar 讀取你的選取內容並代你輸入（文字展開、以選取內容為基礎的指令）。"
     },
     "about": {
       "section_updates": "更新",
@@ -810,7 +814,14 @@
       "error_revoke": "無法撤銷 {path} 的 Shell 信任"
     },
     "page_title": "Asyar 設定",
-    "loading": "正在載入設定..."
+    "loading": "正在載入設定...",
+    "nav": {
+      "group_app": "應用程式",
+      "group_system": "系統",
+      "back": "返回",
+      "forward": "前進",
+      "search_placeholder": "搜尋設定 (⌘F)"
+    }
   },
   "onboarding": {
     "open_asyar": "開啟 Asyar",

@@ -87,10 +87,11 @@
       "backup": "Backup",
       "sync": "Sync",
       "account": "Account",
-      "privacy": "Privacy",
+      "privacy": "Privacy & Permissions",
       "advanced": "Advanced",
       "developer": "Developer",
-      "about": "About"
+      "about": "About",
+      "built_in_features": "Built-in Features"
     },
     "general": {
       "section_startup": "Startup",
@@ -142,7 +143,8 @@
       "error_save_snap": "Could not save the launcher snap setting",
       "wayland_hotkey_hint": "On Wayland ({compositor}), bind asyar-summon in your compositor or desktop shortcut settings for instant global summon.",
       "wayland_copy_cmd": "Copy",
-      "wayland_copied": "✓ Copied"
+      "wayland_copied": "✓ Copied",
+      "section_behavior": "Behavior"
     },
     "appearance": {
       "theme": "Theme",
@@ -699,7 +701,9 @@
       "protected": "Protected",
       "platform_note": "Platform note",
       "linux_clipboard_note": "Your Linux desktop does not provide a standard clipboard exclusion API. Source-app filtering only.",
-      "source_filter_only": "Source filter only"
+      "source_filter_only": "Source filter only",
+      "accessibility_access": "Accessibility",
+      "accessibility_access_desc": "Lets Asyar read your selection and type for you (text expansion, selection-based commands)."
     },
     "about": {
       "section_updates": "Updates",
@@ -810,7 +814,14 @@
       "error_revoke": "Could not revoke shell trust for {path}"
     },
     "page_title": "Asyar Settings",
-    "loading": "Loading settings..."
+    "loading": "Loading settings...",
+    "nav": {
+      "group_app": "App",
+      "group_system": "System",
+      "back": "Back",
+      "forward": "Forward",
+      "search_placeholder": "Search settings (⌘F)"
+    }
   },
   "onboarding": {
     "open_asyar": "Open Asyar",

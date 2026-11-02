@@ -9,12 +9,19 @@ import type { ExtensionItem } from '../settingsHandlers.svelte';
  */
 export type ExtensionFilter = 'all' | 'commands' | 'extension' | 'theme';
 
+/** Which half of the extension catalog a settings tab shows. */
+export type ExtensionScope = 'built-in' | 'third-party';
+
 export function filterExtensions(
   extensions: ExtensionItem[],
   query: string,
   filter: ExtensionFilter,
+  scope?: ExtensionScope,
 ): ExtensionItem[] {
   let result = extensions;
+
+  if (scope === 'built-in') result = result.filter((e) => e.isBuiltIn);
+  else if (scope === 'third-party') result = result.filter((e) => !e.isBuiltIn);
 
   if (filter === 'extension')
     result = result.filter((e) => !e.isBuiltIn && (e.type === 'extension' || !e.type));

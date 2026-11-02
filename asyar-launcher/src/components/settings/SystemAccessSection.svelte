@@ -1,9 +1,12 @@
 <script lang="ts">
   import { SettingsCard } from '../index';
   import CalendarAccessRows from './CalendarAccessRows.svelte';
+  import OsPermissionRows from './OsPermissionRows.svelte';
   import { t } from '../../services/i18n';
 
-  let available = $state(false);
+  let calendarAvailable = $state(false);
+  let osAvailable = $state(false);
+  const available = $derived(calendarAvailable || osAvailable);
 </script>
 
 {#if available}
@@ -12,6 +15,7 @@
 <!-- Stays mounted while hidden: the rows component is what detects availability. -->
 <div style:display={available ? undefined : 'none'}>
   <SettingsCard>
-    <CalendarAccessRows bind:available />
+    <OsPermissionRows bind:available={osAvailable} />
+    <CalendarAccessRows bind:available={calendarAvailable} />
   </SettingsCard>
 </div>

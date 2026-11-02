@@ -1,21 +1,18 @@
-<!-- src/routes/settings/+page.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { LoadingState, SettingsTopBar } from '../../components';
+  import { LoadingState } from '../../components';
+  import SettingsSidebar from '../../components/settings/SettingsSidebar.svelte';
+  import { resolveNavigation, type SettingsTabId } from './settingsNav';
   import { SettingsHandler } from './settingsHandlers.svelte';
   import GeneralTab from './tabs/GeneralTab.svelte';
-  import AiTab from './tabs/AiTab.svelte';
-  import ApplicationsTab from './tabs/ApplicationsTab.svelte';
-  import FileSearchTab from './tabs/FileSearchTab.svelte';
-  import ScriptsTab from './tabs/ScriptsTab.svelte';
   import ExtensionsTab from './tabs/ExtensionsTab.svelte';
+  import BuiltInFeaturesTab from './tabs/BuiltInFeaturesTab.svelte';
   import AboutTab from './tabs/AboutTab.svelte';
   import BackupTab from './tabs/BackupTab.svelte';
   import AccountTab from './tabs/AccountTab.svelte';
   import AdvancedTab from './tabs/AdvancedTab.svelte';
   import DeveloperTab from './tabs/DeveloperTab.svelte';
   import PrivacyTab from './tabs/PrivacyTab.svelte';
-  import BrowsersTab from './tabs/BrowsersTab.svelte';
   import { authService } from '../../services/auth/authService.svelte';
   import { registerProfileProviders } from '../../services/appInitializer';
   import { initProviders } from '../../services/ai/initProviders';
@@ -40,23 +37,40 @@
 
   const handler = new SettingsHandler();
 
+  let sidebarQuery = $state('');
+
   const settingsTabs = $derived([
-    { id: 'general', label: t('settings.tabs.general'), icon: 'settings' },
-    { id: 'extensions', label: t('settings.tabs.extensions'), icon: 'puzzle' },
-    { id: 'browsers', label: t('settings.tabs.browsers'), icon: 'globe' },
-    { id: 'applications', label: t('settings.tabs.applications'), icon: 'layers' },
-    { id: 'file-search', label: t('settings.tabs.file_search'), icon: 'folder-search' },
-    { id: 'scripts', label: t('settings.tabs.scripts'), icon: 'dev-tools' },
-    { id: 'ai', label: t('settings.tabs.ai'), icon: 'ai-chat' },
-    { id: 'backup', label: t('settings.tabs.backup'), icon: 'cloud-upload' },
-    { id: 'account', label: t('settings.tabs.account'), icon: 'user' },
-    { id: 'privacy', label: t('settings.tabs.privacy'), icon: 'lock' },
-    { id: 'advanced', label: t('settings.tabs.advanced'), icon: 'layers' },
+    { id: 'account', label: t('settings.tabs.account'), icon: 'user', group: 'top' },
+    { id: 'general', label: t('settings.tabs.general'), icon: 'settings', group: 'app' },
+    {
+      id: 'built-in-features',
+      label: t('settings.tabs.built_in_features'),
+      icon: 'layers',
+      group: 'app',
+    },
+    { id: 'extensions', label: t('settings.tabs.extensions'), icon: 'puzzle', group: 'app' },
+    { id: 'privacy', label: t('settings.tabs.privacy'), icon: 'lock', group: 'app' },
+    { id: 'backup', label: t('settings.tabs.backup'), icon: 'cloud-upload', group: 'app' },
+    { id: 'advanced', label: t('settings.tabs.advanced'), icon: 'dev-tools', group: 'system' },
     ...(handler.settings.developer?.enabled
-      ? [{ id: 'developer', label: t('settings.tabs.developer'), icon: 'dev-tools' }]
+      ? [
+          {
+            id: 'developer',
+            label: t('settings.tabs.developer'),
+            icon: 'dev-tools',
+            group: 'system',
+          },
+        ]
       : []),
-    { id: 'about', label: t('settings.tabs.about'), icon: 'info' },
-  ]);
+    { id: 'about', label: t('settings.tabs.about'), icon: 'info', group: 'system' },
+  ] as { id: SettingsTabId; label: string; icon: string; group: 'top' | 'app' | 'system' }[]);
+
+  // Developer Mode turned off while on the Developer tab: don't leave a blank pane.
+  $effect(() => {
+    if (handler.activeTab === 'developer' && !handler.settings.developer?.enabled) {
+      handler.activeTab = 'advanced';
+    }
+  });
 
   let unlistenNavTab: (() => void) | undefined;
 
@@ -77,10 +91,9 @@
     unlistenNavTab = await listen<{ tab: string; extensionId?: string | null }>(
       'asyar:navigate-settings-tab',
       (e) => {
-        handler.activeTab = e.payload.tab;
-        if (e.payload.extensionId) {
-          handler.pendingExtensionSelection = e.payload.extensionId;
-        }
+        const target = resolveNavigation(e.payload, handler.settings.developer?.enabled === true);
+        handler.activeTab = target.tab;
+        handler.pendingExtensionSelection = target.extensionId;
       },
     );
   });
@@ -102,7 +115,13 @@
   </div>
 {:else}
   <div class="settings-page">
-    <header class="settings-header">
+    <SettingsSidebar
+      tabs={settingsTabs}
+      bind:activeTab={handler.activeTab}
+      bind:query={sidebarQuery}
+    />
+
+    <div class="settings-main">
       {#if handler.initError}
         <div
           class="p-2 text-center"
@@ -111,60 +130,47 @@
           ⚠️ {handler.initError}
         </div>
       {/if}
-      <SettingsTopBar tabs={settingsTabs} bind:activeTab={handler.activeTab} />
-    </header>
 
-    <main
-      class="settings-content custom-scrollbar"
-      class:full-bleed={handler.activeTab === 'extensions'}
-    >
-      <div
-        class="settings-content-inner"
-        class:full-bleed-inner={handler.activeTab === 'extensions'}
-        class:wide-inner={handler.activeTab === 'applications'}
-      >
-        {#if handler.activeTab === 'general'}
-          <GeneralTab {handler} />
-        {:else if handler.activeTab === 'ai'}
-          <AiTab {handler} />
-        {:else if handler.activeTab === 'extensions'}
-          <ExtensionsTab {handler} />
-        {:else if handler.activeTab === 'browsers'}
-          <BrowsersTab />
-        {:else if handler.activeTab === 'applications'}
-          <ApplicationsTab />
-        {:else if handler.activeTab === 'file-search'}
-          <FileSearchTab />
-        {:else if handler.activeTab === 'scripts'}
-          <ScriptsTab />
-        {:else if handler.activeTab === 'backup'}
-          <BackupTab {handler} />
-        {:else if handler.activeTab === 'account'}
-          <AccountTab {handler} />
-        {:else if handler.activeTab === 'privacy'}
-          <PrivacyTab />
-        {:else if handler.activeTab === 'advanced'}
-          <AdvancedTab {handler} />
-        {:else if handler.activeTab === 'developer'}
-          <DeveloperTab {handler} />
-        {:else if handler.activeTab === 'about'}
-          <AboutTab {handler} />
-        {/if}
-      </div>
-    </main>
+      <main class="settings-content custom-scrollbar">
+        <div class="settings-content-inner">
+          {#if handler.activeTab === 'general'}
+            <GeneralTab {handler} />
+          {:else if handler.activeTab === 'built-in-features'}
+            <BuiltInFeaturesTab {handler} />
+          {:else if handler.activeTab === 'extensions'}
+            <ExtensionsTab {handler} />
+          {:else if handler.activeTab === 'backup'}
+            <BackupTab {handler} />
+          {:else if handler.activeTab === 'account'}
+            <AccountTab {handler} />
+          {:else if handler.activeTab === 'privacy'}
+            <PrivacyTab />
+          {:else if handler.activeTab === 'advanced'}
+            <AdvancedTab {handler} />
+          {:else if handler.activeTab === 'developer'}
+            <DeveloperTab {handler} />
+          {:else if handler.activeTab === 'about'}
+            <AboutTab {handler} />
+          {/if}
+        </div>
+      </main>
+    </div>
   </div>
 {/if}
 
 <style>
   .settings-page {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     height: 100vh;
     background: var(--bg-primary);
   }
 
-  .settings-header {
-    flex-shrink: 0;
+  .settings-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .settings-content {
@@ -173,27 +179,11 @@
     padding: var(--space-5) var(--space-6);
   }
 
-  .settings-content.full-bleed {
-    padding: 0;
-    overflow: hidden;
-  }
-
   .settings-content-inner {
     max-width: 820px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
     gap: var(--space-6);
-  }
-
-  .settings-content-inner.full-bleed-inner {
-    max-width: none;
-    margin: 0;
-    height: 100%;
-    gap: 0;
-  }
-
-  .settings-content-inner.wide-inner {
-    max-width: 900px;
   }
 </style>
