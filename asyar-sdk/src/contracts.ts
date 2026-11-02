@@ -88,6 +88,8 @@ export type {
   ReminderList,
   ReminderItem,
   CreateReminderInput,
+  IShortcutsService,
+  ShortcutInfo,
   IPowerService,
   KeepAwakeOptions,
   ResolvedKeepAwakeOptions,

@@ -57,6 +57,8 @@ export const GATED_PERMISSIONS = [
   "shell:open-path",
   "shell:open-url",
   "shell:spawn",
+  "shortcuts:read",
+  "shortcuts:run",
   "snippets:contribute",
   "storage:read",
   "storage:write",

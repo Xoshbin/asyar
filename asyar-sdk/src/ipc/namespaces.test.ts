@@ -24,6 +24,7 @@ describe('NAMESPACES', () => {
       'power',
       'media',
       'calendar',
+      'shortcuts',
       'process',
       'shell',
       'systemEvents',

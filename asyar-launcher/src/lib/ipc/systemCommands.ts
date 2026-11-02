@@ -6,6 +6,7 @@ import type {
   MediaSessionInfo,
   CalendarEvent,
   CalendarSource,
+  ShortcutInfo,
   CreateEventInput,
   CreateReminderInput,
   ReminderItem,
@@ -234,3 +235,15 @@ export async function wsClose(
 }
 
 export type { ScheduleTimerOptions, TimerDescriptor };
+
+export async function shortcutsList(extensionId: string | null): Promise<ShortcutInfo[]> {
+  return invokeSafe<ShortcutInfo[]>('shortcuts_list', { extensionId });
+}
+
+export async function shortcutsRun(
+  extensionId: string | null,
+  idOrName: string,
+  input: string | null,
+): Promise<string> {
+  return invokeSafe<string>('shortcuts_run', { extensionId, idOrName, input });
+}

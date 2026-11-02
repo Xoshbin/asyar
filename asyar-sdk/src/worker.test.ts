@@ -16,6 +16,7 @@ const WORKER_PROXY_NAMESPACES = [
   'power',
   'media',
   'calendar',
+  'shortcuts',
   'screen',
   'process',
   'systemEvents',

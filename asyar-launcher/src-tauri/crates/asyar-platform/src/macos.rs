@@ -9,6 +9,7 @@
 //! - `system` — accessibility, frontmost app, and the native Show-More bar
 //! - `calendar` — EventKit calendars and reminders
 //! - `media` — media-key transport + Music/Spotify now-playing (no MediaRemote)
+//! - `shortcuts` — Apple Shortcuts via the `shortcuts` CLI
 //! - `quicklook` — native QLPreviewPanel hosting (file preview)
 
 /// The resolved (OS-actual) appearance at window creation time.
@@ -27,6 +28,7 @@ pub mod input;
 pub mod launcher_resize;
 pub mod media;
 pub mod quicklook;
+pub mod shortcuts;
 pub mod system;
 pub mod window;
 

@@ -304,6 +304,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:calendar:listReminders" => Some("reminders:read"),
         "asyar:api:calendar:createReminder" => Some("reminders:write"),
         "asyar:api:calendar:setReminderCompleted" => Some("reminders:write"),
+        // Apple Shortcuts (`shortcuts` CLI)
+        "asyar:api:shortcuts:list" => Some("shortcuts:read"),
+        "asyar:api:shortcuts:run" => Some("shortcuts:run"),
         // Process service (list/kill)
         "asyar:api:process:list" => Some("process:read"),
         "asyar:api:process:kill" => Some("process:kill"),

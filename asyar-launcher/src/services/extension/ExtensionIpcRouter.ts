@@ -44,6 +44,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'power',
   'media',
   'calendar',
+  'shortcuts',
   'screen',
   'process',
   'systemEvents',
@@ -168,6 +169,10 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'calendar:listReminders': ['listIds', 'includeCompleted'],
   'calendar:createReminder': ['input'],
   'calendar:setReminderCompleted': ['id', 'completed'],
+
+  // shortcuts
+  'shortcuts:list': [],
+  'shortcuts:run': ['idOrName', 'input'],
 
   // screen
   'screen:pickColor': [],

@@ -398,6 +398,8 @@ macro_rules! system_commands {
                 $crate::commands::calendar_list_reminders,
                 $crate::commands::calendar_create_reminder,
                 $crate::commands::calendar_set_reminder_completed,
+                $crate::commands::shortcuts_list,
+                $crate::commands::shortcuts_run,
                 $crate::commands::power_keep_awake,
                 $crate::commands::power_release,
                 $crate::commands::power_list,
