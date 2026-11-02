@@ -113,9 +113,12 @@ impl<'a> E2eeService<'a> {
     }
 
     pub fn status(&self) -> Result<E2eeStatusReport, AppError> {
-        let conn = self.data_store.conn()?;
-        let local = cloud_sync_e2ee_local::get(&conn)?;
-        let cached = self.keystore.read_slot(KEYCHAIN_SLOT)?.is_some();
+        // Read the mirror in its own scope so the pooled connection is back in
+        // the pool before `load_mode` takes another one.
+        let local = {
+            let conn = self.data_store.conn()?;
+            cloud_sync_e2ee_local::get(&conn)?
+        };
         let os_backed = self.keystore.is_os_backed();
         Ok(match local {
             None => E2eeStatusReport {
@@ -128,7 +131,10 @@ impl<'a> E2eeService<'a> {
             },
             Some(s) => E2eeStatusReport {
                 enabled: s.enrolled,
-                locked: s.enrolled && !cached,
+                // Same decision `sync_run` makes: a cached seed that fails the
+                // mirror's key check is locked too, otherwise the UI would show
+                // "unlocked" while every sync is refused.
+                locked: s.enrolled && !matches!(self.load_mode(), Ok(Mode::On { .. })),
                 key_version: Some(s.key_version as u64),
                 mode: Some(s.mode.clone()),
                 keystore_is_os_backed: os_backed,
@@ -146,11 +152,14 @@ impl<'a> E2eeService<'a> {
     ///
     /// Transient errors (server unreachable while mirror is absent) return `AppError::SyncServerUnavailable`.
     pub async fn ensure_mirror_and_load_mode(&self, token: &str) -> Result<Mode, AppError> {
-        let conn = self.data_store.conn()?;
-        let local = cloud_sync_e2ee_local::get(&conn)?;
+        let local = {
+            let conn = self.data_store.conn()?;
+            cloud_sync_e2ee_local::get(&conn)?
+        };
         if local.is_none() {
             match self.api.get_e2ee_state(token).await {
                 Ok(Some(remote)) => {
+                    let conn = self.data_store.conn()?;
                     let kcv_bytes = remote.kcv.as_deref().and_then(|s| B64.decode(s).ok());
                     let mode_str = remote.mode.as_deref().unwrap_or("passphrase");
                     let finalize_pending = remote.plaintext_rows.unwrap_or(0) > 0;
@@ -202,11 +211,13 @@ impl<'a> E2eeService<'a> {
             return Ok(None);
         }
 
-        let res = self.reconcile_server_state(token).await;
-        if res.is_ok() {
+        let (mode, reached_server) = self.reconcile_inner(token).await?;
+        // A transient failure must not start the 24 h quiet period, otherwise
+        // an offline launch would skip reconciliation for a whole day.
+        if reached_server {
             LAST_RECONCILIATION_UNIX_SECS.store(now, Ordering::SeqCst);
         }
-        res
+        Ok(mode)
     }
 
     /// Perform server-state reconciliation unconditionally (if local mirror is enrolled):
@@ -216,13 +227,23 @@ impl<'a> E2eeService<'a> {
     ///
     /// Transient errors (network down, 5xx) are caught non-fatally and return `Ok(None)`.
     pub async fn reconcile_server_state(&self, token: &str) -> Result<Option<Mode>, AppError> {
-        let conn = self.data_store.conn()?;
-        let local = cloud_sync_e2ee_local::get(&conn)?;
+        self.reconcile_inner(token).await.map(|(mode, _)| mode)
+    }
+
+    /// Returns the reconciliation outcome plus whether the server answered
+    /// (or there was nothing to reconcile), so callers can tell "checked, all
+    /// fine" from "could not check".
+    async fn reconcile_inner(&self, token: &str) -> Result<(Option<Mode>, bool), AppError> {
+        // No pooled connection is held across the network call below.
+        let local = {
+            let conn = self.data_store.conn()?;
+            cloud_sync_e2ee_local::get(&conn)?
+        };
         let Some(local_state) = local else {
-            return Ok(None);
+            return Ok((None, true));
         };
         if !local_state.enrolled {
-            return Ok(None);
+            return Ok((None, true));
         }
 
         let remote_opt = match self.api.get_e2ee_state(token).await {
@@ -230,9 +251,10 @@ impl<'a> E2eeService<'a> {
             Err(AppError::Auth(msg)) => return Err(AppError::Auth(msg)),
             Err(e) => {
                 log::warn!("[e2ee] server-state reconciliation transient error: {e}");
-                return Ok(None);
+                return Ok((None, false));
             }
         };
+        let conn = self.data_store.conn()?;
 
         // (b) Server returned 404 not-enrolled while mirror was enrolled
         let Some(remote) = remote_opt else {
@@ -240,7 +262,7 @@ impl<'a> E2eeService<'a> {
             cloud_sync_e2ee_local::clear(&conn)?;
             let _ = self.keystore.delete_slot(KEYCHAIN_SLOT);
             crate::storage::cloud_sync_state::mark_all_dirty(&conn)?;
-            return Ok(Some(Mode::Off));
+            return Ok((Some(Mode::Off), true));
         };
 
         let remote_mode = remote.mode.as_deref().unwrap_or("passphrase");
@@ -270,7 +292,7 @@ impl<'a> E2eeService<'a> {
                 },
             )?;
             let _ = self.keystore.delete_slot(KEYCHAIN_SLOT);
-            return Ok(Some(Mode::Locked));
+            return Ok((Some(Mode::Locked), true));
         }
 
         // (a) Plaintext rows need finalization
@@ -281,7 +303,7 @@ impl<'a> E2eeService<'a> {
             cloud_sync_e2ee_local::set_finalize_pending(&conn, true)?;
         }
 
-        Ok(None)
+        Ok((None, true))
     }
 
     /// Generate fresh master_seed, derive wrap_key, wrap, POST to server,
@@ -1089,6 +1111,49 @@ mod tests {
     }
 
     #[test]
+    fn status_reports_locked_when_cached_seed_fails_mirror_kcv() {
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::new();
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        let mirror_seed: [u8; 32] = rand::random();
+        let stale_seed: [u8; 32] = rand::random();
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_e2ee_local::upsert(
+                &conn,
+                &E2eeLocalState {
+                    enrolled: true,
+                    key_version: 1,
+                    wrapped_master_seed: None,
+                    kdf_salt: None,
+                    kdf_m_cost: None,
+                    kdf_t_cost: None,
+                    kdf_p_cost: None,
+                    updated_at_ms: 0,
+                    mode: "device-key".into(),
+                    kcv: Some(crate::sync::e2ee::pairing::compute_kcv(&mirror_seed).to_vec()),
+                    finalize_pending: false,
+                },
+            )
+            .unwrap();
+        }
+        keystore.write_slot(KEYCHAIN_SLOT, &stale_seed).unwrap();
+
+        // sync_run would refuse (Mode::Locked); the settings UI must agree.
+        assert!(svc.load_mode().unwrap().is_locked());
+        assert!(svc.status().unwrap().locked);
+
+        keystore.write_slot(KEYCHAIN_SLOT, &mirror_seed).unwrap();
+        assert!(!svc.status().unwrap().locked);
+    }
+
+    #[test]
     fn test_unlock_with_recovery_phrase_device_key_success_and_failure() {
         let store = create_test_store();
         let keystore = InMemoryKeyStore::new();
@@ -1673,6 +1738,7 @@ mod tests {
             .mock("GET", "/api/sync/e2ee/state")
             .with_status(500)
             .with_body("Internal Server Error")
+            .expect(2)
             .create_async()
             .await;
 
@@ -1709,6 +1775,12 @@ mod tests {
         let result = svc.reconcile_server_state("tok").await.unwrap();
         // Transient error caught and returns None; does not fail sync!
         assert_eq!(result, None);
+
+        // ...but it is reported as "server not reached", so the 24 h quiet
+        // period is not started and the next launch retries.
+        let (mode, reached_server) = svc.reconcile_inner("tok").await.unwrap();
+        assert_eq!(mode, None);
+        assert!(!reached_server);
 
         // State remains intact
         assert!(cloud_sync_e2ee_local::get(&conn).unwrap().is_some());

@@ -4,6 +4,7 @@ import { gate } from '../auth/gateService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { logService } from '../log/logService';
 import { feedbackService } from '../feedback/feedbackService.svelte';
+import { syncEncryptionService } from './syncEncryptionService.svelte';
 import { emit } from '@tauri-apps/api/event';
 import * as commands from '../../lib/ipc/commands';
 import { IpcError, isFeedbackShape } from '../../lib/ipc/invokeSafe';
@@ -19,13 +20,15 @@ export const PERIODIC_SYNC_INTERVAL_MS = 60 * 1000;
 
 export const BACKOFF_SCHEDULE_MS = [1 * 60 * 1000, 2 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000];
 
-export type CloudSyncStatus = 'idle' | 'syncing' | 'error' | 'not_entitled' | 'quota_exceeded';
+export type CloudSyncStatus =
+  'idle' | 'syncing' | 'error' | 'not_entitled' | 'quota_exceeded' | 'locked';
 
 export type SyncErrorClassification =
   | { type: 'auth_expired'; message: string }
   | { type: 'entitlement_required'; code: string }
   | { type: 'quota_exceeded'; usedBytes: number; limitBytes: number; message: string }
   | { type: 'transient'; kind: string; retryAfterSecs?: number; message: string }
+  | { type: 'locked'; message: string }
   | { type: 'other'; message: string };
 
 export function classifySyncError(err: unknown): SyncErrorClassification {
@@ -75,9 +78,15 @@ export function classifySyncError(err: unknown): SyncErrorClassification {
     if (diagnostic.kind === 'sync_server_unavailable' || diagnostic.kind === 'network_failure') {
       return { type: 'transient', kind: diagnostic.kind, message: errMsg };
     }
+    if (diagnostic.kind === 'sync_e2ee_locked') {
+      return { type: 'locked', message: errMsg };
+    }
   }
 
   // Fallbacks for non-IPC / string / mock errors without false 401 substring traps:
+  if (errMsg.includes('sync_e2ee_locked')) {
+    return { type: 'locked', message: errMsg };
+  }
   if (
     errMsg.includes('Token expired') ||
     errMsg.includes('Not logged in') ||
@@ -255,6 +264,13 @@ class CloudSyncService {
   startPeriodicSync(): void {
     if (this.syncTimer !== null) return;
     this.syncTimer = setInterval(() => {
+      if (
+        syncEncryptionService.enabled &&
+        !syncEncryptionService.locked &&
+        syncEncryptionService.mode === 'device-key'
+      ) {
+        syncEncryptionService.checkIncomingPairings().catch(() => {});
+      }
       this.syncNow(false).catch((err) => {
         logService.warn(`Periodic cloud sync failed: ${err}`);
       });
@@ -405,6 +421,13 @@ class CloudSyncService {
       this.isTransient = false;
       this.quota = null;
       this.status = 'idle';
+      if (
+        this.providerUnsubs.length > 0 &&
+        this.syncTimer === null &&
+        this.blockedReason() === null
+      ) {
+        this.startPeriodicSync();
+      }
     } catch (err: unknown) {
       await this.handleSyncFailure(err);
     }
@@ -413,6 +436,19 @@ class CloudSyncService {
   private async handleSyncFailure(errOrFailure: unknown): Promise<void> {
     const classification = classifySyncError(errOrFailure);
     switch (classification.type) {
+      case 'locked': {
+        logService.info(
+          `Cloud sync: E2EE locked, stopping automatic sync: ${classification.message}`,
+        );
+        this.stopPeriodicSync();
+        this.status = 'locked';
+        this.lastError = null;
+        this.isTransient = false;
+        this.quota = null;
+        this.retryCount = 0;
+        this.nextRetryAt = null;
+        return;
+      }
       case 'auth_expired': {
         logService.warn(
           `Cloud sync: auth token rejected/expired (${classification.message}); stopping sync`,

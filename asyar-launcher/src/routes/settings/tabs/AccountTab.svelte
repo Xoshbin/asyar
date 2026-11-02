@@ -23,6 +23,9 @@
   import RecoverWithMnemonicDialog from '../../../components/settings/RecoverWithMnemonicDialog.svelte';
   import RecoveryPhraseDialog from '../../../components/settings/RecoveryPhraseDialog.svelte';
   import DisableE2eeDialog from '../../../components/settings/DisableE2eeDialog.svelte';
+  import DeviceKeyLockedCard from '../../../components/settings/DeviceKeyLockedCard.svelte';
+  import IncomingPairingRequests from '../../../components/settings/IncomingPairingRequests.svelte';
+  import ResetCloudSyncDialog from '../../../components/settings/ResetCloudSyncDialog.svelte';
   import { t } from '../../../services/i18n';
   import { formatBytes } from '../../../services/action/actionService.svelte';
 
@@ -39,7 +42,8 @@
 
   let { handler: _handler }: { handler: SettingsHandler } = $props();
 
-  type ActiveDialog = null | 'enrol' | 'unlock' | 'rotate' | 'phrase' | 'recover' | 'disable';
+  type ActiveDialog =
+    null | 'enrol' | 'unlock' | 'rotate' | 'phrase' | 'recover' | 'disable' | 'reset';
   let activeDialog = $state<ActiveDialog>(null);
 
   // Local mirror of the service's enabled state; keeps the toggle visual
@@ -80,6 +84,16 @@
         if (!ok) revertSyncToggle(previous, 'settings save returned false');
       })
       .catch((err) => revertSyncToggle(previous, String(err)));
+  }
+
+  let isReminderDismissed = $derived(
+    settingsService.getSettings().user?.recoveryPhraseDismissed ?? false,
+  );
+
+  function dismissReminder() {
+    settingsService.updateSettings('user', { recoveryPhraseDismissed: true }).catch((err) => {
+      logService.warn(`failed to save recovery phrase dismissal: ${String(err)}`);
+    });
   }
 
   function resetToggle() {
@@ -361,6 +375,8 @@
                 </span>
               {:else if cloudSyncService.quota}
                 <span class="error-text">{t('settings.account.sync_quota_exceeded_generic')}</span>
+              {:else if cloudSyncService.status === 'locked'}
+                <span class="error-text">{t('settings.e2ee.locked_card_title')}</span>
               {:else if cloudSyncService.isTransient}
                 <span class="error-text">{t('settings.account.sync_transient_error')}</span>
               {:else if cloudSyncService.lastError}
@@ -368,6 +384,27 @@
               {/if}
             </div>
           </SettingsRow>
+
+          {#if (cloudSyncService.status === 'locked' || syncEncryptionService.locked) && syncEncryptionService.mode === 'device-key'}
+            <DeviceKeyLockedCard onResetClick={() => (activeDialog = 'reset')} />
+          {/if}
+
+          {#if syncEncryptionService.enabled && !syncEncryptionService.locked && syncEncryptionService.mode === 'device-key' && !isReminderDismissed && cloudSyncService.lastSyncedAt !== null}
+            <div class="reminder-card">
+              <div class="reminder-content">
+                <span class="reminder-title">{t('settings.e2ee.reminder_title')}</span>
+                <span class="reminder-body">{t('settings.e2ee.reminder_body')}</span>
+              </div>
+              <div class="reminder-actions">
+                <Button class="btn-primary" onclick={() => (activeDialog = 'phrase')}>
+                  {t('settings.e2ee.reminder_show_btn')}
+                </Button>
+                <Button onclick={dismissReminder}>
+                  {t('common.dismiss')}
+                </Button>
+              </div>
+            </div>
+          {/if}
 
           <SettingsRow label={t('settings.account.sync_now')}>
             <Button
@@ -408,40 +445,67 @@
                     <StatusDot color="success" />
                     <Badge text={t('settings.account.e2ee_on')} variant="success" />
                   </div>
-                  <span class="secondary-text">{t('settings.account.e2ee_on_desc')}</span>
+                  <span class="secondary-text">
+                    {#if syncEncryptionService.mode === 'device-key'}
+                      {syncEncryptionService.keystoreIsOsBacked
+                        ? t('settings.e2ee.storage_keychain')
+                        : t('settings.e2ee.storage_file')}
+                    {:else}
+                      {t('settings.account.e2ee_on_desc')}
+                    {/if}
+                  </span>
                 {/if}
               </div>
-              <Toggle
-                bind:checked={toggleState}
-                onchange={(e) => onToggleClick((e.target as HTMLInputElement).checked)}
-              />
+              {#if syncEncryptionService.mode !== 'device-key'}
+                <Toggle
+                  bind:checked={toggleState}
+                  onchange={(e) => onToggleClick((e.target as HTMLInputElement).checked)}
+                />
+              {/if}
             </div>
           </SettingsRow>
 
           {#if syncEncryptionService.enabled}
-            {#if syncEncryptionService.locked}
-              <SettingsRow label={t('settings.account.locked')}>
-                <Button onclick={() => (activeDialog = 'unlock')}
-                  >{t('settings.account.enter_passphrase')}</Button
+            {#if syncEncryptionService.mode === 'passphrase'}
+              {#if syncEncryptionService.locked}
+                <SettingsRow label={t('settings.account.locked')}>
+                  <Button onclick={() => (activeDialog = 'unlock')}
+                    >{t('settings.account.enter_passphrase')}</Button
+                  >
+                </SettingsRow>
+              {/if}
+              <SettingsRow label={t('settings.account.passphrase')}>
+                <Button onclick={() => (activeDialog = 'rotate')}
+                  >{t('settings.account.change_passphrase')}</Button
                 >
               </SettingsRow>
+              <SettingsRow label={t('settings.account.recovery_phrase')}>
+                <div class="e2ee-phrase-actions">
+                  <Button onclick={() => (activeDialog = 'phrase')}
+                    >{t('settings.account.view_recovery_phrase')}</Button
+                  >
+                  <Button onclick={() => (activeDialog = 'recover')}
+                    >{t('settings.account.forgot_passphrase')}</Button
+                  >
+                </div>
+              </SettingsRow>
+            {:else if syncEncryptionService.mode === 'device-key'}
+              <SettingsRow label={t('settings.account.recovery_phrase')}>
+                <Button onclick={() => (activeDialog = 'phrase')}>
+                  {t('settings.account.show_phrase')}
+                </Button>
+              </SettingsRow>
+              {#if !syncEncryptionService.locked}
+                <IncomingPairingRequests />
+              {/if}
             {/if}
-            <SettingsRow label={t('settings.account.passphrase')}>
-              <Button onclick={() => (activeDialog = 'rotate')}
-                >{t('settings.account.change_passphrase')}</Button
-              >
-            </SettingsRow>
-            <SettingsRow label={t('settings.account.recovery_phrase')}>
-              <div class="e2ee-phrase-actions">
-                <Button onclick={() => (activeDialog = 'phrase')}
-                  >{t('settings.account.view_recovery_phrase')}</Button
-                >
-                <Button onclick={() => (activeDialog = 'recover')}
-                  >{t('settings.account.forgot_passphrase')}</Button
-                >
-              </div>
-            </SettingsRow>
           {/if}
+
+          <div class="reset-section">
+            <Button class="btn-danger" onclick={() => (activeDialog = 'reset')}>
+              {t('settings.e2ee.reset_button')}
+            </Button>
+          </div>
         {/if}
       {:else}
         <SettingsRow
@@ -498,6 +562,12 @@
         activeDialog = null;
         resetToggle();
       }}
+    />
+  {:else if activeDialog === 'reset'}
+    <ResetCloudSyncDialog
+      isOpen={true}
+      onComplete={() => (activeDialog = null)}
+      onCancel={() => (activeDialog = null)}
     />
   {/if}
 {/if}
@@ -687,5 +757,66 @@
   .e2ee-phrase-actions {
     display: flex;
     gap: var(--space-2);
+  }
+
+  .reminder-card {
+    background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-secondary));
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .reminder-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+  }
+
+  .reminder-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+  }
+
+  .reminder-body {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    line-height: 1.4;
+  }
+
+  .reminder-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .reset-section {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--separator);
+    margin-top: var(--space-2);
+  }
+
+  :global(.btn-danger) {
+    background: var(--accent-danger-fill) !important;
+    color: var(--text-on-accent) !important;
+    border-color: transparent !important;
+  }
+
+  :global(.btn-danger:hover:not(:disabled)) {
+    opacity: 0.9;
+  }
+
+  :global(.btn-danger:disabled) {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

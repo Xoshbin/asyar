@@ -59,6 +59,7 @@ export interface AppSettings {
     avatarUrl?: string;
     syncEnabled?: boolean;
     lastSynced?: number;
+    recoveryPhraseDismissed?: boolean;
   };
   ai: AISettings;
   developer?: DeveloperSettings;

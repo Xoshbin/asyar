@@ -17,9 +17,31 @@ export interface LocalItemSourceWire {
   isTombstone?: boolean;
 }
 
-import type { AppliedRecord, SyncPushFailure, SyncRunFailure, SyncRunReport } from '../../bindings';
+import type {
+  AppliedRecord,
+  E2eeStatusReport,
+  IncomingPairingRequest,
+  PairingApproveResult,
+  PairingPollResult,
+  PairingRequestResult,
+  SyncPushFailure,
+  SyncRunFailure,
+  SyncRunReport,
+} from '../../bindings';
 
-export type { AppliedRecord, SyncPushFailure, SyncRunFailure, SyncRunReport };
+export type {
+  AppliedRecord,
+  E2eeStatusReport,
+  IncomingPairingRequest,
+  PairingApproveResult,
+  PairingPollResult,
+  PairingRequestResult,
+  SyncPushFailure,
+  SyncRunFailure,
+  SyncRunReport,
+};
+
+export type SyncE2eeStatusReport = E2eeStatusReport;
 
 /**
  * Status DTO returned by sync_get_status. Cursor + device id + counts
@@ -65,12 +87,6 @@ export async function syncReset(): Promise<void> {
 
 // ── E2EE cloud sync (Layer 4b/4c) ─────────────────────────────────────────────
 
-export interface SyncE2eeStatusReport {
-  enabled: boolean;
-  locked: boolean;
-  keyVersion: number | null;
-}
-
 export interface SyncE2eeEnrolmentResult {
   /** 24 BIP-39 words separated by single spaces. */
   recoveryPhrase: string;
@@ -80,8 +96,8 @@ export interface SyncE2eeEnrolmentResult {
  * Get the current E2EE state. Cheap — reads local mirror + keychain only.
  * No HTTP. Suitable for polling on dialog mount.
  */
-export async function syncE2eeGetStatus(): Promise<SyncE2eeStatusReport> {
-  return invokeSafe<SyncE2eeStatusReport>('sync_e2ee_get_status');
+export async function syncE2eeGetStatus(): Promise<E2eeStatusReport> {
+  return invokeSafe<E2eeStatusReport>('sync_e2ee_get_status');
 }
 
 /**
@@ -103,6 +119,13 @@ export async function syncE2eeEnrol(passphrase: string): Promise<SyncE2eeEnrolme
  */
 export async function syncE2eeUnlock(passphrase: string): Promise<boolean> {
   return invokeSafeVoid('sync_e2ee_unlock', { passphrase }, { silent: true });
+}
+
+/**
+ * Unlock the device using a 24-word BIP-39 recovery phrase (device-key mode).
+ */
+export async function syncE2eeUnlockWithPhrase(phrase: string): Promise<boolean> {
+  return invokeSafeVoid('sync_e2ee_unlock_with_phrase', { phrase }, { silent: true });
 }
 
 /**
@@ -152,4 +175,73 @@ export async function syncE2eeDisable(): Promise<boolean> {
  */
 export async function syncE2eeShowRecoveryPhrase(passphrase: string): Promise<string> {
   return invokeSafe<string>('sync_e2ee_show_recovery_phrase', { passphrase });
+}
+
+/**
+ * Reveal the 24-word recovery phrase for device-key accounts without passphrase.
+ */
+export async function syncE2eeShowRecoveryPhraseDevice(): Promise<string> {
+  return invokeSafe<string>('sync_e2ee_show_recovery_phrase_device');
+}
+
+/**
+ * Request pairing from another device. Returns the pairing ID, 6-word fingerprint, and expiration.
+ */
+export async function syncE2eePairingRequest(deviceName: string): Promise<PairingRequestResult> {
+  return invokeSafe<PairingRequestResult>('sync_e2ee_pairing_request', { deviceName });
+}
+
+/**
+ * Poll pairing status from the new device.
+ */
+export async function syncE2eePairingPoll(id: string): Promise<PairingPollResult> {
+  return invokeSafe<PairingPollResult>('sync_e2ee_pairing_poll', { id });
+}
+
+/**
+ * Fetch incoming pairing requests on an existing approver device.
+ */
+export async function syncE2eePairingIncoming(): Promise<IncomingPairingRequest[]> {
+  return invokeSafe<IncomingPairingRequest[]>('sync_e2ee_pairing_incoming');
+}
+
+/**
+ * Approve an incoming pairing request, validating the displayed fingerprint words.
+ */
+export async function syncE2eePairingApprove(
+  id: string,
+  expectedFingerprint: string,
+): Promise<PairingApproveResult> {
+  return invokeSafe<PairingApproveResult>('sync_e2ee_pairing_approve', {
+    id,
+    expectedFingerprint,
+  });
+}
+
+/**
+ * Confirm pairing from the new device after SAS words comparison.
+ */
+export async function syncE2eePairingConfirm(id: string): Promise<void> {
+  await invokeSafe<void>('sync_e2ee_pairing_confirm', { id });
+}
+
+/**
+ * Reject pairing when SAS confirmation words mismatch.
+ */
+export async function syncE2eePairingReject(id: string): Promise<void> {
+  await invokeSafe<void>('sync_e2ee_pairing_reject', { id });
+}
+
+/**
+ * Cancel a pairing request (by requester or approver).
+ */
+export async function syncE2eePairingCancel(id: string): Promise<void> {
+  await invokeSafe<void>('sync_e2ee_pairing_cancel', { id });
+}
+
+/**
+ * Reset Cloud Sync: wipes server data, local mirror, and keychain seed, then re-enrols from local.
+ */
+export async function syncE2eeReset(): Promise<void> {
+  await invokeSafe<void>('sync_e2ee_reset');
 }

@@ -2,10 +2,26 @@ import {
   syncE2eeDisable,
   syncE2eeEnrol,
   syncE2eeGetStatus,
+  syncE2eePairingApprove,
+  syncE2eePairingCancel,
+  syncE2eePairingConfirm,
+  syncE2eePairingIncoming,
+  syncE2eePairingPoll,
+  syncE2eePairingReject,
+  syncE2eePairingRequest,
   syncE2eeRecoverWithMnemonic,
+  syncE2eeReset,
   syncE2eeRotate,
   syncE2eeShowRecoveryPhrase,
+  syncE2eeShowRecoveryPhraseDevice,
   syncE2eeUnlock,
+  syncE2eeUnlockWithPhrase,
+} from '../../lib/ipc/commands';
+import type {
+  IncomingPairingRequest,
+  PairingApproveResult,
+  PairingPollResult,
+  PairingRequestResult,
 } from '../../lib/ipc/commands';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { logService } from '../log/logService';
@@ -28,10 +44,19 @@ export interface ISyncEncryptionService {
   readonly locked: boolean;
   /** Server-assigned key version, monotonic per user. `null` when not enrolled. */
   readonly keyVersion: number | null;
+  /** Encryption mode: 'passphrase' | 'device-key' | null. */
+  readonly mode: string | null;
+  /** Whether the encryption key is held in the OS keychain (macOS/Windows/Linux secret-service) vs 0600 file fallback. */
+  readonly keystoreIsOsBacked: boolean;
+  /** Whether finalize needs to run on next pull. */
+  readonly finalizePending: boolean;
+  /** Incoming pairing requests on approver device. */
+  readonly incomingPairings: IncomingPairingRequest[];
 
   refreshStatus(): Promise<void>;
   enrol(passphrase: string): Promise<string>;
   unlock(passphrase: string): Promise<void>;
+  unlockWithPhrase(phrase: string): Promise<void>;
   rotate(oldPassphrase: string, newPassphrase: string): Promise<void>;
   recoverWithMnemonic(
     phrase: string,
@@ -40,18 +65,34 @@ export interface ISyncEncryptionService {
   ): Promise<void>;
   disable(): Promise<void>;
   showRecoveryPhrase(passphrase: string): Promise<string>;
+  showRecoveryPhraseDevice(): Promise<string>;
+  requestPairing(deviceName: string): Promise<PairingRequestResult>;
+  pollPairing(id: string): Promise<PairingPollResult>;
+  confirmPairing(id: string): Promise<void>;
+  rejectPairing(id: string): Promise<void>;
+  cancelPairing(id: string): Promise<void>;
+  checkIncomingPairings(): Promise<IncomingPairingRequest[]>;
+  approvePairing(id: string, expectedFingerprint: string): Promise<PairingApproveResult>;
+  reset(): Promise<void>;
 }
 
 export class SyncEncryptionService implements ISyncEncryptionService {
   enabled = $state(false);
   locked = $state(false);
   keyVersion = $state<number | null>(null);
+  mode = $state<string | null>(null);
+  keystoreIsOsBacked = $state(true);
+  finalizePending = $state(false);
+  incomingPairings = $state<IncomingPairingRequest[]>([]);
 
   async refreshStatus(): Promise<void> {
     const s = await syncE2eeGetStatus();
     this.enabled = s.enabled;
     this.locked = s.locked;
     this.keyVersion = s.keyVersion;
+    this.mode = s.mode ?? null;
+    this.keystoreIsOsBacked = s.keystoreIsOsBacked ?? true;
+    this.finalizePending = s.finalizePending ?? false;
   }
 
   // ── Error translation policy ────────────────────────────────────────────────
@@ -130,6 +171,56 @@ export class SyncEncryptionService implements ISyncEncryptionService {
 
   async showRecoveryPhrase(passphrase: string): Promise<string> {
     return syncE2eeShowRecoveryPhrase(passphrase);
+  }
+
+  async unlockWithPhrase(phrase: string): Promise<void> {
+    const ok = await syncE2eeUnlockWithPhrase(phrase);
+    if (!ok) {
+      throw new Error('Incorrect recovery phrase or unlock failed');
+    }
+    await this.refreshStatus();
+  }
+
+  async showRecoveryPhraseDevice(): Promise<string> {
+    return syncE2eeShowRecoveryPhraseDevice();
+  }
+
+  async requestPairing(deviceName: string): Promise<PairingRequestResult> {
+    return syncE2eePairingRequest(deviceName);
+  }
+
+  async pollPairing(id: string): Promise<PairingPollResult> {
+    return syncE2eePairingPoll(id);
+  }
+
+  async confirmPairing(id: string): Promise<void> {
+    await syncE2eePairingConfirm(id);
+    await this.refreshStatus();
+  }
+
+  async rejectPairing(id: string): Promise<void> {
+    await syncE2eePairingReject(id);
+  }
+
+  async cancelPairing(id: string): Promise<void> {
+    await syncE2eePairingCancel(id);
+  }
+
+  async checkIncomingPairings(): Promise<IncomingPairingRequest[]> {
+    const requests = await syncE2eePairingIncoming();
+    this.incomingPairings = requests;
+    return requests;
+  }
+
+  async approvePairing(id: string, expectedFingerprint: string): Promise<PairingApproveResult> {
+    const result = await syncE2eePairingApprove(id, expectedFingerprint);
+    this.incomingPairings = this.incomingPairings.filter((req) => req.id !== id);
+    return result;
+  }
+
+  async reset(): Promise<void> {
+    await syncE2eeReset();
+    await this.refreshStatus();
   }
 }
 
