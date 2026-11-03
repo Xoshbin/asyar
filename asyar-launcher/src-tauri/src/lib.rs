@@ -562,16 +562,7 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_nspanel::init());
 
-    builder
-        .register_uri_scheme_protocol("asyar-extension", |ctx, req| {
-            uri_schemes::handle_extension_request(ctx.app_handle(), req)
-        })
-        .register_uri_scheme_protocol("asyar-icon", |ctx, req| {
-            uri_schemes::handle_icon_request(ctx.app_handle(), req)
-        })
-        .register_uri_scheme_protocol("asyar-thumb", |ctx, req| {
-            uri_schemes::handle_thumbnail_request(ctx.app_handle(), req)
-        })
+    uri_schemes::register(builder)
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {

@@ -19,6 +19,8 @@ The Rust URI scheme handler (`uri_schemes.rs`) resolves this URL to a file with 
 
 The protocol handler strips query parameters and URL fragments before filesystem lookup. It also has path-traversal protection (`..` segments are rejected).
 
+Every response is sent with `Cache-Control: no-store`, like every other custom scheme. The files come from local disk, so caching them in the webview would only fill its disk cache.
+
 **Security:** The iframe runs with this sandbox attribute:
 
 ```
