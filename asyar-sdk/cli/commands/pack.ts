@@ -99,10 +99,13 @@ export function registerPack(program: Command) {
         manifest.type === 'theme',
         packagedReadme,
       );
-      fs.mkdirSync(path.dirname(outPath), { recursive: true });
-      // Copy, not rename: the temp folder may be on another volume.
-      fs.copyFileSync(zipPath, outPath);
-      fs.unlinkSync(zipPath);
+      try {
+        fs.mkdirSync(path.dirname(outPath), { recursive: true });
+        // Copy, not rename: the temp folder may be on another volume.
+        fs.copyFileSync(zipPath, outPath);
+      } finally {
+        fs.rmSync(zipPath, { force: true });
+      }
       pkgSpinner.succeed(`Extension packaged (${(sizeBytes / 1024).toFixed(1)} kB)`);
 
       console.log(chalk.green('\n✓ ') + outPath);

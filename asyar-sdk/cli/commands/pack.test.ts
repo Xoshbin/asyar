@@ -86,11 +86,20 @@ describe('asyar pack', () => {
     return entry!.getData().toString('utf8');
   }
 
+  function leftoverTempZips(): string[] {
+    return fs
+      .readdirSync(os.tmpdir())
+      .filter((name) => name.startsWith(`${ID}-${VERSION}`) && name.endsWith('.zip'));
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     cwd = tempDir();
     registryDir.current = tempDir();
     logs = [];
+    for (const file of leftoverTempZips()) {
+      fs.rmSync(path.join(os.tmpdir(), file), { force: true });
+    }
     cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(cwd);
     vi.spyOn(console, 'log').mockImplementation((...a) => void logs.push(a.join(' ')));
     vi.spyOn(console, 'error').mockImplementation((...a) => void logs.push(a.join(' ')));
@@ -116,6 +125,9 @@ describe('asyar pack', () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     for (const dir of tempDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+    for (const file of leftoverTempZips()) {
+      fs.rmSync(path.join(os.tmpdir(), file), { force: true });
+    }
   });
 
   it('writes <id>-<version>.asyar to the extension folder with the publish layout', async () => {
@@ -134,7 +146,26 @@ describe('asyar pack', () => {
     expect(runViteBuild).toHaveBeenCalledWith(cwd);
     expect(verifyBuildOutput).toHaveBeenCalledWith(cwd, manifest);
     // The temp zip packageExtension writes is not left behind.
-    expect(fs.existsSync(path.join(os.tmpdir(), `${ID}-${VERSION}.zip`))).toBe(false);
+    expect(leftoverTempZips()).toEqual([]);
+  });
+
+  it('cleans up the temporary zip even when copy fails', async () => {
+    // A directory at the destination path causes fs.copyFileSync to throw EISDIR.
+    const dest = path.join(cwd, `${ID}-${VERSION}.asyar`);
+    fs.mkdirSync(dest);
+
+    await expect(pack()).rejects.toThrow();
+    expect(leftoverTempZips()).toEqual([]);
+  });
+
+  it('cleans up the temporary zip even when creating the output folder fails', async () => {
+    // A file in place of an ancestor directory causes fs.mkdirSync to throw ENOTDIR.
+    const blocker = path.join(cwd, 'file-blocker');
+    fs.writeFileSync(blocker, 'not a directory');
+    const out = path.join(blocker, 'nested', `${ID}-${VERSION}.asyar`);
+
+    await expect(pack('--out', out)).rejects.toThrow();
+    expect(leftoverTempZips()).toEqual([]);
   });
 
   it('never signs in or touches the network', async () => {
