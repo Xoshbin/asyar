@@ -88,13 +88,13 @@
   {@render children?.()}
 
   {#if showCommands}
-    <section class="commands-card" style="--ext-cols: 1fr 112px 112px 56px;">
+    <section class="commands-card" style="--ext-cols: 1fr 112px 112px 32px;">
       <div class="commands-title">{t('settings.extensions.section_commands')}</div>
       <div class="col-headers">
         <span>{t('settings.extensions.table_name')}</span>
         <span>{t('settings.extensions.table_alias')}</span>
         <span>{t('settings.extensions.table_hotkey')}</span>
-        <span class="col-on">{t('settings.extensions.table_enabled')}</span>
+        <span class="col-on"></span>
       </div>
       <div class="commands-body">
         <ExtensionCommandRows {extension} showType={false} onselect={oncommandselect} />

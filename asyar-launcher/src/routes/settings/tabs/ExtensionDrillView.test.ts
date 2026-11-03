@@ -129,6 +129,28 @@ describe('ExtensionDrillView commands', () => {
     expect(screen.getAllByText('settings.extensions.record_hotkey')).toHaveLength(2);
   });
 
+  it('has no fake Enabled column or checkmark in the commands card', () => {
+    const { container } = renderDrill(clipboard);
+    expect(screen.queryByText('Enabled')).toBeNull();
+    expect(container.textContent).not.toContain('✓');
+    expect(container.querySelector('.commands-card .col-on')?.textContent).toBe('');
+  });
+
+  it('shows a drill chevron only on commands that declare preferences', () => {
+    const withPrefs = [
+      commands[0],
+      { ...commands[1], preferences: [{ name: 'confirm', type: 'checkbox' }] },
+    ];
+    const { container } = renderDrill(
+      { ...clipboard, commands: withPrefs },
+      { oncommandselect: vi.fn() },
+    );
+    const trails = container.querySelectorAll('.commands-body .row-trail');
+    expect(trails).toHaveLength(2);
+    expect(trails[0].querySelector('svg, .row-drill-chevron')).toBeNull();
+    expect(trails[1].querySelector('svg, .row-drill-chevron')).not.toBeNull();
+  });
+
   it('omits the commands card for a feature without commands', () => {
     renderDrill({ ...clipboard, commands: [] });
     expect(screen.queryByText('settings.extensions.section_commands')).toBeNull();

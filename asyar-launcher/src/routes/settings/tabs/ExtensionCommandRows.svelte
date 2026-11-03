@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import AppIcon from '../../../components/base/AppIcon.svelte';
   import KeyboardHint from '../../../components/base/KeyboardHint.svelte';
+  import { Icon } from '../../../components';
   import AliasCapture from '../../../built-in-features/aliases/AliasCapture.svelte';
   import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
   import { aliasService } from '../../../built-in-features/aliases/aliasService';
@@ -215,7 +216,11 @@
         </button>
       {/if}
     </span>
-    <span class="row-check">✓</span>
+    <span class="row-trail">
+      {#if canSelect}
+        <Icon name="chevron-right" size={14} class="row-drill-chevron" />
+      {/if}
+    </span>
   </div>
 {/each}
 
@@ -306,10 +311,12 @@
     color: var(--text-tertiary);
   }
 
-  .row-check {
-    font-size: var(--font-size-sm);
-    color: var(--accent-primary);
-    text-align: center;
+  .row-trail {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: var(--space-1);
+    color: var(--text-tertiary);
   }
 
   .alias-cell-btn,

@@ -6,7 +6,6 @@
   import {
     AppearanceThemeSelector,
     Button,
-    Checkbox,
     SegmentedControl,
     Select,
     SettingsCard,
@@ -261,7 +260,7 @@
       label={t('settings.general.autostart')}
       description={t('settings.general.autostart_description')}
     >
-      <Checkbox
+      <Toggle
         checked={handler.settings.general.startAtLogin}
         onchange={() => handler.handleAutostartToggle()}
       />
@@ -300,7 +299,7 @@
         ? t('settings.general.show_tray_icon_description')
         : t('settings.general.show_tray_icon_tip')}
     >
-      <Checkbox
+      <Toggle
         checked={handler.settings.general.showTrayIcon}
         onchange={() => handler.handleTrayIconToggle()}
       />
@@ -309,7 +308,7 @@
       label={t('settings.general.show_dock_icon')}
       description={t('settings.general.show_dock_icon_description')}
     >
-      <Checkbox
+      <Toggle
         checked={handler.settings.general.showDockIcon}
         onchange={() => handler.handleDockIconToggle()}
       />

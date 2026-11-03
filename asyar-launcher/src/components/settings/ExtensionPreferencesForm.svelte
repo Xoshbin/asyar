@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from '../../services/i18n';
   import Input from '../base/Input.svelte';
-  import Checkbox from '../base/Checkbox.svelte';
+  import Toggle from '../base/Toggle.svelte';
   import Select from '../base/Select.svelte';
   import SettingsFormRow from './SettingsFormRow.svelte';
   import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
@@ -73,10 +73,11 @@
             oninput={(e: Event) => handleNumber(pref, e)}
           />
         {:else if pref.type === 'checkbox'}
-          <Checkbox
+          <Toggle
             checked={!!values[pref.name]}
             {disabled}
-            onchange={(checked: boolean) => handleValueChange(pref.name, checked)}
+            onchange={(e: Event) =>
+              handleValueChange(pref.name, (e.target as HTMLInputElement).checked)}
           />
         {:else if pref.type === 'dropdown'}
           {#if pref.data && pref.data.length > 0}

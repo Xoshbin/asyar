@@ -147,6 +147,27 @@ describe('GeneralTab behavior section', () => {
   });
 });
 
+describe('GeneralTab startup toggles', () => {
+  it('renders the startup settings as toggles and wires them to the handler', async () => {
+    const handler = createHandler();
+    const { container } = render(GeneralTab, { props: { handler } });
+
+    const startup = container.querySelector('#general-startup') as HTMLElement;
+    const boxes = Array.from(startup.querySelectorAll('input[type="checkbox"]'));
+    expect(boxes).toHaveLength(3);
+    // Toggle renders a track; the old Checkbox did not.
+    expect(startup.querySelectorAll('.toggle-track')).toHaveLength(3);
+    expect(boxes.map((b) => (b as HTMLInputElement).checked)).toEqual([false, true, false]);
+
+    await fireEvent.click(boxes[0]);
+    expect(handler.handleAutostartToggle).toHaveBeenCalledTimes(1);
+    await fireEvent.click(boxes[1]);
+    expect(handler.handleTrayIconToggle).toHaveBeenCalledTimes(1);
+    await fireEvent.click(boxes[2]);
+    expect(handler.handleDockIconToggle).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('GeneralTab interface size', () => {
   beforeEach(() => {
     vi.clearAllMocks();
