@@ -94,7 +94,7 @@
     color: var(--text-secondary);
   }
   .toolbar label {
-    cursor: pointer;
+    cursor: default;
     user-select: none;
   }
   .toolbar .count {
@@ -106,7 +106,7 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-xs);
     color: var(--text-primary);
-    cursor: pointer;
+    cursor: default;
     padding: var(--space-0-5) var(--space-3);
     font-size: var(--font-size-xs);
   }

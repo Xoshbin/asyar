@@ -1412,7 +1412,7 @@
     background: none;
     border: none;
     padding: 0;
-    cursor: pointer;
+    cursor: default;
     text-align: left;
     color: inherit;
     font: inherit;
@@ -1462,7 +1462,7 @@
     background: none;
     border: none;
     padding: var(--space-1);
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-xl);
     line-height: 1;
     color: var(--text-tertiary);
@@ -1489,7 +1489,7 @@
     background: none;
     border: none;
     padding: var(--space-1) var(--space-2);
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-xl);
     line-height: 1;
     color: var(--text-tertiary);
@@ -1583,7 +1583,7 @@
     font-size: var(--font-size-sm);
     width: 100%;
     box-sizing: border-box;
-    cursor: pointer;
+    cursor: default;
   }
 
   .card-actions {
@@ -1615,7 +1615,7 @@
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
     padding: var(--space-2) var(--space-3);
-    cursor: pointer;
+    cursor: default;
     text-align: center;
     width: 100%;
     transition:
@@ -1643,7 +1643,7 @@
     border: none;
     color: var(--accent-primary);
     font-size: var(--font-size-xs);
-    cursor: pointer;
+    cursor: default;
     padding: 0;
     white-space: nowrap;
     text-decoration: underline;

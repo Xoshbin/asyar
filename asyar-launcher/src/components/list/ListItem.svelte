@@ -63,7 +63,7 @@
     align-items: center;
     gap: var(--space-5);
     padding: var(--space-5) var(--space-6);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-md);
     margin-bottom: var(--space-0-5);
     transition: none;
     cursor: default;

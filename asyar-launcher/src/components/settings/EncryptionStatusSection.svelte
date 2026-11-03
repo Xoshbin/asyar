@@ -20,7 +20,6 @@
   );
 </script>
 
-<div class="section-header">{t('settings.privacy.encryption_at_rest')}</div>
 <SettingsCard>
   <SettingsRow
     label={t('settings.privacy.encryption_at_rest')}

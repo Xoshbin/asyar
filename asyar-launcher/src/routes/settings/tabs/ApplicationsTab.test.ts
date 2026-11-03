@@ -2,19 +2,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 
-const { emitMock, validateScanPathMock, updateSettingsMock, listApplicationsMock, openMock } =
-  vi.hoisted(() => ({
-    emitMock: vi.fn(async () => {}),
-    validateScanPathMock: vi.fn(
-      async (path: string): Promise<{ normalizedPath: string | null; error: string | null }> => ({
-        normalizedPath: path.trim().replace(/\/$/, ''),
-        error: null,
-      }),
-    ),
-    updateSettingsMock: vi.fn(async () => true),
-    listApplicationsMock: vi.fn(async () => []),
-    openMock: vi.fn(),
-  }));
+const {
+  emitMock,
+  validateScanPathMock,
+  updateSettingsMock,
+  setApplicationEnabledMock,
+  listApplicationsMock,
+  openMock,
+} = vi.hoisted(() => ({
+  emitMock: vi.fn(async () => {}),
+  validateScanPathMock: vi.fn(
+    async (path: string): Promise<{ normalizedPath: string | null; error: string | null }> => ({
+      normalizedPath: path.trim().replace(/\/$/, ''),
+      error: null,
+    }),
+  ),
+  updateSettingsMock: vi.fn(async () => true),
+  setApplicationEnabledMock: vi.fn(async () => true),
+  listApplicationsMock: vi.fn(async () => []),
+  openMock: vi.fn(),
+}));
 
 vi.mock('@tauri-apps/api/event', () => ({
   emit: emitMock,
@@ -38,6 +45,7 @@ vi.mock('../../../services/settings/settingsService.svelte', () => ({
       },
     },
     updateSettings: updateSettingsMock,
+    setApplicationEnabled: setApplicationEnabledMock,
   },
 }));
 
@@ -83,10 +91,12 @@ vi.mock('../../../built-in-features/aliases/aliasService', () => ({
 }));
 
 import ApplicationsTab from './ApplicationsTab.svelte';
+import { applicationsCache, resetApplicationsCache } from './applicationsCache.svelte';
 
 describe('Settings → Applications path entry', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetApplicationsCache();
     validateScanPathMock.mockImplementation(async (path: string) => ({
       normalizedPath: path.trim().replace(/\/$/, ''),
       error: null,
@@ -215,5 +225,64 @@ describe('Settings → Applications path entry', () => {
     );
     expect(updateSettingsMock).toHaveBeenCalled();
     await waitFor(() => expect((input as HTMLInputElement).value).toBe(''));
+  });
+});
+
+describe('Settings → Applications cache', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetApplicationsCache();
+    listApplicationsMock.mockResolvedValue([]);
+  });
+
+  it('shows the loading state on the very first visit', () => {
+    render(ApplicationsTab);
+    expect(screen.getByText('common.loading')).toBeTruthy();
+  });
+
+  it('renders cached apps on frame 0 without a loading flash, then refreshes silently', async () => {
+    applicationsCache.defaultPaths = ['/Applications'];
+    applicationsCache.apps = [{ id: 'a1', name: 'Cached App' } as never];
+    applicationsCache.hasLoadedOnce = true;
+    listApplicationsMock.mockResolvedValue([{ id: 'a2', name: 'Fresh App' }] as never);
+
+    render(ApplicationsTab);
+    expect(screen.queryByText('common.loading')).toBeNull();
+    expect(screen.getByText('Cached App')).toBeTruthy();
+
+    await waitFor(() => expect(screen.getByText('Fresh App')).toBeTruthy());
+    expect(screen.queryByText('common.loading')).toBeNull();
+    expect(applicationsCache.apps.map((a) => a.id)).toEqual(['a2']);
+  });
+
+  it('keeps the cached list when the silent refresh fails', async () => {
+    applicationsCache.apps = [{ id: 'a1', name: 'Cached App' } as never];
+    applicationsCache.hasLoadedOnce = true;
+    listApplicationsMock.mockRejectedValue(new Error('boom'));
+
+    render(ApplicationsTab);
+    await waitFor(() => expect(listApplicationsMock).toHaveBeenCalled());
+    expect(screen.getByText('Cached App')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('Settings → Applications enable toggle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetApplicationsCache();
+    listApplicationsMock.mockResolvedValue([]);
+  });
+
+  it('flips one application through the keyed setter, not a whole-section replace', async () => {
+    applicationsCache.apps = [{ id: 'a1', name: 'Cached App' } as never];
+    applicationsCache.hasLoadedOnce = true;
+    render(ApplicationsTab);
+
+    const boxes = screen.getAllByRole('checkbox');
+    await fireEvent.click(boxes[boxes.length - 1]);
+
+    expect(setApplicationEnabledMock).toHaveBeenCalledWith('a1', false);
+    expect(updateSettingsMock).not.toHaveBeenCalled();
   });
 });

@@ -92,6 +92,8 @@ function createHandler(): SettingsHandler {
         startAtLogin: false,
         showDockIcon: false,
         showTrayIcon: true,
+        escapeInViewBehavior: 'go-back',
+        popToRootDelay: '1m',
       },
       appearance: { activeTheme: null },
     },
@@ -107,8 +109,64 @@ function createHandler(): SettingsHandler {
     handleDockIconToggle: vi.fn(),
     updateThemeSetting: vi.fn(),
     updateLaunchView: vi.fn(),
+    updateEscapeBehavior: vi.fn(),
+    updatePopToRootDelay: vi.fn(),
   } as unknown as SettingsHandler;
 }
+
+function comboboxWithOption(value: string): HTMLSelectElement {
+  return screen
+    .getAllByRole('combobox')
+    .find((c) =>
+      Array.from((c as HTMLSelectElement).options).some((o) => o.value === value),
+    ) as HTMLSelectElement;
+}
+
+describe('GeneralTab behavior section', () => {
+  it('shows pop-to-root and escape-key selects and wires them to the handler', async () => {
+    const handler = createHandler();
+    render(GeneralTab, { props: { handler } });
+
+    expect(screen.getByText('Pop to root search')).toBeTruthy();
+    expect(screen.getByText('Escape key')).toBeTruthy();
+
+    const popToRoot = comboboxWithOption('never');
+    expect(popToRoot.value).toBe('1m');
+    await fireEvent.change(popToRoot, { target: { value: 'never' } });
+    expect(handler.updatePopToRootDelay).toHaveBeenCalledWith('never');
+
+    await fireEvent.change(comboboxWithOption('hide-and-reset'), {
+      target: { value: 'hide-and-reset' },
+    });
+    expect(handler.updateEscapeBehavior).toHaveBeenCalledWith('hide-and-reset');
+  });
+
+  it('keeps Re-run Onboarding in General', () => {
+    render(GeneralTab, { props: { handler: createHandler() } });
+    expect(screen.getByText('Re-run onboarding')).toBeTruthy();
+  });
+});
+
+describe('GeneralTab startup toggles', () => {
+  it('renders the startup settings as toggles and wires them to the handler', async () => {
+    const handler = createHandler();
+    const { container } = render(GeneralTab, { props: { handler } });
+
+    const startup = container.querySelector('#general-startup') as HTMLElement;
+    const boxes = Array.from(startup.querySelectorAll('input[type="checkbox"]'));
+    expect(boxes).toHaveLength(3);
+    // Toggle renders a track; the old Checkbox did not.
+    expect(startup.querySelectorAll('.toggle-track')).toHaveLength(3);
+    expect(boxes.map((b) => (b as HTMLInputElement).checked)).toEqual([false, true, false]);
+
+    await fireEvent.click(boxes[0]);
+    expect(handler.handleAutostartToggle).toHaveBeenCalledTimes(1);
+    await fireEvent.click(boxes[1]);
+    expect(handler.handleTrayIconToggle).toHaveBeenCalledTimes(1);
+    await fireEvent.click(boxes[2]);
+    expect(handler.handleDockIconToggle).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('GeneralTab interface size', () => {
   beforeEach(() => {
@@ -121,7 +179,7 @@ describe('GeneralTab interface size', () => {
 
     expect(screen.getByText('Interface Size')).toBeTruthy();
 
-    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    const select = comboboxWithOption('1.2');
     expect(select.value).toBe('1.2');
     expect((screen.getByRole('option', { name: 'Large' }) as HTMLOptionElement).value).toBe('1.1');
 
@@ -140,7 +198,7 @@ describe('GeneralTab interface size', () => {
     });
     render(GeneralTab, { props: { handler: createHandler() } });
 
-    const select = screen.getByRole('combobox');
+    const select = comboboxWithOption('1.2');
     await fireEvent.change(select, { target: { value: '1.1' } });
 
     await waitFor(() => {

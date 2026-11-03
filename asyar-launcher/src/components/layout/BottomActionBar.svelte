@@ -252,7 +252,7 @@
     font-family: var(--font-ui);
     font-size: var(--font-size-xs);
     font-weight: 500;
-    cursor: pointer;
+    cursor: default;
     transition:
       background-color var(--transition-fast),
       opacity var(--transition-fast);

@@ -54,7 +54,7 @@
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
     line-height: 1.4;
-    cursor: pointer;
+    cursor: default;
     outline: none;
     transition:
       border-color var(--transition-fast),
@@ -68,7 +68,7 @@
 
   .select-el:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .select-caret {

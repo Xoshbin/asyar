@@ -14,12 +14,18 @@ vi.mock('../../services/extension/extensionManager.svelte', () => ({
     toggleExtensionState: mockToggleExtensionState,
   },
 }));
-const { listenMock, onFocusChangedMock, getCurrentWindowMock } = vi.hoisted(() => {
+const { listenMock, onFocusChangedMock, setFocusMock, getCurrentWindowMock } = vi.hoisted(() => {
   const onFocusChangedMock = vi.fn();
+  const setFocusMock = vi.fn();
   return {
     listenMock: vi.fn(),
     onFocusChangedMock,
-    getCurrentWindowMock: vi.fn(() => ({ onFocusChanged: onFocusChangedMock })),
+    setFocusMock,
+    getCurrentWindowMock: vi.fn(() => ({
+      onFocusChanged: onFocusChangedMock,
+      isFocused: vi.fn().mockResolvedValue(true),
+      setFocus: setFocusMock,
+    })),
   };
 });
 vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));
@@ -71,7 +77,7 @@ describe('SettingsHandler.loadExtensions', () => {
     const handler = new SettingsHandler();
     await handler.loadExtensions();
 
-    expect(handler.extensions).toHaveLength(1);
+    expect(handler.extensions.filter((e) => e.id !== 'browsers')).toHaveLength(1);
     expect(handler.extensions[0].commands).toEqual([
       { id: 'cmd1', name: 'Start Timer', description: 'Starts the timer', trigger: 'pomo start' },
     ]);
@@ -97,9 +103,44 @@ describe('SettingsHandler.loadExtensions', () => {
     const handler = new SettingsHandler();
     await handler.loadExtensions();
 
-    expect(handler.extensions).toHaveLength(2);
-    const titles = handler.extensions.map((e) => e.title).sort();
-    expect(titles).toEqual(['Calculator', 'GitHub']);
+    const real = handler.extensions.filter((e) => e.id !== 'browsers');
+    expect(real).toHaveLength(2);
+    expect(real.map((e) => e.title).sort()).toEqual(['Calculator', 'GitHub']);
+  });
+
+  it('adds the manifest-less Browsers built-in so it can be configured', async () => {
+    mockGetAll.mockResolvedValue([]);
+
+    const handler = new SettingsHandler();
+    await handler.loadExtensions();
+
+    expect(handler.extensions).toHaveLength(1);
+    expect(handler.extensions[0]).toMatchObject({
+      id: 'browsers',
+      isBuiltIn: true,
+      disableable: false,
+      enabled: true,
+      commands: [],
+    });
+  });
+
+  it('does not duplicate Browsers when the registry already provides it', async () => {
+    mockGetAll.mockResolvedValue([
+      { id: 'browsers', isBuiltIn: true, title: 'Browsers', enabled: true, commands: [] },
+    ]);
+
+    const handler = new SettingsHandler();
+    await handler.loadExtensions();
+
+    expect(handler.extensions.filter((e) => e.id === 'browsers')).toHaveLength(1);
+  });
+
+  it('selectTab switches the tab and bumps tabResetCounter even for the active tab', () => {
+    const handler = new SettingsHandler();
+    handler.selectTab('extensions');
+    handler.selectTab('extensions');
+    expect(handler.activeTab).toBe('extensions');
+    expect(handler.tabResetCounter).toBe(2);
   });
 
   it('deduplicates by id across repeated entries', async () => {
@@ -111,7 +152,7 @@ describe('SettingsHandler.loadExtensions', () => {
     const handler = new SettingsHandler();
     await handler.loadExtensions();
 
-    expect(handler.extensions).toHaveLength(1);
+    expect(handler.extensions.filter((e) => e.id === 'calculator')).toHaveLength(1);
   });
 
   it('ignores a call that starts while a previous call is still in flight', async () => {
@@ -380,5 +421,110 @@ describe('SettingsHandler.toggleExtension', () => {
     await handler.toggleExtension(ext as any);
     expect(mockToggleExtensionState).toHaveBeenCalledWith('com.example.test', false);
     expect(ext.enabled).toBe(false);
+  });
+
+  it('flips enabled before the backend resolves', async () => {
+    let resolve!: (v: boolean) => void;
+    mockToggleExtensionState.mockReturnValueOnce(new Promise<boolean>((r) => (resolve = r)));
+    const handler = new SettingsHandler();
+    const ext = {
+      id: 'com.example.test',
+      title: 'T',
+      isBuiltIn: false,
+      enabled: true,
+      commands: [],
+    };
+    const pending = handler.toggleExtension(ext as any);
+    await Promise.resolve();
+    expect(ext.enabled).toBe(false);
+    resolve(true);
+    await pending;
+    expect(ext.enabled).toBe(false);
+  });
+
+  it('rolls back and reports an error when the backend returns false', async () => {
+    mockToggleExtensionState.mockResolvedValueOnce(false);
+    const handler = new SettingsHandler();
+    const ext = {
+      id: 'com.example.test',
+      title: 'T',
+      isBuiltIn: false,
+      enabled: true,
+      commands: [],
+    };
+    await handler.toggleExtension(ext as any);
+    expect(ext.enabled).toBe(true);
+    expect(handler.saveError).toBe(true);
+    expect(handler.saveMessage).toBe('Failed to update extension settings.');
+  });
+
+  it('rolls back when the backend throws', async () => {
+    mockToggleExtensionState.mockRejectedValueOnce(new Error('boom'));
+    const handler = new SettingsHandler();
+    const ext = {
+      id: 'com.example.test',
+      title: 'T',
+      isBuiltIn: false,
+      enabled: false,
+      commands: [],
+    };
+    await handler.toggleExtension(ext as any);
+    expect(ext.enabled).toBe(false);
+    expect(handler.saveError).toBe(true);
+  });
+
+  it('ignores a second toggle of the same extension while one is in flight', async () => {
+    let resolve!: (v: boolean) => void;
+    mockToggleExtensionState.mockReturnValueOnce(new Promise<boolean>((r) => (resolve = r)));
+    const handler = new SettingsHandler();
+    const ext = {
+      id: 'com.example.test',
+      title: 'T',
+      isBuiltIn: false,
+      enabled: true,
+      commands: [],
+    };
+    const first = handler.toggleExtension(ext as any);
+    await handler.toggleExtension(ext as any);
+    expect(mockToggleExtensionState).toHaveBeenCalledTimes(1);
+    resolve(true);
+    await first;
+  });
+});
+
+describe('SettingsHandler.loadExtensions background rescan', () => {
+  it('does not flip isLoadingExtensions when a list is already shown', async () => {
+    mockGetAll.mockResolvedValue([{ id: 'a', title: 'A', isBuiltIn: false, commands: [] }]);
+    const handler = new SettingsHandler();
+    await handler.loadExtensions();
+    expect(handler.extensions.length).toBeGreaterThan(0);
+
+    const seen: boolean[] = [];
+    mockGetAll.mockImplementationOnce(async () => {
+      seen.push(handler.isLoadingExtensions);
+      return [{ id: 'a', title: 'A', isBuiltIn: false, commands: [] }];
+    });
+    await handler.loadExtensions();
+    expect(seen).toEqual([false]);
+  });
+});
+
+describe('SettingsHandler.toggleExtension focus guard', () => {
+  it('re-focuses Settings if it loses focus right after a toggle', async () => {
+    let cb: ((e: { payload: boolean }) => void) | undefined;
+    onFocusChangedMock.mockImplementation(async (fn) => {
+      cb = fn;
+      return () => {};
+    });
+    setFocusMock.mockClear();
+    const handler = new SettingsHandler();
+    const ext = { id: 'com.example.t', title: 'T', isBuiltIn: false, enabled: true, commands: [] };
+    await handler.toggleExtension(ext as any);
+    await new Promise((r) => setTimeout(r, 0));
+
+    cb?.({ payload: false });
+    expect(setFocusMock).toHaveBeenCalledTimes(1);
+    cb?.({ payload: true });
+    expect(setFocusMock).toHaveBeenCalledTimes(1);
   });
 });

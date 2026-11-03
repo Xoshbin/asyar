@@ -87,10 +87,11 @@
       "backup": "Backup",
       "sync": "Sync",
       "account": "Account",
-      "privacy": "Privacy",
+      "privacy": "Privacy & Permissions",
       "advanced": "Advanced",
       "developer": "Developer",
-      "about": "About"
+      "about": "About",
+      "built_in_features": "Built-in Features"
     },
     "general": {
       "section_startup": "Startup",
@@ -142,7 +143,8 @@
       "error_save_snap": "Could not save the launcher snap setting",
       "wayland_hotkey_hint": "On Wayland ({compositor}), bind asyar-summon in your compositor or desktop shortcut settings for instant global summon.",
       "wayland_copy_cmd": "Copy",
-      "wayland_copied": "✓ Copied"
+      "wayland_copied": "✓ Copied",
+      "section_behavior": "Behavior"
     },
     "appearance": {
       "theme": "Theme",
@@ -303,9 +305,10 @@
       "select_extension_or_command": "Select an extension or command",
       "filter_all": "All",
       "filter_commands": "Commands",
+      "section_commands": "Commands",
       "filter_extensions": "Extensions",
       "filter_theme": "Theme",
-      "search_placeholder": "Search…",
+      "search_placeholder": "Search",
       "add_extension": "Add extension",
       "table_name": "Name",
       "table_type": "Type",
@@ -337,6 +340,10 @@
       "section_installed": "Installed Extensions",
       "type_builtin": "Built-in",
       "required_builtin_explanation": "Required core feature cannot be disabled",
+      "always_on": "Always on",
+      "built_in_subtitle": "Native capabilities built into Asyar. Click any feature to configure its settings and commands.",
+      "command_singular": "command",
+      "command_plural": "commands",
       "type_command": "Command",
       "type_extension": "Extension",
       "type_theme": "Theme",
@@ -645,6 +652,9 @@
       "this_session_desc": "Number of redaction events since the launcher started.",
       "active_detectors": "Active detectors",
       "active_detectors_desc": "The bundled rule catalog. Updating the catalog requires a launcher update.",
+      "detector_count": "{count} rules",
+      "show_detectors": "Show",
+      "hide_detectors": "Hide",
       "clipboard_privacy": "Clipboard Privacy",
       "clipboard_privacy_desc": "Asyar will not store clipboard items that the OS or source app has marked private.",
       "clipboard_session_desc": "Clipboard items skipped since the launcher started.",
@@ -699,7 +709,9 @@
       "protected": "Protected",
       "platform_note": "Platform note",
       "linux_clipboard_note": "Your Linux desktop does not provide a standard clipboard exclusion API. Source-app filtering only.",
-      "source_filter_only": "Source filter only"
+      "source_filter_only": "Source filter only",
+      "accessibility_access": "Accessibility",
+      "accessibility_access_desc": "Lets Asyar read your selection and type for you (text expansion, selection-based commands)."
     },
     "about": {
       "section_updates": "Updates",
@@ -798,6 +810,7 @@
       "reminder_body": "Your data is end-to-end encrypted. Save your 24-word recovery phrase so you can access your data on a new device or if you lose this device.",
       "reminder_show_btn": "Save phrase",
       "reset_button": "Reset Cloud Sync",
+      "reset_description": "Delete your synced data and start over with a fresh encryption key.",
       "reset_title": "Reset Cloud Sync",
       "reset_body": "This will delete all your synced data from the Asyar server and re-upload this device's data with a fresh encryption key. Any other devices will need to be set up again. Your local data on this device will not be deleted.",
       "reset_confirm_btn": "Reset Cloud Sync",
@@ -810,7 +823,17 @@
       "error_revoke": "Could not revoke shell trust for {path}"
     },
     "page_title": "Asyar Settings",
-    "loading": "Loading settings..."
+    "loading": "Loading settings...",
+    "nav": {
+      "group_app": "App",
+      "group_system": "System",
+      "group_results": "Results",
+      "account_subtitle": "Account & Cloud Sync",
+      "back": "Back",
+      "forward": "Forward",
+      "search_placeholder": "Search",
+      "clear_search": "Clear search"
+    }
   },
   "onboarding": {
     "open_asyar": "Open Asyar",

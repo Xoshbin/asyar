@@ -45,7 +45,7 @@
     border-radius: var(--radius-sm);
     color: var(--text-secondary);
     font-family: var(--font-ui);
-    cursor: pointer;
+    cursor: default;
     transition:
       color var(--transition-fast),
       background-color var(--transition-fast);
@@ -63,7 +63,7 @@
 
   .bottom-bar-button:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .label {

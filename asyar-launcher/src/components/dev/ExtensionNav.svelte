@@ -83,7 +83,7 @@
     color: var(--text-primary);
     font-size: var(--font-size-sm);
     text-align: left;
-    cursor: pointer;
+    cursor: default;
   }
   .nav-row:hover {
     background: var(--bg-hover);

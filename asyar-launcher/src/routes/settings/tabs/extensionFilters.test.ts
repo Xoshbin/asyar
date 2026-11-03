@@ -126,3 +126,32 @@ describe('filterExtensions', () => {
     });
   });
 });
+
+describe('filterExtensions scope', () => {
+  const mixed: ExtensionItem[] = [
+    makeExt('Calculator', 'extension', [], true),
+    makeExt('Snippets', 'extension', [{ id: 's1', name: 'New Snippet', trigger: 'snip' }], true),
+    ...extensions,
+  ];
+
+  it('built-in scope keeps only built-ins', () => {
+    const titles = filterExtensions(mixed, '', 'all', 'built-in').map((e) => e.title);
+    expect(titles).toEqual(['Calculator', 'Snippets']);
+  });
+
+  it('third-party scope keeps only non-built-ins, themes included', () => {
+    const titles = filterExtensions(mixed, '', 'all', 'third-party').map((e) => e.title);
+    expect(titles).toEqual(['Catppuccin', 'Pomodoro Timer', 'GitHub']);
+  });
+
+  it('search still applies after scope', () => {
+    expect(filterExtensions(mixed, 'snip', 'all', 'built-in').map((e) => e.title)).toEqual([
+      'Snippets',
+    ]);
+    expect(filterExtensions(mixed, 'snip', 'all', 'third-party')).toEqual([]);
+  });
+
+  it('omitting scope keeps the previous behaviour', () => {
+    expect(filterExtensions(mixed, '', 'all')).toHaveLength(5);
+  });
+});

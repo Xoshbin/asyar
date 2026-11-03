@@ -137,7 +137,7 @@
   .remove-btn {
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     color: var(--text-secondary);
   }
   .add-row {
@@ -163,6 +163,6 @@
     color: var(--accent-primary);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
   }
 </style>

@@ -6,7 +6,6 @@
   import {
     AppearanceThemeSelector,
     Button,
-    Checkbox,
     SegmentedControl,
     Select,
     SettingsCard,
@@ -32,12 +31,28 @@
   import { applyTheme, removeTheme } from '../../../services/theme/themeService';
   import { getWaylandBindingGuide } from '../../onboarding/steps/summonSearchSetup';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
+  import type { PopToRootDelay } from '../../../services/settings/types/AppSettingsType';
+  import { resolveEscapeBehavior, type EscapeBehavior } from '../../../lib/keyboard/escapeBehavior';
 
   let {
     handler,
   }: {
     handler: SettingsHandler;
   } = $props();
+
+  // Order matches Raycast: navigate-back first, pop-to-root second.
+  const escapeOptions = $derived([
+    { value: 'go-back', label: t('settings.advanced.escape_back') },
+    { value: 'hide-and-reset', label: t('settings.advanced.escape_reset') },
+  ]);
+
+  const popToRootOptions = $derived([
+    { value: 'immediately', label: t('settings.advanced.pop_to_root_immediately') },
+    { value: '10s', label: t('settings.advanced.pop_to_root_10s') },
+    { value: '1m', label: t('settings.advanced.pop_to_root_1min') },
+    { value: '5m', label: t('settings.advanced.pop_to_root_5min') },
+    { value: 'never', label: t('settings.advanced.pop_to_root_never') },
+  ]);
 
   let themeExtensions = $state<
     Array<{ id: string; name: string; author?: string; version: string }>
@@ -238,14 +253,13 @@
   }
 </script>
 
-<div class="section-header">{t('settings.general.section_startup')}</div>
 <SettingsCard>
   <div id="general-startup">
     <SettingsRow
       label={t('settings.general.autostart')}
       description={t('settings.general.autostart_description')}
     >
-      <Checkbox
+      <Toggle
         checked={handler.settings.general.startAtLogin}
         onchange={() => handler.handleAutostartToggle()}
       />
@@ -284,7 +298,7 @@
         ? t('settings.general.show_tray_icon_description')
         : t('settings.general.show_tray_icon_tip')}
     >
-      <Checkbox
+      <Toggle
         checked={handler.settings.general.showTrayIcon}
         onchange={() => handler.handleTrayIconToggle()}
       />
@@ -293,7 +307,7 @@
       label={t('settings.general.show_dock_icon')}
       description={t('settings.general.show_dock_icon_description')}
     >
-      <Checkbox
+      <Toggle
         checked={handler.settings.general.showDockIcon}
         onchange={() => handler.handleDockIconToggle()}
       />
@@ -429,6 +443,32 @@
   </div>
 </SettingsCard>
 
+<div class="section-header">{t('settings.general.section_behavior')}</div>
+<SettingsCard>
+  <div id="advanced-input">
+    <SettingsRow
+      label={t('settings.advanced.pop_to_root')}
+      description={t('settings.advanced.pop_to_root_description')}
+    >
+      <Select
+        value={handler.settings.general?.popToRootDelay ?? '1m'}
+        options={popToRootOptions}
+        onchange={(value) => handler.updatePopToRootDelay(value as PopToRootDelay)}
+      />
+    </SettingsRow>
+    <SettingsRow
+      label={t('settings.advanced.escape_key')}
+      description={t('settings.advanced.escape_key_description')}
+    >
+      <Select
+        value={resolveEscapeBehavior(handler.settings.general?.escapeInViewBehavior)}
+        options={escapeOptions}
+        onchange={(v) => handler.updateEscapeBehavior(v as EscapeBehavior)}
+      />
+    </SettingsRow>
+  </div>
+</SettingsCard>
+
 <SettingsCard>
   <div id="general-onboarding">
     <SettingsRow
@@ -493,7 +533,7 @@
     display: flex;
     align-items: center;
     padding: var(--space-5) var(--space-6);
-    cursor: pointer;
+    cursor: default;
     transition: background var(--transition-fast);
   }
 

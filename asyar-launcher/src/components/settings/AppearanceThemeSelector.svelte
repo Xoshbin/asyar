@@ -101,7 +101,7 @@
     gap: var(--space-2);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     padding: 0;
     color: var(--text-secondary);
     transition: color var(--transition-normal);

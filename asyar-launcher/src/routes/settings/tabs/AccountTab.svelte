@@ -152,7 +152,6 @@
 </script>
 
 {#if authService.isAwaitingOAuth}
-  <div class="section-header">{t('settings.account.section_profile')}</div>
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
       <div class="awaiting-container">
@@ -186,7 +185,6 @@
     </SettingsCard>
   </div>
 {:else if !authService.isLoggedIn}
-  <div class="section-header">{t('settings.account.section_profile')}</div>
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
       {#if authService.loginError}
@@ -249,7 +247,6 @@
     </SettingsCard>
   </div>
 {:else}
-  <div class="section-header">{t('settings.account.section_profile')}</div>
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
       <SettingsRow label={t('settings.account.section_profile')}>
@@ -501,11 +498,14 @@
             {/if}
           {/if}
 
-          <div class="reset-section">
+          <SettingsRow
+            label={t('settings.e2ee.reset_title')}
+            description={t('settings.e2ee.reset_description')}
+          >
             <Button class="btn-danger" onclick={() => (activeDialog = 'reset')}>
               {t('settings.e2ee.reset_button')}
             </Button>
-          </div>
+          </SettingsRow>
         {/if}
       {:else}
         <SettingsRow
@@ -701,7 +701,7 @@
     background: none;
     border: none;
     padding: 0;
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-sm);
     font-family: var(--font-ui);
     color: var(--text-primary);
@@ -797,14 +797,6 @@
     flex-shrink: 0;
   }
 
-  .reset-section {
-    display: flex;
-    justify-content: flex-end;
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--separator);
-    margin-top: var(--space-2);
-  }
-
   :global(.btn-danger) {
     background: var(--accent-danger-fill) !important;
     color: var(--text-on-accent) !important;
@@ -817,6 +809,6 @@
 
   :global(.btn-danger:disabled) {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 </style>

@@ -312,7 +312,7 @@
     border-radius: var(--radius-sm);
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
-    cursor: pointer;
+    cursor: default;
     transition:
       background var(--transition-normal),
       box-shadow var(--transition-normal);
@@ -385,7 +385,7 @@
     border-radius: var(--radius-xs);
     color: var(--text-primary);
     text-align: left;
-    cursor: pointer;
+    cursor: default;
     transition: background var(--transition-fast);
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);

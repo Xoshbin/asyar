@@ -635,15 +635,15 @@ html[data-platform='macos'] .app-root {
   }
 
   :root:not([data-theme]):not([data-custom-theme]) .settings-page {
-    --bg-primary: rgb(240, 240, 245);
-    --bg-secondary: rgb(230, 230, 235);
-    --bg-tertiary: rgb(245, 245, 247);
-    --bg-hover: rgb(220, 220, 225);
-    --bg-selected: rgba(140, 140, 148, 0.22);
-    --bg-secondary-full-opacity: rgb(230, 230, 235);
+    --bg-primary: rgb(245, 245, 247);
+    --bg-secondary: rgb(236, 236, 240);
+    --bg-tertiary: rgb(255, 255, 255);
+    --bg-hover: rgb(230, 230, 235);
+    --bg-selected: rgba(60, 60, 67, 0.09);
+    --bg-secondary-full-opacity: rgb(236, 236, 240);
 
-    --border-color: rgba(60, 60, 67, 0.15);
-    --separator: rgba(60, 60, 67, 0.12);
+    --border-color: rgba(60, 60, 67, 0.09);
+    --separator: rgba(60, 60, 67, 0.07);
     --divider-soft: rgba(60, 60, 67, 0.06);
     --shadow-color: rgba(0, 0, 0, 0.1);
   }
@@ -701,15 +701,15 @@ html[data-platform='macos'] .app-root {
 }
 
 :root[data-theme='light']:not([data-custom-theme]) .settings-page {
-  --bg-primary: rgb(240, 240, 245);
-  --bg-secondary: rgb(230, 230, 235);
-  --bg-tertiary: rgb(245, 245, 247);
-  --bg-hover: rgb(220, 220, 225);
-  --bg-selected: rgba(140, 140, 148, 0.22);
-  --bg-secondary-full-opacity: rgb(230, 230, 235);
+  --bg-primary: rgb(245, 245, 247);
+  --bg-secondary: rgb(236, 236, 240);
+  --bg-tertiary: rgb(255, 255, 255);
+  --bg-hover: rgb(230, 230, 235);
+  --bg-selected: rgba(60, 60, 67, 0.09);
+  --bg-secondary-full-opacity: rgb(236, 236, 240);
 
-  --border-color: rgba(60, 60, 67, 0.15);
-  --separator: rgba(60, 60, 67, 0.12);
+  --border-color: rgba(60, 60, 67, 0.09);
+  --separator: rgba(60, 60, 67, 0.07);
   --divider-soft: rgba(60, 60, 67, 0.06);
   --shadow-color: rgba(0, 0, 0, 0.1);
 }
@@ -832,20 +832,20 @@ html[data-platform='macos'] .app-root {
   }
 
   .back-button {
-    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer flex items-center gap-2;
+    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-default flex items-center gap-2;
     z-index: var(--z-raised);
     transition: color var(--transition-fast);
   }
 
   .result-item {
-    @apply w-full text-left flex flex-col justify-center gap-1 cursor-pointer;
+    @apply w-full text-left flex flex-col justify-center gap-1 cursor-default;
     /* 8px here plus the list's own --space-3 inset puts the row's content on
        16px — the same left edge as the query in the header, which uses px-4.
        This was 9px, which put every result 1px to the right of the text the
        user typed and sat off the 2px grid. */
     padding: 0 var(--space-3);
     min-height: var(--shell-row-h);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-md);
     border: none;
 
     &:active {
@@ -885,13 +885,13 @@ html[data-platform='macos'] .app-root {
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     transition: all var(--transition-fast);
+    cursor: default;
 
     &:hover {
       background-color: var(--bg-hover);
     }
 
     &:active {
-      transform: scale(0.98);
       background-color: var(--bg-selected);
     }
 
@@ -901,7 +901,7 @@ html[data-platform='macos'] .app-root {
 
     &:disabled {
       opacity: 0.5;
-      cursor: not-allowed;
+      cursor: default;
     }
   }
 
@@ -925,7 +925,7 @@ html[data-platform='macos'] .app-root {
 
     &:disabled {
       opacity: 0.5;
-      cursor: not-allowed;
+      cursor: default;
     }
   }
 
@@ -1387,6 +1387,17 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     user-select: none;
   }
 
+  /* Settings windows: sentence-case heading flush with the card below it. */
+  .settings-page .section-header {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: var(--tracking-normal);
+    color: var(--text-primary);
+    padding: 0 var(--space-0-5);
+    margin-bottom: var(--space-2);
+  }
+
   /* Section header for list views (clipboard, snippets, actions). */
   .list-section {
     padding: var(--space-6) var(--space-3) var(--space-1);
@@ -1415,9 +1426,9 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     align-items: center;
     gap: 10px;
     padding: 10px 16px;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-md);
     margin-bottom: 1px;
-    transition: background var(--transition-fast);
+    transition: none;
     cursor: default;
   }
 
@@ -1472,7 +1483,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     width: 100%;
     transition: border-color var(--transition-fast);
     appearance: auto;
-    cursor: pointer;
+    cursor: default;
   }
   .field-select:focus {
     border-color: var(--accent-primary);
@@ -1511,7 +1522,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     font-family: var(--font-ui);
     font-size: var(--font-size-md);
     font-weight: 500;
-    cursor: pointer;
+    cursor: default;
     transition: opacity var(--transition-fast);
   }
   .btn-primary:hover {
@@ -1519,7 +1530,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
   }
   .btn-primary:disabled {
     opacity: 0.4;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   /* ── Secondary button ─────────────────────────────────── */
@@ -1531,7 +1542,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     color: var(--text-secondary);
     font-family: var(--font-ui);
     font-size: var(--font-size-md);
-    cursor: pointer;
+    cursor: default;
     transition: background var(--transition-fast);
   }
   .btn-secondary:hover {
@@ -1543,7 +1554,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     background: transparent;
     border: none;
     color: var(--accent-danger);
-    cursor: pointer;
+    cursor: default;
     padding: 4px 8px;
     border-radius: var(--radius-sm);
     font-size: var(--font-size-md);
@@ -1695,7 +1706,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     border: 1px solid var(--border-color);
     padding: 3px 10px;
     border-radius: var(--radius-sm);
-    cursor: pointer;
+    cursor: default;
     transition: all var(--transition-fast);
   }
   .md-content .md-copy-btn:hover {

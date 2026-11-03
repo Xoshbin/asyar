@@ -250,7 +250,7 @@
 
   .shortcut-recorder.disabled {
     opacity: 0.6;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .recorder-button {
@@ -259,7 +259,7 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: var(--space-4) var(--space-6);
-    cursor: pointer;
+    cursor: default;
     transition: all var(--transition-normal);
     min-height: var(--size-2xl);
     display: flex;

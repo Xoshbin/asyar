@@ -94,7 +94,7 @@
     color: var(--accent-danger);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     padding: 0;
     transition: var(--transition-fast);
   }
@@ -105,6 +105,6 @@
 
   .remove-btn:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 </style>

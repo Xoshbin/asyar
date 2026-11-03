@@ -127,6 +127,15 @@ class SettingsService implements ISettingsService {
 
   // Guard against reacting to our own saves in the onChange callback
   private isSaving = false;
+  // Tauri delivers `store://change` asynchronously, after `store.save()` has
+  // resolved and `isSaving` is already false. Local writes therefore also open
+  // a short window in which onChange echoes are ignored.
+  private ignoreOnChangeUntil = 0;
+  private static readonly SELF_ECHO_WINDOW_MS = 300;
+
+  private markSelfWrite() {
+    this.ignoreOnChangeUntil = Date.now() + SettingsService.SELF_ECHO_WINDOW_MS;
+  }
 
   /**
    * Initialize the settings service AND the system shortcuts
@@ -156,7 +165,7 @@ class SettingsService implements ISettingsService {
       // Propagate settings changes made in other windows (e.g. the settings window)
       // into this window's reactive state without triggering a save loop.
       this.store.onChange((key, value) => {
-        if (this.isSaving) return;
+        if (this.isSaving || Date.now() < this.ignoreOnChangeUntil) return;
         if (key === 'settings' && value) {
           this.currentSettings = this.mergeWithDefaults(value);
         }
@@ -249,6 +258,7 @@ class SettingsService implements ISettingsService {
    */
   async save() {
     this.isSaving = true;
+    this.markSelfWrite();
     try {
       if (!this.store) {
         throw new Error('Store is not initialized');
@@ -262,6 +272,7 @@ class SettingsService implements ISettingsService {
       return false;
     } finally {
       this.isSaving = false;
+      this.markSelfWrite();
     }
   }
 
@@ -464,6 +475,33 @@ class SettingsService implements ISettingsService {
       logService.error(`Error merging settings: ${error}`);
       return { ...DEFAULT_SETTINGS };
     }
+  }
+
+  /**
+   * Mirror an extension's enabled flag into reactive state without persisting.
+   * For callers whose backend (Rust `set_extension_enabled`) has already
+   * written and saved `settings.dat`; a second `save()` would flush it twice.
+   */
+  syncExtensionStateInMemory(extensionName: string, enabled: boolean): void {
+    if (!this.currentSettings.extensions) {
+      this.currentSettings.extensions = { enabled: {} };
+    } else if (!this.currentSettings.extensions.enabled) {
+      this.currentSettings.extensions.enabled = {};
+    }
+    this.currentSettings.extensions.enabled[extensionName] = enabled;
+    this.markSelfWrite();
+  }
+
+  /**
+   * Toggle one application in place so Svelte only notifies the row whose key
+   * changed, instead of replacing the whole `search` section.
+   */
+  async setApplicationEnabled(appId: string, enabled: boolean): Promise<boolean> {
+    if (!this.currentSettings.search.applicationEnabled) {
+      this.currentSettings.search.applicationEnabled = {};
+    }
+    this.currentSettings.search.applicationEnabled[appId] = enabled;
+    return await this.save();
   }
 
   /**

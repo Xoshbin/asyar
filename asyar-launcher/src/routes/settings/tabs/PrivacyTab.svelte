@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    ClipboardPrivacySection,
     CrashReportSection,
     EncryptionStatusSection,
     SecretRedactionSection,
@@ -9,7 +8,6 @@
     SystemAccessSection,
     UsageShareSection,
   } from '../../../components';
-  import { clipboardPrivacyService } from '../../../services/privacy/clipboardPrivacyService.svelte';
   import { secretRedactionService } from '../../../services/privacy/secretRedactionService.svelte';
   import { encryptionService } from '../../../services/privacy/encryptionService.svelte';
 
@@ -18,7 +16,6 @@
   // services from this tab's onMount — same pattern as authService in
   // settings/+page.svelte.
   onMount(() => {
-    clipboardPrivacyService.init();
     secretRedactionService.init();
     encryptionService.init();
   });
@@ -35,10 +32,6 @@
 
   <div id="privacy-usage" class="anchor-group">
     <UsageShareSection />
-  </div>
-
-  <div id="privacy-clipboard" class="anchor-group">
-    <ClipboardPrivacySection />
   </div>
 
   <div id="privacy-redaction" class="anchor-group">

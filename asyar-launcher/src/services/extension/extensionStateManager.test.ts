@@ -10,7 +10,7 @@ vi.mock('../../lib/ipc/commands', () => ({
 vi.mock('../settings/settingsService.svelte', () => ({
   settingsService: {
     isExtensionEnabled: vi.fn().mockReturnValue(true),
-    updateExtensionState: vi.fn().mockResolvedValue(true),
+    syncExtensionStateInMemory: vi.fn().mockResolvedValue(true),
     removeExtensionState: vi.fn().mockResolvedValue(true),
     getSettings: vi.fn().mockReturnValue({}),
   },
@@ -425,7 +425,7 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
 
       expect(ok).toBe(false);
       expect(setExtensionEnabled).not.toHaveBeenCalled();
-      expect(settingsService.updateExtensionState).not.toHaveBeenCalled();
+      expect(settingsService.syncExtensionStateInMemory).not.toHaveBeenCalled();
       expect(logService.warn).toHaveBeenCalledWith(
         expect.stringContaining('Cannot disable required built-in feature: settings'),
       );
@@ -445,10 +445,14 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       vi.mocked(setExtensionEnabled).mockResolvedValue(true);
 
       const ok = await extensionStateManager.toggleExtensionState('clipboard-history', false);
+      await extensionStateManager.flushPendingReload();
 
       expect(ok).toBe(true);
       expect(setExtensionEnabled).toHaveBeenCalledWith('clipboard-history', false);
-      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('clipboard-history', false);
+      expect(settingsService.syncExtensionStateInMemory).toHaveBeenCalledWith(
+        'clipboard-history',
+        false,
+      );
       expect(viewManager.closeViewsForExtension).toHaveBeenCalledWith('clipboard-history');
       expect(reloadCallback).toHaveBeenCalledTimes(1);
     });
@@ -457,10 +461,11 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       vi.mocked(setExtensionEnabled).mockResolvedValue(true);
 
       const ok = await extensionStateManager.toggleExtensionState('file-search', false);
+      await extensionStateManager.flushPendingReload();
 
       expect(ok).toBe(true);
       expect(setExtensionEnabled).toHaveBeenCalledWith('file-search', false);
-      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('file-search', false);
+      expect(settingsService.syncExtensionStateInMemory).toHaveBeenCalledWith('file-search', false);
       expect(viewManager.closeViewsForExtension).toHaveBeenCalledWith('file-search');
       expect(reloadCallback).toHaveBeenCalledTimes(1);
     });
@@ -471,10 +476,11 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
         vi.mocked(setExtensionEnabled).mockResolvedValue(true);
 
         const ok = await extensionStateManager.toggleExtensionState(id, false);
+        await extensionStateManager.flushPendingReload();
 
         expect(ok).toBe(true);
         expect(setExtensionEnabled).toHaveBeenCalledWith(id, false);
-        expect(settingsService.updateExtensionState).toHaveBeenCalledWith(id, false);
+        expect(settingsService.syncExtensionStateInMemory).toHaveBeenCalledWith(id, false);
         expect(viewManager.closeViewsForExtension).toHaveBeenCalledWith(id);
         expect(reloadCallback).toHaveBeenCalledTimes(1);
       }
@@ -484,10 +490,14 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       vi.mocked(setExtensionEnabled).mockResolvedValue(true);
 
       const ok = await extensionStateManager.toggleExtensionState('clipboard-history', true);
+      await extensionStateManager.flushPendingReload();
 
       expect(ok).toBe(true);
       expect(setExtensionEnabled).toHaveBeenCalledWith('clipboard-history', true);
-      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('clipboard-history', true);
+      expect(settingsService.syncExtensionStateInMemory).toHaveBeenCalledWith(
+        'clipboard-history',
+        true,
+      );
       expect(reloadCallback).toHaveBeenCalledTimes(1);
     });
 
@@ -495,10 +505,11 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       vi.mocked(setExtensionEnabled).mockResolvedValue(true);
 
       const ok = await extensionStateManager.toggleExtensionState('file-search', true);
+      await extensionStateManager.flushPendingReload();
 
       expect(ok).toBe(true);
       expect(setExtensionEnabled).toHaveBeenCalledWith('file-search', true);
-      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('file-search', true);
+      expect(settingsService.syncExtensionStateInMemory).toHaveBeenCalledWith('file-search', true);
       expect(reloadCallback).toHaveBeenCalledTimes(1);
     });
 
@@ -524,10 +535,11 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
         vi.mocked(setExtensionEnabled).mockResolvedValue(true);
 
         const ok = await extensionStateManager.toggleExtensionState(id, true);
+        await extensionStateManager.flushPendingReload();
 
         expect(ok).toBe(true);
         expect(setExtensionEnabled).toHaveBeenCalledWith(id, true);
-        expect(settingsService.updateExtensionState).toHaveBeenCalledWith(id, true);
+        expect(settingsService.syncExtensionStateInMemory).toHaveBeenCalledWith(id, true);
         expect(reloadCallback).toHaveBeenCalledTimes(1);
       }
     });
@@ -546,7 +558,27 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       const [res1, res2] = await Promise.all([p1, p2]);
       expect(res1).toBe(true);
       expect(res2).toBe(true);
-      expect(executionOrder).toEqual(['reload', 'reload']);
+      // Reloads are deferred and coalesced: two rapid toggles, one reload.
+      expect(executionOrder).toEqual([]);
+      await extensionStateManager.flushPendingReload();
+      expect(executionOrder).toEqual(['reload']);
+    });
+
+    it('returns before the reload runs so the toggle is not blocked by it', async () => {
+      vi.mocked(setExtensionEnabled).mockResolvedValue(true);
+      let release!: () => void;
+      reloadCallback.mockImplementationOnce(() => new Promise<void>((r) => (release = r)));
+
+      const ok = await extensionStateManager.toggleExtensionState('clipboard-history', false);
+      expect(ok).toBe(true);
+      expect(reloadCallback).not.toHaveBeenCalled();
+
+      const flushed = extensionStateManager.flushPendingReload();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(reloadCallback).toHaveBeenCalledTimes(1);
+      release();
+      await flushed;
     });
   });
 

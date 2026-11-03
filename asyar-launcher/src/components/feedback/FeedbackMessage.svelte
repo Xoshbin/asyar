@@ -71,7 +71,7 @@
     color: inherit;
     font: inherit;
     text-align: left;
-    cursor: pointer;
+    cursor: default;
     transition: background-color var(--transition-fast);
   }
   .message-trigger:hover {

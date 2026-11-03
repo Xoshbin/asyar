@@ -1,0 +1,112 @@
+<script lang="ts">
+  import type { Component } from 'svelte';
+  import type { SettingsHandler, ExtensionItem } from '../settingsHandlers.svelte';
+  import { t } from '../../../services/i18n';
+  import AiTab from './AiTab.svelte';
+  import FileSearchTab from './FileSearchTab.svelte';
+  import BrowsersTab from './BrowsersTab.svelte';
+  import ScriptsTab from './ScriptsTab.svelte';
+  import ClipboardPrivacySection from '../../../components/settings/ClipboardPrivacySection.svelte';
+  import SnippetsTextExpansionCard from '../../../components/settings/SnippetsTextExpansionCard.svelte';
+  import ExtensionTable from './ExtensionTable.svelte';
+  import ExtensionDrillView from './ExtensionDrillView.svelte';
+  import SettingsDrillHeader from '../../../components/settings/SettingsDrillHeader.svelte';
+  import { DrillState } from './drillState.svelte';
+
+  interface TabNav {
+    canBack: boolean;
+    canForward: boolean;
+    onback: () => void;
+    onforward: () => void;
+  }
+
+  const NO_NAV: TabNav = {
+    canBack: false,
+    canForward: false,
+    onback: () => {},
+    onforward: () => {},
+  };
+
+  let { handler, tabNav = NO_NAV }: { handler: SettingsHandler; tabNav?: TabNav } = $props();
+
+  // Feature-specific settings rendered under the detail panel (spec §3.1).
+  // Features absent from this map render the detail panel alone.
+  const PANELS: Record<string, Component<any>> = {
+    'file-search': FileSearchTab,
+    scripts: ScriptsTab,
+    'clipboard-history': ClipboardPrivacySection,
+    snippets: SnippetsTextExpansionCard,
+    agents: AiTab,
+    browsers: BrowsersTab,
+  };
+  // Panels that take the settings handler as a prop.
+  const HANDLER_PANELS = new Set(['agents']);
+
+  const drill = new DrillState();
+  const idOf = (e: ExtensionItem) => e.id ?? e.title;
+
+  const selected = $derived(
+    handler.extensions.find((e) => e.isBuiltIn && idOf(e) === drill.id) ?? null,
+  );
+  const Panel = $derived(drill.id ? PANELS[drill.id] : undefined);
+
+  // Deep link (asyar:navigate-settings-tab): wait for the list, then consume
+  // the pending id exactly once. An unknown id just leaves the list showing.
+  $effect(() => {
+    const pending = handler.pendingExtensionSelection;
+    if (!pending || handler.isLoadingExtensions) return;
+    if (handler.extensions.length === 0) return;
+    const ext = handler.extensions.find((e) => e.isBuiltIn && idOf(e) === pending);
+    if (ext) drill.into(idOf(ext));
+    handler.pendingExtensionSelection = null;
+  });
+
+  // Clicking the already-active sidebar tab returns to the list.
+  let lastResetCounter = handler.tabResetCounter;
+  $effect(() => {
+    const counter = handler.tabResetCounter;
+    if (counter === lastResetCounter) return;
+    lastResetCounter = counter;
+    if (!handler.pendingExtensionSelection) drill.reset();
+  });
+
+  // The drilled feature disappeared (e.g. list reloaded): fall back to the list.
+  $effect(() => {
+    if (drill.id && !handler.isLoadingExtensions && !selected) drill.reset();
+  });
+</script>
+
+{#if drill.id && selected}
+  <ExtensionDrillView
+    {handler}
+    extension={selected}
+    commandId={drill.commandId}
+    parentLabel={t('settings.tabs.built_in_features')}
+    canBack={drill.canBack}
+    canForward={drill.canForward}
+    onback={() => drill.back()}
+    onforward={() => drill.forward()}
+    oncommandselect={(cmd) => drill.into(idOf(selected), cmd.id)}
+  >
+    {#if Panel}
+      {#if HANDLER_PANELS.has(drill.id)}
+        <Panel {handler} />
+      {:else}
+        <Panel />
+      {/if}
+    {/if}
+  </ExtensionDrillView>
+{:else}
+  <SettingsDrillHeader
+    parentLabel={t('settings.tabs.built_in_features')}
+    canBack={tabNav.canBack}
+    canForward={drill.canForward || tabNav.canForward}
+    onback={tabNav.onback}
+    onforward={drill.canForward ? () => drill.forward() : tabNav.onforward}
+  />
+  <ExtensionTable
+    {handler}
+    scope="built-in"
+    onselect={(ext, cmd) => drill.into(idOf(ext), cmd?.id ?? null)}
+  />
+{/if}

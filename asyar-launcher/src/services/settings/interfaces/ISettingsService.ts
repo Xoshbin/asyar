@@ -15,6 +15,8 @@ export interface ISettingsService {
   ): Promise<boolean>;
   subscribe(callback: (settings: AppSettings) => void): () => void;
   updateExtensionState(extensionName: string, enabled: boolean): Promise<boolean>;
+  syncExtensionStateInMemory(extensionName: string, enabled: boolean): void;
+  setApplicationEnabled(appId: string, enabled: boolean): Promise<boolean>;
   removeExtensionState(extensionName: string): Promise<boolean>;
   isExtensionEnabled(extensionName: string): boolean;
   getExtensionStates(): Record<string, boolean>;

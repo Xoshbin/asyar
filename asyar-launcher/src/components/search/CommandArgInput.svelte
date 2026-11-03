@@ -261,11 +261,11 @@
   /* The hint row itself is click-through so the gaps still focus the query;
      the chips opt back in, and a dropdown's trigger defers to the chip. */
   .arg-chip--ghost {
-    cursor: pointer;
+    cursor: default;
     pointer-events: auto;
   }
   .arg-chip--ghost :global(.arg-trigger) {
-    cursor: pointer;
+    cursor: default;
     pointer-events: none;
   }
   :global(.arg-input) {

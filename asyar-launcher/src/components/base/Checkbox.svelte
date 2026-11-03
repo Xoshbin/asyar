@@ -22,9 +22,9 @@
     {#if checked}
       <svg viewBox="0 0 10 8" fill="none" xmlns="http://www.w3.org/2000/svg" class="checkmark">
         <path
-          d="M1 4L3.8 7L9 1"
+          d="M1.25 4.25L3.75 6.75L8.75 1.25"
           stroke="currentColor"
-          stroke-width="1.6"
+          stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
         />
@@ -37,13 +37,13 @@
   .checkbox-wrapper {
     display: inline-flex;
     align-items: center;
-    cursor: pointer;
+    cursor: default;
     user-select: none;
   }
 
   .checkbox-wrapper.disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .sr-only {
@@ -59,36 +59,33 @@
   }
 
   .checkbox-box {
-    width: var(--size-xs);
-    height: var(--size-xs);
-    border-radius: var(--radius-xs);
-    border: 1.5px solid var(--border-color);
-    background: var(--bg-primary);
+    width: var(--size-sm);
+    height: var(--size-sm);
+    border-radius: calc(var(--radius-xs) + 1px);
+    border: none;
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition:
-      background var(--transition-fast),
-      border-color var(--transition-fast);
+    transition: background-color var(--transition-fast);
     flex-shrink: 0;
   }
 
   .checkbox-box.checked {
-    background: var(--accent-primary-fill);
-    border-color: var(--accent-primary);
-    color: var(--text-on-accent);
+    background: color-mix(in srgb, var(--text-primary) 15%, transparent);
+    color: var(--text-primary);
   }
 
-  .checkbox-wrapper:not(.disabled):hover .checkbox-box:not(.checked) {
-    border-color: var(--text-secondary);
+  .checkbox-wrapper:not(.disabled):hover .checkbox-box {
+    background: color-mix(in srgb, var(--text-primary) 18%, transparent);
   }
 
   .checkbox-wrapper .sr-only:focus-visible ~ .checkbox-box {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 50%, transparent);
+    box-shadow: var(--shadow-focus);
   }
 
   .checkmark {
-    width: 10px;
-    height: 8px;
+    width: 9px;
+    height: 7px;
   }
 </style>

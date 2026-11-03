@@ -30,7 +30,6 @@
   }
 </script>
 
-<div class="section-header">{t('settings.tabs.backup')}</div>
 <div id="backup-export" class="anchor-group">
   <SettingsCard>
     <div class="category-list">
@@ -60,13 +59,15 @@
       label={t('settings.backup.password_optional')}
       description={t('settings.backup.password_optional_description')}
     >
-      <Input
-        textIntent="exact"
-        id="export-password"
-        type="password"
-        placeholder={t('settings.backup.password_optional_placeholder')}
-        bind:value={backup.exportPassword}
-      />
+      <div class="password-field">
+        <Input
+          textIntent="exact"
+          id="export-password"
+          type="password"
+          placeholder={t('settings.backup.password_optional_placeholder')}
+          bind:value={backup.exportPassword}
+        />
+      </div>
     </SettingsRow>
 
     <SettingsRow label={t('settings.backup.export_backup')}>
@@ -250,11 +251,25 @@
     scroll-margin-top: var(--space-6);
   }
 
+  .category-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3) var(--space-5);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--separator);
+  }
+
   .category-label {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    cursor: pointer;
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    cursor: default;
+  }
+
+  .password-field {
+    min-width: 260px; /* design-ok: keeps the password placeholder from truncating */
   }
 
   .export-note {
@@ -262,11 +277,12 @@
     color: var(--text-secondary);
     padding: var(--space-3) var(--space-6);
     margin: 0;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--separator);
   }
 
   .warning-row {
     padding: var(--space-3) var(--space-6);
+    border-bottom: 1px solid var(--separator);
   }
 
   .action-row {
@@ -305,7 +321,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--separator);
   }
 
   .import-preview-copy {
@@ -337,12 +353,12 @@
     color: var(--text-primary);
     font-size: var(--font-size-sm);
     font-family: var(--font-ui);
-    cursor: pointer;
+    cursor: default;
   }
 
   .strategy-select:disabled {
     color: var(--text-tertiary);
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .modal-error {

@@ -30,20 +30,19 @@
     display: flex;
     align-items: center;
     gap: var(--space-7);
-    padding: var(--space-5) var(--space-6);
+    padding: var(--space-4) var(--space-5);
   }
 
-  /* Inset 16px from the left, flush right, never after the last row —
-     a border on the row itself would be flush on both sides, so the
-     divider is a positioned pseudo-element instead. */
+  /* Soft hairline inset on both sides, never after the last row — a border
+     on the row itself would be flush, so the divider is a pseudo-element. */
   .settings-row:not(:last-child)::after {
     content: '';
     position: absolute;
-    left: var(--space-6);
-    right: 0;
+    left: var(--space-5);
+    right: var(--space-5);
     bottom: 0;
     height: 1px;
-    background: var(--border-color);
+    background: var(--separator);
   }
 
   .settings-row-text {
@@ -58,7 +57,7 @@
   }
 
   .settings-row-description {
-    margin-top: var(--space-1);
+    margin-top: var(--space-0-5);
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     line-height: 1.45;

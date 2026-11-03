@@ -87,10 +87,11 @@
       "backup": "Backup",
       "sync": "Sincronização",
       "account": "Conta",
-      "privacy": "Privacidade",
+      "privacy": "Privacidade e Permissões",
       "advanced": "Avançado",
       "developer": "Desenvolvedor",
-      "about": "Sobre"
+      "about": "Sobre",
+      "built_in_features": "Recursos Integrados"
     },
     "general": {
       "section_startup": "Inicialização",
@@ -142,7 +143,8 @@
       "error_save_snap": "Não foi possível salvar a configuração de ajuste do launcher",
       "wayland_hotkey_hint": "No Wayland ({compositor}), vincule asyar-summon no seu compositor ou nas configurações de atalhos da área de trabalho para abrir o Asyar instantaneamente.",
       "wayland_copy_cmd": "Copiar",
-      "wayland_copied": "✓ Copiado"
+      "wayland_copied": "✓ Copiado",
+      "section_behavior": "Comportamento"
     },
     "appearance": {
       "theme": "Tema",
@@ -303,9 +305,10 @@
       "select_extension_or_command": "Selecione uma extensão ou comando",
       "filter_all": "Todos",
       "filter_commands": "Comandos",
+      "section_commands": "Comandos",
       "filter_extensions": "Extensões",
       "filter_theme": "Tema",
-      "search_placeholder": "Pesquisar…",
+      "search_placeholder": "Buscar",
       "add_extension": "Adicionar extensão",
       "table_name": "Nome",
       "table_type": "Tipo",
@@ -337,6 +340,10 @@
       "section_installed": "Extensões Instaladas",
       "type_builtin": "Integrado",
       "required_builtin_explanation": "Recurso essencial não pode ser desativado",
+      "always_on": "Sempre ativo",
+      "built_in_subtitle": "Recursos nativos integrados ao Asyar. Clique em qualquer recurso para configurar suas opções e comandos.",
+      "command_singular": "comando",
+      "command_plural": "comandos",
       "type_command": "Comando",
       "type_extension": "Extensão",
       "type_theme": "Tema",
@@ -645,6 +652,9 @@
       "this_session_desc": "Número de eventos de ocultação de segredos desde a inicialização do launcher.",
       "active_detectors": "Detectores ativos",
       "active_detectors_desc": "O catálogo de regras integrado. A atualização do catálogo requer uma atualização do launcher.",
+      "detector_count": "{count} regras",
+      "show_detectors": "Mostrar",
+      "hide_detectors": "Ocultar",
       "clipboard_privacy": "Privacidade da Área de Transferência",
       "clipboard_privacy_desc": "O Asyar não armazenará itens da área de transferência que o sistema operacional ou o aplicativo de origem marcaram como privados.",
       "clipboard_session_desc": "Itens da área de transferência ignorados desde a inicialização do launcher.",
@@ -699,7 +709,9 @@
       "protected": "Protegido",
       "platform_note": "Nota da plataforma",
       "linux_clipboard_note": "Seu desktop Linux não oferece uma API padrão de exclusão da área de transferência. Apenas filtragem por app de origem.",
-      "source_filter_only": "Somente filtro de origem"
+      "source_filter_only": "Somente filtro de origem",
+      "accessibility_access": "Acessibilidade",
+      "accessibility_access_desc": "Permite que o Asyar leia sua seleção e digite por você (expansão de texto, comandos baseados em seleção)."
     },
     "about": {
       "section_updates": "Atualizações",
@@ -798,6 +810,7 @@
       "reminder_body": "Seus dados são criptografados de ponta a ponta. Salve sua frase de recuperação de 24 palavras para poder acessar seus dados em um novo dispositivo ou se perder este dispositivo.",
       "reminder_show_btn": "Salvar frase",
       "reset_button": "Redefinir Sincronização em Nuvem",
+      "reset_description": "Exclui seus dados sincronizados e recomeça com uma nova chave de criptografia.",
       "reset_title": "Redefinir Sincronização em Nuvem",
       "reset_body": "Isso excluirá todos os seus dados sincronizados do servidor Asyar e reenviará os dados deste dispositivo com uma nova chave de criptografia. Outros dispositivos precisarão ser configurados novamente. Seus dados locais neste dispositivo não serão excluídos.",
       "reset_confirm_btn": "Redefinir Sincronização em Nuvem",
@@ -810,7 +823,17 @@
       "error_revoke": "Não foi possível revogar a confiança de shell de {path}"
     },
     "page_title": "Configurações do Asyar",
-    "loading": "Carregando configurações..."
+    "loading": "Carregando configurações...",
+    "nav": {
+      "group_app": "App",
+      "group_system": "Sistema",
+      "group_results": "Resultados",
+      "account_subtitle": "Conta e sincronização na nuvem",
+      "back": "Voltar",
+      "forward": "Avançar",
+      "search_placeholder": "Buscar",
+      "clear_search": "Limpar pesquisa"
+    }
   },
   "onboarding": {
     "open_asyar": "Abrir o Asyar",

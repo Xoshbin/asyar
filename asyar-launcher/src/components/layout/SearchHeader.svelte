@@ -531,7 +531,7 @@
     padding: 0;
     background: transparent;
     border: none;
-    cursor: pointer;
+    cursor: default;
     user-select: none;
     flex-shrink: 0;
   }
@@ -654,7 +654,7 @@
     background: none;
     border: none;
     color: color-mix(in srgb, var(--text-on-accent) 75%, transparent);
-    cursor: pointer;
+    cursor: default;
     padding: 0 var(--space-1);
     font-size: var(--font-size-lg);
     line-height: 1;

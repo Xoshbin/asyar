@@ -108,7 +108,6 @@ vi.mock('../../../services/feedback/feedbackService.svelte', () => ({
 
 import AdvancedTab from './AdvancedTab.svelte';
 import type { SettingsHandler } from '../settingsHandlers.svelte';
-import { snippetService } from '../../../built-in-features/snippets/snippetService';
 
 function createMockHandler(overrides?: Partial<SettingsHandler>): SettingsHandler {
   return {
@@ -179,77 +178,19 @@ describe('AdvancedTab', () => {
     vi.clearAllMocks();
   });
 
-  it('renders without crashing when loaded', async () => {
+  it('renders only the developer toggle, scheduled tasks and runtimes', async () => {
     const handler = createMockHandler();
     render(AdvancedTab, { props: { handler } });
 
-    expect(screen.getByText('Extension surface')).toBeTruthy();
-    expect(screen.getByText('Input')).toBeTruthy();
-    expect(screen.getByText('Extension results in search')).toBeTruthy();
-    expect(screen.getByText('Auto-update extensions')).toBeTruthy();
-    expect(screen.getByText('Pop to root search')).toBeTruthy();
-    expect(screen.getByText('Escape key')).toBeTruthy();
-    expect(screen.getByText('Text expansion')).toBeTruthy();
     expect(screen.getByText('Developer mode')).toBeTruthy();
-  });
-
-  it('calls handleExtensionSearchToggle when toggling extension search', async () => {
-    const handler = createMockHandler();
-    render(AdvancedTab, { props: { handler } });
-
-    const checkboxes = screen.getAllByRole('checkbox');
-    await fireEvent.change(checkboxes[0]);
-    expect(handler.handleExtensionSearchToggle).toHaveBeenCalledTimes(1);
-  });
-
-  it('calls handleExtensionAutoUpdateToggle when toggling auto-update', async () => {
-    const handler = createMockHandler();
-    render(AdvancedTab, { props: { handler } });
-
-    const checkboxes = screen.getAllByRole('checkbox');
-    await fireEvent.change(checkboxes[1]);
-    expect(handler.handleExtensionAutoUpdateToggle).toHaveBeenCalledTimes(1);
-  });
-
-  it('calls updateEscapeBehavior when selecting a different escape option', async () => {
-    const handler = createMockHandler();
-    render(AdvancedTab, { props: { handler } });
-
-    const select = screen
-      .getAllByRole('combobox')
-      .find((candidate) =>
-        Array.from((candidate as HTMLSelectElement).options).some(
-          (option) => option.value === 'hide-and-reset',
-        ),
-      ) as HTMLSelectElement;
-    await fireEvent.change(select, { target: { value: 'hide-and-reset' } });
-    expect(handler.updateEscapeBehavior).toHaveBeenCalledWith('hide-and-reset');
-  });
-
-  it('updates the pop-to-root delay from the select', async () => {
-    const handler = createMockHandler();
-    render(AdvancedTab, { props: { handler } });
-
-    const select = screen
-      .getAllByRole('combobox')
-      .find((candidate) =>
-        Array.from((candidate as HTMLSelectElement).options).some(
-          (option) => option.value === 'never',
-        ),
-      ) as HTMLSelectElement;
-    expect(select.value).toBe('1m');
-    await fireEvent.change(select, { target: { value: 'never' } });
-    expect(handler.updatePopToRootDelay).toHaveBeenCalledWith('never');
-  });
-
-  it('toggles snippet expansion service', async () => {
-    const handler = createMockHandler();
-    render(AdvancedTab, { props: { handler } });
-
-    const checkboxes = screen.getAllByRole('checkbox');
-    // Checkbox index: 0 = ext search, 1 = auto-update, 2 = snippets, 3 = dev mode
-    await fireEvent.change(checkboxes[2]);
-    expect(snippetService.setEnabled).toHaveBeenCalledWith(false);
+    // Relocated rows (see GeneralTab / ExtensionsTab / Snippets drill-down).
+    expect(screen.queryByText('Extension surface')).toBeNull();
+    expect(screen.queryByText('Extension results in search')).toBeNull();
+    expect(screen.queryByText('Auto-update extensions')).toBeNull();
+    expect(screen.queryByText('Pop to root search')).toBeNull();
+    expect(screen.queryByText('Escape key')).toBeNull();
+    expect(screen.queryByText('Text expansion')).toBeNull();
+    expect(screen.queryAllByRole('combobox')).toHaveLength(0);
   });
 
   it('calls handleDeveloperModeToggle when toggling developer mode', async () => {
@@ -257,7 +198,8 @@ describe('AdvancedTab', () => {
     render(AdvancedTab, { props: { handler } });
 
     const checkboxes = screen.getAllByRole('checkbox');
-    await fireEvent.change(checkboxes[3]);
+    expect(checkboxes).toHaveLength(1);
+    await fireEvent.change(checkboxes[0]);
     expect(handler.handleDeveloperModeToggle).toHaveBeenCalledTimes(1);
   });
 

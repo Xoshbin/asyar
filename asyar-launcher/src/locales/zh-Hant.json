@@ -87,10 +87,11 @@
       "backup": "備份",
       "sync": "同步",
       "account": "帳戶",
-      "privacy": "隱私",
+      "privacy": "隱私與權限",
       "advanced": "高階",
       "developer": "開發者",
-      "about": "關於"
+      "about": "關於",
+      "built_in_features": "內建功能"
     },
     "general": {
       "section_startup": "啟動",
@@ -142,7 +143,8 @@
       "error_save_snap": "無法儲存啟動器吸附設定",
       "wayland_hotkey_hint": "在 Wayland（{compositor}）上，請在合成器或桌面快速鍵設定中綁定 asyar-summon，以實現瞬時全域喚起。",
       "wayland_copy_cmd": "複製",
-      "wayland_copied": "✓ 已複製"
+      "wayland_copied": "✓ 已複製",
+      "section_behavior": "行為"
     },
     "appearance": {
       "theme": "主題",
@@ -303,9 +305,10 @@
       "select_extension_or_command": "選擇一個擴充套件或命令",
       "filter_all": "全部",
       "filter_commands": "命令",
+      "section_commands": "指令",
       "filter_extensions": "擴充套件",
       "filter_theme": "主題",
-      "search_placeholder": "搜尋……",
+      "search_placeholder": "搜尋",
       "add_extension": "新增擴充套件",
       "table_name": "名稱",
       "table_type": "型別",
@@ -337,6 +340,10 @@
       "section_installed": "已安裝的擴充套件",
       "type_builtin": "內建",
       "required_builtin_explanation": "核心必需功能無法停用",
+      "always_on": "永遠開啟",
+      "built_in_subtitle": "Asyar 內建的原生功能。點擊任一功能即可設定其選項與指令。",
+      "command_singular": "個指令",
+      "command_plural": "個指令",
       "type_command": "命令",
       "type_extension": "擴充套件",
       "type_theme": "主題",
@@ -645,6 +652,9 @@
       "this_session_desc": "自啟動器啟動以來的遮蔽次數。",
       "active_detectors": "已啟用的檢測器",
       "active_detectors_desc": "內建規則目錄。更新規則目錄需要更新啟動器。",
+      "detector_count": "{count} 條規則",
+      "show_detectors": "顯示",
+      "hide_detectors": "隱藏",
       "clipboard_privacy": "剪貼簿隱私",
       "clipboard_privacy_desc": "Asyar 不會儲存被作業系統或來源應用程式標記為私密的剪貼簿條目。",
       "clipboard_session_desc": "自啟動器啟動以來已跳過的剪貼簿條目數。",
@@ -699,7 +709,9 @@
       "protected": "受保護",
       "platform_note": "平台說明",
       "linux_clipboard_note": "你的 Linux 桌面環境未提供標準的剪貼簿排除 API，僅支援依來源應用程式過濾。",
-      "source_filter_only": "僅來源過濾"
+      "source_filter_only": "僅來源過濾",
+      "accessibility_access": "輔助使用",
+      "accessibility_access_desc": "允許 Asyar 讀取你的選取內容並代你輸入（文字展開、以選取內容為基礎的指令）。"
     },
     "about": {
       "section_updates": "更新",
@@ -798,6 +810,7 @@
       "reminder_body": "您的資料已端對端加密。請儲存好您的 24 個字復原助記詞，以便在新裝置上存取資料，或在此裝置遺失時找回資料。",
       "reminder_show_btn": "儲存助記詞",
       "reset_button": "重設雲端同步",
+      "reset_description": "刪除已同步的資料，並使用新的加密金鑰重新開始。",
       "reset_title": "重設雲端同步",
       "reset_body": "這將從 Asyar 伺服器中刪除您的所有同步資料，並使用新的加密金鑰重新上傳此裝置的資料。任何其他裝置都需要重新設定。此裝置上的本機資料不會被刪除。",
       "reset_confirm_btn": "重設雲端同步",
@@ -810,7 +823,17 @@
       "error_revoke": "無法撤銷 {path} 的 Shell 信任"
     },
     "page_title": "Asyar 設定",
-    "loading": "正在載入設定..."
+    "loading": "正在載入設定...",
+    "nav": {
+      "group_app": "應用程式",
+      "group_system": "系統",
+      "group_results": "結果",
+      "account_subtitle": "帳號與雲端同步",
+      "back": "返回",
+      "forward": "前進",
+      "search_placeholder": "搜尋",
+      "clear_search": "清除搜尋"
+    }
   },
   "onboarding": {
     "open_asyar": "開啟 Asyar",

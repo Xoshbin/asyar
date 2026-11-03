@@ -85,7 +85,7 @@
     font: inherit;
     color: inherit;
     text-align: left;
-    cursor: pointer;
+    cursor: default;
   }
 
   .toast-icon {

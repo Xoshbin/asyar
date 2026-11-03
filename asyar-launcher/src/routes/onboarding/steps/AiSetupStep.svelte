@@ -498,7 +498,7 @@
     font-size: var(--font-size-sm);
     font-weight: 500;
     color: var(--text-secondary);
-    cursor: pointer;
+    cursor: default;
     text-align: left;
   }
 

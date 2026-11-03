@@ -398,7 +398,7 @@
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
-    cursor: pointer;
+    cursor: default;
     transition: all 0.15s ease;
   }
 
@@ -598,7 +598,7 @@
     color: var(--text-secondary);
     font-size: var(--font-size-xs);
     font-family: var(--font-ui);
-    cursor: pointer;
+    cursor: default;
     text-decoration: underline;
   }
 

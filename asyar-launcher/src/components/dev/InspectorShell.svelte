@@ -201,7 +201,7 @@
     border: 0;
     background: transparent;
     color: var(--text-primary);
-    cursor: pointer;
+    cursor: default;
     padding: var(--space-0-5) var(--space-2);
     font-size: var(--font-size-sm);
     border-radius: var(--radius-xs);
@@ -240,7 +240,7 @@
     color: var(--text-secondary);
     padding: var(--space-2) var(--space-4);
     font-size: var(--font-size-xs);
-    cursor: pointer;
+    cursor: default;
     border-radius: var(--radius-xs) var(--radius-xs) 0 0;
   }
   .tabs button:hover {

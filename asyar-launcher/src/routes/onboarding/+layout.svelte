@@ -133,7 +133,7 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-sm);
     width: var(--size-md);
     height: var(--size-md);

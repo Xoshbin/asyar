@@ -158,6 +158,15 @@ an Asyar surface.
 | `--bg-popup`       | Opaque popups and menus                                      |
 | `--surface-canvas` | Only where external HTML assumes a white page (URL previews) |
 
+**The `.settings-page` surface hierarchy differs from the launcher.** The
+launcher shell floats over the desktop with a translucent `--bg-primary`.
+`.settings-page` is a persistent desktop window: cards (`SettingsCard`,
+`ExtensionTable`, `ExtensionDetailPanel`) sit on `--bg-tertiary` (`#ffffff` in
+Light Mode) with `--radius-lg` (`10px`), over a soft neutral canvas
+(`--bg-primary: rgb(245, 245, 247)`) and sidebar
+(`--bg-secondary: rgb(236, 236, 240)`). Rows inside a card are separated by
+inset `--separator` hairlines (`left: var(--space-5); right: var(--space-5)`).
+
 Never set an opaque background on the root container — platform overrides
 (macOS transparency, Windows Acrylic, opaque Linux) handle that automatically.
 **Elevation is a scalar, not a stack:** a popup opened from a card is still
@@ -246,18 +255,27 @@ Toggle knob · `--shadow-color` inside shadows only · `--kbd-rim` and `--kbd-bo
 Use the class. Only drop to raw `var(--font-size-*)` inside a component that
 needs a size the classes do not cover.
 
-| Where you are                                      | Class                          |
-| -------------------------------------------------- | ------------------------------ |
-| The title of a settings page or a full-screen view | `.text-page-title`             |
-| A section heading inside a page                    | `.text-section`                |
-| An uppercase group label above a list              | `.section-header`              |
-| A group label in the root launcher list            | `.section-header.root-section` |
-| The name of a list item, card, or result           | `.text-title`                  |
-| A paragraph of running text                        | `.text-body`                   |
-| The label on a form field or setting               | `.text-label`                  |
-| The second line under a list-item title            | `.text-subtitle`               |
-| A hint, a timestamp, a caption                     | `.text-caption`                |
-| Code, a path, an ID                                | `.text-mono`                   |
+| Where you are                                      | Class                                   |
+| -------------------------------------------------- | --------------------------------------- |
+| The title of a settings page or a full-screen view | `.text-page-title`                      |
+| A section heading inside a page                    | `.text-section`                         |
+| A group label above a settings card                | `.section-header` (in `.settings-page`) |
+| A group label in the root launcher list            | `.section-header.root-section`          |
+| The name of a list item, card, or result           | `.text-title`                           |
+| A paragraph of running text                        | `.text-body`                            |
+| The label on a form field or setting               | `.text-label`                           |
+| The second line under a list-item title            | `.text-subtitle`                        |
+| A hint, a timestamp, a caption                     | `.text-caption`                         |
+| Code, a path, an ID                                | `.text-mono`                            |
+
+`.section-header` has two contexts:
+
+- **Launcher list** — `.section-header.root-section` is `12px`, sentence case,
+  weight `500`, `--text-secondary`.
+- **`.settings-page`** — `.section-header` is sentence case, `13px`
+  (`--font-size-md`), `font-weight: 600`, `--text-primary`. It aligns flush with
+  the card's left edge (`padding: var(--space-2) var(--space-0-5) var(--space-1-5)`)
+  and sits tightly (`6px`) above the card that follows it.
 
 Weight rules: **500 (`font-medium`) is the heaviest weight for body and label
 text.** 600 (`font-semibold`) is for headings and the command line. **700 does
@@ -485,25 +503,25 @@ fails the build if a component is missing from it, so the barrel is trustworthy
 
 ### By what you are building
 
-| You are building                      | Use                                                    |
-| ------------------------------------- | ------------------------------------------------------ |
-| A button                              | `Button` — never a styled `<button>`                   |
-| An icon-only button                   | `IconButton`                                           |
-| A button in the launcher's bottom bar | `BottomBarButton`                                      |
-| A text field                          | `Input` · multi-line: `Textarea`                       |
-| A dropdown of fixed options           | `Select`                                               |
-| An on/off setting                     | `Toggle` · in a list of choices: `Checkbox`            |
-| Two-to-four exclusive options, inline | `SegmentedControl`                                     |
-| Top-level navigation between views    | `TabGroup` (`pills` or `sidebar`)                      |
-| A keyboard shortcut, displayed        | `KeyboardHint`                                         |
-| A keyboard shortcut, being recorded   | `ShortcutRecorder`                                     |
-| A status word (`ready`, `failed`)     | `Badge` — variants default/success/warning/danger/info |
-| A status dot                          | `StatusDot`                                            |
-| A progress or capacity bar            | `MeterBar`                                             |
-| A single headline number              | `StatTile`                                             |
-| A busy indicator                      | `Spinner` (`inline` beside text, `md` standalone)      |
-| An icon                               | `Icon` · in a sized container: `IconBox`               |
-| An extension's avatar                 | `ExtensionAvatar`                                      |
+| You are building                       | Use                                                    |
+| -------------------------------------- | ------------------------------------------------------ |
+| A button                               | `Button` — never a styled `<button>`                   |
+| An icon-only button                    | `IconButton`                                           |
+| A button in the launcher's bottom bar  | `BottomBarButton`                                      |
+| A text field                           | `Input` · multi-line: `Textarea`                       |
+| A dropdown of fixed options            | `Select`                                               |
+| An on/off setting that applies at once | `Toggle` · batch checklist / form submit: `Checkbox`   |
+| Two-to-four exclusive options, inline  | `SegmentedControl`                                     |
+| Top-level navigation between views     | `TabGroup` (`pills` or `sidebar`)                      |
+| A keyboard shortcut, displayed         | `KeyboardHint`                                         |
+| A keyboard shortcut, being recorded    | `ShortcutRecorder`                                     |
+| A status word (`ready`, `failed`)      | `Badge` — variants default/success/warning/danger/info |
+| A status dot                           | `StatusDot`                                            |
+| A progress or capacity bar             | `MeterBar`                                             |
+| A single headline number               | `StatTile`                                             |
+| A busy indicator                       | `Spinner` (`inline` beside text, `md` standalone)      |
+| An icon                                | `Icon` · in a sized container: `IconBox`               |
+| An extension's avatar                  | `ExtensionAvatar`                                      |
 
 | You are building                              | Use                                                         |
 | --------------------------------------------- | ----------------------------------------------------------- |
@@ -531,16 +549,31 @@ fails the build if a component is missing from it, so the barrel is trustworthy
 | A non-blocking caution                        | `WarningBanner`                                                                         |
 | A transient confirmation                      | Publish via `feedbackService` — `ToastHost` is already mounted and must not be imported |
 
-| You are building                          | Use                                          |
-| ----------------------------------------- | -------------------------------------------- |
-| A settings page                           | `SettingsForm` + `SettingsSection`           |
-| One setting with a label and a control    | `SettingsRow` · in a form: `SettingsFormRow` |
-| A set of radio choices in settings        | `SettingsRadioGroup`                         |
-| A numeric slider in settings              | `SettingsRangeSlider`                        |
-| A labelled form field with hint and error | `FormField`                                  |
-| An onboarding step                        | `OnboardingStage` + `GuidanceStep`           |
-| Onboarding progress                       | `StepProgress`                               |
-| A "try it now" box in onboarding          | `TestBox`                                    |
+| You are building                                  | Use                                                                    |
+| ------------------------------------------------- | ---------------------------------------------------------------------- |
+| The settings window navigation shell              | `SettingsSidebar` + `SettingsDrillHeader`                              |
+| A grouped card of settings rows                   | `.section-header` + `SettingsCard` + `SettingsRow`                     |
+| One setting with a label and a control            | `SettingsRow` · in a multi-field form: `SettingsFormRow`               |
+| Built-in Features or Extensions table             | `ExtensionTable` (`scope="built-in"` or `"third-party"`)               |
+| Drill-down detail page for a feature or extension | `ExtensionDrillView` + `ExtensionDetailPanel` + `ExtensionCommandRows` |
+| A set of radio choices in settings                | `SettingsRadioGroup`                                                   |
+| A numeric slider in settings                      | `SettingsRangeSlider`                                                  |
+| A labelled form field with hint and error         | `FormField`                                                            |
+| An onboarding step                                | `OnboardingStage` + `GuidanceStep`                                     |
+| Onboarding progress                               | `StepProgress`                                                         |
+| A "try it now" box in onboarding                  | `TestBox`                                                              |
+
+**`Toggle` vs `Checkbox`.**
+
+- **`Toggle`** (`32px × 18px` desktop switch): any boolean setting that **takes
+  effect immediately** when flipped — startup preferences, enabling a Built-in
+  Feature, Extension or Application, boolean extension preferences. Never
+  lock or `disabled` a `<Toggle>` while its async save is in flight: mutate
+  state optimistically and roll back only on error.
+- **`Checkbox`**: only for **multi-select batch checklists**, where the user
+  picks several items and then clicks a separate action button (e.g. the
+  _Export backup_ categories), or inside a form/dialog that needs an explicit
+  submit.
 
 If two components look like they both fit, pick the more specific one.
 
@@ -662,18 +695,44 @@ Every scrolling container gets `.custom-scrollbar`. No exceptions — the
 checker enforces it, because the platform default scrollbar against Asyar's
 surfaces is immediately obvious.
 
+### The settings shell
+
+Settings is a persistent desktop window, not a floating launcher panel. It
+follows native macOS System Settings / Raycast Settings.
+
+- **Window & sidebar (`SettingsSidebar`).** Full-height, `220px`. The window
+  uses the macOS overlay titlebar (`titleBarStyle: "Overlay"`,
+  `hiddenTitle: true`) with a traffic-light top inset. Top to bottom: a soft
+  recessed search pill (`⌘F` deep search — no `⌘F` keycap chip inside the
+  input), the Account profile card, then nav groups separated by a `1px`
+  `--separator` hairline. **No uppercase `APP` / `SYSTEM` group headers** — only
+  search `Results` uses a group label. Icon badges are `20px` (`--size-md`):
+  transparent when inactive; solid `--accent-primary-fill` with a
+  `--text-on-accent` glyph when active. Labels are `font-weight: 500` in both
+  states (no bold jump), `transition: none`, and **inactive items have no hover
+  background**.
+- **Persistent top bar (`SettingsDrillHeader`).** Shown at the top of the right
+  pane on every tab: `< | >` pill-shaped (`--radius-full`) back/forward history
+  buttons, the current page title or a clickable breadcrumb trail, and an
+  optional trailing action slot (`Toggle`, an `Always on` badge, `Uninstall`).
+- **Row hover discipline.** In Settings cards and tables, **only rows that drill
+  down or navigate on click** get a `:hover` background and a trailing chevron.
+  Rows whose only interactive elements are inline controls (`SettingsRow`,
+  `ApplicationsTab` rows, non-drillable `ExtensionCommandRows`) must **not**
+  highlight on hover.
+
 ### The five surfaces
 
 The tokens and components are identical across all three. What differs is
 density and how much chrome is acceptable.
 
-| Surface        | Density                                                    | Notes                                                                                                                  |
-| -------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **Launcher**   | Tightest. `--space-2`/`--space-3` inside rows              | Keyboard-first: every action needs a key path and a `KeyboardHint`. Chrome stays invisible                             |
-| **Settings**   | Roomier. `--space-5`/`--space-6` between rows and sections | Always `SettingsSection` → `SettingsRow`. Mouse and keyboard are equal citizens                                        |
-| **Onboarding** | Roomiest. `--space-7`+ between blocks                      | One idea per stage. `OnboardingStage` owns the frame; a step supplies content, never its own layout                    |
-| **HUD**        | A single line, no chrome                                   | Read peripherally, mid-task. It is a standalone webview with no theme injection — the one `design-ok-file` in the repo |
-| **Sticky**     | Launcher density, but persistent                           | Read repeatedly over minutes, so it takes hover states the launcher does not need                                      |
+| Surface        | Density                                                                   | Notes                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Launcher**   | Tightest. `--space-2`/`--space-3` inside rows                             | Keyboard-first: every action needs a key path and a `KeyboardHint`. Chrome stays invisible                                                              |
+| **Settings**   | Roomier. `--space-3-5`/`--space-5` inside rows, `--space-5` between cards | `SettingsSidebar` (220px) + single-column canvas (max 820px) with persistent `SettingsDrillHeader`, `.section-header` + `SettingsCard` + `SettingsRow`. |
+| **Onboarding** | Roomiest. `--space-7`+ between blocks                                     | One idea per stage. `OnboardingStage` owns the frame; a step supplies content, never its own layout                                                     |
+| **HUD**        | A single line, no chrome                                                  | Read peripherally, mid-task. It is a standalone webview with no theme injection — the one `design-ok-file` in the repo                                  |
+| **Sticky**     | Launcher density, but persistent                                          | Read repeatedly over minutes, so it takes hover states the launcher does not need                                                                       |
 
 ---
 
@@ -681,13 +740,22 @@ density and how much chrome is acceptable.
 
 Every interactive element covers every state:
 
-| State            | Pattern                                                |
-| ---------------- | ------------------------------------------------------ |
-| Hover            | `background: var(--bg-hover)`                          |
-| Active / pressed | `.pressable`, or `background: var(--bg-selected)`      |
-| Keyboard focus   | Nothing — the global `*:focus-visible` ring handles it |
-| Disabled         | `opacity: 0.5; cursor: not-allowed`                    |
-| Selected in list | Let `.list-row.selected` / `.selected-result` do it    |
+| State            | Pattern                                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| Hover            | `background: var(--bg-hover)`                                                                             |
+| Active / pressed | `.pressable`; desktop `<Button>` changes surface only (`background: var(--bg-selected)`), no scale-shrink |
+| Keyboard focus   | Nothing — the global `*:focus-visible` ring handles it                                                    |
+| Disabled         | `opacity: 0.5; cursor: default`                                                                           |
+| Selected in list | Let `.list-row.selected` / `.selected-result` do it                                                       |
+
+**Desktop cursor discipline (`cursor: default`) — mandatory.** Asyar is a
+native desktop app, not a web page. Every interactive control (`Button`,
+`IconButton`, `Toggle`, `Checkbox`, `Select`, `SegmentedControl`, `TabGroup`,
+sidebar items, list rows, table rows, accordion headers) uses `cursor: default`
+(the OS arrow) in all states, including `:hover` and `:disabled`. Never
+`cursor: pointer` or `cursor: not-allowed` on a desktop control; reserve
+`cursor: pointer` strictly for external web links (`<a href="...">`) and
+rendered markdown links.
 
 **Hover must never be mistakable for selection** (Principle III). `--bg-hover`
 is neutral; `--bg-selected` carries chroma. That difference is load-bearing —
@@ -796,21 +864,22 @@ that is the system telling you a token is missing. Add the token instead.
 
 Run `pnpm check:design`. It fails on:
 
-| Rule                   | What it catches                                                          |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `undefined-token`      | `var(--x)` where `--x` is defined nowhere — the declaration is dead      |
-| `token-fallback`       | `var(--x, something)`                                                    |
-| `hardcoded-color`      | A hex, `rgb()`, `white` or `black` in a colour property                  |
-| `voice-as-fill`        | `--accent-*` as a background under `--text-on-accent`                    |
-| `space-as-size`        | `--space-*` on a width or height where a `--size-*` holds the same value |
-| `deprecated-token`     | A new use of `--space-1-5`/`-2-5`/`-5-5`/`-7-5`                          |
-| `tailwind-palette`     | `bg-red-500` and friends                                                 |
-| `raw-px`               | Pixels on font-size, padding, margin, gap, or border-radius              |
-| `arbitrary-px`         | `min-h-[56px]` and friends                                               |
-| `bare-z-index`         | `z-index: 50`, `z-40`, `z-[100]`                                         |
-| `missing-scrollbar`    | A scrolling container with no `.custom-scrollbar`                        |
-| `unexported-component` | A component missing from the barrel                                      |
-| `stale-a11y-ignore`    | Svelte 4 hyphenated `svelte-ignore` names                                |
+| Rule                   | What it catches                                                              |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `undefined-token`      | `var(--x)` where `--x` is defined nowhere — the declaration is dead          |
+| `token-fallback`       | `var(--x, something)`                                                        |
+| `hardcoded-color`      | A hex, `rgb()`, `white` or `black` in a colour property                      |
+| `voice-as-fill`        | `--accent-*` as a background under `--text-on-accent`                        |
+| `space-as-size`        | `--space-*` on a width or height where a `--size-*` holds the same value     |
+| `deprecated-token`     | A new use of `--space-1-5`/`-2-5`/`-5-5`/`-7-5`                              |
+| `tailwind-palette`     | `bg-red-500` and friends                                                     |
+| `raw-px`               | Pixels on font-size, padding, margin, gap, or border-radius                  |
+| `arbitrary-px`         | `min-h-[56px]` and friends                                                   |
+| `bare-z-index`         | `z-index: 50`, `z-40`, `z-[100]`                                             |
+| `web-cursor`           | `cursor: pointer` / `not-allowed` or `cursor-pointer` / `cursor-not-allowed` |
+| `missing-scrollbar`    | A scrolling container with no `.custom-scrollbar`                            |
+| `unexported-component` | A component missing from the barrel                                          |
+| `stale-a11y-ignore`    | Svelte 4 hyphenated `svelte-ignore` names                                    |
 
 Then check the things a script cannot:
 

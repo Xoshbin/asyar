@@ -86,7 +86,7 @@
   .option-item {
     display: flex;
     align-items: flex-start;
-    cursor: pointer;
+    cursor: default;
     gap: var(--space-3);
   }
 

@@ -21,6 +21,7 @@ vi.mock('../../../lib/ipc/commands', () => ({
   openStore,
   openCreateExtensionWithAi,
   openCreateExtension,
+  checkExtensionConsent: vi.fn().mockResolvedValue({ needsConsent: false, declaredRuntimes: [] }),
 }));
 
 vi.mock('../../../services/i18n', () => ({
@@ -99,13 +100,16 @@ vi.mock('../../../services/settings/developerSettingsService.svelte', () => ({
 import ExtensionsTab from './ExtensionsTab.svelte';
 import type { SettingsHandler } from '../settingsHandlers.svelte';
 
-function createHandler(): SettingsHandler {
+function createHandler(extensions: unknown[] = []): SettingsHandler {
   return {
-    extensions: [],
+    settings: { search: { enableExtensionSearch: false }, extensions: { autoUpdate: true } },
+    handleExtensionSearchToggle: vi.fn(),
+    handleExtensionAutoUpdateToggle: vi.fn(),
+    extensions,
     isLoadingExtensions: false,
     extensionError: '',
     pendingExtensionSelection: null,
-    togglingExtension: null,
+    tabResetCounter: 0,
     preferencesVersion: 0,
     loadExtensions: vi.fn(),
     toggleExtension: vi.fn(),
@@ -159,5 +163,91 @@ describe('ExtensionsTab add menu', () => {
 
     expect(showOpenExtensionDialog).toHaveBeenCalledOnce();
     expect(screen.queryByRole('button', { name: 'Install from File…' })).toBeNull();
+  });
+});
+
+describe('ExtensionsTab surface settings and drill-down', () => {
+  const thirdParty = { id: 'org.x.store', title: 'Store Ext', type: 'extension', isBuiltIn: false };
+  const builtIn = { id: 'built-in-notes', title: 'Notes', type: 'extension', isBuiltIn: true };
+
+  it('renders the two extension toggles in the top card and wires them', async () => {
+    const handler = createHandler();
+    render(ExtensionsTab, { props: { handler } });
+
+    expect(screen.getByText('settings.advanced.extension_search')).toBeTruthy();
+    expect(screen.getByText('settings.advanced.auto_update_extensions')).toBeTruthy();
+    const boxes = screen.getAllByRole('checkbox');
+    await fireEvent.change(boxes[0]);
+    await fireEvent.change(boxes[1]);
+    expect(handler.handleExtensionSearchToggle).toHaveBeenCalledTimes(1);
+    expect(handler.handleExtensionAutoUpdateToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggling a row switch does not drill into the extension', async () => {
+    const handler = createHandler([thirdParty]);
+    render(ExtensionsTab, { props: { handler } });
+    const boxes = screen.getAllByRole('checkbox');
+    await fireEvent.click(boxes[boxes.length - 1]);
+    expect(
+      (screen.getByRole('button', { name: 'settings.nav.back' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.getByText('settings.advanced.extension_search')).toBeTruthy();
+  });
+
+  it('lists third-party extensions only', () => {
+    render(ExtensionsTab, { props: { handler: createHandler([thirdParty, builtIn]) } });
+    expect(screen.getByText('Store Ext')).toBeTruthy();
+    expect(screen.queryByText('Notes')).toBeNull();
+  });
+
+  it('drills into an extension and returns with the back button', async () => {
+    render(ExtensionsTab, { props: { handler: createHandler([thirdParty]) } });
+    await fireEvent.click(screen.getByText('Store Ext'));
+    expect(screen.getByRole('button', { name: 'settings.nav.back' })).toBeTruthy();
+    expect(screen.queryByText('settings.advanced.extension_search')).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'settings.nav.back' }));
+    expect(screen.getByText('settings.advanced.extension_search')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'settings.nav.forward' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
+  it('returns to the list when the active sidebar tab is clicked again', async () => {
+    const handler = createHandler([thirdParty]);
+    const { rerender } = render(ExtensionsTab, { props: { handler } });
+    await fireEvent.click(screen.getByText('Store Ext'));
+    expect(screen.getByRole('button', { name: 'settings.nav.back' })).toBeTruthy();
+
+    await rerender({ handler: { ...handler, tabResetCounter: 1 } as unknown as SettingsHandler });
+    expect(
+      (screen.getByRole('button', { name: 'settings.nav.back' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.getByText('settings.advanced.extension_search')).toBeTruthy();
+  });
+
+  it('consumes a pending deep-link id and drills straight in', async () => {
+    const handler = createHandler([thirdParty]);
+    handler.pendingExtensionSelection = 'org.x.store';
+    render(ExtensionsTab, { props: { handler } });
+    expect(await screen.findByRole('button', { name: 'settings.nav.back' })).toBeTruthy();
+    expect(handler.pendingExtensionSelection).toBeNull();
+  });
+
+  it('ignores an unknown pending id: list stays, pending is cleared', async () => {
+    const handler = createHandler([thirdParty]);
+    handler.pendingExtensionSelection = 'org.unknown';
+    render(ExtensionsTab, { props: { handler } });
+    expect(screen.getByText('Store Ext')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'settings.nav.back' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(handler.pendingExtensionSelection).toBeNull();
+  });
+
+  it('puts the Uninstall action in the drill header', async () => {
+    render(ExtensionsTab, { props: { handler: createHandler([thirdParty]) } });
+    await fireEvent.click(screen.getByText('Store Ext'));
+    expect(screen.getByRole('button', { name: 'settings.extensions.uninstall' })).toBeTruthy();
   });
 });
