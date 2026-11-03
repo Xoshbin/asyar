@@ -596,13 +596,18 @@ what keeps the query unmistakably larger than every other string on screen
 Same tokens, five different densities. This is the one place the system
 deliberately varies, because the surfaces are read at different speeds.
 
-| Surface        | Rhythm                                              | Read at                          |
-| -------------- | --------------------------------------------------- | -------------------------------- |
-| **Launcher**   | `--space-2` / `--space-3` inside a row              | A glance. Density is the feature |
-| **Settings**   | `--space-5` / `--space-6` between rows and sections | Deliberately, with a pointer     |
-| **Onboarding** | `--space-7`+ between blocks                         | Once, slowly, one idea per stage |
-| **HUD**        | Single line, no chrome at all                       | Peripherally, mid-task           |
-| **Sticky**     | Launcher density, but persistent                    | Repeatedly, over minutes         |
+| Surface        | Rhythm                                                                        | Read at                          |
+| -------------- | ----------------------------------------------------------------------------- | -------------------------------- |
+| **Launcher**   | `--space-2` / `--space-3` inside a row                                        | A glance. Density is the feature |
+| **Settings**   | `--space-3-5` / `--space-5` inside a `SettingsRow`, `--space-5` between cards | Deliberately, with a pointer     |
+| **Onboarding** | `--space-7`+ between blocks                                                   | Once, slowly, one idea per stage |
+| **HUD**        | Single line, no chrome at all                                                 | Peripherally, mid-task           |
+| **Sticky**     | Launcher density, but persistent                                              | Repeatedly, over minutes         |
+
+Settings is a sidebar (`SettingsSidebar`) plus a single-column canvas of
+`SettingsCard`s. Each card is introduced by a sentence-case, `13px`, semibold
+`.section-header` that sits flush with the card's left edge, and cards are
+`--space-5` apart.
 
 A row that is comfortable in Settings is wasteful in the launcher, and a
 launcher row dropped into onboarding reads as cramped. If you are unsure which
@@ -837,6 +842,14 @@ than silence, because the next person reads it as a plan.
 **Pressing.** `.pressable` scales to `0.97` over `--dur-instant`. This is the one
 place scale is used for feedback rather than for arrival, and it is deliberately
 small enough to be felt more than seen.
+
+**Native desktop controls.** Sidebar navigation and desktop `<Button>` controls
+follow native macOS AppKit / Raycast behaviour rather than web conventions.
+Sidebar selection snaps immediately (`transition: none`) and inactive items have
+no hover highlight. A `<Button>` changes surface colour on `:active`
+(`--bg-selected`) without scale-shrinking. Every desktop control uses
+`cursor: default` in all states — `cursor: pointer` is reserved for external web
+links and rendered markdown links.
 
 **Results changing under a query.** The list does not animate. It cannot: the
 user types faster than any entrance animation, and a staggered reveal on every
