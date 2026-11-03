@@ -129,9 +129,6 @@
 
   <div class="groups custom-scrollbar">
     {#each groups as group (group.id)}
-      {#if group.id === 'system'}
-        <div class="group-divider" role="separator"></div>
-      {/if}
       <div class="group">
         {#each group.items as tab (tab.id)}
           {#if tab.id === 'account'}
@@ -168,7 +165,7 @@
                 ontabselect?.(tab.id);
               }}
             >
-              <span class="icon-box"><Icon name={tab.icon} size={13} /></span>
+              <span class="icon-box"><Icon name={tab.icon} size={13} strokeWidth={1.9} /></span>
               <span class="label">{tab.label}</span>
               {#if tab.count !== undefined}
                 <span class="count">{tab.count}</span>
@@ -303,20 +300,13 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: var(--space-5);
   }
 
   .group {
     display: flex;
     flex-direction: column;
     gap: var(--space-0-5);
-  }
-
-  .group-divider {
-    height: 1px;
-    background: var(--separator);
-    margin: var(--space-2);
-    flex-shrink: 0;
   }
 
   .group-label {
@@ -332,20 +322,20 @@
   .item {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-4);
     width: 100%;
-    padding: var(--space-1) var(--space-2);
+    padding: var(--space-1) var(--space-4);
     border: 1px solid transparent;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     background: transparent;
-    color: var(--text-primary);
+    color: color-mix(in srgb, var(--text-primary) 88%, transparent);
     cursor: default;
     text-align: start;
     transition: none;
   }
 
   .item.active {
-    background: var(--bg-selected);
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
     color: var(--text-primary);
   }
 
@@ -355,24 +345,24 @@
   }
 
   .icon-box {
-    width: var(--size-md);
-    height: var(--size-md);
+    width: calc(var(--size-md) + var(--space-0-5));
+    height: calc(var(--size-md) + var(--space-0-5));
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    border-radius: var(--radius-xs);
-    background: transparent;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--text-primary) 7%, transparent);
     color: var(--text-secondary);
   }
 
   .item.active .icon-box {
-    background: var(--accent-primary-fill);
-    color: var(--text-on-accent);
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    color: var(--text-primary);
   }
 
   .item.profile {
-    padding: var(--space-1) var(--space-2);
+    padding: var(--space-2) var(--space-2);
     border-radius: var(--radius-md);
   }
 
@@ -397,7 +387,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
     font-weight: 600;
     flex-shrink: 0;
   }
@@ -428,9 +418,14 @@
   }
 
   .label {
-    font-size: var(--font-size-sm);
-    font-weight: 500;
+    font-size: var(--font-size-md);
+    font-weight: 400;
     font-family: var(--font-ui);
+    line-height: 1.25;
+  }
+
+  .item.active .label {
+    font-weight: 500;
   }
 
   .item.result.highlighted {

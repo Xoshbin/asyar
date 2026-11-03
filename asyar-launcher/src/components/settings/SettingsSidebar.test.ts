@@ -12,12 +12,12 @@ const tabs = [
 ] as const;
 
 describe('SettingsSidebar', () => {
-  it('renders items and a divider between groups, and omits absent tabs', () => {
+  it('renders items and no divider between groups, and omits absent tabs', () => {
     render(SettingsSidebar, { tabs: [...tabs], activeTab: 'general' });
     expect(screen.getByText('Account')).toBeTruthy();
     expect(screen.getByText('General')).toBeTruthy();
     expect(screen.getByText('About')).toBeTruthy();
-    expect(screen.getByRole('separator')).toBeTruthy();
+    expect(screen.queryByRole('separator')).toBeNull();
     expect(screen.queryByText('App')).toBeNull();
     expect(screen.queryByText('System')).toBeNull();
     expect(screen.queryByText('Developer')).toBeNull();
