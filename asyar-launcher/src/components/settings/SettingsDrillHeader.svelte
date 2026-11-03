@@ -49,7 +49,7 @@
 
 <svelte:window onkeydown={onWindowKeydown} />
 
-<div class="drill-header">
+<div class="drill-header" data-tauri-drag-region>
   <div class="nav-group" role="group">
     <button
       class="nav-btn"
@@ -69,7 +69,7 @@
       <Icon name="chevron-right" size={14} />
     </button>
   </div>
-  <div class="breadcrumb">
+  <div class="breadcrumb" data-tauri-drag-region>
     {#if title}
       <button class="parent-link" onclick={onback}>{parentLabel}</button>
       <span class="sep">›</span>
@@ -88,7 +88,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-6);
+    padding: var(--space-4) var(--space-6);
     border-bottom: 1px solid var(--separator);
     background: var(--bg-primary);
     flex-shrink: 0;
@@ -115,7 +115,8 @@
     display: flex;
     align-items: center;
     border: 1px solid var(--separator);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-full);
+    overflow: hidden;
     background: var(--bg-secondary);
   }
 

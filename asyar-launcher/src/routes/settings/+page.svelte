@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { LoadingState } from '../../components';
   import SettingsSidebar from '../../components/settings/SettingsSidebar.svelte';
+  import SettingsDrillHeader from '../../components/settings/SettingsDrillHeader.svelte';
+  import { TabHistory } from './tabHistory.svelte';
   import { searchSettings, type SettingsSearchResult } from './settingsSearch';
   import { resolveNavigation, SETTINGS_TAB_KEYWORDS, type SettingsTabId } from './settingsNav';
   import { SettingsHandler } from './settingsHandlers.svelte';
@@ -26,6 +28,7 @@
   import { portalStore } from '../../built-in-features/portals/portalStore.svelte';
   import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
   import { listen } from '@tauri-apps/api/event';
+  import { platform } from '@tauri-apps/plugin-os';
   import { i18nService, t } from '../../services/i18n';
   import {
     initAppUpdateStore,
@@ -62,7 +65,7 @@
         {
           id: 'applications',
           label: t('settings.tabs.applications'),
-          icon: 'layers',
+          icon: 'store',
           group: 'app',
         },
         {
@@ -81,13 +84,13 @@
         },
         { id: 'privacy', label: t('settings.tabs.privacy'), icon: 'lock', group: 'app' },
         { id: 'backup', label: t('settings.tabs.backup'), icon: 'cloud-upload', group: 'app' },
-        { id: 'advanced', label: t('settings.tabs.advanced'), icon: 'dev-tools', group: 'system' },
+        { id: 'advanced', label: t('settings.tabs.advanced'), icon: 'sliders', group: 'system' },
         ...(handler.settings.developer?.enabled
           ? [
               {
                 id: 'developer',
                 label: t('settings.tabs.developer'),
-                icon: 'dev-tools',
+                icon: 'terminal',
                 group: 'system',
               },
             ]
@@ -111,9 +114,43 @@
     }
   });
 
+  // Tab-level back/forward for the `‹ ›` pill. Drill-downs inside the list
+  // tabs keep their own history; those tabs merge the two in their root header.
+  const tabHistory = new TabHistory();
+
+  $effect(() => {
+    const tab = handler.activeTab;
+    untrack(() => tabHistory.visit(tab));
+  });
+
+  function goTab(tab: SettingsTabId | null) {
+    if (tab) handler.selectTab(tab);
+  }
+
+  const tabNav = $derived({
+    canBack: tabHistory.canBack,
+    canForward: tabHistory.canForward,
+    onback: () => goTab(tabHistory.back()),
+    onforward: () => goTab(tabHistory.forward()),
+  });
+
+  const activeTabLabel = $derived(
+    settingsTabs.find((tab) => tab.id === handler.activeTab)?.label ?? '',
+  );
+  // The list tabs render their own root header so it can merge in drill history.
+  const hasOwnHeader = $derived(
+    handler.activeTab === 'built-in-features' || handler.activeTab === 'extensions',
+  );
+
   let unlistenNavTab: (() => void) | undefined;
 
   onMount(async () => {
+    // Drives the overlay-titlebar inset and macOS overlay scrollbars.
+    try {
+      document.documentElement.dataset.platform = platform();
+    } catch {
+      document.documentElement.dataset.platform = 'macos';
+    }
     void i18nService.init();
     handler.init();
     preloadApplications(handler.settings.search?.additionalScanPaths ?? []);
@@ -177,14 +214,17 @@
 
       <main class="settings-content custom-scrollbar">
         <div class="settings-content-inner">
+          {#if !hasOwnHeader}
+            <SettingsDrillHeader parentLabel={activeTabLabel} {...tabNav} />
+          {/if}
           {#if handler.activeTab === 'general'}
             <GeneralTab {handler} />
           {:else if handler.activeTab === 'applications'}
             <ApplicationsTab />
           {:else if handler.activeTab === 'built-in-features'}
-            <BuiltInFeaturesTab {handler} />
+            <BuiltInFeaturesTab {handler} {tabNav} />
           {:else if handler.activeTab === 'extensions'}
-            <ExtensionsTab {handler} />
+            <ExtensionsTab {handler} {tabNav} />
           {:else if handler.activeTab === 'backup'}
             <BackupTab {handler} />
           {:else if handler.activeTab === 'account'}
@@ -230,6 +270,11 @@
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
+    gap: var(--space-5);
+  }
+
+  /* Pull a card closer to the section header that introduces it. */
+  .settings-content-inner :global(.section-header + *) {
+    margin-top: calc(-1 * var(--space-4));
   }
 </style>

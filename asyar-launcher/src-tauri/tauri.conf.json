@@ -28,6 +28,8 @@
         "fullscreen": false,
         "resizable": true,
         "title": "Asyar Settings",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
         "width": 1000,
         "height": 700,
         "visible": false

@@ -246,7 +246,9 @@ describe('BuiltInFeaturesTab', () => {
     expect(screen.getByRole('button', { name: 'settings.nav.back' })).toBeTruthy();
 
     await rerender({ handler: { ...handler, tabResetCounter: 1 } as unknown as SettingsHandler });
-    expect(screen.queryByRole('button', { name: 'settings.nav.back' })).toBeNull();
+    expect(
+      (screen.getByRole('button', { name: 'settings.nav.back' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(screen.getByText('Snippets')).toBeTruthy();
   });
 });

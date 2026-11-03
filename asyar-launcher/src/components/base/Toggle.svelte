@@ -20,13 +20,15 @@
 </label>
 
 <style>
+  /* macOS-desktop proportions: 32×18 track, 14px knob. */
   .toggle-track {
     position: relative;
-    width: 2.75rem;
-    height: 1.5rem;
-    background-color: var(--bg-hover);
+    width: calc(var(--size-sm) * 2);
+    height: calc(var(--size-sm) + var(--space-0-5));
+    background-color: color-mix(in srgb, var(--text-primary) 16%, transparent);
     border-radius: var(--radius-full);
     transition: background-color var(--transition-normal);
+    flex-shrink: 0;
   }
 
   /* The knob. Sized off the track so the two stay in proportion. */
@@ -35,11 +37,11 @@
     position: absolute;
     top: var(--space-0-5);
     inset-inline-start: var(--space-0-5);
-    width: 1.25rem;
-    height: 1.25rem;
-    background-color: var(--control-knob);
-    border: 1px solid var(--border-color);
+    width: calc(var(--size-xs) + var(--space-0-5));
+    height: calc(var(--size-xs) + var(--space-0-5));
+    background-color: var(--text-on-accent);
     border-radius: var(--radius-full);
+    box-shadow: var(--shadow-xs);
     transition: transform var(--transition-normal);
   }
 
@@ -47,11 +49,10 @@
     background-color: var(--accent-primary-fill);
   }
   :global(.peer:checked) ~ .toggle-track::after {
-    transform: translateX(100%);
-    border-color: var(--control-knob);
+    transform: translateX(calc(var(--size-xs) + var(--space-0-5)));
   }
   :global([dir='rtl']) :global(.peer:checked) ~ .toggle-track::after {
-    transform: translateX(-100%);
+    transform: translateX(calc(-1 * (var(--size-xs) + var(--space-0-5))));
   }
 
   /* The checkbox is a *sibling* of the track, not an ancestor, so

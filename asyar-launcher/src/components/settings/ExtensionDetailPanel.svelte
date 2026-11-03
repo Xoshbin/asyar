@@ -444,7 +444,7 @@
   .hero-icon {
     width: var(--size-2xl);
     height: var(--size-2xl);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--accent-primary) 14%, var(--bg-secondary));
     border: 1px solid var(--border-color);
     display: flex;
@@ -475,14 +475,14 @@
   .panel-card {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     overflow: hidden;
   }
 
   .panel-icon {
     width: 44px;
     height: 44px;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
     display: flex;
     align-items: center;

@@ -7,7 +7,21 @@
   import SettingsDrillHeader from '../../../components/settings/SettingsDrillHeader.svelte';
   import { DrillState } from './drillState.svelte';
 
-  let { handler }: { handler: SettingsHandler } = $props();
+  interface TabNav {
+    canBack: boolean;
+    canForward: boolean;
+    onback: () => void;
+    onforward: () => void;
+  }
+
+  const NO_NAV: TabNav = {
+    canBack: false,
+    canForward: false,
+    onback: () => {},
+    onforward: () => {},
+  };
+
+  let { handler, tabNav = NO_NAV }: { handler: SettingsHandler; tabNav?: TabNav } = $props();
 
   const drill = new DrillState();
   const idOf = (e: ExtensionItem) => e.id ?? e.title;
@@ -56,15 +70,13 @@
     oncommandselect={(cmd) => drill.into(idOf(selected), cmd.id)}
   />
 {:else}
-  {#if drill.canForward}
-    <SettingsDrillHeader
-      parentLabel={t('settings.tabs.extensions')}
-      canBack={false}
-      canForward
-      onback={() => drill.back()}
-      onforward={() => drill.forward()}
-    />
-  {/if}
+  <SettingsDrillHeader
+    parentLabel={t('settings.tabs.extensions')}
+    canBack={tabNav.canBack}
+    canForward={drill.canForward || tabNav.canForward}
+    onback={tabNav.onback}
+    onforward={drill.canForward ? () => drill.forward() : tabNav.onforward}
+  />
   <div class="section-header">{t('settings.advanced.section_extension_surface')}</div>
   <SettingsCard>
     <div id="advanced-extension-surface">

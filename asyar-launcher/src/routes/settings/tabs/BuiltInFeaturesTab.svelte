@@ -13,7 +13,21 @@
   import SettingsDrillHeader from '../../../components/settings/SettingsDrillHeader.svelte';
   import { DrillState } from './drillState.svelte';
 
-  let { handler }: { handler: SettingsHandler } = $props();
+  interface TabNav {
+    canBack: boolean;
+    canForward: boolean;
+    onback: () => void;
+    onforward: () => void;
+  }
+
+  const NO_NAV: TabNav = {
+    canBack: false,
+    canForward: false,
+    onback: () => {},
+    onforward: () => {},
+  };
+
+  let { handler, tabNav = NO_NAV }: { handler: SettingsHandler; tabNav?: TabNav } = $props();
 
   // Feature-specific settings rendered under the detail panel (spec §3.1).
   // Features absent from this map render the detail panel alone.
@@ -83,15 +97,13 @@
     {/if}
   </ExtensionDrillView>
 {:else}
-  {#if drill.canForward}
-    <SettingsDrillHeader
-      parentLabel={t('settings.tabs.built_in_features')}
-      canBack={false}
-      canForward
-      onback={() => drill.back()}
-      onforward={() => drill.forward()}
-    />
-  {/if}
+  <SettingsDrillHeader
+    parentLabel={t('settings.tabs.built_in_features')}
+    canBack={tabNav.canBack}
+    canForward={drill.canForward || tabNav.canForward}
+    onback={tabNav.onback}
+    onforward={drill.canForward ? () => drill.forward() : tabNav.onforward}
+  />
   <ExtensionTable
     {handler}
     scope="built-in"

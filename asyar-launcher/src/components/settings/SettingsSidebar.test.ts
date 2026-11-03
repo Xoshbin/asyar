@@ -12,11 +12,14 @@ const tabs = [
 ] as const;
 
 describe('SettingsSidebar', () => {
-  it('renders items and group labels, and omits absent tabs', () => {
+  it('renders items and a divider between groups, and omits absent tabs', () => {
     render(SettingsSidebar, { tabs: [...tabs], activeTab: 'general' });
     expect(screen.getByText('Account')).toBeTruthy();
-    expect(screen.getByText('App')).toBeTruthy();
-    expect(screen.getByText('System')).toBeTruthy();
+    expect(screen.getByText('General')).toBeTruthy();
+    expect(screen.getByText('About')).toBeTruthy();
+    expect(screen.getByRole('separator')).toBeTruthy();
+    expect(screen.queryByText('App')).toBeNull();
+    expect(screen.queryByText('System')).toBeNull();
     expect(screen.queryByText('Developer')).toBeNull();
   });
 
@@ -81,9 +84,9 @@ describe('SettingsSidebar', () => {
     expect(screen.queryByText('Built-in Features')).toBeNull();
   });
 
-  it('shows the ⌘F hint when empty and a clear button once there is a query', async () => {
+  it('shows a clear button once there is a query', async () => {
     render(SettingsSidebar, { tabs: [...tabs], activeTab: 'general' });
-    expect(screen.getByText('⌘F')).toBeTruthy();
+    expect(screen.queryByText('⌘F')).toBeNull();
     const input = screen.getByRole('searchbox') as HTMLInputElement;
     await fireEvent.input(input, { target: { value: 'ext' } });
     expect(screen.queryByText('⌘F')).toBeNull();

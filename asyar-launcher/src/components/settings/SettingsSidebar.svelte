@@ -1,7 +1,6 @@
 <script lang="ts">
   import Badge from '../base/Badge.svelte';
   import Icon from '../base/Icon.svelte';
-  import KeyboardHint from '../base/KeyboardHint.svelte';
   import { developmentBuildIndicator } from '../../lib/developmentBuild';
   import { t } from '../../services/i18n';
   import type { SettingsTabId, SidebarGroupId } from '../../routes/settings/settingsNav';
@@ -77,12 +76,6 @@
       .filter((g) => g.items.length > 0),
   );
 
-  function groupLabel(id: SidebarGroupId): string | null {
-    if (id === 'app') return t('settings.nav.group_app');
-    if (id === 'system') return t('settings.nav.group_system');
-    return null;
-  }
-
   function onSearchKeydown(e: KeyboardEvent) {
     if (results.length === 0) return;
     if (e.key === 'ArrowDown') {
@@ -107,8 +100,8 @@
 
 <svelte:window onkeydown={onWindowKeydown} />
 
-<nav class="settings-sidebar" aria-label={t('settings.title')}>
-  <div class="search-box">
+<nav class="settings-sidebar" aria-label={t('settings.title')} data-tauri-drag-region>
+  <div class="search-box" data-tauri-drag-region>
     <Icon name="search" size={14} class="search-icon" />
     <input
       bind:this={searchEl}
@@ -131,17 +124,15 @@
       >
         <Icon name="x" size={12} />
       </button>
-    {:else}
-      <KeyboardHint keys="⌘F" />
     {/if}
   </div>
 
   <div class="groups custom-scrollbar">
     {#each groups as group (group.id)}
+      {#if group.id === 'system'}
+        <div class="group-divider" role="separator"></div>
+      {/if}
       <div class="group">
-        {#if groupLabel(group.id)}
-          <div class="group-label">{groupLabel(group.id)}</div>
-        {/if}
         {#each group.items as tab (tab.id)}
           {#if tab.id === 'account'}
             <button
@@ -177,7 +168,7 @@
                 ontabselect?.(tab.id);
               }}
             >
-              <span class="icon-box"><Icon name={tab.icon} size={15} /></span>
+              <span class="icon-box"><Icon name={tab.icon} size={13} /></span>
               <span class="label">{tab.label}</span>
               {#if tab.count !== undefined}
                 <span class="count">{tab.count}</span>
@@ -228,31 +219,36 @@
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-4) var(--space-3);
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
     background: var(--bg-secondary);
     border-inline-end: 1px solid var(--separator);
     overflow: hidden;
   }
 
+  /* Overlay titlebar: keep the search field clear of the traffic lights. */
+  :global(html[data-platform='macos']) .settings-sidebar {
+    padding-top: calc(var(--space-10) + var(--space-1));
+  }
+
+  /* Soft recessed field, like System Settings and Raycast. */
   .search-box {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: 0 var(--space-3);
-    height: var(--size-xl);
+    padding: var(--space-1) var(--space-4);
     box-sizing: border-box;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
     transition:
-      border-color var(--dur-instant) var(--ease-travel),
-      box-shadow var(--dur-instant) var(--ease-travel);
+      border-color var(--transition-fast),
+      background-color var(--transition-fast);
   }
 
   .search-box:focus-within {
+    background: var(--bg-tertiary);
     border-color: var(--accent-primary);
-    box-shadow: var(--shadow-focus);
   }
 
   .search-box :global(.search-icon) {
@@ -303,13 +299,20 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-1);
   }
 
   .group {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: var(--space-0-5);
+  }
+
+  .group-divider {
+    height: 1px;
+    background: var(--separator);
+    margin: var(--space-2);
+    flex-shrink: 0;
   }
 
   .group-label {
@@ -325,19 +328,20 @@
   .item {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border: none;
-    border-radius: var(--radius-md);
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--text-secondary);
+    color: var(--text-primary);
     cursor: default;
     text-align: start;
+    transition: none;
   }
 
   .item.active {
     background: var(--bg-selected);
-    box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
     color: var(--text-primary);
   }
 
@@ -347,19 +351,25 @@
   }
 
   .icon-box {
-    width: var(--size-lg);
-    height: var(--size-lg);
+    width: var(--size-md);
+    height: var(--size-md);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     border-radius: var(--radius-xs);
-    background: var(--bg-tertiary);
+    background: transparent;
+    color: var(--text-secondary);
   }
 
   .item.active .icon-box {
-    background: color-mix(in srgb, var(--accent-primary) 16%, transparent);
-    color: var(--accent-primary);
+    background: var(--accent-primary-fill);
+    color: var(--text-on-accent);
+  }
+
+  .item.profile {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
   }
 
   .count {
@@ -417,10 +427,6 @@
     font-size: var(--font-size-sm);
     font-weight: 500;
     font-family: var(--font-ui);
-  }
-
-  .item.active .label {
-    font-weight: 600;
   }
 
   .item.result.highlighted {

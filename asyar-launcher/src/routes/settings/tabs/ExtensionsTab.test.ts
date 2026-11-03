@@ -188,7 +188,9 @@ describe('ExtensionsTab surface settings and drill-down', () => {
     render(ExtensionsTab, { props: { handler } });
     const boxes = screen.getAllByRole('checkbox');
     await fireEvent.click(boxes[boxes.length - 1]);
-    expect(screen.queryByRole('button', { name: 'settings.nav.back' })).toBeNull();
+    expect(
+      (screen.getByRole('button', { name: 'settings.nav.back' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(screen.getByText('settings.advanced.extension_search')).toBeTruthy();
   });
 
@@ -218,7 +220,9 @@ describe('ExtensionsTab surface settings and drill-down', () => {
     expect(screen.getByRole('button', { name: 'settings.nav.back' })).toBeTruthy();
 
     await rerender({ handler: { ...handler, tabResetCounter: 1 } as unknown as SettingsHandler });
-    expect(screen.queryByRole('button', { name: 'settings.nav.back' })).toBeNull();
+    expect(
+      (screen.getByRole('button', { name: 'settings.nav.back' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(screen.getByText('settings.advanced.extension_search')).toBeTruthy();
   });
 
@@ -235,7 +239,9 @@ describe('ExtensionsTab surface settings and drill-down', () => {
     handler.pendingExtensionSelection = 'org.unknown';
     render(ExtensionsTab, { props: { handler } });
     expect(screen.getByText('Store Ext')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'settings.nav.back' })).toBeNull();
+    expect(
+      (screen.getByRole('button', { name: 'settings.nav.back' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(handler.pendingExtensionSelection).toBeNull();
   });
 
