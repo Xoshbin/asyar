@@ -30,7 +30,6 @@
   }
 </script>
 
-<div class="section-header">{t('settings.tabs.backup')}</div>
 <div id="backup-export" class="anchor-group">
   <SettingsCard>
     <div class="category-list">
@@ -255,16 +254,16 @@
   .category-list {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-3) var(--space-4);
-    padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--border-color);
+    gap: var(--space-3) var(--space-5);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--separator);
   }
 
   .category-label {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
     color: var(--text-primary);
     cursor: default;
   }
@@ -278,12 +277,12 @@
     color: var(--text-secondary);
     padding: var(--space-3) var(--space-6);
     margin: 0;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--separator);
   }
 
   .warning-row {
     padding: var(--space-3) var(--space-6);
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--separator);
   }
 
   .action-row {
@@ -322,7 +321,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--separator);
   }
 
   .import-preview-copy {

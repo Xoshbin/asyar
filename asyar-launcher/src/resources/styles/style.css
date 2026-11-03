@@ -1394,7 +1394,8 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     text-transform: none;
     letter-spacing: var(--tracking-normal);
     color: var(--text-primary);
-    padding: var(--space-2) var(--space-0-5) var(--space-1);
+    padding: 0 var(--space-0-5);
+    margin-bottom: var(--space-2);
   }
 
   /* Section header for list views (clipboard, snippets, actions). */

@@ -274,7 +274,7 @@
   }
 
   /* Pull a card closer to the section header that introduces it. */
-  .settings-content-inner :global(.section-header + *) {
-    margin-top: calc(-1 * var(--space-4));
+  .settings-content-inner > :global(.section-header) {
+    margin-bottom: calc(-1 * var(--space-2));
   }
 </style>

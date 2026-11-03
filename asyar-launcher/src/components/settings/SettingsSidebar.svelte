@@ -102,7 +102,7 @@
 
 <nav class="settings-sidebar" aria-label={t('settings.title')} data-tauri-drag-region>
   <div class="search-box" data-tauri-drag-region>
-    <Icon name="search" size={14} class="search-icon" />
+    <Icon name="search" size={14} strokeWidth={2.2} class="search-icon" />
     <input
       bind:this={searchEl}
       bind:value={query}
@@ -220,7 +220,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-3);
     background: var(--bg-secondary);
     border-inline-end: 1px solid var(--separator);
     overflow: hidden;
@@ -236,23 +236,27 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-1) var(--space-4);
+    height: calc(var(--size-lg) + var(--space-1));
+    padding: 0 var(--space-3);
     box-sizing: border-box;
-    background: color-mix(in srgb, var(--text-primary) 6%, transparent);
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--text-primary) 5%, var(--bg-tertiary));
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-xs);
     transition:
       border-color var(--transition-fast),
-      background-color var(--transition-fast);
+      background-color var(--transition-fast),
+      box-shadow var(--transition-fast);
   }
 
   .search-box:focus-within {
     background: var(--bg-tertiary);
     border-color: var(--accent-primary);
+    box-shadow: var(--shadow-focus);
   }
 
   .search-box :global(.search-icon) {
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     flex-shrink: 0;
   }
 
@@ -266,11 +270,11 @@
     background: transparent;
     color: var(--text-primary);
     font-family: var(--font-ui);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
   }
 
   .search-input::placeholder {
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
   }
 
   .search-input::-webkit-search-cancel-button {

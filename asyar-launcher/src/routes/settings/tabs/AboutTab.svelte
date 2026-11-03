@@ -117,7 +117,6 @@
 
 <div class="about-tab">
   <div id="about-updates" class="anchor-group">
-    <div class="section-header">{t('settings.about.section_updates')}</div>
     <SettingsCard>
       <div class="app-header">
         <img src={logoUrl} alt="Asyar" class="app-logo" />
@@ -248,7 +247,17 @@
     flex-direction: column;
     align-items: center;
     padding: var(--space-8) var(--space-6) var(--space-6);
-    border-bottom: 1px solid var(--separator);
+    position: relative;
+  }
+
+  .app-header::after {
+    content: '';
+    position: absolute;
+    left: var(--space-5);
+    right: var(--space-5);
+    bottom: 0;
+    height: 1px;
+    background: var(--separator);
   }
 
   .app-logo {
@@ -260,7 +269,7 @@
   .app-name {
     margin-top: var(--space-3);
     font-size: var(--font-size-lg);
-    font-weight: 700;
+    font-weight: 600;
     font-family: var(--font-ui);
     color: var(--text-primary);
   }

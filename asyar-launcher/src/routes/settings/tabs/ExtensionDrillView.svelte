@@ -110,6 +110,11 @@
     gap: var(--space-6);
   }
 
+  /* Net gap to the card below: 16px gap - 10px = 6px. */
+  .drill-view > :global(.section-header) {
+    margin-bottom: calc(-1 * var(--space-4));
+  }
+
   /* Same frame as SettingsCard so its edges line up with the cards around it. */
   .commands-card {
     background: var(--bg-tertiary);
