@@ -33,7 +33,7 @@ Asyar never sells or shares your data with third parties.
 
 Open the Asyar launcher and search for "Store", then press `Enter`. The built-in extension store lets you browse, search, and install extensions and themes in one click. Extensions are installed directly to your computer; no account is required for free extensions.
 
-You can also install an extension from a local file: open **Settings → Extensions**, click "Install from file", and pick the extension package.
+You can also install an extension from a local file: open **Settings → Extensions**, click "Install from file", and pick the extension package. Extension developers can make that package from their project with `asyar pack`, which writes an `.asyar` file (unlink the extension first with `asyar unlink`, or Asyar keeps loading it from the project folder).
 
 To remove an extension, find it in **Settings → Extensions**, open its detail panel, and click Uninstall.
 

@@ -22,6 +22,8 @@ order: 2
 | `asyar detach [id-or-path]` | Unregister a dev extension from `dev_extensions.json`      |
 | `asyar detach --all`        | Remove all dev extension registrations                     |
 | `asyar doctor`              | Check environment health and diagnose common setup issues  |
+| `asyar pack`                | Validate + build + write an installable `.asyar` package   |
+| `asyar pack --out <path>`   | `pack` into another folder or `.asyar` file                |
 | `asyar publish`             | Full publish pipeline (validate → build → GitHub → Store)  |
 
 ---
@@ -205,6 +207,29 @@ Exits with code `0` if all checks pass or show non-critical warnings; exits with
 
 ---
 
+### `asyar pack` — build an installable package locally
+
+Builds the same package `asyar publish` would upload and saves it as a `.asyar` file, without signing in, touching GitHub, or needing a clean git tree. Use it to test your extension the way users get it: through **Settings → Extensions → Install from file**, which runs install-time steps (such as copying icons) that a linked extension skips.
+
+```bash
+asyar pack
+# ✓ /path/to/my-extension/com.me.my-extension-1.0.0.asyar
+
+# Write into another folder (the file name stays <id>-<version>.asyar)
+asyar pack --out ~/Desktop/
+
+# Or name the file yourself (it must end in .asyar)
+asyar pack --out build/my-extension.asyar
+```
+
+It runs the same steps as `asyar publish` before sign-in: manifest validation, `vite build` and output check, the stale-build guard, and the Store icon check. The archive has the same layout: `manifest.json` at the root, `dist/` flattened into it, and `background.main` rewritten to match. When the extension folder is its own git repository with a GitHub `origin`, `README.md` links are pinned to the `v<version>` tag exactly as at publish; otherwise they stay as written.
+
+> **Unlink first.** Asyar loads a linked or attached extension from your project folder, even when the same ID is installed. Run `asyar unlink` (or `asyar unlink --dev` for the dev flavor, or `asyar detach`) before installing the package, or you will be testing your project folder, not the package. `asyar pack` warns when the extension is still linked.
+
+> **Git:** `asyar publish` stops on untracked files. If the extension folder is its own git repository, add `*.asyar` to `.gitignore` (or use `--out`) so a package left there does not block publishing. `asyar pack` warns when it isn't ignored.
+
+---
+
 ### `asyar publish` — release to GitHub & Store
 
 Automates the complete publishing pipeline: validation, building, GitHub release creation, and submission to the Asyar Store.
@@ -212,7 +237,8 @@ Automates the complete publishing pipeline: validation, building, GitHub release
 ```bash
 asyar publish
 
-# Test packaging and validation without making remote changes
+# Run every check, including sign-in and the git guard, without publishing
+# (to only get a package to install locally, use `asyar pack`)
 asyar publish --dry-run
 
 # Clear stored credentials and re-authenticate via GitHub OAuth

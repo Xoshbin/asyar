@@ -44,6 +44,18 @@ export function parseGitHubRepo(url: string): GitHubRepoRef | null {
   return match ? { owner: match[1], repo: match[2] } : null;
 }
 
+/**
+ * The GitHub repo the `origin` remote of `cwd`'s git repo names, or null
+ * when there is no such remote or it is not on GitHub. Local only: reads
+ * the git config, never the network. Callers check `isOwnGitRoot` first.
+ */
+export function readOriginRepo(cwd: string): GitHubRepoRef | null {
+  // Raw config value on purpose: `git remote get-url` expands insteadOf
+  // rewrites, which would hide which GitHub repo origin really names.
+  const originUrl = tryGit(cwd, 'config', '--get', 'remote.origin.url');
+  return originUrl ? parseGitHubRepo(originUrl) : null;
+}
+
 function sameRepo(a: GitHubRepoRef, b: GitHubRepoRef): boolean {
   return (
     a.owner.toLowerCase() === b.owner.toLowerCase() && a.repo.toLowerCase() === b.repo.toLowerCase()
@@ -58,10 +70,7 @@ export function checkPublishGitState(cwd: string, target: GitHubRepoRef): Publis
     };
   }
 
-  // Raw config value on purpose: `git remote get-url` expands insteadOf
-  // rewrites, which would hide which GitHub repo origin really names.
-  const originUrl = tryGit(cwd, 'config', '--get', 'remote.origin.url');
-  const origin = originUrl ? parseGitHubRepo(originUrl) : null;
+  const origin = readOriginRepo(cwd);
   if (!origin || !sameRepo(origin, target)) {
     return {
       status: 'unverifiable',

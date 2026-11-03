@@ -57,6 +57,8 @@ $APPDATA/dev_extensions.json (e.g. ~/Library/Application Support/org.asyar.app/d
 
 It should contain an entry mapping your extension ID to the absolute source path. Running `asyar link` automatically registers this entry, and `asyar unlink` removes it. If it is missing, run `asyar link` or use the Create Extension tool.
 
+The registry wins over installed extensions: while your ID is in it, Asyar loads the project folder even if you installed a package with the same ID. To test the installed package (built with `asyar pack`), run `asyar unlink` first.
+
 ### Step 6 — Review permission consent
 
 If your extension declares permissions or updates its declared permission set (e.g. freshly linked via `asyar link`), launching its command from the launcher will automatically prompt a permission review consent dialog. Accepting grants the declared permissions immediately. If consent was declined or cancelled, gated IPC calls will fail closed until consent is granted.
