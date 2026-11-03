@@ -269,7 +269,6 @@
   }
 </script>
 
-<div class="section-header">{t('settings.applications.search_scope')}</div>
 <div id="applications-scope">
   <SettingsCard>
     <ul class="path-list">
@@ -331,7 +330,7 @@
 <div class="applications-header-row">
   <div class="section-header applications-header-label">{t('settings.tabs.applications')}</div>
   <div class="filter-box">
-    <Icon name="search" size={13} strokeWidth={2} class="filter-icon" />
+    <Icon name="search" size={13} strokeWidth={2.2} class="filter-icon" />
     <input
       type="text"
       class="filter-input"
@@ -339,6 +338,16 @@
       aria-label={t('settings.applications.filter_label')}
       bind:value={appFilterQuery}
     />
+    {#if appFilterQuery}
+      <button
+        type="button"
+        class="filter-clear"
+        aria-label={t('settings.nav.clear_search')}
+        onclick={() => (appFilterQuery = '')}
+      >
+        <Icon name="x" size={12} />
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -575,27 +584,43 @@
     padding: 0;
   }
 
+  /* Soft recessed capsule, shared with the settings sidebar search. */
   .filter-box {
     flex: 1;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    max-width: 200px;
+    max-width: 220px;
     margin-left: auto;
-    padding: var(--space-2) var(--space-4);
-    border-radius: var(--radius-md);
-    background: var(--bg-secondary-full-opacity);
+    height: calc(var(--size-lg) + var(--space-1));
+    padding: 0 var(--space-3);
+    box-sizing: border-box;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--text-primary) 5%, var(--bg-tertiary));
     border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-xs);
+    transition:
+      border-color var(--transition-fast),
+      background-color var(--transition-fast),
+      box-shadow var(--transition-fast);
   }
 
-  :global(.filter-icon) {
-    color: var(--text-tertiary);
+  .filter-box:focus-within {
+    background: var(--bg-tertiary);
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-focus);
+  }
+
+  .filter-box :global(.filter-icon) {
+    color: var(--text-secondary);
     flex-shrink: 0;
   }
 
   .filter-input {
     flex: 1;
     min-width: 0;
+    height: 100%;
+    padding: 0;
     background: transparent;
     border: none;
     outline: none;
@@ -605,7 +630,24 @@
   }
 
   .filter-input::placeholder {
+    color: var(--text-secondary);
+  }
+
+  .filter-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-0-5);
+    border: none;
+    border-radius: var(--radius-xs);
+    background: transparent;
     color: var(--text-tertiary);
+    cursor: default;
+  }
+
+  .filter-clear:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .app-table {

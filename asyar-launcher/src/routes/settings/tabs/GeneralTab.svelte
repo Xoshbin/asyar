@@ -253,7 +253,6 @@
   }
 </script>
 
-<div class="section-header">{t('settings.general.section_startup')}</div>
 <SettingsCard>
   <div id="general-startup">
     <SettingsRow

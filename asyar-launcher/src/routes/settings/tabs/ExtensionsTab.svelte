@@ -77,7 +77,6 @@
     onback={tabNav.onback}
     onforward={drill.canForward ? () => drill.forward() : tabNav.onforward}
   />
-  <div class="section-header">{t('settings.advanced.section_extension_surface')}</div>
   <SettingsCard>
     <div id="advanced-extension-surface">
       <SettingsRow

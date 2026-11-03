@@ -110,7 +110,6 @@
 
 <div class="developer-tab">
   <div id="developer-tools" class="anchor-group">
-    <div class="section-header">{t('settings.developer.section_tools')}</div>
     <SettingsCard>
       <SettingsRow
         label={t('settings.developer.developer_mode')}

@@ -152,7 +152,6 @@
 </script>
 
 {#if authService.isAwaitingOAuth}
-  <div class="section-header">{t('settings.account.section_profile')}</div>
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
       <div class="awaiting-container">
@@ -186,7 +185,6 @@
     </SettingsCard>
   </div>
 {:else if !authService.isLoggedIn}
-  <div class="section-header">{t('settings.account.section_profile')}</div>
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
       {#if authService.loginError}
@@ -249,7 +247,6 @@
     </SettingsCard>
   </div>
 {:else}
-  <div class="section-header">{t('settings.account.section_profile')}</div>
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
       <SettingsRow label={t('settings.account.section_profile')}>

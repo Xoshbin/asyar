@@ -309,13 +309,12 @@
           <span class="section-count">{filteredExtensions.length}</span>
         </div>
       {:else}
-        <div class="section-title">{t('settings.tabs.built_in_features')}</div>
         <div class="section-subtitle">{t('settings.extensions.built_in_subtitle')}</div>
       {/if}
     </div>
     <div class="toolbar-row">
       <div class="search-box">
-        <Icon name="search" size={13} strokeWidth={2} class="search-icon" />
+        <Icon name="search" size={13} strokeWidth={2.2} class="search-icon" />
         <Input
           unstyled
           textIntent="exact"
@@ -324,6 +323,16 @@
           placeholder={t('settings.extensions.search_placeholder')}
           bind:value={searchQuery}
         />
+        {#if searchQuery}
+          <button
+            type="button"
+            class="clear-btn"
+            aria-label={t('settings.nav.clear_search')}
+            onclick={() => (searchQuery = '')}
+          >
+            <Icon name="x" size={12} />
+          </button>
+        {/if}
       </div>
 
       {#each visibleFilters as f}
@@ -543,7 +552,7 @@
   /* ── Section header + toolbar (search + chips + plus) ── */
   .section-header-row {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     gap: var(--space-4);
     margin-bottom: var(--space-3);
@@ -570,7 +579,6 @@
   }
 
   .section-subtitle {
-    margin-top: var(--space-1);
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
   }
@@ -590,33 +598,39 @@
     display: none;
   }
 
+  /* Soft recessed capsule, shared with the settings sidebar search. */
   .search-box {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
+    height: calc(var(--size-lg) + var(--space-1));
     padding: 0 var(--space-3);
-    height: 26px;
+    box-sizing: border-box;
     flex: 1;
     max-width: 280px;
     min-width: 120px;
-    transition: var(--transition-fast);
-    box-sizing: border-box;
+    background: color-mix(in srgb, var(--text-primary) 5%, var(--bg-tertiary));
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-xs);
+    transition:
+      border-color var(--transition-fast),
+      background-color var(--transition-fast),
+      box-shadow var(--transition-fast);
   }
 
   .search-box:focus-within {
+    background: var(--bg-tertiary);
     border-color: var(--accent-primary);
     box-shadow: var(--shadow-focus);
   }
 
-  :global(.search-icon) {
-    color: var(--text-tertiary);
+  .search-box :global(.search-icon) {
+    color: var(--text-secondary);
     flex-shrink: 0;
   }
 
-  :global(.search-input) {
+  .search-box :global(.search-input) {
     flex: 1;
     min-width: 0;
     background: transparent;
@@ -630,8 +644,25 @@
     padding: 0;
   }
 
-  :global(.search-input)::placeholder {
+  .search-box :global(.search-input)::placeholder {
+    color: var(--text-secondary);
+  }
+
+  .clear-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-0-5);
+    border: none;
+    border-radius: var(--radius-xs);
+    background: transparent;
     color: var(--text-tertiary);
+    cursor: default;
+  }
+
+  .clear-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .filter-chip {
