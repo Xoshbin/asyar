@@ -179,7 +179,7 @@ impl HasSeverity for AppError {
 
     fn severity(&self) -> Severity {
         match self {
-            AppError::Lock | AppError::Database(_) | AppError::Encryption(_) => Severity::Fatal,
+            AppError::Lock | AppError::Encryption(_) => Severity::Fatal,
             AppError::Permission(_)
             | AppError::Policy(_)
             | AppError::Validation(_)
@@ -423,9 +423,12 @@ mod severity_tests {
     }
 
     #[test]
-    fn database_is_fatal() {
+    fn database_is_a_recoverable_error_not_fatal() {
+        // A failed query (bad column, locked row, full disk) leaves the app
+        // running, so it surfaces in the feedback bar rather than blocking the
+        // whole launcher behind the fatal dialog.
         let err = AppError::Database("disk full".into());
-        assert_eq!(err.severity(), Severity::Fatal);
+        assert_eq!(err.severity(), Severity::Error);
         assert_eq!(err.kind(), "database_failure");
     }
 

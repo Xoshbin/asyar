@@ -75,6 +75,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "e2ee_local_v2",
         up: migration_10_e2ee_local_v2,
     },
+    Migration {
+        version: 11,
+        name: "runs_history_quiet_success",
+        up: migration_11_runs_history_quiet_success,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -284,6 +289,30 @@ fn migration_9_threads_provider_override(conn: &Connection) -> Result<(), AppErr
             conn.execute(&format!("ALTER TABLE threads ADD COLUMN {column} TEXT"), [])
                 .map_err(|e| AppError::Database(format!("Failed to add {column} column: {e}")))?;
         }
+    }
+    Ok(())
+}
+
+/// Adds `runs_history.quiet_success` (#941). The column was first patched into
+/// `runs_history::init_table`, which only baseline calls, so every database
+/// already stamped past v1 never received it. Guarded because fresh and v0
+/// databases get it from baseline's `CREATE TABLE`.
+fn migration_11_runs_history_quiet_success(conn: &Connection) -> Result<(), AppError> {
+    let exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('runs_history') WHERE name='quiet_success'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !exists {
+        conn.execute(
+            "ALTER TABLE runs_history ADD COLUMN quiet_success INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to add quiet_success column: {e}")))?;
     }
     Ok(())
 }
@@ -626,6 +655,35 @@ mod tests {
     }
 
     #[test]
+    fn stamped_db_without_quiet_success_gets_the_column_and_keeps_its_runs() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..10]).unwrap();
+        assert_eq!(user_version(&conn), 10);
+        // Simulate an install stamped past baseline whose runs_history predates
+        // `quiet_success` — baseline's `init_table` never replays for it.
+        conn.execute_batch(
+            "ALTER TABLE runs_history DROP COLUMN quiet_success;
+             INSERT INTO runs_history
+                 (id, kind, label, status, started_at, cancellable)
+                 VALUES ('r1', 'script', 'kept', 'success', 1, 0);",
+        )
+        .unwrap();
+        assert!(!column_names(&conn, "runs_history").contains(&"quiet_success".to_string()));
+
+        run(&conn).unwrap();
+
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
+        let quiet: i64 = conn
+            .query_row(
+                "SELECT quiet_success FROM runs_history WHERE id = 'r1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(quiet, 0, "existing runs must stay loud");
+    }
+
+    #[test]
     fn version_four_db_adds_search_engine_tables_without_losing_existing_rows() {
         let conn = Connection::open_in_memory().unwrap();
         run_ledger(&conn, &MIGRATIONS[..4]).unwrap();
@@ -857,7 +915,7 @@ mod tests {
 
         // Run remaining migrations (which applies migration 10):
         run(&conn).unwrap();
-        assert_eq!(user_version(&conn), 10);
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
 
         // Verify the existing row survived untouched:
         let state = crate::cloud_sync_e2ee_local::get(&conn).unwrap().unwrap();
