@@ -9,10 +9,18 @@ import { packageExtension } from './zip';
 
 describe('packageExtension', () => {
   const tempDirs: string[] = [];
+  const tempFiles: string[] = [];
 
   afterEach(() => {
     for (const dir of tempDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+    for (const file of tempFiles.splice(0)) fs.rmSync(file, { force: true });
   });
+
+  function pack(...args: Parameters<typeof packageExtension>): ReturnType<typeof packageExtension> {
+    const result = packageExtension(...args);
+    tempFiles.push(result.zipPath);
+    return result;
+  }
 
   it('makes every declared worker path resolve inside the flattened archive', () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'asyar-package-test-'));
@@ -29,7 +37,7 @@ describe('packageExtension', () => {
     );
 
     const extensionId = `org.asyar.fixture.${path.basename(cwd)}`;
-    const result = packageExtension(cwd, extensionId, '1.0.0');
+    const result = pack(cwd, extensionId, '1.0.0');
     const zip = new AdmZip(result.zipPath);
     const manifestEntry = zip.getEntry('manifest.json');
     expect(manifestEntry).not.toBeNull();
@@ -63,7 +71,7 @@ describe('packageExtension', () => {
 
   it('ships the given README at the archive root', () => {
     const cwd = makeExtension();
-    const result = packageExtension(cwd, 'org.asyar.fixture', '1.0.0', false, '# Timer\n');
+    const result = pack(cwd, 'org.asyar.fixture', '1.0.0', false, '# Timer\n');
     expect(readEntry(result.zipPath, 'README.md')).toBe('# Timer\n');
   });
 
@@ -72,7 +80,7 @@ describe('packageExtension', () => {
     tempDirs.push(cwd);
     fs.writeFileSync(path.join(cwd, 'manifest.json'), '{"id":"org.asyar.theme"}');
     fs.writeFileSync(path.join(cwd, 'theme.json'), '{}');
-    const result = packageExtension(cwd, 'org.asyar.theme', '1.0.0', true, '# Theme\n');
+    const result = pack(cwd, 'org.asyar.theme', '1.0.0', true, '# Theme\n');
     expect(readEntry(result.zipPath, 'README.md')).toBe('# Theme\n');
   });
 
@@ -86,20 +94,29 @@ describe('packageExtension', () => {
       JSON.stringify({ id: 'org.asyar.theme', icon: 'assets/icon.png' }),
     );
     fs.writeFileSync(path.join(cwd, 'theme.json'), '{}');
-    const result = packageExtension(cwd, 'org.asyar.theme', '1.0.0', true);
+    const result = pack(cwd, 'org.asyar.theme', '1.0.0', true);
     expect(readEntry(result.zipPath, 'assets/icon.png')).toBe('png-bytes');
   });
 
   it('replaces a README.md that the build copied into dist/', () => {
     const cwd = makeExtension();
     fs.writeFileSync(path.join(cwd, 'dist', 'README.md'), 'stale copy');
-    const result = packageExtension(cwd, 'org.asyar.fixture', '1.0.0', false, '# Rewritten\n');
+    const result = pack(cwd, 'org.asyar.fixture', '1.0.0', false, '# Rewritten\n');
     expect(readEntry(result.zipPath, 'README.md')).toBe('# Rewritten\n');
   });
 
   it('adds no README when none is given', () => {
     const cwd = makeExtension();
-    const result = packageExtension(cwd, 'org.asyar.fixture', '1.0.0');
+    const result = pack(cwd, 'org.asyar.fixture', '1.0.0');
     expect(readEntry(result.zipPath, 'README.md')).toBeNull();
+  });
+
+  it('creates uniquely named temporary zip files for distinct packaging runs', () => {
+    const cwd = makeExtension();
+    const result1 = pack(cwd, 'org.asyar.fixture', '1.0.0');
+    const result2 = pack(cwd, 'org.asyar.fixture', '1.0.0');
+    expect(result1.zipPath).not.toBe(result2.zipPath);
+    expect(fs.existsSync(result1.zipPath)).toBe(true);
+    expect(fs.existsSync(result2.zipPath)).toBe(true);
   });
 });

@@ -24,18 +24,25 @@ pnpm add asyar-sdk
 
 The `asyar` CLI drives the full extension development workflow:
 
-| Command           | Description                                                     |
-| ----------------- | --------------------------------------------------------------- |
-| `asyar dev`       | Start development mode with hot reload                          |
-| `asyar build`     | Production build of your extension                              |
-| `asyar validate`  | Check manifest and project structure                            |
-| `asyar link`      | Symlink your extension into the app's extensions directory      |
-| `asyar unlink`    | Remove symlink and unregister from dev extensions               |
-| `asyar attach`    | Register an extension directory for dev loading in the launcher |
-| `asyar detach`    | Unregister a dev extension from the launcher                    |
-| `asyar publish`   | Build, package, and publish to the Asyar Store                  |
-| `asyar doctor`    | Diagnose environment issues                                     |
-| `asyar --version` | Show CLI version                                                |
+| Command           | Description                                                       |
+| ----------------- | ----------------------------------------------------------------- |
+| `asyar dev`       | Start development mode with hot reload                            |
+| `asyar build`     | Production build of your extension                                |
+| `asyar validate`  | Check manifest and project structure                              |
+| `asyar link`      | Symlink your extension into the app's extensions directory        |
+| `asyar unlink`    | Remove symlink and unregister from dev extensions                 |
+| `asyar attach`    | Register an extension directory for dev loading in the launcher   |
+| `asyar detach`    | Unregister a dev extension from the launcher                      |
+| `asyar pack`      | Build an installable `.asyar` package locally, without publishing |
+| `asyar publish`   | Build, package, and publish to the Asyar Store                    |
+| `asyar doctor`    | Diagnose environment issues                                       |
+| `asyar --version` | Show CLI version                                                  |
+
+### Testing the Installed Package
+
+`asyar pack` builds the same package `asyar publish` uploads and saves it as `<id>-<version>.asyar` in the extension folder (or `--out <folder or .asyar file>`). No sign-in, GitHub, or clean git tree needed. Install it via **Settings → Extensions → Install from file** to test install-time behaviour that a linked extension skips.
+
+Unlink first (`asyar unlink`, or `asyar unlink --dev` for the dev flavor): a linked extension is loaded from your project folder, not from the installed package.
 
 ### Pre-Publish Safety
 

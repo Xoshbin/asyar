@@ -79,6 +79,10 @@ Or open the folder manually in your IDE. The `dev_extensions.json` registration 
 
 Yes. When you run `asyar link`, the CLI both creates a symlink in `$APPDATA/extensions/<id>` and registers your extension's absolute source directory in `$APPDATA/dev_extensions.json`. Asyar's custom protocol handler (`asyar-extension://`) reads this registry to allow local file access on production release builds without 403 access violations. To clean up the registration and symlink, run `asyar unlink`.
 
+**Q: How do I test my extension the way users install it?**
+
+Run `asyar pack` in the extension folder. It builds the same package `asyar publish` uploads and saves it as `<id>-<version>.asyar`, with no sign-in or GitHub needed. First run `asyar unlink` (or `asyar unlink --dev` for the dev flavor): a linked extension is loaded from your project folder even when the same ID is installed. Then install the file via **Settings → Extensions → Install from file**. Unlike `asyar link`, this runs install-time steps such as copying the extension's icons.
+
 **Q: How do I make my extension macOS-only (or any specific OS)?**
 
 Add a `platforms` field to your `manifest.json` listing only the operating systems you support:

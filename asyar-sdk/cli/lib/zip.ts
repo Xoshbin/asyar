@@ -61,7 +61,7 @@ export function packageExtension(
     zip.addFile('README.md', Buffer.from(readme));
   }
 
-  const zipFileName = `${extensionId}-${version}.zip`;
+  const zipFileName = `${extensionId}-${version}-${crypto.randomUUID()}.zip`;
   const zipPath = path.join(os.tmpdir(), zipFileName);
   const fileBuffer = zip.toBuffer();
   fs.writeFileSync(zipPath, fileBuffer);

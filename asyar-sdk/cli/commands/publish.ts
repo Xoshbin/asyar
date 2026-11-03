@@ -2,14 +2,11 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs';
-import * as path from 'path';
 import { execSync, execFileSync } from 'child_process';
-import { readManifest, lintManifest } from '../lib/manifest';
 import { requireAuth, logout, login, getOrAuthorizeGitHub, STORE_URL } from '../lib/auth';
 import { GitHubClient } from '../lib/github';
 import { StoreClient, AuthExpiredError, SubmitResult } from '../lib/store';
 import { packageExtension, computeChecksum } from '../lib/zip';
-import { runViteBuild, verifyBuildOutput } from './build';
 import { getExtensionRepoUrl, saveExtensionRepoUrl } from '../lib/config';
 import {
   isOwnGitRoot,
@@ -18,26 +15,7 @@ import {
   findEnclosingParentOrigin,
 } from '../lib/extensionRepo';
 import { checkPublishGitState, checkReleaseTagMatchesHead } from '../lib/publishGitGuard';
-import { rewriteReadmeLinks, findMissingFiles } from '../lib/readme';
-import { checkStoreIcon } from '../lib/storeIcon';
-
-/**
- * Get the newest file modification time in a directory (recursive).
- */
-function getNewestMtime(dir: string): number {
-  let newest = 0;
-  if (!fs.existsSync(dir)) return 0;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name === 'node_modules' || entry.name === '.git') continue;
-      newest = Math.max(newest, getNewestMtime(fullPath));
-    } else {
-      newest = Math.max(newest, fs.statSync(fullPath).mtimeMs);
-    }
-  }
-  return newest;
-}
+import { prepareExtensionForPackaging, readPackagedReadme } from '../lib/packaging';
 
 export function registerPublish(program: Command) {
   program
@@ -54,52 +32,8 @@ export function registerPublish(program: Command) {
         console.log(chalk.green('✓ Credentials cleared'));
       }
 
-      // 1. Validate & Lint
-      const manifest = readManifest(cwd);
-      const { errors, warnings } = lintManifest(manifest, cwd);
-      if (warnings.length > 0) {
-        warnings.forEach((w) => console.log(chalk.yellow('  ⚠️ ') + `${w.field}: ${w.message}`));
-      }
-      if (errors.length > 0) {
-        console.log(chalk.red('✗ Validation failed:'));
-        errors.forEach((e) => console.log(chalk.red(`  ✗ ${e.field}: ${e.message}`)));
-        process.exit(1);
-      }
-      console.log(chalk.green('✓ Validation passed'));
-
-      // 2. Build (skip for theme extensions — no JS to compile)
-      if (manifest.type !== 'theme') {
-        try {
-          await runViteBuild(cwd);
-          verifyBuildOutput(cwd, manifest);
-        } catch {
-          process.exit(1);
-        }
-
-        // 2b. Guard: verify build output is fresh
-        const srcMtime = getNewestMtime(path.join(cwd, 'src'));
-        const manifestMtime = fs.statSync(path.join(cwd, 'manifest.json')).mtimeMs;
-        const distMtime = getNewestMtime(path.join(cwd, 'dist'));
-        if (distMtime > 0 && Math.max(srcMtime, manifestMtime) > distMtime) {
-          console.error(chalk.red('\n✗ Source files are newer than the build output.'));
-          console.error(chalk.gray('  The build may have failed or produced stale output.'));
-          console.error(chalk.gray('  Run "asyar build" and check for errors before publishing.'));
-          process.exit(1);
-        }
-      } else {
-        console.log(chalk.green('✓ Theme extension — skipping build step'));
-      }
-
-      // 2c. The Store takes the icon out of the package, so it must be in it.
-      const iconCheck = checkStoreIcon(
-        (manifest as unknown as Record<string, unknown>).icon,
-        manifest.type === 'theme' ? cwd : path.join(cwd, 'dist'),
-      );
-      iconCheck.warnings.forEach((w) => console.log(chalk.yellow('  ⚠️ ') + `icon: ${w}`));
-      if (iconCheck.errors.length > 0) {
-        iconCheck.errors.forEach((e) => console.error(chalk.red(`✗ icon: ${e}`)));
-        process.exit(1);
-      }
+      // 1–2. Validate, build and check the output (shared with `asyar pack`).
+      const manifest = await prepareExtensionForPackaging(cwd);
 
       // 3. Authenticate with store (GitHub OAuth)
       const { storeToken, githubUsername } = await requireAuth();
@@ -348,22 +282,7 @@ export function registerPublish(program: Command) {
 
       // 6c. README ships inside the package, with relative links pinned to
       // this release tag so they work on asyar.org and in the launcher.
-      let packagedReadme: string | undefined;
-      const readmePath = path.join(cwd, 'README.md');
-      if (fs.existsSync(readmePath)) {
-        const { markdown, relativeImages } = rewriteReadmeLinks(
-          fs.readFileSync(readmePath, 'utf8'),
-          { owner, repo, ref: releaseTag },
-        );
-        const missing = findMissingFiles(cwd, relativeImages);
-        if (missing.length > 0) {
-          console.error(chalk.red('\n✗ README.md shows images that do not exist:'));
-          missing.forEach((file) => console.error(chalk.red(`    ${file}`)));
-          console.error(chalk.gray('  Fix the paths or add the files, then publish again.'));
-          process.exit(1);
-        }
-        packagedReadme = markdown;
-      }
+      const packagedReadme = readPackagedReadme(cwd, { owner, repo, ref: releaseTag });
 
       // 7. Package
       const pkgSpinner = ora('Packaging extension...').start();
@@ -389,81 +308,84 @@ export function registerPublish(program: Command) {
       let downloadUrl: string;
       let releaseHtmlUrl: string;
 
-      if (existingRelease) {
-        // Find existing zip asset
-        const existingAsset = existingRelease.assets?.find((a: any) => a.name.endsWith('.zip'));
+      try {
+        if (existingRelease) {
+          // Find existing zip asset
+          const existingAsset = existingRelease.assets?.find((a: any) => a.name.endsWith('.zip'));
 
-        if (existingAsset) {
-          // Release and asset both exist — fully completed in previous run
-          console.log(
-            chalk.yellow(`⚠ Release ${releaseTag} already exists — resuming from store submission`),
-          );
-          downloadUrl = existingAsset.browser_download_url;
-          releaseHtmlUrl = existingRelease.html_url;
+          if (existingAsset) {
+            // Release and asset both exist — fully completed in previous run
+            console.log(
+              chalk.yellow(
+                `⚠ Release ${releaseTag} already exists — resuming from store submission`,
+              ),
+            );
+            downloadUrl = existingAsset.browser_download_url;
+            releaseHtmlUrl = existingRelease.html_url;
 
-          // Compute checksum from the ACTUAL uploaded file (not the fresh local build)
-          const resumeSpinner = ora('Verifying existing asset checksum...').start();
-          const assetResponse = await fetch(existingAsset.browser_download_url);
-          const assetBuffer = Buffer.from(await assetResponse.arrayBuffer());
-          checksum = computeChecksum(assetBuffer);
-          resumeSpinner.succeed('Existing asset checksum verified');
+            // Compute checksum from the ACTUAL uploaded file (not the fresh local build)
+            const resumeSpinner = ora('Verifying existing asset checksum...').start();
+            const assetResponse = await fetch(existingAsset.browser_download_url);
+            const assetBuffer = Buffer.from(await assetResponse.arrayBuffer());
+            checksum = computeChecksum(assetBuffer);
+            resumeSpinner.succeed('Existing asset checksum verified');
+          } else {
+            // Release exists but asset missing — upload asset only
+            const uploadSpinner = ora('Uploading missing asset to existing release...').start();
+            const zipBuffer = fs.readFileSync(zipPath);
+            const asset = await github.uploadReleaseAsset(
+              existingRelease.upload_url,
+              zipBuffer,
+              `${manifest.id}-${manifest.version}.zip`,
+            );
+            uploadSpinner.succeed('Asset uploaded to existing release');
+            downloadUrl = asset.browser_download_url;
+            releaseHtmlUrl = existingRelease.html_url;
+          }
         } else {
-          // Release exists but asset missing — upload asset only
-          const uploadSpinner = ora('Uploading missing asset to existing release...').start();
+          // Fresh publish — create release and upload asset
+          const releaseBody =
+            manifest.type === 'theme'
+              ? [
+                  manifest.description,
+                  '',
+                  '## Theme',
+                  'Install in Asyar via Settings → Appearance → Custom Themes.',
+                  '',
+                  '_Published via Asyar CLI_',
+                ].join('\n')
+              : [
+                  manifest.description,
+                  '',
+                  '## Commands',
+                  ...manifest.commands.map((c) => `- **${c.name}**: ${c.description}`),
+                  '',
+                  '_Published via Asyar CLI_',
+                ].join('\n');
+
+          const releaseSpinner = ora('Creating GitHub Release...').start();
+          const release = await github.createRelease(owner, repo, {
+            tag: releaseTag,
+            name: `${manifest.name} ${releaseTag}`,
+            body: releaseBody,
+            targetCommitish: targetSha,
+          });
+          releaseSpinner.succeed(`GitHub Release created: ${releaseTag}`);
+
+          const uploadSpinner = ora('Uploading package...').start();
           const zipBuffer = fs.readFileSync(zipPath);
           const asset = await github.uploadReleaseAsset(
-            existingRelease.upload_url,
+            release.upload_url,
             zipBuffer,
             `${manifest.id}-${manifest.version}.zip`,
           );
-          uploadSpinner.succeed('Asset uploaded to existing release');
+          uploadSpinner.succeed('Package uploaded');
           downloadUrl = asset.browser_download_url;
-          releaseHtmlUrl = existingRelease.html_url;
+          releaseHtmlUrl = release.html_url;
         }
-      } else {
-        // Fresh publish — create release and upload asset
-        const releaseBody =
-          manifest.type === 'theme'
-            ? [
-                manifest.description,
-                '',
-                '## Theme',
-                'Install in Asyar via Settings → Appearance → Custom Themes.',
-                '',
-                '_Published via Asyar CLI_',
-              ].join('\n')
-            : [
-                manifest.description,
-                '',
-                '## Commands',
-                ...manifest.commands.map((c) => `- **${c.name}**: ${c.description}`),
-                '',
-                '_Published via Asyar CLI_',
-              ].join('\n');
-
-        const releaseSpinner = ora('Creating GitHub Release...').start();
-        const release = await github.createRelease(owner, repo, {
-          tag: releaseTag,
-          name: `${manifest.name} ${releaseTag}`,
-          body: releaseBody,
-          targetCommitish: targetSha,
-        });
-        releaseSpinner.succeed(`GitHub Release created: ${releaseTag}`);
-
-        const uploadSpinner = ora('Uploading package...').start();
-        const zipBuffer = fs.readFileSync(zipPath);
-        const asset = await github.uploadReleaseAsset(
-          release.upload_url,
-          zipBuffer,
-          `${manifest.id}-${manifest.version}.zip`,
-        );
-        uploadSpinner.succeed('Package uploaded');
-        downloadUrl = asset.browser_download_url;
-        releaseHtmlUrl = release.html_url;
+      } finally {
+        fs.rmSync(zipPath, { force: true });
       }
-
-      // Clean up temp zip
-      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
 
       // 10. Notify Asyar Store
       const storeSpinner = ora('Submitting to Asyar Store...').start();
