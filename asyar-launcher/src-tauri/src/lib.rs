@@ -287,10 +287,22 @@ pub fn apply_linux_webkit_dmabuf_workaround() {
 ///
 /// Scoped to the AppImage on purpose: `.deb`/`.rpm` bundles link the host's
 /// own WebKitGTK, which matches the host FreeType and cannot hit this.
-const LINUX_COLRV1_FONTCONFIG: &str = r#"<?xml version="1.0"?>
+///
+/// The filename globs are a best-effort heuristic: whether a font is COLRv1 is
+/// a property of its tables, not its name, and Fontconfig cannot inspect those.
+/// The base host config is included from wherever Fontconfig would have found
+/// it (see `linux_host_fontconfig_base`), so the user's own setup is preserved.
+fn linux_colrv1_fontconfig_xml(base_conf: &std::path::Path) -> String {
+    let base = base_conf
+        .to_string_lossy()
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;");
+    format!(
+        r#"<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
-  <include ignore_missing="no">/etc/fonts/fonts.conf</include>
+  <include ignore_missing="yes">{base}</include>
   <selectfont>
     <rejectfont>
       <glob>/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf</glob>
@@ -300,7 +312,23 @@ const LINUX_COLRV1_FONTCONFIG: &str = r#"<?xml version="1.0"?>
     </rejectfont>
   </selectfont>
 </fontconfig>
-"#;
+"#
+    )
+}
+
+/// Finds the host's top-level `fonts.conf`: `FONTCONFIG_PATH` entries first
+/// (as Fontconfig itself does), then the common system locations. `None` when
+/// none exists, in which case the workaround is skipped rather than risking a
+/// config that loads no fonts at all.
+fn linux_host_fontconfig_base(fontconfig_path: Option<&str>) -> Option<std::path::PathBuf> {
+    fontconfig_path
+        .into_iter()
+        .flat_map(|paths| paths.split(':'))
+        .filter(|dir| !dir.is_empty())
+        .chain(["/etc/fonts", "/usr/local/etc/fonts"])
+        .map(|dir| std::path::Path::new(dir).join("fonts.conf"))
+        .find(|candidate| candidate.is_file())
+}
 
 /// Decides whether the COLRv1 workaround should run. Pure, so it is testable.
 pub(crate) fn linux_colrv1_font_workaround_enabled(
@@ -312,14 +340,29 @@ pub(crate) fn linux_colrv1_font_workaround_enabled(
     is_linux && is_appimage && !opt_out && existing_fontconfig_file.is_none()
 }
 
-fn linux_colrv1_fontconfig_path() -> Option<std::path::PathBuf> {
-    let cache_root = match std::env::var_os("XDG_CACHE_HOME") {
-        Some(dir) => std::path::PathBuf::from(dir),
-        None => std::path::PathBuf::from(std::env::var_os("HOME")?).join(".cache"),
-    };
-    Some(cache_root.join("asyar").join("fonts.conf"))
+/// Resolves the cache root per the XDG spec: `XDG_CACHE_HOME` only when it is a
+/// non-empty absolute path, otherwise `$HOME/.cache`.
+fn linux_cache_root(
+    xdg_cache_home: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+) -> Option<std::path::PathBuf> {
+    xdg_cache_home
+        .map(std::path::PathBuf::from)
+        .filter(|dir| dir.is_absolute())
+        .or_else(|| {
+            home.filter(|h| !h.is_empty())
+                .map(|h| std::path::PathBuf::from(h).join(".cache"))
+        })
 }
 
+fn linux_colrv1_fontconfig_path() -> Option<std::path::PathBuf> {
+    let root = linux_cache_root(std::env::var_os("XDG_CACHE_HOME"), std::env::var_os("HOME"))?;
+    Some(root.join("asyar").join("fonts.conf"))
+}
+
+/// Writes `contents` to `path` unless it already holds them. The write goes
+/// through a sibling temp file and a rename, so a second launcher instance
+/// starting concurrently never reads a half-written config.
 fn write_if_changed(path: &std::path::Path, contents: &str) -> std::io::Result<()> {
     if let Ok(existing) = std::fs::read_to_string(path) {
         if existing == contents {
@@ -329,7 +372,11 @@ fn write_if_changed(path: &std::path::Path, contents: &str) -> std::io::Result<(
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, contents)
+    let tmp = path.with_extension(format!("conf.tmp{}", std::process::id()));
+    std::fs::write(&tmp, contents)?;
+    std::fs::rename(&tmp, path).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })
 }
 
 /// Applies the COLRv1 Fontconfig workaround before the webview is created.
@@ -351,7 +398,12 @@ pub fn apply_linux_colrv1_font_workaround() {
     let Some(path) = linux_colrv1_fontconfig_path() else {
         return;
     };
-    if let Err(err) = write_if_changed(&path, LINUX_COLRV1_FONTCONFIG) {
+    let Some(base) = linux_host_fontconfig_base(std::env::var("FONTCONFIG_PATH").ok().as_deref())
+    else {
+        eprintln!("[asyar linux] no host fonts.conf found; skipping COLRv1 workaround");
+        return;
+    };
+    if let Err(err) = write_if_changed(&path, &linux_colrv1_fontconfig_xml(&base)) {
         eprintln!(
             "[asyar linux] could not write fontconfig workaround at {}: {err}",
             path.display()
@@ -773,7 +825,68 @@ mod linux_webkit_dmabuf_workaround_tests {
 
 #[cfg(test)]
 mod linux_colrv1_font_tests {
-    use super::linux_colrv1_font_workaround_enabled;
+    use super::{
+        linux_cache_root, linux_colrv1_font_workaround_enabled, linux_colrv1_fontconfig_xml,
+        linux_host_fontconfig_base, write_if_changed,
+    };
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+
+    fn os(s: &str) -> Option<OsString> {
+        Some(OsString::from(s))
+    }
+
+    #[test]
+    fn cache_root_uses_absolute_xdg_cache_home() {
+        assert_eq!(
+            linux_cache_root(os("/x/cache"), os("/home/u")),
+            Some(PathBuf::from("/x/cache"))
+        );
+    }
+
+    #[test]
+    fn cache_root_ignores_empty_or_relative_xdg_cache_home() {
+        for bad in ["", "relative/cache"] {
+            assert_eq!(
+                linux_cache_root(os(bad), os("/home/u")),
+                Some(PathBuf::from("/home/u/.cache"))
+            );
+        }
+        assert_eq!(
+            linux_cache_root(None, os("/home/u")),
+            Some(PathBuf::from("/home/u/.cache"))
+        );
+        assert_eq!(linux_cache_root(None, None), None);
+    }
+
+    #[test]
+    fn fontconfig_xml_is_wellformed_and_escapes_the_base_path() {
+        let xml = linux_colrv1_fontconfig_xml(Path::new("/a&b/fonts.conf"));
+        assert!(xml.contains("/a&amp;b/fonts.conf"));
+        assert!(xml.contains(r#"ignore_missing="yes""#));
+        assert!(xml.contains("<rejectfont>") && xml.trim_end().ends_with("</fontconfig>"));
+    }
+
+    #[test]
+    fn host_base_prefers_fontconfig_path_entries() {
+        let dir = std::env::temp_dir().join(format!("asyar-fc-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("fonts.conf"), "<fontconfig/>").unwrap();
+        let found = linux_host_fontconfig_base(Some(&format!("/nonexistent::{}", dir.display())));
+        assert_eq!(found, Some(dir.join("fonts.conf")));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn write_if_changed_replaces_contents_without_leaving_temp_files() {
+        let dir = std::env::temp_dir().join(format!("asyar-wic-{}", std::process::id()));
+        let path = dir.join("fonts.conf");
+        write_if_changed(&path, "one").unwrap();
+        write_if_changed(&path, "two").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "two");
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn disabled_outside_linux() {
