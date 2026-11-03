@@ -308,81 +308,84 @@ export function registerPublish(program: Command) {
       let downloadUrl: string;
       let releaseHtmlUrl: string;
 
-      if (existingRelease) {
-        // Find existing zip asset
-        const existingAsset = existingRelease.assets?.find((a: any) => a.name.endsWith('.zip'));
+      try {
+        if (existingRelease) {
+          // Find existing zip asset
+          const existingAsset = existingRelease.assets?.find((a: any) => a.name.endsWith('.zip'));
 
-        if (existingAsset) {
-          // Release and asset both exist — fully completed in previous run
-          console.log(
-            chalk.yellow(`⚠ Release ${releaseTag} already exists — resuming from store submission`),
-          );
-          downloadUrl = existingAsset.browser_download_url;
-          releaseHtmlUrl = existingRelease.html_url;
+          if (existingAsset) {
+            // Release and asset both exist — fully completed in previous run
+            console.log(
+              chalk.yellow(
+                `⚠ Release ${releaseTag} already exists — resuming from store submission`,
+              ),
+            );
+            downloadUrl = existingAsset.browser_download_url;
+            releaseHtmlUrl = existingRelease.html_url;
 
-          // Compute checksum from the ACTUAL uploaded file (not the fresh local build)
-          const resumeSpinner = ora('Verifying existing asset checksum...').start();
-          const assetResponse = await fetch(existingAsset.browser_download_url);
-          const assetBuffer = Buffer.from(await assetResponse.arrayBuffer());
-          checksum = computeChecksum(assetBuffer);
-          resumeSpinner.succeed('Existing asset checksum verified');
+            // Compute checksum from the ACTUAL uploaded file (not the fresh local build)
+            const resumeSpinner = ora('Verifying existing asset checksum...').start();
+            const assetResponse = await fetch(existingAsset.browser_download_url);
+            const assetBuffer = Buffer.from(await assetResponse.arrayBuffer());
+            checksum = computeChecksum(assetBuffer);
+            resumeSpinner.succeed('Existing asset checksum verified');
+          } else {
+            // Release exists but asset missing — upload asset only
+            const uploadSpinner = ora('Uploading missing asset to existing release...').start();
+            const zipBuffer = fs.readFileSync(zipPath);
+            const asset = await github.uploadReleaseAsset(
+              existingRelease.upload_url,
+              zipBuffer,
+              `${manifest.id}-${manifest.version}.zip`,
+            );
+            uploadSpinner.succeed('Asset uploaded to existing release');
+            downloadUrl = asset.browser_download_url;
+            releaseHtmlUrl = existingRelease.html_url;
+          }
         } else {
-          // Release exists but asset missing — upload asset only
-          const uploadSpinner = ora('Uploading missing asset to existing release...').start();
+          // Fresh publish — create release and upload asset
+          const releaseBody =
+            manifest.type === 'theme'
+              ? [
+                  manifest.description,
+                  '',
+                  '## Theme',
+                  'Install in Asyar via Settings → Appearance → Custom Themes.',
+                  '',
+                  '_Published via Asyar CLI_',
+                ].join('\n')
+              : [
+                  manifest.description,
+                  '',
+                  '## Commands',
+                  ...manifest.commands.map((c) => `- **${c.name}**: ${c.description}`),
+                  '',
+                  '_Published via Asyar CLI_',
+                ].join('\n');
+
+          const releaseSpinner = ora('Creating GitHub Release...').start();
+          const release = await github.createRelease(owner, repo, {
+            tag: releaseTag,
+            name: `${manifest.name} ${releaseTag}`,
+            body: releaseBody,
+            targetCommitish: targetSha,
+          });
+          releaseSpinner.succeed(`GitHub Release created: ${releaseTag}`);
+
+          const uploadSpinner = ora('Uploading package...').start();
           const zipBuffer = fs.readFileSync(zipPath);
           const asset = await github.uploadReleaseAsset(
-            existingRelease.upload_url,
+            release.upload_url,
             zipBuffer,
             `${manifest.id}-${manifest.version}.zip`,
           );
-          uploadSpinner.succeed('Asset uploaded to existing release');
+          uploadSpinner.succeed('Package uploaded');
           downloadUrl = asset.browser_download_url;
-          releaseHtmlUrl = existingRelease.html_url;
+          releaseHtmlUrl = release.html_url;
         }
-      } else {
-        // Fresh publish — create release and upload asset
-        const releaseBody =
-          manifest.type === 'theme'
-            ? [
-                manifest.description,
-                '',
-                '## Theme',
-                'Install in Asyar via Settings → Appearance → Custom Themes.',
-                '',
-                '_Published via Asyar CLI_',
-              ].join('\n')
-            : [
-                manifest.description,
-                '',
-                '## Commands',
-                ...manifest.commands.map((c) => `- **${c.name}**: ${c.description}`),
-                '',
-                '_Published via Asyar CLI_',
-              ].join('\n');
-
-        const releaseSpinner = ora('Creating GitHub Release...').start();
-        const release = await github.createRelease(owner, repo, {
-          tag: releaseTag,
-          name: `${manifest.name} ${releaseTag}`,
-          body: releaseBody,
-          targetCommitish: targetSha,
-        });
-        releaseSpinner.succeed(`GitHub Release created: ${releaseTag}`);
-
-        const uploadSpinner = ora('Uploading package...').start();
-        const zipBuffer = fs.readFileSync(zipPath);
-        const asset = await github.uploadReleaseAsset(
-          release.upload_url,
-          zipBuffer,
-          `${manifest.id}-${manifest.version}.zip`,
-        );
-        uploadSpinner.succeed('Package uploaded');
-        downloadUrl = asset.browser_download_url;
-        releaseHtmlUrl = release.html_url;
+      } finally {
+        fs.rmSync(zipPath, { force: true });
       }
-
-      // Clean up temp zip
-      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
 
       // 10. Notify Asyar Store
       const storeSpinner = ora('Submitting to Asyar Store...').start();

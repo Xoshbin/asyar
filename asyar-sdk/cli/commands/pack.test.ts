@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Command } from 'commander';
 import AdmZip from 'adm-zip';
 import { execFileSync } from 'child_process';
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -29,7 +30,7 @@ import { runViteBuild, verifyBuildOutput } from './build';
 import { requireAuth, getOrAuthorizeGitHub, login } from '../lib/auth';
 import { registerPack, resolvePackOutput } from './pack';
 
-const ID = 'org.asyar.pack-fixture';
+const ID = `org.asyar.pack-fixture-${randomUUID()}`;
 const VERSION = '1.2.3';
 
 const manifest = {
