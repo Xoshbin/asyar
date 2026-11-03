@@ -171,6 +171,43 @@ impl WebSearchTool {
         }
     }
 
+    /// Like `resolve_key`, but returns `Ok(None)` when no key is configured anywhere.
+    /// Storage and decryption errors are still returned as errors.
+    fn resolve_optional_key(
+        &self,
+        engine: &str,
+        env_var: &str,
+    ) -> Result<Option<zeroize::Zeroizing<String>>, AppError> {
+        if let WebSearchCredentialSource::Store {
+            data_store,
+            master_key,
+        } = &self.credentials
+        {
+            let conn = data_store.conn()?;
+            match crate::storage::ai_credentials::get(
+                &conn,
+                &crate::storage::ai_credentials::web_search_credential_id(engine),
+                master_key,
+            ) {
+                Ok(Some(k)) => return Ok(Some(k)),
+                Ok(None) => {}
+                Err(asyar_storage::StorageError::Encryption(_)) => {
+                    return Err(AppError::Validation(
+                        "Web search API key cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.".into(),
+                    ));
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+        if let Ok(env_val) = std::env::var(env_var) {
+            let trimmed = env_val.trim();
+            if !trimmed.is_empty() {
+                return Ok(Some(zeroize::Zeroizing::new(trimmed.to_string())));
+            }
+        }
+        Ok(None)
+    }
+
     #[allow(dead_code)]
     pub(crate) async fn execute_search(
         &self,
@@ -213,7 +250,9 @@ impl WebSearchTool {
             }
             "keenable" => {
                 // The key is optional: without one Keenable's key-free endpoint is used.
-                let key = self.resolve_key("keenable", "KEENABLE_API_KEY").ok();
+                // Only a genuinely absent key falls back to the public endpoint; credential
+                // read/decrypt failures are surfaced instead of silently dropping the key.
+                let key = self.resolve_optional_key("keenable", "KEENABLE_API_KEY")?;
                 self.search_keenable(query, limit, key.as_ref().map(|k| k.as_str()))
                     .await
             }

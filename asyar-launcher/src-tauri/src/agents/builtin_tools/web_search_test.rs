@@ -449,10 +449,10 @@ fn test_keenable_request_shape() {
 
 #[test]
 fn test_parse_search_response_keenable() {
-    let body = r#"{"results":[{"title":"Tokio","url":"https://tokio.rs","description":"","snippet":"An async runtime.","published_at":null}]}"#;
+    let body = r#"{"results":[{"title":"Tokio","url":"https://tokio.rs/","description":"","snippet":"An async runtime.","published_at":null}]}"#;
     let (sources, results) = parse_search_response(body, 5);
     assert_eq!(sources.len(), 1);
-    assert_eq!(results[0].url, "https://tokio.rs");
+    assert_eq!(results[0].url, "https://tokio.rs/");
     assert_eq!(results[0].snippet, "An async runtime.");
 }
 
