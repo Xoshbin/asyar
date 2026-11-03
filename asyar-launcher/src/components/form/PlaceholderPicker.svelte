@@ -115,7 +115,7 @@
     justify-content: center;
     padding: var(--space-2) var(--space-5);
     min-height: 40px;
-    cursor: pointer;
+    cursor: default;
     gap: var(--space-0-5);
   }
 

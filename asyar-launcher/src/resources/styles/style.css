@@ -832,20 +832,20 @@ html[data-platform='macos'] .app-root {
   }
 
   .back-button {
-    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer flex items-center gap-2;
+    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-default flex items-center gap-2;
     z-index: var(--z-raised);
     transition: color var(--transition-fast);
   }
 
   .result-item {
-    @apply w-full text-left flex flex-col justify-center gap-1 cursor-pointer;
+    @apply w-full text-left flex flex-col justify-center gap-1 cursor-default;
     /* 8px here plus the list's own --space-3 inset puts the row's content on
        16px — the same left edge as the query in the header, which uses px-4.
        This was 9px, which put every result 1px to the right of the text the
        user typed and sat off the 2px grid. */
     padding: 0 var(--space-3);
     min-height: var(--shell-row-h);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-md);
     border: none;
 
     &:active {
@@ -1425,9 +1425,9 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     align-items: center;
     gap: 10px;
     padding: 10px 16px;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-md);
     margin-bottom: 1px;
-    transition: background var(--transition-fast);
+    transition: none;
     cursor: default;
   }
 
@@ -1705,7 +1705,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     border: 1px solid var(--border-color);
     padding: 3px 10px;
     border-radius: var(--radius-sm);
-    cursor: pointer;
+    cursor: default;
     transition: all var(--transition-fast);
   }
   .md-content .md-copy-btn:hover {

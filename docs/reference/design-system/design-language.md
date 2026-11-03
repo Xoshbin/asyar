@@ -1030,7 +1030,7 @@ Principle II in the codebase, because what makes it right is what is not in it.
   align-items: center;
   gap: var(--space-5); /* 12px */
   padding: var(--space-5) var(--space-6); /* 12px / 16px */
-  border-radius: var(--radius-xl); /* 12px */
+  border-radius: var(--radius-md); /* 8px */
   margin-bottom: var(--space-0-5); /* 2px  */
 
   position: relative;

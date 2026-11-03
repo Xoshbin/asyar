@@ -81,7 +81,7 @@
     color: var(--text-secondary);
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
-    cursor: pointer;
+    cursor: default;
     padding: 0;
   }
   .summary {

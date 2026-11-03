@@ -688,7 +688,7 @@
   .chip-name {
     font-weight: 600;
     color: var(--text-secondary);
-    cursor: pointer;
+    cursor: default;
   }
   .chip-input,
   .tool-result {

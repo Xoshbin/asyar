@@ -182,7 +182,7 @@
     background: none;
     border: none;
     color: var(--asyar-brand);
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-md);
     padding: 0;
     text-align: left;

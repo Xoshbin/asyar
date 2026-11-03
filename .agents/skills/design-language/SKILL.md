@@ -864,21 +864,22 @@ that is the system telling you a token is missing. Add the token instead.
 
 Run `pnpm check:design`. It fails on:
 
-| Rule                   | What it catches                                                          |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `undefined-token`      | `var(--x)` where `--x` is defined nowhere — the declaration is dead      |
-| `token-fallback`       | `var(--x, something)`                                                    |
-| `hardcoded-color`      | A hex, `rgb()`, `white` or `black` in a colour property                  |
-| `voice-as-fill`        | `--accent-*` as a background under `--text-on-accent`                    |
-| `space-as-size`        | `--space-*` on a width or height where a `--size-*` holds the same value |
-| `deprecated-token`     | A new use of `--space-1-5`/`-2-5`/`-5-5`/`-7-5`                          |
-| `tailwind-palette`     | `bg-red-500` and friends                                                 |
-| `raw-px`               | Pixels on font-size, padding, margin, gap, or border-radius              |
-| `arbitrary-px`         | `min-h-[56px]` and friends                                               |
-| `bare-z-index`         | `z-index: 50`, `z-40`, `z-[100]`                                         |
-| `missing-scrollbar`    | A scrolling container with no `.custom-scrollbar`                        |
-| `unexported-component` | A component missing from the barrel                                      |
-| `stale-a11y-ignore`    | Svelte 4 hyphenated `svelte-ignore` names                                |
+| Rule                   | What it catches                                                              |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `undefined-token`      | `var(--x)` where `--x` is defined nowhere — the declaration is dead          |
+| `token-fallback`       | `var(--x, something)`                                                        |
+| `hardcoded-color`      | A hex, `rgb()`, `white` or `black` in a colour property                      |
+| `voice-as-fill`        | `--accent-*` as a background under `--text-on-accent`                        |
+| `space-as-size`        | `--space-*` on a width or height where a `--size-*` holds the same value     |
+| `deprecated-token`     | A new use of `--space-1-5`/`-2-5`/`-5-5`/`-7-5`                              |
+| `tailwind-palette`     | `bg-red-500` and friends                                                     |
+| `raw-px`               | Pixels on font-size, padding, margin, gap, or border-radius                  |
+| `arbitrary-px`         | `min-h-[56px]` and friends                                                   |
+| `bare-z-index`         | `z-index: 50`, `z-40`, `z-[100]`                                             |
+| `web-cursor`           | `cursor: pointer` / `not-allowed` or `cursor-pointer` / `cursor-not-allowed` |
+| `missing-scrollbar`    | A scrolling container with no `.custom-scrollbar`                            |
+| `unexported-component` | A component missing from the barrel                                          |
+| `stale-a11y-ignore`    | Svelte 4 hyphenated `svelte-ignore` names                                    |
 
 Then check the things a script cannot:
 

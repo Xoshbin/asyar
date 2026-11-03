@@ -157,7 +157,7 @@
     background: var(--bg-tertiary);
     color: var(--text-primary);
     font-size: var(--font-size-xs);
-    cursor: pointer;
+    cursor: default;
   }
   .remount-btn:hover {
     background: var(--bg-hover);

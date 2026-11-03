@@ -361,7 +361,7 @@
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
     font-weight: 500;
-    cursor: pointer;
+    cursor: default;
   }
   /* The chip's own border carries focus, the same as a text chip — those are
      inputs, which the global focus ring already exempts. */

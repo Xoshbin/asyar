@@ -297,7 +297,7 @@
             type="button"
             title={t('features.portals.ui.insert_placeholder')}
             onclick={openPickerViaButton}
-            style="margin-left: auto; padding: 2px 6px; font-size: 11px; background: var(--bg-hover); border-radius: var(--radius-xs); border: 1px solid var(--border-color); cursor: pointer;"
+            style="margin-left: auto; padding: 2px 6px; font-size: 11px; background: var(--bg-hover); border-radius: var(--radius-xs); border: 1px solid var(--border-color); cursor: default;"
             >{'{ }'}</button
           >
         </label>
@@ -587,7 +587,7 @@
     font-size: var(--font-size-sm);
     width: 100%;
     box-sizing: border-box;
-    cursor: pointer;
+    cursor: default;
   }
 
   .field-error {
@@ -628,7 +628,7 @@
     gap: var(--space-2);
     font-size: var(--font-size-sm);
     color: var(--text-primary);
-    cursor: pointer;
+    cursor: default;
   }
 
   .silent-hint {
@@ -641,7 +641,7 @@
   }
 
   .field-select:disabled {
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .cache-manager {
@@ -716,7 +716,7 @@
   .icon-button {
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-sm);
     padding: var(--space-1);
     border-radius: var(--radius-sm);
@@ -735,7 +735,7 @@
     font-size: var(--font-size-xs);
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-sm);
-    cursor: pointer;
+    cursor: default;
     transition: all 0.15s ease;
   }
 

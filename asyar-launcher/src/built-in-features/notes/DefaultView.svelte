@@ -419,7 +419,7 @@
     padding: var(--space-2) 0;
     font-size: var(--font-size-sm);
     color: var(--accent-primary);
-    cursor: pointer;
+    cursor: default;
   }
   .backlink-item:hover {
     text-decoration: underline;

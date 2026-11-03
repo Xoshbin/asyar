@@ -64,7 +64,7 @@
       {/if}
       <button
         class="mt-1 px-4 py-2 rounded-lg text-sm font-medium"
-        style="background: var(--bg-tertiary); border: 1px solid var(--separator); color: var(--text-primary); cursor: pointer;"
+        style="background: var(--bg-tertiary); border: 1px solid var(--separator); color: var(--text-primary); cursor: default;"
         onclick={() => openUrl('https://asyar.org/pricing')}
       >
         {t('entitlement.view_plans')}

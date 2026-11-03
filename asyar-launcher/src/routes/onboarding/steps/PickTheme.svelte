@@ -331,7 +331,7 @@
     width: 100%;
     padding: var(--space-3);
     border-radius: var(--radius-md);
-    cursor: pointer;
+    cursor: default;
     user-select: none;
     outline: none;
   }

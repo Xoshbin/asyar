@@ -308,7 +308,7 @@
     padding: var(--space-5);
     border-radius: var(--radius-md);
     border: 2px solid var(--border-color);
-    cursor: pointer;
+    cursor: default;
     transition:
       border-color var(--transition-fast),
       background var(--transition-fast);
@@ -355,7 +355,7 @@
   :global(.location-row .field-input) {
     flex: 1;
     opacity: 0.75;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .form-footer {

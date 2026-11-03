@@ -147,6 +147,13 @@ const TAILWIND_PALETTE =
 
 const LINE_RULES = [
   {
+    id: 'web-cursor',
+    test: (line) =>
+      /(?:cursor\s*:\s*(?:pointer|not-allowed)\b|\bcursor-(?:pointer|not-allowed)\b)/.exec(line),
+    message: 'web cursor on a desktop control — native desktop controls use cursor: default',
+    fix: 'Use cursor: default (including on :disabled, where opacity: 0.5 communicates state).',
+  },
+  {
     id: 'token-fallback',
     test: (line) => /var\(\s*--[a-z0-9-]+\s*,/.exec(line),
     message: 'var() fallback — every token is always defined, so a fallback only hides a typo',

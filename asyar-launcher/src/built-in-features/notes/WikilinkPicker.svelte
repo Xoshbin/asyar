@@ -117,7 +117,7 @@
     align-items: center;
     font-size: var(--font-size-sm);
     color: var(--text-primary);
-    cursor: pointer;
+    cursor: default;
   }
 
   .picker-item:hover,

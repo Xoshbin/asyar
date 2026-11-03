@@ -722,7 +722,7 @@
     color: var(--accent-primary);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     padding: 0;
     transition: opacity var(--dur-instant) var(--ease-travel);
   }

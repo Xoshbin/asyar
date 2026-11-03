@@ -214,7 +214,7 @@
     color: var(--text-tertiary);
     font-size: var(--font-size-md);
     line-height: 1;
-    cursor: pointer;
+    cursor: default;
     padding: 0 var(--space-1);
     border-radius: var(--radius-xs);
   }

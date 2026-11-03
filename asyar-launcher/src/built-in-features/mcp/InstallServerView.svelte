@@ -414,7 +414,7 @@
     background: none;
     border: none;
     color: var(--text-secondary);
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-xs);
     padding: var(--space-1) 0;
     text-align: left;

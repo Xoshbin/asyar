@@ -369,7 +369,7 @@
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
     line-height: 1.4;
-    cursor: pointer;
+    cursor: default;
     text-align: left;
     box-sizing: border-box;
     transition:
@@ -385,7 +385,7 @@
 
   .ms-trigger:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .ms-trigger.is-empty .ms-trigger-label {
@@ -470,7 +470,7 @@
     color: var(--text-tertiary);
     font-size: var(--font-size-md);
     line-height: 1;
-    cursor: pointer;
+    cursor: default;
     padding: var(--space-0-5);
     border-radius: var(--radius-xs);
     display: flex;
@@ -496,7 +496,7 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--space-2) var(--space-3);
-    cursor: pointer;
+    cursor: default;
     gap: var(--space-2);
     color: var(--text-primary);
     transition: background var(--dur-instant) var(--ease-travel);

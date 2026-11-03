@@ -72,7 +72,7 @@
     gap: var(--space-1);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     color: var(--text-secondary);
     font-size: var(--font-size-xs);
     font-weight: 500;
@@ -97,7 +97,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-sm);
     color: var(--text-primary);
   }

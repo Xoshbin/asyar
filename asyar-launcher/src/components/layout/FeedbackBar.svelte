@@ -109,7 +109,7 @@
     background: transparent;
     color: currentColor;
     font: inherit;
-    cursor: pointer;
+    cursor: default;
   }
   .feedback-action:hover,
   .feedback-action:focus-visible {
