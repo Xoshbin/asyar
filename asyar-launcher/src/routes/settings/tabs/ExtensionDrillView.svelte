@@ -52,7 +52,6 @@
   {:else}
     <Toggle
       checked={extension.enabled === true}
-      disabled={handler.togglingExtension !== null}
       onchange={() => handler.toggleExtension(extension)}
     />
   {/if}

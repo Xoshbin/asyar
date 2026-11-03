@@ -2,19 +2,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 
-const { emitMock, validateScanPathMock, updateSettingsMock, listApplicationsMock, openMock } =
-  vi.hoisted(() => ({
-    emitMock: vi.fn(async () => {}),
-    validateScanPathMock: vi.fn(
-      async (path: string): Promise<{ normalizedPath: string | null; error: string | null }> => ({
-        normalizedPath: path.trim().replace(/\/$/, ''),
-        error: null,
-      }),
-    ),
-    updateSettingsMock: vi.fn(async () => true),
-    listApplicationsMock: vi.fn(async () => []),
-    openMock: vi.fn(),
-  }));
+const {
+  emitMock,
+  validateScanPathMock,
+  updateSettingsMock,
+  setApplicationEnabledMock,
+  listApplicationsMock,
+  openMock,
+} = vi.hoisted(() => ({
+  emitMock: vi.fn(async () => {}),
+  validateScanPathMock: vi.fn(
+    async (path: string): Promise<{ normalizedPath: string | null; error: string | null }> => ({
+      normalizedPath: path.trim().replace(/\/$/, ''),
+      error: null,
+    }),
+  ),
+  updateSettingsMock: vi.fn(async () => true),
+  setApplicationEnabledMock: vi.fn(async () => true),
+  listApplicationsMock: vi.fn(async () => []),
+  openMock: vi.fn(),
+}));
 
 vi.mock('@tauri-apps/api/event', () => ({
   emit: emitMock,
@@ -38,6 +45,7 @@ vi.mock('../../../services/settings/settingsService.svelte', () => ({
       },
     },
     updateSettings: updateSettingsMock,
+    setApplicationEnabled: setApplicationEnabledMock,
   },
 }));
 
@@ -256,5 +264,25 @@ describe('Settings → Applications cache', () => {
     await waitFor(() => expect(listApplicationsMock).toHaveBeenCalled());
     expect(screen.getByText('Cached App')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('Settings → Applications enable toggle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetApplicationsCache();
+    listApplicationsMock.mockResolvedValue([]);
+  });
+
+  it('flips one application through the keyed setter, not a whole-section replace', async () => {
+    applicationsCache.apps = [{ id: 'a1', name: 'Cached App' } as never];
+    applicationsCache.hasLoadedOnce = true;
+    render(ApplicationsTab);
+
+    const boxes = screen.getAllByRole('checkbox');
+    await fireEvent.click(boxes[boxes.length - 1]);
+
+    expect(setApplicationEnabledMock).toHaveBeenCalledWith('a1', false);
+    expect(updateSettingsMock).not.toHaveBeenCalled();
   });
 });

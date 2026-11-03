@@ -139,7 +139,6 @@ function createHandler(extensions: unknown[] = [...features, storeExt]): Setting
     extensionError: '',
     pendingExtensionSelection: null,
     tabResetCounter: 0,
-    togglingExtension: null,
     preferencesVersion: 0,
     loadExtensions: vi.fn(),
     toggleExtension: vi.fn(),

@@ -110,7 +110,6 @@ function createHandler(extensions: unknown[] = []): SettingsHandler {
     extensionError: '',
     pendingExtensionSelection: null,
     tabResetCounter: 0,
-    togglingExtension: null,
     preferencesVersion: 0,
     loadExtensions: vi.fn(),
     toggleExtension: vi.fn(),
@@ -182,6 +181,15 @@ describe('ExtensionsTab surface settings and drill-down', () => {
     await fireEvent.change(boxes[1]);
     expect(handler.handleExtensionSearchToggle).toHaveBeenCalledTimes(1);
     expect(handler.handleExtensionAutoUpdateToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggling a row switch does not drill into the extension', async () => {
+    const handler = createHandler([thirdParty]);
+    render(ExtensionsTab, { props: { handler } });
+    const boxes = screen.getAllByRole('checkbox');
+    await fireEvent.click(boxes[boxes.length - 1]);
+    expect(screen.queryByRole('button', { name: 'settings.nav.back' })).toBeNull();
+    expect(screen.getByText('settings.advanced.extension_search')).toBeTruthy();
   });
 
   it('lists third-party extensions only', () => {

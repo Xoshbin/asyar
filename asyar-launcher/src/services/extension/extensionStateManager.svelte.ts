@@ -40,6 +40,38 @@ export class ExtensionStateManager {
   private manifestsById: Map<string, ExtendedManifest> = new Map();
   private reloadExtensionsCallback: () => Promise<void> = async () => {};
   private toggleQueue: Promise<boolean> = Promise.resolve(true);
+  private reloadTimer: ReturnType<typeof setTimeout> | null = null;
+  private reloadRun: Promise<void> = Promise.resolve();
+  /** Lets the Toggle animation finish before the heavy reload starts. */
+  private static readonly RELOAD_DEFER_MS = 250;
+
+  /**
+   * Full extension unload/load/index-sync is expensive; a toggle must not wait
+   * on it. Rapid toggles coalesce into one trailing reload, run serially.
+   */
+  private scheduleReload() {
+    if (this.reloadTimer) return;
+    this.reloadTimer = setTimeout(() => {
+      this.reloadTimer = null;
+      this.enqueueReload();
+    }, ExtensionStateManager.RELOAD_DEFER_MS);
+  }
+
+  private enqueueReload() {
+    this.reloadRun = this.reloadRun
+      .then(() => this.reloadExtensionsCallback())
+      .catch((error) => logService.error(`Extension reload after toggle failed: ${error}`));
+  }
+
+  /** Runs any deferred reload now and resolves once it has finished. */
+  async flushPendingReload(): Promise<void> {
+    if (this.reloadTimer) {
+      clearTimeout(this.reloadTimer);
+      this.reloadTimer = null;
+      this.enqueueReload();
+    }
+    await this.reloadRun;
+  }
 
   public init(
     manifestsById: Map<string, ExtendedManifest>,
@@ -87,7 +119,8 @@ export class ExtensionStateManager {
           return false;
         }
 
-        await settingsService.updateExtensionState(extensionId, enabled);
+        // Rust already persisted settings.dat; only mirror into memory.
+        settingsService.syncExtensionStateInMemory(extensionId, enabled);
 
         if (!enabled) {
           viewManager.closeViewsForExtension(extensionId);
@@ -98,7 +131,7 @@ export class ExtensionStateManager {
             enabled ? 'enabled' : 'disabled'
           }. Reloading extensions...`,
         );
-        await this.reloadExtensionsCallback();
+        this.scheduleReload();
         return true;
       } catch (error) {
         logService.error(`Failed to toggle extension state for '${extensionId}': ${error}`);

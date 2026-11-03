@@ -6,6 +6,7 @@ const mockTauriStore = vi.hoisted(() => ({
   get: vi.fn().mockResolvedValue(null),
   set: vi.fn().mockResolvedValue(undefined),
   save: vi.fn().mockResolvedValue(undefined),
+  onChange: vi.fn(),
 }));
 
 vi.mock('../log/logService', () => ({
@@ -336,6 +337,61 @@ describe('updateExtensionState', () => {
     svc.currentSettings.extensions.enabled.other = true;
     await settingsService.updateExtensionState('clipboard', false);
     expect(settingsService.getSettings().extensions.enabled.other).toBe(true);
+  });
+});
+
+// ── store.onChange self-echo ──────────────────────────────────────────────────
+
+describe('store.onChange self-echo suppression', () => {
+  let onChange: (key: string, value: unknown) => void;
+
+  beforeEach(async () => {
+    resetState();
+    mockTauriStore.get.mockResolvedValue(DEFAULT);
+    mockTauriStore.onChange.mockClear();
+    mockTauriStore.save.mockClear();
+    await settingsService.init();
+    onChange = mockTauriStore.onChange.mock.calls[0][0];
+    svc.ignoreOnChangeUntil = 0;
+  });
+
+  it('opens an ignore window after save() resolves', async () => {
+    await settingsService.save();
+    expect(svc.isSaving).toBe(false);
+    const before = svc.currentSettings;
+    onChange('settings', { ...DEFAULT, shortcut: { modifier: 'Alt', key: 'Z' } });
+    expect(svc.currentSettings).toBe(before);
+  });
+
+  it('opens an ignore window after syncExtensionStateInMemory() without saving', () => {
+    settingsService.syncExtensionStateInMemory('clipboard', false);
+    expect(settingsService.getSettings().extensions.enabled.clipboard).toBe(false);
+    expect(mockTauriStore.save).not.toHaveBeenCalled();
+    const before = svc.currentSettings;
+    onChange('settings', DEFAULT);
+    expect(svc.currentSettings).toBe(before);
+  });
+
+  it('applies remote changes once the window has elapsed', () => {
+    svc.ignoreOnChangeUntil = Date.now() - 1;
+    onChange('settings', { ...DEFAULT, shortcut: { modifier: 'Alt', key: 'Z' } });
+    expect(svc.currentSettings.shortcut.key).toBe('Z');
+  });
+});
+
+describe('setApplicationEnabled', () => {
+  beforeEach(() => {
+    resetState();
+    injectStore();
+  });
+
+  it('sets one key in place and persists', async () => {
+    const map = svc.currentSettings.search.applicationEnabled;
+    const ok = await settingsService.setApplicationEnabled('a1', false);
+    expect(ok).toBe(true);
+    expect(svc.currentSettings.search.applicationEnabled).toBe(map);
+    expect(svc.currentSettings.search.applicationEnabled.a1).toBe(false);
+    expect(mockTauriStore.save).toHaveBeenCalled();
   });
 });
 

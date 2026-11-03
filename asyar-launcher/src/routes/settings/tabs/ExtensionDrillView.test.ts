@@ -88,7 +88,6 @@ import ExtensionDrillView from './ExtensionDrillView.svelte';
 import type { SettingsHandler } from '../settingsHandlers.svelte';
 
 const handler = {
-  togglingExtension: null,
   preferencesVersion: 0,
   toggleExtension: vi.fn(),
   requestUninstallExtension: vi.fn(),

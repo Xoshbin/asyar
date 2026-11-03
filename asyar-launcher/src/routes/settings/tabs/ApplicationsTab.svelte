@@ -219,9 +219,9 @@
     return enabledMap[appId] !== false;
   }
 
-  async function handleToggleEnabled(app: IndexedApp) {
-    const next = { ...enabledMap, [app.id]: !isEnabled(app.id) };
-    await settingsService.updateSettings('search', { applicationEnabled: next });
+  function handleToggleEnabled(app: IndexedApp) {
+    // In-place keyed write flips the row at once; persistence runs behind it.
+    void settingsService.setApplicationEnabled(app.id, !isEnabled(app.id));
   }
 
   function openShortcutCapture(app: IndexedApp) {

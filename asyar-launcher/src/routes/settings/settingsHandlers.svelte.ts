@@ -147,7 +147,8 @@ export class SettingsHandler {
   extensions = $state<ExtensionItem[]>([]);
   isLoadingExtensions = $state(false);
   extensionError = $state('');
-  togglingExtension = $state<string | null>(null);
+  private togglingExtensions = new Set<string>();
+  private extensionsRescanInFlight = false;
   /**
    * Extension id a deep link (asyar:navigate-settings-tab) asked to select.
    * Consumed and cleared by the list tab (Built-in Features / Extensions) once the list is loaded.
@@ -312,9 +313,14 @@ export class SettingsHandler {
     // installing from the store while Settings is visible, then refocusing
     // it) — skip a redundant overlapping rescan rather than racing two
     // invoke() calls against each other.
-    if (this.isLoadingExtensions) return;
+    if (this.extensionsRescanInFlight) return;
+    this.extensionsRescanInFlight = true;
 
-    this.isLoadingExtensions = true;
+    // Only show the blocking loading state on the first load; background
+    // rescans (focus, extensions_updated, post-toggle reload) refresh in place
+    // so the table doesn't blank out and rebuild under the user's cursor.
+    const showLoading = this.extensions.length === 0;
+    if (showLoading) this.isLoadingExtensions = true;
     this.extensionError = '';
 
     try {
@@ -381,15 +387,40 @@ export class SettingsHandler {
       this.extensions = [];
     } finally {
       this.isLoadingExtensions = false;
+      this.extensionsRescanInFlight = false;
+    }
+  }
+
+  /**
+   * Enabling/disabling makes Rust broadcast `asyar:extension-enabled-changed`,
+   * and the main window (a parked, visible panel) rebuilds the extension host.
+   * That work has been seen to pull key-window status away from Settings, which
+   * kills hover and swallows the next click. If Settings was focused when the
+   * toggle started and loses focus in the settle window, take it back.
+   */
+  private async guardFocusDuringToggle(settleMs = 2000): Promise<void> {
+    try {
+      const win = getCurrentWindow();
+      if (!(await win.isFocused())) return;
+      const unlisten = await win.onFocusChanged(({ payload: focused }) => {
+        if (!focused) void win.setFocus();
+      });
+      setTimeout(unlisten, settleMs);
+    } catch (err) {
+      logService.debug(`Focus guard unavailable: ${err}`);
     }
   }
 
   async toggleExtension(extension: ExtensionItem) {
     if (extension.isBuiltIn && !extension.disableable) return;
-    if (this.togglingExtension === extension.title) return;
+    // In-flight guard instead of a disabled Toggle: a second click while the
+    // consent dialog is open is ignored without dimming the control.
+    const key = extension.id ?? extension.title;
+    if (this.togglingExtensions.has(key)) return;
 
-    this.togglingExtension = extension.title;
+    this.togglingExtensions.add(key);
     const newState = !extension.enabled;
+    let flipped = false;
 
     try {
       // Enabling grants the declared permission set — require consent first.
@@ -403,24 +434,22 @@ export class SettingsHandler {
         if (!consented) return;
       }
 
+      // Optimistic: the Toggle animates now, the backend catches up.
+      extension.enabled = newState;
+      flipped = true;
+      void this.guardFocusDuringToggle();
+
       // Rust's set_extension_enabled is keyed by manifest id, not display title.
-      const success = await extensionManager.toggleExtensionState(
-        extension.id ?? extension.title,
-        newState,
-      );
+      const success = await extensionManager.toggleExtensionState(key, newState);
+      if (!success) throw new Error('Failed to update extension state');
 
-      if (success) {
-        extension.enabled = newState;
-        this.saveMessage = 'Extension settings updated.';
-        this.saveError = false;
-
-        setTimeout(() => {
-          this.saveMessage = '';
-        }, 5000);
-      } else {
-        throw new Error('Failed to update extension state');
-      }
+      this.saveMessage = 'Extension settings updated.';
+      this.saveError = false;
+      setTimeout(() => {
+        this.saveMessage = '';
+      }, 5000);
     } catch (error) {
+      if (flipped) extension.enabled = !newState;
       logService.error(`Failed to toggle extension ${extension.title}: ${error}`);
       this.saveMessage = 'Failed to update extension settings.';
       this.saveError = true;
@@ -430,7 +459,7 @@ export class SettingsHandler {
         this.saveError = false;
       }, 3000);
     } finally {
-      this.togglingExtension = null;
+      this.togglingExtensions.delete(key);
     }
   }
 

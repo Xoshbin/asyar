@@ -237,7 +237,12 @@
       <span class="col-hotkey row-muted">
         {#if hotkey}<KeyboardHint keys={toDisplayString(hotkey)} />{:else}—{/if}
       </span>
-      <div class="col-on">
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="col-on"
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+      >
         {#if ext.isBuiltIn && !ext.disableable}
           <Badge text={t('settings.extensions.always_on')} variant="default" />
         {:else}
@@ -248,7 +253,6 @@
                 : true
               : ext.enabled === true}
             disabled={(ext.isBuiltIn && !ext.disableable) ||
-              handler.togglingExtension === ext.title ||
               extensionStateManager.extensionUninstallInProgress === ext.id ||
               (ext.compatibility?.status !== 'compatible' &&
                 ext.compatibility?.status !== 'unknown')}
