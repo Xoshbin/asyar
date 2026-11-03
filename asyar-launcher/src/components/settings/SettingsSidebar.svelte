@@ -290,7 +290,7 @@
     border-radius: var(--radius-xs);
     background: transparent;
     color: var(--text-tertiary);
-    cursor: pointer;
+    cursor: default;
   }
 
   .clear-btn:hover {
@@ -331,11 +331,8 @@
     border-radius: var(--radius-md);
     background: transparent;
     color: var(--text-secondary);
-    cursor: pointer;
+    cursor: default;
     text-align: start;
-    transition:
-      background-color var(--dur-instant) var(--ease-travel),
-      color var(--dur-instant) var(--ease-travel);
   }
 
   .item.active {

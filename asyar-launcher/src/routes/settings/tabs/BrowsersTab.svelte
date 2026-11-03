@@ -248,7 +248,7 @@
     border-radius: var(--radius-md);
     color: var(--text-primary);
     font-size: var(--font-size-sm);
-    cursor: pointer;
+    cursor: default;
     transition: background-color var(--transition-fast);
   }
 

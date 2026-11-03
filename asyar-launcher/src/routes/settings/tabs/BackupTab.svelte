@@ -266,7 +266,7 @@
     gap: var(--space-2);
     font-size: var(--font-size-sm);
     color: var(--text-primary);
-    cursor: pointer;
+    cursor: default;
   }
 
   .password-field {
@@ -354,12 +354,12 @@
     color: var(--text-primary);
     font-size: var(--font-size-sm);
     font-family: var(--font-ui);
-    cursor: pointer;
+    cursor: default;
   }
 
   .strategy-select:disabled {
     color: var(--text-tertiary);
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .modal-error {

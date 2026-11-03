@@ -14,11 +14,7 @@
   } = $props();
 </script>
 
-<label
-  class="relative inline-flex items-center cursor-pointer"
-  class:cursor-not-allowed={disabled}
-  {title}
->
+<label class="relative inline-flex items-center cursor-default" {title}>
   <input type="checkbox" bind:checked {disabled} {id} class="sr-only peer" {onchange} />
   <div class="toggle-track peer peer-disabled:opacity-50"></div>
 </label>

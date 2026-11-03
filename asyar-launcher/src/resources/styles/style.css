@@ -885,13 +885,13 @@ html[data-platform='macos'] .app-root {
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     transition: all var(--transition-fast);
+    cursor: default;
 
     &:hover {
       background-color: var(--bg-hover);
     }
 
     &:active {
-      transform: scale(0.98);
       background-color: var(--bg-selected);
     }
 
@@ -901,7 +901,7 @@ html[data-platform='macos'] .app-root {
 
     &:disabled {
       opacity: 0.5;
-      cursor: not-allowed;
+      cursor: default;
     }
   }
 
@@ -925,7 +925,7 @@ html[data-platform='macos'] .app-root {
 
     &:disabled {
       opacity: 0.5;
-      cursor: not-allowed;
+      cursor: default;
     }
   }
 
@@ -1472,7 +1472,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     width: 100%;
     transition: border-color var(--transition-fast);
     appearance: auto;
-    cursor: pointer;
+    cursor: default;
   }
   .field-select:focus {
     border-color: var(--accent-primary);
@@ -1511,7 +1511,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     font-family: var(--font-ui);
     font-size: var(--font-size-md);
     font-weight: 500;
-    cursor: pointer;
+    cursor: default;
     transition: opacity var(--transition-fast);
   }
   .btn-primary:hover {
@@ -1519,7 +1519,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
   }
   .btn-primary:disabled {
     opacity: 0.4;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   /* ── Secondary button ─────────────────────────────────── */
@@ -1531,7 +1531,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     color: var(--text-secondary);
     font-family: var(--font-ui);
     font-size: var(--font-size-md);
-    cursor: pointer;
+    cursor: default;
     transition: background var(--transition-fast);
   }
   .btn-secondary:hover {
@@ -1543,7 +1543,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     background: transparent;
     border: none;
     color: var(--accent-danger);
-    cursor: pointer;
+    cursor: default;
     padding: 4px 8px;
     border-radius: var(--radius-sm);
     font-size: var(--font-size-md);

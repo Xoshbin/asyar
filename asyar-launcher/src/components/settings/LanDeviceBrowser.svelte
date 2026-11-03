@@ -140,7 +140,7 @@
     width: 100%;
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     padding: var(--space-1) 0;
     text-align: left;
     border-radius: var(--radius-sm);
@@ -185,11 +185,11 @@
     border-radius: var(--radius-sm);
     padding: var(--space-1) var(--space-2);
     color: var(--text-primary);
-    cursor: pointer;
+    cursor: default;
     align-self: flex-start;
   }
   .rescan-btn:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 </style>

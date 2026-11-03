@@ -133,7 +133,7 @@
     border: none;
     background: transparent;
     color: var(--text-primary);
-    cursor: pointer;
+    cursor: default;
   }
 
   .nav-btn:hover:not(:disabled) {
@@ -161,7 +161,7 @@
     background: transparent;
     color: var(--text-secondary);
     font: inherit;
-    cursor: pointer;
+    cursor: default;
     transition: color var(--dur-instant) var(--ease-travel);
   }
 

@@ -501,9 +501,9 @@
     --ext-cols: 1fr 88px 112px 88px;
     display: flex;
     flex-direction: column;
-    background: var(--bg-secondary);
+    background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-xl);
     overflow: hidden;
   }
 
@@ -642,7 +642,7 @@
     color: var(--text-secondary);
     background: none;
     border: 1px solid var(--border-color);
-    cursor: pointer;
+    cursor: default;
     white-space: nowrap;
     transition: var(--transition-fast);
   }
@@ -673,7 +673,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
+    cursor: default;
     color: var(--text-secondary);
     transition: var(--transition-fast);
   }
@@ -721,7 +721,7 @@
     color: var(--text-primary);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     text-align: left;
     transition: var(--transition-fast);
     font-family: var(--font-ui);
@@ -750,7 +750,8 @@
   .col-headers {
     display: grid;
     grid-template-columns: var(--ext-cols);
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-6);
+    background: var(--bg-secondary);
     border-bottom: 1px solid var(--separator);
     font-size: var(--font-size-xs);
     font-weight: 500;
@@ -783,9 +784,9 @@
     display: grid;
     grid-template-columns: var(--ext-cols);
     align-items: center;
-    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+    padding: var(--space-3) var(--space-6) var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--separator);
-    cursor: pointer;
+    cursor: default;
     transition: var(--transition-fast);
     outline: none;
   }
@@ -817,7 +818,7 @@
     flex-shrink: 0;
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     color: var(--text-tertiary);
     padding: 0;
     transition: var(--transition-fast);
@@ -873,7 +874,7 @@
     flex-shrink: 0;
     padding: var(--space-0-5) var(--space-2);
     border-radius: var(--radius-xs);
-    background: var(--bg-tertiary);
+    background: var(--bg-secondary);
     color: var(--text-secondary);
     font-size: var(--font-size-2xs);
   }
@@ -926,7 +927,7 @@
     color: var(--accent-warning);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     padding: 0;
     flex-shrink: 0;
     transition: var(--transition-fast);

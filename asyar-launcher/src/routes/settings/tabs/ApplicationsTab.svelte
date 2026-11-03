@@ -560,7 +560,7 @@
 
   :global(.add-directory-btn:disabled) {
     opacity: 0.6;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .applications-header-row {
@@ -639,10 +639,6 @@
     transition: background-color var(--transition-fast);
   }
 
-  .app-row:hover {
-    background: var(--bg-hover);
-  }
-
   .app-row:not(:last-child)::after {
     content: '';
     position: absolute;
@@ -697,7 +693,7 @@
     font-size: var(--font-size-sm);
     font-family: var(--font-mono);
     color: var(--text-tertiary);
-    cursor: pointer;
+    cursor: default;
   }
 
   .row-action:hover {
@@ -725,7 +721,7 @@
     background: transparent;
     border: none;
     padding: 0;
-    cursor: pointer;
+    cursor: default;
   }
 
   .clear-btn {
@@ -734,7 +730,7 @@
     padding: var(--space-0-5) var(--space-2);
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
-    cursor: pointer;
+    cursor: default;
     border-radius: var(--radius-xs);
   }
   .clear-btn:hover {

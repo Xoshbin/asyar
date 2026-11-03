@@ -37,13 +37,13 @@
   .checkbox-wrapper {
     display: inline-flex;
     align-items: center;
-    cursor: pointer;
+    cursor: default;
     user-select: none;
   }
 
   .checkbox-wrapper.disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .sr-only {

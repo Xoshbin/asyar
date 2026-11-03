@@ -57,7 +57,7 @@
     font-size: var(--font-size-md);
     font-weight: 600;
     border: none;
-    cursor: pointer;
+    cursor: default;
     transition: all var(--transition-smooth);
     transform: scale(1);
     background: var(--bg-tertiary);
@@ -98,7 +98,7 @@
     font-weight: 500;
     font-size: var(--font-size-md);
     border: none;
-    cursor: pointer;
+    cursor: default;
     background: transparent;
     color: var(--text-secondary);
     font-family: var(--font-ui);
@@ -149,7 +149,7 @@
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     font-family: var(--font-ui);

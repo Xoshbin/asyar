@@ -534,7 +534,7 @@
     display: flex;
     align-items: center;
     padding: var(--space-5) var(--space-6);
-    cursor: pointer;
+    cursor: default;
     transition: background var(--transition-fast);
   }
 

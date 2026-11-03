@@ -473,9 +473,9 @@
 
   /* Same frame as SettingsCard so its edges line up with the cards around it. */
   .panel-card {
-    background: var(--bg-secondary);
+    background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-xl);
     overflow: hidden;
   }
 
@@ -542,7 +542,7 @@
     color: var(--text-tertiary);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     padding: 0;
     transition: var(--transition-fast);
   }
@@ -557,7 +557,7 @@
     color: var(--accent-danger);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     padding: 0;
     transition: var(--transition-fast);
   }
@@ -568,7 +568,7 @@
 
   .review-link:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .revoke-link {
@@ -576,7 +576,7 @@
     color: var(--accent-danger);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     padding: 0;
     transition: var(--transition-fast);
   }
@@ -595,7 +595,7 @@
     display: inline-block;
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-xs);
-    background: var(--bg-tertiary);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     font-size: var(--font-size-xs);
     color: var(--text-secondary);

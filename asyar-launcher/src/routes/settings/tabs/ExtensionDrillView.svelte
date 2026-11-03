@@ -112,9 +112,9 @@
 
   /* Same frame as SettingsCard so its edges line up with the cards around it. */
   .commands-card {
-    background: var(--bg-secondary);
+    background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-xl);
     overflow: hidden;
   }
 
@@ -128,7 +128,8 @@
   .col-headers {
     display: grid;
     grid-template-columns: var(--ext-cols);
-    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+    padding: var(--space-3) var(--space-6);
+    background: var(--bg-secondary);
     border-bottom: 1px solid var(--separator);
     font-size: var(--font-size-xs);
     font-weight: 500;
@@ -144,7 +145,7 @@
     color: var(--accent-danger);
     background: none;
     border: none;
-    cursor: pointer;
+    cursor: default;
     padding: 0;
     transition: var(--transition-fast);
   }
@@ -155,7 +156,7 @@
 
   .uninstall-btn:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .commands-body > :global(:last-child) {

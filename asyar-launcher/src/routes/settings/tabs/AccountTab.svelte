@@ -704,7 +704,7 @@
     background: none;
     border: none;
     padding: 0;
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-sm);
     font-family: var(--font-ui);
     color: var(--text-primary);
@@ -812,6 +812,6 @@
 
   :global(.btn-danger:disabled) {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 </style>

@@ -145,7 +145,7 @@
     background: none;
     border: none;
     padding: 0;
-    cursor: pointer;
+    cursor: default;
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     text-decoration: underline;

@@ -51,6 +51,6 @@
     background: none;
     border: none;
     color: var(--accent-primary);
-    cursor: pointer;
+    cursor: default;
   }
 </style>

@@ -43,7 +43,7 @@
     justify-content: center;
     background: transparent;
     border: none;
-    cursor: pointer;
+    cursor: default;
     color: var(--text-tertiary);
     border-radius: var(--radius-sm);
     transition:
@@ -83,7 +83,7 @@
 
   .icon-button:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .variant-danger {

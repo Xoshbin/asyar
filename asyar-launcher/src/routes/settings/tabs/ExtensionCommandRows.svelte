@@ -251,17 +251,17 @@
       --ext-cols
     ); /* design-ok: column template supplied by the parent grid */
     align-items: center;
-    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+    padding: var(--space-3) var(--space-6);
     border-bottom: 1px solid var(--separator);
     outline: none;
     transition: background-color var(--dur-instant) var(--ease-travel);
   }
 
   .cmd-row.clickable {
-    cursor: pointer;
+    cursor: default;
   }
 
-  .cmd-row:hover {
+  .cmd-row.clickable:hover {
     background: var(--bg-hover);
   }
 
@@ -284,7 +284,7 @@
     width: var(--size-lg);
     height: var(--size-lg);
     border-radius: var(--radius-xs);
-    background: var(--bg-tertiary);
+    background: var(--bg-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -324,7 +324,7 @@
     background: transparent;
     border: none;
     padding: 0;
-    cursor: pointer;
+    cursor: default;
     color: var(--text-secondary);
     font-size: var(--font-size-xs);
   }
@@ -339,7 +339,7 @@
     border: none;
     padding: 0;
     margin-left: var(--space-1);
-    cursor: pointer;
+    cursor: default;
     color: var(--text-tertiary);
     font-size: var(--font-size-xs);
     line-height: 1;

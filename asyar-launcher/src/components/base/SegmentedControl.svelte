@@ -59,7 +59,7 @@
     font-weight: 500;
     color: var(--text-tertiary);
     background: transparent;
-    cursor: pointer;
+    cursor: default;
     white-space: nowrap;
     outline: none;
     transition: color var(--transition-fast);

@@ -114,6 +114,6 @@
 
   :global(.btn-danger:disabled) {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 </style>
