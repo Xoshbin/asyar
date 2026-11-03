@@ -178,7 +178,7 @@ function withoutApiKeys(ai: AISettings): AISettings {
   return result;
 }
 
-const KEYED_WEB_SEARCH_ENGINES = ['brave', 'tavily', 'serply'];
+const KEYED_WEB_SEARCH_ENGINES = ['brave', 'tavily', 'serply', 'keenable'];
 const KEY_IMPORT_WARNING = "some API keys couldn't be imported; please re-enter them";
 
 /**

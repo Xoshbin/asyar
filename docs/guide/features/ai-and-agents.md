@@ -52,8 +52,8 @@ Asyar agents can search the web and ground their answers in real-time informatio
 - **Built-in Web Search Tool (`builtin:web-search`)**:
   - Available to any agent with tool access.
   - Works out of the box with an **unauthenticated DuckDuckGo fallback** — no search API key required.
-  - You can also configure **Brave Search**, **Tavily** or **Serply** API keys in **Settings → AI** for high-volume research and deep extraction. Each engine keeps its own key.
-  - With Claude Code or Codex, web search always uses DuckDuckGo; Brave, Tavily, Serply and SearXNG work only in Asyar's built-in chat. Antigravity can't use Asyar's tools.
+  - You can also configure **Brave Search**, **Tavily**, **Serply** or **Keenable** API keys (Keenable also works without one) in **Settings → AI** for high-volume research and deep extraction. Each engine keeps its own key.
+  - With Claude Code or Codex, web search always uses DuckDuckGo; Brave, Tavily, Serply, Keenable and SearXNG work only in Asyar's built-in chat. Antigravity can't use Asyar's tools.
   - When web search is used, the agent chat displays live search status streaming and renders interactive **source pills** with website favicons and domain previews at the top of the message.
 - **Google Search Grounding**:
   - Google Gemini models support direct native Google Search grounding via a toggle on the provider configuration card.

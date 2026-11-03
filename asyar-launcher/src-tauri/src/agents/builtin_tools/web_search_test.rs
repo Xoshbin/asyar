@@ -417,6 +417,45 @@ fn test_serply_request_shape() {
         .starts_with("asyar/"));
 }
 
+#[test]
+fn test_keenable_request_shape() {
+    let tool = test_tool();
+    let req = tool
+        .keenable_request("rust async", 7, None)
+        .build()
+        .unwrap();
+    assert_eq!(req.method(), "POST");
+    assert_eq!(
+        req.url().as_str(),
+        "https://api.keenable.ai/v1/search/public"
+    );
+    assert_eq!(req.headers()["x-keenable-title"], "Asyar");
+    assert!(req.headers().get("x-api-key").is_none());
+    let body: serde_json::Value =
+        serde_json::from_slice(req.body().unwrap().as_bytes().unwrap()).unwrap();
+    assert_eq!(body, json!({"query": "rust async", "max_results": 7}));
+
+    let req = tool
+        .keenable_request("rust async", 7, Some("test-key"))
+        .build()
+        .unwrap();
+    assert_eq!(req.url().as_str(), "https://api.keenable.ai/v1/search");
+    assert_eq!(req.headers()["x-api-key"], "test-key");
+    assert!(req.headers()["user-agent"]
+        .to_str()
+        .unwrap()
+        .starts_with("asyar/"));
+}
+
+#[test]
+fn test_parse_search_response_keenable() {
+    let body = r#"{"results":[{"title":"Tokio","url":"https://tokio.rs","description":"","snippet":"An async runtime.","published_at":null}]}"#;
+    let (sources, results) = parse_search_response(body, 5);
+    assert_eq!(sources.len(), 1);
+    assert_eq!(results[0].url, "https://tokio.rs");
+    assert_eq!(results[0].snippet, "An async runtime.");
+}
+
 #[tokio::test]
 async fn test_web_search_serply_requires_key() {
     let _lock = ENV_LOCK.lock().await;

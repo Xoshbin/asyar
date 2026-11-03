@@ -123,7 +123,7 @@ export interface DeveloperSettings {
   allowSideloading: boolean;
 }
 
-export type WebSearchEngine = 'duckduckgo' | 'brave' | 'tavily' | 'serply' | 'searxng';
+export type WebSearchEngine = 'duckduckgo' | 'brave' | 'tavily' | 'serply' | 'keenable' | 'searxng';
 
 export interface WebSearchSettings {
   engine: WebSearchEngine;

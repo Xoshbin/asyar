@@ -18,6 +18,10 @@ const USER_AGENT: &str =
 const SERPLY_SEARCH_URL: &str = "https://api.serply.io/v1/search";
 // Serply returns a single results page of at most 10 rows per request.
 const SERPLY_MAX_NUM: usize = 10;
+const KEENABLE_SEARCH_URL: &str = "https://api.keenable.ai/v1/search";
+// Key-free Keenable endpoint; identifies the app via `X-Keenable-Title` instead of a key.
+const KEENABLE_PUBLIC_SEARCH_URL: &str = "https://api.keenable.ai/v1/search/public";
+const KEENABLE_APP_TITLE: &str = "Asyar";
 // Sent on authenticated API provider requests so providers can identify the client application.
 pub const ASYAR_API_USER_AGENT: &str = concat!(
     "asyar/",
@@ -146,6 +150,7 @@ impl WebSearchTool {
                     "brave" => "Brave Search",
                     "tavily" => "Tavily Search",
                     "serply" => "Serply",
+                    "keenable" => "Keenable",
                     other => other,
                 };
                 Err(AppError::Validation(format!(
@@ -205,6 +210,12 @@ impl WebSearchTool {
             "serply" => {
                 let key = self.resolve_key("serply", "SERPLY_API_KEY")?;
                 self.search_serply(query, limit, &key).await
+            }
+            "keenable" => {
+                // The key is optional: without one Keenable's key-free endpoint is used.
+                let key = self.resolve_key("keenable", "KEENABLE_API_KEY").ok();
+                self.search_keenable(query, limit, key.as_ref().map(|k| k.as_str()))
+                    .await
             }
             "searxng" => {
                 let endpoint = base_url.ok_or_else(|| {
@@ -497,6 +508,58 @@ impl WebSearchTool {
             "results": results,
         }))
     }
+
+    pub(crate) fn keenable_request(
+        &self,
+        query: &str,
+        limit: usize,
+        api_key: Option<&str>,
+    ) -> reqwest::RequestBuilder {
+        let payload = json!({
+            "query": query,
+            "max_results": limit,
+        });
+        let request = match api_key.map(str::trim).filter(|k| !k.is_empty()) {
+            Some(key) => self
+                .client
+                .post(KEENABLE_SEARCH_URL)
+                .header("X-API-Key", key),
+            None => self
+                .client
+                .post(KEENABLE_PUBLIC_SEARCH_URL)
+                .header("X-Keenable-Title", KEENABLE_APP_TITLE),
+        };
+        request
+            .header(reqwest::header::USER_AGENT, ASYAR_API_USER_AGENT)
+            .json(&payload)
+    }
+
+    async fn search_keenable(
+        &self,
+        query: &str,
+        limit: usize,
+        api_key: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let response = self
+            .keenable_request(query, limit, api_key)
+            .send()
+            .await
+            .map_err(AppError::Network)?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Other(format!(
+                "Keenable search returned HTTP {}",
+                response.status()
+            )));
+        }
+
+        let body = response.text().await.map_err(AppError::Network)?;
+        let (sources, results) = parse_search_response(&body, limit);
+        Ok(json!({
+            "sources": sources,
+            "results": results,
+        }))
+    }
 }
 
 pub(crate) fn parse_web_search_args(args: Value) -> Result<(String, usize), AppError> {
@@ -603,7 +666,8 @@ pub(crate) fn parse_search_response(
         }
 
         if let Some(entries) = val.get("results").and_then(Value::as_array) {
-            // SearXNG / Tavily / Serply format (Serply uses `link` and `description`)
+            // SearXNG / Tavily / Serply / Keenable format (Serply uses `link` and `description`;
+            // Keenable's `description` is often empty, so its `snippet` is read first)
             for item in entries.iter().take(limit) {
                 let title = clean_html(
                     item.get("title")

@@ -1230,6 +1230,7 @@
               <option value="brave">{t('settings.ai.engine_brave')}</option>
               <option value="tavily">{t('settings.ai.engine_tavily')}</option>
               <option value="serply">{t('settings.ai.engine_serply')}</option>
+              <option value="keenable">{t('settings.ai.engine_keenable')}</option>
               <option value="searxng">{t('settings.ai.engine_searxng')}</option>
             </select>
           </div>
@@ -1305,6 +1306,25 @@
                 class="external-link"
               >
                 serply.io
+              </a>.
+            </p>
+          {:else if webSearchSettings.engine === 'keenable'}
+            {#if credLoaded}
+              <div class="card-field">
+                <CredentialField
+                  label={t('settings.ai.keenable_key')}
+                  inputId="web-search-keenable-key"
+                  placeholder={t('settings.ai.api_key_placeholder')}
+                  state={credStatus.webSearch['keenable'] ?? 'notConfigured'}
+                  onSave={(secret) => saveWebSearchKey('keenable', secret)}
+                  onRemove={() => removeWebSearchKey('keenable')}
+                />
+              </div>
+            {/if}
+            <p class="field-description">
+              {t('settings.ai.keenable_desc')}
+              <a href="https://keenable.ai" target="_blank" rel="noreferrer" class="external-link">
+                keenable.ai
               </a>.
             </p>
           {:else if webSearchSettings.engine === 'searxng'}

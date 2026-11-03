@@ -22,9 +22,9 @@ pub enum CredentialTarget {
     WebSearch { engine: String },
 }
 
-/// Web-search engines that need an API key. Each has its own credential row, so a key
-/// can never be sent to a service it wasn't issued for.
-pub const KEYED_WEB_SEARCH_ENGINES: [&str; 3] = ["brave", "tavily", "serply"];
+/// Web-search engines that take an API key (Keenable's is optional). Each has its own
+/// credential row, so a key can never be sent to a service it wasn't issued for.
+pub const KEYED_WEB_SEARCH_ENGINES: [&str; 4] = ["brave", "tavily", "serply", "keenable"];
 
 pub fn is_keyed_web_search_engine(engine: &str) -> bool {
     KEYED_WEB_SEARCH_ENGINES.contains(&engine)

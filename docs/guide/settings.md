@@ -83,8 +83,8 @@ This section is split across two related tabs.
 - **Local CLI Providers (Zero-Key)** — Connect directly to your local, signed-in Claude Code (`claude`), Google (`agy`) and OpenAI (`codex`) CLIs without entering an API key.
 - **Searchable Model Filter** — Easily search and filter through large provider catalogs (e.g. OpenRouter or Ollama).
 - **Web Search & Grounding** — Configure web search capabilities for your agents:
-  - **Default engine** — Choose between DuckDuckGo (free, no key needed), Brave Search, Tavily, Serply, or your own SearXNG instance.
-  - **API Keys** — Brave, Tavily and Serply each keep their own key, so switching engines doesn't lose or mix up keys.
+  - **Default engine** — Choose between DuckDuckGo (free, no key needed), Brave Search, Tavily, Serply, Keenable (works without a key), or your own SearXNG instance.
+  - **API Keys** — Brave, Tavily, Serply and Keenable each keep their own key, so switching engines doesn't lose or mix up keys.
   - **Google Search Grounding** — Enable native Google Search grounding for Gemini models.
 - **Advanced AI settings** — Max tokens, temperature, and reasoning controls.
 - **Manage Agents** — Open the Agents view to create, edit, and assign hotkeys to AI agents.
