@@ -12,7 +12,7 @@ When the user launches Asyar, the startup process follows a strict sequence to g
    - Tauri builder starts.
    - Core plugins are initialized (`fs`, `http`, `global_shortcut`, `clipboard_manager`, `opener`).
 2. **Custom Protocol Registration:**
-   - `.register_uri_scheme_protocol("asyar-extension", ...)` sets up the handler for Tier 2 extension asset resolution.
+   - `uri_schemes::register(builder)` registers every custom scheme listed in `uri_schemes::schemes()`: `asyar-extension` (Tier 2 extension assets), `asyar-icon` (cached app icons) and `asyar-thumb` (cached file thumbnails). Each handler returns a `SchemeResponse`, and the shared builder adds the same `Cache-Control: no-store` and CORS headers to every response. New schemes go in that list, never straight into `lib.rs`. A test enforces this.
 3. **App Setup phase (`setup_app`):**
    - System tray icon and menu are configured.
    - The main window (`SPOTLIGHT_LABEL`) is retrieved and OS-specific composition (e.g., Vibrancy on macOS, Blur on Windows) is applied.

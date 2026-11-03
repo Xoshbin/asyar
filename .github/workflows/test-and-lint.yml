@@ -18,6 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Reclaim disk space on the standard GitHub Actions runner before installing
+      # dependencies and restoring the Rust cache. Unused pre-installed SDKs
+      # (.NET, Android, Haskell) take up ~30 GB, leaving less than 15 GB free.
+      # Without this cleanup, the runner runs out of disk space when linking
+      # the test binaries and GNU ld aborts with SIGBUS (signal 7 [Bus error]).
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          df -h
+
       - name: Install system dependencies (Tauri / webkit2gtk)
         run: |
           sudo apt-get update

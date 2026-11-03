@@ -1,17 +1,94 @@
-use tauri::Manager;
+//! Custom URI schemes: `asyar-extension://` serves extension bundle files,
+//! `asyar-icon://` cached application icons, and `asyar-thumb://` cached
+//! file-preview thumbnails.
+//!
+//! Every scheme is listed once in `schemes()` and registered by [`register`],
+//! which sends each handler's [`SchemeResponse`] through the shared builder.
 
-fn error_response(status: u16, body: Vec<u8>) -> tauri::http::Response<Vec<u8>> {
-    tauri::http::Response::builder()
-        .status(status)
-        .header("Access-Control-Allow-Origin", "*")
-        .header("Cache-Control", "no-store")
-        .body(body)
-        .unwrap()
+mod response;
+
+pub use response::SchemeResponse;
+use tauri::{Manager, Runtime};
+
+/// A scheme handler. It returns a [`SchemeResponse`], so it can't build a
+/// response without the shared cache policy.
+pub(crate) type SchemeHandler<R> =
+    fn(&tauri::AppHandle<R>, &tauri::http::Request<Vec<u8>>) -> SchemeResponse;
+
+/// Every custom scheme the launcher serves. Add new schemes here, never in
+/// `lib.rs`: `every_scheme_sets_the_cache_policy_on_success_and_error` walks
+/// this list.
+pub(crate) fn schemes<R: Runtime>() -> [(&'static str, SchemeHandler<R>); 3] {
+    [
+        ("asyar-extension", handle_extension_request::<R>),
+        ("asyar-icon", handle_icon_request::<R>),
+        ("asyar-thumb", handle_thumbnail_request::<R>),
+    ]
 }
 
-// URI scheme handlers for `asyar-extension://` and `asyar-icon://`.
-// These are registered in `lib.rs` via `register_uri_scheme_protocol` and serve
-// extension bundle files and cached application icons respectively.
+/// Registers every scheme in `schemes()` on the app builder.
+pub fn register<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    schemes::<R>()
+        .into_iter()
+        .fold(builder, |builder, (scheme, handler)| {
+            builder.register_uri_scheme_protocol(scheme, move |ctx, req| {
+                handler(ctx.app_handle(), &req).into_http()
+            })
+        })
+}
+
+/// Strips the scheme prefix from a request URI. Webviews send one of
+/// `{scheme}://localhost/…`, `{scheme}://…` or, on Windows,
+/// `http://{scheme}.localhost/…`. The prefix match ignores ASCII case.
+fn scheme_path<'a>(uri: &'a str, scheme: &str) -> &'a str {
+    [
+        format!("{scheme}://localhost/"),
+        format!("{scheme}://"),
+        format!("http://{scheme}.localhost/"),
+    ]
+    .iter()
+    .find_map(|prefix| {
+        uri.get(..prefix.len())
+            .filter(|head| head.eq_ignore_ascii_case(prefix))
+            .map(|_| &uri[prefix.len()..])
+    })
+    .unwrap_or(uri)
+}
+
+/// Drops any `?query` or `#fragment` from a requested path.
+fn without_query(path: &str) -> &str {
+    path.split(['?', '#']).next().unwrap_or(path)
+}
+
+/// Reads one file from a flat cache folder (`icon_cache`, `thumbnail_cache`).
+/// The name must be a plain filename: any `..`, `/` or `\` is refused.
+/// Returns the filename with its bytes, or the error response to send.
+fn read_cache_file(
+    cache_dir: &std::path::Path,
+    uri: &str,
+    scheme: &str,
+) -> Result<(String, Vec<u8>), SchemeResponse> {
+    let path = scheme_path(uri, scheme);
+    // Webviews add a trailing slash to host-only URIs.
+    let path = path.strip_suffix('/').unwrap_or(path);
+    let decoded = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
+    let filename = without_query(&decoded);
+
+    // [SECURITY]: Prevent path traversal
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        log::warn!("{scheme} security violation (traversal): {filename}");
+        return Err(SchemeResponse::forbidden());
+    }
+
+    let file_path = cache_dir.join(filename);
+    match std::fs::read(&file_path) {
+        Ok(bytes) => Ok((filename.to_string(), bytes)),
+        Err(e) => {
+            log::debug!("{scheme} file not found in cache: {file_path:?} ({e})");
+            Err(SchemeResponse::not_found())
+        }
+    }
+}
 
 // ── asyar-extension:// ────────────────────────────────────────────────────────
 
@@ -22,21 +99,12 @@ fn error_response(status: u16, body: Vec<u8>) -> tauri::http::Response<Vec<u8>> 
 /// 1. Debug build fallback — `src/built-in-features/{id}/dist/` (debug only)
 /// 2. Built-in resources — bundled inside the app binary
 /// 3. Installed extensions — `$APPDATA/extensions/{id}/`
-pub fn handle_extension_request(
-    app: &tauri::AppHandle,
-    request: tauri::http::Request<Vec<u8>>,
-) -> tauri::http::Response<Vec<u8>> {
+fn handle_extension_request<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    request: &tauri::http::Request<Vec<u8>>,
+) -> SchemeResponse {
     let uri = request.uri().to_string();
-    let path = if uri.starts_with("asyar-extension://localhost/") {
-        uri.strip_prefix("asyar-extension://localhost/").unwrap()
-    } else if uri.starts_with("asyar-extension://") {
-        uri.strip_prefix("asyar-extension://").unwrap()
-    } else if uri.starts_with("http://asyar-extension.localhost/") {
-        uri.strip_prefix("http://asyar-extension.localhost/")
-            .unwrap()
-    } else {
-        &uri
-    };
+    let path = scheme_path(&uri, "asyar-extension");
 
     // Expected format: asyar-extension://[localhost/]{extension_id}/{file_path}
     let mut parts = path.splitn(2, '/');
@@ -49,13 +117,11 @@ pub fn handle_extension_request(
     // the parameters are part of the raw HTTP request. If we do not strip them here,
     // the Rust `std::fs` backend will look for a literal file on disk named
     // "index.html?view=DefaultView" and fail with File Not Found.
-    let file_path = encoded_file_path
-        .split('?')
-        .next()
-        .unwrap_or(encoded_file_path)
-        .split('#')
-        .next()
-        .unwrap_or(encoded_file_path);
+    let file_path = without_query(encoded_file_path);
+    let wants_icon_copy = request.uri().query().is_some_and(|q| {
+        q.split('&')
+            .any(|pair| pair == crate::icons::copies::COPY_QUERY)
+    });
 
     let app_data_dir = app.path().app_data_dir().unwrap_or_default();
     let resource_dir = app.path().resource_dir().unwrap_or_default();
@@ -147,27 +213,36 @@ pub fn handle_extension_request(
         }
     }
 
+    // Icon URLs ask for the 128px copy written at install. It sits next to
+    // the original, so it goes through the same canonicalize + allow-list
+    // checks below. No copy → the original is served.
+    if wants_icon_copy {
+        if let Some(copy) = final_path
+            .as_deref()
+            .map(crate::icons::copies::copy_path)
+            .filter(|copy| copy.is_file())
+        {
+            final_path = Some(copy);
+        }
+    }
+
     match final_path {
         Some(resolved_path) => {
             // Step 1: Canonicalize to resolve any symlinks
             let canonical_path = match std::fs::canonicalize(&resolved_path) {
                 Ok(p) => p,
-                Err(_) => {
-                    return error_response(404, Vec::new());
-                }
+                Err(_) => return SchemeResponse::not_found(),
             };
 
             // Step 2: Validate the canonical path is in an allowed location
             if !is_path_allowed(&canonical_path, app) {
-                return error_response(403, b"Access denied".to_vec());
+                return SchemeResponse::forbidden();
             }
 
             // Step 3: Read from the canonical (real) path
             let raw = match std::fs::read(&canonical_path) {
                 Ok(bytes) => bytes,
-                Err(_) => {
-                    return error_response(404, b"File not found".to_vec());
-                }
+                Err(_) => return SchemeResponse::not_found(),
             };
 
             // Inject the execution-context role into view.html and worker.html
@@ -188,24 +263,32 @@ pub fn handle_extension_request(
                 _ => raw,
             };
 
-            let mime_type = match canonical_path.extension().and_then(|e| e.to_str()) {
-                Some("html") => "text/html",
-                Some("js") => "application/javascript",
-                Some("css") => "text/css",
-                Some("png") => "image/png",
-                Some("svg") => "image/svg+xml",
-                Some("json") => "application/json",
-                _ => "text/plain",
-            };
-
-            tauri::http::Response::builder()
-                .header("Content-Type", mime_type)
-                .header("Access-Control-Allow-Origin", "*")
-                .header("Content-Security-Policy", extension_csp_header())
-                .body(content)
-                .unwrap()
+            SchemeResponse::ok(extension_mime_type(&canonical_path), content)
+                .with_csp(extension_csp_header())
         }
-        None => error_response(404, Vec::new()),
+        None => SchemeResponse::not_found(),
+    }
+}
+
+/// Content type for a file served from an extension bundle.
+fn extension_mime_type(path: &std::path::Path) -> &'static str {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase);
+    match ext.as_deref() {
+        Some("html") => "text/html",
+        Some("js") => "application/javascript",
+        Some("css") => "text/css",
+        Some("json") => "application/json",
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
+        Some("bmp") => "image/bmp",
+        Some("ico") => "image/x-icon",
+        Some("svg") => "image/svg+xml",
+        _ => "text/plain",
     }
 }
 
@@ -316,33 +399,12 @@ pub(crate) fn inject_dev_inspector_flag(html: &[u8]) -> Vec<u8> {
 // ── asyar-icon:// ─────────────────────────────────────────────────────────────
 
 /// Serves cached application icons from `$APPDATA/icon_cache/` under the `asyar-icon://` scheme.
-pub fn handle_icon_request<R: tauri::Runtime>(
+fn handle_icon_request<R: Runtime>(
     app: &tauri::AppHandle<R>,
-    request: tauri::http::Request<Vec<u8>>,
-) -> tauri::http::Response<Vec<u8>> {
+    request: &tauri::http::Request<Vec<u8>>,
+) -> SchemeResponse {
     let uri = request.uri().to_string();
-    let uri_lower = uri.to_lowercase();
-
     log::debug!("Icon request URI: {}", uri);
-
-    let mut path = if uri_lower.starts_with("asyar-icon://localhost/") {
-        &uri["asyar-icon://localhost/".len()..]
-    } else if uri_lower.starts_with("asyar-icon://") {
-        &uri["asyar-icon://".len()..]
-    } else if uri_lower.starts_with("http://asyar-icon.localhost/") {
-        &uri["http://asyar-icon.localhost/".len()..]
-    } else {
-        &uri
-    };
-
-    // Trim trailing slash if present (often added by webview for host-only URIs)
-    if path.ends_with('/') {
-        path = &path[..path.len() - 1];
-    }
-
-    // Percent-decode the path (e.g. for parentheses or spaces)
-    let decoded_path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
-    let path = &decoded_path;
 
     let icon_cache_dir = app
         .path()
@@ -362,25 +424,8 @@ pub fn handle_icon_request<R: tauri::Runtime>(
             }
         });
 
-    // Strip any query parameters or fragments
-    let filename = path
-        .split('?')
-        .next()
-        .unwrap_or(path)
-        .split('#')
-        .next()
-        .unwrap_or(path);
-
-    // [SECURITY]: Prevent path traversal
-    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
-        log::warn!("Icon security violation (traversal): {}", filename);
-        return error_response(403, Vec::new());
-    }
-
-    let file_path = icon_cache_dir.join(filename);
-
-    match std::fs::read(&file_path) {
-        Ok(bytes) => {
+    match read_cache_file(&icon_cache_dir, &uri, "asyar-icon") {
+        Ok((filename, bytes)) => {
             let content_type = if filename.ends_with(".svg") {
                 "image/svg+xml"
             } else if filename.ends_with(".ico") {
@@ -388,80 +433,27 @@ pub fn handle_icon_request<R: tauri::Runtime>(
             } else {
                 "image/png"
             };
-            tauri::http::Response::builder()
-                .header("Content-Type", content_type)
-                .header("Access-Control-Allow-Origin", "*")
-                .header("Cache-Control", "no-store, must-revalidate")
-                .body(bytes)
-                .unwrap()
+            SchemeResponse::ok(content_type, bytes)
         }
-        Err(e) => {
-            log::debug!("Icon not found in cache: {:?} ({})", file_path, e);
-            error_response(404, Vec::new())
-        }
+        Err(response) => response,
     }
 }
 
 // ── asyar-thumb:// ────────────────────────────────────────────────────────────
 
 /// Serves cached file-preview thumbnails from `$APPDATA/thumbnail_cache/`
-/// under the `asyar-thumb://` scheme. Verbatim mirror of
-/// `handle_icon_request` — same lookup/security shape, different cache
-/// dir (thumbnails are content-addressed by path+mtime+size, unlike app
-/// icons which are keyed by install path alone).
-pub fn handle_thumbnail_request<R: tauri::Runtime>(
+/// under the `asyar-thumb://` scheme. Thumbnails are content-addressed by
+/// path+mtime+size, unlike app icons which are keyed by install path alone.
+fn handle_thumbnail_request<R: Runtime>(
     app: &tauri::AppHandle<R>,
-    request: tauri::http::Request<Vec<u8>>,
-) -> tauri::http::Response<Vec<u8>> {
+    request: &tauri::http::Request<Vec<u8>>,
+) -> SchemeResponse {
     let uri = request.uri().to_string();
-    let uri_lower = uri.to_lowercase();
-
-    let mut path = if uri_lower.starts_with("asyar-thumb://localhost/") {
-        &uri["asyar-thumb://localhost/".len()..]
-    } else if uri_lower.starts_with("asyar-thumb://") {
-        &uri["asyar-thumb://".len()..]
-    } else if uri_lower.starts_with("http://asyar-thumb.localhost/") {
-        &uri["http://asyar-thumb.localhost/".len()..]
-    } else {
-        &uri
-    };
-
-    if path.ends_with('/') {
-        path = &path[..path.len() - 1];
-    }
-
-    let decoded_path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
-    let path = &decoded_path;
-
     let thumbnail_cache_dir = crate::thumbnail::cache::get_thumbnail_cache_dir(app);
 
-    let filename = path
-        .split('?')
-        .next()
-        .unwrap_or(path)
-        .split('#')
-        .next()
-        .unwrap_or(path);
-
-    // [SECURITY]: Prevent path traversal
-    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
-        log::warn!("Thumbnail security violation (traversal): {}", filename);
-        return error_response(403, Vec::new());
-    }
-
-    let file_path = thumbnail_cache_dir.join(filename);
-
-    match std::fs::read(&file_path) {
-        Ok(bytes) => tauri::http::Response::builder()
-            .header("Content-Type", "image/png")
-            .header("Access-Control-Allow-Origin", "*")
-            .header("Cache-Control", "no-store, must-revalidate")
-            .body(bytes)
-            .unwrap(),
-        Err(e) => {
-            log::debug!("Thumbnail not found in cache: {:?} ({})", file_path, e);
-            error_response(404, Vec::new())
-        }
+    match read_cache_file(&thumbnail_cache_dir, &uri, "asyar-thumb") {
+        Ok((_, bytes)) => SchemeResponse::ok("image/png", bytes),
+        Err(response) => response,
     }
 }
 
@@ -472,7 +464,7 @@ pub fn handle_thumbnail_request<R: tauri::Runtime>(
 /// In release builds only `$APPDATA/extensions` and `$APPLOCALDATA/extensions` are
 /// permitted. Debug builds additionally allow any path under the user's home directory
 /// so that symlink-linked dev extensions resolve correctly.
-fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
+fn is_path_allowed<R: Runtime>(path: &std::path::Path, app: &tauri::AppHandle<R>) -> bool {
     // Canonicalize a directory for comparison. On Windows, std::fs::canonicalize adds a
     // verbatim prefix (\\?\) that must match the already-canonicalized `path` argument.
     // On macOS/Linux, canonicalization resolves symlinks so both sides are consistent.
@@ -697,93 +689,193 @@ mod role_injection_tests {
 }
 
 #[cfg(test)]
-mod error_response_tests {
+mod scheme_registry_tests {
     use super::*;
+    use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
+
+    /// A mock app with its own app-data folder, so the fixtures below never
+    /// touch the real `~/Library/Application Support` root.
+    fn isolated_app(identifier: &str) -> tauri::App<MockRuntime> {
+        let mut context = mock_context(noop_assets());
+        context.config_mut().identifier = identifier.to_string();
+        mock_builder().build(context).unwrap()
+    }
+
+    /// Writes a file the scheme can serve and returns its URI. A new scheme
+    /// in [`schemes`] fails here until it gets a fixture, so it can't skip
+    /// the cache-policy check below.
+    fn seed_fixture(app: &tauri::AppHandle<MockRuntime>, scheme: &str) -> String {
+        let data = app.path().app_data_dir().unwrap();
+        let (dir, file) = match scheme {
+            "asyar-extension" => (data.join("extensions").join("cache-probe"), "probe.js"),
+            "asyar-icon" => (data.join("icon_cache"), "probe.png"),
+            "asyar-thumb" => (
+                crate::thumbnail::cache::get_thumbnail_cache_dir(app),
+                "probe.png",
+            ),
+            other => panic!("add a fixture for the `{other}` scheme"),
+        };
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(file), b"probe").unwrap();
+        match scheme {
+            "asyar-extension" => format!("{scheme}://localhost/cache-probe/{file}"),
+            _ => format!("{scheme}://localhost/{file}"),
+        }
+    }
+
+    fn get(
+        handler: SchemeHandler<MockRuntime>,
+        app: &tauri::AppHandle<MockRuntime>,
+        uri: &str,
+    ) -> tauri::http::Response<Vec<u8>> {
+        let req = tauri::http::Request::builder()
+            .uri(uri)
+            .body(Vec::new())
+            .unwrap();
+        handler(app, &req).into_http()
+    }
 
     #[test]
-    fn protocol_errors_expose_status_and_body_with_cors() {
-        for (status, body) in [
-            (404, Vec::new()),
-            (403, b"Access denied".to_vec()),
-            (404, b"File not found".to_vec()),
+    fn every_scheme_sets_the_cache_policy_on_success_and_error() {
+        let app = isolated_app("org.asyar.test.uri-schemes");
+        let handle = app.handle();
+
+        for (scheme, handler) in schemes::<MockRuntime>() {
+            let found = get(handler, handle, &seed_fixture(handle, scheme));
+            let missing = get(
+                handler,
+                handle,
+                &format!("{scheme}://localhost/missing.png"),
+            );
+
+            for (res, status) in [(found, 200), (missing, 404)] {
+                assert_eq!(res.status().as_u16(), status, "{scheme} status");
+                assert_eq!(
+                    res.headers()
+                        .get("Cache-Control")
+                        .and_then(|v| v.to_str().ok()),
+                    Some(response::CACHE_CONTROL),
+                    "{scheme} {status} must carry the shared cache policy"
+                );
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(handle.path().app_data_dir().unwrap());
+    }
+
+    #[test]
+    fn icon_requests_get_the_128px_copy_and_everything_else_the_original() {
+        let app = isolated_app("org.asyar.test.uri-schemes-icon-copy");
+        let handle = app.handle();
+        let dist = handle
+            .path()
+            .app_data_dir()
+            .unwrap()
+            .join("extensions/copy-probe/dist");
+        std::fs::create_dir_all(&dist).unwrap();
+        std::fs::write(dist.join("icon.png"), b"original").unwrap();
+        std::fs::write(dist.join("plain.png"), b"plain").unwrap();
+        std::fs::write(
+            crate::icons::copies::copy_path(&dist.join("icon.png")),
+            b"copy",
+        )
+        .unwrap();
+        let handler = handle_extension_request::<MockRuntime>;
+        let body = |uri: &str| get(handler, handle, uri).body().clone();
+
+        assert_eq!(body("asyar-extension://copy-probe/icon.png?icon"), b"copy");
+        assert_eq!(body("asyar-extension://copy-probe/icon.png"), b"original");
+        // No copy (small, SVG, dev extension, older install) → the original.
+        assert_eq!(
+            body("asyar-extension://copy-probe/plain.png?icon"),
+            b"plain"
+        );
+
+        let _ = std::fs::remove_dir_all(handle.path().app_data_dir().unwrap());
+    }
+
+    #[test]
+    fn extension_images_are_served_with_their_own_mime_type() {
+        for (file, mime) in [
+            ("a.png", "image/png"),
+            ("a.jpg", "image/jpeg"),
+            ("a.JPEG", "image/jpeg"),
+            ("a.webp", "image/webp"),
+            ("a.gif", "image/gif"),
+            ("a.bmp", "image/bmp"),
+            ("a.ico", "image/x-icon"),
+            ("a.svg", "image/svg+xml"),
+            ("a.unknown", "text/plain"),
         ] {
-            let response = error_response(status, body.clone());
-            assert_eq!(response.status().as_u16(), status);
-            assert_eq!(response.body(), &body);
             assert_eq!(
-                response
-                    .headers()
-                    .get("Access-Control-Allow-Origin")
-                    .map(|h| h.to_str().unwrap()),
-                Some("*")
+                extension_mime_type(std::path::Path::new(file)),
+                mime,
+                "{file}"
             );
         }
     }
-}
-
-#[cfg(test)]
-mod cache_control_tests {
-    use super::*;
 
     #[test]
-    fn thumbnail_and_icon_responses_include_no_store_cache_control() {
-        let app = tauri::test::mock_app();
-        let thumb_dir = crate::thumbnail::cache::get_thumbnail_cache_dir(app.handle());
-        std::fs::create_dir_all(&thumb_dir).unwrap();
-        let test_thumb = thumb_dir.join("test_thumb.png");
-        std::fs::write(&test_thumb, b"png_data").unwrap();
+    fn scheme_names_are_unique() {
+        let names: Vec<_> = schemes::<MockRuntime>().iter().map(|(n, _)| *n).collect();
+        let mut deduped = names.clone();
+        deduped.sort_unstable();
+        deduped.dedup();
+        assert_eq!(names.len(), deduped.len(), "duplicate scheme in {names:?}");
+    }
 
-        let req = tauri::http::Request::builder()
-            .uri("asyar-thumb://localhost/test_thumb.png")
-            .body(Vec::new())
-            .unwrap();
-
-        let res = handle_thumbnail_request(app.handle(), req);
-        assert_eq!(res.status().as_u16(), 200);
-        let cache_control = res
-            .headers()
-            .get("Cache-Control")
-            .and_then(|v| v.to_str().ok());
-        assert_eq!(cache_control, Some("no-store, must-revalidate"));
-
-        let _ = std::fs::remove_file(test_thumb);
+    /// Registering a scheme anywhere else would skip [`SchemeResponse`] and
+    /// its cache policy, the way `asyar-extension://` once did.
+    #[test]
+    fn schemes_are_only_registered_through_this_module() {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let this_module = src.join("uri_schemes.rs");
+        let mut offenders = Vec::new();
+        let mut dirs = vec![src];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs") && path != this_module {
+                    let code = std::fs::read_to_string(&path).unwrap();
+                    if code.contains("register_uri_scheme_protocol")
+                        || code.contains("register_asynchronous_uri_scheme_protocol")
+                    {
+                        offenders.push(path);
+                    }
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "add new schemes to `uri_schemes::schemes` instead: {offenders:?}"
+        );
     }
 
     #[test]
-    fn icon_responses_include_no_store_cache_control() {
-        let app = tauri::test::mock_app();
-        let icon_dir = app
-            .path()
-            .app_data_dir()
-            .map(|p| p.join("icon_cache"))
-            .unwrap();
-        std::fs::create_dir_all(&icon_dir).unwrap();
-        let test_icon = icon_dir.join("test_icon.png");
-        std::fs::write(&test_icon, b"png_data").unwrap();
-
-        let req = tauri::http::Request::builder()
-            .uri("asyar-icon://localhost/test_icon.png")
-            .body(Vec::new())
-            .unwrap();
-
-        let res = handle_icon_request(app.handle(), req);
-        assert_eq!(res.status().as_u16(), 200);
-        let cache_control = res
-            .headers()
-            .get("Cache-Control")
-            .and_then(|v| v.to_str().ok());
-        assert_eq!(cache_control, Some("no-store, must-revalidate"));
-
-        let _ = std::fs::remove_file(test_icon);
+    fn scheme_path_strips_every_prefix_form() {
+        for uri in [
+            "asyar-icon://localhost/a.png",
+            "ASYAR-ICON://localhost/a.png",
+            "asyar-icon://a.png",
+            "http://asyar-icon.localhost/a.png",
+        ] {
+            assert_eq!(scheme_path(uri, "asyar-icon"), "a.png", "{uri}");
+        }
+        assert_eq!(scheme_path("other://a.png", "asyar-icon"), "other://a.png");
     }
 
     #[test]
-    fn error_response_includes_no_store_cache_control() {
-        let res = error_response(404, Vec::new());
-        let cache_control = res
-            .headers()
-            .get("Cache-Control")
-            .and_then(|v| v.to_str().ok());
-        assert_eq!(cache_control, Some("no-store"));
+    fn cache_files_reject_traversal() {
+        let app = isolated_app("org.asyar.test.uri-schemes-traversal");
+        for uri in [
+            "asyar-icon://localhost/..%2Fsecret.png",
+            "asyar-icon://localhost/a/b.png",
+            "asyar-icon://localhost/a%5Cb.png",
+        ] {
+            let res = get(handle_icon_request, app.handle(), uri);
+            assert_eq!(res.status().as_u16(), 403, "{uri}");
+        }
     }
 }

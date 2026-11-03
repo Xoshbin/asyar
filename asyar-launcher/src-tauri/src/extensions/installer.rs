@@ -447,6 +447,8 @@ pub(crate) async fn install_from_file(
         }
     }
 
+    manifest.write_icon_copies(temp_dir.path());
+
     // Move or copy from temp to install dir
     if fs::rename(temp_dir.path(), &install_dir).is_err() {
         copy_dir_recursive(temp_dir.path(), &install_dir)?;
@@ -583,6 +585,7 @@ pub(crate) async fn install_from_url(
                             }
                         )));
                     }
+                    manifest.write_icon_copies(&install_dir);
                 }
                 Err(e) => {
                     warn!("Could not read manifest for platform check: {}", e);

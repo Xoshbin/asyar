@@ -224,6 +224,7 @@ pub async fn update_extension(
                         }
                     )));
                 }
+                manifest.write_icon_copies(&staging_dir);
             }
             Err(e) => {
                 warn!(
