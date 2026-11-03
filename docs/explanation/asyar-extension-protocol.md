@@ -42,3 +42,5 @@ External URLs in `<script src="">` tags are blocked. All networking goes through
 ### Host Window Asset Resolution
 
 The `asyar-extension://` protocol is also used by the host application (Settings and launcher search results) to load extension-bundled icon images (e.g. `asyar-extension://<extensionId>/icon.png`). The host window's Content Security Policy allows `asyar-extension:` in `img-src`, and the Rust protocol handler validates that the file is located within an approved extension directory before serving it.
+
+Icon URLs from the icon resolver end in `?icon` (e.g. `asyar-extension://<extensionId>/icon.png?icon`). When an extension is installed or updated, Rust writes a 128px copy of each bundled PNG, JPEG, WebP or BMP icon larger than 128px. The copy is a hidden file next to the original (`.icon.png.128.png`), so uninstalling the extension removes it too. For an `?icon` request the handler serves that copy when it exists, and the original otherwise (SVG, GIF, small images, dev extensions, older installs). Requests without `?icon`, such as an extension view loading its own images, always get the original file.

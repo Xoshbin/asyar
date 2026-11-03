@@ -2,6 +2,8 @@
 //! show. Every surface (manifest, commands, actions, search results) goes
 //! through [`resolve_icon`].
 
+pub mod copies;
+
 use serde::{Deserialize, Serialize};
 
 /// A display-ready icon. Tagged by `kind` on the wire.
@@ -53,10 +55,25 @@ pub fn resolve_icon(
     if raw.contains(':') {
         return None;
     }
-    if raw.contains('.') || raw.contains('/') || raw.contains('\\') {
+    if looks_like_path(raw) {
         return bundled_file(raw, extension_id?);
     }
     Some(ResolvedIcon::Emoji { value: raw.into() })
+}
+
+fn looks_like_path(raw: &str) -> bool {
+    raw.contains('.') || raw.contains('/') || raw.contains('\\')
+}
+
+/// The extension-relative path of a bundled icon file, or `None` when `raw`
+/// is a glyph, emoji, URL or unsafe path. The same rule [`resolve_icon`]
+/// uses, for code that needs the file itself (see [`copies`]).
+pub(crate) fn bundled_icon_path(raw: &str) -> Option<&str> {
+    let raw = raw.trim();
+    if raw.contains(':') || !looks_like_path(raw) {
+        return None;
+    }
+    safe_relative_path(raw)
 }
 
 /// Resolve an optional raw icon; shorthand for the common `Option<String>` field.
@@ -68,14 +85,24 @@ pub fn resolve_opt(
     resolve_icon(raw?, extension_id, allow_remote)
 }
 
-fn bundled_file(path: &str, extension_id: &str) -> Option<ResolvedIcon> {
+fn safe_relative_path(path: &str) -> Option<&str> {
     let path = path.strip_prefix("./").unwrap_or(path);
     let escapes = path.split('/').any(|seg| seg == "..");
-    if path.starts_with('/') || path.contains('\\') || escapes || extension_id.is_empty() {
+    (!path.is_empty() && !path.starts_with('/') && !path.contains('\\') && !escapes).then_some(path)
+}
+
+/// The URL carries [`copies::COPY_QUERY`] so `asyar-extension://` serves the
+/// 128px copy made at install when there is one.
+fn bundled_file(path: &str, extension_id: &str) -> Option<ResolvedIcon> {
+    let path = safe_relative_path(path)?;
+    if extension_id.is_empty() {
         return None;
     }
     Some(ResolvedIcon::Image {
-        src: format!("asyar-extension://{extension_id}/{path}"),
+        src: format!(
+            "asyar-extension://{extension_id}/{path}?{}",
+            copies::COPY_QUERY
+        ),
     })
 }
 
@@ -109,11 +136,11 @@ mod tests {
     fn relative_paths_become_extension_urls() {
         assert_eq!(
             resolve_icon("assets/icon.png", Some("org.x"), false),
-            img("asyar-extension://org.x/assets/icon.png")
+            img("asyar-extension://org.x/assets/icon.png?icon")
         );
         assert_eq!(
             resolve_icon("./icon.svg", Some("org.x"), false),
-            img("asyar-extension://org.x/icon.svg")
+            img("asyar-extension://org.x/icon.svg?icon")
         );
         // No owner → nothing to resolve against.
         assert_eq!(resolve_icon("icon.png", None, false), None);
@@ -173,7 +200,7 @@ mod tests {
             }))
             .unwrap();
         m.resolve_icons();
-        let ext_icon = img("asyar-extension://org.x/assets/icon.png");
+        let ext_icon = img("asyar-extension://org.x/assets/icon.png?icon");
         assert_eq!(m.resolved_icon, ext_icon);
         assert_eq!(
             m.commands[0].resolved_icon,
@@ -184,6 +211,45 @@ mod tests {
         assert_eq!(m.commands[1].resolved_icon, ext_icon);
         // Remote is refused for manifest icons → falls back to the extension's.
         assert_eq!(m.commands[2].resolved_icon, ext_icon);
+    }
+
+    #[test]
+    fn bundled_icon_path_only_accepts_safe_relative_files() {
+        assert_eq!(
+            bundled_icon_path("assets/icon.png"),
+            Some("assets/icon.png")
+        );
+        assert_eq!(bundled_icon_path(" ./icon.png "), Some("icon.png"));
+        for raw in [
+            "icon:timer",
+            "🍅",
+            "https://example.com/x.png",
+            "data:image/png;base64,AAAA",
+            "../x.png",
+            "/abs/x.png",
+            "a\\b.png",
+            "",
+        ] {
+            assert_eq!(bundled_icon_path(raw), None, "{raw}");
+        }
+    }
+
+    #[test]
+    fn icon_sources_lists_every_manifest_icon() {
+        let m: crate::extensions::ExtensionManifest = serde_json::from_value(serde_json::json!({
+            "id": "org.x", "name": "X", "version": "1.0.0",
+            "icon": "icon.png",
+            "actions": [{ "id": "x", "title": "X", "icon": "x.png" }],
+            "commands": [
+                { "id": "a", "name": "A", "icon": "a.png",
+                  "actions": [{ "id": "y", "title": "Y", "icon": "y.png" }] },
+                { "id": "b", "name": "B" }
+            ]
+        }))
+        .unwrap();
+        let mut sources: Vec<_> = m.icon_sources().collect();
+        sources.sort_unstable();
+        assert_eq!(sources, ["a.png", "icon.png", "x.png", "y.png"]);
     }
 
     #[test]

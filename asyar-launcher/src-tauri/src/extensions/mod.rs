@@ -432,6 +432,32 @@ impl ExtensionManifest {
         }
     }
 
+    /// Every raw icon string in the manifest, the same fields
+    /// [`Self::resolve_icons`] reads.
+    pub fn icon_sources(&self) -> impl Iterator<Item = &str> {
+        fn actions(a: &Option<Vec<ManifestAction>>) -> impl Iterator<Item = &str> {
+            a.iter().flatten().filter_map(|a| a.icon.as_deref())
+        }
+        self.icon
+            .as_deref()
+            .into_iter()
+            .chain(actions(&self.actions))
+            .chain(
+                self.commands.iter().flat_map(move |cmd| {
+                    cmd.icon.as_deref().into_iter().chain(actions(&cmd.actions))
+                }),
+            )
+    }
+
+    /// Writes 128px copies of this manifest's bundled icons into `ext_dir`.
+    /// Called on every install and update path before the folder goes live.
+    pub fn write_icon_copies(&self, ext_dir: &std::path::Path) {
+        let written = crate::icons::copies::write_copies(ext_dir, self.icon_sources());
+        if written > 0 {
+            log::info!("Wrote {written} icon copies for '{}'", self.id);
+        }
+    }
+
     pub fn first_view_component(&self) -> Option<&str> {
         self.commands.iter().find_map(|cmd| {
             let is_view = cmd.mode.as_deref().unwrap_or("view") == "view";

@@ -118,6 +118,10 @@ fn handle_extension_request<R: Runtime>(
     // the Rust `std::fs` backend will look for a literal file on disk named
     // "index.html?view=DefaultView" and fail with File Not Found.
     let file_path = without_query(encoded_file_path);
+    let wants_icon_copy = request.uri().query().is_some_and(|q| {
+        q.split('&')
+            .any(|pair| pair == crate::icons::copies::COPY_QUERY)
+    });
 
     let app_data_dir = app.path().app_data_dir().unwrap_or_default();
     let resource_dir = app.path().resource_dir().unwrap_or_default();
@@ -209,6 +213,19 @@ fn handle_extension_request<R: Runtime>(
         }
     }
 
+    // Icon URLs ask for the 128px copy written at install. It sits next to
+    // the original, so it goes through the same canonicalize + allow-list
+    // checks below. No copy → the original is served.
+    if wants_icon_copy {
+        if let Some(copy) = final_path
+            .as_deref()
+            .map(crate::icons::copies::copy_path)
+            .filter(|copy| copy.is_file())
+        {
+            final_path = Some(copy);
+        }
+    }
+
     match final_path {
         Some(resolved_path) => {
             // Step 1: Canonicalize to resolve any symlinks
@@ -246,19 +263,32 @@ fn handle_extension_request<R: Runtime>(
                 _ => raw,
             };
 
-            let mime_type = match canonical_path.extension().and_then(|e| e.to_str()) {
-                Some("html") => "text/html",
-                Some("js") => "application/javascript",
-                Some("css") => "text/css",
-                Some("png") => "image/png",
-                Some("svg") => "image/svg+xml",
-                Some("json") => "application/json",
-                _ => "text/plain",
-            };
-
-            SchemeResponse::ok(mime_type, content).with_csp(extension_csp_header())
+            SchemeResponse::ok(extension_mime_type(&canonical_path), content)
+                .with_csp(extension_csp_header())
         }
         None => SchemeResponse::not_found(),
+    }
+}
+
+/// Content type for a file served from an extension bundle.
+fn extension_mime_type(path: &std::path::Path) -> &'static str {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase);
+    match ext.as_deref() {
+        Some("html") => "text/html",
+        Some("js") => "application/javascript",
+        Some("css") => "text/css",
+        Some("json") => "application/json",
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
+        Some("bmp") => "image/bmp",
+        Some("ico") => "image/x-icon",
+        Some("svg") => "image/svg+xml",
+        _ => "text/plain",
     }
 }
 
@@ -731,6 +761,58 @@ mod scheme_registry_tests {
         }
 
         let _ = std::fs::remove_dir_all(handle.path().app_data_dir().unwrap());
+    }
+
+    #[test]
+    fn icon_requests_get_the_128px_copy_and_everything_else_the_original() {
+        let app = isolated_app("org.asyar.test.uri-schemes-icon-copy");
+        let handle = app.handle();
+        let dist = handle
+            .path()
+            .app_data_dir()
+            .unwrap()
+            .join("extensions/copy-probe/dist");
+        std::fs::create_dir_all(&dist).unwrap();
+        std::fs::write(dist.join("icon.png"), b"original").unwrap();
+        std::fs::write(dist.join("plain.png"), b"plain").unwrap();
+        std::fs::write(
+            crate::icons::copies::copy_path(&dist.join("icon.png")),
+            b"copy",
+        )
+        .unwrap();
+        let handler = handle_extension_request::<MockRuntime>;
+        let body = |uri: &str| get(handler, handle, uri).body().clone();
+
+        assert_eq!(body("asyar-extension://copy-probe/icon.png?icon"), b"copy");
+        assert_eq!(body("asyar-extension://copy-probe/icon.png"), b"original");
+        // No copy (small, SVG, dev extension, older install) → the original.
+        assert_eq!(
+            body("asyar-extension://copy-probe/plain.png?icon"),
+            b"plain"
+        );
+
+        let _ = std::fs::remove_dir_all(handle.path().app_data_dir().unwrap());
+    }
+
+    #[test]
+    fn extension_images_are_served_with_their_own_mime_type() {
+        for (file, mime) in [
+            ("a.png", "image/png"),
+            ("a.jpg", "image/jpeg"),
+            ("a.JPEG", "image/jpeg"),
+            ("a.webp", "image/webp"),
+            ("a.gif", "image/gif"),
+            ("a.bmp", "image/bmp"),
+            ("a.ico", "image/x-icon"),
+            ("a.svg", "image/svg+xml"),
+            ("a.unknown", "text/plain"),
+        ] {
+            assert_eq!(
+                extension_mime_type(std::path::Path::new(file)),
+                mime,
+                "{file}"
+            );
+        }
     }
 
     #[test]
