@@ -338,10 +338,6 @@
       color var(--dur-instant) var(--ease-travel);
   }
 
-  .item:hover {
-    background: var(--bg-hover);
-  }
-
   .item.active {
     background: var(--bg-selected);
     box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
