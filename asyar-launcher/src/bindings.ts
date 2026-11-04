@@ -168,7 +168,8 @@ export type Command = {
 	trigger: string,
 	type: string,
 	usageCount?: number,
-	icon: string | null,
+	// Raw manifest icon; rows persisted as a plain string still decode.
+	icon: ManifestIcon | null,
 	lastUsedAt?: number | null,
 	subtitle?: string | null,
 	/**
@@ -421,6 +422,17 @@ export type LauncherPlacement = {
 	snapEnabled: boolean,
 };
 
+/**
+ *  The `icon` field as manifest.json writes it: the short string
+ *  (`"icon:timer"`, an emoji, `"assets/icon.png"`), or one of two objects.
+ *  The objects exclude each other; mixing their fields is a parse error.
+ */
+export type ManifestIcon = string | 
+// `{ "source": "assets/icon.png", "dark"?: "...", "tint"?: true }`
+{ source: string; dark?: string | null; tint?: boolean | null } | 
+// `{ "glyph": "timer", "color": "orange" }`
+{ glyph: string; color: TileColor };
+
 export type MergedSearchResponse = {
 	results: SearchResult[],
 	aliasMatch?: AliasMatch | null,
@@ -501,15 +513,20 @@ export type ReadAlign = "none" | "line";
 
 // A display-ready icon. Tagged by `kind` on the wire.
 export type ResolvedIcon = 
-// A glyph from the launcher's built-in icon set (`icon:<name>`).
-{ kind: "glyph"; name: string } | 
+/**
+ *  A glyph from the launcher's built-in icon set (`icon:<name>`). With a
+ *  `color`, it is drawn on a tile of that colour.
+ */
+{ kind: "glyph"; name: string; color?: TileColor | null } | 
 // Plain text, normally a single emoji.
 { kind: "emoji"; value: string } | 
 /**
  *  A local image the webview may load: an extension's bundled file,
  *  a host scheme (`asyar-icon://`, `asyar-thumb://`) or a `data:image/`.
+ *  `dark` replaces it in the dark theme; `tint` draws it as a one-colour
+ *  mask filled with the text colour.
  */
-{ kind: "image"; src: string } | 
+{ kind: "image"; src: string; dark?: string | null; tint?: boolean | null } | 
 /**
  *  An `https://` image. Only produced for runtime icons; manifest icons
  *  are known at install time and never need the network.
@@ -644,6 +661,12 @@ export type TierResult = {
 	id: string,
 	tier: number,
 };
+
+/**
+ *  Tile colours for the `{ glyph, color }` icon form. Each maps to a
+ *  `--tile-<color>` theme token, so tiles work in light and dark.
+ */
+export type TileColor = "red" | "orange" | "green" | "teal" | "blue" | "purple" | "pink" | "gray";
 
 export type ToolCall = {
 	id: string,

@@ -295,6 +295,17 @@
 
   /* Additional transition token */
   --transition-slow: var(--dur-emerge) var(--ease-emerge);
+
+  /* Glyph tiles — the `{ glyph, color }` extension icon form. Deep enough
+     for --text-on-accent in both themes, like the --accent-*-fill grounds. */
+  --tile-red: var(--accent-danger-fill);
+  --tile-orange: var(--accent-warning-fill);
+  --tile-green: var(--accent-success-fill);
+  --tile-teal: #0e7c86;
+  --tile-blue: var(--accent-primary-fill);
+  --tile-purple: #8944ab;
+  --tile-pink: #c4325f;
+  --tile-gray: #6b6b70;
 }
 
 /* ── Syntax tokens ──────────────────────────────────────────

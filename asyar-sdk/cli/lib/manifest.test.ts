@@ -764,6 +764,48 @@ describe('manifest validation — permissions', () => {
   });
 });
 
+describe('manifest validation — icon object form', () => {
+  const withIcons = (icon: unknown, cmdIcon?: unknown, asyarSdk = '^4.17.0'): AsyarManifest =>
+    ({
+      ...viewOnly,
+      asyarSdk,
+      icon,
+      commands: [{ ...viewOnly.commands[0], icon: cmdIcon }],
+    }) as AsyarManifest;
+  const iconErrors = (m: AsyarManifest) =>
+    validateManifest(m, './').filter((e) => e.field.includes('icon') || e.field === 'asyarSdk');
+
+  it('accepts the string and both object forms', () => {
+    expect(iconErrors(withIcons('icon:timer', '⏱️'))).toEqual([]);
+    expect(
+      iconErrors(
+        withIcons(
+          { source: 'a.png', dark: 'b.png', tint: true },
+          { glyph: 'timer', color: 'teal' },
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('rejects mixed and incomplete object forms', () => {
+    expect(iconErrors(withIcons({ source: 'a.png', glyph: 'timer' }))[0].message).toContain(
+      'not both',
+    );
+    expect(iconErrors(withIcons({ dark: 'b.png' }))[0].field).toBe('icon.source');
+    expect(iconErrors(withIcons(undefined, { glyph: 'timer', color: 'mauve' }))[0].field).toBe(
+      'commands[0].icon.color',
+    );
+    expect(iconErrors(withIcons({ source: 'a.png', size: 2 }))[0].message).toContain('size');
+  });
+
+  it('needs an asyarSdk that reads the object form', () => {
+    const err = iconErrors(withIcons({ glyph: 'timer', color: 'red' }, undefined, '^4.16.0'));
+    expect(err).toHaveLength(1);
+    expect(err[0].field).toBe('asyarSdk');
+    expect(iconErrors(withIcons('icon:timer', undefined, '^4.16.0'))).toEqual([]);
+  });
+});
+
 describe('manifest validation — runtimes', () => {
   it('absent runtimes field is legal (no regression on existing manifests)', () => {
     const errors = validateManifest(viewOnly, './');

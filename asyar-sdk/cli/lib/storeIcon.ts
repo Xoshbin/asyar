@@ -9,8 +9,12 @@ import * as path from 'path';
 
 const IMAGE_FILE = /\.(png|jpe?g|webp|gif|svg)$/i;
 
-/** Package-relative path of a file icon, or null for emoji, `icon:` names and other forms. */
+/**
+ * Package-relative path of a file icon (the short string or `{ source }`),
+ * or null for emoji, `icon:` names, glyph tiles and other forms.
+ */
 export function iconFilePath(icon: unknown): string | null {
+  if (icon && typeof icon === 'object' && 'source' in icon) icon = icon.source;
   if (typeof icon !== 'string' || icon.startsWith('icon:') || !IMAGE_FILE.test(icon)) {
     return null;
   }

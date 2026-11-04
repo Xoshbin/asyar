@@ -8,6 +8,7 @@ describe('iconFilePath', () => {
   it('returns the package path of an image file icon', () => {
     expect(iconFilePath('assets/icon.png')).toBe('assets/icon.png');
     expect(iconFilePath('./assets/icon.PNG')).toBe('assets/icon.PNG');
+    expect(iconFilePath({ source: 'assets/icon.png', tint: true })).toBe('assets/icon.png');
   });
 
   it('returns null for icons that are not files', () => {

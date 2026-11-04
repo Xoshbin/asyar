@@ -1202,7 +1202,7 @@ impl SearchState {
                 trigger: reg.name.to_lowercase(),
                 command_type: "command".to_string(),
                 usage_count: 0,
-                icon: reg.icon.clone(),
+                icon: reg.icon.clone().map(Into::into),
                 last_used_at: None,
                 subtitle: reg.description.clone(),
                 type_label: reg.type_label.clone(),

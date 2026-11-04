@@ -9,6 +9,7 @@
   import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { useListSelection } from '../../lib/listSelection.svelte';
   import { groupActionsForDisplay } from './actionListOrdering';
+  import { toResolvedIcon } from '../../lib/icon';
   import { t } from '../../services/i18n';
 
   type ActionForDisplay = ApplicationAction & { displayCategory: string };
@@ -155,7 +156,9 @@
     {#if showHeader}
       <div class="popup-header">{selectedItemName}</div>
     {/if}
+    {#snippet iconSpacer()}<span class="icon-spacer" aria-hidden="true"></span>{/snippet}
     {#each groupedActions as { actions: groupActions }, groupIndex}
+      {@const groupHasIcons = groupActions.some((a) => toResolvedIcon(a.icon))}
       <div class="group-section" class:first-group={groupIndex === 0}>
         {#each groupActions as action}
           {@const flatIndex = flatActions.indexOf(action)}
@@ -166,6 +169,7 @@
               data-index={flatIndex}
               tabindex="-1"
               icon={action.icon}
+              leading={groupHasIcons && !toResolvedIcon(action.icon) ? iconSpacer : undefined}
               title={action.label}
               shortcut={action.shortcut}
               shortcutPlacement="trailing"
@@ -255,16 +259,23 @@
     border-top: 1px solid var(--popup-divider);
   }
 
+  /* Keeps titles aligned when only some actions in a section have an icon. */
+  .icon-spacer {
+    width: 22px; /* design-ok: the LauncherListRow icon box */
+    flex-shrink: 0;
+  }
+
   .action-row :global(.result-title) {
     font-size: var(--font-size-md);
   }
 
-  /* Flat, larger glyph in the popup — no filled tile. */
-  .action-popup :global(.app-icon-tile) {
+  /* Flat, larger glyph in the popup — no filled tile. Glyphs with their own
+     tile colour keep it. */
+  .action-popup :global(.app-icon-tile:not(.app-icon-colored)) {
     background-color: transparent;
     color: var(--text-primary);
   }
-  .action-popup :global(.app-icon-tile svg) {
+  .action-popup :global(.app-icon-tile:not(.app-icon-colored) svg) {
     width: 18px; /* design-ok: matches the popup's former 18px glyph */
     height: 18px; /* design-ok: matches the popup's former 18px glyph */
   }

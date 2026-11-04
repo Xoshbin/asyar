@@ -311,7 +311,7 @@ pub struct CommandSyncInput {
     pub trigger: String,
     #[serde(rename = "type")]
     pub command_type: String,
-    pub icon: Option<String>,
+    pub icon: Option<crate::icons::ManifestIcon>,
 }
 
 #[derive(serde::Serialize, Clone, specta::Type)]
