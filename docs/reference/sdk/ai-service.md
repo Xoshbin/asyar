@@ -105,3 +105,120 @@ try {
 - **Privacy & Redaction:** Prompts dispatched through `AiService` automatically flow through Asyar's host secret-redaction pipeline, preventing accidental leakage of credentials (AWS keys, tokens, private keys) to upstream AI providers.
 
 ---
+
+### Web Search Engine SPI
+
+**Runs in:** worker only.
+
+**Permissions required:** `ai:web-search` and `network`.
+
+`AiService` also hosts the **Web Search Engine Service Provider Interface (SPI)**, which allows Tier 2 extensions to contribute search engines (such as Keenable, Exa, Kagi, or custom self-hosted endpoints) to Asyar.
+
+When an extension contributes a search engine:
+
+1. It appears dynamically in **Settings → AI → Web Search** alongside built-in neutral fallbacks (DuckDuckGo, SearXNG).
+2. Any required or optional API keys and base URLs are configured in Settings and stored encrypted in Asyar's credential vault.
+3. When the built-in search tool (`builtin:web-search`) is invoked during an AI conversation, queries are dispatched over IPC to the extension's registered worker handler.
+4. Normalized results (`sources` and `results`) render directly in the Chat UI with native status streaming, source pills, and favicons.
+
+#### Types & Contracts
+
+```typescript
+export interface GroundingSource {
+  title: string;
+  url: string;
+}
+
+export interface SearchResultEntry {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+export interface WebSearchResult {
+  sources: GroundingSource[];
+  results: SearchResultEntry[];
+}
+
+export interface WebSearchQuery {
+  query: string;
+  limit: number;
+  apiKey?: string;
+  baseUrl?: string;
+}
+
+export type WebSearchHandler = (
+  query: WebSearchQuery,
+  signal: AbortSignal,
+) => Promise<WebSearchResult>;
+
+export interface WebSearchEngineRegistration {
+  id: string;
+  search: WebSearchHandler;
+}
+```
+
+#### Example Manifest
+
+```json
+{
+  "id": "org.example.keenable",
+  "name": "Keenable Search",
+  "version": "1.0.0",
+  "permissions": ["network", "ai:web-search"],
+  "background": { "main": "dist/worker.js" },
+  "webSearchEngines": [
+    {
+      "id": "keenable",
+      "name": "Keenable Search",
+      "description": "High-signal web search for AI agents",
+      "homepage": "https://keenable.example",
+      "requiresApiKey": true,
+      "apiKeyPlaceholder": "knb-...",
+      "apiKeyHelpUrl": "https://keenable.example/docs/api"
+    }
+  ]
+}
+```
+
+#### Example Worker Registration (`src/worker.ts`)
+
+```typescript
+import { context } from 'asyar-sdk';
+
+// Register the search handler matching the manifest id "keenable"
+const unregister = context.ai.registerWebSearchEngine({
+  id: 'keenable',
+  async search(query, signal) {
+    const response = await fetch(
+      `https://api.keenable.example/search?q=${encodeURIComponent(query.query)}&limit=${query.limit}`,
+      {
+        headers: {
+          Authorization: `Bearer ${query.apiKey}`,
+        },
+        signal,
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Search provider failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    return {
+      sources: data.results.map((r: any) => ({
+        title: r.title,
+        url: r.url,
+      })),
+      results: data.results.map((r: any) => ({
+        title: r.title,
+        url: r.url,
+        snippet: r.snippet,
+      })),
+    };
+  },
+});
+```
+
+---
