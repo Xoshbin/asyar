@@ -52,6 +52,10 @@ async function reportToolDispatch(
     error = extractErrorMessage(cause);
   }
 
+  if (signal.aborted) {
+    return;
+  }
+
   try {
     if (error === undefined) {
       await agentsReportToolResult(options.streamId, event.tool_call_id, result);
@@ -59,6 +63,9 @@ async function reportToolDispatch(
       await agentsReportToolResult(options.streamId, event.tool_call_id, result, error);
     }
   } catch (cause) {
+    if (signal.aborted) {
+      return;
+    }
     // A failed resume would otherwise leave the Rust runner suspended forever.
     // Cancellation is idempotent and closes its pending oneshot receiver.
     await agentsCancelRun(options.streamId).catch(() => undefined);
@@ -78,8 +85,14 @@ async function reportMcpPermission(
       event.agent_id,
       signal,
     );
+    if (signal.aborted) {
+      return;
+    }
     await agentsReportMcpPermission(options.streamId, event.tool_call_id, decision);
   } catch (cause) {
+    if (signal.aborted) {
+      return;
+    }
     await agentsCancelRun(options.streamId).catch(() => undefined);
     options.onBridgeError?.(new Error(extractErrorMessage(cause)));
   }

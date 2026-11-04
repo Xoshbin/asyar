@@ -322,7 +322,20 @@ describe('AiServiceProxy', () => {
     it('throws if engine descriptor is invalid', () => {
       expect(() => proxy.registerWebSearchEngine(null as any)).toThrow();
       expect(() => proxy.registerWebSearchEngine({ id: '', search: vi.fn() } as any)).toThrow();
+      expect(() =>
+        proxy.registerWebSearchEngine({ id: 'bad id!', search: vi.fn() } as any),
+      ).toThrow();
       expect(() => proxy.registerWebSearchEngine({ id: 'test', search: null as any })).toThrow();
+    });
+
+    it('rejects invokeWebSearchHandler on invalid engine IDs', async () => {
+      const controller = new AbortController();
+      await expect(
+        proxy.invokeWebSearchHandler('invalid id!', { query: 'test', limit: 5 }, controller.signal),
+      ).rejects.toThrow('Invalid engine ID');
+      await expect(
+        proxy.invokeWebSearchHandler('', { query: 'test', limit: 5 }, controller.signal),
+      ).rejects.toThrow('Invalid engine ID');
     });
   });
 });

@@ -1184,6 +1184,12 @@ export function validateWebSearchEngines(
     if (typeof e.name !== 'string' || e.name.trim().length === 0) {
       errors.push({ field: `${p}.name`, message: 'required and must be non-empty' });
     }
+    if (typeof e.homepage === 'string' && !/^https?:\/\//.test(e.homepage)) {
+      errors.push({ field: `${p}.homepage`, message: 'must start with http:// or https://' });
+    }
+    if (typeof e.apiKeyHelpUrl === 'string' && !/^https?:\/\//.test(e.apiKeyHelpUrl)) {
+      errors.push({ field: `${p}.apiKeyHelpUrl`, message: 'must start with http:// or https://' });
+    }
   });
   return errors;
 }

@@ -224,7 +224,13 @@ function installWebSearchInvokeInterceptor(): void {
         }
       | undefined;
     const engineId = payload?.engineId;
-    if (typeof messageId !== 'string' || typeof engineId !== 'string') return;
+    if (
+      typeof messageId !== 'string' ||
+      typeof engineId !== 'string' ||
+      !/^[a-z0-9_-]{1,64}$/.test(engineId)
+    ) {
+      return;
+    }
     if (!_workerAiProxy) return;
     const controller = new AbortController();
     try {

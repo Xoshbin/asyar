@@ -316,16 +316,18 @@ impl WebSearchTool {
         let dispatch_future = dispatcher(request);
         match tokio::time::timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), dispatch_future).await
         {
-            Ok(Ok(response_value)) => match Self::normalize_extension_response(response_value) {
-                Ok(normalized) => Ok(normalized),
-                Err(e) => {
-                    log::warn!(
+            Ok(Ok(response_value)) => {
+                match Self::normalize_extension_response(response_value, limit) {
+                    Ok(normalized) => Ok(normalized),
+                    Err(e) => {
+                        log::warn!(
                             "Extension web search engine 'ext:{extension_id}:{engine_id}' returned invalid response ({e}); falling back to DuckDuckGo"
                         );
-                    self.search_duckduckgo_resilient(query, limit, base_url)
-                        .await
+                        self.search_duckduckgo_resilient(query, limit, base_url)
+                            .await
+                    }
                 }
-            },
+            }
             Ok(Err(e)) => {
                 log::warn!(
                     "Extension web search engine 'ext:{extension_id}:{engine_id}' failed ({e}); falling back to DuckDuckGo"
@@ -343,7 +345,7 @@ impl WebSearchTool {
         }
     }
 
-    fn normalize_extension_response(val: Value) -> Result<Value, AppError> {
+    fn normalize_extension_response(val: Value, limit: usize) -> Result<Value, AppError> {
         let obj = val.as_object().ok_or_else(|| {
             AppError::Validation("extension web search result must be an object".into())
         })?;
@@ -357,6 +359,9 @@ impl WebSearchTool {
 
         let mut results = Vec::new();
         for r in results_raw {
+            if results.len() >= limit {
+                break;
+            }
             let r_obj = r.as_object().ok_or_else(|| {
                 AppError::Validation("search result entry must be an object".into())
             })?;
@@ -364,16 +369,17 @@ impl WebSearchTool {
                 .get("title")
                 .and_then(|t| t.as_str())
                 .unwrap_or("")
+                .trim()
                 .to_string();
-            let url = r_obj
-                .get("url")
-                .and_then(|u| u.as_str())
-                .unwrap_or("")
-                .to_string();
+            let raw_url = r_obj.get("url").and_then(|u| u.as_str()).unwrap_or("");
+            let Some(url) = clean_url(raw_url) else {
+                continue;
+            };
             let snippet = r_obj
                 .get("snippet")
                 .and_then(|s| s.as_str())
                 .unwrap_or("")
+                .trim()
                 .to_string();
             results.push(json!({
                 "title": title,
@@ -385,18 +391,20 @@ impl WebSearchTool {
         let sources = if let Some(sources_raw) = obj.get("sources").and_then(|s| s.as_array()) {
             let mut s_list = Vec::new();
             for s in sources_raw {
+                if s_list.len() >= limit {
+                    break;
+                }
                 if let Some(s_obj) = s.as_object() {
                     let title = s_obj
                         .get("title")
                         .and_then(|t| t.as_str())
                         .unwrap_or("")
+                        .trim()
                         .to_string();
-                    let url = s_obj
-                        .get("url")
-                        .and_then(|u| u.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    s_list.push(json!({ "title": title, "url": url }));
+                    let raw_url = s_obj.get("url").and_then(|u| u.as_str()).unwrap_or("");
+                    if let Some(url) = clean_url(raw_url) {
+                        s_list.push(json!({ "title": title, "url": url }));
+                    }
                 }
             }
             if s_list.is_empty() {

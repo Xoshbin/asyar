@@ -31,7 +31,14 @@ pub fn is_keyed_web_search_engine(engine: &str) -> bool {
 }
 
 pub fn is_extension_web_search_engine(engine: &str) -> bool {
-    engine.starts_with("ext:") && engine.split(':').count() == 3
+    let Some(rest) = engine.strip_prefix("ext:") else {
+        return false;
+    };
+    let mut parts = rest.split(':');
+    matches!(
+        (parts.next(), parts.next(), parts.next()),
+        (Some(ext), Some(id), None) if !ext.is_empty() && !id.is_empty()
+    )
 }
 
 /// Credential row id for a keyed web-search engine's API key.
@@ -246,7 +253,18 @@ mod tests {
 
     #[test]
     fn web_search_target_rejects_unkeyed_or_unknown_engines() {
-        for engine in ["duckduckgo", "searxng", "", "BRAVE", "../brave"] {
+        for engine in [
+            "duckduckgo",
+            "searxng",
+            "",
+            "BRAVE",
+            "../brave",
+            "ext::",
+            "ext:a:",
+            "ext::b",
+            "ext:onlyone",
+            "ext:one:two:three",
+        ] {
             let err = CredentialTarget::WebSearch {
                 engine: engine.into(),
             }

@@ -93,6 +93,12 @@
     extensionSearchEngines.find((e) => e.fullId === webSearchSettings.engine),
   );
 
+  let isKnownEngine = $derived(
+    webSearchSettings.engine === 'duckduckgo' ||
+      webSearchSettings.engine === 'searxng' ||
+      selectedExtensionEngine !== undefined,
+  );
+
   // Access extension credential metadata without triggering the plaintext key guard
   function getExtKeyMeta(engine: unknown) {
     if (!engine || typeof engine !== 'object') {
@@ -1282,6 +1288,13 @@
                   {/each}
                 </optgroup>
               {/if}
+              {#if !isKnownEngine}
+                <optgroup label="Legacy / Unavailable">
+                  <option value={webSearchSettings.engine}>
+                    {webSearchSettings.engine} (Unavailable)
+                  </option>
+                </optgroup>
+              {/if}
             </select>
           </div>
 
@@ -1378,6 +1391,11 @@
                 {/if}
               </p>
             {/if}
+          {:else if !isKnownEngine}
+            <p class="field-description">
+              The search engine "{webSearchSettings.engine}" is unavailable or deprecated. Select an
+              available engine above.
+            </p>
           {/if}
         </div>
       </SettingsCard>

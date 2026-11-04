@@ -1034,6 +1034,35 @@ describe('manifest validation — runtimes', () => {
         const errors = validateManifest(invalid, './');
         expect(errors.some((e) => e.field.endsWith('.id'))).toBe(true);
       });
+
+      it('rejects non-http(s) homepage and apiKeyHelpUrl', () => {
+        const invalid = {
+          ...validWebSearchManifest,
+          webSearchEngines: [
+            {
+              id: 'engine-1',
+              name: 'Engine 1',
+              homepage: 'ftp://example.com',
+              apiKeyHelpUrl: 'javascript:alert(1)',
+            },
+          ],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some(
+            (e) =>
+              e.field.endsWith('.homepage') &&
+              e.message.includes('must start with http:// or https://'),
+          ),
+        ).toBe(true);
+        expect(
+          errors.some(
+            (e) =>
+              e.field.endsWith('.apiKeyHelpUrl') &&
+              e.message.includes('must start with http:// or https://'),
+          ),
+        ).toBe(true);
+      });
     });
   });
 });

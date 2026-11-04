@@ -723,4 +723,23 @@ describe('AiTab', () => {
     await fireEvent.change(select, { target: { value: '50' } });
     expect(handler.handleHistoryRetentionCapChange).toHaveBeenCalledWith(50);
   });
+
+  it('renders legacy or unavailable engines in an optgroup and shows warning description', async () => {
+    webSearchSettings('brave');
+    render(AiTab, { mode: 'full', handler: mockExtensionHandler });
+
+    const select = screen.getByLabelText('Search engine') as HTMLSelectElement;
+    expect(select.value).toBe('brave');
+
+    const unavailableGroup = select.querySelector(
+      'optgroup[label="Legacy / Unavailable"]',
+    ) as HTMLOptGroupElement;
+    expect(unavailableGroup).toBeTruthy();
+
+    const option = unavailableGroup.querySelector('option');
+    expect(option?.value).toBe('brave');
+    expect(option?.textContent).toContain('brave (Unavailable)');
+
+    expect(screen.getByText(/The search engine "brave" is unavailable or deprecated/)).toBeTruthy();
+  });
 });

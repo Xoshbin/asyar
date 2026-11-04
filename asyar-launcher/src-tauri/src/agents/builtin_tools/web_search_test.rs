@@ -842,6 +842,56 @@ async fn test_web_search_extension_success() {
 }
 
 #[tokio::test]
+async fn test_web_search_extension_sanitizes_urls_and_respects_limit() {
+    let tool = test_tool();
+    let dispatcher = std::sync::Arc::new(|_req: crate::agents::runner::ExternalToolRequest| {
+        Box::pin(async move {
+            Ok(json!({
+                "sources": [
+                    { "title": "Evil JS", "url": "javascript:alert(1)" },
+                    { "title": "Valid Source", "url": "https://example.com/source" },
+                    { "title": "Valid Source 2", "url": "https://example.com/source2" }
+                ],
+                "results": [
+                    { "title": "Evil Result", "url": "javascript:alert(1)", "snippet": "Evil" },
+                    { "title": "Valid Result 1", "url": "https://example.com/1", "snippet": "Good 1" },
+                    { "title": "Valid Result 2", "url": "https://example.com/2", "snippet": "Good 2" },
+                    { "title": "Valid Result 3", "url": "https://example.com/3", "snippet": "Good 3" }
+                ]
+            }))
+        })
+            as std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<serde_json::Value, AppError>> + Send>,
+            >
+    });
+
+    let context = crate::agents::tools::ToolContext {
+        web_search: Some(crate::agents::runner::WebSearchConfig {
+            engine: Some("ext:org.example.test:engine".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: Some(dispatcher),
+    };
+
+    let output = tool
+        .invoke_with_context(json!({ "query": "test", "limit": 2 }), &context)
+        .await
+        .unwrap();
+
+    let results = output["results"].as_array().unwrap();
+    // Clamped to limit = 2, and javascript: URL skipped
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0]["url"], "https://example.com/1");
+    assert_eq!(results[1]["url"], "https://example.com/2");
+
+    let sources = output["sources"].as_array().unwrap();
+    // Clamped to limit = 2, and javascript: URL skipped
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0]["url"], "https://example.com/source");
+    assert_eq!(sources[1]["url"], "https://example.com/source2");
+}
+
+#[tokio::test]
 async fn test_web_search_extension_injects_stored_api_key() {
     let data_store = crate::storage::DataStore::in_memory().unwrap();
     let conn = data_store.conn().unwrap();

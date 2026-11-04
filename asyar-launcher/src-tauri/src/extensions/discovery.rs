@@ -50,6 +50,12 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                 m.id
             )));
         }
+        if m.web_search_engines.is_some() {
+            return Err(AppError::Validation(format!(
+                "Theme extension '{}' must not declare `webSearchEngines`.",
+                m.id
+            )));
+        }
         return Ok(());
     }
 
@@ -2182,6 +2188,21 @@ mod manifest_schema_tests {
         }"#;
         let err = parse(json).expect_err("theme with background must fail validation");
         assert!(format!("{err}").contains("background"), "got: {err}");
+    }
+
+    #[test]
+    fn theme_with_web_search_engines_is_rejected() {
+        let json = r#"{
+            "id": "org.test.theme-ws",
+            "name": "Theme With Web Search",
+            "version": "1.0.0",
+            "type": "theme",
+            "webSearchEngines": [
+                { "id": "test", "name": "Test Search" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("theme with webSearchEngines must fail validation");
+        assert!(format!("{err}").contains("webSearchEngines"), "got: {err}");
     }
 
     #[test]
