@@ -7,3 +7,7 @@ export {
   invokeExtensionWebSearch,
   handleWebSearchResponse,
 } from '../../services/extension/extensionWebSearchDispatch';
+export {
+  invokeExtensionWebReader,
+  handleWebReaderResponse,
+} from '../../services/extension/extensionWebReaderDispatch';

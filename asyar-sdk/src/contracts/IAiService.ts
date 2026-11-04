@@ -1,4 +1,5 @@
 import type { WebSearchEngineRegistration } from './webSearch';
+import type { WebReaderEngineRegistration } from './webReader';
 import type { AiProviderRegistration } from './aiProvider';
 
 export interface AiCompletionOptions {
@@ -30,6 +31,14 @@ export interface IAiService {
    * Returns a cleanup function that unregisters the handler.
    */
   registerWebSearchEngine(engine: WebSearchEngineRegistration): () => void;
+
+  /**
+   * Registers a web reader/scraper handler for this extension worker.
+   * Can only be called from a worker context (`role: 'worker'`).
+   * The `engine.id` must match a `webReaders[].id` declared in `manifest.json`.
+   * Returns a cleanup function that unregisters the handler.
+   */
+  registerWebReader(engine: WebReaderEngineRegistration): () => void;
 
   /**
    * Registers an AI model & inference provider handler for this extension worker.

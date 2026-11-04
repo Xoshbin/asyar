@@ -96,6 +96,12 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
           baseUrl: settings.ai.webSearch.baseUrl ?? null,
         }
       : undefined,
+    webReader: settings.ai.webReader
+      ? {
+          reader: settings.ai.webReader.reader,
+          baseUrl: settings.ai.webReader.baseUrl ?? null,
+        }
+      : undefined,
   };
 
   let runnerCancelled = false;

@@ -64,7 +64,7 @@ struct WatcherEntry {
     /// watched root purely for rename stitching, and this registry only
     /// forwards which roots saw activity — an extension watching a large
     /// tree must not make the host walk it.
-    _debouncer: Debouncer<notify::RecommendedWatcher, NoCache>,
+    _debouncer: Option<Debouncer<notify::RecommendedWatcher, NoCache>>,
 }
 
 /// Per-handle registry. Stored as managed Tauri state (`Arc<Self>`).
@@ -182,7 +182,7 @@ impl FsWatcherRegistry {
         let entry = WatcherEntry {
             extension_id: extension_id.to_string(),
             paths,
-            _debouncer: debouncer,
+            _debouncer: Some(debouncer),
         };
         self.handles
             .lock()
@@ -228,6 +228,21 @@ impl FsWatcherRegistry {
     #[cfg(test)]
     pub(crate) fn handle_count(&self) -> usize {
         self.handles.lock().map(|g| g.len()).unwrap_or(0)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn inject_dummy_handle_for_test(&self, extension_id: &str, paths: Vec<PathBuf>) {
+        let handle_id = uuid::Uuid::new_v4().to_string();
+        if let Ok(mut guard) = self.handles.lock() {
+            guard.insert(
+                handle_id,
+                WatcherEntry {
+                    extension_id: extension_id.to_string(),
+                    paths,
+                    _debouncer: None,
+                },
+            );
+        }
     }
 }
 
@@ -438,12 +453,11 @@ mod registry_tests {
         let tmp = tempfile::tempdir().unwrap();
         let p = vec![tmp.path().to_path_buf()];
         // 32 extensions × 16 handles × 1 path = 512 (the limit).
-        'outer: for ext_idx in 0..32 {
+        // Seed handles directly to test the limit without spawning 512 OS watcher threads.
+        for ext_idx in 0..32 {
             let ext = format!("ext.{ext_idx}");
             for _ in 0..MAX_HANDLES_PER_EXTENSION {
-                if reg.create(&ext, p.clone(), Default::default()).is_err() {
-                    break 'outer;
-                }
+                reg.inject_dummy_handle_for_test(&ext, p.clone());
             }
         }
         let err = reg

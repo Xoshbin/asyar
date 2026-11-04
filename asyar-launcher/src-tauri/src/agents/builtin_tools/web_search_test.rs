@@ -826,6 +826,7 @@ async fn test_web_search_extension_success() {
             ..Default::default()
         }),
         external_dispatcher: Some(dispatcher),
+        ..Default::default()
     };
 
     let output = tool
@@ -871,6 +872,7 @@ async fn test_web_search_extension_sanitizes_urls_and_respects_limit() {
             ..Default::default()
         }),
         external_dispatcher: Some(dispatcher),
+        ..Default::default()
     };
 
     let output = tool
@@ -927,6 +929,7 @@ async fn test_web_search_extension_injects_stored_api_key() {
             ..Default::default()
         }),
         external_dispatcher: Some(dispatcher),
+        ..Default::default()
     };
 
     let output = tool
@@ -964,6 +967,7 @@ async fn test_web_search_extension_error_falls_back_to_duckduckgo() {
             ..Default::default()
         }),
         external_dispatcher: Some(dispatcher),
+        ..Default::default()
     };
 
     let output = tool
@@ -993,6 +997,7 @@ async fn test_web_search_extension_no_dispatcher_falls_back_to_duckduckgo() {
             ..Default::default()
         }),
         external_dispatcher: None,
+        ..Default::default()
     };
 
     let output = tool

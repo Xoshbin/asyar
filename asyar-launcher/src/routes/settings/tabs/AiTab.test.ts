@@ -58,7 +58,7 @@ vi.mock('../../../built-in-features/agents/agentService.svelte', () => ({
 vi.mock('../../../lib/ipc/commands', () => ({
   agentsProviderRemovalBlockers: vi.fn(),
   aiCheckCliStatus: vi.fn(),
-  aiGetCredentialStatus: vi.fn().mockResolvedValue({ providers: {}, webSearch: {} }),
+  aiGetCredentialStatus: vi.fn().mockResolvedValue({ providers: {}, webSearch: {}, webReader: {} }),
   aiSaveCredential: vi.fn().mockResolvedValue(undefined),
   aiDeleteCredential: vi.fn().mockResolvedValue(true),
   aiResolveProviderCredential: vi.fn().mockResolvedValue(null),
@@ -282,6 +282,7 @@ describe('AiTab', () => {
     vi.mocked(aiGetCredentialStatus).mockResolvedValue({
       providers: { anthropic: 'configured' },
       webSearch: {},
+      webReader: {},
     });
     vi.mocked(providerRegistry.list).mockReturnValue([
       {
@@ -345,6 +346,7 @@ describe('AiTab', () => {
     vi.mocked(aiGetCredentialStatus).mockResolvedValue({
       providers: { anthropic_abc123: 'configured' },
       webSearch: {},
+      webReader: {},
     });
     vi.mocked(providerRegistry.list).mockReturnValue([
       {
@@ -436,6 +438,7 @@ describe('AiTab', () => {
     vi.mocked(aiGetCredentialStatus).mockResolvedValue({
       providers: {},
       webSearch: {},
+      webReader: {},
     });
 
     render(AiTab, { mode: 'providers-only' });
@@ -461,6 +464,7 @@ describe('AiTab', () => {
     vi.mocked(aiGetCredentialStatus).mockResolvedValue({
       providers: { anthropic: 'configured' },
       webSearch: {},
+      webReader: {},
     });
 
     render(AiTab, { mode: 'providers-only' });
@@ -493,6 +497,7 @@ describe('AiTab', () => {
     vi.mocked(aiGetCredentialStatus).mockResolvedValue({
       providers: { anthropic: 'needsReentry' },
       webSearch: {},
+      webReader: {},
     });
 
     render(AiTab, { mode: 'providers-only' });
@@ -537,6 +542,7 @@ describe('AiTab', () => {
     vi.mocked(aiGetCredentialStatus).mockResolvedValue({
       providers: { anthropic: 'configured' },
       webSearch: {},
+      webReader: {},
     });
 
     render(AiTab, { mode: 'providers-only' });
@@ -572,6 +578,19 @@ describe('AiTab', () => {
     } as any;
   }
 
+  function webReaderSettings(reader: string) {
+    settingsService.currentSettings = {
+      ai: {
+        providers: { anthropic: { enabled: true, lastModelId: 'claude-sonnet-5' } },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+        webReader: { reader },
+      },
+    } as any;
+  }
+
   const mockExtensionHandler = {
     extensions: [
       {
@@ -590,6 +609,14 @@ describe('AiTab', () => {
             name: 'Engine B',
             requiresApiKey: true,
             apiKeyPlaceholder: 'key-b...',
+          },
+        ],
+        webReaders: [
+          {
+            id: 'reader-jina',
+            name: 'Jina Reader',
+            requiresApiKey: true,
+            apiKeyPlaceholder: 'jina_...',
           },
         ],
         aiProviders: [
@@ -618,7 +645,11 @@ describe('AiTab', () => {
   });
 
   it('saves a web search key for the selected engine', async () => {
-    vi.mocked(aiGetCredentialStatus).mockResolvedValue({ providers: {}, webSearch: {} });
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: {},
+      webSearch: {},
+      webReader: {},
+    });
     webSearchSettings('ext:test-ext:engine-a');
 
     render(AiTab, { mode: 'full', handler: mockExtensionHandler });
@@ -641,6 +672,7 @@ describe('AiTab', () => {
         'ext:test-ext:engine-a': 'configured',
         'ext:test-ext:engine-b': 'notConfigured',
       },
+      webReader: {},
     });
     webSearchSettings('ext:test-ext:engine-a');
 
@@ -663,6 +695,7 @@ describe('AiTab', () => {
         'ext:test-ext:engine-a': 'configured',
         'ext:test-ext:engine-b': 'needsReentry',
       },
+      webReader: {},
     });
 
     webSearchSettings('ext:test-ext:engine-a');
@@ -682,6 +715,7 @@ describe('AiTab', () => {
     let resolveStatus!: (v: {
       providers: Record<string, never>;
       webSearch: Record<string, never>;
+      webReader: Record<string, never>;
     }) => void;
     vi.mocked(aiGetCredentialStatus).mockReturnValue(
       new Promise((resolve) => {
@@ -693,7 +727,7 @@ describe('AiTab', () => {
     await fireEvent.click(screen.getByText('Anthropic'));
     expect(screen.queryByPlaceholderText('sk-••••••••••••••••')).toBeNull();
 
-    resolveStatus({ providers: {}, webSearch: {} });
+    resolveStatus({ providers: {}, webSearch: {}, webReader: {} });
     expect(await screen.findByPlaceholderText('sk-••••••••••••••••')).toBeTruthy();
   });
 
@@ -805,6 +839,7 @@ describe('AiTab', () => {
     vi.mocked(aiGetCredentialStatus).mockResolvedValue({
       providers: { 'ext:test-ext:groq': 'configured' },
       webSearch: {},
+      webReader: {},
     });
     vi.mocked(aiResolveProviderCredential).mockResolvedValue('gsk_mock_secret');
 
@@ -841,5 +876,49 @@ describe('AiTab', () => {
       }),
     );
     expect(await screen.findByText('Llama 3.3 70B Versatile')).toBeTruthy();
+  });
+
+  it('renders Web Reader select with Built-in option', async () => {
+    webReaderSettings('builtin');
+    render(AiTab, { mode: 'full' });
+
+    const select = screen.getByLabelText('Web Reader') as HTMLSelectElement;
+    const builtinGroup = select.querySelector('optgroup[label="Built-in"]') as HTMLOptGroupElement;
+    expect(builtinGroup).toBeTruthy();
+
+    const optionValues = Array.from(builtinGroup.querySelectorAll('option')).map((o) => o.value);
+    expect(optionValues).toEqual(['builtin']);
+  });
+
+  it('renders contributed extension web readers in the dropdown', async () => {
+    webReaderSettings('builtin');
+    render(AiTab, { mode: 'full', handler: mockExtensionHandler });
+
+    const select = screen.getByLabelText('Web Reader') as HTMLSelectElement;
+    const extGroup = select.querySelector('optgroup[label="Extensions"]') as HTMLOptGroupElement;
+    expect(extGroup).toBeTruthy();
+
+    const optionValues = Array.from(extGroup.querySelectorAll('option')).map((o) => o.value);
+    expect(optionValues).toContain('ext:test-ext:reader-jina');
+  });
+
+  it('saves a web reader key for the selected reader', async () => {
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: {},
+      webSearch: {},
+      webReader: {},
+    });
+    webReaderSettings('ext:test-ext:reader-jina');
+
+    render(AiTab, { mode: 'full', handler: mockExtensionHandler });
+
+    const keyInput = (await screen.findByPlaceholderText('jina_...')) as HTMLInputElement;
+    await fireEvent.input(keyInput, { target: { value: 'jina-secret-123' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(aiSaveCredential).toHaveBeenCalledWith(
+      { type: 'webReader', reader: 'ext:test-ext:reader-jina' },
+      'jina-secret-123',
+    );
   });
 });

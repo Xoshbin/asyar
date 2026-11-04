@@ -504,7 +504,11 @@
       "saving": "Saving…",
       "key_reentry_warning": "This key can't be read anymore. Please enter it again.",
       "key_save_error": "Couldn't save the key. Please try again.",
-      "key_remove_error": "Couldn't remove the key. Please try again."
+      "key_remove_error": "Couldn't remove the key. Please try again.",
+      "web_reader_section": "Web Content Scraper / Reader",
+      "web_reader": "Web Reader",
+      "reader_builtin": "Built-in (Direct HTTP / Default)",
+      "reader_builtin_desc": "Direct HTTP fetch. Fast and zero-configuration, but does not execute client-side JavaScript on single-page applications."
     },
     "applications": {
       "no_match": "No applications match your filter",

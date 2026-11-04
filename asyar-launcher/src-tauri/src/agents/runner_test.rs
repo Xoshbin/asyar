@@ -66,6 +66,7 @@ fn run_config(
         temperature,
         max_tokens,
         web_search: None,
+        web_reader: None,
     }
 }
 
@@ -1464,6 +1465,7 @@ async fn test_runner_emits_tools_unavailable_once_in_cli_mode_with_dropped_tools
         temperature: None,
         max_tokens: 100,
         web_search: None,
+        web_reader: None,
     };
 
     let res = run_thread_loop_impl(
@@ -2016,6 +2018,7 @@ async fn test_run_loop_extension_ai_provider_streaming() {
         temperature: Some(0.7),
         max_tokens: 1024,
         web_search: None,
+        web_reader: None,
     };
 
     let runner_state = AgentRunnerState::default();

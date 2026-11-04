@@ -504,7 +504,11 @@
       "saving": "Salvando…",
       "key_reentry_warning": "Esta chave não pode mais ser lida. Digite-a novamente.",
       "key_save_error": "Não foi possível salvar a chave. Tente novamente.",
-      "key_remove_error": "Não foi possível remover a chave. Tente novamente."
+      "key_remove_error": "Não foi possível remover a chave. Tente novamente.",
+      "web_reader_section": "Leitor de Conteúdo Web",
+      "web_reader": "Leitor Web",
+      "reader_builtin": "Integrado (HTTP Direto / Padrão)",
+      "reader_builtin_desc": "Requisição HTTP direta. Rápida e sem configuração, mas não executa JavaScript do lado do cliente em SPAs."
     },
     "applications": {
       "no_match": "Nenhum aplicativo corresponde ao seu filtro",

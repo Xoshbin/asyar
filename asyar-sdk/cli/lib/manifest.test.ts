@@ -1216,5 +1216,136 @@ describe('manifest validation — runtimes', () => {
         );
       });
     });
+
+    describe('webReaders', () => {
+      const validWebReaderManifest = {
+        id: 'org.example.jina',
+        name: 'Jina Reader',
+        description: 'Jina Reader Web Scraper Extension',
+        version: '1.0.0',
+        author: 'Jina AI',
+        background: { main: 'dist/worker.js' },
+        permissions: ['network', 'ai:web-reader'],
+        commands: [
+          {
+            id: 'read',
+            name: 'Read',
+            description: 'Read web page as Markdown',
+            mode: 'background' as const,
+          },
+        ],
+        webReaders: [
+          {
+            id: 'jina-reader',
+            name: 'Jina Reader',
+            description: 'Extracts clean Markdown from any URL with SPA rendering.',
+            homepage: 'https://jina.ai/reader',
+            requiresApiKey: false,
+            apiKeyOptional: true,
+            apiKeyPlaceholder: 'jina_...',
+            apiKeyHelpUrl: 'https://jina.ai',
+            requiresBaseUrl: false,
+          },
+        ],
+      };
+
+      it('accepts a valid webReaders declaration', () => {
+        const errors = validateManifest(validWebReaderManifest, './');
+        expect(errors).toEqual([]);
+      });
+
+      it('rejects webReaders when background.main is missing', () => {
+        const invalid = {
+          ...validWebReaderManifest,
+          background: undefined,
+          commands: [{ id: 'read', name: 'Read', mode: 'view' as const, component: 'Read' }],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field === 'background.main')).toBe(true);
+      });
+
+      it('rejects webReaders when network permission is missing', () => {
+        const invalid = {
+          ...validWebReaderManifest,
+          permissions: ['ai:web-reader'],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field === 'permissions' && e.message.includes('network'))).toBe(
+          true,
+        );
+      });
+
+      it('rejects webReaders when ai:web-reader permission is missing', () => {
+        const invalid = {
+          ...validWebReaderManifest,
+          permissions: ['network'],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some((e) => e.field === 'permissions' && e.message.includes('ai:web-reader')),
+        ).toBe(true);
+      });
+
+      it('rejects duplicate reader ids', () => {
+        const invalid = {
+          ...validWebReaderManifest,
+          webReaders: [
+            { id: 'jina-reader', name: 'Jina Reader 1' },
+            { id: 'jina-reader', name: 'Jina Reader 2' },
+          ],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.message.includes('duplicate reader id'))).toBe(true);
+      });
+
+      it('rejects invalid reader id characters', () => {
+        const invalid = {
+          ...validWebReaderManifest,
+          webReaders: [{ id: 'Invalid ID Spaces', name: 'Jina' }],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field.endsWith('.id'))).toBe(true);
+      });
+
+      it('rejects non-http(s) homepage and apiKeyHelpUrl', () => {
+        const invalid = {
+          ...validWebReaderManifest,
+          webReaders: [
+            {
+              id: 'jina-reader',
+              name: 'Jina Reader',
+              homepage: 'ftp://example.com',
+              apiKeyHelpUrl: 'file:///etc/passwd',
+            },
+          ],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some(
+            (e) =>
+              e.field.endsWith('.homepage') &&
+              e.message.includes('must start with http:// or https://'),
+          ),
+        ).toBe(true);
+        expect(
+          errors.some(
+            (e) =>
+              e.field.endsWith('.apiKeyHelpUrl') &&
+              e.message.includes('must start with http:// or https://'),
+          ),
+        ).toBe(true);
+      });
+
+      it('rejects webReaders in theme extensions', () => {
+        const invalid = {
+          ...validWebReaderManifest,
+          type: 'theme' as const,
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some((e) => e.message.includes('Theme extensions must not declare webReaders')),
+        ).toBe(true);
+      });
+    });
   });
 });

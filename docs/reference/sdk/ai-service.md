@@ -444,3 +444,111 @@ export default class GroqExtension {
 ```
 
 ---
+
+### Web Reader SPI
+
+Extensions with the `ai:web-reader` and `network` permissions can contribute custom web content scrapers and Markdown readers for AI agent tools by declaring `webReaders` in their `manifest.json` and registering the engine handler in their background worker.
+
+#### Interface
+
+```typescript
+export interface WebReaderQuery {
+  url: string;
+  apiKey?: string;
+  baseUrl?: string;
+}
+
+export interface WebReaderResult {
+  url: string;
+  title?: string;
+  content: string;
+  status?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export type WebReaderHandler = (
+  query: WebReaderQuery,
+  signal: AbortSignal,
+) => Promise<WebReaderResult>;
+
+export interface WebReaderEngineRegistration {
+  id: string;
+  read: WebReaderHandler;
+}
+
+// On context.ai:
+registerWebReader(engine: WebReaderEngineRegistration): () => void;
+```
+
+#### Example Manifest (`manifest.json`)
+
+```json
+{
+  "id": "org.example.jina",
+  "name": "Jina Reader",
+  "version": "1.0.0",
+  "permissions": ["network", "ai:web-reader"],
+  "background": { "main": "dist/worker.js" },
+  "webReaders": [
+    {
+      "id": "jina-reader",
+      "name": "Jina Reader",
+      "description": "Extracts clean Markdown from any URL with SPA rendering.",
+      "homepage": "https://jina.ai/reader",
+      "requiresApiKey": false,
+      "apiKeyOptional": true,
+      "apiKeyPlaceholder": "jina_...",
+      "apiKeyHelpUrl": "https://jina.ai",
+      "requiresBaseUrl": false
+    }
+  ]
+}
+```
+
+#### Example Worker Registration (`src/worker.ts`)
+
+```typescript
+import type { ExtensionContext } from 'asyar-sdk/worker';
+import type { INetworkService, WebReaderQuery, WebReaderResult } from 'asyar-sdk/contracts';
+
+export default class JinaReaderExtension {
+  async initialize(context: ExtensionContext): Promise<void> {
+    const network = context.getService<INetworkService>('network');
+
+    // Register reader handler matching the manifest id "jina-reader"
+    context.ai.registerWebReader({
+      id: 'jina-reader',
+      async read(query: WebReaderQuery, signal: AbortSignal): Promise<WebReaderResult> {
+        const headers: Record<string, string> = { Accept: 'text/markdown, text/plain' };
+        if (query.apiKey) {
+          headers.Authorization = `Bearer ${query.apiKey}`;
+        }
+        const response = await network.fetch(`https://r.jina.ai/${query.url}`, {
+          headers,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Reader provider failed with status ${response.status}`);
+        }
+
+        return {
+          url: query.url,
+          content: response.body,
+          status: response.status,
+        };
+      },
+    });
+  }
+}
+```
+
+      },
+    });
+
+}
+}
+
+```
+
+---
+```

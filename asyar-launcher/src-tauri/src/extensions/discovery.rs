@@ -56,6 +56,12 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                 m.id
             )));
         }
+        if m.web_readers.is_some() {
+            return Err(AppError::Validation(format!(
+                "Theme extension '{}' must not declare `webReaders`.",
+                m.id
+            )));
+        }
         if m.ai_providers.is_some() {
             return Err(AppError::Validation(format!(
                 "Theme extension '{}' must not declare `aiProviders`.",
@@ -249,6 +255,77 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                     return Err(AppError::Validation(format!(
                         "Extension '{}' web search engine '{}' API key help URL must start with http:// or https://.",
                         m.id, engine.id
+                    )));
+                }
+            }
+        }
+    }
+
+    if let Some(readers) = &m.web_readers {
+        if readers.is_empty() {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' has empty `webReaders` field; omit it if no readers are declared.",
+                m.id
+            )));
+        }
+        let main_ok = m
+            .background
+            .as_ref()
+            .map(|b| !b.main.trim().is_empty())
+            .unwrap_or(false);
+        if !main_ok {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `webReaders` but has no non-empty `background.main` (web readers run in the headless worker).",
+                m.id
+            )));
+        }
+        let perms = m.permissions.as_deref().unwrap_or(&[]);
+        if !perms.iter().any(|p| p == "network") {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `webReaders` but lacks the required 'network' permission.",
+                m.id
+            )));
+        }
+        if !perms.iter().any(|p| p == "ai:web-reader") {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `webReaders` but lacks the required 'ai:web-reader' permission.",
+                m.id
+            )));
+        }
+        let id_re = regex::Regex::new(r"^[a-z0-9_-]{1,64}$").unwrap();
+        let mut seen_ids = HashSet::new();
+        for reader in readers {
+            if !id_re.is_match(&reader.id) {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' web reader id '{}' must match /^[a-z0-9_-]{{1,64}}$/.",
+                    m.id, reader.id
+                )));
+            }
+            if !seen_ids.insert(&reader.id) {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' declares duplicate web reader id '{}'.",
+                    m.id, reader.id
+                )));
+            }
+            if reader.name.trim().is_empty() {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' web reader '{}' must have a non-empty name.",
+                    m.id, reader.id
+                )));
+            }
+            if let Some(url) = &reader.homepage {
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(AppError::Validation(format!(
+                        "Extension '{}' web reader '{}' homepage must start with http:// or https://.",
+                        m.id, reader.id
+                    )));
+                }
+            }
+            if let Some(url) = &reader.api_key_help_url {
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(AppError::Validation(format!(
+                        "Extension '{}' web reader '{}' API key help URL must start with http:// or https://.",
+                        m.id, reader.id
                     )));
                 }
             }
@@ -828,6 +905,7 @@ mod background_entry_resolution_tests {
             walkthrough: None,
             tools: None,
             web_search_engines: None,
+            web_readers: None,
             ai_providers: None,
         }
     }
@@ -1001,6 +1079,7 @@ mod first_view_component_tests {
             runtimes: None,
             walkthrough: None,
             web_search_engines: None,
+            web_readers: None,
             ai_providers: None,
         }
     }
@@ -1161,6 +1240,7 @@ mod onboarding_validation_tests {
             runtimes: None,
             walkthrough: None,
             web_search_engines: None,
+            web_readers: None,
             ai_providers: None,
         }
     }
@@ -1321,6 +1401,7 @@ mod compatibility_tests {
             runtimes: None,
             walkthrough: None,
             web_search_engines: None,
+            web_readers: None,
             ai_providers: None,
         }
     }
@@ -2310,6 +2391,21 @@ mod manifest_schema_tests {
     }
 
     #[test]
+    fn theme_with_web_readers_is_rejected() {
+        let json = r#"{
+            "id": "org.test.theme-wr",
+            "name": "Theme With Web Reader",
+            "version": "1.0.0",
+            "type": "theme",
+            "webReaders": [
+                { "id": "test", "name": "Test Reader" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("theme with webReaders must fail validation");
+        assert!(format!("{err}").contains("webReaders"), "got: {err}");
+    }
+
+    #[test]
     fn extension_type_with_no_commands_and_no_contribution_is_rejected() {
         // An "extension" that declares nothing — no commands, no background,
         // not searchable — contributes nothing and is rejected.
@@ -2794,6 +2890,151 @@ mod manifest_schema_tests {
     }
 
     #[test]
+    fn validate_manifest_accepts_valid_web_readers() {
+        let json = r#"{
+            "id": "org.test.reader",
+            "name": "Web Reader",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:web-reader"],
+            "webReaders": [
+                {
+                    "id": "jina-reader",
+                    "name": "Jina Reader",
+                    "description": "Clean Markdown extraction",
+                    "requiresApiKey": false,
+                    "apiKeyOptional": true,
+                    "requiresBaseUrl": false,
+                    "homepage": "https://jina.ai",
+                    "apiKeyHelpUrl": "https://jina.ai/api"
+                }
+            ]
+        }"#;
+        let manifest = parse(json).expect("valid web readers must pass validation");
+        let readers = manifest.web_readers.expect("web_readers should be present");
+        assert_eq!(readers.len(), 1);
+        assert_eq!(readers[0].id, "jina-reader");
+        assert_eq!(readers[0].name, "Jina Reader");
+        assert_eq!(readers[0].api_key_optional, Some(true));
+    }
+
+    #[test]
+    fn validate_manifest_rejects_empty_web_readers() {
+        let json = r#"{
+            "id": "org.test.reader",
+            "name": "Web Reader",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:web-reader"],
+            "webReaders": []
+        }"#;
+        let err = parse(json).expect_err("empty webReaders must fail");
+        assert!(
+            format!("{err}").contains("empty `webReaders`"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_web_readers_without_background_worker() {
+        let json = r#"{
+            "id": "org.test.reader",
+            "name": "Web Reader",
+            "version": "1.0.0",
+            "type": "extension",
+            "permissions": ["network", "ai:web-reader"],
+            "commands": [
+                { "id": "read", "name": "Read", "mode": "view", "component": "View" }
+            ],
+            "webReaders": [
+                { "id": "jina-reader", "name": "Jina Reader" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("webReaders without background must fail");
+        assert!(format!("{err}").contains("background.main"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_manifest_rejects_web_readers_missing_network_permission() {
+        let json = r#"{
+            "id": "org.test.reader",
+            "name": "Web Reader",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["ai:web-reader"],
+            "webReaders": [
+                { "id": "jina-reader", "name": "Jina Reader" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("webReaders without network permission must fail");
+        assert!(
+            format!("{err}").contains("'network' permission"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_web_readers_missing_ai_web_reader_permission() {
+        let json = r#"{
+            "id": "org.test.reader",
+            "name": "Web Reader",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network"],
+            "webReaders": [
+                { "id": "jina-reader", "name": "Jina Reader" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("webReaders without ai:web-reader must fail");
+        assert!(
+            format!("{err}").contains("'ai:web-reader' permission"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_duplicate_web_reader_id() {
+        let json = r#"{
+            "id": "org.test.reader",
+            "name": "Web Reader",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:web-reader"],
+            "webReaders": [
+                { "id": "jina-reader", "name": "Jina 1" },
+                { "id": "jina-reader", "name": "Jina 2" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("duplicate reader id must fail");
+        assert!(
+            format!("{err}").contains("duplicate web reader id"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_invalid_web_reader_id() {
+        let json = r#"{
+            "id": "org.test.reader",
+            "name": "Web Reader",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:web-reader"],
+            "webReaders": [
+                { "id": "invalid reader id with spaces", "name": "Jina" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("invalid reader id must fail");
+        assert!(format!("{err}").contains("web reader id"), "got: {err}");
+    }
+
+    #[test]
     fn unsupported_command_mode_is_rejected() {
         let json = r#"{
             "id": "org.test.bad-mode",
@@ -2923,6 +3164,7 @@ mod manifest_schema_tests {
             runtimes: None,
             walkthrough: None,
             web_search_engines: None,
+            web_readers: None,
             ai_providers: None,
         };
 

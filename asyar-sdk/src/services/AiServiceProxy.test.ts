@@ -339,6 +339,114 @@ describe('AiServiceProxy', () => {
     });
   });
 
+  describe('registerWebReader', () => {
+    it('registers a web reader handler and invokes it', async () => {
+      const mockRead = vi.fn().mockResolvedValue({
+        url: 'https://example.com/article',
+        title: 'Example Article',
+        content: '# Example Article\n\nContent here',
+        status: 200,
+      });
+
+      const unregister = proxy.registerWebReader({
+        id: 'jina-reader',
+        read: mockRead,
+      });
+
+      const controller = new AbortController();
+      const result = await proxy.invokeWebReaderHandler(
+        'jina-reader',
+        { url: 'https://example.com/article', apiKey: 'jina_123' },
+        controller.signal,
+      );
+
+      expect(mockRead).toHaveBeenCalledWith(
+        { url: 'https://example.com/article', apiKey: 'jina_123' },
+        controller.signal,
+      );
+      expect(result.title).toBe('Example Article');
+      expect(result.content).toBe('# Example Article\n\nContent here');
+
+      // Unregistering removes the handler
+      unregister();
+      await expect(
+        proxy.invokeWebReaderHandler(
+          'jina-reader',
+          { url: 'https://example.com/article' },
+          controller.signal,
+        ),
+      ).rejects.toThrow('No web reader registered with ID: "jina-reader"');
+    });
+
+    it('uses unique registration token so stale unregister does not delete active replacement', async () => {
+      const mockRead1 = vi.fn().mockResolvedValue({
+        url: 'https://example.com',
+        content: 'Version 1',
+      });
+      const mockRead2 = vi.fn().mockResolvedValue({
+        url: 'https://example.com',
+        content: 'Version 2',
+      });
+
+      const unregister1 = proxy.registerWebReader({
+        id: 'jina-reader',
+        read: mockRead1,
+      });
+
+      // Replacement registration with same ID
+      const unregister2 = proxy.registerWebReader({
+        id: 'jina-reader',
+        read: mockRead2,
+      });
+
+      // Stale cleanup from first registration
+      unregister1();
+
+      const controller = new AbortController();
+      const result = await proxy.invokeWebReaderHandler(
+        'jina-reader',
+        { url: 'https://example.com' },
+        controller.signal,
+      );
+
+      // Active replacement must still be intact and answer
+      expect(result.content).toBe('Version 2');
+
+      // Active unregister removes it
+      unregister2();
+      await expect(
+        proxy.invokeWebReaderHandler(
+          'jina-reader',
+          { url: 'https://example.com' },
+          controller.signal,
+        ),
+      ).rejects.toThrow('No web reader registered with ID: "jina-reader"');
+    });
+
+    it('throws if reader descriptor is invalid', () => {
+      expect(() => proxy.registerWebReader(null as any)).toThrow();
+      expect(() => proxy.registerWebReader({ id: '', read: vi.fn() } as any)).toThrow();
+      expect(() =>
+        proxy.registerWebReader({ id: 'bad id with spaces!', read: vi.fn() } as any),
+      ).toThrow();
+      expect(() => proxy.registerWebReader({ id: 'jina', read: null as any })).toThrow();
+    });
+
+    it('rejects invokeWebReaderHandler on invalid reader IDs', async () => {
+      const controller = new AbortController();
+      await expect(
+        proxy.invokeWebReaderHandler(
+          'invalid id!',
+          { url: 'https://example.com' },
+          controller.signal,
+        ),
+      ).rejects.toThrow('Invalid reader ID');
+      await expect(
+        proxy.invokeWebReaderHandler('', { url: 'https://example.com' }, controller.signal),
+      ).rejects.toThrow('Invalid reader ID');
+    });
+  });
+
   describe('registerAiProvider & invoke handlers', () => {
     it('registers an ai provider, streams chunks, and allows unregistering', async () => {
       const mockStream = vi.fn().mockImplementation(async (req, onChunk) => {

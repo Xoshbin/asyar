@@ -109,17 +109,21 @@ describe('AISettingsSyncProvider', () => {
     expect(updated.temperature).toBe(0.4);
   });
 
-  it('exportFull explicitly strips any apiKey found in providers or webSearch', async () => {
+  it('exportFull explicitly strips any apiKey found in providers or webSearch or webReader', async () => {
     (mockAiSettings.providers as any).openai.apiKey = 'sk-dirty-key';
     (mockAiSettings as any).webSearch.apiKey = 'dirty-search-key';
+    (mockAiSettings as any).webReader = { reader: 'ext:org.test:jina', apiKey: 'dirty-reader-key' };
 
     const result = await provider.exportFull();
     const data = result.data as Record<string, any>;
     expect(data.providers.openai).not.toHaveProperty('apiKey');
     expect(data.webSearch).not.toHaveProperty('apiKey');
+    expect(data.webReader).not.toHaveProperty('apiKey');
+    expect(data.webReader.reader).toBe('ext:org.test:jina');
 
     delete (mockAiSettings.providers as any).openai.apiKey;
     delete (mockAiSettings as any).webSearch.apiKey;
+    delete (mockAiSettings as any).webReader;
   });
 
   it('export snapshot contains only the new AI settings shape', async () => {
@@ -463,6 +467,10 @@ describe('AISettingsSyncProvider', () => {
             engine: 'tavily',
             apiKey: 'sk-or-TEST-REMOTE-SEARCH',
           },
+          webReader: {
+            reader: 'ext:org.test:jina',
+            apiKey: 'sk-or-TEST-REMOTE-READER',
+          },
           temperature: 0.9,
         } as any,
       });
@@ -473,6 +481,10 @@ describe('AISettingsSyncProvider', () => {
       // webSearch engine updated to tavily, but apiKey is stripped
       expect(calledWith.webSearch).toEqual({
         engine: 'tavily',
+      });
+      // webReader updated to ext:org.test:jina, but apiKey is stripped
+      expect(calledWith.webReader).toEqual({
+        reader: 'ext:org.test:jina',
       });
       // other non-sensitive fields sync normally
       expect(calledWith.temperature).toBe(0.9);
