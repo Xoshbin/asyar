@@ -129,4 +129,13 @@
   :global(:root[data-theme='dark']) .app-icon-dark {
     display: inline-flex;
   }
+  /* Before a theme is applied, follow the OS like the tokens in style.css. */
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme])) .app-icon-light {
+      display: none;
+    }
+    :global(:root:not([data-theme])) .app-icon-dark {
+      display: inline-flex;
+    }
+  }
 </style>

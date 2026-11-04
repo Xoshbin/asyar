@@ -806,7 +806,7 @@ function validateIconValue(icon: unknown, field: string): ValidationError[] {
     return [];
   }
   if (tileForm) {
-    if (typeof o.glyph !== 'string' || !o.glyph) {
+    if (typeof o.glyph !== 'string' || !o.glyph.trim()) {
       return [{ field: `${field}.glyph`, message: 'required' }];
     }
     if (!ICON_TILE_COLORS.includes(o.color as (typeof ICON_TILE_COLORS)[number])) {

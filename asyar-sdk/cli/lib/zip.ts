@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
-import { iconFilePath } from './storeIcon';
+import { iconFilePaths } from './storeIcon';
 
 export interface ZipResult {
   zipPath: string;
@@ -36,9 +36,10 @@ export function packageExtension(
     }
 
     const manifest = JSON.parse(fs.readFileSync(path.join(cwd, 'manifest.json'), 'utf8'));
-    const iconPath = iconFilePath(manifest.icon);
-    if (iconPath && fs.existsSync(path.join(cwd, iconPath))) {
-      zip.addFile(iconPath, fs.readFileSync(path.join(cwd, iconPath)));
+    for (const iconPath of iconFilePaths(manifest.icon)) {
+      if (fs.existsSync(path.join(cwd, iconPath))) {
+        zip.addFile(iconPath, fs.readFileSync(path.join(cwd, iconPath)));
+      }
     }
   } else {
     const distDir = path.join(cwd, 'dist');

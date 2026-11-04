@@ -792,6 +792,7 @@ describe('manifest validation — icon object form', () => {
       'not both',
     );
     expect(iconErrors(withIcons({ dark: 'b.png' }))[0].field).toBe('icon.source');
+    expect(iconErrors(withIcons({ glyph: '   ', color: 'teal' }))[0].field).toBe('icon.glyph');
     expect(iconErrors(withIcons(undefined, { glyph: 'timer', color: 'mauve' }))[0].field).toBe(
       'commands[0].icon.color',
     );

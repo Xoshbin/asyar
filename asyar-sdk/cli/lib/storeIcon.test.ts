@@ -50,6 +50,16 @@ describe('checkStoreIcon', () => {
     expect(warnings[0]).toContain('PNG');
   });
 
+  it('fails when the dark icon file is not in the package', () => {
+    fs.writeFileSync(path.join(packageRoot, 'assets', 'icon.png'), '');
+    const icon = { source: 'assets/icon.png', dark: 'assets/icon-dark.png' };
+    expect(checkStoreIcon(icon, packageRoot).errors).toEqual([
+      'The icon file "assets/icon-dark.png" is not in the package.',
+    ]);
+    fs.writeFileSync(path.join(packageRoot, 'assets', 'icon-dark.png'), '');
+    expect(checkStoreIcon(icon, packageRoot)).toEqual({ errors: [], warnings: [] });
+  });
+
   it('has nothing to check for emoji and built-in icons', () => {
     expect(checkStoreIcon('⏱️', packageRoot)).toEqual({ errors: [], warnings: [] });
     expect(checkStoreIcon('icon:timer', packageRoot)).toEqual({ errors: [], warnings: [] });
