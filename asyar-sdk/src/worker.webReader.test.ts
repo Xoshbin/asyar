@@ -9,14 +9,29 @@ function setRole(role: string | undefined) {
   }
 }
 
+let messageListeners: EventListener[] = [];
+const originalAddEventListener = window.addEventListener.bind(window);
+const originalRemoveEventListener = window.removeEventListener.bind(window);
+
 describe('worker proxy bag — ai web reader service', () => {
   beforeEach(() => {
+    vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+      if (type === 'message' && typeof listener === 'function') {
+        messageListeners.push(listener as EventListener);
+      }
+      return originalAddEventListener(type, listener, options);
+    });
     vi.resetModules();
     setRole('worker');
   });
 
   afterEach(() => {
+    for (const listener of messageListeners) {
+      originalRemoveEventListener('message', listener);
+    }
+    messageListeners = [];
     setRole(undefined);
+    vi.restoreAllMocks();
   });
 
   it('ExtensionContext.ai exposes registerWebReader method', async () => {
@@ -28,11 +43,21 @@ describe('worker proxy bag — ai web reader service', () => {
 
 describe('worker — asyar:webReader:query dispatch', () => {
   beforeEach(() => {
+    vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+      if (type === 'message' && typeof listener === 'function') {
+        messageListeners.push(listener as EventListener);
+      }
+      return originalAddEventListener(type, listener, options);
+    });
     vi.resetModules();
     setRole('worker');
   });
 
   afterEach(() => {
+    for (const listener of messageListeners) {
+      originalRemoveEventListener('message', listener);
+    }
+    messageListeners = [];
     setRole(undefined);
     vi.restoreAllMocks();
   });
@@ -82,6 +107,7 @@ describe('worker — asyar:webReader:query dispatch', () => {
       expect.any(AbortSignal),
     );
 
+    expect(parentPostMessage).toHaveBeenCalledTimes(1);
     expect(parentPostMessage).toHaveBeenCalledWith(
       {
         type: 'asyar:webReader:response',
@@ -95,6 +121,98 @@ describe('worker — asyar:webReader:query dispatch', () => {
       },
       '*',
     );
+  });
+
+  it('normalizes null apiKey and baseUrl values to undefined', async () => {
+    const parentPostMessage = vi.fn();
+    (window as any).parent = { postMessage: parentPostMessage };
+
+    const { ExtensionContext } = await import('./worker');
+    const ctx = new ExtensionContext();
+
+    const mockRead = vi.fn().mockResolvedValue({
+      url: 'https://example.com/item',
+      content: 'Item content',
+    });
+
+    ctx.ai.registerWebReader({
+      id: 'null-test-reader',
+      read: mockRead,
+    });
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:webReader:query',
+          messageId: 'msg-null-test',
+          payload: {
+            readerId: 'null-test-reader',
+            url: 'https://example.com/item',
+            apiKey: null,
+            baseUrl: null,
+          },
+        },
+      }),
+    );
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockRead).toHaveBeenCalledWith(
+      {
+        url: 'https://example.com/item',
+        apiKey: undefined,
+        baseUrl: undefined,
+      },
+      expect.any(AbortSignal),
+    );
+    expect(parentPostMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('aborts handler when asyar:webReader:abort message is received', async () => {
+    const parentPostMessage = vi.fn();
+    (window as any).parent = { postMessage: parentPostMessage };
+
+    const { ExtensionContext } = await import('./worker');
+    const ctx = new ExtensionContext();
+
+    let capturedSignal: AbortSignal | undefined;
+    const mockRead = vi.fn().mockImplementation((_query, signal) => {
+      capturedSignal = signal;
+      return new Promise((resolve) => setTimeout(resolve, 5000));
+    });
+
+    ctx.ai.registerWebReader({
+      id: 'abort-reader',
+      read: mockRead,
+    });
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:webReader:query',
+          messageId: 'msg-abort-test',
+          payload: {
+            readerId: 'abort-reader',
+            url: 'https://example.com/slow',
+          },
+        },
+      }),
+    );
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal?.aborted).toBe(false);
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:webReader:abort',
+          messageId: 'msg-abort-test',
+        },
+      }),
+    );
+
+    expect(capturedSignal?.aborted).toBe(true);
   });
 
   it('posts error response when reader handler throws', async () => {
@@ -124,6 +242,7 @@ describe('worker — asyar:webReader:query dispatch', () => {
 
     await new Promise((r) => setTimeout(r, 10));
 
+    expect(parentPostMessage).toHaveBeenCalledTimes(1);
     expect(parentPostMessage).toHaveBeenCalledWith(
       {
         type: 'asyar:webReader:response',

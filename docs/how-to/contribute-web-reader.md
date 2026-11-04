@@ -89,7 +89,6 @@ export default class JinaReaderExtension {
 
         const response = await network.fetch(readerEndpoint, {
           headers,
-          signal,
         });
 
         if (!response.ok) {
@@ -130,7 +129,7 @@ export interface WebReaderResult {
 
 #### Security & Quality Guarantees
 
-- **Content Bounding:** To protect the LLM context window from blowout on multi-megabyte pages, Asyar bounds returned content to 100,000 characters. Content exceeding this limit is cleanly truncated with an indicator.
+- **Content Bounding:** To protect the LLM context window from blowout on multi-megabyte pages, Asyar keeps the first 100,000 characters of returned content and appends a truncation indicator when the content exceeds that length.
 - **Fail-Safe Fallback:** If your worker throws an unhandled error, times out after 20 seconds, or the extension worker is unmounted, Asyar automatically logs a warning and falls back to native direct HTTP fetch so the user's AI conversation is never interrupted.
 - **Bypass for Mutation Requests:** Non-GET requests (e.g. `POST`, `PUT`) or requests with an explicit request `body` bypass the reader and use native HTTP fetch directly.
 

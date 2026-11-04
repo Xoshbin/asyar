@@ -129,15 +129,28 @@ export async function invokeExtensionWebReader(
   };
 
   return new Promise<ExtensionWebReaderResult>((resolve, reject) => {
+    const notifyWorkerAbort = () => {
+      try {
+        postToExtension(extensionId, 'worker', {
+          type: 'asyar:webReader:abort',
+          messageId,
+        });
+      } catch {
+        // best effort abort notification
+      }
+    };
+
     const onAbort = signal
       ? () => {
           if (!removePending(messageId)) return;
+          notifyWorkerAbort();
           reject(new Error('Extension web reader dispatch was cancelled'));
         }
       : undefined;
 
     const timer = setTimeout(() => {
       if (!removePending(messageId)) return;
+      notifyWorkerAbort();
       reject(
         new Error(`Extension web reader dispatch timed out after ${WEB_READER_TIMEOUT_MS / 1000}s`),
       );

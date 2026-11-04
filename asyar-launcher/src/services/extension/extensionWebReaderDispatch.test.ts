@@ -142,8 +142,8 @@ describe('invokeExtensionWebReader', () => {
     await expect(promise).rejects.toThrow('Cloudflare bot detection blocked extraction');
   });
 
-  it('rejects when abort signal is triggered', async () => {
-    mountedWorker();
+  it('rejects when abort signal is triggered and notifies worker', async () => {
+    const worker = mountedWorker();
     const controller = new AbortController();
     const promise = invokeExtensionWebReader(
       'org.example.jina',
@@ -151,8 +151,16 @@ describe('invokeExtensionWebReader', () => {
       { url: 'https://example.com' },
       controller.signal,
     );
+    const message = postedMessage(worker);
     controller.abort();
     await expect(promise).rejects.toThrow(/cancelled/i);
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      {
+        type: 'asyar:webReader:abort',
+        messageId: message.messageId,
+      },
+      '*',
+    );
   });
 
   it('rejects if worker is not mounted', async () => {
@@ -163,15 +171,23 @@ describe('invokeExtensionWebReader', () => {
     ).rejects.toThrow(/not mounted/i);
   });
 
-  it('times out and rejects when worker does not reply within 20s', async () => {
+  it('times out and rejects when worker does not reply within 20s, notifying worker of abort', async () => {
     vi.useFakeTimers();
-    mountedWorker();
+    const worker = mountedWorker();
     const promise = invokeExtensionWebReader('org.example.jina', 'jina-reader', {
       url: 'https://example.com/hang',
     });
+    const message = postedMessage(worker);
 
     vi.advanceTimersByTime(20_001);
 
     await expect(promise).rejects.toThrow(/timed out after 20s/i);
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      {
+        type: 'asyar:webReader:abort',
+        messageId: message.messageId,
+      },
+      '*',
+    );
   });
 });

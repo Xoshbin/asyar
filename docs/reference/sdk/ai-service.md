@@ -279,12 +279,12 @@ export default class JinaReaderExtension {
     context.ai.registerWebReader({
       id: 'jina-reader',
       async read(query: WebReaderQuery, signal: AbortSignal): Promise<WebReaderResult> {
+        const headers: Record<string, string> = { Accept: 'text/markdown, text/plain' };
+        if (query.apiKey) {
+          headers.Authorization = `Bearer ${query.apiKey}`;
+        }
         const response = await network.fetch(`https://r.jina.ai/${query.url}`, {
-          headers: {
-            Authorization: query.apiKey ? `Bearer ${query.apiKey}` : '',
-            Accept: 'text/markdown, text/plain',
-          },
-          signal,
+          headers,
         });
 
         if (!response.ok) {

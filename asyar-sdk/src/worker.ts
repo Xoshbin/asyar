@@ -266,10 +266,23 @@ function installWebSearchInvokeInterceptor(): void {
 function installWebReaderInvokeInterceptor(): void {
   const scope = typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
   if (!scope || typeof scope.addEventListener !== 'function') return;
+
+  const activeReaders = new Map<string, AbortController>();
+
   scope.addEventListener('message', (async (event: Event) => {
     const data = (event as MessageEvent<unknown>).data;
     if (!data || typeof data !== 'object') return;
     const d = data as { type?: unknown; messageId?: unknown; payload?: unknown };
+
+    if (d.type === 'asyar:webReader:abort') {
+      const messageId = d.messageId as string | undefined;
+      if (typeof messageId === 'string' && activeReaders.has(messageId)) {
+        activeReaders.get(messageId)?.abort(new Error('Aborted by host'));
+        activeReaders.delete(messageId);
+      }
+      return;
+    }
+
     if (d.type !== 'asyar:webReader:query') return;
     const messageId = d.messageId as string | undefined;
     const payload = d.payload as
@@ -290,13 +303,14 @@ function installWebReaderInvokeInterceptor(): void {
     }
     if (!_workerAiProxy) return;
     const controller = new AbortController();
+    activeReaders.set(messageId, controller);
     try {
       const result = await _workerAiProxy.invokeWebReaderHandler(
         readerId,
         {
           url: payload?.url ?? '',
-          apiKey: payload?.apiKey,
-          baseUrl: payload?.baseUrl,
+          apiKey: payload?.apiKey ?? undefined,
+          baseUrl: payload?.baseUrl ?? undefined,
         },
         controller.signal,
       );
@@ -307,6 +321,8 @@ function installWebReaderInvokeInterceptor(): void {
         messageId,
         error: err instanceof Error ? err.message : String(err),
       });
+    } finally {
+      activeReaders.delete(messageId);
     }
   }) as EventListener);
 }
