@@ -38,9 +38,9 @@ Tool ownership is resolved in Rust:
 
 For a Tier 2 tool, the frontend invokes the owning extension iframe and reports the result with `agents_report_tool_result`. A bounded Rust oneshot wait then resumes the same runner. The frontend never advances the conversation or creates the next provider request.
 
-## Adding a provider
+## Adding a built-in provider
 
-Adding a provider requires Rust implementation and tests first:
+Adding a built-in provider to the core launcher requires Rust implementation and tests:
 
 1. Add its request shaping and stream parsing to `src-tauri/src/ai/providers.rs`.
 2. Add model discovery request and response handling to `src-tauri/src/ai/models.rs`.
@@ -50,12 +50,24 @@ Adding a provider requires Rust implementation and tests first:
 
 Provider-specific algorithms, retry policies, and stream accumulators must not be added to TypeScript.
 
+## Extension AI Provider SPI
+
+Third-party extensions can also contribute custom AI inference engines and model catalogs dynamically without modifying Asyar core.
+
+- **Manifest Declaration**: Extensions declare `aiProviders` in `manifest.json` along with `"permissions": ["network", "ai:provider"]` and a background worker (`background.main`).
+- **Encrypted Credentials**: Stored API keys and endpoint URLs are saved encrypted on device in Asyar's local vault (`ai_credentials`) and forwarded to the extension worker only during active requests.
+- **Worker Execution**: The extension worker registers its completion and model discovery handlers via `context.ai.registerAiProvider()`.
+- **Streaming & Bidirectional Cancellation**: When an agent run uses an extension provider, the Rust runner dispatches completion requests across the IPC bridge. Chunks (`token`, `tool_call`, `status`) stream back in real time, and cancellations from either user action or stream failure are propagated bidirectionally.
+
 ## Extension boundary
 
-Extensions can register agent tools through [`ToolsService`](../reference/sdk/tools-service.md). Asyar does not expose the user's AI provider as a general extension service. This keeps credentials, quota-consuming requests, and agent policy inside the host-owned Rust runtime.
+Extensions can register agent tools through [`ToolsService`](../reference/sdk/tools-service.md). Asyar does not expose the user's AI provider as an unprompted general extension service. This keeps credentials, quota-consuming requests, and agent policy inside the host-owned Rust runtime and user-controlled settings.
 
 ## Cross-references
 
+- [AI Service Reference](../reference/sdk/ai-service.md)
+- [Manifest Reference](../reference/manifest.md)
+- [Contribute an AI Provider Guide](../how-to/contribute-ai-provider.md)
 - [Tools Service](../reference/sdk/tools-service.md)
 - [Extension Runtime](./extension-runtime.md)
 - [IPC Bridge](./ipc-bridge.md)
