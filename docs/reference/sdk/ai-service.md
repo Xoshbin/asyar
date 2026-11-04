@@ -230,6 +230,221 @@ export default class KeenableExtension {
 
 ---
 
+### AI Model & Inference Provider SPI
+
+**Runs in:** worker only.
+
+**Permissions required:** `ai:provider` and `network`.
+
+`AiService` also hosts the **AI Model & Inference Provider Service Provider Interface (SPI)**, which allows Tier 2 extensions to contribute custom LLM inference engines and model catalogs (such as Groq, Mistral, Cohere, DeepSeek, SambaNova, or local self-hosted endpoints) to Asyar.
+
+When an extension contributes an AI provider:
+
+1. It appears dynamically in **Settings → AI** alongside built-in providers in the **+ Add Provider** menu.
+2. Required or optional API keys, base URLs, and custom placeholders are rendered in Settings and stored encrypted in Asyar's local credential vault.
+3. Users can configure instances of the provider and select them for the default agent or custom user-defined agents.
+4. When an agent run executes, requests are dispatched over IPC to the extension worker's registered `completeStream` handler. Chunks (`token`, `tool_call`, `status`) stream back in real time and are seamlessly merged into the conversation with full cancellation support.
+5. If the extension implements `listModels()`, clicking **Test & Fetch Models** dynamically loads the provider's remote model catalog into the searchable model selector.
+
+#### Types & Contracts
+
+```typescript
+export interface AiToolCall {
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+export interface AiMessage {
+  id?: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  toolCalls?: AiToolCall[];
+  toolCallId?: string;
+}
+
+export interface AiToolDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export interface AiCompletionRequest {
+  messages: AiMessage[];
+  modelId: string;
+  temperature?: number;
+  maxTokens: number;
+  systemPrompt?: string;
+  tools?: AiToolDefinition[];
+  apiKey?: string;
+  baseUrl?: string;
+  customHeaders?: Record<string, string>;
+}
+
+export type AiStreamChunk =
+  | { type: 'token'; token: string }
+  | { type: 'tool_call'; id: string; name: string; input: unknown }
+  | { type: 'status'; status: string };
+
+export interface AiModelInfo {
+  id: string;
+  label: string;
+  contextWindow?: number;
+  reasoningEfforts?: string[];
+}
+
+export interface AiProviderConfig {
+  apiKey?: string;
+  baseUrl?: string;
+  customHeaders?: Record<string, string>;
+}
+
+export type AiStreamCallback = (chunk: AiStreamChunk) => void;
+
+export type AiProviderCompleteStream = (
+  request: AiCompletionRequest,
+  onChunk: AiStreamCallback,
+  signal: AbortSignal,
+) => Promise<void>;
+
+export type AiProviderListModels = (
+  config: AiProviderConfig,
+  signal: AbortSignal,
+) => Promise<AiModelInfo[]>;
+
+export interface AiProviderRegistration {
+  /** Must match an id declared in manifest.aiProviders */
+  id: string;
+  /** Streaming completion handler executed in the extension worker */
+  completeStream: AiProviderCompleteStream;
+  /** Optional dynamic model discovery handler */
+  listModels?: AiProviderListModels;
+}
+```
+
+#### Example Manifest (`manifest.json`)
+
+```json
+{
+  "id": "org.example.groq",
+  "name": "Groq Provider",
+  "version": "1.0.0",
+  "permissions": ["network", "ai:provider"],
+  "background": { "main": "dist/worker.js" },
+  "aiProviders": [
+    {
+      "id": "groq",
+      "name": "Groq",
+      "description": "Ultra-fast LPU inference for open models",
+      "homepage": "https://groq.com",
+      "requiresApiKey": true,
+      "apiKeyPlaceholder": "gsk_...",
+      "apiKeyHelpUrl": "https://console.groq.com/keys",
+      "models": [
+        {
+          "id": "llama-3.3-70b-versatile",
+          "name": "Llama 3.3 70B Versatile",
+          "contextWindow": 128000
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### Example Worker Registration (`src/worker.ts`)
+
+```typescript
+import type { ExtensionContext } from 'asyar-sdk/worker';
+import type {
+  AiCompletionRequest,
+  AiProviderConfig,
+  AiStreamCallback,
+  AiModelInfo,
+} from 'asyar-sdk/contracts';
+
+export default class GroqExtension {
+  async initialize(context: ExtensionContext): Promise<void> {
+    context.ai.registerAiProvider({
+      id: 'groq',
+      async completeStream(
+        request: AiCompletionRequest,
+        onChunk: AiStreamCallback,
+        signal: AbortSignal,
+      ): Promise<void> {
+        const response = await fetch(
+          request.baseUrl ?? 'https://api.groq.com/openai/v1/chat/completions',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${request.apiKey ?? ''}`,
+              'Content-Type': 'application/json',
+              ...(request.customHeaders ?? {}),
+            },
+            body: JSON.stringify({
+              model: request.modelId,
+              messages: request.messages,
+              temperature: request.temperature,
+              max_tokens: request.maxTokens,
+              stream: true,
+            }),
+            signal,
+          },
+        );
+
+        if (!response.ok || !response.body) {
+          throw new Error(`Groq stream failed with status ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed === 'data: [DONE]') continue;
+            if (trimmed.startsWith('data: ')) {
+              const parsed = JSON.parse(trimmed.slice(6));
+              const token = parsed.choices?.[0]?.delta?.content;
+              if (token) {
+                onChunk({ type: 'token', token });
+              }
+            }
+          }
+        }
+      },
+
+      async listModels(config: AiProviderConfig, signal: AbortSignal): Promise<AiModelInfo[]> {
+        const response = await fetch(config.baseUrl ?? 'https://api.groq.com/openai/v1/models', {
+          headers: {
+            Authorization: `Bearer ${config.apiKey ?? ''}`,
+            ...(config.customHeaders ?? {}),
+          },
+          signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to list models: ${response.status}`);
+        }
+        const data = await response.json();
+        return (data.data ?? []).map((m: any) => ({
+          id: m.id,
+          label: m.id,
+        }));
+      },
+    });
+  }
+}
+```
+
+---
+
 ### Web Reader SPI
 
 Extensions with the `ai:web-reader` and `network` permissions can contribute custom web content scrapers and Markdown readers for AI agent tools by declaring `webReaders` in their `manifest.json` and registering the engine handler in their background worker.
@@ -263,6 +478,31 @@ export interface WebReaderEngineRegistration {
 
 // On context.ai:
 registerWebReader(engine: WebReaderEngineRegistration): () => void;
+```
+
+#### Example Manifest (`manifest.json`)
+
+```json
+{
+  "id": "org.example.jina",
+  "name": "Jina Reader",
+  "version": "1.0.0",
+  "permissions": ["network", "ai:web-reader"],
+  "background": { "main": "dist/worker.js" },
+  "webReaders": [
+    {
+      "id": "jina-reader",
+      "name": "Jina Reader",
+      "description": "Extracts clean Markdown from any URL with SPA rendering.",
+      "homepage": "https://jina.ai/reader",
+      "requiresApiKey": false,
+      "apiKeyOptional": true,
+      "apiKeyPlaceholder": "jina_...",
+      "apiKeyHelpUrl": "https://jina.ai",
+      "requiresBaseUrl": false
+    }
+  ]
+}
 ```
 
 #### Example Worker Registration (`src/worker.ts`)
@@ -302,4 +542,13 @@ export default class JinaReaderExtension {
 }
 ```
 
+      },
+    });
+
+}
+}
+
+```
+
 ---
+```
