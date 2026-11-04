@@ -129,11 +129,37 @@ async function reportAiProviderStream(
     customHeaders: event.custom_headers ?? undefined,
   };
 
+  const streamAbort = new AbortController();
+  if (signal.aborted) {
+    streamAbort.abort();
+  } else {
+    signal.addEventListener('abort', () => streamAbort.abort(), { once: true });
+  }
+
   let reportChain: Promise<void> = Promise.resolve();
-  const enqueue = (chunk: unknown) => {
-    reportChain = reportChain.then(() =>
-      agentsReportAiChunk(options.streamId, event.request_id, chunk as any),
-    );
+  let reportingFailed = false;
+
+  const handleReportFailure = async (cause: unknown): Promise<void> => {
+    if (reportingFailed) {
+      return;
+    }
+    reportingFailed = true;
+    streamAbort.abort();
+    if (!signal.aborted) {
+      await agentsCancelRun(options.streamId).catch(() => undefined);
+      options.onBridgeError?.(new Error(extractErrorMessage(cause)));
+    }
+  };
+
+  const enqueue = (chunk: unknown): Promise<void> => {
+    reportChain = reportChain
+      .then(async () => {
+        if (reportingFailed || signal.aborted) {
+          return;
+        }
+        await agentsReportAiChunk(options.streamId, event.request_id, chunk as any);
+      })
+      .catch((cause) => handleReportFailure(cause));
     return reportChain;
   };
 
@@ -143,24 +169,24 @@ async function reportAiProviderStream(
       event.provider_id,
       request,
       (chunk: AiStreamChunk) => {
-        if (!signal.aborted) {
-          void enqueue(chunk).catch(() => undefined);
+        if (!signal.aborted && !reportingFailed) {
+          void enqueue(chunk);
         }
       },
-      signal,
+      streamAbort.signal,
     );
-    if (!signal.aborted) {
+    if (!signal.aborted && !reportingFailed) {
       await enqueue({ type: 'done' });
     }
   } catch (cause) {
-    if (signal.aborted) {
+    if (signal.aborted || reportingFailed) {
       return;
     }
     const error = extractErrorMessage(cause);
     await enqueue({
       type: 'error',
       error,
-    }).catch(() => undefined);
+    });
   }
 }
 

@@ -355,4 +355,81 @@ describe('createAgentStreamChannel', () => {
 
     expect(capturedSignal?.aborted).toBe(true);
   });
+
+  it('cancels the Rust runner and reports bridge error if chunk reporting fails', async () => {
+    const onBridgeError = vi.fn();
+    let capturedSignal: AbortSignal | undefined;
+    vi.mocked(agentsReportAiChunk).mockRejectedValue(new Error('IPC chunk error'));
+    vi.mocked(invokeExtensionAiProviderStream).mockImplementation(
+      async (_extId, _provId, _req, onChunk, signal) => {
+        capturedSignal = signal;
+        onChunk({ type: 'token', token: 'Hello' });
+        // Wait briefly to see if signal gets aborted
+        await new Promise((r) => setTimeout(r, 10));
+      },
+    );
+
+    const { emit } = start({ streamId: 'stream-1', agentId: 'agent-1', onBridgeError });
+
+    emit({
+      type: 'ai_provider_stream_request',
+      stream_id: 'stream-1',
+      request_id: 'req-1',
+      extension_id: 'org.example.groq',
+      provider_id: 'groq',
+      model_id: 'llama-3.3-70b',
+      messages: [],
+      temperature: null,
+      max_tokens: 1000,
+      system_prompt: null,
+      tools: null,
+      api_key: null,
+      base_url: null,
+      custom_headers: null,
+    } as unknown as AgentStreamEvent);
+
+    await vi.waitFor(() => expect(agentsCancelRun).toHaveBeenCalledWith('stream-1'));
+    expect(onBridgeError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'IPC chunk error' }),
+    );
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
+  it('cancels the Rust runner if done reporting itself fails', async () => {
+    const onBridgeError = vi.fn();
+    vi.mocked(agentsReportAiChunk).mockImplementation(async (_sid, _rid, chunk) => {
+      if ((chunk as any).type === 'done') {
+        throw new Error('IPC done error');
+      }
+    });
+    vi.mocked(invokeExtensionAiProviderStream).mockImplementation(
+      async (_extId, _provId, _req, onChunk) => {
+        onChunk({ type: 'token', token: 'Hello' });
+      },
+    );
+
+    const { emit } = start({ streamId: 'stream-1', agentId: 'agent-1', onBridgeError });
+
+    emit({
+      type: 'ai_provider_stream_request',
+      stream_id: 'stream-1',
+      request_id: 'req-1',
+      extension_id: 'org.example.groq',
+      provider_id: 'groq',
+      model_id: 'llama-3.3-70b',
+      messages: [],
+      temperature: null,
+      max_tokens: 1000,
+      system_prompt: null,
+      tools: null,
+      api_key: null,
+      base_url: null,
+      custom_headers: null,
+    } as unknown as AgentStreamEvent);
+
+    await vi.waitFor(() => expect(agentsCancelRun).toHaveBeenCalledWith('stream-1'));
+    expect(onBridgeError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'IPC done error' }),
+    );
+  });
 });
