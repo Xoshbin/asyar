@@ -772,6 +772,7 @@ mod tests {
                 runtimes: None,
                 walkthrough: None,
                 web_search_engines: None,
+                ai_providers: None,
             },
             enabled,
             is_built_in,

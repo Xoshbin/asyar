@@ -1,6 +1,8 @@
 // ─── Shared Types ─────────────────────────────────────────────────────────────
 
-export type ProviderId = 'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'custom';
+export type BuiltinProviderId =
+  'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'custom';
+export type ProviderId = BuiltinProviderId | `ext:${string}:${string}` | (string & {});
 export type OpenAIApiMode = 'responses' | 'chat-completions';
 export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -58,6 +60,10 @@ export interface IProviderPlugin {
   readonly supportsCliMode?: boolean;
   readonly cliName?: string;
   readonly reasoningEfforts?: readonly ReasoningEffort[];
+  readonly keyPlaceholder?: string;
+  readonly keyHelpUrl?: string;
+  readonly baseUrlPlaceholder?: string;
+  readonly staticModels?: readonly ModelInfo[];
 
   /**
    * `instanceId` is the settings key of the connection being queried (e.g. `custom_60f9a975`);

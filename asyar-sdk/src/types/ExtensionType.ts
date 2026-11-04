@@ -2,6 +2,7 @@ import type { ExtensionContext } from '../ExtensionContext';
 import type { ManifestTool } from '../contracts/tools';
 import type { WalkthroughTaskDecl } from '../contracts/walkthrough';
 import type { ManifestWebSearchEngine } from '../contracts/webSearch';
+import type { ManifestAiProvider } from '../contracts/aiProvider';
 
 /**
  * The set of preference types an extension can declare in its manifest.
@@ -165,6 +166,8 @@ export interface ExtensionManifest {
   tools?: ManifestTool[];
   /** Web search engines contributed by this extension. */
   webSearchEngines?: ManifestWebSearchEngine[];
+  /** AI model & inference providers contributed by this extension. */
+  aiProviders?: ManifestAiProvider[];
   /**
    * Walkthrough tasks this extension teaches. The launcher decides when each
    * is complete by watching real usage — declaring a task requires no

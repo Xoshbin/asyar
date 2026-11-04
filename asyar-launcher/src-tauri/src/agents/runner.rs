@@ -22,6 +22,7 @@ use uuid::Uuid;
 
 const MAX_TURNS: usize = 20;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AgentStreamEvent {
@@ -43,6 +44,24 @@ pub enum AgentStreamEvent {
     },
     ToolDispatchCancelled {
         tool_call_id: String,
+    },
+    AiProviderStreamRequest {
+        stream_id: String,
+        request_id: String,
+        extension_id: String,
+        provider_id: String,
+        model_id: String,
+        messages: Vec<ChatMessage>,
+        temperature: Option<f64>,
+        max_tokens: u32,
+        system_prompt: Option<String>,
+        tools: Option<Vec<ToolDefinition>>,
+        api_key: Option<String>,
+        base_url: Option<String>,
+        custom_headers: Option<HashMap<String, String>>,
+    },
+    AiProviderStreamCancelled {
+        request_id: String,
     },
     McpPermissionRequest {
         tool_call_id: String,
@@ -115,10 +134,16 @@ struct PendingMcpPermission {
     sender: oneshot::Sender<McpPermissionChoice>,
 }
 
+struct PendingAiStream {
+    request_id: String,
+    sender: tokio::sync::mpsc::UnboundedSender<ChatStreamEventPayload>,
+}
+
 #[derive(Clone, Default)]
 pub struct AgentRunnerState {
     pending: Arc<Mutex<HashMap<String, PendingToolResult>>>,
     pending_mcp_permissions: Arc<Mutex<HashMap<String, PendingMcpPermission>>>,
+    pending_ai_streams: Arc<Mutex<HashMap<String, PendingAiStream>>>,
     cancellations: Arc<Mutex<HashMap<String, watch::Sender<bool>>>>,
     pre_cancelled: Arc<Mutex<HashSet<String>>>,
 }
@@ -298,9 +323,71 @@ impl AgentRunnerState {
         Ok(())
     }
 
+    pub fn begin_ai_stream(
+        &self,
+        stream_id: &str,
+        request_id: &str,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<ChatStreamEventPayload>, AppError> {
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let mut pending = self.pending_ai_streams.lock().map_err(|_| AppError::Lock)?;
+        if pending.contains_key(stream_id) {
+            return Err(AppError::Validation(format!(
+                "agent stream '{stream_id}' already has a pending AI stream"
+            )));
+        }
+        pending.insert(
+            stream_id.to_string(),
+            PendingAiStream {
+                request_id: request_id.to_string(),
+                sender,
+            },
+        );
+        Ok(receiver)
+    }
+
+    pub fn report_ai_chunk(
+        &self,
+        stream_id: &str,
+        request_id: &str,
+        chunk: ChatStreamEventPayload,
+    ) -> Result<(), AppError> {
+        let is_terminal = matches!(
+            chunk,
+            ChatStreamEventPayload::Done | ChatStreamEventPayload::Error { .. }
+        );
+        let mut pending = self.pending_ai_streams.lock().map_err(|_| AppError::Lock)?;
+        let expected = pending.get(stream_id).ok_or_else(|| {
+            AppError::NotFound(format!(
+                "agent stream '{stream_id}' has no pending AI stream"
+            ))
+        })?;
+        if expected.request_id != request_id {
+            return Err(AppError::Validation(format!(
+                "AI stream request id '{request_id}' does not match pending stream '{}'",
+                expected.request_id
+            )));
+        }
+        if is_terminal {
+            let pending = pending.remove(stream_id).expect("checked above");
+            let _ = pending.sender.send(chunk);
+        } else {
+            let _ = expected.sender.send(chunk);
+        }
+        Ok(())
+    }
+
+    pub fn cancel_ai_stream(&self, stream_id: &str) -> Result<(), AppError> {
+        self.pending_ai_streams
+            .lock()
+            .map_err(|_| AppError::Lock)?
+            .remove(stream_id);
+        Ok(())
+    }
+
     fn cancel_pending_requests(&self, stream_id: &str) -> Result<(), AppError> {
         self.cancel_tool_call(stream_id)?;
-        self.cancel_mcp_permission(stream_id)
+        self.cancel_mcp_permission(stream_id)?;
+        self.cancel_ai_stream(stream_id)
     }
 }
 
@@ -557,10 +644,12 @@ pub(crate) fn resolve_provider_config(
     // engine that actually handles the request lives in `provider_type`,
     // falling back to `provider_id` for legacy configs that predate it.
     let engine_type = config.provider_type.as_deref().unwrap_or(provider_id);
+    let is_extension = crate::storage::ai_credentials::is_extension_ai_provider(provider_id);
     if !matches!(
         engine_type,
         "openai" | "anthropic" | "google" | "ollama" | "openrouter" | "custom"
-    ) {
+    ) && !is_extension
+    {
         return Err(AppError::Validation(format!(
             "provider '{provider_id}' is not registered"
         )));
@@ -668,6 +757,8 @@ async fn run_loop<F, D, Fut>(
     codex_home_dir: Option<&Path>,
     store: &DataStore,
     master_key: &[u8; 32],
+    runner_state: Option<&AgentRunnerState>,
+    stream_id: Option<&str>,
 ) -> Result<Option<String>, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -708,57 +799,167 @@ where
         let output = Arc::new(Mutex::new(TurnOutput::default()));
         let output_for_stream = Arc::clone(&output);
         let on_stream_event = on_event.clone();
-        let stream_future = crate::ai::commands::ai_stream_chat_impl(
-            &agent.provider_id,
-            resolved_provider.config.clone(),
-            resolved_provider.api_key.clone(),
-            messages,
-            params,
-            Uuid::new_v4().to_string(),
-            workspace_dir,
-            codex_home_dir,
-            move |event| {
-                let Ok(mut output) = output_for_stream.lock() else {
-                    return;
+
+        let is_extension_provider =
+            crate::storage::ai_credentials::is_extension_ai_provider(&agent.provider_id);
+
+        let stream_result = if is_extension_provider {
+            let (runner_state, stream_id) = match (runner_state, stream_id) {
+                (Some(rs), Some(sid)) => (rs, sid),
+                _ => {
+                    return Err(AppError::Validation(
+                        "extension AI streaming requires runner state and stream ID".into(),
+                    ));
+                }
+            };
+            let parts: Vec<&str> = agent.provider_id.splitn(3, ':').collect();
+            let (extension_id, ext_provider_id) = if parts.len() == 3 {
+                (parts[1], parts[2])
+            } else {
+                return Err(AppError::Validation(format!(
+                    "invalid extension provider id '{}'",
+                    agent.provider_id
+                )));
+            };
+            let request_id = Uuid::new_v4().to_string();
+            let mut chunk_receiver = runner_state.begin_ai_stream(stream_id, &request_id)?;
+
+            on_event(AgentStreamEvent::AiProviderStreamRequest {
+                stream_id: stream_id.to_string(),
+                request_id: request_id.clone(),
+                extension_id: extension_id.to_string(),
+                provider_id: ext_provider_id.to_string(),
+                model_id: agent.model_id.clone(),
+                messages: messages.clone(),
+                temperature: config.temperature,
+                max_tokens: config.max_tokens,
+                system_prompt: Some(system_prompt.clone()),
+                tools: tools.clone(),
+                api_key: resolved_provider.api_key.as_ref().map(|k| k.to_string()),
+                base_url: resolved_provider.config.base_url.clone(),
+                custom_headers: resolved_provider.config.custom_headers.clone(),
+            });
+
+            let mut stream_error: Option<String> = None;
+            loop {
+                let chunk = if let Some(signal) = cancellation.as_mut() {
+                    tokio::select! {
+                        chunk = chunk_receiver.recv() => chunk,
+                        _ = wait_for_cancellation(signal) => {
+                            let _ = runner_state.cancel_ai_stream(stream_id);
+                            on_event(AgentStreamEvent::AiProviderStreamCancelled { request_id });
+                            return Ok(None);
+                        }
+                    }
+                } else {
+                    chunk_receiver.recv().await
                 };
+
+                let Some(event) = chunk else {
+                    break;
+                };
+
+                let Ok(mut output_guard) = output_for_stream.lock() else {
+                    break;
+                };
+
                 match event {
                     ChatStreamEventPayload::Token { token } => {
-                        if output.status_active {
-                            output.status_active = false;
+                        if output_guard.status_active {
+                            output_guard.status_active = false;
                             on_stream_event(AgentStreamEvent::Status { status: None });
                         }
-                        output.text.push_str(&token);
+                        output_guard.text.push_str(&token);
                         on_stream_event(AgentStreamEvent::TextDelta {
                             delta: token,
-                            accumulated: output.text.clone(),
+                            accumulated: output_guard.text.clone(),
                         });
                     }
                     ChatStreamEventPayload::Status { status } => {
-                        output.status_active = true;
+                        output_guard.status_active = true;
                         on_stream_event(AgentStreamEvent::Status {
                             status: Some(status),
                         });
                     }
                     ChatStreamEventPayload::ToolCall { id, name, input } => {
-                        output.tool_calls.push(ToolCall { id, name, input });
+                        output_guard.tool_calls.push(ToolCall { id, name, input });
                     }
                     ChatStreamEventPayload::ProviderContext { item } => {
-                        output.provider_context.push(item);
+                        output_guard.provider_context.push(item);
                     }
                     ChatStreamEventPayload::Error { error } => {
-                        on_stream_event(AgentStreamEvent::Error { message: error });
+                        on_stream_event(AgentStreamEvent::Error {
+                            message: error.clone(),
+                        });
+                        stream_error = Some(error);
+                        break;
                     }
-                    ChatStreamEventPayload::Done => {}
+                    ChatStreamEventPayload::Done => {
+                        break;
+                    }
                 }
-            },
-        );
-        let stream_result = if let Some(signal) = cancellation.as_mut() {
-            tokio::select! {
-                result = stream_future => result,
-                _ = wait_for_cancellation(signal) => return Ok(None),
+            }
+
+            if let Some(err) = stream_error {
+                Err(AppError::Other(format!(
+                    "Extension AI provider failed: {err}"
+                )))
+            } else {
+                Ok(())
             }
         } else {
-            stream_future.await
+            let stream_future = crate::ai::commands::ai_stream_chat_impl(
+                &agent.provider_id,
+                resolved_provider.config.clone(),
+                resolved_provider.api_key.clone(),
+                messages,
+                params,
+                Uuid::new_v4().to_string(),
+                workspace_dir,
+                codex_home_dir,
+                move |event| {
+                    let Ok(mut output) = output_for_stream.lock() else {
+                        return;
+                    };
+                    match event {
+                        ChatStreamEventPayload::Token { token } => {
+                            if output.status_active {
+                                output.status_active = false;
+                                on_stream_event(AgentStreamEvent::Status { status: None });
+                            }
+                            output.text.push_str(&token);
+                            on_stream_event(AgentStreamEvent::TextDelta {
+                                delta: token,
+                                accumulated: output.text.clone(),
+                            });
+                        }
+                        ChatStreamEventPayload::Status { status } => {
+                            output.status_active = true;
+                            on_stream_event(AgentStreamEvent::Status {
+                                status: Some(status),
+                            });
+                        }
+                        ChatStreamEventPayload::ToolCall { id, name, input } => {
+                            output.tool_calls.push(ToolCall { id, name, input });
+                        }
+                        ChatStreamEventPayload::ProviderContext { item } => {
+                            output.provider_context.push(item);
+                        }
+                        ChatStreamEventPayload::Error { error } => {
+                            on_stream_event(AgentStreamEvent::Error { message: error });
+                        }
+                        ChatStreamEventPayload::Done => {}
+                    }
+                },
+            );
+            if let Some(signal) = cancellation.as_mut() {
+                tokio::select! {
+                    result = stream_future => result,
+                    _ = wait_for_cancellation(signal) => return Ok(None),
+                }
+            } else {
+                stream_future.await
+            }
         };
 
         let mut turn = {
@@ -928,6 +1129,8 @@ pub async fn run_thread_loop_impl<F, D, Fut>(
     workspace_dir: Option<&Path>,
     codex_home_dir: Option<&Path>,
     master_key: &[u8; 32],
+    runner_state: Option<&AgentRunnerState>,
+    stream_id: Option<&str>,
 ) -> Result<bool, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -1012,6 +1215,8 @@ where
         codex_home_dir,
         store,
         master_key,
+        runner_state,
+        stream_id,
     )
     .await?;
     on_event(if result.is_some() {
@@ -1035,6 +1240,8 @@ pub async fn run_silent_agent_loop_impl<F, D, Fut>(
     codex_home_dir: Option<&Path>,
     store: &DataStore,
     master_key: &[u8; 32],
+    runner_state: Option<&AgentRunnerState>,
+    stream_id: Option<&str>,
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -1080,6 +1287,8 @@ where
         codex_home_dir,
         store,
         master_key,
+        runner_state,
+        stream_id,
     )
     .await?;
     match result {
@@ -1112,6 +1321,8 @@ pub async fn run_silent_loop_impl<F, D, Fut>(
     workspace_dir: Option<&Path>,
     codex_home_dir: Option<&Path>,
     master_key: &[u8; 32],
+    runner_state: Option<&AgentRunnerState>,
+    stream_id: Option<&str>,
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -1138,6 +1349,8 @@ where
         codex_home_dir,
         store,
         master_key,
+        runner_state,
+        stream_id,
     )
     .await
 }

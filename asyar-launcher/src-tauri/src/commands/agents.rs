@@ -624,6 +624,8 @@ pub async fn agents_run_thread(
         Some(&workspace_dir),
         Some(&codex_home_dir),
         &master_key,
+        Some(runner_state.inner()),
+        Some(&stream_id),
     )
     .await;
     if matches!(&result, Ok(true)) {
@@ -720,6 +722,8 @@ pub async fn agents_run_silent(
         Some(&codex_home_dir),
         &store,
         &master_key,
+        Some(runner_state.inner()),
+        Some(&stream_id),
     )
     .await;
     let cleanup = runner_state.finish_run(&stream_id);
@@ -747,6 +751,16 @@ pub async fn agents_report_tool_result(
     error: Option<String>,
 ) -> Result<(), AppError> {
     runner_state.report_tool_result(&stream_id, &tool_call_id, result, error)
+}
+
+#[tauri::command]
+pub async fn agents_report_ai_chunk(
+    runner_state: State<'_, AgentRunnerState>,
+    stream_id: String,
+    request_id: String,
+    chunk: crate::ai::types::ChatStreamEventPayload,
+) -> Result<(), AppError> {
+    runner_state.report_ai_chunk(&stream_id, &request_id, chunk)
 }
 
 #[tauri::command]

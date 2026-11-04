@@ -233,6 +233,8 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         None,
         &store,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await
     .unwrap_err();
@@ -302,6 +304,8 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
         None,
         &store,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await
     .unwrap()
@@ -385,6 +389,8 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await
     .unwrap_err();
@@ -500,6 +506,8 @@ async fn test_run_thread_loop_text_only() {
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await
     .unwrap();
@@ -650,6 +658,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await
     .unwrap();
@@ -801,6 +811,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await
     .unwrap();
@@ -917,6 +929,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await
     .unwrap();
@@ -1308,6 +1322,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announc
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await
     .unwrap();
@@ -1464,6 +1480,8 @@ async fn test_runner_emits_tools_unavailable_once_in_cli_mode_with_dropped_tools
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await;
     if let Err(ref e) = res {
@@ -1585,6 +1603,8 @@ async fn test_runner_does_not_emit_tools_unavailable_in_cli_mode_when_only_built
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await;
 
@@ -1697,6 +1717,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Hello!\"}}]}\n\ndata: [DONE]\n\n";
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await
     .unwrap();
@@ -1778,6 +1800,8 @@ async fn test_runner_does_not_emit_tools_unavailable_for_silent_runs() {
         None,
         &store,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await;
 
@@ -1871,6 +1895,8 @@ async fn test_runner_with_disabled_provider_preserves_error_and_does_not_emit_to
         None,
         None,
         &TEST_MASTER_KEY,
+        None,
+        None,
     )
     .await;
 
@@ -1893,4 +1919,199 @@ async fn test_runner_with_disabled_provider_preserves_error_and_does_not_emit_to
         &[AgentStreamEvent::UserMessagePersisted],
         "Events must match pre-change behavior: only UserMessagePersisted before failure"
     );
+}
+
+#[test]
+fn test_resolve_provider_config_extension_ai_provider() {
+    let (conn, master_key) = test_db_and_key();
+    let provider_id = "ext:org.example.groq:groq";
+    let mut configs = std::collections::HashMap::new();
+    configs.insert(
+        provider_id.to_string(),
+        crate::ai::types::ProviderConfig {
+            enabled: true,
+            base_url: Some("https://api.groq.com/openai/v1".to_string()),
+            ..Default::default()
+        },
+    );
+
+    crate::storage::ai_credentials::set(
+        &conn,
+        &format!("provider:{provider_id}"),
+        "gsk_test123",
+        &master_key,
+    )
+    .unwrap();
+
+    let resolved = resolve_provider_config(provider_id, &configs, &conn, &master_key).unwrap();
+    assert_eq!(
+        resolved.config.base_url.as_deref(),
+        Some("https://api.groq.com/openai/v1")
+    );
+    assert_eq!(resolved.api_key.unwrap().as_str(), "gsk_test123");
+}
+
+#[tokio::test]
+async fn test_run_loop_extension_ai_provider_streaming() {
+    let store = make_store();
+    let now = chrono::Utc::now().timestamp_millis();
+    let agent_id = "agent-ext-groq".to_string();
+    let thread_id = "thread-ext-groq".to_string();
+    let provider_id = "ext:org.example.groq:groq".to_string();
+
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "Groq Agent".to_string(),
+            description: None,
+            system_prompt: "You are helpful.".to_string(),
+            provider_id: provider_id.clone(),
+            model_id: "llama-3.3-70b".to_string(),
+            tool_selection: vec![],
+            silent: false,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: "@groq".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: None,
+            is_pinned: false,
+            provider_id: None,
+            model_id: None,
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    seed_test_credential(&store, &provider_id, "gsk_test_secret");
+
+    let provider_cfg = crate::ai::types::ProviderConfig {
+        enabled: true,
+        base_url: Some("https://api.groq.com/openai/v1".to_string()),
+        ..Default::default()
+    };
+    let mut configs = std::collections::HashMap::new();
+    configs.insert(provider_id.clone(), provider_cfg);
+    let run_cfg = AgentRunConfig {
+        providers: vec![crate::agents::editor::AgentProviderDescriptor {
+            id: provider_id.clone(),
+            name: "Groq".to_string(),
+            requires_api_key: true,
+            requires_base_url: false,
+        }],
+        configs,
+        default_agent_id: None,
+        temperature: Some(0.7),
+        max_tokens: 1024,
+        web_search: None,
+    };
+
+    let runner_state = AgentRunnerState::default();
+    let stream_id = "stream-ext-1".to_string();
+    let cancellation = runner_state.begin_run(&stream_id).unwrap();
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let events_clone = events.clone();
+    let runner_state_clone = runner_state.clone();
+    let stream_id_clone = stream_id.clone();
+
+    let on_event = move |event: AgentStreamEvent| {
+        events_clone.lock().unwrap().push(event.clone());
+        if let AgentStreamEvent::AiProviderStreamRequest {
+            request_id,
+            stream_id,
+            extension_id,
+            provider_id,
+            api_key,
+            ..
+        } = event
+        {
+            assert_eq!(extension_id, "org.example.groq");
+            assert_eq!(provider_id, "groq");
+            assert_eq!(api_key.as_deref(), Some("gsk_test_secret"));
+            let rs = runner_state_clone.clone();
+            tokio::spawn(async move {
+                tokio::task::yield_now().await;
+                rs.report_ai_chunk(
+                    &stream_id,
+                    &request_id,
+                    crate::ai::types::ChatStreamEventPayload::Token {
+                        token: "Hello ".to_string(),
+                    },
+                )
+                .unwrap();
+                rs.report_ai_chunk(
+                    &stream_id,
+                    &request_id,
+                    crate::ai::types::ChatStreamEventPayload::Token {
+                        token: "world!".to_string(),
+                    },
+                )
+                .unwrap();
+                rs.report_ai_chunk(
+                    &stream_id,
+                    &request_id,
+                    crate::ai::types::ChatStreamEventPayload::Done,
+                )
+                .unwrap();
+            });
+        }
+    };
+
+    let result = run_thread_loop_impl(
+        &store,
+        &ToolRegistry::new(),
+        &agent_id,
+        &thread_id,
+        "Hi".to_string(),
+        Some("run-ext-1".to_string()),
+        run_cfg,
+        on_event,
+        |_| async { Ok(json!({})) },
+        Some(cancellation),
+        None,
+        None,
+        &TEST_MASTER_KEY,
+        Some(&runner_state),
+        Some(&stream_id_clone),
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "run_thread_loop_impl must succeed: {:?}",
+        result.err()
+    );
+
+    let msgs = list_messages_for_thread(&store.conn().unwrap(), &thread_id).unwrap();
+    assert_eq!(msgs.len(), 2);
+    assert_eq!(msgs[0].role, MessageRole::User);
+    assert_eq!(msgs[1].role, MessageRole::Assistant);
+    assert_eq!(msgs[1].content["text"], "Hello world!");
+
+    let recorded = events.lock().unwrap();
+    assert!(recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::AiProviderStreamRequest { .. })));
+    assert!(recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::TextDelta { delta, .. } if delta == "Hello ")));
+    assert!(recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::TextDelta { delta, .. } if delta == "world!")));
+    assert!(recorded
+        .iter()
+        .any(|e| matches!(e, AgentStreamEvent::Completed)));
 }

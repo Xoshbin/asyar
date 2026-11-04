@@ -338,6 +338,44 @@ pub struct ManifestWebSearchEngine {
     pub icon: Option<String>,
 }
 
+/// Contributed AI model declaration within an AI provider.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestAiModel {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub context_window: Option<u32>,
+    #[serde(default)]
+    pub reasoning_efforts: Option<Vec<String>>,
+}
+
+/// Contributed AI model & inference provider declared by an extension.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestAiProvider {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub homepage: Option<String>,
+    #[serde(default)]
+    pub requires_api_key: Option<bool>,
+    #[serde(default)]
+    pub api_key_optional: Option<bool>,
+    #[serde(default)]
+    pub api_key_placeholder: Option<String>,
+    #[serde(default)]
+    pub api_key_help_url: Option<String>,
+    #[serde(default)]
+    pub requires_base_url: Option<bool>,
+    #[serde(default)]
+    pub base_url_placeholder: Option<String>,
+    #[serde(default)]
+    pub models: Option<Vec<ManifestAiModel>>,
+}
+
 /// Declares the always-on worker bundle for extensions that host background
 /// work (subscriptions, schedules, timers, tray updates). Required when any
 /// command declares `mode: "background"`.
@@ -436,6 +474,9 @@ pub struct ExtensionManifest {
     /// Web search engines contributed by this extension to the agent runtime.
     #[serde(default)]
     pub web_search_engines: Option<Vec<ManifestWebSearchEngine>>,
+    /// AI model & inference providers contributed by this extension.
+    #[serde(default)]
+    pub ai_providers: Option<Vec<ManifestAiProvider>>,
 }
 
 impl ExtensionManifest {
@@ -1415,6 +1456,7 @@ mod tests {
                     runtimes: None,
                     walkthrough: None,
                     web_search_engines: None,
+                    ai_providers: None,
                 },
                 enabled: true,
                 is_built_in: false,

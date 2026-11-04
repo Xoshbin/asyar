@@ -338,4 +338,72 @@ describe('AiServiceProxy', () => {
       ).rejects.toThrow('Invalid engine ID');
     });
   });
+
+  describe('registerAiProvider & invoke handlers', () => {
+    it('registers an ai provider, streams chunks, and allows unregistering', async () => {
+      const mockStream = vi.fn().mockImplementation(async (req, onChunk) => {
+        onChunk({ type: 'token', token: 'Hello' });
+        onChunk({ type: 'token', token: ' world' });
+      });
+      const mockList = vi.fn().mockResolvedValue([{ id: 'm1', label: 'Model 1' }]);
+
+      const unregister = proxy.registerAiProvider({
+        id: 'groq',
+        completeStream: mockStream,
+        listModels: mockList,
+      });
+
+      const controller = new AbortController();
+      const chunks: any[] = [];
+      await proxy.invokeAiProviderStream(
+        'groq',
+        { messages: [{ role: 'user', content: 'hi' }], modelId: 'm1', maxTokens: 100 },
+        (c) => chunks.push(c),
+        controller.signal,
+      );
+
+      expect(mockStream).toHaveBeenCalled();
+      expect(chunks).toEqual([
+        { type: 'token', token: 'Hello' },
+        { type: 'token', token: ' world' },
+      ]);
+
+      const models = await proxy.invokeAiProviderListModels('groq', {}, controller.signal);
+      expect(models).toEqual([{ id: 'm1', label: 'Model 1' }]);
+
+      unregister();
+      await expect(
+        proxy.invokeAiProviderStream(
+          'groq',
+          { messages: [], modelId: 'm1', maxTokens: 100 },
+          vi.fn(),
+          controller.signal,
+        ),
+      ).rejects.toThrow('No AI provider registered with ID: "groq"');
+    });
+
+    it('throws if provider descriptor is invalid', () => {
+      expect(() => proxy.registerAiProvider(null as any)).toThrow();
+      expect(() => proxy.registerAiProvider({ id: '', completeStream: vi.fn() } as any)).toThrow();
+      expect(() =>
+        proxy.registerAiProvider({ id: 'bad id!', completeStream: vi.fn() } as any),
+      ).toThrow();
+      expect(() => proxy.registerAiProvider({ id: 'groq', completeStream: null as any })).toThrow();
+    });
+
+    it('rejects invoke on invalid provider IDs', async () => {
+      const controller = new AbortController();
+      await expect(
+        proxy.invokeAiProviderStream(
+          'invalid id!',
+          { messages: [], modelId: 'm1', maxTokens: 100 },
+          vi.fn(),
+          controller.signal,
+        ),
+      ).rejects.toThrow('Invalid provider ID');
+      await expect(
+        proxy.invokeAiProviderListModels('invalid id!', {}, controller.signal),
+      ).rejects.toThrow('Invalid provider ID');
+    });
+  });
 });

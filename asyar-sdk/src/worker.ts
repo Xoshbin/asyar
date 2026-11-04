@@ -69,6 +69,7 @@ import { CalculatorServiceProxy } from './services/CalculatorServiceProxy';
 import { AiServiceProxy } from './services/AiServiceProxy';
 import { McpServiceProxy } from './services/McpServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
+import type { AiCompletionRequest, AiStreamChunk } from './contracts/aiProvider';
 
 import { extensionBridge } from './ExtensionBridge';
 import { ExtensionContextCore } from './ExtensionContextCore';
@@ -152,6 +153,7 @@ function installWorkerRpcInterceptor(): void {
 installWorkerRpcInterceptor();
 installToolsInvokeInterceptor();
 installWebSearchInvokeInterceptor();
+installAiProviderInvokeInterceptor();
 
 /**
  * Module-level reference to the ToolsServiceProxy installed in this worker.
@@ -255,6 +257,107 @@ function installWebSearchInvokeInterceptor(): void {
   }) as EventListener);
 }
 
+/**
+ * Worker-side: intercept `asyar:aiProvider:*` postMessages, dispatch to
+ * the AiServiceProxy's local AI provider map, and stream chunks / responses
+ * back to the host.
+ */
+function installAiProviderInvokeInterceptor(): void {
+  const scope = typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
+  if (!scope || typeof scope.addEventListener !== 'function') return;
+
+  const activeStreams = new Map<string, AbortController>();
+
+  scope.addEventListener('message', (async (event: Event) => {
+    const data = (event as MessageEvent<unknown>).data;
+    if (!data || typeof data !== 'object') return;
+    const d = data as {
+      type?: unknown;
+      messageId?: unknown;
+      providerId?: unknown;
+      payload?: unknown;
+      config?: unknown;
+    };
+
+    if (d.type === 'asyar:aiProvider:abort') {
+      const messageId = d.messageId as string | undefined;
+      if (typeof messageId === 'string' && activeStreams.has(messageId)) {
+        activeStreams.get(messageId)?.abort(new Error('Aborted by host'));
+        activeStreams.delete(messageId);
+      }
+      return;
+    }
+
+    if (d.type === 'asyar:aiProvider:listModels') {
+      const messageId = d.messageId as string | undefined;
+      const providerId = d.providerId as string | undefined;
+      const config = d.config as Record<string, unknown> | undefined;
+      if (
+        typeof messageId !== 'string' ||
+        typeof providerId !== 'string' ||
+        !/^[a-z0-9_-]{1,64}$/.test(providerId)
+      ) {
+        return;
+      }
+      if (!_workerAiProxy) return;
+      const controller = new AbortController();
+      try {
+        const models = await _workerAiProxy.invokeAiProviderListModels(
+          providerId,
+          config ?? {},
+          controller.signal,
+        );
+        postToHost({ type: 'asyar:aiProvider:listModelsResponse', messageId, models });
+      } catch (err) {
+        postToHost({
+          type: 'asyar:aiProvider:listModelsResponse',
+          messageId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return;
+    }
+
+    if (d.type === 'asyar:aiProvider:streamRequest') {
+      const messageId = d.messageId as string | undefined;
+      const providerId = d.providerId as string | undefined;
+      const payload = d.payload as AiCompletionRequest | undefined;
+      if (
+        typeof messageId !== 'string' ||
+        typeof providerId !== 'string' ||
+        !/^[a-z0-9_-]{1,64}$/.test(providerId)
+      ) {
+        return;
+      }
+      if (!_workerAiProxy) return;
+      const controller = new AbortController();
+      activeStreams.set(messageId, controller);
+
+      const onChunk = (chunk: AiStreamChunk) => {
+        postToHost({ type: 'asyar:aiProvider:chunk', messageId, chunk });
+      };
+
+      try {
+        await _workerAiProxy.invokeAiProviderStream(
+          providerId,
+          payload ?? { messages: [], modelId: '', maxTokens: 4096 },
+          onChunk,
+          controller.signal,
+        );
+        postToHost({ type: 'asyar:aiProvider:complete', messageId });
+      } catch (err) {
+        postToHost({
+          type: 'asyar:aiProvider:error',
+          messageId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        activeStreams.delete(messageId);
+      }
+    }
+  }) as EventListener);
+}
+
 // Auto-report uncaught errors / rejections to host parent (Task 24).
 const errorScope =
   typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
@@ -345,4 +448,19 @@ export type {
   WebSearchEngineRegistration,
   ManifestWebSearchEngine,
 } from './contracts/webSearch';
+export type {
+  AiToolCall,
+  AiMessage,
+  AiToolDefinition,
+  AiCompletionRequest,
+  AiStreamChunk,
+  AiModelInfo,
+  AiProviderConfig,
+  AiStreamCallback,
+  AiProviderCompleteStream,
+  AiProviderListModels,
+  AiProviderRegistration,
+  ManifestAiModel,
+  ManifestAiProvider,
+} from './contracts/aiProvider';
 export * from './errors';

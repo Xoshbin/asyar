@@ -178,6 +178,27 @@ pub async fn ai_delete_credential(
     Ok(deleted)
 }
 
+#[tauri::command]
+pub async fn ai_resolve_provider_credential(
+    provider_id: String,
+    data_store: tauri::State<'_, crate::storage::DataStore>,
+    keystore: tauri::State<'_, crate::crypto::keystore::KeystoreState>,
+) -> Result<Option<String>, AppError> {
+    let credential_id = CredentialTarget::Provider {
+        id: provider_id.clone(),
+    }
+    .to_credential_id()?;
+    let conn = data_store.conn()?;
+    match crate::storage::ai_credentials::get(&conn, &credential_id, keystore.master_key()) {
+        Ok(Some(k)) => Ok(Some(k.to_string())),
+        Ok(None) => Ok(None),
+        Err(asyar_storage::StorageError::Encryption(_)) => Err(AppError::Validation(format!(
+            "API key for provider '{provider_id}' cannot be decrypted."
+        ))),
+        Err(e) => Err(e.into()),
+    }
+}
+
 /// One state per keyed engine, so the UI can show each engine's own key independently.
 pub(crate) fn web_search_states(
     cred_map: &std::collections::HashMap<String, CredentialState>,

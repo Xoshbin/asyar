@@ -41,6 +41,17 @@ pub fn is_extension_web_search_engine(engine: &str) -> bool {
     )
 }
 
+pub fn is_extension_ai_provider(provider_id: &str) -> bool {
+    let Some(rest) = provider_id.strip_prefix("ext:") else {
+        return false;
+    };
+    let mut parts = rest.split(':');
+    matches!(
+        (parts.next(), parts.next(), parts.next()),
+        (Some(ext), Some(id), None) if !ext.is_empty() && !id.is_empty()
+    )
+}
+
 /// Credential row id for a keyed web-search engine's API key.
 pub fn web_search_credential_id(engine: &str) -> String {
     format!("web_search:{engine}")
@@ -49,7 +60,14 @@ pub fn web_search_credential_id(engine: &str) -> String {
 impl CredentialTarget {
     pub fn to_credential_id(&self) -> Result<String, AppError> {
         match self {
-            CredentialTarget::Provider { id } => Ok(format!("provider:{id}")),
+            CredentialTarget::Provider { id } => {
+                if id.starts_with("ext:") && !is_extension_ai_provider(id) {
+                    return Err(AppError::Validation(format!(
+                        "Invalid extension provider ID '{id}'"
+                    )));
+                }
+                Ok(format!("provider:{id}"))
+            }
             CredentialTarget::WebSearch { engine } => {
                 if !is_keyed_web_search_engine(engine) {
                     return Err(AppError::Validation(format!(
@@ -427,5 +445,32 @@ mod tests {
                 "ai_credentials cannot be a sync category"
             );
         }
+    }
+
+    #[test]
+    fn test_is_extension_ai_provider() {
+        assert!(is_extension_ai_provider("ext:org.asyar.groq:groq"));
+        assert!(is_extension_ai_provider("ext:my-ext:model_engine"));
+        assert!(!is_extension_ai_provider("openai"));
+        assert!(!is_extension_ai_provider("ext:"));
+        assert!(!is_extension_ai_provider("ext::groq"));
+        assert!(!is_extension_ai_provider("ext:groq:"));
+        assert!(!is_extension_ai_provider("ext:a:b:c"));
+    }
+
+    #[test]
+    fn test_credential_target_extension_provider() {
+        let valid = CredentialTarget::Provider {
+            id: "ext:org.asyar.groq:groq".to_string(),
+        };
+        assert_eq!(
+            valid.to_credential_id().unwrap(),
+            "provider:ext:org.asyar.groq:groq"
+        );
+
+        let invalid = CredentialTarget::Provider {
+            id: "ext:malformed".to_string(),
+        };
+        assert!(invalid.to_credential_id().is_err());
     }
 }
