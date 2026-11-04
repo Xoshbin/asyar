@@ -7,6 +7,12 @@ import type {
   WebSearchResult,
 } from '../contracts/webSearch';
 import type {
+  WebReaderEngineRegistration,
+  WebReaderHandler,
+  WebReaderQuery,
+  WebReaderResult,
+} from '../contracts/webReader';
+import type {
   AiProviderRegistration,
   AiCompletionRequest,
   AiStreamChunk,
@@ -187,6 +193,47 @@ export class AiServiceProxy extends BaseServiceProxy implements IAiService {
       throw new Error(`[asyar-sdk/ai] Invalid handler for engine: "${engineId}"`);
     }
     return handler(query, signal);
+  }
+
+  private webReaders = new Map<string, { handler: WebReaderHandler; token: symbol }>();
+
+  registerWebReader(engine: WebReaderEngineRegistration): () => void {
+    if (
+      !engine ||
+      typeof engine.id !== 'string' ||
+      !/^[a-z0-9_-]{1,64}$/.test(engine.id) ||
+      typeof engine.read !== 'function'
+    ) {
+      throw new Error(
+        '[asyar-sdk/ai] registerWebReader requires an engine with a valid id and read function',
+      );
+    }
+    const token = Symbol();
+    this.webReaders.set(engine.id, { handler: engine.read, token });
+    return () => {
+      const current = this.webReaders.get(engine.id);
+      if (current?.token === token) {
+        this.webReaders.delete(engine.id);
+      }
+    };
+  }
+
+  async invokeWebReaderHandler(
+    readerId: string,
+    query: WebReaderQuery,
+    signal: AbortSignal,
+  ): Promise<WebReaderResult> {
+    if (typeof readerId !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(readerId)) {
+      throw new Error(`[asyar-sdk/ai] Invalid reader ID: "${readerId}"`);
+    }
+    const entry = this.webReaders.get(readerId);
+    if (!entry) {
+      throw new Error(`[asyar-sdk/ai] No web reader registered with ID: "${readerId}"`);
+    }
+    if (typeof entry.handler !== 'function') {
+      throw new Error(`[asyar-sdk/ai] Invalid handler for reader: "${readerId}"`);
+    }
+    return entry.handler(query, signal);
   }
 
   private aiProviders = new Map<string, AiProviderRegistration>();

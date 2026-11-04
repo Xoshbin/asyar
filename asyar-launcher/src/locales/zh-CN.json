@@ -504,7 +504,11 @@
       "saving": "正在保存…",
       "key_reentry_warning": "无法再读取此密钥。请重新输入。",
       "key_save_error": "无法保存密钥。请重试。",
-      "key_remove_error": "无法移除密钥。请重试。"
+      "key_remove_error": "无法移除密钥。请重试。",
+      "web_reader_section": "网页内容抓取 / 阅读器",
+      "web_reader": "网页阅读器",
+      "reader_builtin": "内置（直接 HTTP / 默认）",
+      "reader_builtin_desc": "直接 HTTP 请求。快速且免配置，但不执行单页应用客户端的 JavaScript。"
     },
     "applications": {
       "no_match": "没有匹配筛选条件的应用",

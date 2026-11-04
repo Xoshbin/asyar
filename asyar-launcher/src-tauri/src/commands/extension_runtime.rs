@@ -1093,6 +1093,7 @@ mod onboarding_dispatch_tests {
             runtimes: None,
             walkthrough: None,
             web_search_engines: None,
+            web_readers: None,
             ai_providers: None,
         }
     }

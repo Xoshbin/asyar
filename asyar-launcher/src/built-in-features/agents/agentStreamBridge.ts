@@ -7,7 +7,11 @@ import {
   agentsReportToolResult,
   agentsReportAiChunk,
 } from '../../lib/ipc/commands';
-import { invokeExtensionTool, invokeExtensionWebSearch } from './toolDispatch';
+import {
+  invokeExtensionTool,
+  invokeExtensionWebSearch,
+  invokeExtensionWebReader,
+} from './toolDispatch';
 import { invokeExtensionAiProviderStream } from '../../services/extension/extensionAiProviderDispatch';
 import { mcpService } from '../mcp/mcpService.svelte';
 import type { AiCompletionRequest, AiStreamChunk, AiMessage } from 'asyar-sdk/contracts';
@@ -41,6 +45,14 @@ async function reportToolDispatch(
         event.extension_id,
         engineId,
         event.arguments,
+        signal,
+      );
+    } else if (event.tool_id.startsWith('webreader:')) {
+      const readerId = event.tool_id.slice('webreader:'.length);
+      result = await invokeExtensionWebReader(
+        event.extension_id,
+        readerId,
+        event.arguments as any,
         signal,
       );
     } else {

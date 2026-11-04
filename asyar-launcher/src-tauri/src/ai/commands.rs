@@ -226,6 +226,22 @@ pub(crate) fn web_search_states(
     states
 }
 
+/// One state per keyed web reader, so the UI can show each reader's own key independently.
+pub(crate) fn web_reader_states(
+    cred_map: &std::collections::HashMap<String, CredentialState>,
+) -> std::collections::HashMap<String, CredentialState> {
+    let mut states: std::collections::HashMap<String, CredentialState> =
+        std::collections::HashMap::new();
+
+    for (cred_id, state) in cred_map {
+        if let Some(reader) = cred_id.strip_prefix("web_reader:") {
+            states.entry(reader.to_string()).or_insert(*state);
+        }
+    }
+
+    states
+}
+
 #[tauri::command]
 pub async fn ai_get_credential_status(
     app: tauri::AppHandle,
@@ -265,10 +281,12 @@ pub async fn ai_get_credential_status(
     }
 
     let web_search = web_search_states(&cred_map);
+    let web_reader = web_reader_states(&cred_map);
 
     Ok(AiCredentialStatus {
         providers,
         web_search,
+        web_reader,
     })
 }
 
@@ -459,6 +477,20 @@ mod web_search_status_tests {
         assert_eq!(states["brave"], CredentialState::Configured);
         assert_eq!(states["tavily"], CredentialState::NotConfigured);
         assert_eq!(states["serply"], CredentialState::NeedsReentry);
+    }
+
+    #[test]
+    fn web_reader_status_is_reported_per_keyed_reader() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::storage::migrations::run(&conn).unwrap();
+        let key = crate::crypto::test_master_key();
+        ai_credentials::set(&conn, "web_reader:ext:org.test:jina", "k", &key).unwrap();
+
+        let all = ai_credentials::list_all_statuses(&conn, &key).unwrap();
+        let states = web_reader_states(&all);
+
+        assert_eq!(states.len(), 1);
+        assert_eq!(states["ext:org.test:jina"], CredentialState::Configured);
     }
 
     #[test]

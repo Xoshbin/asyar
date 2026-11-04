@@ -194,3 +194,194 @@ fn parse_args_treats_null_fields_as_omitted() {
         Err(e) => panic!("null fields must be treated as omitted, got Err: {e:?}"),
     }
 }
+
+// ── 13. extension web reader routing & fallback ──────────────────────────────
+
+#[tokio::test]
+async fn test_web_fetch_extension_reader_success() {
+    let tool = WebFetchTool::new();
+    let dispatcher = std::sync::Arc::new(|req: crate::agents::runner::ExternalToolRequest| {
+        Box::pin(async move {
+            assert_eq!(req.tool_id, "webreader:org.example.jina:jina-reader");
+            assert_eq!(req.arguments["url"], "https://example.com/post");
+            Ok(json!({
+                "url": "https://example.com/post",
+                "title": "Clean Post Title",
+                "content": "# Clean Post Title\nThis is clean markdown extracted by reader.",
+                "status": 200,
+            }))
+        })
+            as std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<serde_json::Value, AppError>> + Send>,
+            >
+    });
+
+    let context = crate::agents::tools::ToolContext {
+        web_reader: Some(crate::agents::runner::WebReaderConfig {
+            reader: Some("ext:org.example.jina:jina-reader".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: Some(dispatcher),
+        ..Default::default()
+    };
+
+    let output = tool
+        .invoke_with_context(json!({ "url": "https://example.com/post" }), &context)
+        .await
+        .unwrap();
+
+    assert_eq!(output["status"], 200);
+    assert_eq!(output["statusText"], "OK");
+    assert_eq!(output["ok"], true);
+    assert_eq!(output["title"], "Clean Post Title");
+    assert_eq!(output["url"], "https://example.com/post");
+    assert_eq!(
+        output["body"],
+        "# Clean Post Title\nThis is clean markdown extracted by reader."
+    );
+}
+
+#[tokio::test]
+async fn test_web_fetch_non_get_bypasses_web_reader() {
+    let tool = WebFetchTool::new();
+    let called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let called_clone = called.clone();
+
+    let dispatcher =
+        std::sync::Arc::new(move |_req: crate::agents::runner::ExternalToolRequest| {
+            called_clone.store(true, std::sync::atomic::Ordering::SeqCst);
+            Box::pin(async move { Ok(json!({ "content": "should not be called" })) })
+                as std::pin::Pin<
+                    Box<
+                        dyn std::future::Future<Output = Result<serde_json::Value, AppError>>
+                            + Send,
+                    >,
+                >
+        });
+
+    let context = crate::agents::tools::ToolContext {
+        web_reader: Some(crate::agents::runner::WebReaderConfig {
+            reader: Some("ext:org.example.jina:jina-reader".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: Some(dispatcher),
+        ..Default::default()
+    };
+
+    // A POST request should bypass the reader and invoke native fetch directly
+    let _ = tool
+        .invoke_with_context(
+            json!({ "url": "http://127.0.0.1:9", "method": "POST" }),
+            &context,
+        )
+        .await;
+
+    assert!(
+        !called.load(std::sync::atomic::Ordering::SeqCst),
+        "Extension web reader must NOT be invoked for non-GET requests"
+    );
+}
+
+#[tokio::test]
+async fn test_web_fetch_with_body_bypasses_web_reader() {
+    let tool = WebFetchTool::new();
+    let called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let called_clone = called.clone();
+
+    let dispatcher =
+        std::sync::Arc::new(move |_req: crate::agents::runner::ExternalToolRequest| {
+            called_clone.store(true, std::sync::atomic::Ordering::SeqCst);
+            Box::pin(async move { Ok(json!({ "content": "should not be called" })) })
+                as std::pin::Pin<
+                    Box<
+                        dyn std::future::Future<Output = Result<serde_json::Value, AppError>>
+                            + Send,
+                    >,
+                >
+        });
+
+    let context = crate::agents::tools::ToolContext {
+        web_reader: Some(crate::agents::runner::WebReaderConfig {
+            reader: Some("ext:org.example.jina:jina-reader".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: Some(dispatcher),
+        ..Default::default()
+    };
+
+    // A GET request with body should bypass the reader and invoke native fetch directly
+    let _ = tool
+        .invoke_with_context(
+            json!({ "url": "http://127.0.0.1:9", "body": "some payload" }),
+            &context,
+        )
+        .await;
+
+    assert!(
+        !called.load(std::sync::atomic::Ordering::SeqCst),
+        "Extension web reader must NOT be invoked for requests with a body"
+    );
+}
+
+#[tokio::test]
+async fn test_web_fetch_extension_reader_with_store_resolves_api_key() {
+    let store = crate::storage::DataStore::in_memory().unwrap();
+    let master_key = crate::crypto::test_master_key();
+
+    // Store encrypted credential for the reader
+    {
+        let conn = store.conn().unwrap();
+        crate::storage::ai_credentials::set(
+            &conn,
+            "web_reader:ext:org.example.jina:jina-reader",
+            "jina-test-secret-456",
+            &master_key,
+        )
+        .unwrap();
+    }
+
+    let tool = WebFetchTool::with_store(store, master_key);
+    let captured_key = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let captured_key_clone = captured_key.clone();
+
+    let dispatcher = std::sync::Arc::new(move |req: crate::agents::runner::ExternalToolRequest| {
+        let key = req
+            .arguments
+            .get("apiKey")
+            .and_then(|k| k.as_str())
+            .map(|s| s.to_string());
+        *captured_key_clone.lock().unwrap() = key;
+        Box::pin(async move {
+            Ok(json!({
+                "url": "https://example.com/secured",
+                "title": "Secured Page",
+                "content": "# Secured Content",
+                "status": 200,
+            }))
+        })
+            as std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<serde_json::Value, AppError>> + Send>,
+            >
+    });
+
+    let context = crate::agents::tools::ToolContext {
+        web_reader: Some(crate::agents::runner::WebReaderConfig {
+            reader: Some("ext:org.example.jina:jina-reader".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: Some(dispatcher),
+        ..Default::default()
+    };
+
+    let output = tool
+        .invoke_with_context(json!({ "url": "https://example.com/secured" }), &context)
+        .await
+        .unwrap();
+
+    assert_eq!(output["status"], 200);
+    assert_eq!(
+        captured_key.lock().unwrap().as_deref(),
+        Some("jina-test-secret-456"),
+        "API key should be decrypted and forwarded to external reader"
+    );
+}

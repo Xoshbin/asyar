@@ -11,6 +11,7 @@ use url::Url;
 /// Inputs for [`fetch`]. Mirrors the Tauri command parameters minus
 /// the `tauri::State` registry handle, so this is callable from any
 /// Rust caller (CLI, tests, future schedulers).
+#[derive(Clone, Debug)]
 pub struct FetchRequest {
     pub url: String,
     pub method: Option<String>,

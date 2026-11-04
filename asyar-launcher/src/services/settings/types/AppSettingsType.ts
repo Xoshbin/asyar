@@ -132,6 +132,13 @@ export interface WebSearchSettings {
   baseUrl?: string;
 }
 
+export type WebReaderEngine = 'builtin' | string;
+
+export interface WebReaderSettings {
+  reader: WebReaderEngine;
+  baseUrl?: string;
+}
+
 export interface AISettings {
   providers: Record<string, ProviderConfig>;
   temperature: number;
@@ -141,4 +148,5 @@ export interface AISettings {
   /** Maximum conversation threads retained in history. 0 means unlimited. Default is 100. */
   historyRetentionCap: number;
   webSearch?: WebSearchSettings;
+  webReader?: WebReaderSettings;
 }

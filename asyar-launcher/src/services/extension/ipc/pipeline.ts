@@ -1,5 +1,6 @@
 import { handleToolResponse } from '../extensionToolDispatch';
 import { handleWebSearchResponse } from '../extensionWebSearchDispatch';
+import { handleWebReaderResponse } from '../extensionWebReaderDispatch';
 import { handleAiProviderResponse } from '../extensionAiProviderDispatch';
 import { logService } from '../../log/logService';
 import * as commands from '../../../lib/ipc/commands';
@@ -19,6 +20,7 @@ const tap: IpcStage = {
     extensionIframeManager.handleSearchResponse(ctx.event);
     handleToolResponse(ctx.event);
     handleWebSearchResponse(ctx.event);
+    handleWebReaderResponse(ctx.event);
     handleAiProviderResponse(ctx.event);
     await next();
   },

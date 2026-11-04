@@ -504,7 +504,11 @@
       "saving": "正在儲存…",
       "key_reentry_warning": "無法再讀取此金鑰。請重新輸入。",
       "key_save_error": "無法儲存金鑰。請重試。",
-      "key_remove_error": "無法移除金鑰。請重試。"
+      "key_remove_error": "無法移除金鑰。請重試。",
+      "web_reader_section": "網頁內容擷取 / 閱讀器",
+      "web_reader": "網頁閱讀器",
+      "reader_builtin": "內建（直接 HTTP / 預設）",
+      "reader_builtin_desc": "直接 HTTP 請求。快速且免設定，但不執行單頁應用程式用戶端的 JavaScript。"
     },
     "applications": {
       "no_match": "沒有匹配篩選條件的應用程式",

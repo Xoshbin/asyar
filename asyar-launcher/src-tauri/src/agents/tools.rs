@@ -121,6 +121,7 @@ pub type ExternalToolDispatcher = std::sync::Arc<
 #[derive(Clone, Default)]
 pub struct ToolContext {
     pub web_search: Option<crate::agents::runner::WebSearchConfig>,
+    pub web_reader: Option<crate::agents::runner::WebReaderConfig>,
     pub external_dispatcher: Option<ExternalToolDispatcher>,
 }
 
@@ -128,6 +129,7 @@ impl std::fmt::Debug for ToolContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ToolContext")
             .field("web_search", &self.web_search)
+            .field("web_reader", &self.web_reader)
             .field("external_dispatcher", &self.external_dispatcher.is_some())
             .finish()
     }

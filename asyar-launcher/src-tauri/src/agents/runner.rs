@@ -90,6 +90,13 @@ pub struct WebSearchConfig {
     pub base_url: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WebReaderConfig {
+    pub reader: Option<String>,
+    pub base_url: Option<String>,
+}
+
 /// Everything Rust needs to resolve *and* validate an agent's provider for a
 /// run, without owning the settings store itself: the frontend still owns
 /// `settings.ai.providers`/`defaultAgentId` and passes them through as data
@@ -106,6 +113,8 @@ pub struct AgentRunConfig {
     pub max_tokens: u32,
     #[serde(default)]
     pub web_search: Option<WebSearchConfig>,
+    #[serde(default)]
+    pub web_reader: Option<WebReaderConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1023,6 +1032,7 @@ where
                 let dispatch = dispatch_external.clone();
                 let tool_context = crate::agents::tools::ToolContext {
                     web_search: config.web_search.clone(),
+                    web_reader: config.web_reader.clone(),
                     external_dispatcher: Some(std::sync::Arc::new(move |req| {
                         let fut = dispatch(req);
                         Box::pin(fut)

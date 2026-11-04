@@ -48,7 +48,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   replaceDynamicCommandsBuiltin: vi.fn(),
   showSettingsWindow: vi.fn(),
   aiListModels: vi.fn().mockResolvedValue([]),
-  aiGetCredentialStatus: vi.fn().mockResolvedValue({ providers: {}, webSearch: {} }),
+  aiGetCredentialStatus: vi.fn().mockResolvedValue({ providers: {}, webSearch: {}, webReader: {} }),
 }));
 
 vi.mock('../../utils/copyText', () => ({ copyText: vi.fn() }));

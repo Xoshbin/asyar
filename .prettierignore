@@ -29,3 +29,4 @@ asyar-launcher/src-tauri/resources/ext-builder/sidecar.js
 asyar-launcher/src-tauri/gen/
 
 .remember/
+.codegraph/

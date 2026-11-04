@@ -153,6 +153,7 @@ function installWorkerRpcInterceptor(): void {
 installWorkerRpcInterceptor();
 installToolsInvokeInterceptor();
 installWebSearchInvokeInterceptor();
+installWebReaderInvokeInterceptor();
 installAiProviderInvokeInterceptor();
 
 /**
@@ -250,6 +251,59 @@ function installWebSearchInvokeInterceptor(): void {
     } catch (err) {
       postToHost({
         type: 'asyar:webSearch:response',
+        messageId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }) as EventListener);
+}
+
+/**
+ * Worker-side: intercept every `asyar:webReader:query` postMessage, dispatch to
+ * the AiServiceProxy's local web reader handler map, and post the normalized
+ * response back to the host.
+ */
+function installWebReaderInvokeInterceptor(): void {
+  const scope = typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
+  if (!scope || typeof scope.addEventListener !== 'function') return;
+  scope.addEventListener('message', (async (event: Event) => {
+    const data = (event as MessageEvent<unknown>).data;
+    if (!data || typeof data !== 'object') return;
+    const d = data as { type?: unknown; messageId?: unknown; payload?: unknown };
+    if (d.type !== 'asyar:webReader:query') return;
+    const messageId = d.messageId as string | undefined;
+    const payload = d.payload as
+      | {
+          readerId?: string;
+          url?: string;
+          apiKey?: string;
+          baseUrl?: string;
+        }
+      | undefined;
+    const readerId = payload?.readerId;
+    if (
+      typeof messageId !== 'string' ||
+      typeof readerId !== 'string' ||
+      !/^[a-z0-9_-]{1,64}$/.test(readerId)
+    ) {
+      return;
+    }
+    if (!_workerAiProxy) return;
+    const controller = new AbortController();
+    try {
+      const result = await _workerAiProxy.invokeWebReaderHandler(
+        readerId,
+        {
+          url: payload?.url ?? '',
+          apiKey: payload?.apiKey,
+          baseUrl: payload?.baseUrl,
+        },
+        controller.signal,
+      );
+      postToHost({ type: 'asyar:webReader:response', messageId, result });
+    } catch (err) {
+      postToHost({
+        type: 'asyar:webReader:response',
         messageId,
         error: err instanceof Error ? err.message : String(err),
       });
