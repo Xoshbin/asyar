@@ -50,6 +50,12 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                 m.id
             )));
         }
+        if m.web_search_engines.is_some() {
+            return Err(AppError::Validation(format!(
+                "Theme extension '{}' must not declare `webSearchEngines`.",
+                m.id
+            )));
+        }
         return Ok(());
     }
 
@@ -166,6 +172,77 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                     return Err(AppError::Validation(format!(
                         "Extension '{}': onboarding.command '{}' must have mode \"view\", found \"{}\"",
                         m.id, onb.command, mode
+                    )));
+                }
+            }
+        }
+    }
+
+    if let Some(engines) = &m.web_search_engines {
+        if engines.is_empty() {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' has empty `webSearchEngines` field; omit it if no engines are declared.",
+                m.id
+            )));
+        }
+        let main_ok = m
+            .background
+            .as_ref()
+            .map(|b| !b.main.trim().is_empty())
+            .unwrap_or(false);
+        if !main_ok {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `webSearchEngines` but has no non-empty `background.main` (search engines run in the headless worker).",
+                m.id
+            )));
+        }
+        let perms = m.permissions.as_deref().unwrap_or(&[]);
+        if !perms.iter().any(|p| p == "network") {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `webSearchEngines` but lacks the required 'network' permission.",
+                m.id
+            )));
+        }
+        if !perms.iter().any(|p| p == "ai:web-search") {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `webSearchEngines` but lacks the required 'ai:web-search' permission.",
+                m.id
+            )));
+        }
+        let id_re = regex::Regex::new(r"^[a-z0-9_-]{1,64}$").unwrap();
+        let mut seen_ids = HashSet::new();
+        for engine in engines {
+            if !id_re.is_match(&engine.id) {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' web search engine id '{}' must match /^[a-z0-9_-]{{1,64}}$/.",
+                    m.id, engine.id
+                )));
+            }
+            if !seen_ids.insert(&engine.id) {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' declares duplicate web search engine id '{}'.",
+                    m.id, engine.id
+                )));
+            }
+            if engine.name.trim().is_empty() {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' web search engine '{}' must have a non-empty name.",
+                    m.id, engine.id
+                )));
+            }
+            if let Some(url) = &engine.homepage {
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(AppError::Validation(format!(
+                        "Extension '{}' web search engine '{}' homepage must start with http:// or https://.",
+                        m.id, engine.id
+                    )));
+                }
+            }
+            if let Some(url) = &engine.api_key_help_url {
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(AppError::Validation(format!(
+                        "Extension '{}' web search engine '{}' API key help URL must start with http:// or https://.",
+                        m.id, engine.id
                     )));
                 }
             }
@@ -650,6 +727,7 @@ mod background_entry_resolution_tests {
             runtimes: None,
             walkthrough: None,
             tools: None,
+            web_search_engines: None,
         }
     }
 
@@ -821,6 +899,7 @@ mod first_view_component_tests {
             tools: None,
             runtimes: None,
             walkthrough: None,
+            web_search_engines: None,
         }
     }
 
@@ -979,6 +1058,7 @@ mod onboarding_validation_tests {
             tools: None,
             runtimes: None,
             walkthrough: None,
+            web_search_engines: None,
         }
     }
 
@@ -1137,6 +1217,7 @@ mod compatibility_tests {
             tools: None,
             runtimes: None,
             walkthrough: None,
+            web_search_engines: None,
         }
     }
 
@@ -2110,6 +2191,21 @@ mod manifest_schema_tests {
     }
 
     #[test]
+    fn theme_with_web_search_engines_is_rejected() {
+        let json = r#"{
+            "id": "org.test.theme-ws",
+            "name": "Theme With Web Search",
+            "version": "1.0.0",
+            "type": "theme",
+            "webSearchEngines": [
+                { "id": "test", "name": "Test Search" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("theme with webSearchEngines must fail validation");
+        assert!(format!("{err}").contains("webSearchEngines"), "got: {err}");
+    }
+
+    #[test]
     fn extension_type_with_no_commands_and_no_contribution_is_rejected() {
         // An "extension" that declares nothing — no commands, no background,
         // not searchable — contributes nothing and is rejected.
@@ -2302,6 +2398,173 @@ mod manifest_schema_tests {
     }
 
     #[test]
+    fn validate_manifest_accepts_valid_web_search_engines() {
+        let json = r#"{
+            "id": "org.test.search-engine",
+            "name": "Search Engine",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:web-search"],
+            "webSearchEngines": [
+                {
+                    "id": "keenable",
+                    "name": "Keenable Search",
+                    "description": "Privacy-first search",
+                    "requiresApiKey": true,
+                    "apiKeyOptional": false,
+                    "requiresBaseUrl": false,
+                    "homepage": "https://keenable.example",
+                    "apiKeyHelpUrl": "https://keenable.example/docs"
+                }
+            ]
+        }"#;
+        let manifest = parse(json).expect("valid web search engine contribution must parse");
+        let engines = manifest.web_search_engines.unwrap();
+        assert_eq!(engines.len(), 1);
+        assert_eq!(engines[0].id, "keenable");
+        assert_eq!(engines[0].name, "Keenable Search");
+        assert_eq!(engines[0].requires_api_key, Some(true));
+    }
+
+    #[test]
+    fn validate_manifest_rejects_empty_web_search_engines() {
+        let json = r#"{
+            "id": "org.test.search-engine",
+            "name": "Search Engine",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:web-search"],
+            "webSearchEngines": []
+        }"#;
+        let err = parse(json).expect_err("empty webSearchEngines must fail");
+        assert!(
+            format!("{err}").contains("empty `webSearchEngines`"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_web_search_engines_without_background_worker() {
+        let json = r#"{
+            "id": "org.test.search-engine",
+            "name": "Search Engine",
+            "version": "1.0.0",
+            "type": "extension",
+            "searchable": true,
+            "permissions": ["network", "ai:web-search"],
+            "webSearchEngines": [
+                { "id": "keenable", "name": "Keenable" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("webSearchEngines without background must fail");
+        assert!(format!("{err}").contains("background.main"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_manifest_rejects_web_search_engines_missing_network_permission() {
+        let json = r#"{
+            "id": "org.test.search-engine",
+            "name": "Search Engine",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["ai:web-search"],
+            "webSearchEngines": [
+                { "id": "keenable", "name": "Keenable" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("webSearchEngines without network permission must fail");
+        assert!(
+            format!("{err}").contains("'network' permission"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_web_search_engines_missing_ai_web_search_permission() {
+        let json = r#"{
+            "id": "org.test.search-engine",
+            "name": "Search Engine",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network"],
+            "webSearchEngines": [
+                { "id": "keenable", "name": "Keenable" }
+            ]
+        }"#;
+        let err =
+            parse(json).expect_err("webSearchEngines without ai:web-search permission must fail");
+        assert!(
+            format!("{err}").contains("'ai:web-search' permission"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_duplicate_web_search_engine_id() {
+        let json = r#"{
+            "id": "org.test.search-engine",
+            "name": "Search Engine",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:web-search"],
+            "webSearchEngines": [
+                { "id": "keenable", "name": "Keenable 1" },
+                { "id": "keenable", "name": "Keenable 2" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("duplicate engine id must fail");
+        assert!(
+            format!("{err}").contains("duplicate web search engine id"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_invalid_web_search_engine_id() {
+        let json = r#"{
+            "id": "org.test.search-engine",
+            "name": "Search Engine",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:web-search"],
+            "webSearchEngines": [
+                { "id": "Bad/ID!", "name": "Keenable" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("invalid engine id must fail");
+        assert!(
+            format!("{err}").contains("must match /^[a-z0-9_-]{1,64}$/"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_invalid_web_search_engine_urls() {
+        let json = r#"{
+            "id": "org.test.search-engine",
+            "name": "Search Engine",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:web-search"],
+            "webSearchEngines": [
+                { "id": "keenable", "name": "Keenable", "homepage": "ftp://bad.url" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("non-http(s) homepage must fail");
+        assert!(
+            format!("{err}").contains("homepage must start with http:// or https://"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
     fn unsupported_command_mode_is_rejected() {
         let json = r#"{
             "id": "org.test.bad-mode",
@@ -2430,6 +2693,7 @@ mod manifest_schema_tests {
             tools: None,
             runtimes: None,
             walkthrough: None,
+            web_search_engines: None,
         };
 
         let err = validate_manifest(&manifest)

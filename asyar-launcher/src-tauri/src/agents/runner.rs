@@ -671,8 +671,8 @@ async fn run_loop<F, D, Fut>(
 ) -> Result<Option<String>, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
-    D: Fn(ExternalToolRequest) -> Fut + Send + Sync,
-    Fut: Future<Output = Result<Value, AppError>> + Send,
+    D: Fn(ExternalToolRequest) -> Fut + Clone + Send + Sync + 'static,
+    Fut: Future<Output = Result<Value, AppError>> + Send + 'static,
 {
     let resolved_provider = {
         let conn = store.conn()?;
@@ -819,8 +819,13 @@ where
                 if let Some(obj) = input.as_object_mut() {
                     obj.remove("__config");
                 }
+                let dispatch = dispatch_external.clone();
                 let tool_context = crate::agents::tools::ToolContext {
                     web_search: config.web_search.clone(),
+                    external_dispatcher: Some(std::sync::Arc::new(move |req| {
+                        let fut = dispatch(req);
+                        Box::pin(fut)
+                    })),
                 };
                 let res = crate::agents::tools::agents_invoke_builtin_tool_with_context_impl(
                     registry,
@@ -926,8 +931,8 @@ pub async fn run_thread_loop_impl<F, D, Fut>(
 ) -> Result<bool, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
-    D: Fn(ExternalToolRequest) -> Fut + Send + Sync,
-    Fut: Future<Output = Result<Value, AppError>> + Send,
+    D: Fn(ExternalToolRequest) -> Fut + Clone + Send + Sync + 'static,
+    Fut: Future<Output = Result<Value, AppError>> + Send + 'static,
 {
     let (agent, healed, thread) = {
         let conn = store.conn()?;
@@ -1033,8 +1038,8 @@ pub async fn run_silent_agent_loop_impl<F, D, Fut>(
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
-    D: Fn(ExternalToolRequest) -> Fut + Send + Sync,
-    Fut: Future<Output = Result<Value, AppError>> + Send,
+    D: Fn(ExternalToolRequest) -> Fut + Clone + Send + Sync + 'static,
+    Fut: Future<Output = Result<Value, AppError>> + Send + 'static,
 {
     if !agent.silent {
         return Err(AppError::Validation(format!(
@@ -1110,8 +1115,8 @@ pub async fn run_silent_loop_impl<F, D, Fut>(
 ) -> Result<String, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
-    D: Fn(ExternalToolRequest) -> Fut + Send + Sync,
-    Fut: Future<Output = Result<Value, AppError>> + Send,
+    D: Fn(ExternalToolRequest) -> Fut + Clone + Send + Sync + 'static,
+    Fut: Future<Output = Result<Value, AppError>> + Send + 'static,
 {
     let (agent, _healed) = resolve_runnable_agent(
         &*store.conn()?,

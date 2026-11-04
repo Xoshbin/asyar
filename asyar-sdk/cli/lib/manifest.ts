@@ -45,6 +45,24 @@ export interface AsyarManifest {
    * `src/contracts/walkthrough.ts` and the Rust `walkthrough` module.
    */
   walkthrough?: WalkthroughTask[];
+  /**
+   * Contributed web search engines.
+   */
+  webSearchEngines?: ManifestWebSearchEngine[];
+}
+
+export interface ManifestWebSearchEngine {
+  id: string;
+  name: string;
+  description?: string;
+  homepage?: string;
+  requiresApiKey?: boolean;
+  apiKeyOptional?: boolean;
+  apiKeyPlaceholder?: string;
+  apiKeyHelpUrl?: string;
+  requiresBaseUrl?: boolean;
+  baseUrlPlaceholder?: string;
+  icon?: string;
 }
 
 export type CompletionRule =
@@ -246,6 +264,7 @@ export const VALID_PERMISSIONS = [
   'notes:write',
   'mcp',
   'ai',
+  'ai:web-search',
 ] as const;
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const;
@@ -613,6 +632,7 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
   }
 
   errors.push(...validatePreferences(manifest.preferences, 'preferences'));
+  errors.push(...validateWebSearchEngines(manifest.webSearchEngines, 'webSearchEngines', manifest));
   (manifest.commands ?? []).forEach((cmd, i) => {
     errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
     errors.push(...validateArguments(cmd.arguments, `commands[${i}].arguments`));
@@ -1111,6 +1131,66 @@ export function validateSearchBarAccessory(
     }
   }
 
+  return errors;
+}
+
+export function validateWebSearchEngines(
+  engines: unknown,
+  fieldPrefix: string,
+  manifest: AsyarManifest,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (engines === undefined) return errors;
+  if (!Array.isArray(engines) || engines.length === 0) {
+    errors.push({ field: fieldPrefix, message: 'must be a non-empty array' });
+    return errors;
+  }
+  if (!manifest.background?.main) {
+    errors.push({
+      field: 'background.main',
+      message:
+        'required when manifest declares webSearchEngines (search engines run in the headless worker)',
+    });
+  }
+  const perms = manifest.permissions ?? [];
+  if (!perms.includes('network')) {
+    errors.push({
+      field: 'permissions',
+      message: 'manifest with webSearchEngines requires the "network" permission',
+    });
+  }
+  if (!perms.includes('ai:web-search')) {
+    errors.push({
+      field: 'permissions',
+      message: 'manifest with webSearchEngines requires the "ai:web-search" permission',
+    });
+  }
+  const seenIds = new Set<string>();
+  const idRe = /^[a-z0-9_-]{1,64}$/;
+  engines.forEach((item, i) => {
+    const p = `${fieldPrefix}[${i}]`;
+    if (!item || typeof item !== 'object') {
+      errors.push({ field: p, message: 'must be an object' });
+      return;
+    }
+    const e = item as Record<string, unknown>;
+    if (typeof e.id !== 'string' || !idRe.test(e.id)) {
+      errors.push({ field: `${p}.id`, message: 'must match /^[a-z0-9_-]{1,64}$/' });
+    } else if (seenIds.has(e.id)) {
+      errors.push({ field: `${p}.id`, message: `duplicate engine id "${e.id}"` });
+    } else {
+      seenIds.add(e.id);
+    }
+    if (typeof e.name !== 'string' || e.name.trim().length === 0) {
+      errors.push({ field: `${p}.name`, message: 'required and must be non-empty' });
+    }
+    if (typeof e.homepage === 'string' && !/^https?:\/\//.test(e.homepage)) {
+      errors.push({ field: `${p}.homepage`, message: 'must start with http:// or https://' });
+    }
+    if (typeof e.apiKeyHelpUrl === 'string' && !/^https?:\/\//.test(e.apiKeyHelpUrl)) {
+      errors.push({ field: `${p}.apiKeyHelpUrl`, message: 'must start with http:// or https://' });
+    }
+  });
   return errors;
 }
 

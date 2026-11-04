@@ -54,6 +54,7 @@ mod lifecycle_tools_tests {
             tools: if tools.is_empty() { None } else { Some(tools) },
             runtimes: None,
             walkthrough: None,
+            web_search_engines: None,
         }
     }
 

@@ -91,6 +91,13 @@ pub async fn execute_agent_tool<R: AgentToolRuntime>(
     agent_id: &str,
     request: &ExternalToolRequest,
 ) -> Result<serde_json::Value, AppError> {
+    if let Some(rest) = request.tool_id.strip_prefix("websearch:") {
+        if let Some((ext_id, engine_id)) = rest.split_once(':') {
+            return runtime
+                .invoke_tier2(ext_id, &format!("websearch:{engine_id}"), request)
+                .await;
+        }
+    }
     match resolve_agent_tool_target(registry, &request.tool_id)? {
         AgentToolTarget::Builtin { tool_id } => Err(AppError::Validation(format!(
             "built-in tool '{tool_id}' must execute inside the agent runner"
@@ -170,6 +177,50 @@ impl TauriAgentToolRuntime {
     }
 }
 
+struct Tier2CallGuard<'a> {
+    runtime: &'a TauriAgentToolRuntime,
+    tool_call_id: &'a str,
+    completed: bool,
+}
+
+impl Drop for Tier2CallGuard<'_> {
+    fn drop(&mut self) {
+        if !self.completed {
+            let _ = self
+                .runtime
+                .runner_state
+                .cancel_tool_call(&self.runtime.stream_id);
+            let _ = self.runtime.emit(
+                crate::agents::runner::AgentStreamEvent::ToolDispatchCancelled {
+                    tool_call_id: self.tool_call_id.to_string(),
+                },
+            );
+        }
+    }
+}
+
+struct McpPermissionGuard<'a> {
+    runtime: &'a TauriAgentToolRuntime,
+    tool_call_id: &'a str,
+    completed: bool,
+}
+
+impl Drop for McpPermissionGuard<'_> {
+    fn drop(&mut self) {
+        if !self.completed {
+            let _ = self
+                .runtime
+                .runner_state
+                .cancel_mcp_permission(&self.runtime.stream_id);
+            let _ = self.runtime.emit(
+                crate::agents::runner::AgentStreamEvent::McpPermissionCancelled {
+                    tool_call_id: self.tool_call_id.to_string(),
+                },
+            );
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl AgentToolRuntime for TauriAgentToolRuntime {
     async fn invoke_mcp(
@@ -199,30 +250,30 @@ impl AgentToolRuntime for TauriAgentToolRuntime {
         let receiver = self
             .runner_state
             .begin_tool_call(&self.stream_id, request)?;
-        if let Err(error) = self.emit(crate::agents::runner::AgentStreamEvent::ToolDispatch {
+        let mut guard = Tier2CallGuard {
+            runtime: self,
+            tool_call_id: &request.tool_call_id,
+            completed: false,
+        };
+        self.emit(crate::agents::runner::AgentStreamEvent::ToolDispatch {
             tool_call_id: request.tool_call_id.clone(),
             extension_id: extension_id.to_string(),
             tool_id: tool_id.to_string(),
             arguments: request.arguments.clone(),
-        }) {
-            self.runner_state.cancel_tool_call(&self.stream_id)?;
-            return Err(error);
-        }
+        })?;
 
         let response =
             await_bridge_response(receiver, BROWSER_BRIDGE_TIMEOUT, "Tier 2 tool call").await;
         match response {
-            Ok(Ok(value)) => Ok(value),
-            Ok(Err(error)) => Err(AppError::Other(error)),
-            Err(error) => {
-                self.runner_state.cancel_tool_call(&self.stream_id)?;
-                let _ = self.emit(
-                    crate::agents::runner::AgentStreamEvent::ToolDispatchCancelled {
-                        tool_call_id: request.tool_call_id.clone(),
-                    },
-                );
-                Err(error)
+            Ok(Ok(value)) => {
+                guard.completed = true;
+                Ok(value)
             }
+            Ok(Err(error)) => {
+                guard.completed = true;
+                Err(AppError::Other(error))
+            }
+            Err(error) => Err(error),
         }
     }
 
@@ -236,32 +287,25 @@ impl AgentToolRuntime for TauriAgentToolRuntime {
         let receiver = self
             .runner_state
             .begin_mcp_permission(&self.stream_id, tool_call_id)?;
-        if let Err(error) = self.emit(
+        let mut guard = McpPermissionGuard {
+            runtime: self,
+            tool_call_id,
+            completed: false,
+        };
+        self.emit(
             crate::agents::runner::AgentStreamEvent::McpPermissionRequest {
                 tool_call_id: tool_call_id.to_string(),
                 server_id: server_id.to_string(),
                 tool_id: tool_id.to_string(),
                 agent_id: agent_id.to_string(),
             },
-        ) {
-            self.runner_state.cancel_mcp_permission(&self.stream_id)?;
-            return Err(error);
-        }
+        )?;
 
-        match await_bridge_response(receiver, BROWSER_BRIDGE_TIMEOUT, "MCP permission request")
-            .await
-        {
-            Ok(decision) => Ok(decision),
-            Err(error) => {
-                self.runner_state.cancel_mcp_permission(&self.stream_id)?;
-                let _ = self.emit(
-                    crate::agents::runner::AgentStreamEvent::McpPermissionCancelled {
-                        tool_call_id: tool_call_id.to_string(),
-                    },
-                );
-                Err(error)
-            }
-        }
+        let decision =
+            await_bridge_response(receiver, BROWSER_BRIDGE_TIMEOUT, "MCP permission request")
+                .await?;
+        guard.completed = true;
+        Ok(decision)
     }
 
     fn persist_mcp_permission(

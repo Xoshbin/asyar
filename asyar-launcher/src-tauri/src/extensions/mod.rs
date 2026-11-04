@@ -311,6 +311,32 @@ pub struct OnboardingDecl {
     pub command: String,
 }
 
+/// Contributed web search engine declared by an extension.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestWebSearchEngine {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub homepage: Option<String>,
+    #[serde(default)]
+    pub requires_api_key: Option<bool>,
+    #[serde(default)]
+    pub api_key_optional: Option<bool>,
+    #[serde(default)]
+    pub api_key_placeholder: Option<String>,
+    #[serde(default)]
+    pub api_key_help_url: Option<String>,
+    #[serde(default)]
+    pub requires_base_url: Option<bool>,
+    #[serde(default)]
+    pub base_url_placeholder: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
 /// Declares the always-on worker bundle for extensions that host background
 /// work (subscriptions, schedules, timers, tray updates). Required when any
 /// command declares `mode: "background"`.
@@ -406,6 +432,9 @@ pub struct ExtensionManifest {
     /// `walkthrough` module — the extension writes no completion code.
     #[serde(default)]
     pub walkthrough: Option<Vec<crate::walkthrough::WalkthroughTaskDecl>>,
+    /// Web search engines contributed by this extension to the agent runtime.
+    #[serde(default)]
+    pub web_search_engines: Option<Vec<ManifestWebSearchEngine>>,
 }
 
 impl ExtensionManifest {
@@ -1383,6 +1412,7 @@ mod tests {
                     tools: None,
                     runtimes: None,
                     walkthrough: None,
+                    web_search_engines: None,
                 },
                 enabled: true,
                 is_built_in: false,

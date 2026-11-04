@@ -284,4 +284,58 @@ describe('AiServiceProxy', () => {
       expect(result).toBe('correct');
     });
   });
+
+  describe('registerWebSearchEngine', () => {
+    it('registers an engine handler and invokes it', async () => {
+      const mockSearch = vi.fn().mockResolvedValue({
+        sources: [{ title: 'Example', url: 'https://example.com' }],
+        results: [{ title: 'Example', url: 'https://example.com', snippet: 'Text' }],
+      });
+
+      const unregister = proxy.registerWebSearchEngine({
+        id: 'test-engine',
+        search: mockSearch,
+      });
+
+      const controller = new AbortController();
+      const result = await proxy.invokeWebSearchHandler(
+        'test-engine',
+        { query: 'test query', limit: 5 },
+        controller.signal,
+      );
+
+      expect(mockSearch).toHaveBeenCalledWith({ query: 'test query', limit: 5 }, controller.signal);
+      expect(result.sources).toHaveLength(1);
+      expect(result.results).toHaveLength(1);
+
+      // Unregistering removes the handler
+      unregister();
+      await expect(
+        proxy.invokeWebSearchHandler(
+          'test-engine',
+          { query: 'test query', limit: 5 },
+          controller.signal,
+        ),
+      ).rejects.toThrow('No search handler registered for engine: "test-engine"');
+    });
+
+    it('throws if engine descriptor is invalid', () => {
+      expect(() => proxy.registerWebSearchEngine(null as any)).toThrow();
+      expect(() => proxy.registerWebSearchEngine({ id: '', search: vi.fn() } as any)).toThrow();
+      expect(() =>
+        proxy.registerWebSearchEngine({ id: 'bad id!', search: vi.fn() } as any),
+      ).toThrow();
+      expect(() => proxy.registerWebSearchEngine({ id: 'test', search: null as any })).toThrow();
+    });
+
+    it('rejects invokeWebSearchHandler on invalid engine IDs', async () => {
+      const controller = new AbortController();
+      await expect(
+        proxy.invokeWebSearchHandler('invalid id!', { query: 'test', limit: 5 }, controller.signal),
+      ).rejects.toThrow('Invalid engine ID');
+      await expect(
+        proxy.invokeWebSearchHandler('', { query: 'test', limit: 5 }, controller.signal),
+      ).rejects.toThrow('Invalid engine ID');
+    });
+  });
 });

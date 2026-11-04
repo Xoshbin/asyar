@@ -352,6 +352,7 @@ async fn test_web_search_with_searxng_config() {
             engine: Some("searxng".to_string()),
             base_url: Some(server.url()),
         }),
+        ..Default::default()
     };
     let output = tool
         .invoke_with_context(
@@ -439,6 +440,7 @@ async fn test_web_search_serply_requires_key() {
             engine: Some("serply".to_string()),
             ..Default::default()
         }),
+        ..Default::default()
     };
     let err = tool
         .invoke_with_context(
@@ -487,6 +489,7 @@ async fn test_web_search_uses_stored_key_even_when_ipc_config_carries_different_
             engine: Some("brave".to_string()),
             ..Default::default()
         }),
+        ..Default::default()
     };
 
     let output = tool
@@ -541,6 +544,7 @@ async fn test_web_search_model_injected_tavily_config_ignored_user_brave_used() 
             engine: Some("brave".to_string()),
             ..Default::default()
         }),
+        ..Default::default()
     };
 
     let output = tool
@@ -591,7 +595,10 @@ async fn test_web_search_model_injected_config_with_no_user_config_uses_duckduck
     );
 
     // User has no web_search config (None)
-    let context = crate::agents::tools::ToolContext { web_search: None };
+    let context = crate::agents::tools::ToolContext {
+        web_search: None,
+        ..Default::default()
+    };
 
     // Model tries to inject __config with engine "brave"
     let output = tool
@@ -635,6 +642,7 @@ async fn test_web_search_without_credentials_keyed_engine_fails_with_clear_error
             engine: Some("brave".to_string()),
             ..Default::default()
         }),
+        ..Default::default()
     };
 
     let err = tool
@@ -685,6 +693,7 @@ async fn test_web_search_without_credentials_uses_env_var() {
             engine: Some("brave".to_string()),
             ..Default::default()
         }),
+        ..Default::default()
     };
 
     let output = tool
@@ -738,6 +747,7 @@ async fn test_web_search_brave_key_is_never_sent_when_engine_is_tavily() {
             engine: Some("tavily".to_string()),
             ..Default::default()
         }),
+        ..Default::default()
     };
 
     let err = tool
@@ -780,10 +790,216 @@ async fn test_web_search_each_engine_uses_only_its_own_stored_key() {
             engine: Some("brave".to_string()),
             ..Default::default()
         }),
+        ..Default::default()
     };
 
     tool.invoke_with_context(json!({ "query": "rust", "limit": 5 }), &context)
         .await
         .unwrap();
     brave.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_web_search_extension_success() {
+    let tool = test_tool();
+    let dispatcher = std::sync::Arc::new(|req: crate::agents::runner::ExternalToolRequest| {
+        Box::pin(async move {
+            assert_eq!(req.tool_id, "websearch:org.example.keenable:keenable");
+            assert_eq!(req.arguments["query"], "rust language");
+            Ok(json!({
+                "sources": [
+                    { "title": "Rust Homepage", "url": "https://rust-lang.org" }
+                ],
+                "results": [
+                    { "title": "Rust Homepage", "url": "https://rust-lang.org", "snippet": "A empowering language" }
+                ]
+            }))
+        })
+            as std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<serde_json::Value, AppError>> + Send>,
+            >
+    });
+
+    let context = crate::agents::tools::ToolContext {
+        web_search: Some(crate::agents::runner::WebSearchConfig {
+            engine: Some("ext:org.example.keenable:keenable".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: Some(dispatcher),
+    };
+
+    let output = tool
+        .invoke_with_context(json!({ "query": "rust language", "limit": 5 }), &context)
+        .await
+        .unwrap();
+
+    let sources = output["sources"].as_array().unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0]["title"], "Rust Homepage");
+    let results = output["results"].as_array().unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["snippet"], "A empowering language");
+}
+
+#[tokio::test]
+async fn test_web_search_extension_sanitizes_urls_and_respects_limit() {
+    let tool = test_tool();
+    let dispatcher = std::sync::Arc::new(|_req: crate::agents::runner::ExternalToolRequest| {
+        Box::pin(async move {
+            Ok(json!({
+                "sources": [
+                    { "title": "Evil JS", "url": "javascript:alert(1)" },
+                    { "title": "Valid Source", "url": "https://example.com/source" },
+                    { "title": "Valid Source 2", "url": "https://example.com/source2" }
+                ],
+                "results": [
+                    { "title": "Evil Result", "url": "javascript:alert(1)", "snippet": "Evil" },
+                    { "title": "Valid Result 1", "url": "https://example.com/1", "snippet": "Good 1" },
+                    { "title": "Valid Result 2", "url": "https://example.com/2", "snippet": "Good 2" },
+                    { "title": "Valid Result 3", "url": "https://example.com/3", "snippet": "Good 3" }
+                ]
+            }))
+        })
+            as std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<serde_json::Value, AppError>> + Send>,
+            >
+    });
+
+    let context = crate::agents::tools::ToolContext {
+        web_search: Some(crate::agents::runner::WebSearchConfig {
+            engine: Some("ext:org.example.test:engine".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: Some(dispatcher),
+    };
+
+    let output = tool
+        .invoke_with_context(json!({ "query": "test", "limit": 2 }), &context)
+        .await
+        .unwrap();
+
+    let results = output["results"].as_array().unwrap();
+    // Clamped to limit = 2, and javascript: URL skipped
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0]["url"], "https://example.com/1");
+    assert_eq!(results[1]["url"], "https://example.com/2");
+
+    let sources = output["sources"].as_array().unwrap();
+    // Clamped to limit = 2, and javascript: URL skipped
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0]["url"], "https://example.com/source");
+    assert_eq!(sources[1]["url"], "https://example.com/source2");
+}
+
+#[tokio::test]
+async fn test_web_search_extension_injects_stored_api_key() {
+    let data_store = crate::storage::DataStore::in_memory().unwrap();
+    let conn = data_store.conn().unwrap();
+    let master_key = crate::crypto::test_master_key();
+
+    crate::storage::ai_credentials::set(
+        &conn,
+        "web_search:ext:org.example.keenable:keenable",
+        "secret-keenable-key-123",
+        &master_key,
+    )
+    .unwrap();
+
+    let tool = WebSearchTool::with_store(data_store, master_key);
+    let dispatcher = std::sync::Arc::new(|req: crate::agents::runner::ExternalToolRequest| {
+        Box::pin(async move {
+            assert_eq!(req.arguments["apiKey"], "secret-keenable-key-123");
+            Ok(json!({
+                "sources": [],
+                "results": [
+                    { "title": "Keenable Result", "url": "https://keenable.example", "snippet": "Found with key" }
+                ]
+            }))
+        })
+            as std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<serde_json::Value, AppError>> + Send>,
+            >
+    });
+
+    let context = crate::agents::tools::ToolContext {
+        web_search: Some(crate::agents::runner::WebSearchConfig {
+            engine: Some("ext:org.example.keenable:keenable".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: Some(dispatcher),
+    };
+
+    let output = tool
+        .invoke_with_context(json!({ "query": "test query", "limit": 5 }), &context)
+        .await
+        .unwrap();
+
+    let sources = output["sources"].as_array().unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0]["title"], "Keenable Result");
+}
+
+#[tokio::test]
+async fn test_web_search_extension_error_falls_back_to_duckduckgo() {
+    let mut server = mockito::Server::new_async().await;
+    let _m = server
+        .mock("POST", "/")
+        .match_body(mockito::Matcher::Regex("q=test".to_string()))
+        .with_status(200)
+        .with_body(r#"<a class="result__title" href="https://ddg.example">DDG Fallback</a><a class="result__snippet">Snippet</a>"#)
+        .create_async()
+        .await;
+
+    let tool = WebSearchTool::without_credentials_and_base_url(server.url());
+    let dispatcher = std::sync::Arc::new(|_req: crate::agents::runner::ExternalToolRequest| {
+        Box::pin(async move { Err(AppError::Other("Extension worker crashed".to_string())) })
+            as std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<serde_json::Value, AppError>> + Send>,
+            >
+    });
+
+    let context = crate::agents::tools::ToolContext {
+        web_search: Some(crate::agents::runner::WebSearchConfig {
+            engine: Some("ext:org.example.broken:broken".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: Some(dispatcher),
+    };
+
+    let output = tool
+        .invoke_with_context(json!({ "query": "test", "limit": 5 }), &context)
+        .await
+        .unwrap();
+
+    let sources = output["sources"].as_array().unwrap();
+    assert_eq!(sources[0]["title"], "DDG Fallback");
+}
+
+#[tokio::test]
+async fn test_web_search_extension_no_dispatcher_falls_back_to_duckduckgo() {
+    let mut server = mockito::Server::new_async().await;
+    let _m = server
+        .mock("POST", "/")
+        .match_body(mockito::Matcher::Regex("q=test".to_string()))
+        .with_status(200)
+        .with_body(r#"<a class="result__title" href="https://ddg.example">DDG Fallback</a><a class="result__snippet">Snippet</a>"#)
+        .create_async()
+        .await;
+
+    let tool = WebSearchTool::without_credentials_and_base_url(server.url());
+    let context = crate::agents::tools::ToolContext {
+        web_search: Some(crate::agents::runner::WebSearchConfig {
+            engine: Some("ext:org.example.nodisp:nodisp".to_string()),
+            ..Default::default()
+        }),
+        external_dispatcher: None,
+    };
+
+    let output = tool
+        .invoke_with_context(json!({ "query": "test", "limit": 5 }), &context)
+        .await
+        .unwrap();
+
+    let sources = output["sources"].as_array().unwrap();
+    assert_eq!(sources[0]["title"], "DDG Fallback");
 }

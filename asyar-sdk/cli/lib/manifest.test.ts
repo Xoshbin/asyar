@@ -950,5 +950,119 @@ describe('manifest validation — runtimes', () => {
         expect(result.warnings.some((w) => w.field.endsWith('actions'))).toBe(false);
       });
     });
+
+    describe('manifest `webSearchEngines`', () => {
+      const validWebSearchManifest: AsyarManifest = {
+        id: 'org.asyar.keenable',
+        name: 'Keenable Search',
+        version: '1.0.0',
+        description: 'Fast web search provider',
+        author: 'Keenable AI',
+        background: { main: 'dist/worker.js' },
+        permissions: ['network', 'ai:web-search'],
+        commands: [
+          {
+            id: 'search',
+            name: 'Search',
+            description: 'Search the web',
+            mode: 'background',
+          },
+        ],
+        webSearchEngines: [
+          {
+            id: 'keenable',
+            name: 'Keenable',
+            description: 'Fast AI search',
+          },
+        ],
+      };
+
+      it('accepts a valid webSearchEngines declaration', () => {
+        const errors = validateManifest(validWebSearchManifest, './');
+        expect(errors).toEqual([]);
+      });
+
+      it('rejects webSearchEngines when background.main is missing', () => {
+        const invalid = {
+          ...validWebSearchManifest,
+          background: undefined,
+          commands: [{ id: 'search', name: 'Search', mode: 'view' as const, component: 'Search' }],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field === 'background.main')).toBe(true);
+      });
+
+      it('rejects webSearchEngines when network permission is missing', () => {
+        const invalid = {
+          ...validWebSearchManifest,
+          permissions: ['ai:web-search'],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field === 'permissions' && e.message.includes('network'))).toBe(
+          true,
+        );
+      });
+
+      it('rejects webSearchEngines when ai:web-search permission is missing', () => {
+        const invalid = {
+          ...validWebSearchManifest,
+          permissions: ['network'],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some((e) => e.field === 'permissions' && e.message.includes('ai:web-search')),
+        ).toBe(true);
+      });
+
+      it('rejects duplicate engine ids', () => {
+        const invalid = {
+          ...validWebSearchManifest,
+          webSearchEngines: [
+            { id: 'engine-1', name: 'Engine 1' },
+            { id: 'engine-1', name: 'Engine 2' },
+          ],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.message.includes('duplicate engine id'))).toBe(true);
+      });
+
+      it('rejects invalid engine id characters', () => {
+        const invalid = {
+          ...validWebSearchManifest,
+          webSearchEngines: [{ id: 'Invalid ID with Spaces', name: 'Engine' }],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field.endsWith('.id'))).toBe(true);
+      });
+
+      it('rejects non-http(s) homepage and apiKeyHelpUrl', () => {
+        const invalid = {
+          ...validWebSearchManifest,
+          webSearchEngines: [
+            {
+              id: 'engine-1',
+              name: 'Engine 1',
+              homepage: 'ftp://example.com',
+              apiKeyHelpUrl: 'javascript:alert(1)',
+            },
+          ],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some(
+            (e) =>
+              e.field.endsWith('.homepage') &&
+              e.message.includes('must start with http:// or https://'),
+          ),
+        ).toBe(true);
+        expect(
+          errors.some(
+            (e) =>
+              e.field.endsWith('.apiKeyHelpUrl') &&
+              e.message.includes('must start with http:// or https://'),
+          ),
+        ).toBe(true);
+      });
+    });
   });
 });

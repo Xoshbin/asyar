@@ -416,11 +416,11 @@ describe('AiTab', () => {
     const select = screen.getByLabelText('Search engine') as HTMLSelectElement;
     expect(select.value).toBe('duckduckgo');
 
-    // Switch to Brave Search
-    await fireEvent.change(select, { target: { value: 'brave' } });
+    // Switch to SearXNG
+    await fireEvent.change(select, { target: { value: 'searxng' } });
     expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
       webSearch: {
-        engine: 'brave',
+        engine: 'searxng',
       },
     });
   });
@@ -565,19 +565,55 @@ describe('AiTab', () => {
     } as any;
   }
 
-  it('saves a web search key for the selected engine', async () => {
-    vi.mocked(aiGetCredentialStatus).mockResolvedValue({ providers: {}, webSearch: {} });
-    webSearchSettings('brave');
+  const mockExtensionHandler = {
+    extensions: [
+      {
+        id: 'test-ext',
+        title: 'Test Extension',
+        enabled: true,
+        webSearchEngines: [
+          {
+            id: 'engine-a',
+            name: 'Engine A',
+            requiresApiKey: true,
+            apiKeyPlaceholder: 'key-a...',
+          },
+          {
+            id: 'engine-b',
+            name: 'Engine B',
+            requiresApiKey: true,
+            apiKeyPlaceholder: 'key-b...',
+          },
+        ],
+      },
+    ],
+  } as any;
 
+  it('renders only neutral fallbacks (DuckDuckGo and SearXNG) in Built-in', async () => {
+    webSearchSettings('duckduckgo');
     render(AiTab, { mode: 'full' });
 
-    const keyInput = (await screen.findByPlaceholderText('BSA...')) as HTMLInputElement;
-    await fireEvent.input(keyInput, { target: { value: 'BSA-testkey' } });
+    const select = screen.getByLabelText('Search engine') as HTMLSelectElement;
+    const builtinGroup = select.querySelector('optgroup[label="Built-in"]') as HTMLOptGroupElement;
+    expect(builtinGroup).toBeTruthy();
+
+    const optionValues = Array.from(builtinGroup.querySelectorAll('option')).map((o) => o.value);
+    expect(optionValues).toEqual(['duckduckgo', 'searxng']);
+  });
+
+  it('saves a web search key for the selected engine', async () => {
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({ providers: {}, webSearch: {} });
+    webSearchSettings('ext:test-ext:engine-a');
+
+    render(AiTab, { mode: 'full', handler: mockExtensionHandler });
+
+    const keyInput = (await screen.findByPlaceholderText('key-a...')) as HTMLInputElement;
+    await fireEvent.input(keyInput, { target: { value: 'secret-a' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(aiSaveCredential).toHaveBeenCalledWith(
-      { type: 'webSearch', engine: 'brave' },
-      'BSA-testkey',
+      { type: 'webSearch', engine: 'ext:test-ext:engine-a' },
+      'secret-a',
     );
     expect(await screen.findByText('Key saved')).toBeTruthy();
   });
@@ -585,41 +621,41 @@ describe('AiTab', () => {
   it('changing the search engine never deletes a stored key', async () => {
     vi.mocked(aiGetCredentialStatus).mockResolvedValue({
       providers: {},
-      webSearch: { brave: 'configured', tavily: 'notConfigured', serply: 'notConfigured' },
+      webSearch: {
+        'ext:test-ext:engine-a': 'configured',
+        'ext:test-ext:engine-b': 'notConfigured',
+      },
     });
-    webSearchSettings('brave');
+    webSearchSettings('ext:test-ext:engine-a');
 
-    render(AiTab, { mode: 'full' });
+    render(AiTab, { mode: 'full', handler: mockExtensionHandler });
     expect(await screen.findByText('Key saved')).toBeTruthy();
 
     const select = screen.getByLabelText('Search engine') as HTMLSelectElement;
-    await fireEvent.change(select, { target: { value: 'tavily' } });
+    await fireEvent.change(select, { target: { value: 'searxng' } });
 
     expect(aiDeleteCredential).not.toHaveBeenCalled();
     expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
-      webSearch: { engine: 'tavily' },
+      webSearch: { engine: 'searxng' },
     });
   });
 
   it('each keyed engine shows only its own key state', async () => {
     vi.mocked(aiGetCredentialStatus).mockResolvedValue({
       providers: {},
-      webSearch: { brave: 'configured', tavily: 'notConfigured', serply: 'needsReentry' },
+      webSearch: {
+        'ext:test-ext:engine-a': 'configured',
+        'ext:test-ext:engine-b': 'needsReentry',
+      },
     });
 
-    webSearchSettings('brave');
-    const brave = render(AiTab, { mode: 'full' });
+    webSearchSettings('ext:test-ext:engine-a');
+    const brave = render(AiTab, { mode: 'full', handler: mockExtensionHandler });
     expect(await screen.findByText('Key saved')).toBeTruthy();
     brave.unmount();
 
-    webSearchSettings('tavily');
-    const tavily = render(AiTab, { mode: 'full' });
-    expect(await screen.findByPlaceholderText('tvly-...')).toBeTruthy();
-    expect(screen.queryByText('Key saved')).toBeNull();
-    tavily.unmount();
-
-    webSearchSettings('serply');
-    render(AiTab, { mode: 'full' });
+    webSearchSettings('ext:test-ext:engine-b');
+    render(AiTab, { mode: 'full', handler: mockExtensionHandler });
     expect(
       await screen.findByText("This key can't be read anymore. Please enter it again."),
     ).toBeTruthy();
@@ -686,5 +722,24 @@ describe('AiTab', () => {
 
     await fireEvent.change(select, { target: { value: '50' } });
     expect(handler.handleHistoryRetentionCapChange).toHaveBeenCalledWith(50);
+  });
+
+  it('renders legacy or unavailable engines in an optgroup and shows warning description', async () => {
+    webSearchSettings('brave');
+    render(AiTab, { mode: 'full', handler: mockExtensionHandler });
+
+    const select = screen.getByLabelText('Search engine') as HTMLSelectElement;
+    expect(select.value).toBe('brave');
+
+    const unavailableGroup = select.querySelector(
+      'optgroup[label="Legacy / Unavailable"]',
+    ) as HTMLOptGroupElement;
+    expect(unavailableGroup).toBeTruthy();
+
+    const option = unavailableGroup.querySelector('option');
+    expect(option?.value).toBe('brave');
+    expect(option?.textContent).toContain('brave (Unavailable)');
+
+    expect(screen.getByText(/The search engine "brave" is unavailable or deprecated/)).toBeTruthy();
   });
 });

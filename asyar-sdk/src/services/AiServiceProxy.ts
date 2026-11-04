@@ -1,5 +1,11 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
 import type { IAiService, AiCompletionOptions, AiStreamOptions } from '../contracts/IAiService';
+import type {
+  WebSearchEngineRegistration,
+  WebSearchHandler,
+  WebSearchQuery,
+  WebSearchResult,
+} from '../contracts/webSearch';
 
 /**
  * SDK proxy for the AI prompting service.
@@ -137,5 +143,42 @@ export class AiServiceProxy extends BaseServiceProxy implements IAiService {
           settle(err);
         });
     });
+  }
+
+  private webSearchEngines = new Map<string, WebSearchHandler>();
+
+  registerWebSearchEngine(engine: WebSearchEngineRegistration): () => void {
+    if (
+      !engine ||
+      typeof engine.id !== 'string' ||
+      !/^[a-z0-9_-]{1,64}$/.test(engine.id) ||
+      typeof engine.search !== 'function'
+    ) {
+      throw new Error(
+        '[asyar-sdk/ai] registerWebSearchEngine requires an engine with a valid id and search function',
+      );
+    }
+    this.webSearchEngines.set(engine.id, engine.search);
+    return () => {
+      this.webSearchEngines.delete(engine.id);
+    };
+  }
+
+  async invokeWebSearchHandler(
+    engineId: string,
+    query: WebSearchQuery,
+    signal: AbortSignal,
+  ): Promise<WebSearchResult> {
+    if (typeof engineId !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(engineId)) {
+      throw new Error(`[asyar-sdk/ai] Invalid engine ID: "${engineId}"`);
+    }
+    if (!this.webSearchEngines.has(engineId)) {
+      throw new Error(`[asyar-sdk/ai] No search handler registered for engine: "${engineId}"`);
+    }
+    const handler = this.webSearchEngines.get(engineId);
+    if (typeof handler !== 'function') {
+      throw new Error(`[asyar-sdk/ai] Invalid handler for engine: "${engineId}"`);
+    }
+    return handler(query, signal);
   }
 }

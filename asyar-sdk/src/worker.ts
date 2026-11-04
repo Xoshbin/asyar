@@ -151,6 +151,7 @@ function installWorkerRpcInterceptor(): void {
 
 installWorkerRpcInterceptor();
 installToolsInvokeInterceptor();
+installWebSearchInvokeInterceptor();
 
 /**
  * Module-level reference to the ToolsServiceProxy installed in this worker.
@@ -158,6 +159,13 @@ installToolsInvokeInterceptor();
  * `asyar:tools:invoke` listener reads it when dispatching to local handlers.
  */
 let _workerToolsProxy: ToolsServiceProxy | undefined;
+
+/**
+ * Module-level reference to the AiServiceProxy installed in this worker.
+ * Set once when the first `ExtensionContext` is constructed; the
+ * `asyar:webSearch:query` listener reads it when dispatching to local handlers.
+ */
+let _workerAiProxy: AiServiceProxy | undefined;
 
 /**
  * Worker-side: intercept every `asyar:tools:invoke` postMessage, dispatch to
@@ -185,6 +193,61 @@ function installToolsInvokeInterceptor(): void {
     } catch (err) {
       postToHost({
         type: 'asyar:tools:invoke:response',
+        messageId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }) as EventListener);
+}
+
+/**
+ * Worker-side: intercept every `asyar:webSearch:query` postMessage, dispatch to
+ * the AiServiceProxy's local web search handler map, and post the normalized
+ * response back to the host.
+ */
+function installWebSearchInvokeInterceptor(): void {
+  const scope = typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
+  if (!scope || typeof scope.addEventListener !== 'function') return;
+  scope.addEventListener('message', (async (event: Event) => {
+    const data = (event as MessageEvent<unknown>).data;
+    if (!data || typeof data !== 'object') return;
+    const d = data as { type?: unknown; messageId?: unknown; payload?: unknown };
+    if (d.type !== 'asyar:webSearch:query') return;
+    const messageId = d.messageId as string | undefined;
+    const payload = d.payload as
+      | {
+          engineId?: string;
+          query?: string;
+          limit?: number;
+          apiKey?: string;
+          baseUrl?: string;
+        }
+      | undefined;
+    const engineId = payload?.engineId;
+    if (
+      typeof messageId !== 'string' ||
+      typeof engineId !== 'string' ||
+      !/^[a-z0-9_-]{1,64}$/.test(engineId)
+    ) {
+      return;
+    }
+    if (!_workerAiProxy) return;
+    const controller = new AbortController();
+    try {
+      const result = await _workerAiProxy.invokeWebSearchHandler(
+        engineId,
+        {
+          query: payload?.query ?? '',
+          limit: payload?.limit ?? 5,
+          apiKey: payload?.apiKey,
+          baseUrl: payload?.baseUrl,
+        },
+        controller.signal,
+      );
+      postToHost({ type: 'asyar:webSearch:response', messageId, result });
+    } catch (err) {
+      postToHost({
+        type: 'asyar:webSearch:response',
         messageId,
         error: err instanceof Error ? err.message : String(err),
       });
@@ -224,6 +287,7 @@ export class ExtensionContext extends ExtensionContextCore {
     // Wire up the module-level tools proxy reference so the
     // asyar:tools:invoke interceptor can dispatch to local handlers.
     _workerToolsProxy = proxies.tools as ToolsServiceProxy | undefined;
+    _workerAiProxy = proxies.ai as AiServiceProxy | undefined;
   }
 
   protected override notifyBridgeIfAvailable(id: string): void {
@@ -272,4 +336,13 @@ export { environment } from './environment';
 export type { EnvironmentSnapshot, IEnvironmentService } from './types/EnvironmentType';
 export { McpServiceProxy } from './services/McpServiceProxy';
 export type { IMcpService, McpServerInfo, McpToolDescriptor } from './contracts/IMcpService';
+export type {
+  GroundingSource,
+  SearchResultEntry,
+  WebSearchResult,
+  WebSearchQuery,
+  WebSearchHandler,
+  WebSearchEngineRegistration,
+  ManifestWebSearchEngine,
+} from './contracts/webSearch';
 export * from './errors';

@@ -6,7 +6,7 @@ import {
   agentsReportMcpPermission,
   agentsReportToolResult,
 } from '../../lib/ipc/commands';
-import { invokeExtensionTool } from './toolDispatch';
+import { invokeExtensionTool, invokeExtensionWebSearch } from './toolDispatch';
 import { mcpService } from '../mcp/mcpService.svelte';
 
 export interface AgentStreamListenerOptions {
@@ -32,9 +32,28 @@ async function reportToolDispatch(
   let error: string | undefined;
 
   try {
-    result = await invokeExtensionTool(event.extension_id, event.tool_id, event.arguments, signal);
+    if (event.tool_id.startsWith('websearch:')) {
+      const engineId = event.tool_id.slice('websearch:'.length);
+      result = await invokeExtensionWebSearch(
+        event.extension_id,
+        engineId,
+        event.arguments,
+        signal,
+      );
+    } else {
+      result = await invokeExtensionTool(
+        event.extension_id,
+        event.tool_id,
+        event.arguments,
+        signal,
+      );
+    }
   } catch (cause) {
     error = extractErrorMessage(cause);
+  }
+
+  if (signal.aborted) {
+    return;
   }
 
   try {
@@ -44,6 +63,9 @@ async function reportToolDispatch(
       await agentsReportToolResult(options.streamId, event.tool_call_id, result, error);
     }
   } catch (cause) {
+    if (signal.aborted) {
+      return;
+    }
     // A failed resume would otherwise leave the Rust runner suspended forever.
     // Cancellation is idempotent and closes its pending oneshot receiver.
     await agentsCancelRun(options.streamId).catch(() => undefined);
@@ -63,8 +85,14 @@ async function reportMcpPermission(
       event.agent_id,
       signal,
     );
+    if (signal.aborted) {
+      return;
+    }
     await agentsReportMcpPermission(options.streamId, event.tool_call_id, decision);
   } catch (cause) {
+    if (signal.aborted) {
+      return;
+    }
     await agentsCancelRun(options.streamId).catch(() => undefined);
     options.onBridgeError?.(new Error(extractErrorMessage(cause)));
   }

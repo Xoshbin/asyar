@@ -106,11 +106,31 @@ pub struct ManifestTool {
     pub parameters: serde_json::Value,
 }
 
+/// Optional dispatcher for external tools (e.g. extension web search engines).
+pub type ExternalToolDispatcher = std::sync::Arc<
+    dyn Fn(
+            crate::agents::runner::ExternalToolRequest,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<serde_json::Value, AppError>> + Send>,
+        > + Send
+        + Sync,
+>;
+
 /// Execution context passed to built-in tools when invoked from an agent runner.
 /// Separates model-controlled arguments from host/user-configured state (e.g. search configuration).
-#[derive(Debug, Default, Clone)]
+#[derive(Clone, Default)]
 pub struct ToolContext {
     pub web_search: Option<crate::agents::runner::WebSearchConfig>,
+    pub external_dispatcher: Option<ExternalToolDispatcher>,
+}
+
+impl std::fmt::Debug for ToolContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToolContext")
+            .field("web_search", &self.web_search)
+            .field("external_dispatcher", &self.external_dispatcher.is_some())
+            .finish()
+    }
 }
 
 /// Trait implemented by every built-in tool.
