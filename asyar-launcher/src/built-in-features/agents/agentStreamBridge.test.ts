@@ -12,7 +12,12 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('../../lib/ipc/commands', () => ({
   agentsReportToolResult: vi.fn(),
   agentsReportMcpPermission: vi.fn(),
+  agentsReportAiChunk: vi.fn(),
   agentsCancelRun: vi.fn(),
+}));
+
+vi.mock('../../services/extension/extensionAiProviderDispatch', () => ({
+  invokeExtensionAiProviderStream: vi.fn(),
 }));
 
 vi.mock('./toolDispatch', () => ({
@@ -29,8 +34,10 @@ import {
   agentsCancelRun,
   agentsReportMcpPermission,
   agentsReportToolResult,
+  agentsReportAiChunk,
 } from '../../lib/ipc/commands';
 import { invokeExtensionTool, invokeExtensionWebSearch } from './toolDispatch';
+import { invokeExtensionAiProviderStream } from '../../services/extension/extensionAiProviderDispatch';
 import { mcpService } from '../mcp/mcpService.svelte';
 
 interface StreamOptions {
@@ -52,6 +59,8 @@ describe('createAgentStreamChannel', () => {
     vi.clearAllMocks();
     vi.mocked(agentsReportToolResult).mockResolvedValue(undefined);
     vi.mocked(agentsReportMcpPermission).mockResolvedValue(undefined);
+    vi.mocked(agentsReportAiChunk).mockResolvedValue(undefined);
+    vi.mocked(invokeExtensionAiProviderStream).mockResolvedValue(undefined);
     vi.mocked(agentsCancelRun).mockResolvedValue(undefined);
   });
 
@@ -202,5 +211,148 @@ describe('createAgentStreamChannel', () => {
     emit({ type: 'tool_dispatch_cancelled', tool_call_id: 'call-1' });
 
     expect(dispatchSignal?.aborted).toBe(true);
+  });
+
+  it('dispatches ai_provider_stream_request to invokeExtensionAiProviderStream and relays chunks to Rust', async () => {
+    let capturedOnChunk: ((chunk: any) => void) | undefined;
+    vi.mocked(invokeExtensionAiProviderStream).mockImplementation(
+      async (_extId, _provId, _req, onChunk) => {
+        capturedOnChunk = onChunk;
+        onChunk({ type: 'token', token: 'Hello' });
+        onChunk({ type: 'token', token: ' world' });
+      },
+    );
+
+    const { emit } = start({ streamId: 'stream-1', agentId: 'agent-1' });
+
+    emit({
+      type: 'ai_provider_stream_request',
+      stream_id: 'stream-1',
+      request_id: 'req-1',
+      extension_id: 'org.example.groq',
+      provider_id: 'groq',
+      model_id: 'llama-3.3-70b',
+      messages: [
+        {
+          id: 'm1',
+          role: 'user',
+          content: 'Hello',
+          timestamp: 1000,
+          toolCalls: null,
+          toolCallId: null,
+          providerContext: null,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 2048,
+      system_prompt: 'You are helpful',
+      tools: null,
+      api_key: 'gsk_test',
+      base_url: 'https://api.groq.com/openai/v1',
+      custom_headers: null,
+    } as unknown as AgentStreamEvent);
+
+    await vi.waitFor(() => expect(invokeExtensionAiProviderStream).toHaveBeenCalledOnce());
+
+    expect(invokeExtensionAiProviderStream).toHaveBeenCalledWith(
+      'org.example.groq',
+      'groq',
+      {
+        modelId: 'llama-3.3-70b',
+        messages: [
+          {
+            id: 'm1',
+            role: 'user',
+            content: 'Hello',
+            toolCalls: undefined,
+            toolCallId: undefined,
+          },
+        ],
+        temperature: 0.7,
+        maxTokens: 2048,
+        systemPrompt: 'You are helpful',
+        tools: undefined,
+        apiKey: 'gsk_test',
+        baseUrl: 'https://api.groq.com/openai/v1',
+        customHeaders: undefined,
+      },
+      expect.any(Function),
+      expect.any(AbortSignal),
+    );
+
+    await vi.waitFor(() => expect(agentsReportAiChunk).toHaveBeenCalledTimes(3));
+    expect(vi.mocked(agentsReportAiChunk).mock.calls).toEqual([
+      ['stream-1', 'req-1', { type: 'token', token: 'Hello' }],
+      ['stream-1', 'req-1', { type: 'token', token: ' world' }],
+      ['stream-1', 'req-1', { type: 'done' }],
+    ]);
+  });
+
+  it('reports error to agentsReportAiChunk when invokeExtensionAiProviderStream rejects', async () => {
+    vi.mocked(invokeExtensionAiProviderStream).mockRejectedValue(new Error('Rate limit exceeded'));
+
+    const { emit } = start({ streamId: 'stream-1', agentId: 'agent-1' });
+
+    emit({
+      type: 'ai_provider_stream_request',
+      stream_id: 'stream-1',
+      request_id: 'req-1',
+      extension_id: 'org.example.groq',
+      provider_id: 'groq',
+      model_id: 'llama-3.3-70b',
+      messages: [],
+      temperature: null,
+      max_tokens: 1000,
+      system_prompt: null,
+      tools: null,
+      api_key: null,
+      base_url: null,
+      custom_headers: null,
+    } as unknown as AgentStreamEvent);
+
+    await vi.waitFor(() =>
+      expect(agentsReportAiChunk).toHaveBeenCalledWith('stream-1', 'req-1', {
+        type: 'error',
+        error: 'Rate limit exceeded',
+      }),
+    );
+  });
+
+  it('aborts active AI stream when ai_provider_stream_cancelled is emitted', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    vi.mocked(invokeExtensionAiProviderStream).mockImplementation(
+      async (_extId, _provId, _req, _onChunk, signal) => {
+        capturedSignal = signal;
+        return new Promise(() => undefined);
+      },
+    );
+
+    const { emit } = start({ streamId: 'stream-1', agentId: 'agent-1' });
+
+    emit({
+      type: 'ai_provider_stream_request',
+      stream_id: 'stream-1',
+      request_id: 'req-1',
+      extension_id: 'org.example.groq',
+      provider_id: 'groq',
+      model_id: 'llama-3.3-70b',
+      messages: [],
+      temperature: null,
+      max_tokens: 1000,
+      system_prompt: null,
+      tools: null,
+      api_key: null,
+      base_url: null,
+      custom_headers: null,
+    } as unknown as AgentStreamEvent);
+
+    expect(capturedSignal?.aborted).toBe(false);
+
+    emit({
+      type: 'ai_provider_stream_cancelled',
+      request_id: 'req-1',
+    } as unknown as AgentStreamEvent);
+
+    expect(capturedSignal?.aborted).toBe(true);
   });
 });

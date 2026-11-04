@@ -503,6 +503,7 @@ macro_rules! ai_commands {
                 $crate::commands::agents::agents_run_thread,
                 $crate::commands::agents::agents_run_silent,
                 $crate::commands::agents::agents_report_tool_result,
+                $crate::commands::agents::agents_report_ai_chunk,
                 $crate::commands::agents::agents_report_mcp_permission,
                 $crate::commands::agents::agents_cancel_run,
                 $crate::commands::agents::agents_list_cached,

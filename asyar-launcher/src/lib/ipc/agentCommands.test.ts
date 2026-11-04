@@ -18,6 +18,7 @@ import {
   agentsSeedEmojiFallback,
   agentsReportMcpPermission,
   agentsReportToolResult,
+  agentsReportAiChunk,
   agentsResolveDefault,
   agentsRunSilent,
   agentsRunThread,
@@ -127,6 +128,16 @@ describe('agent runner commands', () => {
         { streamId: 'stream-1', toolCallId: 'call-2', result: null, error: 'tool failed' },
       ],
     ]);
+  });
+
+  it('reports AI provider chunks through agentsReportAiChunk', async () => {
+    await agentsReportAiChunk('stream-1', 'req-1', { type: 'token', token: 'hello' });
+
+    expect(vi.mocked(invokeRaw)).toHaveBeenCalledWith('agents_report_ai_chunk', {
+      streamId: 'stream-1',
+      requestId: 'req-1',
+      chunk: { type: 'token', token: 'hello' },
+    });
   });
 
   it('reports an MCP permission decision to the suspended Rust executor', async () => {

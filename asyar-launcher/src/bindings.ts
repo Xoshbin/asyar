@@ -32,7 +32,7 @@ export type AgentRunConfig = {
 	webSearch?: WebSearchConfig | null,
 };
 
-export type AgentStreamEvent = { type: "user_message_persisted" } | { type: "text_delta"; delta: string; accumulated: string } | { type: "status"; status: string | null } | { type: "assistant_turn_persisted" } | { type: "tool_dispatch"; tool_call_id: string; extension_id: string; tool_id: string; arguments: any } | { type: "tool_dispatch_cancelled"; tool_call_id: string } | { type: "mcp_permission_request"; tool_call_id: string; server_id: string; tool_id: string; agent_id: string } | { type: "mcp_permission_cancelled"; tool_call_id: string } | { type: "error"; message: string } | { type: "tools_unavailable"; tools: string[]; engine: string } | { type: "completed" } | { type: "cancelled" };
+export type AgentStreamEvent = { type: "user_message_persisted" } | { type: "text_delta"; delta: string; accumulated: string } | { type: "status"; status: string | null } | { type: "assistant_turn_persisted" } | { type: "tool_dispatch"; tool_call_id: string; extension_id: string; tool_id: string; arguments: any } | { type: "tool_dispatch_cancelled"; tool_call_id: string } | { type: "ai_provider_stream_request"; stream_id: string; request_id: string; extension_id: string; provider_id: string; model_id: string; messages: ChatMessage[]; temperature: number | null; max_tokens: number; system_prompt: string | null; tools: ToolDefinition[] | null; api_key: string | null; base_url: string | null; custom_headers: { [key in string]: string } | null } | { type: "ai_provider_stream_cancelled"; request_id: string } | { type: "mcp_permission_request"; tool_call_id: string; server_id: string; tool_id: string; agent_id: string } | { type: "mcp_permission_cancelled"; tool_call_id: string } | { type: "error"; message: string } | { type: "tools_unavailable"; tools: string[]; engine: string } | { type: "completed" } | { type: "cancelled" };
 
 export type AiCredentialStatus = {
 	providers: { [key in string]: CredentialState },
@@ -419,6 +419,44 @@ export type LauncherPlacement = {
 	 *  wrong, since snapping ships on. Hence the hand-written impl below.
 	 */
 	snapEnabled: boolean,
+};
+
+// Contributed AI model declaration within an AI provider.
+export type ManifestAiModel = {
+	id: string,
+	name: string,
+	contextWindow?: number | null,
+	reasoningEfforts?: string[] | null,
+};
+
+// Contributed AI model & inference provider declared by an extension.
+export type ManifestAiProvider = {
+	id: string,
+	name: string,
+	description?: string | null,
+	homepage?: string | null,
+	requiresApiKey?: boolean | null,
+	apiKeyOptional?: boolean | null,
+	apiKeyPlaceholder?: string | null,
+	apiKeyHelpUrl?: string | null,
+	requiresBaseUrl?: boolean | null,
+	baseUrlPlaceholder?: string | null,
+	models?: ManifestAiModel[] | null,
+};
+
+// Contributed web search engine declared by an extension.
+export type ManifestWebSearchEngine = {
+	id: string,
+	name: string,
+	description?: string | null,
+	homepage?: string | null,
+	requiresApiKey?: boolean | null,
+	apiKeyOptional?: boolean | null,
+	apiKeyPlaceholder?: string | null,
+	apiKeyHelpUrl?: string | null,
+	requiresBaseUrl?: boolean | null,
+	baseUrlPlaceholder?: string | null,
+	icon?: string | null,
 };
 
 export type MergedSearchResponse = {

@@ -49,6 +49,31 @@ export interface AsyarManifest {
    * Contributed web search engines.
    */
   webSearchEngines?: ManifestWebSearchEngine[];
+  /**
+   * Contributed AI model & inference providers.
+   */
+  aiProviders?: ManifestAiProvider[];
+}
+
+export interface ManifestAiModel {
+  id: string;
+  name: string;
+  contextWindow?: number;
+  reasoningEfforts?: string[];
+}
+
+export interface ManifestAiProvider {
+  id: string;
+  name: string;
+  description?: string;
+  homepage?: string;
+  requiresApiKey?: boolean;
+  apiKeyOptional?: boolean;
+  apiKeyPlaceholder?: string;
+  apiKeyHelpUrl?: string;
+  requiresBaseUrl?: boolean;
+  baseUrlPlaceholder?: string;
+  models?: ManifestAiModel[];
 }
 
 export interface ManifestWebSearchEngine {
@@ -265,6 +290,7 @@ export const VALID_PERMISSIONS = [
   'mcp',
   'ai',
   'ai:web-search',
+  'ai:provider',
 ] as const;
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const;
@@ -633,6 +659,7 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
 
   errors.push(...validatePreferences(manifest.preferences, 'preferences'));
   errors.push(...validateWebSearchEngines(manifest.webSearchEngines, 'webSearchEngines', manifest));
+  errors.push(...validateAiProviders(manifest.aiProviders, 'aiProviders', manifest));
   (manifest.commands ?? []).forEach((cmd, i) => {
     errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
     errors.push(...validateArguments(cmd.arguments, `commands[${i}].arguments`));
@@ -1189,6 +1216,93 @@ export function validateWebSearchEngines(
     }
     if (typeof e.apiKeyHelpUrl === 'string' && !/^https?:\/\//.test(e.apiKeyHelpUrl)) {
       errors.push({ field: `${p}.apiKeyHelpUrl`, message: 'must start with http:// or https://' });
+    }
+  });
+  return errors;
+}
+
+export function validateAiProviders(
+  providers: unknown,
+  fieldPrefix: string,
+  manifest: AsyarManifest,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (providers === undefined) return errors;
+  if (!Array.isArray(providers) || providers.length === 0) {
+    errors.push({ field: fieldPrefix, message: 'must be a non-empty array' });
+    return errors;
+  }
+  if (manifest.type === 'theme') {
+    errors.push({
+      field: fieldPrefix,
+      message: 'Theme extensions must not declare aiProviders',
+    });
+    return errors;
+  }
+  if (!manifest.background?.main) {
+    errors.push({
+      field: 'background.main',
+      message:
+        'required when manifest declares aiProviders (inference providers run in the headless worker)',
+    });
+  }
+  const perms = manifest.permissions ?? [];
+  if (!perms.includes('network')) {
+    errors.push({
+      field: 'permissions',
+      message: 'manifest with aiProviders requires the "network" permission',
+    });
+  }
+  if (!perms.includes('ai:provider')) {
+    errors.push({
+      field: 'permissions',
+      message: 'manifest with aiProviders requires the "ai:provider" permission',
+    });
+  }
+  const seenIds = new Set<string>();
+  const idRe = /^[a-z0-9_-]{1,64}$/;
+  providers.forEach((item, i) => {
+    const p = `${fieldPrefix}[${i}]`;
+    if (!item || typeof item !== 'object') {
+      errors.push({ field: p, message: 'must be an object' });
+      return;
+    }
+    const prov = item as Record<string, unknown>;
+    if (typeof prov.id !== 'string' || !idRe.test(prov.id)) {
+      errors.push({ field: `${p}.id`, message: 'must match /^[a-z0-9_-]{1,64}$/' });
+    } else if (seenIds.has(prov.id)) {
+      errors.push({ field: `${p}.id`, message: `duplicate provider id "${prov.id}"` });
+    } else {
+      seenIds.add(prov.id);
+    }
+    if (typeof prov.name !== 'string' || prov.name.trim().length === 0) {
+      errors.push({ field: `${p}.name`, message: 'required and must be non-empty' });
+    }
+    if (typeof prov.homepage === 'string' && !/^https?:\/\//.test(prov.homepage)) {
+      errors.push({ field: `${p}.homepage`, message: 'must start with http:// or https://' });
+    }
+    if (typeof prov.apiKeyHelpUrl === 'string' && !/^https?:\/\//.test(prov.apiKeyHelpUrl)) {
+      errors.push({ field: `${p}.apiKeyHelpUrl`, message: 'must start with http:// or https://' });
+    }
+    if (prov.models !== undefined) {
+      if (!Array.isArray(prov.models)) {
+        errors.push({ field: `${p}.models`, message: 'must be an array of models' });
+      } else {
+        prov.models.forEach((m, mi) => {
+          const mp = `${p}.models[${mi}]`;
+          if (!m || typeof m !== 'object') {
+            errors.push({ field: mp, message: 'must be an object' });
+            return;
+          }
+          const modelObj = m as Record<string, unknown>;
+          if (typeof modelObj.id !== 'string' || modelObj.id.trim().length === 0) {
+            errors.push({ field: `${mp}.id`, message: 'required and must be non-empty' });
+          }
+          if (typeof modelObj.name !== 'string' || modelObj.name.trim().length === 0) {
+            errors.push({ field: `${mp}.name`, message: 'required and must be non-empty' });
+          }
+        });
+      }
     }
   });
   return errors;

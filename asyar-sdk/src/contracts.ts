@@ -136,6 +136,21 @@ export type {
   WebSearchEngineRegistration,
   ManifestWebSearchEngine,
 } from './contracts/webSearch';
+export type {
+  AiToolCall,
+  AiMessage,
+  AiToolDefinition,
+  AiCompletionRequest,
+  AiStreamChunk,
+  AiModelInfo,
+  AiProviderConfig,
+  AiStreamCallback,
+  AiProviderCompleteStream,
+  AiProviderListModels,
+  AiProviderRegistration,
+  ManifestAiModel,
+  ManifestAiProvider,
+} from './contracts/aiProvider';
 export { McpServiceProxy } from './services';
 export type { IMcpService, McpServerInfo, McpToolDescriptor } from './services';
 

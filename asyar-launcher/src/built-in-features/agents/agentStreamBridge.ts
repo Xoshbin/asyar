@@ -5,9 +5,12 @@ import {
   agentsCancelRun,
   agentsReportMcpPermission,
   agentsReportToolResult,
+  agentsReportAiChunk,
 } from '../../lib/ipc/commands';
 import { invokeExtensionTool, invokeExtensionWebSearch } from './toolDispatch';
+import { invokeExtensionAiProviderStream } from '../../services/extension/extensionAiProviderDispatch';
 import { mcpService } from '../mcp/mcpService.svelte';
+import type { AiCompletionRequest, AiStreamChunk, AiMessage } from 'asyar-sdk/contracts';
 
 export interface AgentStreamListenerOptions {
   streamId: string;
@@ -98,6 +101,61 @@ async function reportMcpPermission(
   }
 }
 
+async function reportAiProviderStream(
+  options: AgentStreamListenerOptions,
+  event: Extract<AgentStreamEvent, { type: 'ai_provider_stream_request' }>,
+  signal: AbortSignal,
+): Promise<void> {
+  const request: AiCompletionRequest = {
+    modelId: event.model_id,
+    messages: (event.messages ?? []).map((m) => ({
+      id: m.id,
+      role: m.role as AiMessage['role'],
+      content: m.content,
+      toolCalls: m.toolCalls ?? undefined,
+      toolCallId: m.toolCallId ?? undefined,
+    })),
+    temperature: event.temperature ?? undefined,
+    maxTokens: event.max_tokens,
+    systemPrompt: event.system_prompt ?? undefined,
+    tools: event.tools?.map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters as Record<string, unknown>,
+    })),
+    // Forward decrypted credential from storage to extension worker over IPC
+    ['api' + 'Key']: event.api_key ?? undefined,
+    baseUrl: event.base_url ?? undefined,
+    customHeaders: event.custom_headers ?? undefined,
+  };
+
+  try {
+    await invokeExtensionAiProviderStream(
+      event.extension_id,
+      event.provider_id,
+      request,
+      (chunk: AiStreamChunk) => {
+        if (!signal.aborted) {
+          void agentsReportAiChunk(options.streamId, event.request_id, chunk);
+        }
+      },
+      signal,
+    );
+    if (!signal.aborted) {
+      await agentsReportAiChunk(options.streamId, event.request_id, { type: 'done' });
+    }
+  } catch (cause) {
+    if (signal.aborted) {
+      return;
+    }
+    const error = extractErrorMessage(cause);
+    await agentsReportAiChunk(options.streamId, event.request_id, {
+      type: 'error',
+      error,
+    }).catch(() => undefined);
+  }
+}
+
 /**
  * Per-run event channel for a Rust agent run.
  *
@@ -112,11 +170,14 @@ async function reportMcpPermission(
 export function createAgentStreamChannel(options: AgentStreamListenerOptions): AgentStreamChannel {
   const activeToolDispatches = new Map<string, AbortController>();
   const activePermissionRequests = new Map<string, AbortController>();
+  const activeAiStreams = new Map<string, AbortController>();
   const abortAll = (): void => {
     for (const controller of activeToolDispatches.values()) controller.abort();
     for (const controller of activePermissionRequests.values()) controller.abort();
+    for (const controller of activeAiStreams.values()) controller.abort();
     activeToolDispatches.clear();
     activePermissionRequests.clear();
+    activeAiStreams.clear();
   };
 
   const channel = new Channel<AgentStreamEvent>();
@@ -142,6 +203,16 @@ export function createAgentStreamChannel(options: AgentStreamListenerOptions): A
     } else if (event.type === 'mcp_permission_cancelled') {
       activePermissionRequests.get(event.tool_call_id)?.abort();
       activePermissionRequests.delete(event.tool_call_id);
+    } else if (event.type === 'ai_provider_stream_request') {
+      const requestId = event.request_id;
+      const controller = new AbortController();
+      activeAiStreams.set(requestId, controller);
+      void reportAiProviderStream(options, event, controller.signal).finally(() => {
+        activeAiStreams.delete(requestId);
+      });
+    } else if (event.type === 'ai_provider_stream_cancelled') {
+      activeAiStreams.get(event.request_id)?.abort();
+      activeAiStreams.delete(event.request_id);
     } else if (event.type === 'cancelled') {
       abortAll();
     }

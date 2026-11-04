@@ -6,6 +6,13 @@ import type {
   WebSearchQuery,
   WebSearchResult,
 } from '../contracts/webSearch';
+import type {
+  AiProviderRegistration,
+  AiCompletionRequest,
+  AiStreamChunk,
+  AiModelInfo,
+  AiProviderConfig,
+} from '../contracts/aiProvider';
 
 /**
  * SDK proxy for the AI prompting service.
@@ -180,5 +187,59 @@ export class AiServiceProxy extends BaseServiceProxy implements IAiService {
       throw new Error(`[asyar-sdk/ai] Invalid handler for engine: "${engineId}"`);
     }
     return handler(query, signal);
+  }
+
+  private aiProviders = new Map<string, AiProviderRegistration>();
+
+  registerAiProvider(provider: AiProviderRegistration): () => void {
+    if (
+      !provider ||
+      typeof provider.id !== 'string' ||
+      !/^[a-z0-9_-]{1,64}$/.test(provider.id) ||
+      typeof provider.completeStream !== 'function' ||
+      (provider.listModels !== undefined && typeof provider.listModels !== 'function')
+    ) {
+      throw new Error(
+        '[asyar-sdk/ai] registerAiProvider requires a provider with a valid id and completeStream function',
+      );
+    }
+    this.aiProviders.set(provider.id, provider);
+    return () => {
+      this.aiProviders.delete(provider.id);
+    };
+  }
+
+  async invokeAiProviderStream(
+    providerId: string,
+    request: AiCompletionRequest,
+    onChunk: (chunk: AiStreamChunk) => void,
+    signal: AbortSignal,
+  ): Promise<void> {
+    if (typeof providerId !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(providerId)) {
+      throw new Error(`[asyar-sdk/ai] Invalid provider ID: "${providerId}"`);
+    }
+    const provider = this.aiProviders.get(providerId);
+    if (!provider) {
+      throw new Error(`[asyar-sdk/ai] No AI provider registered with ID: "${providerId}"`);
+    }
+    return provider.completeStream(request, onChunk, signal);
+  }
+
+  async invokeAiProviderListModels(
+    providerId: string,
+    config: AiProviderConfig,
+    signal: AbortSignal,
+  ): Promise<AiModelInfo[]> {
+    if (typeof providerId !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(providerId)) {
+      throw new Error(`[asyar-sdk/ai] Invalid provider ID: "${providerId}"`);
+    }
+    const provider = this.aiProviders.get(providerId);
+    if (!provider) {
+      throw new Error(`[asyar-sdk/ai] No AI provider registered with ID: "${providerId}"`);
+    }
+    if (typeof provider.listModels !== 'function') {
+      return [];
+    }
+    return provider.listModels(config, signal);
   }
 }

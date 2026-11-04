@@ -1064,5 +1064,137 @@ describe('manifest validation — runtimes', () => {
         ).toBe(true);
       });
     });
+
+    describe('manifest `aiProviders`', () => {
+      const validAiProviderManifest: AsyarManifest = {
+        id: 'org.asyar.groq',
+        name: 'Groq Provider',
+        version: '1.0.0',
+        description: 'Fast Llama and DeepSeek inference',
+        author: 'Groq Cloud',
+        background: { main: 'dist/worker.js' },
+        permissions: ['network', 'ai:provider'],
+        commands: [
+          {
+            id: 'chat',
+            name: 'Chat',
+            description: 'Chat with Groq',
+            mode: 'background',
+          },
+        ],
+        aiProviders: [
+          {
+            id: 'groq',
+            name: 'Groq',
+            description: 'Fast inference on LPUs',
+            homepage: 'https://groq.com',
+            requiresApiKey: true,
+            apiKeyPlaceholder: 'gsk_...',
+            apiKeyHelpUrl: 'https://console.groq.com/keys',
+            models: [
+              { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', contextWindow: 128000 },
+            ],
+          },
+        ],
+      };
+
+      it('accepts a valid aiProviders declaration', () => {
+        const errors = validateManifest(validAiProviderManifest, './');
+        expect(errors).toEqual([]);
+      });
+
+      it('rejects aiProviders when background.main is missing', () => {
+        const invalid = {
+          ...validAiProviderManifest,
+          background: undefined,
+          commands: [{ id: 'chat', name: 'Chat', mode: 'view' as const, component: 'Chat' }],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field === 'background.main')).toBe(true);
+      });
+
+      it('rejects aiProviders when network permission is missing', () => {
+        const invalid = {
+          ...validAiProviderManifest,
+          permissions: ['ai:provider'],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field === 'permissions' && e.message.includes('network'))).toBe(
+          true,
+        );
+      });
+
+      it('rejects aiProviders when ai:provider permission is missing', () => {
+        const invalid = {
+          ...validAiProviderManifest,
+          permissions: ['network'],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some((e) => e.field === 'permissions' && e.message.includes('ai:provider')),
+        ).toBe(true);
+      });
+
+      it('rejects duplicate provider ids', () => {
+        const invalid = {
+          ...validAiProviderManifest,
+          aiProviders: [
+            { id: 'groq', name: 'Groq 1' },
+            { id: 'groq', name: 'Groq 2' },
+          ],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.message.includes('duplicate provider id'))).toBe(true);
+      });
+
+      it('rejects invalid provider id characters', () => {
+        const invalid = {
+          ...validAiProviderManifest,
+          aiProviders: [{ id: 'Invalid ID Spaces', name: 'Groq' }],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field.endsWith('.id'))).toBe(true);
+      });
+
+      it('rejects non-http(s) homepage and apiKeyHelpUrl', () => {
+        const invalid = {
+          ...validAiProviderManifest,
+          aiProviders: [
+            {
+              id: 'groq',
+              name: 'Groq',
+              homepage: 'ftp://example.com',
+              apiKeyHelpUrl: 'file:///etc/passwd',
+            },
+          ],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some(
+            (e) =>
+              e.field.endsWith('.homepage') &&
+              e.message.includes('must start with http:// or https://'),
+          ),
+        ).toBe(true);
+        expect(
+          errors.some(
+            (e) =>
+              e.field.endsWith('.apiKeyHelpUrl') &&
+              e.message.includes('must start with http:// or https://'),
+          ),
+        ).toBe(true);
+      });
+
+      it('rejects aiProviders in theme extensions', () => {
+        const invalid = {
+          ...validAiProviderManifest,
+          type: 'theme' as const,
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some((e) => e.message.includes('Theme extensions must not declare aiProviders')),
+        ).toBe(true);
+      });
+    });
   });
 });
