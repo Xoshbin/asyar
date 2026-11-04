@@ -184,41 +184,48 @@ export interface WebSearchEngineRegistration {
 #### Example Worker Registration (`src/worker.ts`)
 
 ```typescript
-import { context } from 'asyar-sdk';
+import type { ExtensionContext } from 'asyar-sdk/worker';
+import type { INetworkService, WebSearchQuery, WebSearchResult } from 'asyar-sdk/contracts';
 
-// Register the search handler matching the manifest id "keenable"
-const unregister = context.ai.registerWebSearchEngine({
-  id: 'keenable',
-  async search(query, signal) {
-    const response = await fetch(
-      `https://api.keenable.example/search?q=${encodeURIComponent(query.query)}&limit=${query.limit}`,
-      {
-        headers: {
-          Authorization: `Bearer ${query.apiKey}`,
-        },
-        signal,
+export default class KeenableExtension {
+  async initialize(context: ExtensionContext): Promise<void> {
+    const network = context.getService<INetworkService>('network');
+
+    // Register the search handler matching the manifest id "keenable"
+    context.ai.registerWebSearchEngine({
+      id: 'keenable',
+      async search(query: WebSearchQuery, signal: AbortSignal): Promise<WebSearchResult> {
+        const response = await network.fetch(
+          `https://api.keenable.example/search?q=${encodeURIComponent(query.query)}&limit=${query.limit}`,
+          {
+            headers: {
+              Authorization: `Bearer ${query.apiKey ?? ''}`,
+              Accept: 'application/json',
+            },
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error(`Search provider failed with status ${response.status}`);
+        }
+
+        const data = JSON.parse(response.body);
+
+        return {
+          sources: (data.results ?? []).map((r: any) => ({
+            title: r.title,
+            url: r.url,
+          })),
+          results: (data.results ?? []).map((r: any) => ({
+            title: r.title,
+            url: r.url,
+            snippet: r.snippet ?? '',
+          })),
+        };
       },
-    );
-
-    if (!response.ok) {
-      throw new Error(`Search provider failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    return {
-      sources: data.results.map((r: any) => ({
-        title: r.title,
-        url: r.url,
-      })),
-      results: data.results.map((r: any) => ({
-        title: r.title,
-        url: r.url,
-        snippet: r.snippet,
-      })),
-    };
-  },
-});
+    });
+  }
+}
 ```
 
 ---

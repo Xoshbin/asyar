@@ -61,47 +61,52 @@ Add `"network"` and `"ai:web-search"` to your `permissions` array, declare a bac
 
 ### Step 2 — Register the search handler in your worker
 
-In your background entrypoint (`src/worker.ts`), register your handler using `asyar.ai.registerWebSearchEngine`:
+In your background entrypoint (`src/worker.ts`), register your handler using `context.ai.registerWebSearchEngine` inside your extension's `initialize` method:
 
 ```typescript
-import { asyar } from 'asyar-sdk';
-import type { WebSearchQuery, WebSearchResult } from 'asyar-sdk/contracts';
+import type { ExtensionContext } from 'asyar-sdk/worker';
+import type { INetworkService, WebSearchQuery, WebSearchResult } from 'asyar-sdk/contracts';
 
-asyar.ai.registerWebSearchEngine({
-  id: 'keenable',
-  async search(query: WebSearchQuery, signal: AbortSignal): Promise<WebSearchResult> {
-    const params = new URLSearchParams({
-      q: query.query,
-      limit: String(query.limit),
-    });
+export default class KeenableExtension {
+  async initialize(context: ExtensionContext): Promise<void> {
+    const network = context.getService<INetworkService>('network');
 
-    const response = await fetch(`https://api.keenable.example/v1/search?${params}`, {
-      headers: {
-        Authorization: `Bearer ${query.apiKey ?? ''}`,
-        Accept: 'application/json',
+    context.ai.registerWebSearchEngine({
+      id: 'keenable',
+      async search(query: WebSearchQuery, signal: AbortSignal): Promise<WebSearchResult> {
+        const params = new URLSearchParams({
+          q: query.query,
+          limit: String(query.limit),
+        });
+
+        const response = await network.fetch(`https://api.keenable.example/v1/search?${params}`, {
+          headers: {
+            Authorization: `Bearer ${query.apiKey ?? ''}`,
+            Accept: 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Keenable search failed: ${response.status} ${response.statusText}`);
+        }
+
+        const data = JSON.parse(response.body);
+
+        return {
+          sources: (data.items ?? []).map((item: any) => ({
+            title: item.title,
+            url: item.url,
+          })),
+          results: (data.items ?? []).map((item: any) => ({
+            title: item.title,
+            url: item.url,
+            snippet: item.snippet ?? item.description ?? '',
+          })),
+        };
       },
-      signal,
     });
-
-    if (!response.ok) {
-      throw new Error(`Keenable search failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    return {
-      sources: (data.items ?? []).map((item: any) => ({
-        title: item.title,
-        url: item.url,
-      })),
-      results: (data.items ?? []).map((item: any) => ({
-        title: item.title,
-        url: item.url,
-        snippet: item.snippet ?? item.description ?? '',
-      })),
-    };
-  },
-});
+  }
+}
 ```
 
 ---
