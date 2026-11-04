@@ -17,7 +17,7 @@ impl std::ops::Deref for ResolvedProviderConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolCall {
     pub id: String,
@@ -26,7 +26,7 @@ pub struct ToolCall {
     pub input: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolDefinition {
     pub name: String,
@@ -35,7 +35,7 @@ pub struct ToolDefinition {
     pub parameters: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessage {
     pub id: String,
@@ -148,6 +148,7 @@ pub enum ChatStreamEventPayload {
     Status {
         status: String,
     },
+    #[serde(alias = "tool_call")]
     ToolCall {
         id: String,
         name: String,

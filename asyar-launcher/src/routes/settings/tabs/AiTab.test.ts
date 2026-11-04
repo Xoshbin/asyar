@@ -61,6 +61,11 @@ vi.mock('../../../lib/ipc/commands', () => ({
   aiGetCredentialStatus: vi.fn().mockResolvedValue({ providers: {}, webSearch: {} }),
   aiSaveCredential: vi.fn().mockResolvedValue(undefined),
   aiDeleteCredential: vi.fn().mockResolvedValue(true),
+  aiResolveProviderCredential: vi.fn().mockResolvedValue(null),
+}));
+vi.mock('../../../services/extension/extensionAiProviderDispatch', () => ({
+  invokeExtensionAiProviderListModels: vi.fn(),
+  invokeExtensionAiProviderStream: vi.fn(),
 }));
 
 import AiTab from './AiTab.svelte';
@@ -69,7 +74,9 @@ import {
   aiGetCredentialStatus,
   aiSaveCredential,
   aiDeleteCredential,
+  aiResolveProviderCredential,
 } from '../../../lib/ipc/commands';
+import { invokeExtensionAiProviderListModels } from '../../../services/extension/extensionAiProviderDispatch';
 import { settingsService } from '../../../services/settings/settingsService.svelte';
 import { providerRegistry } from '../../../services/ai/providerRegistry';
 
@@ -585,6 +592,15 @@ describe('AiTab', () => {
             apiKeyPlaceholder: 'key-b...',
           },
         ],
+        aiProviders: [
+          {
+            id: 'groq',
+            name: 'Groq',
+            requiresApiKey: true,
+            apiKeyPlaceholder: 'gsk_...',
+            models: [{ id: 'llama-3.3-70b', name: 'Llama 3.3 70B' }],
+          },
+        ],
       },
     ],
   } as any;
@@ -741,5 +757,89 @@ describe('AiTab', () => {
     expect(option?.textContent).toContain('brave (Unavailable)');
 
     expect(screen.getByText(/The search engine "brave" is unavailable or deprecated/)).toBeTruthy();
+  });
+
+  it('shows extension-declared AI providers in the Add Provider dropdown', async () => {
+    const { container } = render(AiTab, { mode: 'full', handler: mockExtensionHandler });
+
+    const addBtn = screen.getByRole('button', { name: /\+ Add provider/i });
+    await fireEvent.click(addBtn);
+
+    const select = container.querySelector<HTMLSelectElement>('select.provider-picker')!;
+    expect(select).toBeTruthy();
+    const optionValues = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+    expect(optionValues).toContain('ext:test-ext:groq');
+  });
+
+  it('renders extension provider row with API key placeholder and models when configured', async () => {
+    settingsService.currentSettings = {
+      ai: {
+        providers: {
+          'ext:test-ext:groq': {
+            enabled: true,
+            name: 'Groq',
+            providerType: 'ext:test-ext:groq' as any,
+          },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+
+    const { container } = render(AiTab, { mode: 'full', handler: mockExtensionHandler });
+
+    const rowToggle = container.querySelector<HTMLButtonElement>('.row-toggle')!;
+    expect(rowToggle).toBeTruthy();
+    await fireEvent.click(rowToggle);
+
+    expect(await screen.findByPlaceholderText('gsk_...')).toBeTruthy();
+    expect(await screen.findByText('Llama 3.3 70B')).toBeTruthy();
+  });
+
+  it('fetches dynamic models via invokeExtensionAiProviderListModels on test and fetch', async () => {
+    vi.mocked(invokeExtensionAiProviderListModels).mockResolvedValue([
+      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
+    ]);
+    vi.mocked(aiGetCredentialStatus).mockResolvedValue({
+      providers: { 'ext:test-ext:groq': 'configured' },
+      webSearch: {},
+    });
+    vi.mocked(aiResolveProviderCredential).mockResolvedValue('gsk_mock_secret');
+
+    settingsService.currentSettings = {
+      ai: {
+        providers: {
+          'ext:test-ext:groq': {
+            enabled: true,
+            name: 'Groq',
+            providerType: 'ext:test-ext:groq' as any,
+          },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+
+    const { container } = render(AiTab, { mode: 'full', handler: mockExtensionHandler });
+
+    const rowToggle = container.querySelector<HTMLButtonElement>('.row-toggle')!;
+    expect(rowToggle).toBeTruthy();
+    await fireEvent.click(rowToggle);
+
+    const testAndFetchBtn = screen.getByRole('button', { name: 'Test & Fetch Models' });
+    await fireEvent.click(testAndFetchBtn);
+
+    expect(invokeExtensionAiProviderListModels).toHaveBeenCalledWith(
+      'test-ext',
+      'groq',
+      expect.objectContaining({
+        apiKey: 'gsk_mock_secret',
+      }),
+    );
+    expect(await screen.findByText('Llama 3.3 70B Versatile')).toBeTruthy();
   });
 });

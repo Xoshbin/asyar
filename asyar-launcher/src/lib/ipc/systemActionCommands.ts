@@ -117,6 +117,18 @@ export async function agentsReportToolResult(
   });
 }
 
+export async function agentsReportAiChunk(
+  streamId: string,
+  requestId: string,
+  chunk: unknown,
+): Promise<void> {
+  await invokeRaw('agents_report_ai_chunk', {
+    streamId,
+    requestId,
+    chunk,
+  });
+}
+
 export type McpPermissionChoice = 'allow_once' | 'allow_always' | 'never' | 'cancel';
 
 export async function agentsReportMcpPermission(

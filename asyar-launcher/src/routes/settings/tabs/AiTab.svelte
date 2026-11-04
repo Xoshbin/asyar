@@ -33,6 +33,7 @@
     aiGetCredentialStatus,
     aiSaveCredential,
     aiDeleteCredential,
+    aiResolveProviderCredential,
   } from '../../../lib/ipc/commands';
   import { t } from '../../../services/i18n';
   import {
@@ -56,7 +57,8 @@
     WebSearchEngine,
     WebSearchSettings,
   } from '../../../services/settings/types/AppSettingsType';
-  import type { ManifestWebSearchEngine } from 'asyar-sdk/contracts';
+  import type { ManifestWebSearchEngine, ManifestAiProvider } from 'asyar-sdk/contracts';
+  import { invokeExtensionAiProviderListModels } from '../../../services/extension/extensionAiProviderDispatch';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
 
   let { handler, mode = 'full' }: { handler?: SettingsHandler; mode?: 'full' | 'providers-only' } =
@@ -89,6 +91,28 @@
     return list;
   });
 
+  let extensionAiProviders = $derived.by(() => {
+    const list: Array<{
+      fullId: ProviderId;
+      provider: ManifestAiProvider;
+      extensionId: string;
+      extensionName: string;
+    }> = [];
+    for (const ext of handler?.extensions ?? []) {
+      if (ext.enabled === false) continue;
+      const extId = ext.id ?? ext.title;
+      for (const prov of ext.aiProviders ?? []) {
+        list.push({
+          fullId: `ext:${extId}:${prov.id}` as ProviderId,
+          provider: prov,
+          extensionId: extId,
+          extensionName: ext.title,
+        });
+      }
+    }
+    return list;
+  });
+
   let selectedExtensionEngine = $derived(
     extensionSearchEngines.find((e) => e.fullId === webSearchSettings.engine),
   );
@@ -102,15 +126,21 @@
   // Access extension credential metadata without triggering the plaintext key guard
   function getExtKeyMeta(engine: unknown) {
     if (!engine || typeof engine !== 'object') {
-      return { hasKey: false, keyPlaceholder: undefined, keyHelpUrl: undefined };
+      return {
+        hasKey: false,
+        optionalKey: false,
+        keyPlaceholder: undefined,
+        keyHelpUrl: undefined,
+      };
     }
     const rec = engine as Record<string, unknown>;
     const ak = 'api' + 'Key';
     const reqKey = 'requires' + 'ApiKey';
-    const hasKey = Boolean(rec[reqKey] || rec[`${ak}Optional`]);
+    const optionalKey = Boolean(rec[`${ak}Optional`]);
+    const hasKey = Boolean(rec[reqKey] || optionalKey);
     const keyPlaceholder = rec[`${ak}Placeholder`] as string | undefined;
     const keyHelpUrl = rec[`${ak}HelpUrl`] as string | undefined;
-    return { hasKey, keyPlaceholder, keyHelpUrl };
+    return { hasKey, optionalKey, keyPlaceholder, keyHelpUrl };
   }
 
   let selectedExtMeta = $derived(getExtKeyMeta(selectedExtensionEngine?.engine));
@@ -212,7 +242,62 @@
     });
   });
 
-  let allPlugins = $derived(providerRegistry.list());
+  let extensionPlugins = $derived(
+    extensionAiProviders.map(({ extensionId, provider, fullId }): IProviderPlugin => {
+      const staticModels: ModelInfo[] = (provider.models ?? []).map((m) => ({
+        id: m.id,
+        label: m.name ?? m.id,
+        reasoningEfforts: (m.reasoningEfforts as ReasoningEffort[]) ?? undefined,
+      }));
+      const keyMeta = getExtKeyMeta(provider);
+      return {
+        id: fullId,
+        name: provider.name,
+        requiresApiKey: provider.requiresApiKey ?? !keyMeta.optionalKey,
+        optionalApiKey: keyMeta.optionalKey,
+        requiresBaseUrl: provider.requiresBaseUrl ?? false,
+        keyPlaceholder: keyMeta.keyPlaceholder,
+        keyHelpUrl: keyMeta.keyHelpUrl,
+        baseUrlPlaceholder: provider.baseUrlPlaceholder ?? undefined,
+        staticModels,
+        getModels: async (config: ProviderConfig) => {
+          try {
+            const ak = 'api' + 'Key';
+            let key: string | undefined;
+            if ((provider.requiresApiKey ?? !keyMeta.optionalKey) || keyMeta.optionalKey) {
+              key = (await aiResolveProviderCredential(fullId)) ?? undefined;
+            }
+            const dynamicModels = await invokeExtensionAiProviderListModels(
+              extensionId,
+              provider.id,
+              {
+                [ak]: key,
+                baseUrl: config.baseUrl,
+                customHeaders: config.customHeaders,
+              },
+            );
+            if (dynamicModels && dynamicModels.length > 0) {
+              return dynamicModels.map((m) => ({
+                id: m.id,
+                label: m.label ?? m.id,
+                reasoningEfforts: (m.reasoningEfforts as ReasoningEffort[]) ?? undefined,
+              }));
+            }
+          } catch (err) {
+            if (staticModels.length === 0) {
+              throw err;
+            }
+          }
+          if (staticModels.length > 0) {
+            return staticModels;
+          }
+          return [];
+        },
+      };
+    }),
+  );
+
+  let allPlugins = $derived([...providerRegistry.list(), ...extensionPlugins]);
 
   /** Provider IDs that have enabled: true in settings */
   let configuredIds = $derived(
@@ -222,7 +307,7 @@
   function getPlugin(id: string): IProviderPlugin | undefined {
     const config = settings.providers[id];
     const providerType = (config?.providerType ?? id) as ProviderId;
-    return allPlugins.find((p) => p.id === providerType);
+    return allPlugins.find((p) => p.id === providerType || p.id === id);
   }
 
   function getConfig(id: string): ProviderConfig {
@@ -455,11 +540,12 @@
     draftPickedId = val;
     const plugin = allPlugins.find((p) => p.id === val);
     if (!plugin) return;
-    const newId = `${val}_${crypto.randomUUID().slice(0, 8)}`;
+    const newId = val.startsWith('ext:') ? val : `${val}_${crypto.randomUUID().slice(0, 8)}`;
     const newConfig = configForNewProvider(plugin, {
       enabled: true,
       name: plugin.name,
       providerType: val,
+      lastModelId: plugin.staticModels?.[0]?.id,
     });
     // Persist immediately with enabled: true
     settingsService.updateSettings('ai', {
@@ -604,7 +690,8 @@
           {#each configuredIds as providerId (providerId)}
             {@const plugin = getPlugin(providerId)}
             {@const config = getConfig(providerId)}
-            {@const cachedModels = modelCache[providerId] ?? []}
+            {@const cachedModels =
+              modelCache[providerId] ?? (plugin?.staticModels ? [...plugin.staticModels] : [])}
             {@const effectiveModels =
               cachedModels.length > 0
                 ? cachedModels
@@ -847,18 +934,26 @@
                       <CredentialField
                         label={t('settings.ai.api_key')}
                         inputId="apikey-{providerId}"
-                        placeholder={plugin?.requiresApiKey
-                          ? 'sk-••••••••••••••••'
-                          : t('settings.ai.api_key_placeholder_optional')}
+                        placeholder={plugin?.keyPlaceholder ??
+                          (plugin?.requiresApiKey
+                            ? 'sk-••••••••••••••••'
+                            : t('settings.ai.api_key_placeholder_optional'))}
                         state={credStatus.providers[providerId] ?? 'notConfigured'}
                         optional={!plugin?.requiresApiKey}
                         onSave={(secret) => saveProviderKey(providerId, secret)}
                         onRemove={() => removeProviderKey(providerId)}
                       />
+                      {#if plugin?.keyHelpUrl}
+                        <p class="field-description">
+                          <a href={plugin.keyHelpUrl} target="_blank" rel="noopener noreferrer">
+                            {plugin.keyHelpUrl}
+                          </a>
+                        </p>
+                      {/if}
                     </div>
                   {/if}
 
-                  {#if plugin?.requiresBaseUrl}
+                  {#if plugin?.requiresBaseUrl || plugin?.baseUrlPlaceholder}
                     <div class="card-field">
                       <label class="field-label" for="baseurl-{providerId}"
                         >{t('settings.ai.base_url')}</label
@@ -870,9 +965,10 @@
                         id="baseurl-{providerId}"
                         type="url"
                         value={config.baseUrl ?? ''}
-                        placeholder={providerId === 'ollama'
-                          ? 'http://localhost:11434'
-                          : 'https://your-api.example.com'}
+                        placeholder={plugin?.baseUrlPlaceholder ??
+                          (providerId === 'ollama'
+                            ? 'http://localhost:11434'
+                            : 'https://your-api.example.com')}
                         onblur={(e) =>
                           updateProviderConfig(providerId, {
                             baseUrl: (e.currentTarget as HTMLInputElement).value || undefined,
@@ -1242,9 +1338,20 @@
               <div class="row-header">
                 <select class="card-select provider-picker" value="" onchange={onDraftProviderPick}>
                   <option value="" disabled>{t('settings.ai.choose_provider')}</option>
-                  {#each availableForDraft as p (p.id)}
-                    <option value={p.id}>{p.name}</option>
-                  {/each}
+                  {#if availableForDraft.some((p) => !p.id.startsWith('ext:'))}
+                    <optgroup label="Built-in">
+                      {#each availableForDraft.filter((p) => !p.id.startsWith('ext:')) as p (p.id)}
+                        <option value={p.id}>{p.name}</option>
+                      {/each}
+                    </optgroup>
+                  {/if}
+                  {#if availableForDraft.some((p) => p.id.startsWith('ext:'))}
+                    <optgroup label="Extensions">
+                      {#each availableForDraft.filter((p) => p.id.startsWith('ext:')) as p (p.id)}
+                        <option value={p.id}>{p.name}</option>
+                      {/each}
+                    </optgroup>
+                  {/if}
                 </select>
                 <button class="remove-btn" onclick={cancelDraft} aria-label={t('common.cancel')}
                   >×</button

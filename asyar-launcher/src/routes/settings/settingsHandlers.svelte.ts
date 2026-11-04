@@ -19,7 +19,11 @@ import { logService } from '../../services/log/logService';
 import { initVerboseLoggingSync } from '../../services/log/verboseLoggingSync.svelte';
 import { agentService } from '../../built-in-features/agents/agentService.svelte';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
-import type { PreferenceDeclaration, ManifestWebSearchEngine } from 'asyar-sdk/contracts';
+import type {
+  PreferenceDeclaration,
+  ManifestWebSearchEngine,
+  ManifestAiProvider,
+} from 'asyar-sdk/contracts';
 import type { ResolvedIcon } from '../../bindings';
 import type { HostCommand } from '../../types/ExtendedManifest';
 import type { SettingsTabId } from './settingsNav';
@@ -43,6 +47,7 @@ export interface ExtensionItem {
   permissions?: string[];
   permissionArgs?: Record<string, unknown>;
   webSearchEngines?: ManifestWebSearchEngine[];
+  aiProviders?: ManifestAiProvider[];
 }
 
 // Initialize with default settings first

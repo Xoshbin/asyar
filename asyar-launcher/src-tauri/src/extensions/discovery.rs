@@ -56,6 +56,12 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                 m.id
             )));
         }
+        if m.ai_providers.is_some() {
+            return Err(AppError::Validation(format!(
+                "Theme extension '{}' must not declare `aiProviders`.",
+                m.id
+            )));
+        }
         return Ok(());
     }
 
@@ -244,6 +250,100 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                         "Extension '{}' web search engine '{}' API key help URL must start with http:// or https://.",
                         m.id, engine.id
                     )));
+                }
+            }
+        }
+    }
+
+    if let Some(providers) = &m.ai_providers {
+        if providers.is_empty() {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' has empty `aiProviders` field; omit it if no providers are declared.",
+                m.id
+            )));
+        }
+        let main_ok = m
+            .background
+            .as_ref()
+            .map(|b| !b.main.trim().is_empty())
+            .unwrap_or(false);
+        if !main_ok {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `aiProviders` but has no non-empty `background.main` (inference providers run in the headless worker).",
+                m.id
+            )));
+        }
+        let perms = m.permissions.as_deref().unwrap_or(&[]);
+        if !perms.iter().any(|p| p == "network") {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `aiProviders` but lacks the required 'network' permission.",
+                m.id
+            )));
+        }
+        if !perms.iter().any(|p| p == "ai:provider") {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `aiProviders` but lacks the required 'ai:provider' permission.",
+                m.id
+            )));
+        }
+        let id_re = regex::Regex::new(r"^[a-z0-9_-]{1,64}$").unwrap();
+        let mut seen_ids = HashSet::new();
+        for provider in providers {
+            if !id_re.is_match(&provider.id) {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' AI provider id '{}' must match /^[a-z0-9_-]{{1,64}}$/.",
+                    m.id, provider.id
+                )));
+            }
+            if !seen_ids.insert(&provider.id) {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' declares duplicate AI provider id '{}'.",
+                    m.id, provider.id
+                )));
+            }
+            if provider.name.trim().is_empty() {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' AI provider '{}' must have a non-empty name.",
+                    m.id, provider.id
+                )));
+            }
+            if let Some(url) = &provider.homepage {
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(AppError::Validation(format!(
+                        "Extension '{}' AI provider '{}' homepage must start with http:// or https://.",
+                        m.id, provider.id
+                    )));
+                }
+            }
+            if let Some(url) = &provider.api_key_help_url {
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(AppError::Validation(format!(
+                        "Extension '{}' AI provider '{}' API key help URL must start with http:// or https://.",
+                        m.id, provider.id
+                    )));
+                }
+            }
+            if let Some(models) = &provider.models {
+                let mut seen_model_ids = HashSet::new();
+                for model in models {
+                    if model.id.trim().is_empty() {
+                        return Err(AppError::Validation(format!(
+                            "Extension '{}' AI provider '{}' has model with empty id.",
+                            m.id, provider.id
+                        )));
+                    }
+                    if !seen_model_ids.insert(&model.id) {
+                        return Err(AppError::Validation(format!(
+                            "Extension '{}' AI provider '{}' declares duplicate model id '{}'.",
+                            m.id, provider.id, model.id
+                        )));
+                    }
+                    if model.name.trim().is_empty() {
+                        return Err(AppError::Validation(format!(
+                            "Extension '{}' AI provider '{}' model '{}' must have a non-empty name.",
+                            m.id, provider.id, model.id
+                        )));
+                    }
                 }
             }
         }
@@ -728,6 +828,7 @@ mod background_entry_resolution_tests {
             walkthrough: None,
             tools: None,
             web_search_engines: None,
+            ai_providers: None,
         }
     }
 
@@ -900,6 +1001,7 @@ mod first_view_component_tests {
             runtimes: None,
             walkthrough: None,
             web_search_engines: None,
+            ai_providers: None,
         }
     }
 
@@ -1059,6 +1161,7 @@ mod onboarding_validation_tests {
             runtimes: None,
             walkthrough: None,
             web_search_engines: None,
+            ai_providers: None,
         }
     }
 
@@ -1218,6 +1321,7 @@ mod compatibility_tests {
             runtimes: None,
             walkthrough: None,
             web_search_engines: None,
+            ai_providers: None,
         }
     }
 
@@ -2565,6 +2669,131 @@ mod manifest_schema_tests {
     }
 
     #[test]
+    fn validate_manifest_accepts_valid_ai_providers() {
+        let json = r#"{
+            "id": "org.test.ai-provider",
+            "name": "Groq Provider",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:provider"],
+            "aiProviders": [
+                {
+                    "id": "groq",
+                    "name": "Groq",
+                    "homepage": "https://groq.com",
+                    "requiresApiKey": true,
+                    "models": [
+                        { "id": "llama-3.3-70b", "name": "Llama 3.3 70B", "contextWindow": 128000 }
+                    ]
+                }
+            ]
+        }"#;
+        let manifest = parse(json).expect("valid aiProviders must pass validation");
+        let providers = manifest
+            .ai_providers
+            .expect("ai_providers should be present");
+        assert_eq!(providers.len(), 1);
+        assert_eq!(providers[0].id, "groq");
+        assert_eq!(providers[0].models.as_ref().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn validate_manifest_rejects_ai_providers_in_theme() {
+        let json = r#"{
+            "id": "org.test.theme",
+            "name": "My Theme",
+            "version": "1.0.0",
+            "type": "theme",
+            "aiProviders": [
+                { "id": "groq", "name": "Groq" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("theme with aiProviders must fail validation");
+        assert!(format!("{err}").contains("aiProviders"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_manifest_rejects_ai_providers_missing_background() {
+        let json = r#"{
+            "id": "org.test.ai-provider",
+            "name": "AI Provider",
+            "version": "1.0.0",
+            "type": "extension",
+            "permissions": ["network", "ai:provider"],
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "component": "View" }
+            ],
+            "aiProviders": [
+                { "id": "groq", "name": "Groq" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("aiProviders without background must fail");
+        assert!(format!("{err}").contains("background.main"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_manifest_rejects_ai_providers_missing_permissions() {
+        let json = r#"{
+            "id": "org.test.ai-provider",
+            "name": "AI Provider",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network"],
+            "aiProviders": [
+                { "id": "groq", "name": "Groq" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("aiProviders without ai:provider must fail");
+        assert!(
+            format!("{err}").contains("'ai:provider' permission"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_duplicate_ai_provider_id() {
+        let json = r#"{
+            "id": "org.test.ai-provider",
+            "name": "AI Provider",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:provider"],
+            "aiProviders": [
+                { "id": "groq", "name": "Groq 1" },
+                { "id": "groq", "name": "Groq 2" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("duplicate provider id must fail");
+        assert!(
+            format!("{err}").contains("duplicate AI provider id"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_invalid_ai_provider_id() {
+        let json = r#"{
+            "id": "org.test.ai-provider",
+            "name": "AI Provider",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "ai:provider"],
+            "aiProviders": [
+                { "id": "Invalid ID!", "name": "Groq" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("invalid provider id must fail");
+        assert!(
+            format!("{err}").contains("must match /^[a-z0-9_-]{1,64}$/"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
     fn unsupported_command_mode_is_rejected() {
         let json = r#"{
             "id": "org.test.bad-mode",
@@ -2694,6 +2923,7 @@ mod manifest_schema_tests {
             runtimes: None,
             walkthrough: None,
             web_search_engines: None,
+            ai_providers: None,
         };
 
         let err = validate_manifest(&manifest)
