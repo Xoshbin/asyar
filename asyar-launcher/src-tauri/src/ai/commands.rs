@@ -182,18 +182,27 @@ pub async fn ai_delete_credential(
 pub(crate) fn web_search_states(
     cred_map: &std::collections::HashMap<String, CredentialState>,
 ) -> std::collections::HashMap<String, CredentialState> {
-    crate::storage::ai_credentials::KEYED_WEB_SEARCH_ENGINES
-        .iter()
-        .map(|engine| {
-            let state = cred_map
-                .get(&crate::storage::ai_credentials::web_search_credential_id(
-                    engine,
-                ))
-                .copied()
-                .unwrap_or(CredentialState::NotConfigured);
-            (engine.to_string(), state)
-        })
-        .collect()
+    let mut states: std::collections::HashMap<String, CredentialState> =
+        crate::storage::ai_credentials::KEYED_WEB_SEARCH_ENGINES
+            .iter()
+            .map(|engine| {
+                let state = cred_map
+                    .get(&crate::storage::ai_credentials::web_search_credential_id(
+                        engine,
+                    ))
+                    .copied()
+                    .unwrap_or(CredentialState::NotConfigured);
+                (engine.to_string(), state)
+            })
+            .collect();
+
+    for (cred_id, state) in cred_map {
+        if let Some(engine) = cred_id.strip_prefix("web_search:") {
+            states.entry(engine.to_string()).or_insert(*state);
+        }
+    }
+
+    states
 }
 
 #[tauri::command]

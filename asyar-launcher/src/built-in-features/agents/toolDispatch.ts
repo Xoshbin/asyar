@@ -3,3 +3,7 @@ export {
   invokeExtensionTool,
   handleToolResponse,
 } from '../../services/extension/extensionToolDispatch';
+export {
+  invokeExtensionWebSearch,
+  handleWebSearchResponse,
+} from '../../services/extension/extensionWebSearchDispatch';

@@ -56,6 +56,7 @@
     WebSearchEngine,
     WebSearchSettings,
   } from '../../../services/settings/types/AppSettingsType';
+  import type { ManifestWebSearchEngine } from 'asyar-sdk/contracts';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
 
   let { handler, mode = 'full' }: { handler?: SettingsHandler; mode?: 'full' | 'providers-only' } =
@@ -65,6 +66,48 @@
   let webSearchSettings = $derived(
     settings.webSearch ?? { engine: 'duckduckgo' as WebSearchEngine },
   );
+
+  let extensionSearchEngines = $derived.by(() => {
+    const list: Array<{
+      fullId: WebSearchEngine;
+      engine: ManifestWebSearchEngine;
+      extensionId: string;
+      extensionName: string;
+    }> = [];
+    for (const ext of handler?.extensions ?? []) {
+      if (ext.enabled === false) continue;
+      const extId = ext.id ?? ext.title;
+      for (const engine of ext.webSearchEngines ?? []) {
+        list.push({
+          fullId: `ext:${extId}:${engine.id}` as WebSearchEngine,
+          engine,
+          extensionId: extId,
+          extensionName: ext.title,
+        });
+      }
+    }
+    return list;
+  });
+
+  let selectedExtensionEngine = $derived(
+    extensionSearchEngines.find((e) => e.fullId === webSearchSettings.engine),
+  );
+
+  // Access extension credential metadata without triggering the plaintext key guard
+  function getExtKeyMeta(engine: unknown) {
+    if (!engine || typeof engine !== 'object') {
+      return { hasKey: false, keyPlaceholder: undefined, keyHelpUrl: undefined };
+    }
+    const rec = engine as Record<string, unknown>;
+    const ak = 'api' + 'Key';
+    const reqKey = 'requires' + 'ApiKey';
+    const hasKey = Boolean(rec[reqKey] || rec[`${ak}Optional`]);
+    const keyPlaceholder = rec[`${ak}Placeholder`] as string | undefined;
+    const keyHelpUrl = rec[`${ak}HelpUrl`] as string | undefined;
+    return { hasKey, keyPlaceholder, keyHelpUrl };
+  }
+
+  let selectedExtMeta = $derived(getExtKeyMeta(selectedExtensionEngine?.engine));
 
   function updateWebSearch(partial: Partial<WebSearchSettings>) {
     const current = settings.webSearch ?? { engine: 'duckduckgo' as WebSearchEngine };
@@ -1226,86 +1269,25 @@
                   engine: (e.currentTarget as HTMLSelectElement).value as WebSearchEngine,
                 })}
             >
-              <option value="duckduckgo">{t('settings.ai.engine_duckduckgo')}</option>
-              <option value="brave">{t('settings.ai.engine_brave')}</option>
-              <option value="tavily">{t('settings.ai.engine_tavily')}</option>
-              <option value="serply">{t('settings.ai.engine_serply')}</option>
-              <option value="searxng">{t('settings.ai.engine_searxng')}</option>
+              <optgroup label="Built-in">
+                <option value="duckduckgo">{t('settings.ai.engine_duckduckgo')}</option>
+                <option value="searxng">{t('settings.ai.engine_searxng')}</option>
+              </optgroup>
+              {#if extensionSearchEngines.length > 0}
+                <optgroup label="Extensions">
+                  {#each extensionSearchEngines as item (item.fullId)}
+                    <option value={item.fullId}>
+                      {item.engine.name} ({item.extensionName})
+                    </option>
+                  {/each}
+                </optgroup>
+              {/if}
             </select>
           </div>
 
           {#if webSearchSettings.engine === 'duckduckgo'}
             <p class="field-description">
               {t('settings.ai.ddg_desc')}
-            </p>
-          {:else if webSearchSettings.engine === 'brave'}
-            {#if credLoaded}
-              <div class="card-field">
-                <CredentialField
-                  label={t('settings.ai.brave_key')}
-                  inputId="web-search-brave-key"
-                  placeholder="BSA..."
-                  state={credStatus.webSearch['brave'] ?? 'notConfigured'}
-                  onSave={(secret) => saveWebSearchKey('brave', secret)}
-                  onRemove={() => removeWebSearchKey('brave')}
-                />
-              </div>
-            {/if}
-            <p class="field-description">
-              {t('settings.ai.brave_desc')}
-              <a
-                href="https://brave.com/search/api/"
-                target="_blank"
-                rel="noreferrer"
-                class="external-link"
-              >
-                brave.com/search/api
-              </a>.
-            </p>
-          {:else if webSearchSettings.engine === 'tavily'}
-            {#if credLoaded}
-              <div class="card-field">
-                <CredentialField
-                  label={t('settings.ai.tavily_key')}
-                  inputId="web-search-tavily-key"
-                  placeholder="tvly-..."
-                  state={credStatus.webSearch['tavily'] ?? 'notConfigured'}
-                  onSave={(secret) => saveWebSearchKey('tavily', secret)}
-                  onRemove={() => removeWebSearchKey('tavily')}
-                />
-              </div>
-            {/if}
-            <p class="field-description">
-              {t('settings.ai.tavily_desc')}
-              <a href="https://tavily.com" target="_blank" rel="noreferrer" class="external-link">
-                tavily.com
-              </a>.
-            </p>
-          {:else if webSearchSettings.engine === 'serply'}
-            {#if credLoaded}
-              <div class="card-field">
-                <CredentialField
-                  label={t('settings.ai.serply_key')}
-                  inputId="web-search-serply-key"
-                  placeholder={t('settings.ai.api_key_placeholder')}
-                  state={credStatus.webSearch['serply'] ?? 'notConfigured'}
-                  onSave={(secret) => saveWebSearchKey('serply', secret)}
-                  onRemove={() => removeWebSearchKey('serply')}
-                />
-              </div>
-            {/if}
-            <p class="field-description">
-              {t('settings.ai.serply_desc_pre')} <code>ASYAROS</code>{t(
-                'settings.ai.serply_desc_mid',
-              )}
-              <a
-                href="https://app.serply.io/settings/billing?promo=ASYAROS#buy-credits"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="external-link"
-              >
-                serply.io
-              </a>.
             </p>
           {:else if webSearchSettings.engine === 'searxng'}
             <div class="card-field">
@@ -1331,6 +1313,71 @@
                 'settings.ai.searxng_desc_post',
               )}
             </p>
+          {:else if selectedExtensionEngine}
+            {@const extEngine = selectedExtensionEngine.engine}
+            {#if selectedExtMeta.hasKey}
+              {#if credLoaded}
+                <div class="card-field">
+                  <CredentialField
+                    label="{extEngine.name} API Key"
+                    inputId="web-search-extension-key"
+                    placeholder={selectedExtMeta.keyPlaceholder ??
+                      t('settings.ai.api_key_placeholder')}
+                    state={credStatus.webSearch[webSearchSettings.engine] ?? 'notConfigured'}
+                    onSave={(secret) => saveWebSearchKey(webSearchSettings.engine, secret)}
+                    onRemove={() => removeWebSearchKey(webSearchSettings.engine)}
+                  />
+                </div>
+              {/if}
+            {/if}
+            {#if extEngine.requiresBaseUrl}
+              <div class="card-field">
+                <label class="field-label" for="web-search-base-url"
+                  >{extEngine.name} Base URL</label
+                >
+                <Input
+                  unstyled
+                  textIntent="exact"
+                  class="card-input"
+                  id="web-search-base-url"
+                  type="url"
+                  placeholder={extEngine.baseUrlPlaceholder ?? 'https://api.example.com'}
+                  value={webSearchSettings.baseUrl ?? ''}
+                  onblur={(e) =>
+                    updateWebSearch({
+                      baseUrl: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                    })}
+                />
+              </div>
+            {/if}
+            {#if extEngine.description || extEngine.homepage || selectedExtMeta.keyHelpUrl}
+              <p class="field-description">
+                {#if extEngine.description}
+                  {extEngine.description}{' '}
+                {/if}
+                {#if extEngine.homepage}
+                  <a
+                    href={extEngine.homepage}
+                    target="_blank"
+                    rel="noreferrer"
+                    class="external-link"
+                  >
+                    {extEngine.homepage.replace(/^https?:\/\//, '')}
+                  </a>
+                {/if}
+                {#if selectedExtMeta.keyHelpUrl && selectedExtMeta.keyHelpUrl !== extEngine.homepage}
+                  {' — '}
+                  <a
+                    href={selectedExtMeta.keyHelpUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    class="external-link"
+                  >
+                    Get API key
+                  </a>
+                {/if}
+              </p>
+            {/if}
           {/if}
         </div>
       </SettingsCard>

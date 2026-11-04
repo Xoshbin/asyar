@@ -1,5 +1,11 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
 import type { IAiService, AiCompletionOptions, AiStreamOptions } from '../contracts/IAiService';
+import type {
+  WebSearchEngineRegistration,
+  WebSearchHandler,
+  WebSearchQuery,
+  WebSearchResult,
+} from '../contracts/webSearch';
 
 /**
  * SDK proxy for the AI prompting service.
@@ -137,5 +143,31 @@ export class AiServiceProxy extends BaseServiceProxy implements IAiService {
           settle(err);
         });
     });
+  }
+
+  private webSearchEngines = new Map<string, WebSearchHandler>();
+
+  registerWebSearchEngine(engine: WebSearchEngineRegistration): () => void {
+    if (!engine || !engine.id || typeof engine.search !== 'function') {
+      throw new Error(
+        '[asyar-sdk/ai] registerWebSearchEngine requires an engine with an id and search function',
+      );
+    }
+    this.webSearchEngines.set(engine.id, engine.search);
+    return () => {
+      this.webSearchEngines.delete(engine.id);
+    };
+  }
+
+  async invokeWebSearchHandler(
+    engineId: string,
+    query: WebSearchQuery,
+    signal: AbortSignal,
+  ): Promise<WebSearchResult> {
+    const handler = this.webSearchEngines.get(engineId);
+    if (!handler) {
+      throw new Error(`[asyar-sdk/ai] No search handler registered for engine: "${engineId}"`);
+    }
+    return handler(query, signal);
   }
 }

@@ -181,6 +181,17 @@ impl WebSearchTool {
         limit: usize,
         config: Option<&WebSearchConfig>,
     ) -> Result<Value, AppError> {
+        self.execute_search_with_config_and_dispatcher(query, limit, config, None)
+            .await
+    }
+
+    pub(crate) async fn execute_search_with_config_and_dispatcher(
+        &self,
+        query: &str,
+        limit: usize,
+        config: Option<&WebSearchConfig>,
+        dispatcher: Option<&crate::agents::tools::ExternalToolDispatcher>,
+    ) -> Result<Value, AppError> {
         let limit = limit.clamp(1, MAX_LIMIT);
 
         let engine = config
@@ -192,6 +203,21 @@ impl WebSearchTool {
             .filter(|u| !u.trim().is_empty())
             .map(|s| s.to_string())
             .or_else(|| self.base_url.clone());
+
+        if let Some(rest) = engine.strip_prefix("ext:") {
+            if let Some((extension_id, engine_id)) = rest.split_once(':') {
+                return self
+                    .search_extension(
+                        extension_id,
+                        engine_id,
+                        query,
+                        limit,
+                        base_url.as_deref(),
+                        dispatcher,
+                    )
+                    .await;
+            }
+        }
 
         match engine {
             "brave" => {
@@ -237,6 +263,161 @@ impl WebSearchTool {
                     .await
             }
         }
+    }
+
+    async fn search_extension(
+        &self,
+        extension_id: &str,
+        engine_id: &str,
+        query: &str,
+        limit: usize,
+        base_url: Option<&str>,
+        dispatcher: Option<&crate::agents::tools::ExternalToolDispatcher>,
+    ) -> Result<Value, AppError> {
+        let Some(dispatcher) = dispatcher else {
+            log::warn!(
+                "Extension web search engine 'ext:{extension_id}:{engine_id}' requested but no external dispatcher available; falling back to DuckDuckGo"
+            );
+            return self
+                .search_duckduckgo_resilient(query, limit, base_url)
+                .await;
+        };
+
+        // Try to resolve API key from store if configured
+        let api_key = match &self.credentials {
+            WebSearchCredentialSource::Store {
+                data_store,
+                master_key,
+            } => {
+                let conn = data_store.conn();
+                if let Ok(conn) = conn {
+                    let cred_id = format!("web_search:ext:{extension_id}:{engine_id}");
+                    crate::storage::ai_credentials::get(&conn, &cred_id, master_key)
+                        .ok()
+                        .flatten()
+                } else {
+                    None
+                }
+            }
+            WebSearchCredentialSource::None => None,
+        };
+
+        let request = crate::agents::runner::ExternalToolRequest {
+            tool_call_id: format!("ws-{}", uuid::Uuid::new_v4()),
+            tool_id: format!("websearch:{extension_id}:{engine_id}"),
+            arguments: json!({
+                "query": query,
+                "limit": limit,
+                "apiKey": api_key.as_deref(),
+                "baseUrl": base_url,
+            }),
+        };
+
+        let dispatch_future = dispatcher(request);
+        match tokio::time::timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), dispatch_future).await
+        {
+            Ok(Ok(response_value)) => match Self::normalize_extension_response(response_value) {
+                Ok(normalized) => Ok(normalized),
+                Err(e) => {
+                    log::warn!(
+                            "Extension web search engine 'ext:{extension_id}:{engine_id}' returned invalid response ({e}); falling back to DuckDuckGo"
+                        );
+                    self.search_duckduckgo_resilient(query, limit, base_url)
+                        .await
+                }
+            },
+            Ok(Err(e)) => {
+                log::warn!(
+                    "Extension web search engine 'ext:{extension_id}:{engine_id}' failed ({e}); falling back to DuckDuckGo"
+                );
+                self.search_duckduckgo_resilient(query, limit, base_url)
+                    .await
+            }
+            Err(_) => {
+                log::warn!(
+                    "Extension web search engine 'ext:{extension_id}:{engine_id}' timed out after {REQUEST_TIMEOUT_SECS}s; falling back to DuckDuckGo"
+                );
+                self.search_duckduckgo_resilient(query, limit, base_url)
+                    .await
+            }
+        }
+    }
+
+    fn normalize_extension_response(val: Value) -> Result<Value, AppError> {
+        let obj = val.as_object().ok_or_else(|| {
+            AppError::Validation("extension web search result must be an object".into())
+        })?;
+
+        let results_raw = obj
+            .get("results")
+            .and_then(|r| r.as_array())
+            .ok_or_else(|| {
+                AppError::Validation("extension web search result missing 'results' array".into())
+            })?;
+
+        let mut results = Vec::new();
+        for r in results_raw {
+            let r_obj = r.as_object().ok_or_else(|| {
+                AppError::Validation("search result entry must be an object".into())
+            })?;
+            let title = r_obj
+                .get("title")
+                .and_then(|t| t.as_str())
+                .unwrap_or("")
+                .to_string();
+            let url = r_obj
+                .get("url")
+                .and_then(|u| u.as_str())
+                .unwrap_or("")
+                .to_string();
+            let snippet = r_obj
+                .get("snippet")
+                .and_then(|s| s.as_str())
+                .unwrap_or("")
+                .to_string();
+            results.push(json!({
+                "title": title,
+                "url": url,
+                "snippet": snippet,
+            }));
+        }
+
+        let sources = if let Some(sources_raw) = obj.get("sources").and_then(|s| s.as_array()) {
+            let mut s_list = Vec::new();
+            for s in sources_raw {
+                if let Some(s_obj) = s.as_object() {
+                    let title = s_obj
+                        .get("title")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let url = s_obj
+                        .get("url")
+                        .and_then(|u| u.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    s_list.push(json!({ "title": title, "url": url }));
+                }
+            }
+            if s_list.is_empty() {
+                results
+                    .iter()
+                    .map(|r| json!({ "title": r["title"], "url": r["url"] }))
+                    .collect()
+            } else {
+                s_list
+            }
+        } else {
+            results
+                .iter()
+                .map(|r| json!({ "title": r["title"], "url": r["url"] }))
+                .collect()
+        };
+
+        Ok(json!({
+            "sources": sources,
+            "results": results,
+        }))
     }
 
     async fn search_duckduckgo_resilient(
@@ -827,7 +1008,12 @@ impl BuiltinTool for WebSearchTool {
         context: &crate::agents::tools::ToolContext,
     ) -> Result<Value, AppError> {
         let (query, limit) = parse_web_search_args(args)?;
-        self.execute_search_with_config(&query, limit, context.web_search.as_ref())
-            .await
+        self.execute_search_with_config_and_dispatcher(
+            &query,
+            limit,
+            context.web_search.as_ref(),
+            context.external_dispatcher.as_ref(),
+        )
+        .await
     }
 }

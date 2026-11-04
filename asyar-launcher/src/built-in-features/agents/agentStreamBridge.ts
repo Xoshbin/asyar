@@ -6,7 +6,7 @@ import {
   agentsReportMcpPermission,
   agentsReportToolResult,
 } from '../../lib/ipc/commands';
-import { invokeExtensionTool } from './toolDispatch';
+import { invokeExtensionTool, invokeExtensionWebSearch } from './toolDispatch';
 import { mcpService } from '../mcp/mcpService.svelte';
 
 export interface AgentStreamListenerOptions {
@@ -32,7 +32,22 @@ async function reportToolDispatch(
   let error: string | undefined;
 
   try {
-    result = await invokeExtensionTool(event.extension_id, event.tool_id, event.arguments, signal);
+    if (event.tool_id.startsWith('websearch:')) {
+      const engineId = event.tool_id.slice('websearch:'.length);
+      result = await invokeExtensionWebSearch(
+        event.extension_id,
+        engineId,
+        event.arguments,
+        signal,
+      );
+    } else {
+      result = await invokeExtensionTool(
+        event.extension_id,
+        event.tool_id,
+        event.arguments,
+        signal,
+      );
+    }
   } catch (cause) {
     error = extractErrorMessage(cause);
   }

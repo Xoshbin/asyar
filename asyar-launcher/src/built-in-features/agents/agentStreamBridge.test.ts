@@ -15,7 +15,10 @@ vi.mock('../../lib/ipc/commands', () => ({
   agentsCancelRun: vi.fn(),
 }));
 
-vi.mock('./toolDispatch', () => ({ invokeExtensionTool: vi.fn() }));
+vi.mock('./toolDispatch', () => ({
+  invokeExtensionTool: vi.fn(),
+  invokeExtensionWebSearch: vi.fn(),
+}));
 
 vi.mock('../mcp/mcpService.svelte', () => ({
   mcpService: { requestPermission: vi.fn() },
@@ -27,7 +30,7 @@ import {
   agentsReportMcpPermission,
   agentsReportToolResult,
 } from '../../lib/ipc/commands';
-import { invokeExtensionTool } from './toolDispatch';
+import { invokeExtensionTool, invokeExtensionWebSearch } from './toolDispatch';
 import { mcpService } from '../mcp/mcpService.svelte';
 
 interface StreamOptions {
@@ -86,6 +89,34 @@ describe('createAgentStreamChannel', () => {
       expect.any(AbortSignal),
     );
     expect(agentsReportToolResult).toHaveBeenCalledWith('stream-1', 'call-1', { answer: 42 });
+  });
+
+  it('routes websearch: prefixed tool dispatches to invokeExtensionWebSearch', async () => {
+    vi.mocked(invokeExtensionWebSearch).mockResolvedValue({
+      sources: [{ title: 'Doc', url: 'https://doc.example' }],
+      results: [{ title: 'Doc', url: 'https://doc.example', snippet: 'Content' }],
+    });
+    const { emit } = start({ streamId: 'stream-1', agentId: 'agent-1' });
+
+    emit({
+      type: 'tool_dispatch',
+      tool_call_id: 'call-ws-1',
+      extension_id: 'org.example.keenable',
+      tool_id: 'websearch:keenable',
+      arguments: { query: 'asyar' },
+    });
+    await vi.waitFor(() => expect(agentsReportToolResult).toHaveBeenCalledOnce());
+
+    expect(invokeExtensionWebSearch).toHaveBeenCalledWith(
+      'org.example.keenable',
+      'keenable',
+      { query: 'asyar' },
+      expect.any(AbortSignal),
+    );
+    expect(agentsReportToolResult).toHaveBeenCalledWith('stream-1', 'call-ws-1', {
+      sources: [{ title: 'Doc', url: 'https://doc.example' }],
+      results: [{ title: 'Doc', url: 'https://doc.example', snippet: 'Content' }],
+    });
   });
 
   it('reports tool errors so the suspended Rust runner is unblocked', async () => {

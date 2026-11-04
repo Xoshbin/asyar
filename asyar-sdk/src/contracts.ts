@@ -127,6 +127,15 @@ export { OpenerServiceProxy } from './services';
 export { CalculatorServiceProxy } from './services';
 export { AiServiceProxy } from './services';
 export type { IAiService, AiCompletionOptions, AiStreamOptions } from './services';
+export type {
+  GroundingSource,
+  SearchResultEntry,
+  WebSearchResult,
+  WebSearchQuery,
+  WebSearchHandler,
+  WebSearchEngineRegistration,
+  ManifestWebSearchEngine,
+} from './contracts/webSearch';
 export { McpServiceProxy } from './services';
 export type { IMcpService, McpServerInfo, McpToolDescriptor } from './services';
 

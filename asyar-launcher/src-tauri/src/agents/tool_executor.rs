@@ -91,6 +91,13 @@ pub async fn execute_agent_tool<R: AgentToolRuntime>(
     agent_id: &str,
     request: &ExternalToolRequest,
 ) -> Result<serde_json::Value, AppError> {
+    if let Some(rest) = request.tool_id.strip_prefix("websearch:") {
+        if let Some((ext_id, engine_id)) = rest.split_once(':') {
+            return runtime
+                .invoke_tier2(ext_id, &format!("websearch:{engine_id}"), request)
+                .await;
+        }
+    }
     match resolve_agent_tool_target(registry, &request.tool_id)? {
         AgentToolTarget::Builtin { tool_id } => Err(AppError::Validation(format!(
             "built-in tool '{tool_id}' must execute inside the agent runner"

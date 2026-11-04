@@ -771,6 +771,7 @@ mod tests {
                 tools: None,
                 runtimes: None,
                 walkthrough: None,
+                web_search_engines: None,
             },
             enabled,
             is_built_in,
