@@ -129,6 +129,14 @@ async function reportAiProviderStream(
     customHeaders: event.custom_headers ?? undefined,
   };
 
+  let reportChain: Promise<void> = Promise.resolve();
+  const enqueue = (chunk: unknown) => {
+    reportChain = reportChain.then(() =>
+      agentsReportAiChunk(options.streamId, event.request_id, chunk as any),
+    );
+    return reportChain;
+  };
+
   try {
     await invokeExtensionAiProviderStream(
       event.extension_id,
@@ -136,20 +144,20 @@ async function reportAiProviderStream(
       request,
       (chunk: AiStreamChunk) => {
         if (!signal.aborted) {
-          void agentsReportAiChunk(options.streamId, event.request_id, chunk);
+          void enqueue(chunk).catch(() => undefined);
         }
       },
       signal,
     );
     if (!signal.aborted) {
-      await agentsReportAiChunk(options.streamId, event.request_id, { type: 'done' });
+      await enqueue({ type: 'done' });
     }
   } catch (cause) {
     if (signal.aborted) {
       return;
     }
     const error = extractErrorMessage(cause);
-    await agentsReportAiChunk(options.streamId, event.request_id, {
+    await enqueue({
       type: 'error',
       error,
     }).catch(() => undefined);

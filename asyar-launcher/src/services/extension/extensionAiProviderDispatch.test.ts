@@ -79,7 +79,7 @@ describe('extensionAiProviderDispatch', () => {
       });
 
       // Send chunk 1
-      window.dispatchEvent(
+      handleAiProviderResponse(
         new MessageEvent('message', {
           source: worker,
           data: {
@@ -91,7 +91,7 @@ describe('extensionAiProviderDispatch', () => {
       );
 
       // Send chunk 2
-      window.dispatchEvent(
+      handleAiProviderResponse(
         new MessageEvent('message', {
           source: worker,
           data: {
@@ -106,7 +106,7 @@ describe('extensionAiProviderDispatch', () => {
       expect(chunks).toEqual([{ delta: 'Hello' }, { delta: ' world!' }]);
 
       // Complete
-      window.dispatchEvent(
+      handleAiProviderResponse(
         new MessageEvent('message', {
           source: worker,
           data: {
@@ -136,7 +136,7 @@ describe('extensionAiProviderDispatch', () => {
 
       const msg = postedMessage(worker);
 
-      window.dispatchEvent(
+      handleAiProviderResponse(
         new MessageEvent('message', {
           source: worker,
           data: {
@@ -212,7 +212,7 @@ describe('extensionAiProviderDispatch', () => {
         baseUrl: 'https://api.groq.com/openai/v1',
       });
 
-      window.dispatchEvent(
+      handleAiProviderResponse(
         new MessageEvent('message', {
           source: worker,
           data: {
@@ -238,7 +238,7 @@ describe('extensionAiProviderDispatch', () => {
       const promise = invokeExtensionAiProviderListModels('org.example.groq', 'groq', {});
       const msg = postedMessage(worker);
 
-      window.dispatchEvent(
+      handleAiProviderResponse(
         new MessageEvent('message', {
           source: worker,
           data: {

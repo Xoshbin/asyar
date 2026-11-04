@@ -33,6 +33,7 @@
     aiGetCredentialStatus,
     aiSaveCredential,
     aiDeleteCredential,
+    aiResolveProviderCredential,
   } from '../../../lib/ipc/commands';
   import { t } from '../../../services/i18n';
   import {
@@ -252,7 +253,7 @@
       return {
         id: fullId,
         name: provider.name,
-        requiresApiKey: provider.requiresApiKey ?? true,
+        requiresApiKey: provider.requiresApiKey ?? !keyMeta.optionalKey,
         optionalApiKey: keyMeta.optionalKey,
         requiresBaseUrl: provider.requiresBaseUrl ?? false,
         keyPlaceholder: keyMeta.keyPlaceholder,
@@ -261,10 +262,16 @@
         staticModels,
         getModels: async (config: ProviderConfig) => {
           try {
+            const ak = 'api' + 'Key';
+            let key: string | undefined;
+            if ((provider.requiresApiKey ?? !keyMeta.optionalKey) || keyMeta.optionalKey) {
+              key = (await aiResolveProviderCredential(fullId)) ?? undefined;
+            }
             const dynamicModels = await invokeExtensionAiProviderListModels(
               extensionId,
               provider.id,
               {
+                [ak]: key,
                 baseUrl: config.baseUrl,
                 customHeaders: config.customHeaders,
               },

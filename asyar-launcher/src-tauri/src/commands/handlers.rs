@@ -515,6 +515,7 @@ macro_rules! ai_commands {
                 $crate::ai::commands::ai_save_credential,
                 $crate::ai::commands::ai_delete_credential,
                 $crate::ai::commands::ai_get_credential_status,
+                $crate::ai::commands::ai_resolve_provider_credential,
                 $crate::agents::editor::agents_editor_load,
                 $crate::agents::editor::agents_editor_list_models,
                 $crate::agents::editor::agents_editor_dropped_tools,

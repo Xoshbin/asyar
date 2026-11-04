@@ -45,7 +45,6 @@ interface PendingListModels {
 type PendingEntry = PendingStream | PendingListModels;
 
 const pendingRequests = new Map<string, PendingEntry>();
-let responseListenerInstalled = false;
 
 function removePending(messageId: string): PendingEntry | undefined {
   const pending = pendingRequests.get(messageId);
@@ -100,12 +99,6 @@ export function handleAiProviderResponse(event: MessageEvent): void {
   }
 }
 
-function ensureResponseListener(): void {
-  if (responseListenerInstalled) return;
-  responseListenerInstalled = true;
-  window.addEventListener('message', handleAiProviderResponse);
-}
-
 export async function invokeExtensionAiProviderStream(
   extensionId: string,
   providerId: string,
@@ -128,7 +121,6 @@ export async function invokeExtensionAiProviderStream(
   const expectedOrigin = worker
     ? `asyar-extension://${extensionId}`
     : getExtensionFrameOrigin(extensionId);
-  ensureResponseListener();
 
   return new Promise<void>((resolve, reject) => {
     const onAbort = signal
@@ -201,7 +193,6 @@ export async function invokeExtensionAiProviderListModels(
   const expectedOrigin = worker
     ? `asyar-extension://${extensionId}`
     : getExtensionFrameOrigin(extensionId);
-  ensureResponseListener();
 
   return new Promise<AiModelInfo[]>((resolve, reject) => {
     const onAbort = signal

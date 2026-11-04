@@ -1288,6 +1288,7 @@ export function validateAiProviders(
       if (!Array.isArray(prov.models)) {
         errors.push({ field: `${p}.models`, message: 'must be an array of models' });
       } else {
+        const seenModelIds = new Set<string>();
         prov.models.forEach((m, mi) => {
           const mp = `${p}.models[${mi}]`;
           if (!m || typeof m !== 'object') {
@@ -1297,6 +1298,10 @@ export function validateAiProviders(
           const modelObj = m as Record<string, unknown>;
           if (typeof modelObj.id !== 'string' || modelObj.id.trim().length === 0) {
             errors.push({ field: `${mp}.id`, message: 'required and must be non-empty' });
+          } else if (seenModelIds.has(modelObj.id)) {
+            errors.push({ field: `${mp}.id`, message: `duplicate model id "${modelObj.id}"` });
+          } else {
+            seenModelIds.add(modelObj.id);
           }
           if (typeof modelObj.name !== 'string' || modelObj.name.trim().length === 0) {
             errors.push({ field: `${mp}.name`, message: 'required and must be non-empty' });

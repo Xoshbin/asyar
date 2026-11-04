@@ -300,3 +300,7 @@ export async function aiDeleteCredential(target: CredentialTarget): Promise<bool
 export async function aiGetCredentialStatus(): Promise<AiCredentialStatus> {
   return invokeRaw<AiCredentialStatus>('ai_get_credential_status');
 }
+
+export async function aiResolveProviderCredential(providerId: string): Promise<string | null> {
+  return invokeRaw<string | null>('ai_resolve_provider_credential', { providerId });
+}

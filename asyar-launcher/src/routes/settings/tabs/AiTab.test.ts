@@ -61,6 +61,7 @@ vi.mock('../../../lib/ipc/commands', () => ({
   aiGetCredentialStatus: vi.fn().mockResolvedValue({ providers: {}, webSearch: {} }),
   aiSaveCredential: vi.fn().mockResolvedValue(undefined),
   aiDeleteCredential: vi.fn().mockResolvedValue(true),
+  aiResolveProviderCredential: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('../../../services/extension/extensionAiProviderDispatch', () => ({
   invokeExtensionAiProviderListModels: vi.fn(),
@@ -73,6 +74,7 @@ import {
   aiGetCredentialStatus,
   aiSaveCredential,
   aiDeleteCredential,
+  aiResolveProviderCredential,
 } from '../../../lib/ipc/commands';
 import { invokeExtensionAiProviderListModels } from '../../../services/extension/extensionAiProviderDispatch';
 import { settingsService } from '../../../services/settings/settingsService.svelte';
@@ -804,6 +806,7 @@ describe('AiTab', () => {
       providers: { 'ext:test-ext:groq': 'configured' },
       webSearch: {},
     });
+    vi.mocked(aiResolveProviderCredential).mockResolvedValue('gsk_mock_secret');
 
     settingsService.currentSettings = {
       ai: {
@@ -833,7 +836,9 @@ describe('AiTab', () => {
     expect(invokeExtensionAiProviderListModels).toHaveBeenCalledWith(
       'test-ext',
       'groq',
-      expect.any(Object),
+      expect.objectContaining({
+        apiKey: 'gsk_mock_secret',
+      }),
     );
     expect(await screen.findByText('Llama 3.3 70B Versatile')).toBeTruthy();
   });

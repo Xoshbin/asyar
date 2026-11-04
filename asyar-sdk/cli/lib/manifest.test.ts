@@ -1195,6 +1195,26 @@ describe('manifest validation — runtimes', () => {
           errors.some((e) => e.message.includes('Theme extensions must not declare aiProviders')),
         ).toBe(true);
       });
+
+      it('rejects duplicate model ids within the same provider', () => {
+        const invalid = {
+          ...validAiProviderManifest,
+          aiProviders: [
+            {
+              id: 'groq',
+              name: 'Groq',
+              models: [
+                { id: 'llama-3.3-70b', name: 'Llama 3.3 70B' },
+                { id: 'llama-3.3-70b', name: 'Duplicate Llama' },
+              ],
+            },
+          ],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.message.includes('duplicate model id "llama-3.3-70b"'))).toBe(
+          true,
+        );
+      });
     });
   });
 });
