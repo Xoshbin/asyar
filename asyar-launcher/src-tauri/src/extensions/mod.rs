@@ -16,6 +16,7 @@ pub mod update_scheduler;
 pub mod updater;
 
 use crate::error::AppError;
+use crate::icons::ManifestIcon;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
@@ -236,7 +237,7 @@ pub struct ManifestAction {
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
-    pub icon: Option<String>,
+    pub icon: Option<crate::icons::ManifestIcon>,
     #[serde(default)]
     pub shortcut: Option<String>,
     #[serde(default)]
@@ -263,7 +264,7 @@ pub struct ExtensionCommand {
     #[serde(default)]
     pub mode: Option<String>,
     #[serde(default)]
-    pub icon: Option<String>,
+    pub icon: Option<crate::icons::ManifestIcon>,
     /// Display-ready icon, filled by [`ExtensionManifest::resolve_icons`] at
     /// discovery. Never read from manifest.json.
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
@@ -451,7 +452,7 @@ pub struct ExtensionManifest {
     #[serde(default)]
     pub searchable: Option<bool>,
     #[serde(default)]
-    pub icon: Option<String>,
+    pub icon: Option<crate::icons::ManifestIcon>,
     /// Display-ready icon, filled by [`ExtensionManifest::resolve_icons`] at
     /// discovery. Never read from manifest.json.
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
@@ -516,9 +517,10 @@ impl ExtensionManifest {
     /// Fill every `resolved_icon` from its raw `icon`. Manifest icons are
     /// bundled; a command without its own icon shows the extension's.
     pub fn resolve_icons(&mut self) {
-        use crate::icons::resolve_opt;
         let id = self.id.clone();
-        let resolve = |raw: &Option<String>| resolve_opt(raw.as_deref(), Some(&id), false);
+        let resolve = |raw: &Option<crate::icons::ManifestIcon>| {
+            raw.as_ref().and_then(|icon| icon.resolve(Some(&id), false))
+        };
         self.resolved_icon = resolve(&self.icon);
         for action in self.actions.iter_mut().flatten() {
             action.resolved_icon = resolve(&action.icon);
@@ -531,21 +533,21 @@ impl ExtensionManifest {
         }
     }
 
-    /// Every raw icon string in the manifest, the same fields
-    /// [`Self::resolve_icons`] reads.
+    /// Every raw icon string in the manifest that may name a file, from the
+    /// same fields [`Self::resolve_icons`] reads.
     pub fn icon_sources(&self) -> impl Iterator<Item = &str> {
-        fn actions(a: &Option<Vec<ManifestAction>>) -> impl Iterator<Item = &str> {
-            a.iter().flatten().filter_map(|a| a.icon.as_deref())
+        fn actions(a: &Option<Vec<ManifestAction>>) -> impl Iterator<Item = &ManifestIcon> {
+            a.iter().flatten().filter_map(|a| a.icon.as_ref())
         }
         self.icon
-            .as_deref()
-            .into_iter()
+            .iter()
             .chain(actions(&self.actions))
             .chain(
-                self.commands.iter().flat_map(move |cmd| {
-                    cmd.icon.as_deref().into_iter().chain(actions(&cmd.actions))
-                }),
+                self.commands
+                    .iter()
+                    .flat_map(|cmd| cmd.icon.iter().chain(actions(&cmd.actions))),
             )
+            .flat_map(ManifestIcon::files)
     }
 
     /// Writes 128px copies of this manifest's bundled icons into `ext_dir`.
@@ -999,7 +1001,7 @@ mod tests {
         assert_eq!(m.extension_type.as_deref(), Some("extension"));
         assert_eq!(m.background.as_ref().unwrap().main, "dist/worker.js");
         assert_eq!(m.searchable, Some(true));
-        assert_eq!(m.icon, Some("🔍".into()));
+        assert_eq!(m.icon, Some("🔍".to_string().into()));
         assert_eq!(
             m.permissions,
             Some(vec!["clipboard:read".into(), "network".into()])

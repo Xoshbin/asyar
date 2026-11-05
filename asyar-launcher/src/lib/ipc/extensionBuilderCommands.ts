@@ -1,11 +1,12 @@
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
+import type { ManifestIcon } from '../../bindings';
 
 export interface CreatedExtension {
   id: string;
   name: string;
   version: string;
   description: string;
-  icon?: string | null;
+  icon?: ManifestIcon | null;
   path: string;
 }
 

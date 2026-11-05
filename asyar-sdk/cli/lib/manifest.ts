@@ -6,6 +6,24 @@ import { KNOWN_RUNTIMES } from './knownRuntimes';
 
 export type CommandMode = 'view' | 'background';
 
+/** Mirrors `ManifestIcon` in `src/types/ExtensionType.ts`. */
+export type ManifestIcon =
+  string | { source: string; dark?: string; tint?: boolean } | { glyph: string; color: string };
+
+export const ICON_TILE_COLORS = [
+  'red',
+  'orange',
+  'green',
+  'teal',
+  'blue',
+  'purple',
+  'pink',
+  'gray',
+] as const;
+
+/** First SDK whose launcher reads the object form of `icon`. */
+export const ICON_OBJECT_MIN_SDK = '4.17.0';
+
 export interface AsyarManifest {
   id: string;
   name: string;
@@ -227,7 +245,7 @@ export interface ManifestCommand {
   mode: CommandMode;
   /** Svelte component entry for mode="view" commands. Required when mode is "view". */
   component?: string;
-  icon?: string;
+  icon?: ManifestIcon;
   trigger?: string;
   searchable?: boolean;
   schedule?: {
@@ -676,6 +694,7 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
     }
   }
 
+  errors.push(...validateIcons(manifest));
   errors.push(...validatePreferences(manifest.preferences, 'preferences'));
   errors.push(...validateWebSearchEngines(manifest.webSearchEngines, 'webSearchEngines', manifest));
   errors.push(...validateWebReaders(manifest.webReaders, 'webReaders', manifest));
@@ -777,6 +796,78 @@ const WALKTHROUGH_RULE_TYPES = ['launch', 'count', 'state', 'manual'];
  * and the launcher rejects anything that slips through at discovery time —
  * the CLI check exists to fail earlier, with a friendlier message.
  */
+/** Same rules as `ManifestIcon` in the launcher's `src-tauri/src/icons.rs`. */
+function validateIconValue(icon: unknown, field: string): ValidationError[] {
+  if (icon === undefined || typeof icon === 'string') return [];
+  if (typeof icon !== 'object' || icon === null || Array.isArray(icon)) {
+    return [{ field, message: 'must be a string or an object' }];
+  }
+  const keys = Object.keys(icon);
+  const unknown = keys.filter((k) => !['source', 'dark', 'tint', 'glyph', 'color'].includes(k));
+  if (unknown.length > 0) {
+    return [{ field, message: `unknown field(s): ${unknown.join(', ')}` }];
+  }
+  const o = icon as Record<string, unknown>;
+  const imageForm = ['source', 'dark', 'tint'].some((k) => k in o);
+  const tileForm = ['glyph', 'color'].some((k) => k in o);
+  if (imageForm && tileForm) {
+    return [{ field, message: 'use either { source, dark, tint } or { glyph, color }, not both' }];
+  }
+  if (imageForm) {
+    if (typeof o.source !== 'string' || !o.source) {
+      return [{ field: `${field}.source`, message: 'required' }];
+    }
+    if ('dark' in o && typeof o.dark !== 'string') {
+      return [{ field: `${field}.dark`, message: 'must be a string' }];
+    }
+    if ('tint' in o && typeof o.tint !== 'boolean') {
+      return [{ field: `${field}.tint`, message: 'must be a boolean' }];
+    }
+    return [];
+  }
+  if (tileForm) {
+    if (typeof o.glyph !== 'string' || !o.glyph.trim()) {
+      return [{ field: `${field}.glyph`, message: 'required' }];
+    }
+    if (!ICON_TILE_COLORS.includes(o.color as (typeof ICON_TILE_COLORS)[number])) {
+      return [
+        { field: `${field}.color`, message: `must be one of: ${ICON_TILE_COLORS.join(', ')}` },
+      ];
+    }
+    return [];
+  }
+  return [{ field, message: 'needs { source } or { glyph, color }' }];
+}
+
+function validateIcons(manifest: AsyarManifest): ValidationError[] {
+  type WithIcon = { icon?: unknown; actions?: { icon?: unknown }[] };
+  const icons: [unknown, string][] = [];
+  const collect = (owner: WithIcon, base: string) => {
+    icons.push([owner.icon, `${base}icon`]);
+    (Array.isArray(owner.actions) ? owner.actions : []).forEach((a, i) =>
+      icons.push([a?.icon, `${base}actions[${i}].icon`]),
+    );
+  };
+  collect(manifest as unknown as WithIcon, '');
+  (manifest.commands ?? []).forEach((cmd, i) =>
+    collect(cmd as unknown as WithIcon, `commands[${i}].`),
+  );
+
+  const errors = icons.flatMap(([icon, field]) => validateIconValue(icon, field));
+  const usesObject = icons.find(([icon]) => typeof icon === 'object' && icon !== null);
+  const minSdk =
+    typeof manifest.asyarSdk === 'string' && semver.validRange(manifest.asyarSdk)
+      ? semver.minVersion(manifest.asyarSdk)
+      : null;
+  if (usesObject && (!minSdk || semver.lt(minSdk, ICON_OBJECT_MIN_SDK))) {
+    errors.push({
+      field: 'asyarSdk',
+      message: `${usesObject[1]} uses the object form, which needs "asyarSdk": "^${ICON_OBJECT_MIN_SDK}" or newer so older launchers skip this extension`,
+    });
+  }
+  return errors;
+}
+
 function validateWalkthrough(tasks: WalkthroughTask[]): ValidationError[] {
   const errors: ValidationError[] = [];
   const seen = new Set<string>();

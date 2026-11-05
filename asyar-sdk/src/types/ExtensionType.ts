@@ -57,6 +57,24 @@ export interface PreferenceDeclaration {
   data?: DropdownOption[];
 }
 
+/** Tile colours for the `{ glyph, color }` icon form. They follow the theme. */
+export type IconTileColor =
+  'red' | 'orange' | 'green' | 'teal' | 'blue' | 'purple' | 'pink' | 'gray';
+
+/**
+ * A manifest `icon`: the short string (`"icon:timer"`, an emoji or a bundled
+ * file like `"assets/icon.png"`), or one of two objects. Use one object form
+ * only; mixing their fields is an error. Requires launcher SDK 4.17.0.
+ *
+ * - `{ source, dark?, tint? }`: a bundled image. `dark` replaces it in the
+ *   dark theme; `tint: true` draws it in one colour that follows the theme.
+ * - `{ glyph, color }`: a built-in glyph on a coloured tile, like built-ins.
+ */
+export type ManifestIcon =
+  | string
+  | { source: string; dark?: string; tint?: boolean }
+  | { glyph: string; color: IconTileColor };
+
 /**
  * An action declared in manifest.json that surfaces in the launcher action drawer.
  * Extension-level actions appear when any of the extension's commands is selected.
@@ -70,7 +88,7 @@ export interface ManifestAction {
   /** Subtitle text shown below the title. */
   description?: string;
   /** Icon reference (e.g. "icon:link" or an emoji). */
-  icon?: string;
+  icon?: ManifestIcon;
   /** Display-only keyboard shortcut hint. */
   shortcut?: string;
   /** Grouping category in the action drawer. */
@@ -119,7 +137,7 @@ export interface ExtensionManifest {
    */
   background?: BackgroundSpec;
   searchable?: boolean;
-  icon?: string;
+  icon?: ManifestIcon;
   commands: ExtensionCommand[];
   asyarSdk?: string;
   minAppVersion?: string;
@@ -175,7 +193,7 @@ export interface ExtensionCommand {
    * `resultType` field.
    */
   mode?: 'view' | 'background';
-  icon?: string;
+  icon?: ManifestIcon;
   /**
    * Name of the Svelte component exported by the extension's `view.ts`
    * entry. Required iff `mode === "view"`; forbidden when

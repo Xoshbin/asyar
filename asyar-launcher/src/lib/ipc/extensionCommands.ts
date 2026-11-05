@@ -3,6 +3,7 @@
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 import { bumpArgumentHintVersion } from '../launcher/argumentHintVersion.svelte';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
+import type { ManifestIcon } from '../../bindings';
 import type { ResolvedIcon } from '../../bindings';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 
@@ -101,7 +102,7 @@ export interface CommandSyncInput {
   extensionName?: string;
   trigger: string;
   type: string;
-  icon?: string | null;
+  icon?: ManifestIcon | null;
 }
 
 export interface CommandSyncResult {

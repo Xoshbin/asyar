@@ -8,6 +8,7 @@ describe('iconFilePath', () => {
   it('returns the package path of an image file icon', () => {
     expect(iconFilePath('assets/icon.png')).toBe('assets/icon.png');
     expect(iconFilePath('./assets/icon.PNG')).toBe('assets/icon.PNG');
+    expect(iconFilePath({ source: 'assets/icon.png', tint: true })).toBe('assets/icon.png');
   });
 
   it('returns null for icons that are not files', () => {
@@ -47,6 +48,16 @@ describe('checkStoreIcon', () => {
     expect(errors).toEqual([]);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('PNG');
+  });
+
+  it('fails when the dark icon file is not in the package', () => {
+    fs.writeFileSync(path.join(packageRoot, 'assets', 'icon.png'), '');
+    const icon = { source: 'assets/icon.png', dark: 'assets/icon-dark.png' };
+    expect(checkStoreIcon(icon, packageRoot).errors).toEqual([
+      'The icon file "assets/icon-dark.png" is not in the package.',
+    ]);
+    fs.writeFileSync(path.join(packageRoot, 'assets', 'icon-dark.png'), '');
+    expect(checkStoreIcon(icon, packageRoot)).toEqual({ errors: [], warnings: [] });
   });
 
   it('has nothing to check for emoji and built-in icons', () => {

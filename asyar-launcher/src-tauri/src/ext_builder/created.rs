@@ -12,7 +12,7 @@ pub struct CreatedExtensionSummary {
     pub name: String,
     pub version: String,
     pub description: String,
-    pub icon: Option<String>,
+    pub icon: Option<crate::icons::ManifestIcon>,
     pub path: String,
 }
 
@@ -136,7 +136,7 @@ mod tests {
         assert_eq!(names, vec!["Alpha", "Bravo"]);
         assert_eq!(got[0].id, "com.a.alpha");
         assert_eq!(got[0].icon, None);
-        assert_eq!(got[1].icon, Some("⚡".to_string()));
+        assert_eq!(got[1].icon, Some("⚡".to_string().into()));
         assert_eq!(
             got[1].path,
             tmp.join("bravo").to_string_lossy().into_owned()
