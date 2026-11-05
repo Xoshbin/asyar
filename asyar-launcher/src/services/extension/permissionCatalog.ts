@@ -98,6 +98,10 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     description:
       'Read the text contents, list the file names, and render thumbnails of files matching the declared path patterns. Credential stores and OS locations are always excluded.',
   },
+  'files:search-provider': {
+    title: 'Contribute remote file search',
+    description: 'Provide search results for remote and cloud files.',
+  },
   'notes:read': {
     title: 'Search and read your notes',
     description: 'Search your Notes and read the full content of any note.',

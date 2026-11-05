@@ -11,6 +11,7 @@ export type MappedSearchItem = {
   /** Internal type used for action filtering (e.g. "command" vs "application") */
   type?: string;
   path?: string;
+  url?: string;
   /** Internal label: drives Scripts/Agents grouping. Not shown as-is. */
   typeLabel?: string;
   /** What the row is, shown on its right edge ("Command", "Application"). */

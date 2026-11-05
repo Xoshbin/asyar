@@ -143,4 +143,66 @@ describe('FilesServiceProxy', () => {
     const result = await proxy.thumbnail('C:/Steam/notes.txt');
     expect(result).toBeNull();
   });
+
+  describe('file search provider registration', () => {
+    it('registers a valid file search provider and invokes handler', async () => {
+      const searchFn = vi
+        .fn()
+        .mockResolvedValue([{ id: '1', title: 'Doc 1', url: 'https://docs.google.com/1' }]);
+      const unregister = proxy.registerFileSearchProvider({
+        id: 'gdrive',
+        search: searchFn,
+      });
+
+      const controller = new AbortController();
+      const results = await proxy.invokeFileSearchHandler(
+        'gdrive',
+        { query: 'test', limit: 5 },
+        controller.signal,
+      );
+
+      expect(searchFn).toHaveBeenCalledWith({ query: 'test', limit: 5 }, controller.signal);
+      expect(results).toEqual([{ id: '1', title: 'Doc 1', url: 'https://docs.google.com/1' }]);
+
+      unregister();
+      await expect(
+        proxy.invokeFileSearchHandler('gdrive', { query: 'test', limit: 5 }, controller.signal),
+      ).rejects.toThrow(/No search handler registered/);
+    });
+
+    it('rejects invalid provider registration arguments', () => {
+      expect(() => proxy.registerFileSearchProvider(null as any)).toThrow();
+      expect(() => proxy.registerFileSearchProvider({ id: '', search: vi.fn() } as any)).toThrow();
+      expect(() =>
+        proxy.registerFileSearchProvider({ id: 'bad id with spaces', search: vi.fn() } as any),
+      ).toThrow();
+      expect(() =>
+        proxy.registerFileSearchProvider({ id: 'gdrive', search: null as any }),
+      ).toThrow();
+    });
+
+    it('re-registering does not delete active replacement when unregister is called on stale token', async () => {
+      const handler1 = vi.fn().mockResolvedValue([{ id: '1', title: 'Old' }]);
+      const handler2 = vi.fn().mockResolvedValue([{ id: '2', title: 'New' }]);
+
+      const unregister1 = proxy.registerFileSearchProvider({ id: 'gdrive', search: handler1 });
+      const unregister2 = proxy.registerFileSearchProvider({ id: 'gdrive', search: handler2 });
+
+      // Unregistering the old token should NOT remove handler2
+      unregister1();
+
+      const controller = new AbortController();
+      const results = await proxy.invokeFileSearchHandler(
+        'gdrive',
+        { query: 'q', limit: 5 },
+        controller.signal,
+      );
+      expect(results).toEqual([{ id: '2', title: 'New' }]);
+
+      unregister2();
+      await expect(
+        proxy.invokeFileSearchHandler('gdrive', { query: 'q', limit: 5 }, controller.signal),
+      ).rejects.toThrow(/No search handler registered/);
+    });
+  });
 });

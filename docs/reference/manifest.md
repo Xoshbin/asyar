@@ -174,6 +174,27 @@ The root-level `webReaders` field declares web content scraping and Markdown ext
 
 See [AiService](./sdk/ai-service.md#web-reader-spi) for the runtime registration API and the [Contribute a Web Reader](../how-to/contribute-web-reader.md) guide.
 
+### The `fileSearchProviders` array — per-provider fields (ManifestFileSearchProvider)
+
+The root-level `fileSearchProviders` field declares remote and cloud drive file search providers contributed by your extension. Each entry is a `ManifestFileSearchProvider`:
+
+| Field            | Type      | Required | Constraints                                   | Description                                                                                |
+| ---------------- | --------- | -------- | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `id`             | `string`  | ✅       | Unique within extension, `^[a-z0-9_-]{1,64}$` | Short programmatic identifier. Fully qualified in the host as `<extensionId>:<id>`.        |
+| `name`           | `string`  | ✅       | Non-empty                                     | Display label shown in **Settings → Built-in Features → File Search** and result badges.   |
+| `description`    | `string`  | ❌       | —                                             | Short summary displayed in Settings under the provider toggle.                             |
+| `icon`           | `string`  | ❌       | —                                             | Icon name (e.g. `icon:google-drive`, `icon:folder`) or bundle asset.                       |
+| `requiresAuth`   | `boolean` | ❌       | Defaults to `false`                           | If `true`, indicates the provider searches authenticated cloud documents.                  |
+| `defaultEnabled` | `boolean` | ❌       | Defaults to `true`                            | Whether the provider is enabled upon installation. Can be toggled in File Search Settings. |
+
+**Requirements:**
+
+- The extension must declare `"permissions": ["network", "files:search-provider"]`.
+- The extension must declare a headless worker bundle via `background.main`.
+- Theme extensions (`type === "theme"`) cannot declare `fileSearchProviders`.
+
+See the [Contribute a File Search Provider](../how-to/contribute-file-search-provider.md) guide.
+
 ### `walkthrough` — teaching your features
 
 The **Walkthrough** command in the launcher is a task list that teaches Asyar
@@ -249,6 +270,7 @@ The Rust discovery parser enforces:
 - `webSearchEngines` requires `background.main` and both `network` and `ai:web-search` permissions. It is forbidden on `type === "theme"`. Each engine id must match `^[a-z0-9_-]{1,64}$`, names must be non-empty, and `homepage` / `apiKeyHelpUrl` must start with `http://` or `https://`.
 - `aiProviders` requires `background.main` and both `network` and `ai:provider` permissions. It is forbidden on `type === "theme"`. Each provider id must match `^[a-z0-9_-]{1,64}$`, names must be non-empty, `homepage` / `apiKeyHelpUrl` must start with `http://` or `https://`, and model declarations must have non-empty unique `id`s and non-empty `name`s.
 - `webReaders` requires `background.main` and both `network` and `ai:web-reader` permissions. It is forbidden on `type === "theme"`. Each reader id must match `^[a-z0-9_-]{1,64}$`, names must be non-empty, and `homepage` / `apiKeyHelpUrl` must start with `http://` or `https://`.
+- `fileSearchProviders` requires `background.main` and both `network` and `files:search-provider` permissions. It is forbidden on `type === "theme"`. Each provider id must match `^[a-z0-9_-]{1,64}$` and names must be non-empty.
 - Unknown fields are rejected via `#[serde(deny_unknown_fields)]`. Old manifests with `defaultView` / `resultType` / etc. fail discovery.
 
 ### Parameterized permissions — `permissionArgs`

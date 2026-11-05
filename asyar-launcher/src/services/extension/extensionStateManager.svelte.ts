@@ -173,6 +173,7 @@ export class ExtensionStateManager {
           webSearchEngines: manifest.webSearchEngines ?? [],
           aiProviders: manifest.aiProviders ?? [],
           webReaders: manifest.webReaders ?? [],
+          fileSearchProviders: manifest.fileSearchProviders ?? [],
         });
       }
       // Ordering (built-in first, then alphabetical) is computed by Rust's

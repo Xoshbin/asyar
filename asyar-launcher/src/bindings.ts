@@ -447,6 +447,16 @@ export type ManifestAiProvider = {
 	models?: ManifestAiModel[] | null,
 };
 
+// Contributed remote / cloud file search provider declared by an extension.
+export type ManifestFileSearchProvider = {
+	id: string,
+	name: string,
+	description?: string | null,
+	icon?: string | null,
+	requiresAuth?: boolean | null,
+	defaultEnabled?: boolean | null,
+};
+
 // Contributed web content scraper / markdown reader declared by an extension.
 export type ManifestWebReader = {
 	id: string,

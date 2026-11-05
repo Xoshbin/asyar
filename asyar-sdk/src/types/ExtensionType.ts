@@ -4,6 +4,7 @@ import type { WalkthroughTaskDecl } from '../contracts/walkthrough';
 import type { ManifestWebSearchEngine } from '../contracts/webSearch';
 import type { ManifestWebReader } from '../contracts/webReader';
 import type { ManifestAiProvider } from '../contracts/aiProvider';
+import type { ManifestFileSearchProvider } from '../contracts/fileSearch';
 
 /**
  * The set of preference types an extension can declare in its manifest.
@@ -153,6 +154,8 @@ export interface ExtensionManifest {
   webReaders?: ManifestWebReader[];
   /** AI model & inference providers contributed by this extension. */
   aiProviders?: ManifestAiProvider[];
+  /** Remote / cloud file search providers contributed by this extension. */
+  fileSearchProviders?: ManifestFileSearchProvider[];
   /**
    * Walkthrough tasks this extension teaches. The launcher decides when each
    * is complete by watching real usage — declaring a task requires no

@@ -1347,5 +1347,119 @@ describe('manifest validation — runtimes', () => {
         ).toBe(true);
       });
     });
+
+    describe('manifest `fileSearchProviders`', () => {
+      const validFileSearchManifest: AsyarManifest = {
+        id: 'org.example.gdrive',
+        name: 'Google Drive Search',
+        version: '1.0.0',
+        description: 'Search Google Drive files',
+        author: 'Drive Team',
+        background: { main: 'dist/worker.js' },
+        permissions: ['network', 'files:search-provider'],
+        commands: [
+          {
+            id: 'search',
+            name: 'Search Files',
+            description: 'Search Google Drive',
+            mode: 'background',
+          },
+        ],
+        fileSearchProviders: [
+          {
+            id: 'gdrive',
+            name: 'Google Drive',
+            description: 'Search your Google Docs and files',
+            icon: 'icon:google-drive',
+            requiresAuth: true,
+            defaultEnabled: true,
+          },
+        ],
+      };
+
+      it('accepts a valid fileSearchProviders declaration', () => {
+        const errors = validateManifest(validFileSearchManifest, './');
+        expect(errors).toEqual([]);
+      });
+
+      it('rejects fileSearchProviders when background.main is missing', () => {
+        const invalid = {
+          ...validFileSearchManifest,
+          background: undefined,
+          commands: [{ id: 'search', name: 'Search', mode: 'view' as const, component: 'Search' }],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field === 'background.main')).toBe(true);
+      });
+
+      it('rejects fileSearchProviders when network permission is missing', () => {
+        const invalid = {
+          ...validFileSearchManifest,
+          permissions: ['files:search-provider'],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field === 'permissions' && e.message.includes('network'))).toBe(
+          true,
+        );
+      });
+
+      it('rejects fileSearchProviders when files:search-provider permission is missing', () => {
+        const invalid = {
+          ...validFileSearchManifest,
+          permissions: ['network'],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some(
+            (e) => e.field === 'permissions' && e.message.includes('files:search-provider'),
+          ),
+        ).toBe(true);
+      });
+
+      it('rejects duplicate file search provider ids', () => {
+        const invalid = {
+          ...validFileSearchManifest,
+          fileSearchProviders: [
+            { id: 'gdrive', name: 'Drive 1' },
+            { id: 'gdrive', name: 'Drive 2' },
+          ],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.message.includes('duplicate file search provider id'))).toBe(
+          true,
+        );
+      });
+
+      it('rejects invalid provider id characters', () => {
+        const invalid = {
+          ...validFileSearchManifest,
+          fileSearchProviders: [{ id: 'Invalid ID Spaces', name: 'Drive' }],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field.endsWith('.id'))).toBe(true);
+      });
+
+      it('rejects empty provider name', () => {
+        const invalid = {
+          ...validFileSearchManifest,
+          fileSearchProviders: [{ id: 'gdrive', name: '  ' }],
+        };
+        const errors = validateManifest(invalid, './');
+        expect(errors.some((e) => e.field.endsWith('.name'))).toBe(true);
+      });
+
+      it('rejects fileSearchProviders in theme extensions', () => {
+        const invalid = {
+          ...validFileSearchManifest,
+          type: 'theme' as const,
+        };
+        const errors = validateManifest(invalid, './');
+        expect(
+          errors.some((e) =>
+            e.message.includes('Theme extensions must not declare fileSearchProviders'),
+          ),
+        ).toBe(true);
+      });
+    });
   });
 });

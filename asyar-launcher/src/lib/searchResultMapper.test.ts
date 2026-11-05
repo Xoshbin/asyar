@@ -233,6 +233,14 @@ describe('kindLabel / sourceLabel resolution', () => {
     expect(kindLabel).toBe('Command');
     expect(sourceLabel).toBeUndefined();
   });
+
+  it('preserves kindLabel for file type results (e.g. cloud provider name)', () => {
+    const { kindLabel } = resolveItemMeta(
+      makeResult({ type: 'file', kindLabel: 'Google Drive' }),
+      noManifest,
+    );
+    expect(kindLabel).toBe('Google Drive');
+  });
 });
 
 // ── ObjectId resolution ───────────────────────────────────────────────────────

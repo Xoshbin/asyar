@@ -18,6 +18,9 @@ import { commandService } from '../extension/commandService.svelte';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
 import { contextModeService } from '../context/contextModeService.svelte';
 import { actionService, setSelectedItemProvider } from '../action/actionService.svelte';
+import { invokeExtensionFileSearch } from '../extension/extensionFileSearchDispatch';
+import { settingsService } from '../settings/settingsService.svelte';
+import type { ManifestFileSearchProvider } from 'asyar-sdk/contracts';
 
 export { invalidateTopItemsCache };
 export const MIN_FILE_QUERY_CHARS = 3;
@@ -56,6 +59,7 @@ class SearchOrchestratorClass {
   lastCompletedQuery = $state<string | null>(null);
   // Monotonic token so a slow in-flight search can't overwrite newer results.
   #searchToken = 0;
+  #remoteFileSearchController: AbortController | null = null;
   // Guard against double-firing the alias auto-execute when handleSearch is
   // called twice with the same `<alias> ` query. Cleared whenever the query
   // changes (including the empty string fired by searchStores.clearInput()).
@@ -73,6 +77,8 @@ class SearchOrchestratorClass {
 
   async handleSearch(query: string): Promise<void> {
     if (!isAppInitialized() || viewManager.activeView) return;
+    this.#remoteFileSearchController?.abort();
+    this.#remoteFileSearchController = null;
     const token = ++this.#searchToken;
     const resultActions = new Map<
       string,
@@ -249,6 +255,13 @@ class SearchOrchestratorClass {
       if (token !== this.#searchToken) return;
       this.items = insertScopeHint(combinedResults, resp.scopeHint);
       this.lastCompletedQuery = query;
+
+      // Stream remote file search providers asynchronously without blocking frame 1
+      if (Array.from(query.trim()).length >= MIN_FILE_QUERY_CHARS) {
+        const remoteController = new AbortController();
+        this.#remoteFileSearchController = remoteController;
+        void this.#streamRemoteFileResults(query, token, remoteController.signal);
+      }
     } catch (error) {
       logService.error(`Combined search failed: ${error}`);
       if (token !== this.#searchToken) return;
@@ -259,6 +272,90 @@ class SearchOrchestratorClass {
     } finally {
       if (token === this.#searchToken) searchStores.isLoading = false;
     }
+  }
+
+  async #streamRemoteFileResults(query: string, token: number, signal: AbortSignal): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    if (signal.aborted || token !== this.#searchToken) return;
+
+    const activeProviders = this.#getActiveFileSearchProviders();
+    if (activeProviders.length === 0) return;
+
+    const queries = activeProviders.map(async ({ extensionId, provider }) => {
+      try {
+        const items = await invokeExtensionFileSearch(
+          extensionId,
+          provider.id,
+          { query, limit: 5 },
+          signal,
+        );
+        return { extensionId, provider, items };
+      } catch (err) {
+        if (!signal.aborted) {
+          logService.debug(`Remote file search for ${extensionId}:${provider.id} failed: ${err}`);
+        }
+        return null;
+      }
+    });
+
+    const settled = await Promise.all(queries);
+    if (signal.aborted || token !== this.#searchToken) return;
+
+    const remoteResults: SearchResult[] = [];
+    for (const entry of settled) {
+      if (!entry || entry.items.length === 0) continue;
+      for (const item of entry.items) {
+        const objectId = `file_remote_${entry.extensionId}_${entry.provider.id}_${item.id}`;
+        remoteResults.push({
+          objectId,
+          name: item.title,
+          description: item.container ?? entry.provider.name,
+          type: 'file',
+          icon: item.icon ?? entry.provider.icon ?? 'icon:globe',
+          extensionId: entry.extensionId,
+          category: 'extension',
+          kindLabel: entry.provider.name,
+          primaryActionLabel: item.url ? 'Open in Browser' : 'Open',
+          score: 0.6,
+          path: item.path,
+          url: item.url,
+        });
+      }
+    }
+
+    if (remoteResults.length === 0) return;
+
+    const existingIds = new Set(this.items.map((i) => i.objectId));
+    const newItems = remoteResults.filter((r) => !existingIds.has(r.objectId));
+    if (newItems.length > 0) {
+      this.items = [...this.items, ...newItems];
+    }
+  }
+
+  #getActiveFileSearchProviders(): Array<{
+    extensionId: string;
+    provider: ManifestFileSearchProvider;
+  }> {
+    const settings = settingsService.currentSettings.fileSearch;
+    if (!settings?.enabled) return [];
+    const providerStates = (settings as any).providerStates ?? {};
+    const active: Array<{ extensionId: string; provider: ManifestFileSearchProvider }> = [];
+
+    const allExtensions = extensionManager.getAllExtensionsWithState?.() ?? [];
+    for (const ext of allExtensions) {
+      if (!ext.enabled) continue;
+      const providers = (ext as any).fileSearchProviders as
+        ManifestFileSearchProvider[] | undefined;
+      if (!providers || providers.length === 0) continue;
+      for (const prov of providers) {
+        const key = `${ext.id}:${prov.id}`;
+        const isEnabled = providerStates[key] ?? prov.defaultEnabled ?? true;
+        if (isEnabled) {
+          active.push({ extensionId: ext.id, provider: prov });
+        }
+      }
+    }
+    return active;
   }
 
   /** Settles when the action started by the last `tryExecuteResultAction` call finishes. */

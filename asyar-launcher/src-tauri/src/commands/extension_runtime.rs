@@ -1095,6 +1095,7 @@ mod onboarding_dispatch_tests {
             web_search_engines: None,
             web_readers: None,
             ai_providers: None,
+            file_search_providers: None,
         }
     }
 

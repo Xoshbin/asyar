@@ -183,7 +183,7 @@ export function setupSelectionEffects(state: LauncherState) {
     const items = state.searchResultItemsMapped;
     const index = state.selectedIndexVal;
     const item = index >= 0 && index < items.length ? items[index] : null;
-    return item?.type === 'file' && item.path ? item.object_id : null;
+    return item?.type === 'file' && (item.path || item.url) ? item.object_id : null;
   });
 
   const rowActionsItem = $derived.by(() => {
@@ -258,11 +258,12 @@ export function setupSelectionEffects(state: LauncherState) {
       const items = state.searchResultItemsMapped;
       const index = state.selectedIndexVal;
       const item = index >= 0 && index < items.length ? items[index] : null;
-      if (!item || item.type !== 'file' || !item.path) return null;
+      if (!item || item.type !== 'file' || (!item.path && !item.url)) return null;
       return {
         fileId: item.object_id.replace(/^file_/, ''),
         path: item.path,
         name: item.title,
+        url: item.url,
       };
     };
     const actions = buildFileActions({ getFile, context: ActionContext.CORE });

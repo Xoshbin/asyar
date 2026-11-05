@@ -17,6 +17,8 @@ export interface SearchResult extends Omit<SearchResultBase, 'type'> {
   subtitle?: string;
   description?: string;
   category?: string;
+  url?: string;
+  kindLabel?: string;
   style?: 'default' | 'large';
   /** `'hint'` draws the row in the shared hint look (an offer, not a result). */
   variant?: 'hint';

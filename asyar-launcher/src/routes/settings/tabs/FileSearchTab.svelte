@@ -14,7 +14,8 @@
   import { setFocusLock } from '../../../lib/ipc/commands';
   import { fileIndexStatus, fileIndexRebuild } from '../../../lib/ipc/fileSearchCommands';
   import { logService } from '../../../services/log/logService';
-  import type { IndexStatus } from '../../../bindings';
+  import extensionManager from '../../../services/extension/extensionManager.svelte';
+  import type { IndexStatus, ManifestFileSearchProvider } from '../../../bindings';
   import { canAddRoot, canAddExcludePattern } from './fileSearchTab.helpers';
   import { t } from '../../../services/i18n';
   import { appListen } from '../../../lib/ipc/bridgeEvents';
@@ -26,6 +27,55 @@
   );
   let enabled = $derived(settingsService.currentSettings.fileSearch.enabled);
   let rootSearchEnabled = $derived(settingsService.currentSettings.fileSearch.rootSearchEnabled);
+  let providerStates = $derived(settingsService.currentSettings.fileSearch.providerStates ?? {});
+
+  type ContributedCloudProvider = ManifestFileSearchProvider & {
+    extensionId: string;
+    extensionName: string;
+  };
+
+  let cloudProviders = $derived.by<ContributedCloudProvider[]>(() => {
+    const list: ContributedCloudProvider[] = [];
+    const all = extensionManager.getAllExtensionsWithState?.() ?? [];
+    for (const ext of all) {
+      if (!ext.enabled) continue;
+      const providers = (ext as any).fileSearchProviders as
+        ManifestFileSearchProvider[] | undefined;
+      if (!providers) continue;
+      for (const p of providers) {
+        list.push({
+          ...p,
+          extensionId: ext.id,
+          extensionName: ext.name,
+        });
+      }
+    }
+    return list;
+  });
+
+  function isProviderEnabled(
+    extensionId: string,
+    providerId: string,
+    defaultEnabled?: boolean,
+  ): boolean {
+    const key = `${extensionId}:${providerId}`;
+    return providerStates[key] ?? defaultEnabled ?? true;
+  }
+
+  async function handleToggleProvider(
+    extensionId: string,
+    providerId: string,
+    defaultEnabled?: boolean,
+  ) {
+    const key = `${extensionId}:${providerId}`;
+    const current = isProviderEnabled(extensionId, providerId, defaultEnabled);
+    await persistFileSearch({
+      providerStates: {
+        ...providerStates,
+        [key]: !current,
+      },
+    });
+  }
 
   let isBrowsing = $state(false);
   let newExcludePattern = $state('');
@@ -67,6 +117,7 @@
       excludePatterns: string[];
       indexHidden: boolean;
       recentIgnorePatterns: string[];
+      providerStates: Record<string, boolean>;
     }>,
   ) {
     const ok = await settingsService.updateSettings('fileSearch', patch);
@@ -227,6 +278,31 @@
   {/if}
 </div>
 
+<div class="section-header">{t('settings.file_search.cloud_providers')}</div>
+<div id="file-search-cloud-providers">
+  <p class="section-description">
+    {t('settings.file_search.cloud_providers_description')}
+  </p>
+
+  {#if cloudProviders.length > 0}
+    <SettingsCard>
+      {#each cloudProviders as prov (`${prov.extensionId}:${prov.id}`)}
+        <SettingsRow label={prov.name} description={prov.description ?? prov.extensionName}>
+          <Toggle
+            checked={isProviderEnabled(prov.extensionId, prov.id, prov.defaultEnabled)}
+            onchange={() => handleToggleProvider(prov.extensionId, prov.id, prov.defaultEnabled)}
+            disabled={!enabled}
+          />
+        </SettingsRow>
+      {/each}
+    </SettingsCard>
+  {:else}
+    <p class="empty-hint">
+      {t('settings.file_search.no_cloud_providers')}
+    </p>
+  {/if}
+</div>
+
 <div class="section-header">{t('settings.file_search.search_roots')}</div>
 <div id="file-search-roots">
   <p class="section-description">
@@ -318,6 +394,12 @@
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     line-height: 1.5;
+  }
+
+  .empty-hint {
+    margin: var(--space-2) 0 var(--space-4) 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
   }
 
   /* Deliberately NOT a SettingsCard: it holds a Badge (variant="default")

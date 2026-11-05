@@ -558,6 +558,7 @@ mod bindings_export {
             .register::<crate::extensions::ManifestWebReader>()
             .register::<crate::extensions::ManifestAiModel>()
             .register::<crate::extensions::ManifestAiProvider>()
+            .register::<crate::extensions::ManifestFileSearchProvider>()
             .register::<crate::system_actions::SystemAction>()
             .register::<crate::launcher_placement::LauncherPlacement>()
             .register::<crate::launcher_placement::LauncherMonitorChoice>()
