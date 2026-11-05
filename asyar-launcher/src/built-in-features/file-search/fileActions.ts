@@ -1,4 +1,3 @@
-import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import type { ActionContext, ExtensionAction, FileHit } from 'asyar-sdk/contracts';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import {
@@ -19,9 +18,14 @@ type RootFile = {
   fileId: string;
   isDir?: boolean;
   url?: string;
+  extensionId?: string;
 };
 
-type ActionableFile = (FileHit | RootFile) & { url?: string; path?: string };
+type ActionableFile = (FileHit | RootFile) & {
+  url?: string;
+  path?: string;
+  extensionId?: string;
+};
 
 function asFileHit(file: ActionableFile): ActionableFile {
   if ('type' in file) return file;
@@ -70,7 +74,7 @@ export function buildFileActions(opts: {
       visible: () => Boolean(getFile()?.url),
       execute: async () => {
         const file = getFile();
-        if (file?.url) await openerService.openUrl(null, file.url);
+        if (file?.url) await openerService.open(file.extensionId ?? null, file.url);
       },
     },
     {
@@ -109,7 +113,7 @@ export function buildFileActions(opts: {
       visible: () => Boolean(getFile()?.path),
       execute: async () => {
         const file = getFile();
-        if (file?.path) await revealItemInDir(file.path);
+        if (file?.path) await openerService.reveal(file.extensionId ?? null, file.path);
       },
     },
     {
@@ -144,7 +148,10 @@ export function buildFileActions(opts: {
       description: t('features.file_search.act.open_terminal_desc'),
       icon: 'icon:terminal',
       shortcut: 'Mod+T',
-      visible: () => Boolean(getFile()?.path),
+      visible: () => {
+        const file = getFile();
+        return Boolean(file?.path && !file?.extensionId);
+      },
       execute: async () => {
         const file = getFile();
         if (file?.path) await openInTerminal(parentDirOf(file));
@@ -159,7 +166,7 @@ export function buildFileActions(opts: {
       shortcut: 'Mod+Shift+P',
       visible: () => {
         const file = getFile();
-        return file && file.path
+        return file && file.path && !file.extensionId
           ? !fileSearchViewState.pinnedFiles.some((p) => p.fileId === file.fileId)
           : false;
       },
@@ -177,7 +184,7 @@ export function buildFileActions(opts: {
       shortcut: 'Mod+Shift+P',
       visible: () => {
         const file = getFile();
-        return file && file.path
+        return file && file.path && !file.extensionId
           ? fileSearchViewState.pinnedFiles.some((p) => p.fileId === file.fileId)
           : false;
       },
@@ -193,7 +200,10 @@ export function buildFileActions(opts: {
       description: t('features.file_search.act.trash_desc'),
       icon: 'icon:trash',
       destructive: true,
-      visible: () => Boolean(getFile()?.path),
+      visible: () => {
+        const file = getFile();
+        return Boolean(file?.path && !file?.extensionId);
+      },
       execute: async () => {
         const file = getFile();
         if (!file?.path) return;
@@ -233,7 +243,7 @@ export function buildFileActions(opts: {
         const file = getFile();
         if (!file?.path) return;
         const ok = await quickLookPath(file.path);
-        if (!ok) await openerService.openPath(null, file.path);
+        if (!ok) await openerService.openPath(file.extensionId ?? null, file.path);
       },
     },
     {

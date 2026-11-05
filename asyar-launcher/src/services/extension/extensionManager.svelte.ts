@@ -36,6 +36,7 @@ import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 import { TimerBridge } from '../timers/timerBridge.svelte';
 import { dispatch, registerExtensionNameResolver } from './extensionDispatcher.svelte';
+import { registerFileSearchManifestResolver } from './extensionFileSearchDispatch';
 import { clipboardHistoryService } from '../clipboard/clipboardHistoryService';
 
 /**
@@ -145,6 +146,7 @@ export class ExtensionManager implements IExtensionManager {
     setWorkerEntryProvider((id) => this.getManifestById(id)?.background?.main);
     ipcRouter.setup();
     registerExtensionNameResolver((id) => this.getManifestById(id)?.name);
+    registerFileSearchManifestResolver((id) => this.getManifestById(id));
   }
 
   async init(): Promise<boolean> {

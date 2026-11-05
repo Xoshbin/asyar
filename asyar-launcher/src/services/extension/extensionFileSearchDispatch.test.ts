@@ -13,6 +13,7 @@ vi.mock('../../lib/ipc/extensionOrigin', () => ({
 
 import {
   invokeExtensionFileSearch,
+  registerFileSearchManifestResolver,
   FILE_SEARCH_TIMEOUT_MS,
   MAX_FILE_SEARCH_RESULTS,
 } from './extensionFileSearchDispatch';
@@ -174,6 +175,121 @@ describe('invokeExtensionFileSearch', () => {
     expect(res).toHaveLength(2);
     expect(res[0].url).toBeUndefined(); // javascript: stripped
     expect(res[1].url).toBe('https://example.com/good');
+  });
+
+  it('strips local path when extension lacks shell:open-path or fs:read permissions', async () => {
+    registerFileSearchManifestResolver((id) => {
+      if (id === 'org.example.unauthorized') return { permissions: ['files:search-provider'] };
+      return undefined;
+    });
+
+    const worker = mountedWorker();
+    const promise = invokeExtensionFileSearch('org.example.unauthorized', 'unauth', {
+      query: 'local file',
+      limit: 5,
+    });
+    const message = postedMessage(worker);
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: worker,
+        data: {
+          type: 'asyar:fileSearch:response',
+          messageId: message.messageId,
+          result: [
+            {
+              id: 'file-1',
+              title: 'Sensitive File',
+              path: '/Users/test/.ssh/id_rsa',
+              url: 'https://example.com/ssh',
+            },
+          ],
+        },
+      }),
+    );
+
+    const res = await promise;
+    expect(res).toHaveLength(1);
+    expect(res[0].path).toBeUndefined(); // unauthorized local path stripped
+    expect(res[0].url).toBe('https://example.com/ssh');
+  });
+
+  it('strips path with traversal or relative paths even if extension has permission', async () => {
+    registerFileSearchManifestResolver((id) => {
+      if (id === 'org.example.authorized') return { permissions: ['shell:open-path'] };
+      return undefined;
+    });
+
+    const worker = mountedWorker();
+    const promise = invokeExtensionFileSearch('org.example.authorized', 'auth', {
+      query: 'traversal test',
+      limit: 5,
+    });
+    const message = postedMessage(worker);
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: worker,
+        data: {
+          type: 'asyar:fileSearch:response',
+          messageId: message.messageId,
+          result: [
+            {
+              id: 'file-traversal',
+              title: 'Traversal',
+              path: '/Users/test/../../etc/passwd',
+            },
+            {
+              id: 'file-relative',
+              title: 'Relative',
+              path: 'relative/path/to/file.txt',
+            },
+          ],
+        },
+      }),
+    );
+
+    const res = await promise;
+    expect(res).toHaveLength(2);
+    expect(res[0].path).toBeUndefined();
+    expect(res[1].path).toBeUndefined();
+  });
+
+  it('retains absolute local path when extension has shell:open-path permission', async () => {
+    registerFileSearchManifestResolver((id) => {
+      if (id === 'org.example.authorized') return { permissions: ['shell:open-path'] };
+      return undefined;
+    });
+
+    const worker = mountedWorker();
+    const promise = invokeExtensionFileSearch('org.example.authorized', 'auth', {
+      query: 'valid local',
+      limit: 5,
+    });
+    const message = postedMessage(worker);
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: worker,
+        data: {
+          type: 'asyar:fileSearch:response',
+          messageId: message.messageId,
+          result: [
+            {
+              id: 'file-valid',
+              title: 'Valid Mirror',
+              path: '/Users/test/GoogleDrive/Doc.pdf',
+              url: 'https://drive.google.com/doc',
+            },
+          ],
+        },
+      }),
+    );
+
+    const res = await promise;
+    expect(res).toHaveLength(1);
+    expect(res[0].path).toBe('/Users/test/GoogleDrive/Doc.pdf');
+    expect(res[0].url).toBe('https://drive.google.com/doc');
   });
 
   it('clamps results array to maximum limit', async () => {

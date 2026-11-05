@@ -28,9 +28,35 @@ export interface FileSearchQueryArgs {
   limit?: number;
 }
 
+export type ManifestResolver = (
+  extensionId: string,
+) => { permissions?: string[] } | undefined | null;
+
+let manifestResolver: ManifestResolver | null = null;
+
+export function registerFileSearchManifestResolver(resolver: ManifestResolver | null): void {
+  manifestResolver = resolver;
+}
+
+export function isPathAllowedForExtension(extensionId: string, path: string): boolean {
+  if (!path || typeof path !== 'string') return false;
+  const trimmed = path.trim();
+  // Must be an absolute path without directory traversal
+  if (!trimmed.startsWith('/') && !/^[a-zA-Z]:[\\/]/.test(trimmed)) {
+    return false;
+  }
+  if (trimmed.includes('..')) {
+    return false;
+  }
+  const manifest = manifestResolver?.(extensionId);
+  const permissions = manifest?.permissions ?? [];
+  return permissions.includes('shell:open-path') || permissions.includes('fs:read');
+}
+
 let messageIdCounter = 0;
 
 interface PendingResponse {
+  extensionId: string;
   source: MessageEventSource | object;
   expectedOrigin: string;
   limit: number;
@@ -64,7 +90,11 @@ function cleanHttpUrl(raw: unknown): string | undefined {
   return undefined;
 }
 
-function normalizeFileSearchResults(raw: unknown, limit: number): FileSearchResultItem[] {
+function normalizeFileSearchResults(
+  raw: unknown,
+  limit: number,
+  extensionId: string,
+): FileSearchResultItem[] {
   if (!Array.isArray(raw)) {
     throw new Error('Extension file search returned invalid response (expected array)');
   }
@@ -81,7 +111,8 @@ function normalizeFileSearchResults(raw: unknown, limit: number): FileSearchResu
     const container =
       typeof obj.container === 'string' ? obj.container.trim().slice(0, 256) : undefined;
     const url = cleanHttpUrl(obj.url);
-    const path = typeof obj.path === 'string' ? obj.path.trim() : undefined;
+    const rawPath = typeof obj.path === 'string' ? obj.path.trim() : undefined;
+    const path = rawPath && isPathAllowedForExtension(extensionId, rawPath) ? rawPath : undefined;
     const icon = typeof obj.icon === 'string' ? obj.icon.trim() : undefined;
     const mimeType = typeof obj.mimeType === 'string' ? obj.mimeType.trim() : undefined;
     const modifiedAt = typeof obj.modifiedAt === 'number' ? obj.modifiedAt : undefined;
@@ -122,7 +153,11 @@ export function handleFileSearchResponse(event: MessageEvent): void {
     pending.reject(new Error(String(message.error)));
   } else {
     try {
-      const normalized = normalizeFileSearchResults(message.result, pending.limit);
+      const normalized = normalizeFileSearchResults(
+        message.result,
+        pending.limit,
+        pending.extensionId,
+      );
       pending.resolve(normalized);
     } catch (err) {
       pending.reject(err instanceof Error ? err : new Error(String(err)));
@@ -195,6 +230,7 @@ export async function invokeExtensionFileSearch(
     }, FILE_SEARCH_TIMEOUT_MS);
 
     pendingResponses.set(messageId, {
+      extensionId,
       source: targetWindow,
       expectedOrigin,
       limit,

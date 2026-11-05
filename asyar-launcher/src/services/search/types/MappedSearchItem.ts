@@ -10,6 +10,7 @@ export type MappedSearchItem = {
   subtitle?: string;
   /** Internal type used for action filtering (e.g. "command" vs "application") */
   type?: string;
+  extensionId?: string;
   path?: string;
   url?: string;
   /** Internal label: drives Scripts/Agents grouping. Not shown as-is. */

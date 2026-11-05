@@ -13,6 +13,7 @@ import type { ExtensionResult } from 'asyar-sdk/contracts';
 import { getCachedTopItems, setCachedTopItems, invalidateTopItemsCache } from './topItemsCache';
 import { insertScopeHint } from './scopeHintRow';
 import * as commands from '../../lib/ipc/commands';
+import { toResolvedIcon } from '../../lib/icon';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
@@ -278,7 +279,8 @@ class SearchOrchestratorClass {
     await new Promise((resolve) => setTimeout(resolve, 200));
     if (signal.aborted || token !== this.#searchToken) return;
 
-    const activeProviders = this.#getActiveFileSearchProviders();
+    const activeProviders = await this.#getActiveFileSearchProviders();
+    if (signal.aborted || token !== this.#searchToken) return;
     if (activeProviders.length === 0) return;
 
     const queries = activeProviders.map(async ({ extensionId, provider }) => {
@@ -311,12 +313,13 @@ class SearchOrchestratorClass {
           name: item.title,
           description: item.container ?? entry.provider.name,
           type: 'file',
-          icon: item.icon ?? entry.provider.icon ?? 'icon:globe',
+          icon: toResolvedIcon(item.icon ?? entry.provider.icon ?? 'icon:globe'),
           extensionId: entry.extensionId,
           category: 'extension',
           kindLabel: entry.provider.name,
           primaryActionLabel: item.url ? 'Open in Browser' : 'Open',
           score: 0.6,
+          tier: 5,
           path: item.path,
           url: item.url,
         });
@@ -332,16 +335,19 @@ class SearchOrchestratorClass {
     }
   }
 
-  #getActiveFileSearchProviders(): Array<{
-    extensionId: string;
-    provider: ManifestFileSearchProvider;
-  }> {
+  async #getActiveFileSearchProviders(): Promise<
+    Array<{
+      extensionId: string;
+      provider: ManifestFileSearchProvider;
+    }>
+  > {
     const settings = settingsService.currentSettings.fileSearch;
     if (!settings?.enabled) return [];
     const providerStates = (settings as any).providerStates ?? {};
     const active: Array<{ extensionId: string; provider: ManifestFileSearchProvider }> = [];
 
-    const allExtensions = extensionManager.getAllExtensionsWithState?.() ?? [];
+    const allExtensions = (await extensionManager.getAllExtensionsWithState?.()) ?? [];
+    const seenKeys = new Set<string>();
     for (const ext of allExtensions) {
       if (!ext.enabled) continue;
       const providers = (ext as any).fileSearchProviders as
@@ -349,6 +355,8 @@ class SearchOrchestratorClass {
       if (!providers || providers.length === 0) continue;
       for (const prov of providers) {
         const key = `${ext.id}:${prov.id}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
         const isEnabled = providerStates[key] ?? prov.defaultEnabled ?? true;
         if (isEnabled) {
           active.push({ extensionId: ext.id, provider: prov });

@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionContext } from 'asyar-sdk/contracts';
 
-const { quickLookPath, openPath, openUrl, confirmAlert } = vi.hoisted(() => ({
+const {
+  quickLookPath,
+  openPath,
+  open: openMock,
+  reveal: revealMock,
+  confirmAlert,
+} = vi.hoisted(() => ({
   quickLookPath: vi.fn(),
   openPath: vi.fn(),
-  openUrl: vi.fn(),
+  open: vi.fn(),
+  reveal: vi.fn(),
   confirmAlert: vi.fn(),
 }));
 
@@ -16,7 +23,7 @@ vi.mock('../../lib/ipc/fileSearchCommands', () => ({
   quickLookPath,
 }));
 vi.mock('../../services/opener/openerService', () => ({
-  openerService: { openPath, openUrl },
+  openerService: { openPath, open: openMock, reveal: revealMock },
 }));
 vi.mock('../../services/fileManager/fileManagerService', () => ({
   fileManagerService: { trash: vi.fn() },
@@ -152,7 +159,7 @@ describe('buildFileActions', () => {
       });
 
       await actions.find((a) => a.id === 'file-search:open-in-browser')?.execute();
-      expect(openUrl).toHaveBeenCalledWith(null, 'https://docs.google.com/spreadsheets/d/123');
+      expect(openMock).toHaveBeenCalledWith(null, 'https://docs.google.com/spreadsheets/d/123');
 
       await actions.find((a) => a.id === 'file-search:copy-web-link')?.execute();
       expect(writeText).toHaveBeenCalledWith('https://docs.google.com/spreadsheets/d/123');
@@ -160,6 +167,31 @@ describe('buildFileActions', () => {
       await actions.find((a) => a.id === 'file-search:copy-markdown-link')?.execute();
       expect(writeText).toHaveBeenCalledWith(
         '[Q3 Financial Plan](https://docs.google.com/spreadsheets/d/123)',
+      );
+    });
+
+    it('hides destructive host actions and scopes reveal for extension-contributed files', async () => {
+      const extensionFile = {
+        fileId: 'remote-1',
+        name: 'Mirrored Doc',
+        path: '/Users/test/GoogleDrive/Doc.pdf',
+        extensionId: 'org.example.gdrive',
+      };
+      const actions = buildFileActions({
+        getFile: () => extensionFile,
+        context: ActionContext.CORE,
+      });
+
+      expect(actions.find((a) => a.id === 'file-search:move-to-trash')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:open-in-terminal')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:pin')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:unpin')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:reveal-in-finder')?.visible?.()).toBe(true);
+
+      await actions.find((a) => a.id === 'file-search:reveal-in-finder')?.execute();
+      expect(revealMock).toHaveBeenCalledWith(
+        'org.example.gdrive',
+        '/Users/test/GoogleDrive/Doc.pdf',
       );
     });
   });

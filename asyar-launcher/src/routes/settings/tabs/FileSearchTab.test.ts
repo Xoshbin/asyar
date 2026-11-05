@@ -20,7 +20,7 @@ const {
     },
   },
   updateSettingsMock: vi.fn().mockResolvedValue(true),
-  getAllExtensionsWithStateMock: vi.fn().mockReturnValue([]),
+  getAllExtensionsWithStateMock: vi.fn().mockResolvedValue([]),
   fileIndexStatusMock: vi.fn().mockResolvedValue({
     state: 'ready',
     entryCount: 42,
@@ -85,17 +85,17 @@ describe('FileSearchTab - Cloud & Remote File Search', () => {
       recentIgnorePatterns: [],
       providerStates: {},
     };
-    getAllExtensionsWithStateMock.mockReturnValue([]);
+    getAllExtensionsWithStateMock.mockResolvedValue([]);
   });
 
-  it('renders empty hint when no cloud providers are installed', () => {
+  it('renders empty hint when no cloud providers are installed', async () => {
     render(FileSearchTab);
     expect(screen.getByText('Cloud & Remote File Search')).toBeTruthy();
-    expect(screen.getByText('No remote file search providers installed')).toBeTruthy();
+    expect(await screen.findByText('No remote file search providers installed')).toBeTruthy();
   });
 
   it('renders installed cloud providers and allows toggling them', async () => {
-    getAllExtensionsWithStateMock.mockReturnValue([
+    getAllExtensionsWithStateMock.mockResolvedValue([
       {
         id: 'org.example.gdrive',
         name: 'Google Drive Extension',
@@ -112,8 +112,8 @@ describe('FileSearchTab - Cloud & Remote File Search', () => {
     ]);
 
     render(FileSearchTab);
-    expect(screen.getByText('Google Drive')).toBeTruthy();
-    expect(screen.getByText('Search your Google Docs and files')).toBeTruthy();
+    expect(await screen.findByText('Google Drive')).toBeTruthy();
+    expect(await screen.findByText('Search your Google Docs and files')).toBeTruthy();
 
     const toggles = screen.getAllByRole('checkbox');
     expect(toggles.length).toBeGreaterThanOrEqual(3);
@@ -126,5 +126,26 @@ describe('FileSearchTab - Cloud & Remote File Search', () => {
         'org.example.gdrive:gdrive': false,
       },
     });
+  });
+
+  it('deduplicates cloud providers if extension list contains duplicates', async () => {
+    const ext = {
+      id: 'org.example.gdrive',
+      name: 'Google Drive Extension',
+      enabled: true,
+      fileSearchProviders: [
+        {
+          id: 'gdrive',
+          name: 'Google Drive',
+          description: 'Search your Google Docs and files',
+          defaultEnabled: true,
+        },
+      ],
+    };
+    getAllExtensionsWithStateMock.mockResolvedValue([ext, ext]);
+
+    render(FileSearchTab);
+    const elements = await screen.findAllByText('Google Drive');
+    expect(elements).toHaveLength(1);
   });
 });

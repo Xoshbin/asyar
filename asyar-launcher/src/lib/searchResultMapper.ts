@@ -375,7 +375,7 @@ export function buildMappedItems({
             logService.warn(`Failed to record file selection: ${err}`);
           });
           try {
-            await openerService.openPath(null, path);
+            await openerService.openPath(result.extensionId ?? null, path);
             return;
           } catch (err) {
             logService.error(`openerService.openPath failed: ${err}`);
@@ -387,9 +387,9 @@ export function buildMappedItems({
         }
         if (result.url) {
           try {
-            await openerService.openUrl(null, result.url);
+            await openerService.open(result.extensionId ?? null, result.url);
           } catch (err) {
-            logService.error(`openerService.openUrl failed: ${err}`);
+            logService.error(`openerService.open failed: ${err}`);
             onError(`Failed to open ${name}`);
             throw err;
           }
@@ -413,6 +413,7 @@ export function buildMappedItems({
       title: name,
       subtitle,
       type,
+      extensionId: result.extensionId ?? undefined,
       path,
       url: result.url,
       typeLabel,
