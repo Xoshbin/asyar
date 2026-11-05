@@ -137,6 +137,13 @@ export type {
   ManifestWebSearchEngine,
 } from './contracts/webSearch';
 export type {
+  WebReaderQuery,
+  WebReaderResult,
+  WebReaderHandler,
+  WebReaderEngineRegistration,
+  ManifestWebReader,
+} from './contracts/webReader';
+export type {
   AiToolCall,
   AiMessage,
   AiToolDefinition,

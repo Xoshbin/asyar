@@ -35,6 +35,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   aiGetCredentialStatus: vi.fn(async () => ({
     providers: { anthropic: 'configured', openai: 'configured', google: 'configured' },
     webSearch: {},
+    webReader: {},
   })),
   aiListModels: vi.fn(async (providerId: string) =>
     providerId === 'anthropic'
@@ -102,6 +103,7 @@ describe('ModelPickerModal', () => {
       vi.mocked(aiGetCredentialStatus).mockResolvedValueOnce({
         providers: { anthropic: 'needsReentry', openai: 'configured', google: 'notConfigured' },
         webSearch: {},
+        webReader: {},
       });
       render(ModelPickerModal);
 

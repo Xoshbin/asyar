@@ -172,6 +172,7 @@ export class ExtensionStateManager {
           permissionArgs: (manifest as ExtendedManifest).permissionArgs ?? {},
           webSearchEngines: manifest.webSearchEngines ?? [],
           aiProviders: manifest.aiProviders ?? [],
+          webReaders: manifest.webReaders ?? [],
         });
       }
       // Ordering (built-in first, then alphabetical) is computed by Rust's

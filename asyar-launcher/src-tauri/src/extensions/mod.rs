@@ -338,6 +338,32 @@ pub struct ManifestWebSearchEngine {
     pub icon: Option<String>,
 }
 
+/// Contributed web content scraper / markdown reader declared by an extension.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestWebReader {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub homepage: Option<String>,
+    #[serde(default)]
+    pub requires_api_key: Option<bool>,
+    #[serde(default)]
+    pub api_key_optional: Option<bool>,
+    #[serde(default)]
+    pub api_key_placeholder: Option<String>,
+    #[serde(default)]
+    pub api_key_help_url: Option<String>,
+    #[serde(default)]
+    pub requires_base_url: Option<bool>,
+    #[serde(default)]
+    pub base_url_placeholder: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
 /// Contributed AI model declaration within an AI provider.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -474,6 +500,9 @@ pub struct ExtensionManifest {
     /// Web search engines contributed by this extension to the agent runtime.
     #[serde(default)]
     pub web_search_engines: Option<Vec<ManifestWebSearchEngine>>,
+    /// Web content scrapers / markdown readers contributed by this extension.
+    #[serde(default)]
+    pub web_readers: Option<Vec<ManifestWebReader>>,
     /// AI model & inference providers contributed by this extension.
     #[serde(default)]
     pub ai_providers: Option<Vec<ManifestAiProvider>>,
@@ -1456,6 +1485,7 @@ mod tests {
                     runtimes: None,
                     walkthrough: None,
                     web_search_engines: None,
+                    web_readers: None,
                     ai_providers: None,
                 },
                 enabled: true,

@@ -20,6 +20,8 @@ pub enum CredentialTarget {
     Provider { id: String },
     #[serde(rename = "webSearch")]
     WebSearch { engine: String },
+    #[serde(rename = "webReader")]
+    WebReader { reader: String },
 }
 
 /// Web-search engines that need an API key. Each has its own credential row, so a key
@@ -32,6 +34,17 @@ pub fn is_keyed_web_search_engine(engine: &str) -> bool {
 
 pub fn is_extension_web_search_engine(engine: &str) -> bool {
     let Some(rest) = engine.strip_prefix("ext:") else {
+        return false;
+    };
+    let mut parts = rest.split(':');
+    matches!(
+        (parts.next(), parts.next(), parts.next()),
+        (Some(ext), Some(id), None) if !ext.is_empty() && !id.is_empty()
+    )
+}
+
+pub fn is_extension_web_reader(reader: &str) -> bool {
+    let Some(rest) = reader.strip_prefix("ext:") else {
         return false;
     };
     let mut parts = rest.split(':');
@@ -57,6 +70,11 @@ pub fn web_search_credential_id(engine: &str) -> String {
     format!("web_search:{engine}")
 }
 
+/// Credential row id for a web reader's API key.
+pub fn web_reader_credential_id(reader: &str) -> String {
+    format!("web_reader:{reader}")
+}
+
 impl CredentialTarget {
     pub fn to_credential_id(&self) -> Result<String, AppError> {
         match self {
@@ -76,6 +94,14 @@ impl CredentialTarget {
                 }
                 Ok(web_search_credential_id(engine))
             }
+            CredentialTarget::WebReader { reader } => {
+                if !is_extension_web_reader(reader) {
+                    return Err(AppError::Validation(format!(
+                        "Invalid extension web reader ID '{reader}'"
+                    )));
+                }
+                Ok(web_reader_credential_id(reader))
+            }
         }
     }
 }
@@ -86,6 +112,8 @@ pub struct AiCredentialStatus {
     pub providers: HashMap<String, CredentialState>,
     /// Keyed engine id (`brave`, `tavily`, `serply`) → state of that engine's own key.
     pub web_search: HashMap<String, CredentialState>,
+    /// Web reader id (`ext:<extId>:<readerId>`) → state of that reader's key.
+    pub web_reader: HashMap<String, CredentialState>,
 }
 
 /// Initialize the `ai_credentials` table (tests only; production uses migration 8).
@@ -267,6 +295,14 @@ mod tests {
             .unwrap(),
             "web_search:ext:org.asyar.keenable:keenable"
         );
+        assert_eq!(
+            CredentialTarget::WebReader {
+                reader: "ext:org.example.jina:jina-reader".into()
+            }
+            .to_credential_id()
+            .unwrap(),
+            "web_reader:ext:org.example.jina:jina-reader"
+        );
     }
 
     #[test]
@@ -289,6 +325,27 @@ mod tests {
             .to_credential_id()
             .unwrap_err();
             assert!(matches!(err, AppError::Validation(_)), "engine {engine:?}");
+        }
+    }
+
+    #[test]
+    fn web_reader_target_rejects_invalid_readers() {
+        for reader in [
+            "builtin",
+            "jina",
+            "",
+            "ext::",
+            "ext:a:",
+            "ext::b",
+            "ext:onlyone",
+            "ext:one:two:three",
+        ] {
+            let err = CredentialTarget::WebReader {
+                reader: reader.into(),
+            }
+            .to_credential_id()
+            .unwrap_err();
+            assert!(matches!(err, AppError::Validation(_)), "reader {reader:?}");
         }
     }
 

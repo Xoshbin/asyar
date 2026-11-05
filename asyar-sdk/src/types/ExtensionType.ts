@@ -2,6 +2,7 @@ import type { ExtensionContext } from '../ExtensionContext';
 import type { ManifestTool } from '../contracts/tools';
 import type { WalkthroughTaskDecl } from '../contracts/walkthrough';
 import type { ManifestWebSearchEngine } from '../contracts/webSearch';
+import type { ManifestWebReader } from '../contracts/webReader';
 import type { ManifestAiProvider } from '../contracts/aiProvider';
 
 /**
@@ -166,6 +167,8 @@ export interface ExtensionManifest {
   tools?: ManifestTool[];
   /** Web search engines contributed by this extension. */
   webSearchEngines?: ManifestWebSearchEngine[];
+  /** Web content scrapers / markdown readers contributed by this extension. */
+  webReaders?: ManifestWebReader[];
   /** AI model & inference providers contributed by this extension. */
   aiProviders?: ManifestAiProvider[];
   /**

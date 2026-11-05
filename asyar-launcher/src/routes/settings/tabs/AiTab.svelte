@@ -56,8 +56,14 @@
     ProviderId,
     WebSearchEngine,
     WebSearchSettings,
+    WebReaderEngine,
+    WebReaderSettings,
   } from '../../../services/settings/types/AppSettingsType';
-  import type { ManifestWebSearchEngine, ManifestAiProvider } from 'asyar-sdk/contracts';
+  import type {
+    ManifestWebSearchEngine,
+    ManifestWebReader,
+    ManifestAiProvider,
+  } from 'asyar-sdk/contracts';
   import { invokeExtensionAiProviderListModels } from '../../../services/extension/extensionAiProviderDispatch';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
 
@@ -67,6 +73,37 @@
   let settings = $derived(settingsService.currentSettings.ai);
   let webSearchSettings = $derived(
     settings.webSearch ?? { engine: 'duckduckgo' as WebSearchEngine },
+  );
+  let webReaderSettings = $derived(settings.webReader ?? { reader: 'builtin' as WebReaderEngine });
+
+  let extensionWebReaders = $derived.by(() => {
+    const list: Array<{
+      fullId: WebReaderEngine;
+      reader: ManifestWebReader;
+      extensionId: string;
+      extensionName: string;
+    }> = [];
+    for (const ext of handler?.extensions ?? []) {
+      if (ext.enabled === false) continue;
+      const extId = ext.id ?? ext.title;
+      for (const reader of ext.webReaders ?? []) {
+        list.push({
+          fullId: `ext:${extId}:${reader.id}` as WebReaderEngine,
+          reader,
+          extensionId: extId,
+          extensionName: ext.title,
+        });
+      }
+    }
+    return list;
+  });
+
+  let selectedExtensionReader = $derived(
+    extensionWebReaders.find((r) => r.fullId === webReaderSettings.reader),
+  );
+
+  let isKnownReader = $derived(
+    webReaderSettings.reader === 'builtin' || selectedExtensionReader !== undefined,
   );
 
   let extensionSearchEngines = $derived.by(() => {
@@ -144,11 +181,22 @@
   }
 
   let selectedExtMeta = $derived(getExtKeyMeta(selectedExtensionEngine?.engine));
+  let selectedReaderMeta = $derived(getExtKeyMeta(selectedExtensionReader?.reader));
 
   function updateWebSearch(partial: Partial<WebSearchSettings>) {
     const current = settings.webSearch ?? { engine: 'duckduckgo' as WebSearchEngine };
     return settingsService.updateSettings('ai', {
       webSearch: {
+        ...current,
+        ...partial,
+      },
+    });
+  }
+
+  function updateWebReader(partial: Partial<WebReaderSettings>) {
+    const current = settings.webReader ?? { reader: 'builtin' as WebReaderEngine };
+    return settingsService.updateSettings('ai', {
+      webReader: {
         ...current,
         ...partial,
       },
@@ -174,7 +222,11 @@
 
   // Credential status loaded from secure storage. Key fields aren't rendered until the
   // first load settles, so a user with saved keys never sees an empty "enter your key" field.
-  let credStatus = $state<AiCredentialStatus>({ providers: {}, webSearch: {} });
+  let credStatus = $state<AiCredentialStatus>({
+    providers: {},
+    webSearch: {},
+    webReader: {},
+  });
   let credLoaded = $state(false);
 
   onMount(async () => {
@@ -216,6 +268,22 @@
     credStatus = {
       ...credStatus,
       webSearch: { ...credStatus.webSearch, [engine]: 'notConfigured' },
+    };
+  }
+
+  async function saveWebReaderKey(reader: string, secret: string) {
+    await aiSaveCredential({ type: 'webReader', reader }, secret);
+    credStatus = {
+      ...credStatus,
+      webReader: { ...credStatus.webReader, [reader]: 'configured' },
+    };
+  }
+
+  async function removeWebReaderKey(reader: string) {
+    await aiDeleteCredential({ type: 'webReader', reader });
+    credStatus = {
+      ...credStatus,
+      webReader: { ...credStatus.webReader, [reader]: 'notConfigured' },
     };
   }
 
@@ -1502,6 +1570,122 @@
             <p class="field-description">
               The search engine "{webSearchSettings.engine}" is unavailable or deprecated. Select an
               available engine above.
+            </p>
+          {/if}
+        </div>
+      </SettingsCard>
+    </div>
+
+    <div class="section-header">{t('settings.ai.web_reader_section')}</div>
+    <div id="ai-web-reader" class="anchor-group">
+      <SettingsCard>
+        <div class="web-search-card">
+          <div class="card-field">
+            <label class="field-label" for="web-reader-engine">{t('settings.ai.web_reader')}</label>
+            <select
+              id="web-reader-engine"
+              class="card-select"
+              value={webReaderSettings.reader}
+              onchange={(e) =>
+                updateWebReader({
+                  reader: (e.currentTarget as HTMLSelectElement).value as WebReaderEngine,
+                })}
+            >
+              <optgroup label="Built-in">
+                <option value="builtin">{t('settings.ai.reader_builtin')}</option>
+              </optgroup>
+              {#if extensionWebReaders.length > 0}
+                <optgroup label="Extensions">
+                  {#each extensionWebReaders as item (item.fullId)}
+                    <option value={item.fullId}>
+                      {item.reader.name} ({item.extensionName})
+                    </option>
+                  {/each}
+                </optgroup>
+              {/if}
+              {#if !isKnownReader}
+                <optgroup label="Legacy / Unavailable">
+                  <option value={webReaderSettings.reader}>
+                    {webReaderSettings.reader} (Unavailable)
+                  </option>
+                </optgroup>
+              {/if}
+            </select>
+          </div>
+
+          {#if webReaderSettings.reader === 'builtin'}
+            <p class="field-description">
+              {t('settings.ai.reader_builtin_desc')}
+            </p>
+          {:else if selectedExtensionReader}
+            {@const extReader = selectedExtensionReader.reader}
+            {#if selectedReaderMeta.hasKey}
+              {#if credLoaded}
+                <div class="card-field">
+                  <CredentialField
+                    label="{extReader.name} API Key"
+                    inputId="web-reader-extension-key"
+                    placeholder={selectedReaderMeta.keyPlaceholder ??
+                      t('settings.ai.api_key_placeholder')}
+                    state={credStatus.webReader[webReaderSettings.reader] ?? 'notConfigured'}
+                    onSave={(secret) => saveWebReaderKey(webReaderSettings.reader, secret)}
+                    onRemove={() => removeWebReaderKey(webReaderSettings.reader)}
+                  />
+                </div>
+              {/if}
+            {/if}
+            {#if extReader.requiresBaseUrl}
+              <div class="card-field">
+                <label class="field-label" for="web-reader-base-url"
+                  >{extReader.name} Base URL</label
+                >
+                <Input
+                  unstyled
+                  textIntent="exact"
+                  class="card-input"
+                  id="web-reader-base-url"
+                  type="url"
+                  placeholder={extReader.baseUrlPlaceholder ?? 'https://api.example.com'}
+                  value={webReaderSettings.baseUrl ?? ''}
+                  onblur={(e) =>
+                    updateWebReader({
+                      baseUrl: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                    })}
+                />
+              </div>
+            {/if}
+            {#if extReader.description || extReader.homepage || selectedReaderMeta.keyHelpUrl}
+              <p class="field-description">
+                {#if extReader.description}
+                  {extReader.description}{' '}
+                {/if}
+                {#if extReader.homepage}
+                  <a
+                    href={extReader.homepage}
+                    target="_blank"
+                    rel="noreferrer"
+                    class="external-link"
+                  >
+                    {extReader.homepage.replace(/^https?:\/\//, '')}
+                  </a>
+                {/if}
+                {#if selectedReaderMeta.keyHelpUrl && selectedReaderMeta.keyHelpUrl !== extReader.homepage}
+                  {' — '}
+                  <a
+                    href={selectedReaderMeta.keyHelpUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    class="external-link"
+                  >
+                    Get API key
+                  </a>
+                {/if}
+              </p>
+            {/if}
+          {:else if !isKnownReader}
+            <p class="field-description">
+              The reader "{webReaderSettings.reader}" is unavailable or deprecated. Select an
+              available reader above.
             </p>
           {/if}
         </div>

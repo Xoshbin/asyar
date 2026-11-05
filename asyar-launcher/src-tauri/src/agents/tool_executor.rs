@@ -98,6 +98,13 @@ pub async fn execute_agent_tool<R: AgentToolRuntime>(
                 .await;
         }
     }
+    if let Some(rest) = request.tool_id.strip_prefix("webreader:") {
+        if let Some((ext_id, reader_id)) = rest.split_once(':') {
+            return runtime
+                .invoke_tier2(ext_id, &format!("webreader:{reader_id}"), request)
+                .await;
+        }
+    }
     match resolve_agent_tool_target(registry, &request.tool_id)? {
         AgentToolTarget::Builtin { tool_id } => Err(AppError::Validation(format!(
             "built-in tool '{tool_id}' must execute inside the agent runner"
@@ -618,5 +625,28 @@ mod tests {
         .unwrap_err();
 
         assert!(error.to_string().contains("timed out"));
+    }
+
+    #[tokio::test]
+    async fn execute_agent_tool_routes_webreader_to_tier2() {
+        let registry = ToolRegistry::new();
+        let runtime = MockRuntime::default();
+
+        let req = ExternalToolRequest {
+            tool_call_id: "call-1".to_string(),
+            tool_id: "webreader:org.test.jina:jina-reader".to_string(),
+            arguments: serde_json::json!({ "url": "https://example.com" }),
+        };
+
+        let result = execute_agent_tool(&registry, &runtime, "agent-1", &req)
+            .await
+            .unwrap();
+
+        assert_eq!(result, serde_json::json!({ "source": "tier2" }));
+        let calls = runtime.tier2_calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, "org.test.jina");
+        assert_eq!(calls[0].1, "webreader:jina-reader");
+        assert_eq!(calls[0].2.tool_call_id, "call-1");
     }
 }

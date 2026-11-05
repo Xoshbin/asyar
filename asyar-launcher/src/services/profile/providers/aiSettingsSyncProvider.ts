@@ -91,6 +91,7 @@ export class AISettingsSyncProvider implements ISyncProvider {
       'tabContinuesLastThread',
       'historyRetentionCap',
       'webSearch',
+      'webReader',
     ];
     for (const key of activeKeys) {
       if (key in raw) (filtered as Record<string, unknown>)[key] = raw[key];
@@ -174,6 +175,11 @@ function withoutApiKeys(ai: AISettings): AISettings {
     const webSearch = { ...ai.webSearch } as Record<string, unknown>;
     delete webSearch['apiKey'];
     result.webSearch = webSearch as unknown as AISettings['webSearch'];
+  }
+  if (ai.webReader) {
+    const webReader = { ...ai.webReader } as Record<string, unknown>;
+    delete webReader['apiKey'];
+    result.webReader = webReader as unknown as AISettings['webReader'];
   }
   return result;
 }
@@ -264,6 +270,17 @@ export function sanitizeIncomingAiSettings(
     };
     delete mergedWebSearch['apiKey'];
     sanitized.webSearch = mergedWebSearch as unknown as AISettings['webSearch'];
+  }
+
+  // When webReader is present in incoming data, merge while stripping any remote apiKey
+  if ('webReader' in incoming && incoming.webReader && typeof incoming.webReader === 'object') {
+    const localWebReader = localAi?.webReader;
+    const mergedWebReader: Record<string, unknown> = {
+      ...localWebReader,
+      ...incoming.webReader,
+    };
+    delete mergedWebReader['apiKey'];
+    sanitized.webReader = mergedWebReader as unknown as AISettings['webReader'];
   }
 
   return sanitized;

@@ -33,7 +33,7 @@ Beyond the quick-ask flow, you can create custom **agents** — each agent has i
 
 Before you can use any agent, configure at least one AI provider in **Settings → AI** (`⌘,`):
 
-1. **Cloud & Local API Providers**: Click **+ Add provider** and choose from: **Anthropic**, **OpenAI**, **Google**, **Ollama**, **OpenRouter**, or **Custom**.
+1. **Cloud, Local & Extension Providers**: Click **+ Add provider** and choose from built-in providers (**Anthropic**, **OpenAI**, **Google**, **Ollama**, **OpenRouter**, **Custom**) or any installed **Extension Providers** contributed via the AI Provider SPI.
    - Enter your API key and click **Save**. The field then shows **Key saved**, with **Replace** and **Remove**. The key is never shown again.
    - Keys are stored encrypted on your device (AES-256-GCM), with the encryption key held in your OS keychain (on Linux without a keyring, in a file only your user can read). They are never synced or included in backups.
 2. **Local CLI Providers (Zero-Key Setup)**:

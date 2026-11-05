@@ -68,9 +68,27 @@ export interface AsyarManifest {
    */
   webSearchEngines?: ManifestWebSearchEngine[];
   /**
+   * Contributed web content scrapers / markdown readers.
+   */
+  webReaders?: ManifestWebReader[];
+  /**
    * Contributed AI model & inference providers.
    */
   aiProviders?: ManifestAiProvider[];
+}
+
+export interface ManifestWebReader {
+  id: string;
+  name: string;
+  description?: string;
+  homepage?: string;
+  requiresApiKey?: boolean;
+  apiKeyOptional?: boolean;
+  apiKeyPlaceholder?: string;
+  apiKeyHelpUrl?: string;
+  requiresBaseUrl?: boolean;
+  baseUrlPlaceholder?: string;
+  icon?: string;
 }
 
 export interface ManifestAiModel {
@@ -308,6 +326,7 @@ export const VALID_PERMISSIONS = [
   'mcp',
   'ai',
   'ai:web-search',
+  'ai:web-reader',
   'ai:provider',
 ] as const;
 
@@ -678,6 +697,7 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
   errors.push(...validateIcons(manifest));
   errors.push(...validatePreferences(manifest.preferences, 'preferences'));
   errors.push(...validateWebSearchEngines(manifest.webSearchEngines, 'webSearchEngines', manifest));
+  errors.push(...validateWebReaders(manifest.webReaders, 'webReaders', manifest));
   errors.push(...validateAiProviders(manifest.aiProviders, 'aiProviders', manifest));
   (manifest.commands ?? []).forEach((cmd, i) => {
     errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
@@ -1263,6 +1283,13 @@ export function validateWebSearchEngines(
     errors.push({ field: fieldPrefix, message: 'must be a non-empty array' });
     return errors;
   }
+  if (manifest.type === 'theme') {
+    errors.push({
+      field: fieldPrefix,
+      message: 'Theme extensions must not declare webSearchEngines',
+    });
+    return errors;
+  }
   if (!manifest.background?.main) {
     errors.push({
       field: 'background.main',
@@ -1306,6 +1333,73 @@ export function validateWebSearchEngines(
       errors.push({ field: `${p}.homepage`, message: 'must start with http:// or https://' });
     }
     if (typeof e.apiKeyHelpUrl === 'string' && !/^https?:\/\//.test(e.apiKeyHelpUrl)) {
+      errors.push({ field: `${p}.apiKeyHelpUrl`, message: 'must start with http:// or https://' });
+    }
+  });
+  return errors;
+}
+
+export function validateWebReaders(
+  readers: unknown,
+  fieldPrefix: string,
+  manifest: AsyarManifest,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (readers === undefined) return errors;
+  if (!Array.isArray(readers) || readers.length === 0) {
+    errors.push({ field: fieldPrefix, message: 'must be a non-empty array' });
+    return errors;
+  }
+  if (manifest.type === 'theme') {
+    errors.push({
+      field: fieldPrefix,
+      message: 'Theme extensions must not declare webReaders',
+    });
+    return errors;
+  }
+  if (!manifest.background?.main) {
+    errors.push({
+      field: 'background.main',
+      message:
+        'required when manifest declares webReaders (web readers run in the headless worker)',
+    });
+  }
+  const perms = manifest.permissions ?? [];
+  if (!perms.includes('network')) {
+    errors.push({
+      field: 'permissions',
+      message: 'manifest with webReaders requires the "network" permission',
+    });
+  }
+  if (!perms.includes('ai:web-reader')) {
+    errors.push({
+      field: 'permissions',
+      message: 'manifest with webReaders requires the "ai:web-reader" permission',
+    });
+  }
+  const seenIds = new Set<string>();
+  const idRe = /^[a-z0-9_-]{1,64}$/;
+  readers.forEach((item, i) => {
+    const p = `${fieldPrefix}[${i}]`;
+    if (!item || typeof item !== 'object') {
+      errors.push({ field: p, message: 'must be an object' });
+      return;
+    }
+    const r = item as Record<string, unknown>;
+    if (typeof r.id !== 'string' || !idRe.test(r.id)) {
+      errors.push({ field: `${p}.id`, message: 'must match /^[a-z0-9_-]{1,64}$/' });
+    } else if (seenIds.has(r.id)) {
+      errors.push({ field: `${p}.id`, message: `duplicate reader id "${r.id}"` });
+    } else {
+      seenIds.add(r.id);
+    }
+    if (typeof r.name !== 'string' || r.name.trim().length === 0) {
+      errors.push({ field: `${p}.name`, message: 'required and must be non-empty' });
+    }
+    if (typeof r.homepage === 'string' && !/^https?:\/\//.test(r.homepage)) {
+      errors.push({ field: `${p}.homepage`, message: 'must start with http:// or https://' });
+    }
+    if (typeof r.apiKeyHelpUrl === 'string' && !/^https?:\/\//.test(r.apiKeyHelpUrl)) {
       errors.push({ field: `${p}.apiKeyHelpUrl`, message: 'must start with http:// or https://' });
     }
   });

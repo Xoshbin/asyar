@@ -114,6 +114,66 @@ The root-level `webSearchEngines` field declares web search providers contribute
 
 See [AiService](./sdk/ai-service.md#web-search-engine-spi) for the runtime registration API and the [Contribute a Web Search Engine](../how-to/contribute-web-search-engine.md) guide.
 
+### The `aiProviders` array — per-provider fields (ManifestAiProvider)
+
+The root-level `aiProviders` field declares custom AI model and inference providers contributed by your extension. Each entry is a `ManifestAiProvider`:
+
+| Field                | Type                | Required | Constraints                                   | Description                                                                                              |
+| -------------------- | ------------------- | -------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `id`                 | `string`            | ✅       | Unique within extension, `^[a-z0-9_-]{1,64}$` | Short programmatic identifier. Fully qualified in the host as `ext:<extensionId>:<id>`.                  |
+| `name`               | `string`            | ✅       | Non-empty                                     | Human-readable label shown in **Settings → AI** and the provider selector.                               |
+| `description`        | `string`            | ❌       | —                                             | Short summary displayed in Settings under the provider row.                                              |
+| `homepage`           | `string`            | ❌       | Starts with `http://` or `https://`           | Product or provider homepage linked in Settings.                                                         |
+| `requiresApiKey`     | `boolean`           | ❌       | Defaults to `true` (unless `apiKeyOptional`)  | If `true`, Asyar prompts for an API key in Settings and stores the credential encrypted on disk.         |
+| `apiKeyOptional`     | `boolean`           | ❌       | Defaults to `false`                           | If `true`, the provider supports an optional API key (e.g. for free tiers or local servers).             |
+| `apiKeyPlaceholder`  | `string`            | ❌       | —                                             | Custom placeholder text for the API key input field.                                                     |
+| `apiKeyHelpUrl`      | `string`            | ❌       | Starts with `http://` or `https://`           | Link to provider documentation or console where the user can obtain an API key.                          |
+| `requiresBaseUrl`    | `boolean`           | ❌       | Defaults to `false`                           | If `true`, Asyar prompts for a custom endpoint / base URL in Settings.                                   |
+| `baseUrlPlaceholder` | `string`            | ❌       | —                                             | Custom placeholder text for the endpoint URL field.                                                      |
+| `models`             | `ManifestAiModel[]` | ❌       | Static model list                             | Array of static model definitions (`id`, `name`, optional `contextWindow`, optional `reasoningEfforts`). |
+
+**Per-model fields (`ManifestAiModel`):**
+
+| Field              | Type       | Required | Constraints              | Description                                                                        |
+| ------------------ | ---------- | -------- | ------------------------ | ---------------------------------------------------------------------------------- |
+| `id`               | `string`   | ✅       | Unique within provider   | Programmatic model identifier sent to inference requests.                          |
+| `name`             | `string`   | ✅       | Non-empty                | Human-readable model label displayed in the model selector.                        |
+| `contextWindow`    | `number`   | ❌       | Integer > 0              | Maximum context window size in tokens.                                             |
+| `reasoningEfforts` | `string[]` | ❌       | e.g. `["low", "medium"]` | Supported reasoning effort levels for models that support reasoning configuration. |
+
+**Requirements:**
+
+- The extension must declare `"permissions": ["network", "ai:provider"]`.
+- The extension must declare a headless worker bundle via `background.main`.
+- Theme extensions (`type === "theme"`) cannot declare `aiProviders`.
+
+See [AiService](./sdk/ai-service.md#ai-model--inference-providers-spi) for the runtime registration API and the [Contribute an AI Provider](../how-to/contribute-ai-provider.md) guide.
+
+### The `webReaders` array — per-reader fields (ManifestWebReader)
+
+The root-level `webReaders` field declares web content scraping and Markdown extraction readers contributed by your extension for AI agent tools. Each entry is a `ManifestWebReader`:
+
+| Field                | Type      | Required | Constraints                                   | Description                                                                                                       |
+| -------------------- | --------- | -------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `id`                 | `string`  | ✅       | Unique within extension, `^[a-z0-9_-]{1,64}$` | Short programmatic identifier. Fully qualified in the host as `ext:<extensionId>:<id>`.                           |
+| `name`               | `string`  | ✅       | Non-empty                                     | Human-readable label shown in **Settings → AI → Web Reader**.                                                     |
+| `description`        | `string`  | ❌       | —                                             | Short summary displayed in Settings under the reader selector.                                                    |
+| `homepage`           | `string`  | ❌       | Starts with `http://` or `https://`           | Product or provider homepage linked in Settings.                                                                  |
+| `requiresApiKey`     | `boolean` | ❌       | Defaults to `false`                           | If `true`, Asyar renders a secure API key field in Settings and stores the credential encrypted in local storage. |
+| `apiKeyOptional`     | `boolean` | ❌       | Defaults to `false`                           | If `true`, the reader supports an optional API key (e.g. for higher rate limits).                                 |
+| `apiKeyPlaceholder`  | `string`  | ❌       | —                                             | Custom placeholder text for the API key input field.                                                              |
+| `apiKeyHelpUrl`      | `string`  | ❌       | Starts with `http://` or `https://`           | Link to provider documentation or console where the user can obtain an API key.                                   |
+| `requiresBaseUrl`    | `boolean` | ❌       | Defaults to `false`                           | If `true`, Asyar prompts for a custom endpoint / base URL in Settings.                                            |
+| `baseUrlPlaceholder` | `string`  | ❌       | —                                             | Custom placeholder text for the endpoint URL field.                                                               |
+
+**Requirements:**
+
+- The extension must declare `"permissions": ["network", "ai:web-reader"]`.
+- The extension must declare a headless worker bundle via `background.main`.
+- Theme extensions (`type === "theme"`) cannot declare `webReaders`.
+
+See [AiService](./sdk/ai-service.md#web-reader-spi) for the runtime registration API and the [Contribute a Web Reader](../how-to/contribute-web-reader.md) guide.
+
 ### `walkthrough` — teaching your features
 
 The **Walkthrough** command in the launcher is a task list that teaches Asyar
@@ -187,6 +247,8 @@ The Rust discovery parser enforces:
 - At least one `mode === "background"` command — or `searchable: true` — requires `background.main`.
 - `background.main` without any background commands and without `searchable` is permitted (push-event-only extensions).
 - `webSearchEngines` requires `background.main` and both `network` and `ai:web-search` permissions. It is forbidden on `type === "theme"`. Each engine id must match `^[a-z0-9_-]{1,64}$`, names must be non-empty, and `homepage` / `apiKeyHelpUrl` must start with `http://` or `https://`.
+- `aiProviders` requires `background.main` and both `network` and `ai:provider` permissions. It is forbidden on `type === "theme"`. Each provider id must match `^[a-z0-9_-]{1,64}$`, names must be non-empty, `homepage` / `apiKeyHelpUrl` must start with `http://` or `https://`, and model declarations must have non-empty unique `id`s and non-empty `name`s.
+- `webReaders` requires `background.main` and both `network` and `ai:web-reader` permissions. It is forbidden on `type === "theme"`. Each reader id must match `^[a-z0-9_-]{1,64}$`, names must be non-empty, and `homepage` / `apiKeyHelpUrl` must start with `http://` or `https://`.
 - Unknown fields are rejected via `#[serde(deny_unknown_fields)]`. Old manifests with `defaultView` / `resultType` / etc. fail discovery.
 
 ### Parameterized permissions — `permissionArgs`

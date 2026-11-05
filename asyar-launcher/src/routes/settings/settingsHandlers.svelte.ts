@@ -23,6 +23,7 @@ import type {
   PreferenceDeclaration,
   ManifestWebSearchEngine,
   ManifestAiProvider,
+  ManifestWebReader,
 } from 'asyar-sdk/contracts';
 import type { ResolvedIcon } from '../../bindings';
 import type { HostCommand } from '../../types/ExtendedManifest';
@@ -48,6 +49,7 @@ export interface ExtensionItem {
   permissionArgs?: Record<string, unknown>;
   webSearchEngines?: ManifestWebSearchEngine[];
   aiProviders?: ManifestAiProvider[];
+  webReaders?: ManifestWebReader[];
 }
 
 // Initialize with default settings first
