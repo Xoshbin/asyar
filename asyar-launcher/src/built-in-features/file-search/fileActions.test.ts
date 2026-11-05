@@ -186,6 +186,7 @@ describe('buildFileActions', () => {
       expect(actions.find((a) => a.id === 'file-search:open-in-terminal')?.visible?.()).toBe(false);
       expect(actions.find((a) => a.id === 'file-search:pin')?.visible?.()).toBe(false);
       expect(actions.find((a) => a.id === 'file-search:unpin')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:quick-look')?.visible?.()).toBe(false);
       expect(actions.find((a) => a.id === 'file-search:reveal-in-finder')?.visible?.()).toBe(true);
 
       await actions.find((a) => a.id === 'file-search:reveal-in-finder')?.execute();

@@ -9,8 +9,22 @@ import * as path from 'path';
 
 const IMAGE_FILE = /\.(png|jpe?g|webp|gif|svg)$/i;
 
-/** Package-relative path of a file icon, or null for emoji, `icon:` names and other forms. */
+/**
+ * Package-relative path of a file icon (the short string or `{ source }`),
+ * or null for emoji, `icon:` names, glyph tiles and other forms.
+ */
 export function iconFilePath(icon: unknown): string | null {
+  if (icon && typeof icon === 'object' && 'source' in icon) icon = icon.source;
+  return packagePathOf(icon);
+}
+
+/** Every file the icon needs in the package: the Store icon, then `{ dark }`. */
+export function iconFilePaths(icon: unknown): string[] {
+  const dark = icon && typeof icon === 'object' && 'dark' in icon ? icon.dark : null;
+  return [iconFilePath(icon), packagePathOf(dark)].filter((p): p is string => p !== null);
+}
+
+function packagePathOf(icon: unknown): string | null {
   if (typeof icon !== 'string' || icon.startsWith('icon:') || !IMAGE_FILE.test(icon)) {
     return null;
   }
@@ -23,15 +37,16 @@ export function checkStoreIcon(
   icon: unknown,
   packageRoot: string,
 ): { errors: string[]; warnings: string[] } {
-  const packagePath = iconFilePath(icon);
-  if (!packagePath) return { errors: [], warnings: [] };
-
-  if (!fs.existsSync(path.join(packageRoot, packagePath))) {
+  const missing = iconFilePaths(icon).filter((p) => !fs.existsSync(path.join(packageRoot, p)));
+  if (missing.length > 0) {
     return {
-      errors: [`The icon file "${packagePath}" is not in the package.`],
+      errors: missing.map((p) => `The icon file "${p}" is not in the package.`),
       warnings: [],
     };
   }
+
+  const packagePath = iconFilePath(icon);
+  if (!packagePath) return { errors: [], warnings: [] };
 
   // Like VS Code, the Store never serves SVG (it can carry scripts). It
   // stays fine for the launcher, so this warns instead of failing.

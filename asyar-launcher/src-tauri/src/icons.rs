@@ -4,22 +4,162 @@
 
 pub mod copies;
 
-use serde::{Deserialize, Serialize};
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize};
 
 /// A display-ready icon. Tagged by `kind` on the wire.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ResolvedIcon {
-    /// A glyph from the launcher's built-in icon set (`icon:<name>`).
-    Glyph { name: String },
+    /// A glyph from the launcher's built-in icon set (`icon:<name>`). With a
+    /// `color`, it is drawn on a tile of that colour.
+    Glyph {
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[specta(optional)]
+        color: Option<TileColor>,
+    },
     /// Plain text, normally a single emoji.
     Emoji { value: String },
     /// A local image the webview may load: an extension's bundled file,
     /// a host scheme (`asyar-icon://`, `asyar-thumb://`) or a `data:image/`.
-    Image { src: String },
+    /// `dark` replaces it in the dark theme; `tint` draws it as a one-colour
+    /// mask filled with the text colour.
+    Image {
+        src: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[specta(optional)]
+        dark: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[specta(optional)]
+        tint: Option<bool>,
+    },
     /// An `https://` image. Only produced for runtime icons; manifest icons
     /// are known at install time and never need the network.
     Remote { url: String },
+}
+
+/// Tile colours for the `{ glyph, color }` icon form. Each maps to a
+/// `--tile-<color>` theme token, so tiles work in light and dark.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub enum TileColor {
+    Red,
+    Orange,
+    Green,
+    Teal,
+    Blue,
+    Purple,
+    Pink,
+    Gray,
+}
+
+/// The `icon` field as manifest.json writes it: the short string
+/// (`"icon:timer"`, an emoji, `"assets/icon.png"`), or one of two objects.
+/// The objects exclude each other; mixing their fields is a parse error.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, specta::Type)]
+#[serde(untagged)]
+pub enum ManifestIcon {
+    Short(String),
+    /// `{ "source": "assets/icon.png", "dark"?: "...", "tint"?: true }`
+    Image {
+        source: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dark: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tint: Option<bool>,
+    },
+    /// `{ "glyph": "timer", "color": "orange" }`
+    Tile {
+        glyph: String,
+        color: TileColor,
+    },
+}
+
+impl<'de> Deserialize<'de> for ManifestIcon {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Fields {
+            source: Option<String>,
+            dark: Option<String>,
+            tint: Option<bool>,
+            glyph: Option<String>,
+            color: Option<TileColor>,
+        }
+
+        let fields = match serde_json::Value::deserialize(d)? {
+            serde_json::Value::String(s) => return Ok(Self::Short(s)),
+            v @ serde_json::Value::Object(_) => {
+                serde_json::from_value::<Fields>(v).map_err(D::Error::custom)?
+            }
+            _ => return Err(D::Error::custom("icon must be a string or an object")),
+        };
+        let image_form = fields.source.is_some() || fields.dark.is_some() || fields.tint.is_some();
+        let tile_form = fields.glyph.is_some() || fields.color.is_some();
+        match (image_form, tile_form) {
+            (true, true) => Err(D::Error::custom(
+                "icon uses either { source, dark, tint } or { glyph, color }, not both",
+            )),
+            (true, false) => Ok(Self::Image {
+                source: fields
+                    .source
+                    .ok_or_else(|| D::Error::custom("icon object needs a `source`"))?,
+                dark: fields.dark,
+                tint: fields.tint,
+            }),
+            (false, true) => match (fields.glyph, fields.color) {
+                (Some(glyph), Some(color)) => Ok(Self::Tile { glyph, color }),
+                _ => Err(D::Error::custom("icon { glyph, color } needs both fields")),
+            },
+            (false, false) => Err(D::Error::custom(
+                "icon object needs { source } or { glyph, color }",
+            )),
+        }
+    }
+}
+
+impl From<String> for ManifestIcon {
+    fn from(raw: String) -> Self {
+        Self::Short(raw)
+    }
+}
+
+impl ManifestIcon {
+    /// Resolve with the same rules as [`resolve_icon`]. The image form only
+    /// accepts images; a `dark` that isn't one is dropped.
+    pub fn resolve(&self, extension_id: Option<&str>, allow_remote: bool) -> Option<ResolvedIcon> {
+        match self {
+            Self::Short(raw) => resolve_icon(raw, extension_id, allow_remote),
+            Self::Image { source, dark, tint } => {
+                let image = |raw: &str| match resolve_icon(raw, extension_id, false)? {
+                    ResolvedIcon::Image { src, .. } => Some(src),
+                    _ => None,
+                };
+                Some(ResolvedIcon::Image {
+                    src: image(source)?,
+                    dark: dark.as_deref().and_then(image),
+                    tint: tint.filter(|t| *t),
+                })
+            }
+            Self::Tile { glyph, color } => {
+                let name = glyph.trim();
+                (!name.is_empty()).then(|| ResolvedIcon::Glyph {
+                    name: name.into(),
+                    color: Some(*color),
+                })
+            }
+        }
+    }
+
+    /// Every raw string that may name a bundled file.
+    pub fn files(&self) -> impl Iterator<Item = &str> {
+        let (a, b) = match self {
+            Self::Short(raw) => (Some(raw.as_str()), None),
+            Self::Image { source, dark, .. } => (Some(source.as_str()), dark.as_deref()),
+            Self::Tile { .. } => (None, None),
+        };
+        a.into_iter().chain(b)
+    }
 }
 
 const HOST_IMAGE_SCHEMES: &[&str] = &["asyar-extension://", "asyar-icon://", "asyar-thumb://"];
@@ -44,10 +184,17 @@ pub fn resolve_icon(
         return None;
     }
     if let Some(name) = raw.strip_prefix("icon:") {
-        return (!name.is_empty()).then(|| ResolvedIcon::Glyph { name: name.into() });
+        return (!name.is_empty()).then(|| ResolvedIcon::Glyph {
+            name: name.into(),
+            color: None,
+        });
     }
     if raw.starts_with("data:image/") || HOST_IMAGE_SCHEMES.iter().any(|s| raw.starts_with(s)) {
-        return Some(ResolvedIcon::Image { src: raw.into() });
+        return Some(ResolvedIcon::Image {
+            src: raw.into(),
+            dark: None,
+            tint: None,
+        });
     }
     if raw.starts_with("https://") {
         return allow_remote.then(|| ResolvedIcon::Remote { url: raw.into() });
@@ -103,6 +250,8 @@ fn bundled_file(path: &str, extension_id: &str) -> Option<ResolvedIcon> {
             "asyar-extension://{extension_id}/{path}?{}",
             copies::COPY_QUERY
         ),
+        dark: None,
+        tint: None,
     })
 }
 
@@ -111,7 +260,11 @@ mod tests {
     use super::*;
 
     fn img(src: &str) -> Option<ResolvedIcon> {
-        Some(ResolvedIcon::Image { src: src.into() })
+        Some(ResolvedIcon::Image {
+            src: src.into(),
+            dark: None,
+            tint: None,
+        })
     }
 
     #[test]
@@ -119,7 +272,8 @@ mod tests {
         assert_eq!(
             resolve_icon("icon:timer", None, false),
             Some(ResolvedIcon::Glyph {
-                name: "timer".into()
+                name: "timer".into(),
+                color: None
             })
         );
         assert_eq!(
@@ -205,7 +359,8 @@ mod tests {
         assert_eq!(
             m.commands[0].resolved_icon,
             Some(ResolvedIcon::Glyph {
-                name: "timer".into()
+                name: "timer".into(),
+                color: None
             })
         );
         assert_eq!(m.commands[1].resolved_icon, ext_icon);
@@ -266,11 +421,118 @@ mod tests {
     fn serializes_with_kind_tag() {
         let json = serde_json::to_value(ResolvedIcon::Glyph {
             name: "timer".into(),
+            color: None,
         })
         .unwrap();
         assert_eq!(
             json,
             serde_json::json!({ "kind": "glyph", "name": "timer" })
         );
+    }
+
+    fn parse(v: serde_json::Value) -> Result<ManifestIcon, String> {
+        serde_json::from_value(v).map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn manifest_icon_accepts_both_object_forms() {
+        use serde_json::json;
+        assert_eq!(
+            parse(json!("icon:timer")),
+            Ok(ManifestIcon::Short("icon:timer".into()))
+        );
+        assert_eq!(
+            parse(json!({ "source": "a.png", "dark": "b.png", "tint": true })),
+            Ok(ManifestIcon::Image {
+                source: "a.png".into(),
+                dark: Some("b.png".into()),
+                tint: Some(true)
+            })
+        );
+        assert_eq!(
+            parse(json!({ "glyph": "timer", "color": "orange" })),
+            Ok(ManifestIcon::Tile {
+                glyph: "timer".into(),
+                color: TileColor::Orange
+            })
+        );
+    }
+
+    #[test]
+    fn manifest_icon_rejects_mixed_and_incomplete_forms() {
+        use serde_json::json;
+        for (v, msg) in [
+            (json!({ "source": "a.png", "glyph": "timer" }), "not both"),
+            (json!({ "tint": true, "color": "red" }), "not both"),
+            (json!({ "dark": "b.png" }), "needs a `source`"),
+            (json!({ "glyph": "timer" }), "needs both"),
+            (json!({}), "needs { source }"),
+            (
+                json!({ "glyph": "timer", "color": "mauve" }),
+                "unknown variant",
+            ),
+            (json!({ "source": "a.png", "size": 2 }), "unknown field"),
+            (json!(42), "string or an object"),
+        ] {
+            let err = parse(v.clone()).unwrap_err();
+            assert!(err.contains(msg), "{v}: {err}");
+        }
+    }
+
+    #[test]
+    fn object_forms_resolve() {
+        let image = ManifestIcon::Image {
+            source: "a.png".into(),
+            dark: Some("b.png".into()),
+            tint: Some(true),
+        };
+        assert_eq!(
+            image.resolve(Some("org.x"), false),
+            Some(ResolvedIcon::Image {
+                src: "asyar-extension://org.x/a.png?icon".into(),
+                dark: Some("asyar-extension://org.x/b.png?icon".into()),
+                tint: Some(true),
+            })
+        );
+        assert_eq!(image.files().collect::<Vec<_>>(), ["a.png", "b.png"]);
+
+        // A source that isn't an image falls back; a bad `dark` is dropped.
+        let emoji = ManifestIcon::Image {
+            source: "🍅".into(),
+            dark: None,
+            tint: None,
+        };
+        assert_eq!(emoji.resolve(Some("org.x"), false), None);
+        let bad_dark = ManifestIcon::Image {
+            source: "a.png".into(),
+            dark: Some("../b.png".into()),
+            tint: Some(false),
+        };
+        assert_eq!(
+            bad_dark.resolve(Some("org.x"), false),
+            img("asyar-extension://org.x/a.png?icon")
+        );
+
+        let tile = ManifestIcon::Tile {
+            glyph: "timer".into(),
+            color: TileColor::Teal,
+        };
+        assert_eq!(
+            tile.resolve(None, false),
+            Some(ResolvedIcon::Glyph {
+                name: "timer".into(),
+                color: Some(TileColor::Teal)
+            })
+        );
+        assert_eq!(tile.files().count(), 0);
+    }
+
+    #[test]
+    fn indexed_commands_keep_string_and_object_icons() {
+        let tile = serde_json::json!({ "glyph": "timer", "color": "blue" });
+        for icon in [serde_json::json!("🍅"), tile] {
+            let parsed = parse(icon.clone()).unwrap();
+            assert_eq!(serde_json::to_value(&parsed).unwrap(), icon);
+        }
     }
 }

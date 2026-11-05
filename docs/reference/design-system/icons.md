@@ -19,6 +19,16 @@ Reference for all built-in icons available in the Asyar SDK.
    { "icon": "icon.png" }
    ```
    _Note: Relative paths are resolved and securely loaded via the `asyar-extension://` protocol. Provide transparent PNGs or SVGs to ensure crisp contrast across both Dark and Light themes._
+4. **An object** for richer manifest icons (extension, commands and manifest actions). Use one form only; mixing their fields is an error. Needs `"asyarSdk": "^4.17.0"` or newer.
+   - A bundled image with an optional dark-theme variant, or `tint: true` to draw a one-colour image (e.g. a monochrome SVG) in the theme's text colour:
+     ```json
+     { "icon": { "source": "assets/icon.png", "dark": "assets/icon-dark.png" } }
+     { "icon": { "source": "assets/glyph.svg", "tint": true } }
+     ```
+   - A built-in glyph on a coloured tile, like the built-in commands. `color` is one of `red`, `orange`, `green`, `teal`, `blue`, `purple`, `pink`, `gray`; tiles follow the light and dark theme:
+     ```json
+     { "icon": { "glyph": "timer", "color": "orange" } }
+     ```
 
 **Inside your extension view** — use the SDK utilities:
 

@@ -74,7 +74,7 @@ export function buildFileActions(opts: {
       visible: () => Boolean(getFile()?.url),
       execute: async () => {
         const file = getFile();
-        if (file?.url) await openerService.open(file.extensionId ?? null, file.url);
+        if (file?.url) await openerService.open(null, file.url);
       },
     },
     {
@@ -238,12 +238,12 @@ export function buildFileActions(opts: {
       description: t('features.file_search.act.quick_look_desc'),
       icon: 'icon:eye',
       shortcut: 'Mod+Y',
-      visible: () => Boolean(getFile()?.path),
+      visible: () => Boolean(getFile()?.path) && !getFile()?.extensionId,
       execute: async () => {
         const file = getFile();
-        if (!file?.path) return;
+        if (!file?.path || file.extensionId) return;
         const ok = await quickLookPath(file.path);
-        if (!ok) await openerService.openPath(file.extensionId ?? null, file.path);
+        if (!ok) await openerService.openPath(null, file.path);
       },
     },
     {

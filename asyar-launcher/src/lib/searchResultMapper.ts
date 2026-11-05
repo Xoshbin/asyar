@@ -387,7 +387,7 @@ export function buildMappedItems({
         }
         if (result.url) {
           try {
-            await openerService.open(result.extensionId ?? null, result.url);
+            await openerService.open(null, result.url);
           } catch (err) {
             logService.error(`openerService.open failed: ${err}`);
             onError(`Failed to open ${name}`);

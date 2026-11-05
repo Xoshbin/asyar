@@ -43,7 +43,8 @@ pub struct Command {
     pub command_type: String,
     #[serde(default)] // Add this default for usage count
     pub usage_count: u32,
-    pub icon: Option<String>,
+    /// Raw manifest icon; rows persisted as a plain string still decode.
+    pub icon: Option<crate::icons::ManifestIcon>,
     #[serde(default)]
     pub last_used_at: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -160,7 +161,9 @@ pub struct MergedSearchResponse {
 impl Command {
     /// Dynamic (runtime) command icons may be remote; manifest ones may not.
     pub fn resolved_icon(&self) -> Option<crate::icons::ResolvedIcon> {
-        crate::icons::resolve_opt(self.icon.as_deref(), Some(&self.extension), self.is_dynamic)
+        self.icon
+            .as_ref()?
+            .resolve(Some(&self.extension), self.is_dynamic)
     }
 }
 
