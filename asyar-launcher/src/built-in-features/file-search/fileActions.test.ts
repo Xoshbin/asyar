@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionContext } from 'asyar-sdk/contracts';
 
-const { quickLookPath, openPath, confirmAlert } = vi.hoisted(() => ({
+const {
+  quickLookPath,
+  openPath,
+  open: openMock,
+  reveal: revealMock,
+  confirmAlert,
+} = vi.hoisted(() => ({
   quickLookPath: vi.fn(),
   openPath: vi.fn(),
+  open: vi.fn(),
+  reveal: vi.fn(),
   confirmAlert: vi.fn(),
 }));
 
@@ -14,7 +22,9 @@ vi.mock('../../lib/ipc/fileSearchCommands', () => ({
   openInTerminal: vi.fn(),
   quickLookPath,
 }));
-vi.mock('../../services/opener/openerService', () => ({ openerService: { openPath } }));
+vi.mock('../../services/opener/openerService', () => ({
+  openerService: { openPath, open: openMock, reveal: revealMock },
+}));
 vi.mock('../../services/fileManager/fileManagerService', () => ({
   fileManagerService: { trash: vi.fn() },
 }));
@@ -30,6 +40,7 @@ vi.mock('./state.svelte', () => ({
 
 import { buildFileActions } from './fileActions';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
+import { writeText } from 'tauri-plugin-clipboard-x-api';
 
 const file = { fileId: 'abc', path: '/tmp/report.txt', name: 'report.txt' };
 
@@ -42,7 +53,7 @@ describe('buildFileActions', () => {
       getFile: () => file,
       context: ActionContext.EXTENSION_VIEW,
     });
-    expect(core).toHaveLength(9);
+    expect(core).toHaveLength(12);
     expect(view.map((action) => action.id)).toEqual(core.map((action) => action.id));
     expect(core.every((action) => action.context === ActionContext.CORE)).toBe(true);
 
@@ -66,7 +77,7 @@ describe('buildFileActions', () => {
       context: ActionContext.EXTENSION_VIEW,
       include: { deepSearch: true, clearHistory: true },
     });
-    expect(view).toHaveLength(11);
+    expect(view).toHaveLength(14);
   });
 
   it('falls back to opening the file when Quick Look reports failure', async () => {
@@ -105,6 +116,84 @@ describe('buildFileActions', () => {
       await trashAction().execute();
 
       expect(fileManagerService.trash).toHaveBeenCalledWith('/tmp/report.txt');
+    });
+  });
+
+  describe('cloud / remote file actions', () => {
+    const cloudFile = {
+      fileId: 'gdrive_123',
+      name: 'Q3 Financial Plan',
+      url: 'https://docs.google.com/spreadsheets/d/123',
+    };
+
+    it('shows browser/link actions and hides local-only actions when path is missing', () => {
+      const actions = buildFileActions({
+        getFile: () => cloudFile,
+        context: ActionContext.CORE,
+      });
+
+      const openBrowser = actions.find((a) => a.id === 'file-search:open-in-browser');
+      const copyWebLink = actions.find((a) => a.id === 'file-search:copy-web-link');
+      const copyMdLink = actions.find((a) => a.id === 'file-search:copy-markdown-link');
+      const reveal = actions.find((a) => a.id === 'file-search:reveal-in-finder');
+      const copyPath = actions.find((a) => a.id === 'file-search:copy-path');
+      const terminal = actions.find((a) => a.id === 'file-search:open-in-terminal');
+      const trash = actions.find((a) => a.id === 'file-search:move-to-trash');
+      const quickLook = actions.find((a) => a.id === 'file-search:quick-look');
+
+      expect(openBrowser?.visible?.()).toBe(true);
+      expect(copyWebLink?.visible?.()).toBe(true);
+      expect(copyMdLink?.visible?.()).toBe(true);
+
+      expect(reveal?.visible?.()).toBe(false);
+      expect(copyPath?.visible?.()).toBe(false);
+      expect(terminal?.visible?.()).toBe(false);
+      expect(trash?.visible?.()).toBe(false);
+      expect(quickLook?.visible?.()).toBe(false);
+    });
+
+    it('executes open-in-browser, copy-web-link, and copy-markdown-link', async () => {
+      const actions = buildFileActions({
+        getFile: () => cloudFile,
+        context: ActionContext.CORE,
+      });
+
+      await actions.find((a) => a.id === 'file-search:open-in-browser')?.execute();
+      expect(openMock).toHaveBeenCalledWith(null, 'https://docs.google.com/spreadsheets/d/123');
+
+      await actions.find((a) => a.id === 'file-search:copy-web-link')?.execute();
+      expect(writeText).toHaveBeenCalledWith('https://docs.google.com/spreadsheets/d/123');
+
+      await actions.find((a) => a.id === 'file-search:copy-markdown-link')?.execute();
+      expect(writeText).toHaveBeenCalledWith(
+        '[Q3 Financial Plan](https://docs.google.com/spreadsheets/d/123)',
+      );
+    });
+
+    it('hides destructive host actions and scopes reveal for extension-contributed files', async () => {
+      const extensionFile = {
+        fileId: 'remote-1',
+        name: 'Mirrored Doc',
+        path: '/Users/test/GoogleDrive/Doc.pdf',
+        extensionId: 'org.example.gdrive',
+      };
+      const actions = buildFileActions({
+        getFile: () => extensionFile,
+        context: ActionContext.CORE,
+      });
+
+      expect(actions.find((a) => a.id === 'file-search:move-to-trash')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:open-in-terminal')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:pin')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:unpin')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:quick-look')?.visible?.()).toBe(false);
+      expect(actions.find((a) => a.id === 'file-search:reveal-in-finder')?.visible?.()).toBe(true);
+
+      await actions.find((a) => a.id === 'file-search:reveal-in-finder')?.execute();
+      expect(revealMock).toHaveBeenCalledWith(
+        'org.example.gdrive',
+        '/Users/test/GoogleDrive/Doc.pdf',
+      );
     });
   });
 });

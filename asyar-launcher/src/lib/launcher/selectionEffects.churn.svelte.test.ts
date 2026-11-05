@@ -29,9 +29,6 @@ vi.mock('../../lib/ipc/commands', () => ({ setItemFavorite: vi.fn() }));
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn() },
 }));
-vi.mock('../../services/search/stores/search.svelte', () => ({
-  searchStores: { selectedIndex: 0, query: '' },
-}));
 vi.mock('../../services/launcher/compactSyncService.svelte', () => ({
   getCompactSyncService: () => null,
 }));
@@ -52,6 +49,7 @@ vi.mock('../../services/run/runService.svelte', () => ({
 vi.mock('../classifyItems', () => ({ classifyItems: vi.fn().mockResolvedValue(new Map()) }));
 
 import { setupSelectionEffects } from './selectionEffects.svelte';
+import { searchStores } from '../../services/search/stores/search.svelte';
 
 let cleanup = () => {};
 
@@ -102,5 +100,56 @@ describe('selectionEffects stable-selection churn', () => {
 
     expect(registerAction).not.toHaveBeenCalled();
     expect(unregisterAction).not.toHaveBeenCalled();
+  });
+
+  it('preserves selectedIndex when items append for the same query, but resets when query changes', () => {
+    const itemsState = $state<{ list: any[] }>({
+      list: [
+        { objectId: 'app_1', name: 'App 1', type: 'application' as const },
+        { objectId: 'app_2', name: 'App 2', type: 'application' as const },
+      ],
+    });
+    searchStores.query = 'app';
+    searchStores.selectedIndex = 0;
+
+    const state = {
+      get searchItems() {
+        return itemsState.list;
+      },
+      activeViewVal: null,
+      lastActiveViewId: null,
+      localSearchValue: 'app',
+      activeContext: null,
+      shortcuts: [],
+      selectedIndexVal: 0,
+      currentSelectedItemOriginal: null,
+      searchResultItemsMapped: [],
+      getBottomBar: () => null,
+    } as unknown as LauncherState;
+
+    cleanup = $effect.root(() => setupSelectionEffects(state));
+    flushSync();
+    expect(searchStores.selectedIndex).toBe(0);
+
+    // User arrows down to index 1
+    searchStores.selectedIndex = 1;
+    flushSync();
+    expect(searchStores.selectedIndex).toBe(1);
+
+    // Remote cloud results stream in and append to searchItems for the same query
+    itemsState.list = [
+      ...itemsState.list,
+      { objectId: 'file_remote_gdrive_1', name: 'Cloud Doc', type: 'file' as const },
+      { objectId: 'file_remote_gdrive_2', name: 'Cloud Sheet', type: 'file' as const },
+    ];
+    flushSync();
+
+    // Selection MUST be preserved at index 1 instead of reset to 0
+    expect(searchStores.selectedIndex).toBe(1);
+
+    // Query changes: selection must reset to 0
+    searchStores.query = 'app 2';
+    flushSync();
+    expect(searchStores.selectedIndex).toBe(0);
   });
 });

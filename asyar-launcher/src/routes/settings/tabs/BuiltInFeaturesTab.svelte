@@ -89,11 +89,23 @@
     oncommandselect={(cmd) => drill.into(idOf(selected), cmd.id)}
   >
     {#if Panel}
-      {#if HANDLER_PANELS.has(drill.id)}
-        <Panel {handler} />
-      {:else}
-        <Panel />
-      {/if}
+      <svelte:boundary
+        onerror={(err) =>
+          console.error(`[BuiltInFeaturesTab] failed to render panel ${drill.id}:`, err)}
+      >
+        {#if HANDLER_PANELS.has(drill.id)}
+          <Panel {handler} />
+        {:else}
+          <Panel />
+        {/if}
+        {#snippet failed(error)}
+          <div
+            class="p-6 text-sm text-[var(--accent-danger)] bg-[var(--bg-secondary)] rounded-xl border border-[var(--separator)]"
+          >
+            Failed to render {selected.title} settings: {String(error)}
+          </div>
+        {/snippet}
+      </svelte:boundary>
     {/if}
   </ExtensionDrillView>
 {:else}

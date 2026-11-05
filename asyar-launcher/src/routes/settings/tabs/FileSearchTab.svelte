@@ -14,18 +14,84 @@
   import { setFocusLock } from '../../../lib/ipc/commands';
   import { fileIndexStatus, fileIndexRebuild } from '../../../lib/ipc/fileSearchCommands';
   import { logService } from '../../../services/log/logService';
-  import type { IndexStatus } from '../../../bindings';
+  import extensionManager from '../../../services/extension/extensionManager.svelte';
+  import type { IndexStatus, ManifestFileSearchProvider } from '../../../bindings';
   import { canAddRoot, canAddExcludePattern } from './fileSearchTab.helpers';
   import { t } from '../../../services/i18n';
   import { appListen } from '../../../lib/ipc/bridgeEvents';
 
-  let roots = $derived(settingsService.currentSettings.fileSearch.includeRoots ?? []);
-  let excludePatterns = $derived(settingsService.currentSettings.fileSearch.excludePatterns ?? []);
-  let recentIgnorePatterns = $derived(
-    settingsService.currentSettings.fileSearch.recentIgnorePatterns ?? [],
-  );
-  let enabled = $derived(settingsService.currentSettings.fileSearch.enabled);
-  let rootSearchEnabled = $derived(settingsService.currentSettings.fileSearch.rootSearchEnabled);
+  let fileSearchSettings = $derived(settingsService.currentSettings.fileSearch);
+  let roots = $derived(fileSearchSettings?.includeRoots ?? []);
+  let excludePatterns = $derived(fileSearchSettings?.excludePatterns ?? []);
+  let recentIgnorePatterns = $derived(fileSearchSettings?.recentIgnorePatterns ?? []);
+  let enabled = $derived(fileSearchSettings?.enabled ?? true);
+  let rootSearchEnabled = $derived(fileSearchSettings?.rootSearchEnabled ?? true);
+  let providerStates = $derived(fileSearchSettings?.providerStates ?? {});
+
+  type ContributedCloudProvider = ManifestFileSearchProvider & {
+    extensionId: string;
+    extensionName: string;
+  };
+
+  let cloudProviders = $state<ContributedCloudProvider[]>([]);
+
+  $effect(() => {
+    let cancelled = false;
+    void Promise.resolve(extensionManager.getAllExtensionsWithState?.() ?? [])
+      .then((all) => {
+        if (cancelled || !all) return;
+        const list: ContributedCloudProvider[] = [];
+        const seen = new Set<string>();
+        for (const ext of all) {
+          if (!ext?.enabled) continue;
+          const providers = (ext as any).fileSearchProviders as
+            ManifestFileSearchProvider[] | undefined;
+          if (!Array.isArray(providers)) continue;
+          for (const p of providers) {
+            const key = `${ext.id}:${p.id}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            list.push({
+              ...p,
+              extensionId: ext.id,
+              extensionName: (ext as any).title ?? (ext as any).name ?? ext.id ?? 'Unknown',
+            });
+          }
+        }
+        cloudProviders = list;
+      })
+      .catch((err) => {
+        logService.warn(`FileSearchTab: failed to load extensions: ${err}`);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  function isProviderEnabled(
+    extensionId: string,
+    providerId: string,
+    defaultEnabled?: boolean | null,
+  ): boolean {
+    const key = `${extensionId}:${providerId}`;
+    return providerStates[key] ?? defaultEnabled ?? true;
+  }
+
+  async function handleToggleProvider(
+    extensionId: string,
+    providerId: string,
+    defaultEnabled?: boolean | null,
+  ) {
+    const key = `${extensionId}:${providerId}`;
+    const current = isProviderEnabled(extensionId, providerId, defaultEnabled);
+    await persistFileSearch({
+      providerStates: {
+        ...providerStates,
+        [key]: !current,
+      },
+    });
+  }
 
   let isBrowsing = $state(false);
   let newExcludePattern = $state('');
@@ -43,7 +109,11 @@
   };
 
   async function refreshStatus() {
-    status = await fileIndexStatus();
+    try {
+      status = await fileIndexStatus();
+    } catch (err) {
+      logService.warn(`fileIndexStatus failed: ${err}`);
+    }
   }
 
   $effect(() => {
@@ -51,9 +121,13 @@
     let unlisten: UnlistenFn | undefined;
     appListen<IndexStatus>('asyar:file-index-status', (e) => {
       status = e.payload;
-    }).then((fn) => {
-      unlisten = fn;
-    });
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch((err) => {
+        logService.warn(`appListen asyar:file-index-status failed: ${err}`);
+      });
     return () => {
       unlisten?.();
     };
@@ -67,6 +141,7 @@
       excludePatterns: string[];
       indexHidden: boolean;
       recentIgnorePatterns: string[];
+      providerStates: Record<string, boolean>;
     }>,
   ) {
     const ok = await settingsService.updateSettings('fileSearch', patch);
@@ -208,7 +283,7 @@
   {#if status}
     <div class="index-status">
       <Badge text={STATE_LABELS[status.state] ?? status.state} variant="default" />
-      <span class="text-caption">{status.entryCount.toLocaleString()} files indexed</span>
+      <span class="text-caption">{(status.entryCount ?? 0).toLocaleString()} files indexed</span>
       {#if status.lastScanMs > 0}
         <span class="text-caption opacity-70">last scan {status.lastScanMs}ms</span>
       {/if}
@@ -224,6 +299,31 @@
         {t('settings.file_search.index_size_warning')}
       </div>
     {/if}
+  {/if}
+</div>
+
+<div class="section-header">{t('settings.file_search.cloud_providers')}</div>
+<div id="file-search-cloud-providers">
+  <p class="section-description">
+    {t('settings.file_search.cloud_providers_description')}
+  </p>
+
+  {#if cloudProviders.length > 0}
+    <SettingsCard>
+      {#each cloudProviders as prov (`${prov.extensionId}:${prov.id}`)}
+        <SettingsRow label={prov.name} description={prov.description ?? prov.extensionName}>
+          <Toggle
+            checked={isProviderEnabled(prov.extensionId, prov.id, prov.defaultEnabled)}
+            onchange={() => handleToggleProvider(prov.extensionId, prov.id, prov.defaultEnabled)}
+            disabled={!enabled}
+          />
+        </SettingsRow>
+      {/each}
+    </SettingsCard>
+  {:else}
+    <p class="empty-hint">
+      {t('settings.file_search.no_cloud_providers')}
+    </p>
   {/if}
 </div>
 
@@ -318,6 +418,12 @@
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     line-height: 1.5;
+  }
+
+  .empty-hint {
+    margin: var(--space-2) 0 var(--space-4) 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
   }
 
   /* Deliberately NOT a SettingsCard: it holds a Badge (variant="default")

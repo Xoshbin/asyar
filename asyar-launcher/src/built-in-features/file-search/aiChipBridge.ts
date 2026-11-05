@@ -13,12 +13,13 @@ const MAX_INLINE_CONTENT = 50_000;
  * pre-populated in the chat input. Auto-send is OFF — the user presses Enter
  * to send.
  */
-export async function primeAiChipForFile(file: FileHit): Promise<void> {
+export async function primeAiChipForFile(file: FileHit & { url?: string }): Promise<void> {
   extensionManager.goBack();
 
-  let body = `I have a file selected: ${file.path}\n\n`;
+  const ref = file.path || file.url || file.name;
+  let body = `I have a file selected: ${ref}\n\n`;
 
-  if (TEXT_TYPES.includes(file.type)) {
+  if (file.path && TEXT_TYPES.includes(file.type)) {
     try {
       const data = await readFile(file.path);
       if (data.byteLength <= MAX_INLINE_CONTENT) {

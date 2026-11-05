@@ -58,7 +58,7 @@ export function resolveItemMeta(
       typeLabel = manifest.name;
     }
   } else if (type === 'file') {
-    typeLabel = undefined;
+    typeLabel = result.kindLabel ?? undefined;
   }
 
   // --- ObjectId fallback ---
@@ -86,6 +86,8 @@ export function resolveItemMeta(
         ? 'Asyar'
         : getManifestById(result.extensionId)?.name;
     }
+  } else if (type === 'file' && result.kindLabel) {
+    kindLabel = result.kindLabel;
   }
 
   return { objectId, icon, typeLabel, kindLabel, sourceLabel };
@@ -365,18 +367,32 @@ export function buildMappedItems({
           throw err;
         }
       };
-    } else if (type === 'file' && path) {
+    } else if (type === 'file' && (path || result.url)) {
       actionFunction = async () => {
-        const fileId = objectId.startsWith('file_') ? objectId.slice('file_'.length) : objectId;
-        void fileSearchRecordSelection(localSearchValue, fileId).catch((err) => {
-          logService.warn(`Failed to record file selection: ${err}`);
-        });
-        try {
-          await openerService.openPath(null, path);
-        } catch (err) {
-          logService.error(`openerService.openPath failed: ${err}`);
-          onError(`Failed to open ${name}`);
-          throw err;
+        if (path) {
+          const fileId = objectId.startsWith('file_') ? objectId.slice('file_'.length) : objectId;
+          void fileSearchRecordSelection(localSearchValue, fileId).catch((err) => {
+            logService.warn(`Failed to record file selection: ${err}`);
+          });
+          try {
+            await openerService.openPath(result.extensionId ?? null, path);
+            return;
+          } catch (err) {
+            logService.error(`openerService.openPath failed: ${err}`);
+            if (!result.url) {
+              onError(`Failed to open ${name}`);
+              throw err;
+            }
+          }
+        }
+        if (result.url) {
+          try {
+            await openerService.open(null, result.url);
+          } catch (err) {
+            logService.error(`openerService.open failed: ${err}`);
+            onError(`Failed to open ${name}`);
+            throw err;
+          }
         }
       };
     } else {
@@ -397,7 +413,9 @@ export function buildMappedItems({
       title: name,
       subtitle,
       type,
+      extensionId: result.extensionId ?? undefined,
       path,
+      url: result.url,
       typeLabel,
       kindLabel,
       sourceLabel,

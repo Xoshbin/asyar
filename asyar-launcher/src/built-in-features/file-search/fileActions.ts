@@ -1,4 +1,3 @@
-import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import type { ActionContext, ExtensionAction, FileHit } from 'asyar-sdk/contracts';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import {
@@ -13,12 +12,26 @@ import { openerService } from '../../services/opener/openerService';
 import { primeAiChipForFile } from './aiChipBridge';
 import { fileSearchViewState, runDeepSearch, togglePin } from './state.svelte';
 
-type RootFile = { path: string; name: string; fileId: string; isDir?: boolean };
+type RootFile = {
+  path?: string;
+  name: string;
+  fileId: string;
+  isDir?: boolean;
+  url?: string;
+  extensionId?: string;
+};
 
-function asFileHit(file: FileHit | RootFile): FileHit {
+type ActionableFile = (FileHit | RootFile) & {
+  url?: string;
+  path?: string;
+  extensionId?: string;
+};
+
+function asFileHit(file: ActionableFile): ActionableFile {
   if ('type' in file) return file;
   return {
     ...file,
+    path: file.path ?? '',
     type: file.isDir ? 'folder' : 'other',
     isDir: file.isDir ?? false,
     modifiedAt: 0,
@@ -28,19 +41,20 @@ function asFileHit(file: FileHit | RootFile): FileHit {
   };
 }
 
-function parentDirOf(file: FileHit): string {
+function parentDirOf(file: { isDir?: boolean; path?: string }): string {
+  if (!file.path) return '';
   return file.isDir ? file.path : file.path.replace(/[/\\][^/\\]*$/, '');
 }
 
 export type FileAction = ExtensionAction & { visible?: () => boolean };
 
 export function buildFileActions(opts: {
-  getFile: () => FileHit | RootFile | null | undefined;
+  getFile: () => ActionableFile | null | undefined;
   context: ActionContext;
   include?: { deepSearch?: boolean; clearHistory?: boolean };
   onRemoved?: (fileId: string) => void;
 }): FileAction[] {
-  const getFile = (): FileHit | null => {
+  const getFile = (): ActionableFile | null => {
     const file = opts.getFile();
     return file ? asFileHit(file) : null;
   };
@@ -52,14 +66,54 @@ export function buildFileActions(opts: {
   const actions: FileAction[] = [
     {
       ...base,
+      id: 'file-search:open-in-browser',
+      title: t('features.file_search.act.open_browser'),
+      description: t('features.file_search.act.open_browser_desc'),
+      icon: 'icon:globe',
+      shortcut: 'Mod+O',
+      visible: () => Boolean(getFile()?.url),
+      execute: async () => {
+        const file = getFile();
+        if (file?.url) await openerService.open(null, file.url);
+      },
+    },
+    {
+      ...base,
+      id: 'file-search:copy-web-link',
+      title: t('features.file_search.act.copy_web_link'),
+      description: t('features.file_search.act.copy_web_link_desc'),
+      icon: 'icon:link',
+      shortcut: 'Mod+Shift+L',
+      visible: () => Boolean(getFile()?.url),
+      execute: async () => {
+        const file = getFile();
+        if (file?.url) await writeText(file.url);
+      },
+    },
+    {
+      ...base,
+      id: 'file-search:copy-markdown-link',
+      title: t('features.file_search.act.copy_markdown_link'),
+      description: t('features.file_search.act.copy_markdown_link_desc'),
+      icon: 'icon:link',
+      shortcut: 'Mod+Alt+L',
+      visible: () => Boolean(getFile()?.url),
+      execute: async () => {
+        const file = getFile();
+        if (file?.url) await writeText(`[${file.name}](${file.url})`);
+      },
+    },
+    {
+      ...base,
       id: 'file-search:reveal-in-finder',
       title: t('features.file_search.act.reveal'),
       description: t('features.file_search.act.reveal_desc'),
       icon: 'icon:folder',
       shortcut: 'Mod+R',
+      visible: () => Boolean(getFile()?.path),
       execute: async () => {
         const file = getFile();
-        if (file) await revealItemInDir(file.path);
+        if (file?.path) await openerService.reveal(file.extensionId ?? null, file.path);
       },
     },
     {
@@ -69,9 +123,10 @@ export function buildFileActions(opts: {
       description: t('features.file_search.act.copy_path_desc'),
       icon: 'icon:clipboard',
       shortcut: 'Mod+Shift+C',
+      visible: () => Boolean(getFile()?.path),
       execute: async () => {
         const file = getFile();
-        if (file) await writeText(file.path);
+        if (file?.path) await writeText(file.path);
       },
     },
     {
@@ -93,9 +148,13 @@ export function buildFileActions(opts: {
       description: t('features.file_search.act.open_terminal_desc'),
       icon: 'icon:terminal',
       shortcut: 'Mod+T',
+      visible: () => {
+        const file = getFile();
+        return Boolean(file?.path && !file?.extensionId);
+      },
       execute: async () => {
         const file = getFile();
-        if (file) await openInTerminal(parentDirOf(file));
+        if (file?.path) await openInTerminal(parentDirOf(file));
       },
     },
     {
@@ -107,13 +166,13 @@ export function buildFileActions(opts: {
       shortcut: 'Mod+Shift+P',
       visible: () => {
         const file = getFile();
-        return file
+        return file && file.path && !file.extensionId
           ? !fileSearchViewState.pinnedFiles.some((p) => p.fileId === file.fileId)
           : false;
       },
       execute: async () => {
         const file = getFile();
-        if (file) await togglePin(file.fileId, file.path);
+        if (file?.path) await togglePin(file.fileId, file.path);
       },
     },
     {
@@ -125,11 +184,13 @@ export function buildFileActions(opts: {
       shortcut: 'Mod+Shift+P',
       visible: () => {
         const file = getFile();
-        return file ? fileSearchViewState.pinnedFiles.some((p) => p.fileId === file.fileId) : false;
+        return file && file.path && !file.extensionId
+          ? fileSearchViewState.pinnedFiles.some((p) => p.fileId === file.fileId)
+          : false;
       },
       execute: async () => {
         const file = getFile();
-        if (file) await togglePin(file.fileId, file.path);
+        if (file?.path) await togglePin(file.fileId, file.path);
       },
     },
     {
@@ -139,9 +200,13 @@ export function buildFileActions(opts: {
       description: t('features.file_search.act.trash_desc'),
       icon: 'icon:trash',
       destructive: true,
+      visible: () => {
+        const file = getFile();
+        return Boolean(file?.path && !file?.extensionId);
+      },
       execute: async () => {
         const file = getFile();
-        if (!file) return;
+        if (!file?.path) return;
         // Asked here rather than through the action's `confirm` flag so every
         // caller of this descriptor is covered, and so the dialog can name the file.
         const confirmed = await feedbackService.confirmAlert({
@@ -173,9 +238,10 @@ export function buildFileActions(opts: {
       description: t('features.file_search.act.quick_look_desc'),
       icon: 'icon:eye',
       shortcut: 'Mod+Y',
+      visible: () => Boolean(getFile()?.path) && !getFile()?.extensionId,
       execute: async () => {
         const file = getFile();
-        if (!file) return;
+        if (!file?.path || file.extensionId) return;
         const ok = await quickLookPath(file.path);
         if (!ok) await openerService.openPath(null, file.path);
       },
@@ -189,7 +255,7 @@ export function buildFileActions(opts: {
       shortcut: 'Mod+I',
       execute: async () => {
         const file = getFile();
-        if (file) await primeAiChipForFile(file);
+        if (file) await primeAiChipForFile(file as FileHit);
       },
     },
   ];

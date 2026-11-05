@@ -402,6 +402,22 @@ pub struct ManifestAiProvider {
     pub models: Option<Vec<ManifestAiModel>>,
 }
 
+/// Contributed remote / cloud file search provider declared by an extension.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestFileSearchProvider {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub requires_auth: Option<bool>,
+    #[serde(default)]
+    pub default_enabled: Option<bool>,
+}
+
 /// Declares the always-on worker bundle for extensions that host background
 /// work (subscriptions, schedules, timers, tray updates). Required when any
 /// command declares `mode: "background"`.
@@ -506,6 +522,9 @@ pub struct ExtensionManifest {
     /// AI model & inference providers contributed by this extension.
     #[serde(default)]
     pub ai_providers: Option<Vec<ManifestAiProvider>>,
+    /// Remote / cloud file search providers contributed by this extension.
+    #[serde(default)]
+    pub file_search_providers: Option<Vec<ManifestFileSearchProvider>>,
 }
 
 impl ExtensionManifest {
@@ -1487,6 +1506,7 @@ mod tests {
                     web_search_engines: None,
                     web_readers: None,
                     ai_providers: None,
+                    file_search_providers: None,
                 },
                 enabled: true,
                 is_built_in: false,

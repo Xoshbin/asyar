@@ -448,6 +448,16 @@ export type ManifestAiProvider = {
 	models?: ManifestAiModel[] | null,
 };
 
+// Contributed remote / cloud file search provider declared by an extension.
+export type ManifestFileSearchProvider = {
+	id: string,
+	name: string,
+	description?: string | null,
+	icon?: string | null,
+	requiresAuth?: boolean | null,
+	defaultEnabled?: boolean | null,
+};
+
 /**
  *  The `icon` field as manifest.json writes it: the short string
  *  (`"icon:timer"`, an emoji, `"assets/icon.png"`), or one of two objects.

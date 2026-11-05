@@ -100,6 +100,8 @@ export interface FileSearchSettings {
    * list, on top of the built-in defaults in Rust. Matched against the file
    * name and every parent folder name. */
   recentIgnorePatterns: string[];
+  /** Contributed remote/cloud file search providers toggle state (`${extensionId}:${providerId}` -> boolean). */
+  providerStates?: Record<string, boolean>;
 }
 
 export type CrashReportMode = 'off' | 'ask' | 'auto';

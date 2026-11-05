@@ -10,6 +10,7 @@ Goal-oriented recipes for solving specific problems. Each guide assumes you alre
 - **[Contribute an AI provider](./contribute-ai-provider.md)** — Provide custom AI model and inference engines via the AI Provider SPI.
 - **[Contribute a web search engine](./contribute-web-search-engine.md)** — Provide custom web search providers to ground AI conversations via the Web Search Engine SPI.
 - **[Contribute a web reader](./contribute-web-reader.md)** — Provide custom web content scrapers and Markdown readers for AI agent tools via the Web Reader SPI.
+- **[Contribute a file search provider](./contribute-file-search-provider.md)** — Provide cloud and remote document search (Google Drive, Notion, Dropbox) via the File Search SPI.
 - **[Publishing](./publishing.md)** — GitHub release workflow and the Asyar Store submission pipeline.
 - **[Debugging](./debugging.md)** — Developer log, DevTools, raw IPC messages, and common issue recipes.
 - **[Best practices](./best-practices.md)** — Do / Don't lists and performance tips for production-ready extensions.

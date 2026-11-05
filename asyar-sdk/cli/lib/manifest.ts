@@ -75,6 +75,19 @@ export interface AsyarManifest {
    * Contributed AI model & inference providers.
    */
   aiProviders?: ManifestAiProvider[];
+  /**
+   * Contributed remote / cloud file search providers.
+   */
+  fileSearchProviders?: ManifestFileSearchProvider[];
+}
+
+export interface ManifestFileSearchProvider {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  requiresAuth?: boolean;
+  defaultEnabled?: boolean;
 }
 
 export interface ManifestWebReader {
@@ -321,6 +334,7 @@ export const VALID_PERMISSIONS = [
   'process:kill',
   'files:search',
   'files:read',
+  'files:search-provider',
   'notes:read',
   'notes:write',
   'mcp',
@@ -699,6 +713,9 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
   errors.push(...validateWebSearchEngines(manifest.webSearchEngines, 'webSearchEngines', manifest));
   errors.push(...validateWebReaders(manifest.webReaders, 'webReaders', manifest));
   errors.push(...validateAiProviders(manifest.aiProviders, 'aiProviders', manifest));
+  errors.push(
+    ...validateFileSearchProviders(manifest.fileSearchProviders, 'fileSearchProviders', manifest),
+  );
   (manifest.commands ?? []).forEach((cmd, i) => {
     errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
     errors.push(...validateArguments(cmd.arguments, `commands[${i}].arguments`));
@@ -1580,5 +1597,99 @@ export function validatePreferences(
     }
   });
 
+  return errors;
+}
+
+export function validateFileSearchProviders(
+  providers: unknown,
+  fieldPrefix: string,
+  manifest: AsyarManifest,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (providers === undefined) return errors;
+  if (!Array.isArray(providers) || providers.length === 0) {
+    errors.push({ field: fieldPrefix, message: 'must be a non-empty array' });
+    return errors;
+  }
+  if (manifest.type === 'theme') {
+    errors.push({
+      field: fieldPrefix,
+      message: 'Theme extensions must not declare fileSearchProviders',
+    });
+    return errors;
+  }
+  if (!manifest.background?.main) {
+    errors.push({
+      field: 'background.main',
+      message:
+        'required when manifest declares fileSearchProviders (remote search providers run in the headless worker)',
+    });
+  }
+  const perms = manifest.permissions ?? [];
+  if (!perms.includes('network')) {
+    errors.push({
+      field: 'permissions',
+      message: 'manifest with fileSearchProviders requires the "network" permission',
+    });
+  }
+  if (!perms.includes('files:search-provider')) {
+    errors.push({
+      field: 'permissions',
+      message: 'manifest with fileSearchProviders requires the "files:search-provider" permission',
+    });
+  }
+  const seenIds = new Set<string>();
+  const idRe = /^[a-z0-9_-]{1,64}$/;
+  providers.forEach((item, i) => {
+    const itemPrefix = `${fieldPrefix}[${i}]`;
+    if (!item || typeof item !== 'object') {
+      errors.push({ field: itemPrefix, message: 'must be an object' });
+      return;
+    }
+    const prov = item as Record<string, unknown>;
+    if (typeof prov.id !== 'string' || !idRe.test(prov.id)) {
+      errors.push({
+        field: `${itemPrefix}.id`,
+        message: 'must match /^[a-z0-9_-]{1,64}$/',
+      });
+    } else if (seenIds.has(prov.id)) {
+      errors.push({
+        field: `${itemPrefix}.id`,
+        message: `duplicate file search provider id "${prov.id}"`,
+      });
+    } else {
+      seenIds.add(prov.id);
+    }
+    if (typeof prov.name !== 'string' || prov.name.trim().length === 0) {
+      errors.push({
+        field: `${itemPrefix}.name`,
+        message: 'must be a non-empty string',
+      });
+    }
+    if (prov.description !== undefined && typeof prov.description !== 'string') {
+      errors.push({
+        field: `${itemPrefix}.description`,
+        message: 'must be a string',
+      });
+    }
+    if (prov.icon !== undefined && typeof prov.icon !== 'string') {
+      errors.push({
+        field: `${itemPrefix}.icon`,
+        message: 'must be a string',
+      });
+    }
+    if (prov.requiresAuth !== undefined && typeof prov.requiresAuth !== 'boolean') {
+      errors.push({
+        field: `${itemPrefix}.requiresAuth`,
+        message: 'must be a boolean',
+      });
+    }
+    if (prov.defaultEnabled !== undefined && typeof prov.defaultEnabled !== 'boolean') {
+      errors.push({
+        field: `${itemPrefix}.defaultEnabled`,
+        message: 'must be a boolean',
+      });
+    }
+  });
   return errors;
 }

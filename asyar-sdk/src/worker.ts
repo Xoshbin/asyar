@@ -155,6 +155,7 @@ installToolsInvokeInterceptor();
 installWebSearchInvokeInterceptor();
 installWebReaderInvokeInterceptor();
 installAiProviderInvokeInterceptor();
+installFileSearchInvokeInterceptor();
 
 /**
  * Module-level reference to the ToolsServiceProxy installed in this worker.
@@ -169,6 +170,13 @@ let _workerToolsProxy: ToolsServiceProxy | undefined;
  * `asyar:webSearch:query` listener reads it when dispatching to local handlers.
  */
 let _workerAiProxy: AiServiceProxy | undefined;
+
+/**
+ * Module-level reference to the FilesServiceProxy installed in this worker.
+ * Set once when the first `ExtensionContext` is constructed; the
+ * `asyar:fileSearch:query` listener reads it when dispatching to local handlers.
+ */
+let _workerFilesProxy: FilesServiceProxy | undefined;
 
 /**
  * Worker-side: intercept every `asyar:tools:invoke` postMessage, dispatch to
@@ -428,6 +436,73 @@ function installAiProviderInvokeInterceptor(): void {
   }) as EventListener);
 }
 
+/**
+ * Worker-side: intercept every `asyar:fileSearch:query` postMessage, dispatch to
+ * the FilesServiceProxy's local file search handler map, and post the normalized
+ * response back to the host.
+ */
+function installFileSearchInvokeInterceptor(): void {
+  const scope = typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
+  if (!scope || typeof scope.addEventListener !== 'function') return;
+
+  const activeSearches = new Map<string, AbortController>();
+
+  scope.addEventListener('message', (async (event: Event) => {
+    const data = (event as MessageEvent<unknown>).data;
+    if (!data || typeof data !== 'object') return;
+    const d = data as { type?: unknown; messageId?: unknown; payload?: unknown };
+
+    if (d.type === 'asyar:fileSearch:abort') {
+      const messageId = d.messageId as string | undefined;
+      if (typeof messageId === 'string' && activeSearches.has(messageId)) {
+        activeSearches.get(messageId)?.abort(new Error('Aborted by host'));
+        activeSearches.delete(messageId);
+      }
+      return;
+    }
+
+    if (d.type !== 'asyar:fileSearch:query') return;
+    const messageId = d.messageId as string | undefined;
+    const payload = d.payload as
+      | {
+          providerId?: string;
+          query?: string;
+          limit?: number;
+        }
+      | undefined;
+    const providerId = payload?.providerId;
+    if (
+      typeof messageId !== 'string' ||
+      typeof providerId !== 'string' ||
+      !/^[a-z0-9_-]{1,64}$/.test(providerId)
+    ) {
+      return;
+    }
+    if (!_workerFilesProxy) return;
+    const controller = new AbortController();
+    activeSearches.set(messageId, controller);
+    try {
+      const result = await _workerFilesProxy.invokeFileSearchHandler(
+        providerId,
+        {
+          query: payload?.query ?? '',
+          limit: payload?.limit ?? 10,
+        },
+        controller.signal,
+      );
+      postToHost({ type: 'asyar:fileSearch:response', messageId, result });
+    } catch (err) {
+      postToHost({
+        type: 'asyar:fileSearch:response',
+        messageId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      activeSearches.delete(messageId);
+    }
+  }) as EventListener);
+}
+
 // Auto-report uncaught errors / rejections to host parent (Task 24).
 const errorScope =
   typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null;
@@ -461,6 +536,7 @@ export class ExtensionContext extends ExtensionContextCore {
     // asyar:tools:invoke interceptor can dispatch to local handlers.
     _workerToolsProxy = proxies.tools as ToolsServiceProxy | undefined;
     _workerAiProxy = proxies.ai as AiServiceProxy | undefined;
+    _workerFilesProxy = proxies.files as FilesServiceProxy | undefined;
   }
 
   protected override notifyBridgeIfAvailable(id: string): void {

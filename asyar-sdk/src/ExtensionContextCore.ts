@@ -5,6 +5,7 @@ import type { Namespace } from './ipc/namespaces';
 import type { BaseServiceProxy } from './services/BaseServiceProxy';
 import type { IMcpService } from './contracts/IMcpService';
 import type { IAiService } from './contracts/IAiService';
+import type { IFilesService } from './services/IFilesService';
 
 import { PreferencesFacade, buildFrozenSnapshot } from './PreferencesFacade';
 import { registerSyncProvider as setupSyncProvider } from './lib/syncProviderBridge';
@@ -72,6 +73,10 @@ export class ExtensionContextCore {
 
   get ai(): IAiService {
     return this.getService<IAiService>('ai');
+  }
+
+  get files(): IFilesService {
+    return this.getService<IFilesService>('files');
   }
 
   setExtensionId(id: string): void {

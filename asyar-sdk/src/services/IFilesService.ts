@@ -5,6 +5,8 @@ import type {
   FileGlobEntriesOptions,
   FileGlobEntry,
 } from '../generated/files';
+import type { FileSearchProviderRegistration } from '../contracts/fileSearch';
+export type { FileSearchProviderRegistration } from '../contracts/fileSearch';
 export type {
   FileReadRangeOptions,
   ReadAlign,
@@ -121,4 +123,9 @@ export interface IFilesService {
    * signal), never a platform-dependent result. Rejects on scope denials.
    */
   thumbnail(path: string, opts?: FileThumbnailOptions): Promise<string | null>;
+  /**
+   * Register a remote or cloud file search provider matching a manifest contribution.
+   * Returns a cleanup function that unregisters the provider.
+   */
+  registerFileSearchProvider(provider: FileSearchProviderRegistration): () => void;
 }

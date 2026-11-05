@@ -68,6 +68,12 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                 m.id
             )));
         }
+        if m.file_search_providers.is_some() {
+            return Err(AppError::Validation(format!(
+                "Theme extension '{}' must not declare `fileSearchProviders`.",
+                m.id
+            )));
+        }
         return Ok(());
     }
 
@@ -422,6 +428,61 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                         )));
                     }
                 }
+            }
+        }
+    }
+
+    if let Some(providers) = &m.file_search_providers {
+        if providers.is_empty() {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' has empty `fileSearchProviders` field; omit it if no providers are declared.",
+                m.id
+            )));
+        }
+        let main_ok = m
+            .background
+            .as_ref()
+            .map(|b| !b.main.trim().is_empty())
+            .unwrap_or(false);
+        if !main_ok {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `fileSearchProviders` but has no non-empty `background.main` (remote search providers run in the headless worker).",
+                m.id
+            )));
+        }
+        let perms = m.permissions.as_deref().unwrap_or(&[]);
+        if !perms.iter().any(|p| p == "network") {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `fileSearchProviders` but lacks the required 'network' permission.",
+                m.id
+            )));
+        }
+        if !perms.iter().any(|p| p == "files:search-provider") {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares `fileSearchProviders` but lacks the required 'files:search-provider' permission.",
+                m.id
+            )));
+        }
+        let id_re = regex::Regex::new(r"^[a-z0-9_-]{1,64}$").unwrap();
+        let mut seen_ids = HashSet::new();
+        for provider in providers {
+            if !id_re.is_match(&provider.id) {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' file search provider id '{}' must match /^[a-z0-9_-]{{1,64}}$/.",
+                    m.id, provider.id
+                )));
+            }
+            if !seen_ids.insert(&provider.id) {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' declares duplicate file search provider id '{}'.",
+                    m.id, provider.id
+                )));
+            }
+            if provider.name.trim().is_empty() {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' file search provider '{}' must have a non-empty name.",
+                    m.id, provider.id
+                )));
             }
         }
     }
@@ -907,6 +968,7 @@ mod background_entry_resolution_tests {
             web_search_engines: None,
             web_readers: None,
             ai_providers: None,
+            file_search_providers: None,
         }
     }
 
@@ -1081,6 +1143,7 @@ mod first_view_component_tests {
             web_search_engines: None,
             web_readers: None,
             ai_providers: None,
+            file_search_providers: None,
         }
     }
 
@@ -1242,6 +1305,7 @@ mod onboarding_validation_tests {
             web_search_engines: None,
             web_readers: None,
             ai_providers: None,
+            file_search_providers: None,
         }
     }
 
@@ -1403,6 +1467,7 @@ mod compatibility_tests {
             web_search_engines: None,
             web_readers: None,
             ai_providers: None,
+            file_search_providers: None,
         }
     }
 
@@ -2406,6 +2471,24 @@ mod manifest_schema_tests {
     }
 
     #[test]
+    fn theme_with_file_search_providers_is_rejected() {
+        let json = r#"{
+            "id": "org.test.theme-fsp",
+            "name": "Theme With File Search",
+            "version": "1.0.0",
+            "type": "theme",
+            "fileSearchProviders": [
+                { "id": "test", "name": "Test Search" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("theme with fileSearchProviders must fail validation");
+        assert!(
+            format!("{err}").contains("fileSearchProviders"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
     fn extension_type_with_no_commands_and_no_contribution_is_rejected() {
         // An "extension" that declares nothing — no commands, no background,
         // not searchable — contributes nothing and is rejected.
@@ -3035,6 +3118,161 @@ mod manifest_schema_tests {
     }
 
     #[test]
+    fn validate_manifest_accepts_valid_file_search_providers() {
+        let json = r#"{
+            "id": "org.test.fsp",
+            "name": "File Search",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "files:search-provider"],
+            "fileSearchProviders": [
+                {
+                    "id": "gdrive",
+                    "name": "Google Drive",
+                    "description": "Search cloud docs",
+                    "icon": "icon:google-drive",
+                    "requiresAuth": true,
+                    "defaultEnabled": true
+                }
+            ]
+        }"#;
+        let manifest = parse(json).expect("valid fileSearchProviders declaration must validate");
+        let providers = manifest
+            .file_search_providers
+            .expect("file_search_providers must be present");
+        assert_eq!(providers.len(), 1);
+        assert_eq!(providers[0].id, "gdrive");
+        assert_eq!(providers[0].name, "Google Drive");
+        assert_eq!(
+            providers[0].description.as_deref(),
+            Some("Search cloud docs")
+        );
+        assert_eq!(providers[0].requires_auth, Some(true));
+        assert_eq!(providers[0].default_enabled, Some(true));
+    }
+
+    #[test]
+    fn validate_manifest_rejects_empty_file_search_providers() {
+        let json = r#"{
+            "id": "org.test.fsp",
+            "name": "File Search",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "files:search-provider"],
+            "fileSearchProviders": []
+        }"#;
+        let err = parse(json).expect_err("empty fileSearchProviders must fail validation");
+        assert!(
+            format!("{err}").contains("empty `fileSearchProviders` field"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_file_search_providers_without_background_worker() {
+        let json = r#"{
+            "id": "org.test.fsp",
+            "name": "File Search",
+            "version": "1.0.0",
+            "type": "extension",
+            "permissions": ["network", "files:search-provider"],
+            "commands": [
+                { "id": "search", "name": "Search", "mode": "view", "component": "Search" }
+            ],
+            "fileSearchProviders": [
+                { "id": "gdrive", "name": "Google Drive" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("fileSearchProviders without background.main must fail");
+        assert!(format!("{err}").contains("background.main"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_manifest_rejects_file_search_providers_missing_network_permission() {
+        let json = r#"{
+            "id": "org.test.fsp",
+            "name": "File Search",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["files:search-provider"],
+            "fileSearchProviders": [
+                { "id": "gdrive", "name": "Google Drive" }
+            ]
+        }"#;
+        let err =
+            parse(json).expect_err("fileSearchProviders without network permission must fail");
+        assert!(
+            format!("{err}").contains("'network' permission"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_file_search_providers_missing_permission() {
+        let json = r#"{
+            "id": "org.test.fsp",
+            "name": "File Search",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network"],
+            "fileSearchProviders": [
+                { "id": "gdrive", "name": "Google Drive" }
+            ]
+        }"#;
+        let err =
+            parse(json).expect_err("fileSearchProviders without files:search-provider must fail");
+        assert!(
+            format!("{err}").contains("'files:search-provider' permission"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_duplicate_file_search_provider_id() {
+        let json = r#"{
+            "id": "org.test.fsp",
+            "name": "File Search",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "files:search-provider"],
+            "fileSearchProviders": [
+                { "id": "gdrive", "name": "Google Drive 1" },
+                { "id": "gdrive", "name": "Google Drive 2" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("duplicate fileSearchProviders id must fail");
+        assert!(
+            format!("{err}").contains("duplicate file search provider id"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_invalid_file_search_provider_id() {
+        let json = r#"{
+            "id": "org.test.fsp",
+            "name": "File Search",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "permissions": ["network", "files:search-provider"],
+            "fileSearchProviders": [
+                { "id": "invalid provider id with spaces", "name": "Google Drive" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("invalid provider id must fail");
+        assert!(
+            format!("{err}").contains("file search provider id"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
     fn unsupported_command_mode_is_rejected() {
         let json = r#"{
             "id": "org.test.bad-mode",
@@ -3166,6 +3404,7 @@ mod manifest_schema_tests {
             web_search_engines: None,
             web_readers: None,
             ai_providers: None,
+            file_search_providers: None,
         };
 
         let err = validate_manifest(&manifest)

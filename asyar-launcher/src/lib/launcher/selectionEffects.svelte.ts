@@ -30,9 +30,36 @@ export function setupSelectionEffects(state: LauncherState) {
   // highlight the user cannot see still answers Tab and Enter, promoting a
   // command they never picked. Expanding the list — Show More, arrowing
   // down, a query that settles — hands the highlight back to the first row.
+  //
+  // Append-only updates for the same query (e.g. remote cloud file results
+  // streaming in after local results) preserve the user's active selection
+  // so the cursor is not yanked back to row 0.
+  let lastQuery = '';
+
   $effect(() => {
     const hidden = getCompactSyncService()?.isCompactIdle === true;
-    searchStores.selectedIndex = !hidden && state.searchItems.length > 0 ? 0 : -1;
+    const currentQuery = searchStores.query;
+    const items = state.searchItems;
+
+    if (hidden || items.length === 0) {
+      searchStores.selectedIndex = -1;
+      lastQuery = currentQuery;
+      return;
+    }
+
+    if (currentQuery !== lastQuery) {
+      lastQuery = currentQuery;
+      searchStores.selectedIndex = 0;
+      return;
+    }
+
+    // Query did not change — this is an append or background update for the same query.
+    // Preserve selection by index if in bounds, or reset to 0 if out of range.
+    const currentIdx = untrack(() => searchStores.selectedIndex);
+    if (currentIdx >= 0 && currentIdx < items.length) {
+      return;
+    }
+    searchStores.selectedIndex = 0;
   });
 
   // Effect 7: Extension view cleanup
@@ -183,7 +210,7 @@ export function setupSelectionEffects(state: LauncherState) {
     const items = state.searchResultItemsMapped;
     const index = state.selectedIndexVal;
     const item = index >= 0 && index < items.length ? items[index] : null;
-    return item?.type === 'file' && item.path ? item.object_id : null;
+    return item?.type === 'file' && (item.path || item.url) ? item.object_id : null;
   });
 
   const rowActionsItem = $derived.by(() => {
@@ -258,11 +285,13 @@ export function setupSelectionEffects(state: LauncherState) {
       const items = state.searchResultItemsMapped;
       const index = state.selectedIndexVal;
       const item = index >= 0 && index < items.length ? items[index] : null;
-      if (!item || item.type !== 'file' || !item.path) return null;
+      if (!item || item.type !== 'file' || (!item.path && !item.url)) return null;
       return {
         fileId: item.object_id.replace(/^file_/, ''),
         path: item.path,
         name: item.title,
+        url: item.url,
+        extensionId: item.extensionId,
       };
     };
     const actions = buildFileActions({ getFile, context: ActionContext.CORE });

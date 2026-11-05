@@ -144,6 +144,13 @@ export type {
   ManifestWebReader,
 } from './contracts/webReader';
 export type {
+  FileSearchResultItem,
+  FileSearchQuery,
+  FileSearchHandler,
+  FileSearchProviderRegistration,
+  ManifestFileSearchProvider,
+} from './contracts/fileSearch';
+export type {
   AiToolCall,
   AiMessage,
   AiToolDefinition,
