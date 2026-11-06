@@ -445,6 +445,7 @@ async fn fetch_secret_inner(
             if bytes.len()+chunk.len()>10*1024*1024 { return Err(SecretError::ResponseTooLarge); }
             bytes.extend_from_slice(&chunk);
         }
+        if !crate::network::service::is_textual_body(&bytes,content_type.as_deref()) && redactor.appears_in_bytes(&bytes) { return Err(SecretError::RequestFailed); }
         let mut envelope=serde_json::json!({"status":status.as_u16(),"statusText":status.canonical_reason().unwrap_or(""),"headers":headers,"body":crate::network::service::encode_body(&bytes,content_type.as_deref()),"ok":status.is_success()});
         redactor.redact_envelope(&mut envelope); Ok(envelope)
     }).await.map_err(|_| SecretError::Timeout)?;

@@ -540,7 +540,7 @@ fn decode_text(bytes: &[u8], content_type: Option<&str>) -> String {
     encoding.decode(bytes).0.into_owned()
 }
 
-fn is_textual_body(bytes: &[u8], content_type: Option<&str>) -> bool {
+pub(crate) fn is_textual_body(bytes: &[u8], content_type: Option<&str>) -> bool {
     if let Some(content_type) = content_type {
         let mime = content_type
             .split(';')

@@ -63,6 +63,15 @@ impl Redactor {
         }
         Self { by_first_byte }
     }
+    /// True when any secret variant occurs verbatim in `bytes`. Used to refuse
+    /// binary bodies, which cannot be redacted without corrupting them.
+    pub fn appears_in_bytes(&self, bytes: &[u8]) -> bool {
+        (0..bytes.len()).any(|i| {
+            self.by_first_byte[bytes[i] as usize]
+                .iter()
+                .any(|variant| bytes[i..].starts_with(variant.as_bytes()))
+        })
+    }
     pub fn redact_str(&self, input: &str) -> String {
         const MARKER: &str = "[REDACTED]";
         let mut result = String::with_capacity(input.len());
@@ -134,6 +143,13 @@ mod tests {
         assert_eq!(once, "[REDACTED]");
         assert_eq!(r.redact_str(&once), once);
     }
+    #[test]
+    fn detects_secret_bytes_inside_binary_data() {
+        let r = Redactor::new(&["abcdefgh"]);
+        assert!(r.appears_in_bytes(b"\xffabcdefgh\x00"));
+        assert!(!r.appears_in_bytes(b"\xff\x00unrelated"));
+    }
+
     #[test]
     fn redacts_raw_secret_in_body_and_headers() {
         let mut v = serde_json::json!({"body":"abcdefgh", "headers":{"x-token":"abcdefgh"}});
