@@ -2412,6 +2412,57 @@ describe('ExtensionIpcRouter — action owner identity', () => {
     });
   });
 
+  it('stamps the action arriving through payload.args, which the argument builder prefers', async () => {
+    // Regression: the arg builder resolves `payload.args` before
+    // `payload.action`, so stamping only `payload.action` let an extension
+    // register the action smuggled in `args` under another extension's id.
+    const registerAction = vi.fn();
+    const registry = { actions: { registerAction } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:actions:registerAction',
+      {
+        args: [
+          {
+            id: 'open-link',
+            title: 'Open link',
+            extensionId: 'org.victim',
+            icon: 'https://example.com/icon.png',
+          },
+        ],
+      },
+      'org.attacker',
+      false,
+    );
+
+    expect(registerAction).toHaveBeenCalledWith({
+      id: 'open-link',
+      title: 'Open link',
+      extensionId: 'org.attacker',
+      icon: 'https://example.com/icon.png',
+    });
+  });
+
+  it('stamps the action arriving as a bare payload array', async () => {
+    const registerAction = vi.fn();
+    const registry = { actions: { registerAction } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:actions:registerAction',
+      [{ id: 'open-link', title: 'Open link', extensionId: 'org.victim' }],
+      'org.attacker',
+      false,
+    );
+
+    expect(registerAction).toHaveBeenCalledWith({
+      id: 'open-link',
+      title: 'Open link',
+      extensionId: 'org.attacker',
+    });
+  });
+
   it('keeps a built-in owner on privileged host calls', async () => {
     const registerAction = vi.fn();
     const registry = { actions: { registerAction } } as unknown as ServiceRegistry;

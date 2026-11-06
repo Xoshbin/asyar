@@ -519,8 +519,23 @@ export class ExtensionIpcRouter {
       // iframe/worker owner before the action reaches the service. Without
       // this, an extension could register a remote-icon action under another
       // extension's id and borrow its network permission.
-      const action = (payload as { action?: Record<string, unknown> } | undefined)?.action;
-      payload = { ...(payload as object), action: { ...action, extensionId } };
+      //
+      // The argument builder below resolves this method from `payload` itself,
+      // a bare `payload` array, or `payload.args` before falling back to
+      // `payload.action` — and it prefers the `args` shape for every method
+      // whose param schema has no `args` key. Stamping only `payload.action`
+      // therefore left the array/args shapes carrying an untrusted
+      // `extensionId`. Resolve the action the builder would actually pick, in
+      // the same precedence order, stamp it, and drop the alternates so the
+      // stamped action is the only value left for the service to read.
+      const source = payload as { action?: unknown; args?: unknown } | undefined;
+      const claimed = Array.isArray(payload)
+        ? payload[0]
+        : Array.isArray(source?.args)
+          ? source.args[0]
+          : source?.action;
+      const action = { ...(claimed as Record<string, unknown> | undefined), extensionId };
+      payload = { action };
     }
 
     const ns = serviceName as Namespace;
