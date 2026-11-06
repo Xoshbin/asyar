@@ -437,6 +437,7 @@ async fn fetch_secret_inner(
     let result=tokio::time::timeout(timeout,async {
         let mut response=req.send().await.map_err(|_| SecretError::RequestFailed)?;
         let status=response.status();
+        let content_type=response.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).map(str::to_string);
         let mut headers=serde_json::Map::new();
         for (k,v) in response.headers() { if let Ok(v)=v.to_str() { headers.insert(k.to_string(),serde_json::Value::String(v.into())); } }
         let mut bytes=Zeroizing::new(Vec::new());
@@ -444,7 +445,8 @@ async fn fetch_secret_inner(
             if bytes.len()+chunk.len()>10*1024*1024 { return Err(SecretError::ResponseTooLarge); }
             bytes.extend_from_slice(&chunk);
         }
-        let mut envelope=serde_json::json!({"status":status.as_u16(),"statusText":status.canonical_reason().unwrap_or(""),"headers":headers,"body":String::from_utf8_lossy(&bytes),"ok":status.is_success()});
+        if !crate::network::service::is_textual_body(&bytes,content_type.as_deref()) && redactor.appears_in_bytes(&bytes) { return Err(SecretError::RequestFailed); }
+        let mut envelope=serde_json::json!({"status":status.as_u16(),"statusText":status.canonical_reason().unwrap_or(""),"headers":headers,"body":crate::network::service::encode_body(&bytes,content_type.as_deref()),"ok":status.is_success()});
         redactor.redact_envelope(&mut envelope); Ok(envelope)
     }).await.map_err(|_| SecretError::Timeout)?;
     // Errors are fixed literals by construction; no reqwest/serde/OS details escape.

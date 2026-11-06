@@ -4,9 +4,15 @@
 
 use crate::error::AppError;
 use crate::network::client_pool::{ClientScope, Route, ScopedHttpClientPool};
+use base64::Engine;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use url::Url;
+
+/// Longest body `network.fetch` hands back to an extension. Binary bodies
+/// travel base64-encoded inside a JSON envelope, so this also bounds the IPC
+/// payload an extension can force the host to serialize.
+pub const MAX_RESPONSE_BYTES: usize = 10 * 1024 * 1024;
 
 /// Inputs for [`fetch`]. Mirrors the Tauri command parameters minus
 /// the `tauri::State` registry handle, so this is callable from any
@@ -481,6 +487,11 @@ async fn response_envelope(response: reqwest::Response) -> Result<serde_json::Va
         .unwrap_or("")
         .to_string();
     let ok = response.status().is_success();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
     let mut headers = serde_json::Map::new();
     for (key, value) in response.headers() {
         if let Ok(value) = value.to_str() {
@@ -490,20 +501,167 @@ async fn response_envelope(response: reqwest::Response) -> Result<serde_json::Va
             );
         }
     }
-    let body = response.text().await?;
+    let bytes = read_body_capped(response, MAX_RESPONSE_BYTES).await?;
     Ok(serde_json::json!({
         "status": status,
         "statusText": status_text,
         "headers": headers,
-        "body": body,
+        "body": encode_body(&bytes, content_type.as_deref()),
         "ok": ok,
     }))
+}
+
+/// Bodies cross IPC as a JSON string, so anything that is not text travels
+/// base64-encoded — the contract `NetworkResponse.body` documents. Text keeps
+/// the plain body that existing callers already parse, and bytes that are
+/// valid UTF-8 are treated as text even without a declared type.
+pub(crate) fn encode_body(bytes: &[u8], content_type: Option<&str>) -> String {
+    if is_textual_body(bytes, content_type) {
+        decode_text(bytes, content_type)
+    } else {
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    }
+}
+
+/// Decodes with the charset declared in `Content-Type` (UTF-8 when absent or
+/// unknown) and strips a leading byte-order mark, matching `Response::text()`.
+fn decode_text(bytes: &[u8], content_type: Option<&str>) -> String {
+    let encoding = content_type
+        .and_then(|value| {
+            value.split(';').skip(1).find_map(|param| {
+                let (key, val) = param.split_once('=')?;
+                key.trim()
+                    .eq_ignore_ascii_case("charset")
+                    .then(|| val.trim().trim_matches('"'))
+            })
+        })
+        .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+        .unwrap_or(encoding_rs::UTF_8);
+    encoding.decode(bytes).0.into_owned()
+}
+
+pub(crate) fn is_textual_body(bytes: &[u8], content_type: Option<&str>) -> bool {
+    if let Some(content_type) = content_type {
+        let mime = content_type
+            .split(';')
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase();
+        if mime.starts_with("image/")
+            || mime.starts_with("audio/")
+            || mime.starts_with("video/")
+            || mime == "application/octet-stream"
+            || mime == "application/pdf"
+            || mime == "application/wasm"
+            || mime == "application/zip"
+            || mime.ends_with("+zip")
+            || mime.ends_with("+protobuf")
+        {
+            return false;
+        }
+        if mime.starts_with("text/")
+            || mime.contains("json")
+            || mime.contains("xml")
+            || mime.contains("javascript")
+            || mime.contains("graphql")
+            || mime == "application/x-www-form-urlencoded"
+        {
+            return true;
+        }
+    }
+    // Unknown or missing type: only keep it readable when it really is UTF-8,
+    // so binary never reaches an extension as replacement characters.
+    std::str::from_utf8(bytes).is_ok()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use mockito::Server;
+
+    #[test]
+    fn declared_charset_and_bom_are_honoured_and_wasm_is_binary() {
+        assert_eq!(
+            encode_body(
+                &[0x63, 0x61, 0x66, 0xE9],
+                Some("text/plain; charset=windows-1252")
+            ),
+            "café"
+        );
+        assert_eq!(encode_body(b"\xEF\xBB\xBFhi", Some("text/plain")), "hi");
+        assert_eq!(
+            encode_body(b"\0asm", Some("application/wasm")),
+            base64::engine::general_purpose::STANDARD.encode(b"\0asm")
+        );
+    }
+
+    #[test]
+    fn text_bodies_stay_plain_and_binary_bodies_become_base64() {
+        assert_eq!(
+            encode_body(br#"{"ok":true}"#, Some("application/json")),
+            r#"{"ok":true}"#
+        );
+        assert_eq!(
+            encode_body(b"<h1>hi</h1>", Some("text/html; charset=utf-8")),
+            "<h1>hi</h1>"
+        );
+        assert_eq!(
+            encode_body(&[0x89, b'P', b'N', b'G'], Some("image/png")),
+            "iVBORw=="
+        );
+        // Undeclared binary must not decode to replacement characters.
+        assert_eq!(encode_body(&[0xff, 0xfe], None), "//4=");
+        // A declared binary type wins over bytes that happen to be UTF-8.
+        assert_eq!(encode_body(b"GIF89a", Some("image/gif")), "R0lGODlh");
+    }
+
+    #[tokio::test]
+    async fn binary_response_envelope_is_base64_and_announces_its_type() {
+        let mut server = Server::new_async().await;
+        let bytes = vec![0x89, b'P', b'N', b'G', 0x00, 0xff];
+        let _m = server
+            .mock("GET", "/shot.png")
+            .with_header("content-type", "image/png")
+            .with_body(bytes.clone())
+            .create_async()
+            .await;
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let response = client
+            .get(format!("{}/shot.png", server.url()))
+            .send()
+            .await
+            .unwrap();
+
+        let envelope = response_envelope(response).await.unwrap();
+
+        assert_eq!(
+            envelope["body"].as_str().unwrap(),
+            base64::engine::general_purpose::STANDARD.encode(&bytes)
+        );
+        assert_eq!(envelope["headers"]["content-type"], "image/png");
+    }
+
+    #[tokio::test]
+    async fn json_response_envelope_stays_plain_text() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("GET", "/data.json")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"ok":true}"#)
+            .create_async()
+            .await;
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let response = client
+            .get(format!("{}/data.json", server.url()))
+            .send()
+            .await
+            .unwrap();
+
+        let envelope = response_envelope(response).await.unwrap();
+
+        assert_eq!(envelope["body"], r#"{"ok":true}"#);
+    }
 
     #[test]
     fn dotted_hostname_is_canonicalized_before_transport() {
