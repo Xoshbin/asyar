@@ -515,12 +515,29 @@ async fn response_envelope(response: reqwest::Response) -> Result<serde_json::Va
 /// base64-encoded — the contract `NetworkResponse.body` documents. Text keeps
 /// the plain body that existing callers already parse, and bytes that are
 /// valid UTF-8 are treated as text even without a declared type.
-fn encode_body(bytes: &[u8], content_type: Option<&str>) -> String {
+pub(crate) fn encode_body(bytes: &[u8], content_type: Option<&str>) -> String {
     if is_textual_body(bytes, content_type) {
-        String::from_utf8_lossy(bytes).into_owned()
+        decode_text(bytes, content_type)
     } else {
         base64::engine::general_purpose::STANDARD.encode(bytes)
     }
+}
+
+/// Decodes with the charset declared in `Content-Type` (UTF-8 when absent or
+/// unknown) and strips a leading byte-order mark, matching `Response::text()`.
+fn decode_text(bytes: &[u8], content_type: Option<&str>) -> String {
+    let encoding = content_type
+        .and_then(|value| {
+            value.split(';').skip(1).find_map(|param| {
+                let (key, val) = param.split_once('=')?;
+                key.trim()
+                    .eq_ignore_ascii_case("charset")
+                    .then(|| val.trim().trim_matches('"'))
+            })
+        })
+        .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+        .unwrap_or(encoding_rs::UTF_8);
+    encoding.decode(bytes).0.into_owned()
 }
 
 fn is_textual_body(bytes: &[u8], content_type: Option<&str>) -> bool {
@@ -536,6 +553,7 @@ fn is_textual_body(bytes: &[u8], content_type: Option<&str>) -> bool {
             || mime.starts_with("video/")
             || mime == "application/octet-stream"
             || mime == "application/pdf"
+            || mime == "application/wasm"
             || mime == "application/zip"
             || mime.ends_with("+zip")
             || mime.ends_with("+protobuf")
@@ -561,6 +579,22 @@ fn is_textual_body(bytes: &[u8], content_type: Option<&str>) -> bool {
 mod tests {
     use super::*;
     use mockito::Server;
+
+    #[test]
+    fn declared_charset_and_bom_are_honoured_and_wasm_is_binary() {
+        assert_eq!(
+            encode_body(
+                &[0x63, 0x61, 0x66, 0xE9],
+                Some("text/plain; charset=windows-1252")
+            ),
+            "café"
+        );
+        assert_eq!(encode_body(b"\xEF\xBB\xBFhi", Some("text/plain")), "hi");
+        assert_eq!(
+            encode_body(b"\0asm", Some("application/wasm")),
+            base64::engine::general_purpose::STANDARD.encode(b"\0asm")
+        );
+    }
 
     #[test]
     fn text_bodies_stay_plain_and_binary_bodies_become_base64() {

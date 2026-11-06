@@ -206,6 +206,7 @@ dependencies = [
  "core-foundation-sys 0.8.7",
  "dirs 5.0.1",
  "dunce",
+ "encoding_rs",
  "enigo",
  "evalexpr",
  "fend-core",
