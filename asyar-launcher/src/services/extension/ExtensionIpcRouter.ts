@@ -510,6 +510,19 @@ export class ExtensionIpcRouter {
       return undefined;
     }
 
+    if (type === 'asyar:api:actions:registerAction' && !isPrivilegedHostContext) {
+      if (!extensionId) {
+        throw new Error('Caller identity missing for actions:registerAction');
+      }
+      // The payload carries whatever `extensionId` the extension chose. The
+      // host is the only authority on who is calling, so stamp the real
+      // iframe/worker owner before the action reaches the service. Without
+      // this, an extension could register a remote-icon action under another
+      // extension's id and borrow its network permission.
+      const action = (payload as { action?: Record<string, unknown> } | undefined)?.action;
+      payload = { ...(payload as object), action: { ...action, extensionId } };
+    }
+
     const ns = serviceName as Namespace;
     const service = this.serviceRegistry[ns] as Record<string, unknown> | undefined;
     const method = service?.[methodName];

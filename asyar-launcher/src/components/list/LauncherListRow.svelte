@@ -13,6 +13,7 @@
     onclick,
     ondblclick,
     icon,
+    extensionId,
     title,
     titlePrefix,
     subtitle,
@@ -34,6 +35,8 @@
     onclick?: (e: MouseEvent) => void;
     ondblclick?: (e: MouseEvent) => void;
     icon?: IconSource;
+    /** Owner of a remote (`https://`) icon; required for the host fetch. */
+    extensionId?: string;
     title: string;
     /** Dimmed text rendered inline before the title (e.g. `folder/`). */
     titlePrefix?: string;
@@ -79,7 +82,7 @@
     {#if leading}
       {@render leading()}
     {:else}
-      <AppIcon {icon} size={22} glyphSize={14} emojiSize={12} tile alt={title} />
+      <AppIcon {icon} {extensionId} size={22} glyphSize={14} emojiSize={12} tile alt={title} />
     {/if}
 
     <div class="row-body">

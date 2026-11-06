@@ -251,6 +251,42 @@ pub async fn fetch_url(
     .await
 }
 
+/// Permission gate for remote extension icons. The owner must be a real
+/// extension and must hold `network`; the check runs before the icon cache is
+/// consulted, so revoking the permission always falls back.
+pub(crate) fn check_remote_icon_caller(
+    registry: &crate::permissions::ExtensionPermissionRegistry,
+    extension_id: &str,
+) -> Result<(), AppError> {
+    crate::icons::remote::validate_owner(extension_id)?;
+    registry.check(&Some(extension_id.to_string()), "network")
+}
+
+/// Fetches an extension's remote icon through the scoped network path and
+/// returns an `asyar-icon://` URL. The webview never sees the original URL.
+#[tauri::command]
+pub async fn fetch_remote_icon(
+    extension_id: String,
+    url: String,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    store: tauri::State<'_, DataStore>,
+    client_pool: tauri::State<'_, crate::network::client_pool::ScopedHttpClientPool>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, AppError> {
+    check_remote_icon_caller(&registry, &extension_id)?;
+    let lan_policy = build_lan_policy(&registry, &store, Some(&extension_id))?;
+    let cache_dir = crate::icons::remote::icon_cache_dir(&app_handle);
+
+    crate::icons::remote::fetch_remote_icon(
+        &extension_id,
+        &url,
+        &cache_dir,
+        lan_policy.as_ref(),
+        client_pool.inner(),
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn ws_connect(
     request: WebSocketConnectRequest,
@@ -310,6 +346,33 @@ pub async fn ws_close(
     registry.check(&caller_extension_id, "network")?;
     let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
     ws_manager.close(&socket_id, code, reason, &ext_id).await
+}
+
+#[cfg(test)]
+mod remote_icon_tests {
+    use super::*;
+    use crate::permissions::ExtensionPermissionRegistry;
+    use std::collections::{HashMap, HashSet};
+
+    #[test]
+    fn remote_icons_require_a_real_extension_with_network() {
+        let registry = ExtensionPermissionRegistry::new();
+
+        for owner in ["", "asyar"] {
+            assert!(
+                check_remote_icon_caller(&registry, owner).is_err(),
+                "{owner}"
+            );
+        }
+        assert!(check_remote_icon_caller(&registry, "org.x").is_err());
+
+        registry.register(
+            "org.x",
+            HashSet::from(["network".to_string()]),
+            HashMap::new(),
+        );
+        assert!(check_remote_icon_caller(&registry, "org.x").is_ok());
+    }
 }
 
 #[cfg(test)]

@@ -448,6 +448,7 @@ macro_rules! system_commands {
                 $crate::commands::templating::get_available_placeholders,
                 $crate::commands::fetch_url,
                 $crate::commands::fetch_url_with_secrets,
+                $crate::commands::fetch_remote_icon,
                 $crate::commands::ws_connect,
                 $crate::commands::ws_send,
                 $crate::commands::ws_close,

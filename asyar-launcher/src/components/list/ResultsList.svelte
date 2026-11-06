@@ -34,6 +34,7 @@
         selected={i === selectedIndex}
         onclick={() => onselect?.({ item })}
         icon={item.icon}
+        extensionId={item.extensionId}
         title={item.title}
         subtitle={item.subtitle}
         alias={item.alias}

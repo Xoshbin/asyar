@@ -169,6 +169,7 @@
               data-index={flatIndex}
               tabindex="-1"
               icon={action.icon}
+              extensionId={action.extensionId}
               leading={groupHasIcons && !toResolvedIcon(action.icon) ? iconSpacer : undefined}
               title={action.label}
               shortcut={action.shortcut}

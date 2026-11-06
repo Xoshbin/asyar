@@ -406,28 +406,14 @@ fn handle_icon_request<R: Runtime>(
     let uri = request.uri().to_string();
     log::debug!("Icon request URI: {}", uri);
 
-    let icon_cache_dir = app
-        .path()
-        .app_data_dir()
-        .map(|p| p.join("icon_cache"))
-        .unwrap_or_else(|_| {
-            #[cfg(target_os = "windows")]
-            {
-                app.path()
-                    .app_local_data_dir()
-                    .unwrap_or_default()
-                    .join("icon_cache")
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
-                std::path::PathBuf::from("/tmp/asyar_icon_cache")
-            }
-        });
+    let icon_cache_dir = crate::icons::remote::icon_cache_dir(app);
 
     match read_cache_file(&icon_cache_dir, &uri, "asyar-icon") {
         Ok((filename, bytes)) => {
             let content_type = if filename.ends_with(".svg") {
                 "image/svg+xml"
+            } else if filename.ends_with(".gif") {
+                "image/gif"
             } else if filename.ends_with(".ico") {
                 "image/x-icon"
             } else {
