@@ -1,7 +1,7 @@
 // asyar-launcher/src/lib/ipc/systemMiscCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
 import { invoke } from '@tauri-apps/api/core';
-import { invokeSafe } from './invokeSafe';
+import { invokeRaw, invokeSafe } from './invokeSafe';
 
 // ── Autostart ─────────────────────────────────────────────────────────────────
 
@@ -50,6 +50,24 @@ export async function fetchUrlWithSecrets(
     timeoutMs: params.timeoutMs ?? 20000,
     callerExtensionId: params.callerExtensionId ?? null,
     secretRefs: params.secretRefs,
+  });
+}
+
+/**
+ * Resolves a remote extension icon to a local `asyar-icon://` URL.
+ *
+ * The host fetches the bytes through the scoped network path, so the webview
+ * never loads the extension's `https://` URL directly. Rejections are
+ * meaningful to the caller (permission revoked, bad image, offline), so this
+ * uses `invokeRaw`; `remoteIconService` owns the fallback and warning.
+ */
+export async function fetchRemoteIcon(params: {
+  extensionId: string;
+  url: string;
+}): Promise<string> {
+  return invokeRaw<string>('fetch_remote_icon', {
+    extensionId: params.extensionId,
+    url: params.url,
   });
 }
 

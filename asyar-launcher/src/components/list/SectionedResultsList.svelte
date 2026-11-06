@@ -37,6 +37,7 @@
         selected={row.originalIndex === selectedIndex}
         onclick={() => onselect?.({ item: row.item })}
         icon={row.item.icon}
+        extensionId={row.item.extensionId}
         title={row.item.title}
         subtitle={row.item.subtitle}
         alias={row.item.alias}

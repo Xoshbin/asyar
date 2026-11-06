@@ -176,6 +176,16 @@ pub async fn fetch(req: FetchRequest) -> Result<serde_json::Value, AppError> {
     }))
 }
 
+/// A binary response body, read through the same scoped path as extension
+/// requests. `url` is the final URL after redirects.
+#[derive(Debug)]
+pub struct FetchedBytes {
+    pub status: u16,
+    pub content_type: Option<String>,
+    pub bytes: Vec<u8>,
+    pub url: String,
+}
+
 /// Fetches for an extension after resolving and pinning every destination.
 /// Public destinations retain the existing `network` behavior. Restricted LAN
 /// destinations additionally require a matching `network:lan` endpoint.
@@ -185,6 +195,56 @@ pub async fn fetch_scoped(
     caller_extension_id: Option<&str>,
     client_pool: &ScopedHttpClientPool,
 ) -> Result<serde_json::Value, AppError> {
+    let response = send_scoped(req, false, lan_policy, caller_extension_id, client_pool).await?;
+    response_envelope(response).await
+}
+
+/// Like [`fetch_scoped`], but returns the body as bytes and refuses anything
+/// larger than `max_bytes`. Used for remote icons, which must never be handed
+/// to an `<img>` as a live URL. When `require_https` is set, every hop
+/// (including redirects) must stay on HTTPS, so a downgrade is rejected before
+/// any plain-HTTP request is made.
+pub async fn fetch_scoped_bytes(
+    req: FetchRequest,
+    max_bytes: usize,
+    require_https: bool,
+    lan_policy: Option<&crate::network::lan_policy::LanPolicy>,
+    caller_extension_id: Option<&str>,
+    client_pool: &ScopedHttpClientPool,
+) -> Result<FetchedBytes, AppError> {
+    let response = send_scoped(
+        req,
+        require_https,
+        lan_policy,
+        caller_extension_id,
+        client_pool,
+    )
+    .await?;
+    let status = response.status().as_u16();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    let url = response.url().to_string();
+    let bytes = read_body_capped(response, max_bytes).await?;
+    Ok(FetchedBytes {
+        status,
+        content_type,
+        bytes,
+        url,
+    })
+}
+
+/// Performs the request, following redirects only after re-authorizing every
+/// destination. Returns the final non-redirect response.
+async fn send_scoped(
+    req: FetchRequest,
+    require_https: bool,
+    lan_policy: Option<&crate::network::lan_policy::LanPolicy>,
+    caller_extension_id: Option<&str>,
+    client_pool: &ScopedHttpClientPool,
+) -> Result<reqwest::Response, AppError> {
     let mut url =
         Url::parse(&req.url).map_err(|_| AppError::Other(format!("Invalid URL: {}", req.url)))?;
     let mut method = request_method(req.method.as_deref());
@@ -195,6 +255,11 @@ pub async fn fetch_scoped(
     for redirect_count in 0..=10 {
         url = canonicalize_request_url(url)?;
         validate_url_for_ssrf_scheme_and_host(&url)?;
+        if require_https && url.scheme() != "https" {
+            return Err(AppError::Validation(
+                "This request must stay on https://".into(),
+            ));
+        }
         let host = url
             .host_str()
             .ok_or_else(|| AppError::Other("URL has no host".to_string()))?
@@ -252,9 +317,32 @@ pub async fn fetch_scoped(
             continue;
         }
 
-        return response_envelope(response).await;
+        return Ok(response);
     }
     unreachable!("redirect loop returns at its configured limit")
+}
+
+async fn read_body_capped(
+    mut response: reqwest::Response,
+    max_bytes: usize,
+) -> Result<Vec<u8>, AppError> {
+    if let Some(length) = response.content_length() {
+        if length > max_bytes as u64 {
+            return Err(too_large(max_bytes));
+        }
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if body.len().saturating_add(chunk.len()) > max_bytes {
+            return Err(too_large(max_bytes));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+fn too_large(max_bytes: usize) -> AppError {
+    AppError::Validation(format!("Response body exceeds the {max_bytes} byte limit"))
 }
 
 fn strip_sensitive_redirect_headers(
@@ -860,5 +948,66 @@ mod tests {
     #[test]
     fn ssrf_allows_public_https() {
         assert!(validate_url_for_ssrf("https://example.com/api").is_ok());
+    }
+
+    #[tokio::test]
+    async fn read_body_capped_keeps_binary_bytes() {
+        let mut server = Server::new_async().await;
+        let bytes = vec![0x89, b'P', b'N', b'G', 0x00, 0xff];
+        let _m = server
+            .mock("GET", "/icon")
+            .with_body(bytes.clone())
+            .create_async()
+            .await;
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let response = client
+            .get(format!("{}/icon", server.url()))
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(read_body_capped(response, 6).await.unwrap(), bytes);
+    }
+
+    #[tokio::test]
+    async fn read_body_capped_rejects_oversized_bodies() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("GET", "/icon")
+            .with_body("12345")
+            .create_async()
+            .await;
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let response = client
+            .get(format!("{}/icon", server.url()))
+            .send()
+            .await
+            .unwrap();
+
+        let error = read_body_capped(response, 4).await.unwrap_err();
+        assert!(error.to_string().contains("4 byte limit"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn fetch_scoped_bytes_rejects_http_when_https_is_required() {
+        let pool = ScopedHttpClientPool::new();
+        let error = fetch_scoped_bytes(
+            FetchRequest {
+                url: "http://example.com/icon.png".into(),
+                method: None,
+                headers: None,
+                body: None,
+                timeout_ms: None,
+            },
+            1024,
+            true,
+            None,
+            Some("org.x"),
+            &pool,
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.to_string().contains("https://"), "{error}");
     }
 }

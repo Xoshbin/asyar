@@ -2372,3 +2372,130 @@ describe('ExtensionIpcRouter — deterministic parameter mapping', () => {
     expect(multiArg).toHaveBeenCalledWith(1, 2);
   });
 });
+
+describe('ExtensionIpcRouter — action owner identity', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivilegedHostContext: boolean,
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('overrides a spoofed extensionId with the real iframe owner', async () => {
+    const registerAction = vi.fn();
+    const registry = { actions: { registerAction } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:actions:registerAction',
+      {
+        action: {
+          id: 'open-link',
+          title: 'Open link',
+          extensionId: 'org.victim',
+          icon: 'https://example.com/icon.png',
+        },
+      },
+      'org.attacker',
+      false,
+    );
+
+    expect(registerAction).toHaveBeenCalledWith({
+      id: 'open-link',
+      title: 'Open link',
+      extensionId: 'org.attacker',
+      icon: 'https://example.com/icon.png',
+    });
+  });
+
+  it('stamps the action arriving through payload.args, which the argument builder prefers', async () => {
+    // Regression: the arg builder resolves `payload.args` before
+    // `payload.action`, so stamping only `payload.action` let an extension
+    // register the action smuggled in `args` under another extension's id.
+    const registerAction = vi.fn();
+    const registry = { actions: { registerAction } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:actions:registerAction',
+      {
+        args: [
+          {
+            id: 'open-link',
+            title: 'Open link',
+            extensionId: 'org.victim',
+            icon: 'https://example.com/icon.png',
+          },
+        ],
+      },
+      'org.attacker',
+      false,
+    );
+
+    expect(registerAction).toHaveBeenCalledWith({
+      id: 'open-link',
+      title: 'Open link',
+      extensionId: 'org.attacker',
+      icon: 'https://example.com/icon.png',
+    });
+  });
+
+  it('stamps the action arriving as a bare payload array', async () => {
+    const registerAction = vi.fn();
+    const registry = { actions: { registerAction } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:actions:registerAction',
+      [{ id: 'open-link', title: 'Open link', extensionId: 'org.victim' }],
+      'org.attacker',
+      false,
+    );
+
+    expect(registerAction).toHaveBeenCalledWith({
+      id: 'open-link',
+      title: 'Open link',
+      extensionId: 'org.attacker',
+    });
+  });
+
+  it('keeps a built-in owner on privileged host calls', async () => {
+    const registerAction = vi.fn();
+    const registry = { actions: { registerAction } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:actions:registerAction',
+      { action: { id: 'timer', title: 'Timer', extensionId: 'builtin.timer' } },
+      'asyar',
+      true,
+    );
+
+    expect(registerAction).toHaveBeenCalledWith({
+      id: 'timer',
+      title: 'Timer',
+      extensionId: 'builtin.timer',
+    });
+  });
+
+  it('refuses an extension action with no caller identity', async () => {
+    const registerAction = vi.fn();
+    const registry = { actions: { registerAction } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await expect(
+      dispatchAs(router)(
+        'asyar:api:actions:registerAction',
+        { action: { id: 'x', title: 'X' } },
+        undefined,
+        false,
+      ),
+    ).rejects.toThrow('Caller identity missing');
+
+    expect(registerAction).not.toHaveBeenCalled();
+  });
+});

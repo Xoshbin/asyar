@@ -510,6 +510,34 @@ export class ExtensionIpcRouter {
       return undefined;
     }
 
+    if (type === 'asyar:api:actions:registerAction' && !isPrivilegedHostContext) {
+      if (!extensionId) {
+        throw new Error('Caller identity missing for actions:registerAction');
+      }
+      // The payload carries whatever `extensionId` the extension chose. The
+      // host is the only authority on who is calling, so stamp the real
+      // iframe/worker owner before the action reaches the service. Without
+      // this, an extension could register a remote-icon action under another
+      // extension's id and borrow its network permission.
+      //
+      // The argument builder below resolves this method from `payload` itself,
+      // a bare `payload` array, or `payload.args` before falling back to
+      // `payload.action` — and it prefers the `args` shape for every method
+      // whose param schema has no `args` key. Stamping only `payload.action`
+      // therefore left the array/args shapes carrying an untrusted
+      // `extensionId`. Resolve the action the builder would actually pick, in
+      // the same precedence order, stamp it, and drop the alternates so the
+      // stamped action is the only value left for the service to read.
+      const source = payload as { action?: unknown; args?: unknown } | undefined;
+      const claimed = Array.isArray(payload)
+        ? payload[0]
+        : Array.isArray(source?.args)
+          ? source.args[0]
+          : source?.action;
+      const action = { ...(claimed as Record<string, unknown> | undefined), extensionId };
+      payload = { action };
+    }
+
     const ns = serviceName as Namespace;
     const service = this.serviceRegistry[ns] as Record<string, unknown> | undefined;
     const method = service?.[methodName];
