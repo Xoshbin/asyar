@@ -27,20 +27,22 @@ Every response is sent with `Cache-Control: no-store`, like every other custom s
 allow-scripts allow-same-origin allow-forms allow-popups
 ```
 
-And this Content Security Policy:
+And this Content Security Policy (release builds; debug builds additionally allow `'unsafe-eval'` in `script-src` for Svelte hot reload):
 
 ```
 default-src asyar-extension: 'self';
-script-src  asyar-extension: 'unsafe-inline' 'unsafe-eval';
-style-src   asyar-extension: 'unsafe-inline';
-font-src    asyar-extension:;
-img-src     asyar-extension: data:;
+script-src  asyar-extension: 'self' 'unsafe-inline';
+style-src   asyar-extension: 'self' 'unsafe-inline';
+font-src    asyar-extension: 'self' data:;
+img-src     asyar-extension: 'self' asyar-icon: http://asyar-icon.localhost data:;
 ```
 
-External URLs in `<script src="">` tags are blocked. All networking goes through `NetworkService`.
+External URLs in `<script src="">` tags are blocked, and `img-src` has no `https:`, so a view cannot load a remote image directly — including an `<img>` inside Markdown or HTML you render. All networking goes through `NetworkService`; fetch the bytes and render them yourself (for example as a `data:` URL).
 
 ### Host Window Asset Resolution
 
 The `asyar-extension://` protocol is also used by the host application (Settings and launcher search results) to load extension-bundled icon images (e.g. `asyar-extension://<extensionId>/icon.png`). The host window's Content Security Policy allows `asyar-extension:` in `img-src`, and the Rust protocol handler validates that the file is located within an approved extension directory before serving it.
 
 Icon URLs from the icon resolver end in `?icon` (e.g. `asyar-extension://<extensionId>/icon.png?icon`). When an extension is installed or updated, Rust writes a 128px copy of each bundled PNG, JPEG, WebP or BMP icon larger than 128px. The copy is a hidden file next to the original (`.icon.png.128.png`), so uninstalling the extension removes it too. For an `?icon` request the handler serves that copy when it exists, and the original otherwise (SVG, GIF, small images, dev extensions, older installs). Requests without `?icon`, such as an extension view loading its own images, always get the original file.
+
+Remote (`https://`) icons returned by search results and registered actions take a separate path. The host fetches the bytes through the scoped network stack, caches a 128px copy under `icon_cache/`, and hands the row an `asyar-icon://` URL; the webview never loads the remote URL directly. The extension must declare the `network` permission. See [Remote icons](../reference/design-system/icons.md#remote-icons).

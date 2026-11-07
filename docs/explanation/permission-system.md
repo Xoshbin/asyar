@@ -13,8 +13,9 @@ Security defines the entire rationale for the architectural split.
 - **Tauri APIs inside Extensions:** A Tier 2 extension absolutely **cannot** access raw `@tauri-apps/api` hooks directly. The `<ExtensionIframe>` limits its sandbox, and Tauri specifically blocks iframes from bypassing the message interceptor. All requests to mutate OS context _must_ transit over `postMessage` where the Host performs validation.
 - **Iframe Sandbox:** Set to `allow-scripts allow-same-origin allow-forms allow-popups`. The `allow-same-origin` is a requirement to allow modern SPA routers and IndexedDB usage to function inside the extension context.
 - **Content-Security-Policy (CSP):** The Rust `asyar-extension://` handler manually injects:
-  `Content-Security-Policy: default-src asyar-extension: 'self'; script-src asyar-extension: 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'unsafe-inline';`
-  - _Context on `unsafe-eval`:_ Currently required because certain modern frontend packagers (and dev mode workflows) rely heavily on eval/new Function bindings.
+  `Content-Security-Policy: default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self' data:; img-src asyar-extension: 'self' asyar-icon: http://asyar-icon.localhost data:;`
+  - _Debug builds_ additionally allow `'unsafe-eval'` in `script-src` for Svelte hot reload. Release builds never do.
+  - `img-src` has no `https:`, so views cannot load remote images directly. All networking goes through `NetworkService`.
 - **Protocol Shadowing Prevention:** The Fallback Chain inherently protects the system. Rust Protocol resolution strictly checks `Priority 1: Debug source` (dev only), followed by `Priority 2: Built-in host resources`, and finally `Priority 3: Third Party AppData`. By validating against the built-in bundle _before_ the user's AppData directory, the system ensures that a malicious extension attempting to install an override folder named `clipboard-history` (a built-in ID) can never usurp the genuine bundle logic in production.
 
 > [!NOTE]

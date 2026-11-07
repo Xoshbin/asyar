@@ -97,17 +97,17 @@ actionService.registerAction(refreshAction);
 
 ### Action field reference
 
-| Field         | Type                          | Required | Description                                                                                  |
-| ------------- | ----------------------------- | -------- | -------------------------------------------------------------------------------------------- |
-| `id`          | `string`                      | ✅       | Globally unique. Namespace with your extension ID: `com.yourname.ext:action-name`            |
-| `title`       | `string`                      | ✅       | Label shown in the Action Drawer.                                                            |
-| `extensionId` | `string`                      | ✅       | Your extension's `id` from `manifest.json`.                                                  |
-| `execute`     | `() => void \| Promise<void>` | ✅       | Called when the user activates the action.                                                   |
-| `description` | `string`                      | ❌       | Secondary text shown below the title.                                                        |
-| `icon`        | `string`                      | ❌       | Emoji or `"icon:<name>"` shown next to the title.                                            |
-| `category`    | `string`                      | ❌       | Group label. Use `ActionCategory` constants for standard groups.                             |
-| `context`     | `ActionContext`               | ❌       | When this action is visible. Default: always visible.                                        |
-| `shortcut`    | `string`                      | ❌       | Keyboard shortcut, shown in the drawer and bound. See [Action shortcuts](#action-shortcuts). |
+| Field         | Type                          | Required | Description                                                                                                                                      |
+| ------------- | ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`          | `string`                      | ✅       | Globally unique. Namespace with your extension ID: `com.yourname.ext:action-name`                                                                |
+| `title`       | `string`                      | ✅       | Label shown in the Action Drawer.                                                                                                                |
+| `extensionId` | `string`                      | ✅       | Your extension's `id` from `manifest.json`.                                                                                                      |
+| `execute`     | `() => void \| Promise<void>` | ✅       | Called when the user activates the action.                                                                                                       |
+| `description` | `string`                      | ❌       | Secondary text shown below the title.                                                                                                            |
+| `icon`        | `string`                      | ❌       | Emoji, `"icon:<name>"`, or an `https://` URL shown next to the title. Remote icons require the `network` permission and are fetched by the host. |
+| `category`    | `string`                      | ❌       | Group label. Use `ActionCategory` constants for standard groups.                                                                                 |
+| `context`     | `ActionContext`               | ❌       | When this action is visible. Default: always visible.                                                                                            |
+| `shortcut`    | `string`                      | ❌       | Keyboard shortcut, shown in the drawer and bound. See [Action shortcuts](#action-shortcuts).                                                     |
 
 ### Action context reference
 
