@@ -1,9 +1,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// File names inside the app data dir.
 pub const MARKER_FILE: &str = "running.marker";
 pub const CRASH_FILE: &str = "last_crash.json";
+
+/// Process-wide guard to ensure secondary panics (like `panic_cannot_unwind`)
+/// do not overwrite the initial crash report.
+static PANIC_CAPTURED: AtomicBool = AtomicBool::new(false);
 
 pub fn marker_path(data_dir: &Path) -> PathBuf {
     data_dir.join(MARKER_FILE)
@@ -35,11 +40,31 @@ pub fn read_and_clear_crash(data_dir: &Path) -> Option<(String, String)> {
     let path = crash_file_path(data_dir);
     let raw = fs::read_to_string(&path).ok()?;
     let _ = fs::remove_file(&path);
+    PANIC_CAPTURED.store(false, Ordering::SeqCst);
     let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
     Some((
         v["panic"].as_str().unwrap_or_default().to_string(),
         v["backtrace"].as_str().unwrap_or_default().to_string(),
     ))
+}
+
+/// Writes the panic report to disk unless a crash has already been captured
+/// in this process or `last_crash.json` already exists on disk.
+/// Returns `true` if the report was written, or `false` if it was suppressed.
+pub fn write_crash_report(data_dir: &Path, msg: &str, backtrace: &str) -> bool {
+    if PANIC_CAPTURED.swap(true, Ordering::SeqCst) {
+        return false;
+    }
+    let path = crash_file_path(data_dir);
+    if path.exists() {
+        return false;
+    }
+    fs::write(&path, encode_crash(msg, backtrace)).is_ok()
+}
+
+#[cfg(test)]
+pub fn reset_panic_captured() {
+    PANIC_CAPTURED.store(false, Ordering::SeqCst);
 }
 
 /// Install a panic hook that persists panic info next to the marker.
@@ -48,7 +73,7 @@ pub fn install_panic_hook(data_dir: PathBuf) {
     std::panic::set_hook(Box::new(move |info| {
         let msg = info.to_string();
         let backtrace = std::backtrace::Backtrace::force_capture().to_string();
-        let _ = fs::write(crash_file_path(&data_dir), encode_crash(&msg, &backtrace));
+        write_crash_report(&data_dir, &msg, &backtrace);
         default_hook(info);
     }));
 }
@@ -79,6 +104,7 @@ pub fn read_log_tail(log_path: &Path, max_bytes: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::path::PathBuf;
 
     #[test]
@@ -102,5 +128,48 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&s).unwrap();
         assert_eq!(v["panic"], "oops");
         assert_eq!(v["backtrace"], "frame0\nframe1");
+    }
+
+    #[test]
+    #[serial]
+    fn consecutive_panics_do_not_overwrite_initial_crash_report() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        reset_panic_captured();
+
+        let wrote_first = write_crash_report(temp_dir.path(), "initial panic message", "trace 1");
+        assert!(wrote_first);
+
+        let wrote_second = write_crash_report(
+            temp_dir.path(),
+            "panic in a function that cannot unwind",
+            "trace 2",
+        );
+        assert!(!wrote_second);
+
+        let crash = read_and_clear_crash(temp_dir.path());
+        assert_eq!(
+            crash,
+            Some(("initial panic message".to_string(), "trace 1".to_string()))
+        );
+        assert!(!crash_file_path(temp_dir.path()).exists());
+    }
+
+    #[test]
+    #[serial]
+    fn existing_crash_file_is_not_overwritten() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        reset_panic_captured();
+
+        let initial_json = encode_crash("disk crash", "disk trace");
+        fs::write(crash_file_path(temp_dir.path()), initial_json).unwrap();
+
+        let wrote = write_crash_report(temp_dir.path(), "subsequent panic", "subsequent trace");
+        assert!(!wrote);
+
+        let crash = read_and_clear_crash(temp_dir.path());
+        assert_eq!(
+            crash,
+            Some(("disk crash".to_string(), "disk trace".to_string()))
+        );
     }
 }

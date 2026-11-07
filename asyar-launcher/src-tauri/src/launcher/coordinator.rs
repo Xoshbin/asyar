@@ -43,7 +43,9 @@ struct TauriLauncherBackend {
 impl LauncherBackend for TauriLauncherBackend {
     fn schedule(&self, task: Box<dyn FnOnce() + Send>) -> Result<(), String> {
         self.app
-            .run_on_main_thread(task)
+            .run_on_main_thread(move || {
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(task));
+            })
             .map_err(|error| error.to_string())
     }
 
@@ -152,6 +154,14 @@ impl LauncherCoordinator {
     }
 
     fn drain(self: &Arc<Self>) {
+        struct DrainGuard<'a>(&'a LauncherCoordinator);
+        impl Drop for DrainGuard<'_> {
+            fn drop(&mut self) {
+                self.0.clear_scheduled_flag();
+            }
+        }
+        let _guard = DrainGuard(self);
+
         let backend = {
             let state = self.lock_state();
             state
@@ -172,7 +182,9 @@ impl LauncherCoordinator {
                 }
             };
 
-            backend.execute(action);
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                backend.execute(action);
+            }));
         }
     }
 
@@ -394,6 +406,35 @@ mod tests {
         assert_eq!(
             backend.executed(),
             vec![LauncherAction::Show; MAX_PENDING_ACTIONS]
+        );
+    }
+
+    #[test]
+    fn panicking_action_does_not_leave_coordinator_stuck() {
+        let (coordinator, backend) = attached();
+        coordinator.mark_ready().unwrap();
+
+        coordinator.request(LauncherAction::Toggle).unwrap();
+        assert_eq!(backend.scheduled_count(), 1);
+
+        *backend.during_execute.lock().unwrap() = Some(Box::new(|| {
+            panic!("simulated execute panic");
+        }));
+
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            backend.run_next();
+        }));
+
+        coordinator.request(LauncherAction::Show).unwrap();
+        assert_eq!(
+            backend.scheduled_count(),
+            1,
+            "subsequent request must be scheduled even if previous action panicked"
+        );
+        backend.run_next();
+        assert_eq!(
+            backend.executed(),
+            vec![LauncherAction::Toggle, LauncherAction::Show]
         );
     }
 }

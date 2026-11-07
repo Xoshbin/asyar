@@ -35,21 +35,23 @@ pub fn setup_spotlight_window<R: Runtime>(
 
     let app_handle = app.clone();
     panel_delegate.set_listener(Box::new(move |delegate_name: String| {
-        match delegate_name.as_str() {
-            "window_did_resign_key" => {
-                let _ = app_handle.emit(
-                    &format!("{}_panel_did_resign_key", crate::SPOTLIGHT_LABEL),
-                    (),
-                );
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            match delegate_name.as_str() {
+                "window_did_resign_key" => {
+                    let _ = app_handle.emit(
+                        &format!("{}_panel_did_resign_key", crate::SPOTLIGHT_LABEL),
+                        (),
+                    );
+                }
+                "window_did_become_key" => {
+                    let _ = app_handle.emit(
+                        &format!("{}_panel_did_become_key", crate::SPOTLIGHT_LABEL),
+                        (),
+                    );
+                }
+                _ => (),
             }
-            "window_did_become_key" => {
-                let _ = app_handle.emit(
-                    &format!("{}_panel_did_become_key", crate::SPOTLIGHT_LABEL),
-                    (),
-                );
-            }
-            _ => (),
-        }
+        }));
     }));
 
     panel.set_delegate(panel_delegate);
@@ -108,22 +110,33 @@ pub fn setup_sticky_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Resu
     Ok(panel)
 }
 
-pub fn get_window_frame<R: Runtime>(window: &WebviewWindow<R>) -> NSRect {
-    let ns_window = window.ns_window().unwrap() as *mut AnyObject;
-    // SAFETY: ns_window() returns a valid NSWindow pointer.
-    unsafe { asyar_platform::macos::get_window_frame(ns_window) }
+pub fn get_window_frame<R: Runtime>(window: &WebviewWindow<R>) -> Option<NSRect> {
+    let ptr = window.ns_window().ok()?;
+    let ns_window = ptr as *mut AnyObject;
+    if ns_window.is_null() {
+        return None;
+    }
+    // SAFETY: ns_window is a valid, non-null NSWindow pointer.
+    Some(unsafe { asyar_platform::macos::get_window_frame(ns_window) })
 }
 
 pub fn set_window_frame<R: Runtime>(window: &WebviewWindow<R>, rect: NSRect) {
-    let ns_window = window.ns_window().unwrap() as *mut AnyObject;
-    // SAFETY: ns_window() returns a valid NSWindow pointer.
-    unsafe { asyar_platform::macos::set_window_frame(ns_window, rect) };
+    if let Ok(ptr) = window.ns_window() {
+        let ns_window = ptr as *mut AnyObject;
+        if !ns_window.is_null() {
+            // SAFETY: ns_window is a valid, non-null NSWindow pointer.
+            unsafe { asyar_platform::macos::set_window_frame(ns_window, rect) };
+        }
+    }
 }
 
 /// Resizes only the native window width without assuming the NSWindow handle
 /// is available. Callers that operate fail-soft can log the returned error.
 pub fn set_window_width<R: Runtime>(window: &WebviewWindow<R>, width: f64) -> tauri::Result<()> {
     let ns_window = window.ns_window()? as *mut AnyObject;
+    if ns_window.is_null() {
+        return Err(tauri::Error::FailedToReceiveMessage);
+    }
     // SAFETY: ns_window() returned a valid NSWindow pointer on success.
     let mut frame = unsafe { asyar_platform::macos::get_window_frame(ns_window) };
     frame.size.width = width;
@@ -156,35 +169,49 @@ pub fn is_key_window<R: Runtime>(window: &WebviewWindow<R>) -> bool {
 }
 
 pub fn park_launcher_panel<R: Runtime>(window: &WebviewWindow<R>, panel: &Panel) {
-    set_window_alpha(window, 0.0);
-    set_ignores_mouse_events(window, true);
-    // No caret while parked: macOS anchors its "Write with Siri" button to a
-    // focused text field even in an invisible window. The frontend
-    // refocuses search when the panel becomes key again.
-    let _ = window.eval("document.activeElement?.blur()");
-    if is_key_window(window) {
-        panel.order_out(None);
-        panel.order_front_regardless();
-    }
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set_window_alpha(window, 0.0);
+        set_ignores_mouse_events(window, true);
+        // No caret while parked: macOS anchors its "Write with Siri" button to a
+        // focused text field even in an invisible window. The frontend
+        // refocuses search when the panel becomes key again.
+        let _ = window.eval("document.activeElement?.blur()");
+        if is_key_window(window) {
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                panel.order_out(None);
+            }));
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                panel.order_front_regardless();
+            }));
+        }
+    }));
 }
 
 pub fn reveal_launcher_panel<R: Runtime>(window: &WebviewWindow<R>, panel: &Panel) {
-    set_ignores_mouse_events(window, false);
-    if let Err(e) = position_launcher(window) {
-        log::warn!(
-            "[launcher-reveal] position_launcher failed: {e}; revealing at previous position"
-        );
-    }
-    panel.show();
-    set_window_alpha(window, 1.0);
-    reseat_first_responder(window);
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set_ignores_mouse_events(window, false);
+        if let Err(e) = position_launcher(window) {
+            log::warn!(
+                "[launcher-reveal] position_launcher failed: {e}; revealing at previous position"
+            );
+        }
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            panel.show();
+        }));
+        set_window_alpha(window, 1.0);
+        reseat_first_responder(window);
+    }));
 }
 
 pub fn prewarm_launcher_panel<R: Runtime>(window: &WebviewWindow<R>, panel: &Panel) {
-    set_window_alpha(window, 0.0);
-    set_ignores_mouse_events(window, true);
-    panel.order_front_regardless();
-    log::info!("[launcher-park] prewarmed at boot (ordered in, alpha 0, mouse-transparent)");
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set_window_alpha(window, 0.0);
+        set_ignores_mouse_events(window, true);
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            panel.order_front_regardless();
+        }));
+        log::info!("[launcher-park] prewarmed at boot (ordered in, alpha 0, mouse-transparent)");
+    }));
 }
 
 pub fn disable_occlusion_detection<R: Runtime>(window: &WebviewWindow<R>) {
@@ -251,14 +278,16 @@ pub fn reveal_window_after_first_paint<R: Runtime + 'static>(
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(fallback_ms)).await;
         let _ = app.run_on_main_thread(move || {
-            if window_alpha(&w) < 1.0 {
-                log::warn!(
-                    "[first-paint] presentation update never fired within {fallback_ms}ms; revealing '{}' via watchdog",
-                    w.label()
-                );
-                set_window_alpha(&w, 1.0);
-                let _ = w.set_focus();
-            }
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if window_alpha(&w) < 1.0 {
+                    log::warn!(
+                        "[first-paint] presentation update never fired within {fallback_ms}ms; revealing '{}' via watchdog",
+                        w.label()
+                    );
+                    set_window_alpha(&w, 1.0);
+                    let _ = w.set_focus();
+                }
+            }));
         });
     });
 }
@@ -290,32 +319,41 @@ pub fn set_launcher_window_height<R: Runtime + 'static>(
     height: f64,
     mode: ResizeMode,
 ) {
-    let Ok(ptr) = window.ns_window() else { return };
-    let ns_window = ptr as *mut AnyObject;
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Ok(ptr) = window.ns_window() else { return };
+        let ns_window = ptr as *mut AnyObject;
+        if ns_window.is_null() {
+            return;
+        }
 
-    // SAFETY: ns_window() returned a valid NSWindow pointer.
-    let watchdog_gen =
-        unsafe { asyar_platform::macos::set_launcher_window_height(ns_window, height, mode) };
+        // SAFETY: ns_window() returned a valid NSWindow pointer.
+        let watchdog_gen =
+            unsafe { asyar_platform::macos::set_launcher_window_height(ns_window, height, mode) };
 
-    if let Some(gen) = watchdog_gen {
-        const GROW_WATCHDOG_MS: u64 = 250;
-        let w = window.clone();
-        let app = window.app_handle().clone();
-        tauri::async_runtime::spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(GROW_WATCHDOG_MS)).await;
-            let _ = app.run_on_main_thread(move || {
-                let Ok(ptr) = w.ns_window() else { return };
-                // SAFETY: ns_window() returned a valid NSWindow pointer.
-                unsafe {
-                    asyar_platform::macos::force_apply_resize_if_generation_matches(
-                        ptr as *mut AnyObject,
-                        height,
-                        gen,
-                    )
-                };
+        if let Some(gen) = watchdog_gen {
+            const GROW_WATCHDOG_MS: u64 = 250;
+            let w = window.clone();
+            let app = window.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(GROW_WATCHDOG_MS)).await;
+                let _ = app.run_on_main_thread(move || {
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        let Ok(ptr) = w.ns_window() else { return };
+                        let ns_window = ptr as *mut AnyObject;
+                        if ns_window.is_null() {
+                            return;
+                        }
+                        // SAFETY: ns_window() returned a valid NSWindow pointer.
+                        unsafe {
+                            asyar_platform::macos::force_apply_resize_if_generation_matches(
+                                ns_window, height, gen,
+                            )
+                        };
+                    }));
+                });
             });
-        });
-    }
+        }
+    }));
 }
 
 pub fn position_launcher<R: Runtime>(

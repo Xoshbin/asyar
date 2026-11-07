@@ -233,7 +233,9 @@ pub async fn quick_look_path<R: tauri::Runtime>(
         let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
         app_handle
             .run_on_main_thread(move || {
-                let _ = tx.send(crate::platform::macos::quick_look_toggle(&path));
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _ = tx.send(crate::platform::macos::quick_look_toggle(&path));
+                }));
             })
             .map_err(|e| AppError::Other(format!("Failed to schedule Quick Look: {}", e)))?;
         if rx

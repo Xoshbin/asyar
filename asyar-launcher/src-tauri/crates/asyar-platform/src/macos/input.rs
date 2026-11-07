@@ -36,12 +36,15 @@ pub fn register_cmdq_monitor<F: Fn() -> bool + Clone + 'static>(on_cmd_q: F) {
     const CMD_FLAG: u64 = 1 << 20;
 
     let handler = StackBlock::new(move |event: *mut AnyObject| -> *mut AnyObject {
-        let keycode: u16 = unsafe { msg_send![event, keyCode] };
-        let flags: u64 = unsafe { msg_send![event, modifierFlags] };
-        if keycode == VK_Q && (flags & CMD_FLAG) != 0 && on_cmd_q() {
-            return std::ptr::null_mut();
-        }
-        event
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let keycode: u16 = unsafe { msg_send![event, keyCode] };
+            let flags: u64 = unsafe { msg_send![event, modifierFlags] };
+            if keycode == VK_Q && (flags & CMD_FLAG) != 0 && on_cmd_q() {
+                return std::ptr::null_mut();
+            }
+            event
+        }));
+        res.unwrap_or(event)
     });
     let ns_event_cls = AnyClass::get("NSEvent").expect("NSEvent class not found");
     let monitor: Option<Retained<AnyObject>> = unsafe {
@@ -66,50 +69,52 @@ pub fn register_snippet_monitor(
     const KEY_DOWN_MASK: u64 = 1u64 << 10;
 
     let handler = StackBlock::new(move |event: *mut AnyObject| {
-        if !is_active() {
-            on_reset();
-            return;
-        }
-
-        let keycode: u16 = unsafe { msg_send![event, keyCode] };
-        match keycode {
-            53 | 36 | 52 | 48 | 123..=126 => {
-                // Escape, Return, Enter, Tab, Arrow keys
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if !is_active() {
                 on_reset();
                 return;
             }
-            51 | 117 => {
-                // Delete / Forward Delete
-                on_backspace();
-                return;
-            }
-            _ => {}
-        }
 
-        let chars_obj: Option<Retained<AnyObject>> =
-            unsafe { msg_send_id![event, charactersIgnoringModifiers] };
-
-        if let Some(chars) = chars_obj {
-            let utf8: *const i8 = unsafe { msg_send![&*chars, UTF8String] };
-            if utf8.is_null() {
-                return;
-            }
-            let s = unsafe {
-                std::ffi::CStr::from_ptr(utf8)
-                    .to_str()
-                    .unwrap_or("")
-                    .to_string()
-            };
-
-            for c in s.chars() {
-                if c.is_control() {
-                    continue;
+            let keycode: u16 = unsafe { msg_send![event, keyCode] };
+            match keycode {
+                53 | 36 | 52 | 48 | 123..=126 => {
+                    // Escape, Return, Enter, Tab, Arrow keys
+                    on_reset();
+                    return;
                 }
-                for lc in c.to_lowercase() {
-                    on_char(lc);
+                51 | 117 => {
+                    // Delete / Forward Delete
+                    on_backspace();
+                    return;
+                }
+                _ => {}
+            }
+
+            let chars_obj: Option<Retained<AnyObject>> =
+                unsafe { msg_send_id![event, charactersIgnoringModifiers] };
+
+            if let Some(chars) = chars_obj {
+                let utf8: *const i8 = unsafe { msg_send![&*chars, UTF8String] };
+                if utf8.is_null() {
+                    return;
+                }
+                let s = unsafe {
+                    std::ffi::CStr::from_ptr(utf8)
+                        .to_str()
+                        .unwrap_or("")
+                        .to_string()
+                };
+
+                for c in s.chars() {
+                    if c.is_control() {
+                        continue;
+                    }
+                    for lc in c.to_lowercase() {
+                        on_char(lc);
+                    }
                 }
             }
-        }
+        }));
     });
 
     let ns_event_cls = AnyClass::get("NSEvent").expect("NSEvent class not found");

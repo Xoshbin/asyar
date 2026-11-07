@@ -115,9 +115,11 @@ pub async fn capture_screen_text(
     let app_clone = app_handle.clone();
     app_handle
         .run_on_main_thread(move || {
-            let app_state = app_clone.state::<AppState>();
-            let _ = crate::commands::app::hide(app_clone.clone(), app_state);
-            let _ = tx.send(());
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let app_state = app_clone.state::<AppState>();
+                let _ = crate::commands::app::hide(app_clone.clone(), app_state);
+                let _ = tx.send(());
+            }));
         })
         .map_err(|e| AppError::Platform(format!("failed to dispatch hide to main thread: {e}")))?;
     let _ = rx.await;
@@ -153,7 +155,9 @@ pub async fn capture_screen_text(
         OcrEvaluation::Empty { hud_message } => {
             let app_clone = app_handle.clone();
             let _ = app_handle.run_on_main_thread(move || {
-                let _ = crate::hud_window::service::show(&app_clone, hud_message, 2000, false);
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _ = crate::hud_window::service::show(&app_clone, hud_message, 2000, false);
+                }));
             });
             Ok(None)
         }
@@ -179,7 +183,9 @@ pub async fn capture_screen_text(
             // Show HUD notification on main thread
             let app_clone = app_handle.clone();
             let _ = app_handle.run_on_main_thread(move || {
-                let _ = crate::hud_window::service::show(&app_clone, hud_message, 2000, false);
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _ = crate::hud_window::service::show(&app_clone, hud_message, 2000, false);
+                }));
             });
 
             Ok(Some(redacted_text))

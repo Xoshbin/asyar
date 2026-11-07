@@ -51,20 +51,23 @@ extern "C" fn preview_item_at_index_imp(
     _panel: *mut AnyObject,
     _index: isize,
 ) -> *mut AnyObject {
-    let Some(path) = CURRENT_PATH
-        .lock()
-        .unwrap_or_else(|p| p.into_inner())
-        .clone()
-    else {
-        return std::ptr::null_mut();
-    };
-    unsafe {
-        let Some(url_cls) = AnyClass::get("NSURL") else {
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(path) = CURRENT_PATH
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+        else {
             return std::ptr::null_mut();
         };
-        let ns_path = NSString::from_str(&path.to_string_lossy());
-        msg_send![url_cls, fileURLWithPath: &*ns_path isDirectory: Bool::from(path.is_dir())]
-    }
+        unsafe {
+            let Some(url_cls) = AnyClass::get("NSURL") else {
+                return std::ptr::null_mut();
+            };
+            let ns_path = NSString::from_str(&path.to_string_lossy());
+            msg_send![url_cls, fileURLWithPath: &*ns_path isDirectory: Bool::from(path.is_dir())]
+        }
+    }));
+    res.unwrap_or(std::ptr::null_mut())
 }
 
 /// Builds (once) and returns the data source singleton.

@@ -215,16 +215,17 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         use crate::platform::macos::LAUNCHER_MAX_HEIGHT;
         asyar_platform::macos::set_active_max_height(LAUNCHER_MAX_HEIGHT * scale);
 
-        let mut frame = crate::platform::macos::get_window_frame(&window);
-        let top = frame.origin.y + frame.size.height;
-        frame.size.width *= scale;
-        frame.size.height = if compact {
-            read_compact_height(handle) * scale
-        } else {
-            LAUNCHER_MAX_HEIGHT * scale
-        };
-        frame.origin.y = top - frame.size.height;
-        crate::platform::macos::set_window_frame(&window, frame);
+        if let Some(mut frame) = crate::platform::macos::get_window_frame(&window) {
+            let top = frame.origin.y + frame.size.height;
+            frame.size.width *= scale;
+            frame.size.height = if compact {
+                read_compact_height(handle) * scale
+            } else {
+                LAUNCHER_MAX_HEIGHT * scale
+            };
+            frame.origin.y = top - frame.size.height;
+            crate::platform::macos::set_window_frame(&window, frame);
+        }
     }
 
     if let Err(error) = window.set_zoom(scale) {
@@ -343,32 +344,40 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
         handle.listen(
             format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL),
             move |_| {
-                let state = handle_clone.state::<AppState>();
-                if state.focus_locked.load(Ordering::Relaxed) {
-                    return;
-                }
-                state.asyar_visible.store(false, Ordering::Relaxed);
-                crate::launcher::pop_to_root::on_launcher_hidden(&handle_clone);
-
-                let compact_mode = read_launch_view(&handle_clone) == "compact";
-                let keep_expanded = state.launcher_keep_expanded.load(Ordering::Relaxed);
-                let scale = state.ui_scale();
-                let handle_for_main = handle_clone.clone();
-                let panel = panel.clone();
-                let _ = handle_clone.run_on_main_thread(move || {
-                    let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) else {
-                        panel.order_out(None);
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let state = handle_clone.state::<AppState>();
+                    if state.focus_locked.load(Ordering::Relaxed) {
                         return;
-                    };
-                    crate::platform::macos::park_launcher_panel(&window, &panel);
-                    if should_collapse_on_resign(compact_mode, keep_expanded) {
-                        crate::platform::macos::set_launcher_window_height(
-                            &window,
-                            read_compact_height(&handle_for_main) * scale,
-                            crate::platform::macos::ResizeMode::Immediate,
-                        );
                     }
-                });
+                    state.asyar_visible.store(false, Ordering::Relaxed);
+                    crate::launcher::pop_to_root::on_launcher_hidden(&handle_clone);
+
+                    let compact_mode = read_launch_view(&handle_clone) == "compact";
+                    let keep_expanded = state.launcher_keep_expanded.load(Ordering::Relaxed);
+                    let scale = state.ui_scale();
+                    let handle_for_main = handle_clone.clone();
+                    let panel = panel.clone();
+                    let _ = handle_clone.run_on_main_thread(move || {
+                        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL)
+                            else {
+                                let _ =
+                                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                        panel.order_out(None);
+                                    }));
+                                return;
+                            };
+                            crate::platform::macos::park_launcher_panel(&window, &panel);
+                            if should_collapse_on_resign(compact_mode, keep_expanded) {
+                                crate::platform::macos::set_launcher_window_height(
+                                    &window,
+                                    read_compact_height(&handle_for_main) * scale,
+                                    crate::platform::macos::ResizeMode::Immediate,
+                                );
+                            }
+                        }));
+                    });
+                }));
             },
         );
     }
@@ -423,43 +432,45 @@ pub fn init_window_listeners(app: &tauri::AppHandle) -> Result<(), Box<dyn std::
 
             let handle_for_main = handle_for_listen.clone();
             let _ = handle_for_listen.run_on_main_thread(move || {
-                let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) else {
-                    return;
-                };
-                let scale = handle_for_main.state::<AppState>().ui_scale();
-
-                #[cfg(target_os = "macos")]
-                {
-                    use crate::platform::macos::{ResizeMode, LAUNCHER_MAX_HEIGHT};
-                    let height = if compact {
-                        read_compact_height(&handle_for_main) * scale
-                    } else {
-                        LAUNCHER_MAX_HEIGHT * scale
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) else {
+                        return;
                     };
-                    crate::platform::macos::set_launcher_window_height(
-                        &window,
-                        height,
-                        ResizeMode::Immediate,
-                    );
-                }
+                    let scale = handle_for_main.state::<AppState>().ui_scale();
 
-                #[cfg(not(target_os = "macos"))]
-                {
-                    use tauri::{LogicalSize, Size};
-                    let height = if compact {
-                        read_compact_height(&handle_for_main) * scale
-                    } else {
-                        crate::launcher_placement::LAUNCHER_MAX_HEIGHT * scale
-                    };
-                    if let Ok(size) = window.inner_size() {
-                        let scale = window.scale_factor().unwrap_or(1.0);
-                        let logical_width = size.width as f64 / scale;
-                        let _ = window.set_size(Size::Logical(LogicalSize {
-                            width: logical_width,
+                    #[cfg(target_os = "macos")]
+                    {
+                        use crate::platform::macos::{ResizeMode, LAUNCHER_MAX_HEIGHT};
+                        let height = if compact {
+                            read_compact_height(&handle_for_main) * scale
+                        } else {
+                            LAUNCHER_MAX_HEIGHT * scale
+                        };
+                        crate::platform::macos::set_launcher_window_height(
+                            &window,
                             height,
-                        }));
+                            ResizeMode::Immediate,
+                        );
                     }
-                }
+
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        use tauri::{LogicalSize, Size};
+                        let height = if compact {
+                            read_compact_height(&handle_for_main) * scale
+                        } else {
+                            crate::launcher_placement::LAUNCHER_MAX_HEIGHT * scale
+                        };
+                        if let Ok(size) = window.inner_size() {
+                            let scale = window.scale_factor().unwrap_or(1.0);
+                            let logical_width = size.width as f64 / scale;
+                            let _ = window.set_size(Size::Logical(LogicalSize {
+                                width: logical_width,
+                                height,
+                            }));
+                        }
+                    }
+                }));
             });
         });
     }
