@@ -1051,6 +1051,11 @@ fn get_icon_cache_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
         })
 }
 
+pub(crate) fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
+    let limit = s.len().min(max_bytes);
+    &s[..s.floor_char_boundary(limit)]
+}
+
 pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
     let cache_key = app_path
         .replace(['/', '\\', ':', ' '], "_")
@@ -1058,7 +1063,7 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
         .replace(".desktop", "")
         .replace(".exe", "");
 
-    let base_name = &cache_key[..cache_key.len().min(200)];
+    let base_name = truncate_to_char_boundary(&cache_key, 200);
     let cache_filename_png = format!("{base_name}.png");
     let cache_file_png = cache_dir.join(&cache_filename_png);
     if cache_file_png.exists() {
@@ -1117,7 +1122,7 @@ pub(crate) fn extract_uwp_app_icon(
     cache_dir: &Path,
 ) -> Option<String> {
     let cache_key = format!("uwp_{}", aumid.replace(['/', '\\', ':', ' ', '!'], "_"));
-    let cache_filename = format!("{}.png", &cache_key[..cache_key.len().min(200)]);
+    let cache_filename = format!("{}.png", truncate_to_char_boundary(&cache_key, 200));
     let cache_file = cache_dir.join(&cache_filename);
 
     if cache_file.exists() {
@@ -2102,6 +2107,63 @@ mod tests {
         // Subsequent call immediately returns None via marker check
         let result2 = extract_app_icon("/nonexistent/path/app.desktop", &cache_dir);
         assert!(result2.is_none());
+    }
+
+    #[test]
+    fn test_extract_app_icon_multibyte_boundary_does_not_panic() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+
+        // Construct a path whose cache_key has multi-byte char '』' spanning bytes 198..201
+        let prefix = "a".repeat(198);
+        let path = format!("{prefix}』extra.exe");
+
+        // Under un-guarded byte slicing, this panics at byte offset 200
+        let result = extract_app_icon(&path, &cache_dir);
+        assert!(result.is_none());
+
+        let marker = cache_dir.join(format!("{prefix}.missing"));
+        assert!(
+            marker.exists(),
+            "missing marker must be created with safe truncated filename"
+        );
+    }
+
+    #[test]
+    fn test_truncate_to_char_boundary_handles_multibyte_at_boundary() {
+        // Shorter than limit
+        assert_eq!(truncate_to_char_boundary("hello", 200), "hello");
+
+        // Exactly at limit
+        let exact = "a".repeat(200);
+        assert_eq!(truncate_to_char_boundary(&exact, 200), exact.as_str());
+
+        // Longer ASCII string truncated to limit
+        let longer = "a".repeat(250);
+        let truncated_longer = truncate_to_char_boundary(&longer, 200);
+        assert_eq!(truncated_longer.len(), 200);
+
+        // 3-byte char '』' (U+300F) spanning bytes 198..201 across 200-byte boundary
+        let s3 = format!("{}』extra", "a".repeat(198));
+        let truncated3 = truncate_to_char_boundary(&s3, 200);
+        assert_eq!(truncated3.len(), 198);
+        assert_eq!(truncated3, &"a".repeat(198));
+
+        // 4-byte emoji '🎉' (U+1F389) spanning bytes 199..203 across 200-byte boundary
+        let s4 = format!("{}🎉extra", "a".repeat(199));
+        let truncated4 = truncate_to_char_boundary(&s4, 200);
+        assert_eq!(truncated4.len(), 199);
+        assert_eq!(truncated4, &"a".repeat(199));
+
+        // Multi-byte char fitting completely before or exactly at the limit (bytes 197..200)
+        let s_fits = format!("{}』extra", "a".repeat(197));
+        let truncated_fits = truncate_to_char_boundary(&s_fits, 200);
+        assert_eq!(truncated_fits.len(), 200);
+        assert!(truncated_fits.ends_with('』'));
+
+        // Edge cases
+        assert_eq!(truncate_to_char_boundary("", 200), "");
+        assert_eq!(truncate_to_char_boundary("hello", 0), "");
     }
 
     #[test]
