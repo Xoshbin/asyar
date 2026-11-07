@@ -57,7 +57,7 @@ element.innerHTML = renderIcon('calculator', { size: 20 });
 
 Remote icons are for runtime data — a favicon, a profile avatar, a cover image from an API — not for the extension's own identity. They work only in search results and registered actions, where the host can attribute the URL to your extension.
 
-- **Requires the `network` permission.** Without it the icon is not fetched and the row shows its fallback; a DEV build logs a warning. Revoking `network` also disables already-cached remote icons, because the permission check runs before the cache lookup.
+- **Requires the `network` permission.** The host checks this permission before its disk-cache lookup. If the host rejects a fetch, the row shows its fallback and a DEV build logs a warning. Icons already resolved in the current renderer session may remain visible after revocation, because the frontend reuses them without another host check.
 - **Fetched by the host, never by the webview.** Pointing an `<img>` at a remote URL would leak the request (cookies, referrer, IP) outside the host's permission and private-network checks. The host fetches the bytes through the same scoped network path as `NetworkService`.
 - **HTTPS only.** `http://`, URLs containing credentials, and redirects that downgrade to plain HTTP are rejected.
 - **Isolated request.** The fetch sends no cookies and no referrer, and uses a generic user agent. It applies the same SSRF/private-network/LAN policy as extension network requests, caps the response at **2 MB**, and times out after **10 seconds**.

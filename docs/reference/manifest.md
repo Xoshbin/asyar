@@ -271,8 +271,9 @@ The Rust discovery parser enforces:
 - `aiProviders` requires `background.main` and both `network` and `ai:provider` permissions. It is forbidden on `type === "theme"`. Each provider id must match `^[a-z0-9_-]{1,64}$`, names must be non-empty, `homepage` / `apiKeyHelpUrl` must start with `http://` or `https://`, and model declarations must have non-empty unique `id`s and non-empty `name`s.
 - `webReaders` requires `background.main` and both `network` and `ai:web-reader` permissions. It is forbidden on `type === "theme"`. Each reader id must match `^[a-z0-9_-]{1,64}$`, names must be non-empty, and `homepage` / `apiKeyHelpUrl` must start with `http://` or `https://`.
 - `fileSearchProviders` requires `background.main` and both `network` and `files:search-provider` permissions. It is forbidden on `type === "theme"`. Each provider id must match `^[a-z0-9_-]{1,64}$` and names must be non-empty.
-- Root and per-command `icon` values must be an emoji, `"icon:<name>"`, or a bundled asset; `https://` URLs are rejected by the icon resolver. Remote icons are only accepted at runtime from search results and registered actions (see [Remote icons](design-system/icons.md#remote-icons)).
 - Unknown fields are rejected via `#[serde(deny_unknown_fields)]`. Old manifests with `defaultView` / `resultType` / etc. fail discovery.
+
+**Icon resolution (not discovery validation).** Discovery accepts any `icon` string; the icon resolver then ignores `https://` URLs because manifest and command icons must be bundled or emoji. An unresolved command icon falls back to the resolved extension icon, if available; an unresolved root icon has no resolved icon. Remote icons are only accepted at runtime from search results and registered actions (see [Remote icons](design-system/icons.md#remote-icons)).
 
 ### Parameterized permissions — `permissionArgs`
 
