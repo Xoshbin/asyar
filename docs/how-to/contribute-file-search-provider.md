@@ -113,7 +113,10 @@ export interface FileSearchResultItem {
   url?: string;
   /** Optional local disk path if mirrored or cached locally. */
   path?: string;
-  /** Standard icon key (e.g. "icon:document", "icon:link") or URL. */
+  /**
+   * Standard icon key (e.g. "icon:document", "icon:link") or an `https://` URL.
+   * Remote icons are fetched by the host and require the `network` permission.
+   */
   icon?: string;
   /** MIME type (e.g. "application/vnd.google-apps.spreadsheet"). */
   mimeType?: string;
