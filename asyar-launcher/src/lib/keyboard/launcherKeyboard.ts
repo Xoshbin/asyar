@@ -411,6 +411,20 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (deps.getBottomBar()?.isOpen()) return;
     if (tryQuickLookSelectedFile(event)) return;
     if (tryRunActionShortcut(event)) return;
+    // Command argument chip/dropdown focused: bail for Escape so the chip row's
+    // local keydown handler can exit argument mode or close the dropdown, rather
+    // than window capture hiding the launcher at root.
+    if (
+      event.key === 'Escape' &&
+      ((event.target as HTMLElement)?.closest?.(
+        '.arg-fields, .arg-dropdown, [data-arg-focus-target]',
+      ) ||
+        (document.activeElement as HTMLElement)?.closest?.(
+          '.arg-fields, .arg-dropdown, [data-arg-focus-target]',
+        ))
+    ) {
+      return;
+    }
     if (tryHandleEscape(event)) return;
     tryRouteToActiveView(event);
   }

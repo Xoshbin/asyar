@@ -957,6 +957,31 @@ describe('launcherKeyboard characterization tests', () => {
         expect(hideWindow).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
+
+      it('Escape in handleGlobalKeydown skips global escape when focus is on an argument field/dropdown', async () => {
+        viewManager.activeView = null;
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: { escapeInViewBehavior: 'go-back' },
+        } as any);
+        const deps = createMockDeps({ getLocalSearchValue: vi.fn(() => '') });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Escape');
+
+        const triggerButton = {
+          tagName: 'BUTTON',
+          closest: vi.fn((sel: string) => (sel.includes('.arg-fields') ? {} : null)),
+        };
+        (event as any).target = triggerButton;
+        (document as any)._activeElement = triggerButton;
+
+        handleGlobalKeydown(event);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(hideWindow).not.toHaveBeenCalled();
+        expect(extensionManager.goBack).not.toHaveBeenCalled();
+
+        (document as any)._activeElement = null;
+      });
     });
 
     describe('Route to Active View — action panel interaction', () => {
