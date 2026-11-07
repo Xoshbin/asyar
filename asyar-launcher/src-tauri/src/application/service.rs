@@ -1056,6 +1056,21 @@ pub(crate) fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
     &s[..s.floor_char_boundary(limit)]
 }
 
+pub(crate) fn truncate_cache_key(cache_key: &str, max_bytes: usize) -> std::borrow::Cow<'_, str> {
+    if cache_key.len() <= max_bytes {
+        return std::borrow::Cow::Borrowed(cache_key);
+    }
+
+    use std::hash::{Hash, Hasher};
+    let mut h = fnv::FnvHasher::default();
+    cache_key.hash(&mut h);
+    let hash_str = format!("{:016x}", h.finish());
+
+    let prefix_limit = max_bytes.saturating_sub(1 + hash_str.len());
+    let prefix = truncate_to_char_boundary(cache_key, prefix_limit);
+    std::borrow::Cow::Owned(format!("{prefix}_{hash_str}"))
+}
+
 pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
     let cache_key = app_path
         .replace(['/', '\\', ':', ' '], "_")
@@ -1063,7 +1078,7 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
         .replace(".desktop", "")
         .replace(".exe", "");
 
-    let base_name = truncate_to_char_boundary(&cache_key, 200);
+    let base_name = truncate_cache_key(&cache_key, 200);
     let cache_filename_png = format!("{base_name}.png");
     let cache_file_png = cache_dir.join(&cache_filename_png);
     if cache_file_png.exists() {
@@ -1122,7 +1137,7 @@ pub(crate) fn extract_uwp_app_icon(
     cache_dir: &Path,
 ) -> Option<String> {
     let cache_key = format!("uwp_{}", aumid.replace(['/', '\\', ':', ' ', '!'], "_"));
-    let cache_filename = format!("{}.png", truncate_to_char_boundary(&cache_key, 200));
+    let cache_filename = format!("{}.png", truncate_cache_key(&cache_key, 200));
     let cache_file = cache_dir.join(&cache_filename);
 
     if cache_file.exists() {
@@ -2122,7 +2137,9 @@ mod tests {
         let result = extract_app_icon(&path, &cache_dir);
         assert!(result.is_none());
 
-        let marker = cache_dir.join(format!("{prefix}.missing"));
+        let raw_key = format!("{prefix}』extra");
+        let expected_key = truncate_cache_key(&raw_key, 200);
+        let marker = cache_dir.join(format!("{expected_key}.missing"));
         assert!(
             marker.exists(),
             "missing marker must be created with safe truncated filename"
@@ -2164,6 +2181,32 @@ mod tests {
         // Edge cases
         assert_eq!(truncate_to_char_boundary("", 200), "");
         assert_eq!(truncate_to_char_boundary("hello", 0), "");
+    }
+
+    #[test]
+    fn test_truncate_cache_key_avoids_collisions_for_shared_prefix() {
+        // Shorter keys remain untouched
+        assert_eq!(truncate_cache_key("calculator", 200).as_ref(), "calculator");
+
+        // Two keys longer than 200 bytes sharing the first 210 bytes
+        let prefix = "a".repeat(210);
+        let key1 = format!("{prefix}_app1");
+        let key2 = format!("{prefix}_app2");
+
+        let truncated1 = truncate_cache_key(&key1, 200);
+        let truncated2 = truncate_cache_key(&key2, 200);
+
+        assert_ne!(
+            truncated1, truncated2,
+            "different keys sharing a prefix must not collide"
+        );
+        assert!(truncated1.len() <= 200);
+        assert!(truncated2.len() <= 200);
+
+        // Multi-byte chars near the prefix limit within the truncated cache key
+        let mb_key = format!("{}』extra_app", "a".repeat(182));
+        let truncated_mb = truncate_cache_key(&mb_key, 200);
+        assert!(truncated_mb.len() <= 200);
     }
 
     #[test]
