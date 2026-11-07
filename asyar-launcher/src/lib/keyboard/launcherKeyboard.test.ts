@@ -921,6 +921,44 @@ describe('launcherKeyboard characterization tests', () => {
       });
     });
 
+    describe('Global Escape delegation', () => {
+      it('Escape in handleGlobalKeydown pops active view even when textarea inside view is focused', () => {
+        viewManager.activeView = 'feedback/DefaultView';
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: { escapeInViewBehavior: 'go-back' },
+        } as any);
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Escape');
+
+        const textarea = { tagName: 'TEXTAREA', blur: vi.fn() };
+        (document as any)._activeElement = textarea;
+
+        handleGlobalKeydown(event);
+
+        expect(extensionManager.goBack).toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+
+        (document as any)._activeElement = null;
+      });
+
+      it('Escape in handleGlobalKeydown hides launcher at root', async () => {
+        viewManager.activeView = null;
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: { escapeInViewBehavior: 'go-back' },
+        } as any);
+        const deps = createMockDeps({ getLocalSearchValue: vi.fn(() => '') });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Escape');
+
+        handleGlobalKeydown(event);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(hideWindow).toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+    });
+
     describe('Route to Active View — action panel interaction', () => {
       it('ArrowDown is forwarded to third-party extension when action panel is closed', () => {
         viewManager.activeView = 'org.asyar.tauri-docs/DocsView';
