@@ -146,11 +146,13 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         };
         let app = app_handle.clone();
         let reveal = move || {
-            if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
-                if let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) {
-                    crate::platform::macos::reveal_launcher_panel(&window, &panel);
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
+                    if let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) {
+                        crate::platform::macos::reveal_launcher_panel(&window, &panel);
+                    }
                 }
-            }
+            }));
         };
         if is_main.as_bool() {
             reveal();
@@ -207,11 +209,13 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         };
         let app = app_handle.clone();
         let park = move || {
-            if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
-                if let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) {
-                    crate::platform::macos::park_launcher_panel(&window, &panel);
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
+                    if let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) {
+                        crate::platform::macos::park_launcher_panel(&window, &panel);
+                    }
                 }
-            }
+            }));
         };
         if is_main.as_bool() {
             park();
@@ -467,9 +471,11 @@ pub fn set_panel_appearance(app_handle: AppHandle, pref: String) -> Result<(), A
         }
         let handle_clone = app_handle.clone();
         let _ = app_handle.run_on_main_thread(move || {
-            if let Some(window) = handle_clone.get_webview_window(crate::SPOTLIGHT_LABEL) {
-                crate::platform::macos::apply_panel_appearance(&window, theme_pref);
-            }
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if let Some(window) = handle_clone.get_webview_window(crate::SPOTLIGHT_LABEL) {
+                    crate::platform::macos::apply_panel_appearance(&window, theme_pref);
+                }
+            }));
         });
     }
     #[cfg(not(target_os = "macos"))]

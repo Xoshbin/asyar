@@ -112,19 +112,21 @@ pub fn show(
             tokio::time::sleep(Duration::from_millis(REVEAL_FALLBACK_MS)).await;
             let handle = app_for_watchdog.clone();
             let _ = app_for_watchdog.run_on_main_thread(move || {
-                let state = handle.state::<HudState>();
-                if state.reveal_gen.load(Ordering::SeqCst) != reveal_gen {
-                    return; // superseded — the newer show owns the reveal
-                }
-                if let Some(w) = handle.get_webview_window(HUD_WINDOW_LABEL) {
-                    if crate::platform::macos::window_alpha(&w) < 1.0 {
-                        log::warn!(
-                            "[hud] mark_shown echo missing after {REVEAL_FALLBACK_MS}ms; \
-                             revealing via watchdog"
-                        );
-                        crate::platform::macos::set_window_alpha(&w, 1.0);
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let state = handle.state::<HudState>();
+                    if state.reveal_gen.load(Ordering::SeqCst) != reveal_gen {
+                        return; // superseded — the newer show owns the reveal
                     }
-                }
+                    if let Some(w) = handle.get_webview_window(HUD_WINDOW_LABEL) {
+                        if crate::platform::macos::window_alpha(&w) < 1.0 {
+                            log::warn!(
+                                "[hud] mark_shown echo missing after {REVEAL_FALLBACK_MS}ms; \
+                                 revealing via watchdog"
+                            );
+                            crate::platform::macos::set_window_alpha(&w, 1.0);
+                        }
+                    }
+                }));
             });
         });
     }
@@ -172,9 +174,11 @@ pub fn mark_shown(app: &AppHandle, reveal_gen: u64) -> Result<(), AppError> {
         }
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || {
-            if let Some(w) = handle.get_webview_window(HUD_WINDOW_LABEL) {
-                crate::platform::macos::set_window_alpha(&w, 1.0);
-            }
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if let Some(w) = handle.get_webview_window(HUD_WINDOW_LABEL) {
+                    crate::platform::macos::set_window_alpha(&w, 1.0);
+                }
+            }));
         });
     }
     #[cfg(not(target_os = "macos"))]

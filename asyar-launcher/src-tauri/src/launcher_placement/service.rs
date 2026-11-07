@@ -149,7 +149,9 @@ fn apply_placement<R: Runtime + 'static>(
         .ok_or_else(|| AppError::NotFound("target monitor".to_string()))?;
     let frames = macos_conv::frames(screen.frame, screen.visible);
 
-    let window_frame = get_window_frame(&window);
+    let Some(window_frame) = get_window_frame(&window) else {
+        return Ok(());
+    };
     let reserve_height = reserve_height(app);
     let space = TravelSpace::new(frames.monitor, window_frame.size.width, reserve_height);
     let anchor = migrate_on_reveal(app, placement, space);
@@ -244,7 +246,7 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
     use macos_conv::AppKitRect;
 
     let window = app.get_webview_window(SPOTLIGHT_LABEL)?;
-    let f = get_window_frame(&window);
+    let f = get_window_frame(&window)?;
     let window_rect = AppKitRect {
         x: f.origin.x,
         y: f.origin.y,

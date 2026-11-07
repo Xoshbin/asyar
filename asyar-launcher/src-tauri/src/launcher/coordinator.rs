@@ -43,7 +43,9 @@ struct TauriLauncherBackend {
 impl LauncherBackend for TauriLauncherBackend {
     fn schedule(&self, task: Box<dyn FnOnce() + Send>) -> Result<(), String> {
         self.app
-            .run_on_main_thread(task)
+            .run_on_main_thread(move || {
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(task));
+            })
             .map_err(|error| error.to_string())
     }
 

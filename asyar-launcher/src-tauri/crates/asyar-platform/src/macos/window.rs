@@ -63,20 +63,35 @@ pub unsafe fn apply_spotlight_window_styling(ns_window: *mut AnyObject) {
 }
 
 /// # Safety
-/// `ns_window` must be a valid, non-null pointer to an `NSWindow` instance.
+/// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
 pub unsafe fn get_window_frame(ns_window: *mut AnyObject) -> NSRect {
+    if ns_window.is_null() {
+        return NSRect {
+            origin: NSPoint { x: 0.0, y: 0.0 },
+            size: NSSize {
+                width: 0.0,
+                height: 0.0,
+            },
+        };
+    }
     msg_send![ns_window, frame]
 }
 
 /// # Safety
-/// `ns_window` must be a valid, non-null pointer to an `NSWindow` instance.
+/// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
 pub unsafe fn set_window_frame(ns_window: *mut AnyObject, rect: NSRect) {
+    if ns_window.is_null() {
+        return;
+    }
     msg_send![ns_window, setFrame: rect display: Bool::YES animate: Bool::NO]
 }
 
 /// # Safety
-/// `ns_window` must be a valid, non-null pointer to an `NSWindow` instance.
+/// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
 pub unsafe fn set_window_alpha(ns_window: *mut AnyObject, alpha: f64) {
+    if ns_window.is_null() {
+        return;
+    }
     let _: () = msg_send![ns_window, setAlphaValue: alpha];
 }
 
@@ -90,8 +105,11 @@ pub unsafe fn get_window_alpha(ns_window: *mut AnyObject) -> f64 {
 }
 
 /// # Safety
-/// `ns_window` must be a valid, non-null pointer to an `NSWindow` instance.
+/// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
 pub unsafe fn set_ignores_mouse_events(ns_window: *mut AnyObject, ignores: bool) {
+    if ns_window.is_null() {
+        return;
+    }
     let _: () = msg_send![ns_window, setIgnoresMouseEvents: ignores];
 }
 
@@ -108,6 +126,9 @@ pub unsafe fn is_key_window(ns_window: *mut AnyObject) -> bool {
 /// # Safety
 /// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
 pub unsafe fn park_launcher_window(ns_window: *mut AnyObject) {
+    if ns_window.is_null() {
+        return;
+    }
     set_window_alpha(ns_window, 0.0);
     set_ignores_mouse_events(ns_window, true);
     if is_key_window(ns_window) {
@@ -117,8 +138,11 @@ pub unsafe fn park_launcher_window(ns_window: *mut AnyObject) {
 }
 
 /// # Safety
-/// `ns_window` must be a valid, non-null pointer to an `NSWindow` instance.
+/// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
 pub unsafe fn reveal_launcher_window(ns_window: *mut AnyObject) {
+    if ns_window.is_null() {
+        return;
+    }
     set_ignores_mouse_events(ns_window, false);
     let _: () = msg_send![ns_window, makeKeyAndOrderFront: std::ptr::null::<AnyObject>()];
     set_window_alpha(ns_window, 1.0);
@@ -126,8 +150,11 @@ pub unsafe fn reveal_launcher_window(ns_window: *mut AnyObject) {
 }
 
 /// # Safety
-/// `ns_window` must be a valid, non-null pointer to an `NSWindow` instance.
+/// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
 pub unsafe fn prewarm_launcher_window(ns_window: *mut AnyObject) {
+    if ns_window.is_null() {
+        return;
+    }
     set_window_alpha(ns_window, 0.0);
     set_ignores_mouse_events(ns_window, true);
     let _: () = msg_send![ns_window, orderFrontRegardless];
@@ -401,7 +428,9 @@ unsafe fn layer_tree_fingerprint(view: *mut AnyObject) -> u64 {
 const CA_TRANSACTION_PHASE_PRE_COMMIT: i32 = 1;
 
 fn try_register_pre_commit<F: Fn() + 'static>(f: F) -> bool {
-    let block = block2::RcBlock::new(f);
+    let block = block2::RcBlock::new(move || {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(&f));
+    });
     unsafe {
         let ca = AnyClass::get("CATransaction").expect("CATransaction class");
         let ok: Bool = msg_send![
@@ -456,7 +485,9 @@ fn sentinel_tick() {
 }
 
 fn sentinel_chain_next_turn() {
-    let block = block2::RcBlock::new(sentinel_tick);
+    let block = block2::RcBlock::new(|| {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(sentinel_tick));
+    });
     unsafe {
         dispatch_async(&_dispatch_main_q as *const std::ffi::c_void, &block);
     }
@@ -491,9 +522,11 @@ fn schedule_on_next_pre_commit<F: FnOnce() + 'static>(f: F) {
     let slot: OnceSlot = Rc::new(RefCell::new(Some(Box::new(f))));
     let for_block = slot.clone();
     let block = block2::RcBlock::new(move || {
-        if let Some(f) = for_block.borrow_mut().take() {
-            f();
-        }
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if let Some(f) = for_block.borrow_mut().take() {
+                f();
+            }
+        }));
     });
 
     unsafe {
@@ -516,12 +549,15 @@ pub fn current_resize_generation() -> u64 {
 }
 
 /// # Safety
-/// `ns_window` must be a valid, non-null pointer to an `NSWindow` instance.
+/// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
 pub unsafe fn force_apply_resize_if_generation_matches(
     ns_window: *mut AnyObject,
     height: f64,
     gen: u64,
 ) {
+    if ns_window.is_null() {
+        return;
+    }
     if RESIZE_GEN.load(Ordering::Acquire) != gen {
         return;
     }
@@ -706,11 +742,13 @@ unsafe fn present_resize(ns_window: *mut AnyObject, height: f64, gen: u64) {
     }
     let nsw = ns_window as usize;
     let block = block2::RcBlock::new(move || {
-        // A newer resize owns the window now; settling under it could leave
-        // the window shorter than that resize is about to present.
-        if RESIZE_GEN.load(Ordering::Acquire) == gen {
-            unsafe { with_launcher_surface(nsw as *mut AnyObject, launcher_resize::settle) };
-        }
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // A newer resize owns the window now; settling under it could leave
+            // the window shorter than that resize is about to present.
+            if RESIZE_GEN.load(Ordering::Acquire) == gen {
+                unsafe { with_launcher_surface(nsw as *mut AnyObject, launcher_resize::settle) };
+            }
+        }));
     });
     dispatch_async(&_dispatch_main_q as *const std::ffi::c_void, &block);
 }
@@ -722,12 +760,15 @@ unsafe fn present_resize(ns_window: *mut AnyObject, height: f64, gen: u64) {
 /// or `None` if the resize was committed or scheduled immediately.
 ///
 /// # Safety
-/// `ns_window` must be a valid, non-null pointer to an `NSWindow` instance.
+/// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
 pub unsafe fn set_launcher_window_height(
     ns_window: *mut AnyObject,
     height: f64,
     mode: ResizeMode,
 ) -> Option<u64> {
+    if ns_window.is_null() {
+        return None;
+    }
     let nsw = ns_window as usize;
     let gen = RESIZE_GEN.fetch_add(1, Ordering::AcqRel) + 1;
 

@@ -136,7 +136,9 @@ pub fn install_appearance_observer<F: Fn() + Send + Sync + 'static>(callback: F)
     use objc2_foundation::{NSNotification, NSString};
 
     let block = block2::RcBlock::new(move |_note: std::ptr::NonNull<NSNotification>| {
-        callback();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            callback();
+        }));
     });
 
     unsafe {

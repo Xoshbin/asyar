@@ -23,36 +23,38 @@ pub async fn pick_color(app: &AppHandle) -> Result<Option<PickedColor>, AppError
     let slot = Mutex::new(Some(tx));
 
     app.run_on_main_thread(move || {
-        let send = move |result: Result<Option<PickedColor>, AppError>| {
-            if let Ok(mut guard) = slot.lock() {
-                if let Some(tx) = guard.take() {
-                    let _ = tx.send(result);
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            let send = move |result: Result<Option<PickedColor>, AppError>| {
+                if let Ok(mut guard) = slot.lock() {
+                    if let Some(tx) = guard.take() {
+                        let _ = tx.send(result);
+                    }
                 }
+            };
+
+            if ACTIVE_SAMPLER.with(|s| s.borrow().is_some()) {
+                send(Err(AppError::Platform(
+                    "a screen color pick is already in progress".into(),
+                )));
+                return;
             }
-        };
 
-        if ACTIVE_SAMPLER.with(|s| s.borrow().is_some()) {
-            send(Err(AppError::Platform(
-                "a screen color pick is already in progress".into(),
-            )));
-            return;
-        }
-
-        let handler = RcBlock::new(move |color: *mut NSColor| {
-            let picked = unsafe { color.as_ref() }.and_then(nscolor_to_picked);
-            ACTIVE_SAMPLER.with(|s| {
-                let _ = s.borrow_mut().take();
+            let handler = RcBlock::new(move |color: *mut NSColor| {
+                let picked = unsafe { color.as_ref() }.and_then(nscolor_to_picked);
+                ACTIVE_SAMPLER.with(|s| {
+                    let _ = s.borrow_mut().take();
+                });
+                send(Ok(picked));
             });
-            send(Ok(picked));
-        });
 
-        let sampler = unsafe { NSColorSampler::new() };
-        // Parked BEFORE show so the object outlives this closure; the
-        // handler above releases it when AppKit calls back.
-        ACTIVE_SAMPLER.with(|s| {
-            *s.borrow_mut() = Some(sampler.clone());
-        });
-        unsafe { sampler.showSamplerWithSelectionHandler(&handler) };
+            let sampler = unsafe { NSColorSampler::new() };
+            // Parked BEFORE show so the object outlives this closure; the
+            // handler above releases it when AppKit calls back.
+            ACTIVE_SAMPLER.with(|s| {
+                *s.borrow_mut() = Some(sampler.clone());
+            });
+            unsafe { sampler.showSamplerWithSelectionHandler(&handler) };
+        }));
     })
     .map_err(|e| AppError::Platform(format!("failed to reach the main thread: {e}")))?;
 
