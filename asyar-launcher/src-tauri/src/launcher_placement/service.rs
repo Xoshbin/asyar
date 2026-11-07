@@ -150,7 +150,7 @@ fn apply_placement<R: Runtime + 'static>(
     let frames = macos_conv::frames(screen.frame, screen.visible);
 
     let Some(window_frame) = get_window_frame(&window) else {
-        return Ok(());
+        return Err(AppError::NotFound("launcher window frame".to_string()));
     };
     let reserve_height = reserve_height(app);
     let space = TravelSpace::new(frames.monitor, window_frame.size.width, reserve_height);

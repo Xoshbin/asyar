@@ -104,6 +104,7 @@ pub fn read_log_tail(log_path: &Path, max_bytes: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::path::PathBuf;
 
     #[test]
@@ -130,6 +131,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn consecutive_panics_do_not_overwrite_initial_crash_report() {
         let temp_dir = tempfile::tempdir().unwrap();
         reset_panic_captured();
@@ -153,6 +155,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn existing_crash_file_is_not_overwritten() {
         let temp_dir = tempfile::tempdir().unwrap();
         reset_panic_captured();
