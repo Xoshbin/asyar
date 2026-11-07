@@ -304,17 +304,17 @@ class FeedbackService implements IFeedbackService {
   }
 
   async showHUD(title: string, options?: HudOptions): Promise<void> {
-    // Coordinate showing the HUD and hiding the launcher window concurrently
-    // so Windows and Linux do not experience disjointed window-switching,
-    // while macOS continues its flash-free NSPanel transition.
+    // Show the HUD window first (Rust positions it, displays the title, schedules
+    // auto-hide), then hide the main launcher window. The HUD lives in its own
+    // Tauri window, so it survives the main launcher hide.
     const durationMs = options?.durationMs ?? defaultHudDuration(options?.severity);
-    await Promise.all([
-      commands.showHud({ title, durationMs, spinning: false }),
-      commands.hideWindow().catch(() => {
-        // hideWindow can fail if called from a context where the main window is
-        // already hidden (e.g. settings window). The HUD still shows correctly.
-      }),
-    ]);
+    await commands.showHud({ title, durationMs, spinning: false });
+    try {
+      await commands.hideWindow();
+    } catch {
+      // hideWindow can fail if called from a context where the main window is
+      // already hidden (e.g. settings window). The HUD still shows correctly.
+    }
   }
 
   /**

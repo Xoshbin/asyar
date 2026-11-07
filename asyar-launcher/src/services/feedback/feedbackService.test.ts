@@ -196,6 +196,12 @@ describe('HUD', () => {
     expect(commands.hideWindow).toHaveBeenCalledOnce();
   });
 
+  it('does not hide the launcher if showing HUD fails', async () => {
+    vi.mocked(commands.showHud).mockRejectedValueOnce(new Error('HUD positioning failed'));
+    await expect(feedbackService.showHUD('Failed HUD')).rejects.toThrow('HUD positioning failed');
+    expect(commands.hideWindow).not.toHaveBeenCalled();
+  });
+
   it.each(['warning', 'error'] as const)(
     'keeps %s HUD feedback visible long enough to read',
     async (severity) => {
