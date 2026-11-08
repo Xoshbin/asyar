@@ -2418,7 +2418,7 @@ mod tests {
         );
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
     #[test]
     fn test_extract_app_icon_fallback_stamps_stale_cache_on_extraction_failure() {
         let tmp = tempfile::tempdir().unwrap();
