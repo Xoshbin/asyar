@@ -321,8 +321,8 @@ pub fn sync_application_index<R: tauri::Runtime>(
 /// switching macOS to German would go on seeing "Photos", and so would every
 /// install that was indexed before this resolution was fixed.
 ///
-/// Only the name is copied over. `usage_count` and `last_used_at` live on the
-/// indexed item and are absent from a freshly scanned one, so swapping the
+/// Only the name and icon are copied over. `usage_count` and `last_used_at` live
+/// on the indexed item and are absent from a freshly scanned one, so swapping the
 /// whole struct would silently reset every app's frecency on each scan.
 fn refresh_display_names(
     items: &mut [SearchableItem],
@@ -336,8 +336,16 @@ fn refresh_display_names(
         let Some(fresh) = scanned.get(&indexed.id) else {
             continue;
         };
+        let mut changed = false;
         if indexed.name != fresh.name {
             indexed.name.clone_from(&fresh.name);
+            changed = true;
+        }
+        if indexed.icon != fresh.icon {
+            indexed.icon.clone_from(&fresh.icon);
+            changed = true;
+        }
+        if changed {
             renamed += 1;
         }
     }
@@ -1071,6 +1079,56 @@ pub(crate) fn truncate_cache_key(cache_key: &str, max_bytes: usize) -> std::borr
     std::borrow::Cow::Owned(format!("{prefix}_{hash_str}"))
 }
 
+/// Returns the timestamp that determines icon freshness for an application.
+///
+/// For macOS `.app` bundles, `Contents/Info.plist` is updated whenever an app
+/// is built, updated, or reinstalled. If `Info.plist` is missing, the bundle
+/// root metadata is used.
+/// For `.desktop` or `.lnk` paths, the file's own modification time is used.
+fn icon_source_mtime(app_path: &Path) -> Option<std::time::SystemTime> {
+    let plist = app_path.join("Contents/Info.plist");
+    if plist.is_file() {
+        if let Ok(meta) = plist.metadata() {
+            if let Ok(mtime) = meta.modified() {
+                return Some(mtime);
+            }
+        }
+    }
+    app_path.metadata().ok()?.modified().ok()
+}
+
+fn cached_icon_is_fresh(cached: &Path, source_mtime: Option<std::time::SystemTime>) -> bool {
+    if !cached.exists() {
+        return false;
+    }
+    let Some(source_mtime) = source_mtime else {
+        return true;
+    };
+    match cached.metadata().and_then(|meta| meta.modified()) {
+        Ok(cached_mtime) => {
+            // Check for matching timestamps. Accounts for sub-second precision variance
+            // across differing filesystems (APFS, NTFS, ext4) by allowing < 1s difference.
+            cached_mtime == source_mtime
+                || cached_mtime
+                    .duration_since(source_mtime)
+                    .or_else(|_| source_mtime.duration_since(cached_mtime))
+                    .map(|d| d.as_secs() == 0)
+                    .unwrap_or(false)
+        }
+        Err(_) => false,
+    }
+}
+
+fn stamp_cache_file(path: &Path, source_mtime: Option<std::time::SystemTime>) {
+    let Some(time) = source_mtime else {
+        return;
+    };
+    let _ = std::fs::File::options()
+        .write(true)
+        .open(path)
+        .and_then(|f| f.set_modified(time));
+}
+
 pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
     let cache_key = app_path
         .replace(['/', '\\', ':', ' '], "_")
@@ -1081,51 +1139,61 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
     let base_name = truncate_cache_key(&cache_key, 200);
     let cache_filename_png = format!("{base_name}.png");
     let cache_file_png = cache_dir.join(&cache_filename_png);
-    if cache_file_png.exists() {
-        #[cfg(target_os = "windows")]
-        return Some(format!(
-            "http://asyar-icon.localhost/{}",
-            cache_filename_png
-        ));
-        #[cfg(not(target_os = "windows"))]
-        return Some(format!("asyar-icon://localhost/{}", cache_filename_png));
-    }
-
     let cache_filename_svg = format!("{base_name}.svg");
     let cache_file_svg = cache_dir.join(&cache_filename_svg);
-    if cache_file_svg.exists() {
-        #[cfg(target_os = "windows")]
-        return Some(format!(
-            "http://asyar-icon.localhost/{}",
-            cache_filename_svg
-        ));
-        #[cfg(not(target_os = "windows"))]
-        return Some(format!("asyar-icon://localhost/{}", cache_filename_svg));
-    }
-
     let missing_marker = cache_dir.join(format!("{base_name}.missing"));
-    if missing_marker.exists() {
+
+    let source_mtime = icon_source_mtime(Path::new(app_path));
+
+    #[cfg(target_os = "windows")]
+    let icon_url = |filename: &str| format!("http://asyar-icon.localhost/{filename}");
+    #[cfg(not(target_os = "windows"))]
+    let icon_url = |filename: &str| format!("asyar-icon://localhost/{filename}");
+
+    if cached_icon_is_fresh(&cache_file_png, source_mtime) {
+        return Some(icon_url(&cache_filename_png));
+    }
+    if cached_icon_is_fresh(&cache_file_svg, source_mtime) {
+        return Some(icon_url(&cache_filename_svg));
+    }
+    if cached_icon_is_fresh(&missing_marker, source_mtime) {
         return None;
     }
 
     if let Some(bytes) = crate::platform::extract_icon(Path::new(app_path)) {
         let _ = std::fs::create_dir_all(cache_dir);
         let is_svg = bytes.starts_with(b"<") || bytes.windows(4).take(32).any(|w| w == b"<svg");
-        let (chosen_filename, chosen_file) = if is_svg {
-            (cache_filename_svg, cache_file_svg)
+        let (chosen_filename, chosen_file, obsolete_file) = if is_svg {
+            (&cache_filename_svg, &cache_file_svg, &cache_file_png)
         } else {
-            (cache_filename_png, cache_file_png)
+            (&cache_filename_png, &cache_file_png, &cache_file_svg)
         };
-        let _ = std::fs::write(&chosen_file, bytes);
-        #[cfg(target_os = "windows")]
-        return Some(format!("http://asyar-icon.localhost/{}", chosen_filename));
-        #[cfg(not(target_os = "windows"))]
-        return Some(format!("asyar-icon://localhost/{}", chosen_filename));
+        if std::fs::write(chosen_file, bytes).is_ok() {
+            let _ = std::fs::remove_file(obsolete_file);
+            let _ = std::fs::remove_file(&missing_marker);
+            stamp_cache_file(chosen_file, source_mtime);
+            return Some(icon_url(chosen_filename));
+        }
     }
 
-    // Cache the negative result so future launches skip expensive filesystem scans
+    // Extraction failed: preserve any previously working cached icon rather than dropping it.
+    // Stamp the fallback file with source_mtime so subsequent scans don't repeatedly re-extract.
+    if cache_file_png.exists() {
+        stamp_cache_file(&cache_file_png, source_mtime);
+        return Some(icon_url(&cache_filename_png));
+    }
+    if cache_file_svg.exists() {
+        stamp_cache_file(&cache_file_svg, source_mtime);
+        return Some(icon_url(&cache_filename_svg));
+    }
+
+    // Cache the negative result so future launches skip expensive extraction
     let _ = std::fs::create_dir_all(cache_dir);
-    let _ = std::fs::File::create(&missing_marker);
+    if let Ok(file) = std::fs::File::create(&missing_marker) {
+        if let Some(time) = source_mtime {
+            let _ = file.set_modified(time);
+        }
+    }
 
     None
 }
@@ -2207,6 +2275,183 @@ mod tests {
         let mb_key = format!("{}』extra_app", "a".repeat(182));
         let truncated_mb = truncate_cache_key(&mb_key, 200);
         assert!(truncated_mb.len() <= 200);
+    }
+
+    #[test]
+    fn test_refresh_display_names_copies_icon() {
+        let mut items = vec![SearchableItem::Application(Application {
+            id: "app_1".into(),
+            name: "Demo".into(),
+            path: "/Applications/Demo.app".into(),
+            usage_count: 5,
+            icon: None,
+            last_used_at: Some(1_700_000_000),
+            bundle_id: None,
+        })];
+
+        let mut scanned = HashMap::new();
+        scanned.insert(
+            "app_1".into(),
+            Application {
+                id: "app_1".into(),
+                name: "Demo Renamed".into(),
+                path: "/Applications/Demo.app".into(),
+                usage_count: 0,
+                icon: Some("asyar-icon://localhost/demo.png".into()),
+                last_used_at: None,
+                bundle_id: None,
+            },
+        );
+
+        let updated = refresh_display_names(&mut items, &scanned);
+        assert_eq!(updated, 1);
+        let SearchableItem::Application(app) = &items[0] else {
+            panic!("expected application item");
+        };
+        assert_eq!(app.name, "Demo Renamed");
+        assert_eq!(app.icon, Some("asyar-icon://localhost/demo.png".into()));
+        assert_eq!(app.usage_count, 5);
+        assert_eq!(app.last_used_at, Some(1_700_000_000));
+    }
+
+    fn set_test_mtime(path: &Path, time: std::time::SystemTime) {
+        #[cfg(unix)]
+        {
+            std::fs::File::open(path)
+                .unwrap()
+                .set_modified(time)
+                .unwrap();
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            const FILE_WRITE_ATTRIBUTES: u32 = 0x0000_0100;
+            const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+            std::fs::OpenOptions::new()
+                .access_mode(FILE_WRITE_ATTRIBUTES)
+                .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+                .open(path)
+                .unwrap()
+                .set_modified(time)
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn test_icon_source_mtime_reads_info_plist_for_app_bundle() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = tmp.path().join("Demo.app");
+        let contents = app.join("Contents");
+        std::fs::create_dir_all(&contents).unwrap();
+        let plist = contents.join("Info.plist");
+        std::fs::write(&plist, b"<plist/>").unwrap();
+
+        let expected_time =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_123);
+        set_test_mtime(&plist, expected_time);
+
+        let mtime = icon_source_mtime(&app);
+        assert_eq!(mtime, Some(expected_time));
+    }
+
+    #[test]
+    fn test_cached_icon_is_fresh_requires_exact_mtime() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_file = tmp.path().join("test.png");
+        std::fs::write(&cache_file, b"png").unwrap();
+
+        let time_a =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        let time_b =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_100);
+
+        set_test_mtime(&cache_file, time_a);
+
+        // Matching mtime -> fresh
+        assert!(cached_icon_is_fresh(&cache_file, Some(time_a)));
+
+        // Different mtime (newer bundle) -> stale
+        assert!(!cached_icon_is_fresh(&cache_file, Some(time_b)));
+
+        // Different mtime (older bundle, e.g. restored from archive) -> also stale
+        set_test_mtime(&cache_file, time_b);
+        assert!(!cached_icon_is_fresh(&cache_file, Some(time_a)));
+
+        // None source_mtime -> relies on existence
+        assert!(cached_icon_is_fresh(&cache_file, None));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_extract_app_icon_refreshes_stale_cache_when_bundle_changes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let app = tmp.path().join("Demo.app");
+        let contents = app.join("Contents");
+        std::fs::create_dir_all(&contents).unwrap();
+        let plist = contents.join("Info.plist");
+        std::fs::write(&plist, b"<plist/>").unwrap();
+
+        let old_time =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_000);
+        let new_time =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        set_test_mtime(&plist, new_time);
+
+        let cache_key = app
+            .to_string_lossy()
+            .replace(['/', '\\', ':', ' '], "_")
+            .replace(".app", "");
+        let base_name = truncate_cache_key(&cache_key, 200);
+        let cached = cache_dir.join(format!("{base_name}.png"));
+        std::fs::write(&cached, b"stale-placeholder").unwrap();
+        set_test_mtime(&cached, old_time);
+
+        let result = extract_app_icon(app.to_str().unwrap(), &cache_dir);
+        assert!(result.is_some(), "must return refreshed icon");
+        let bytes = std::fs::read(&cached).unwrap();
+        assert_ne!(
+            bytes, b"stale-placeholder",
+            "stale cached bytes must be replaced with fresh extraction"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_extract_app_icon_fallback_stamps_stale_cache_on_extraction_failure() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        // An invalid app file where platform extraction returns None
+        let app_file = tmp.path().join("nonexistent_extractor_target.unknown");
+        std::fs::write(&app_file, b"data").unwrap();
+
+        let old_time =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_000);
+        let new_time =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        set_test_mtime(&app_file, new_time);
+
+        let cache_key = app_file
+            .to_string_lossy()
+            .replace(['/', '\\', ':', ' '], "_");
+        let base_name = truncate_cache_key(&cache_key, 200);
+        let cached = cache_dir.join(format!("{base_name}.png"));
+        std::fs::write(&cached, b"preserved-fallback").unwrap();
+        set_test_mtime(&cached, old_time);
+
+        let result = extract_app_icon(app_file.to_str().unwrap(), &cache_dir);
+        assert!(result.is_some(), "must return preserved fallback");
+        assert_eq!(std::fs::read(&cached).unwrap(), b"preserved-fallback");
+
+        // The fallback file must now be stamped with new_time so future scans don't loop
+        assert!(
+            cached_icon_is_fresh(&cached, Some(new_time)),
+            "fallback cache file must be stamped with source_mtime"
+        );
     }
 
     #[test]
