@@ -36,8 +36,8 @@
         retryable: false,
         context: { message: t('features.feedback.success_sent') },
       });
-      feedbackViewState.reset();
       if (viewManager.activeView === 'feedback/DefaultView') {
+        feedbackViewState.reset();
         extensionManager.goBack();
       }
     } catch (e) {
