@@ -335,23 +335,15 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   function tryRouteToActiveView(event: KeyboardEvent): boolean {
     if (!viewManager.activeView) return false;
     if (deps.getBottomBar()?.isOpen()) return false;
-    if (['Escape', 'Backspace', 'Delete'].includes(event.key)) {
+    if (['Backspace', 'Delete'].includes(event.key)) {
       if (!event.defaultPrevented) {
         // Defer Backspace/Delete to actual host-DOM text inputs only, so a
         // Tier 2 iframe's stale hasInputFocus flag can't swallow the key.
-        // Escape always routes to handleKeydown — tryHandleEscape there
-        // decides focus-trap vs navigate based on whether a view is active.
-        if (event.key !== 'Escape') {
-          const active = document.activeElement;
-          if (active && active !== deps.getSearchInput()) {
-            const tag = active.tagName.toLowerCase();
-            if (
-              tag === 'input' ||
-              tag === 'textarea' ||
-              (active as HTMLElement).isContentEditable
-            ) {
-              return true; // Let the host-DOM input handle the keypress
-            }
+        const active = document.activeElement;
+        if (active && active !== deps.getSearchInput()) {
+          const tag = active.tagName.toLowerCase();
+          if (tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable) {
+            return true; // Let the host-DOM input handle the keypress
           }
         }
         handleKeydown(event);
@@ -416,8 +408,24 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (tryToggleAccessoryPopover(event)) return;
     if (tryToggleActionPanel(event)) return;
     if (tryCloseActionPanel(event)) return;
+    if (deps.getBottomBar()?.isOpen()) return;
     if (tryQuickLookSelectedFile(event)) return;
     if (tryRunActionShortcut(event)) return;
+    // Command argument chip/dropdown focused: bail for Escape so the chip row's
+    // local keydown handler can exit argument mode or close the dropdown, rather
+    // than window capture hiding the launcher at root.
+    if (
+      event.key === 'Escape' &&
+      ((event.target as HTMLElement)?.closest?.(
+        '.arg-fields, .arg-dropdown, [data-arg-focus-target]',
+      ) ||
+        (document.activeElement as HTMLElement)?.closest?.(
+          '.arg-fields, .arg-dropdown, [data-arg-focus-target]',
+        ))
+    ) {
+      return;
+    }
+    if (tryHandleEscape(event)) return;
     tryRouteToActiveView(event);
   }
 
@@ -481,7 +489,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       isInputFocused() &&
       document.activeElement !== deps.getSearchInput()
     ) {
-      (document.activeElement as HTMLElement)?.blur();
+      (document.activeElement as HTMLElement)?.blur?.();
       deps.getSearchInput()?.focus({ preventScroll: true });
       event.preventDefault();
       return true;

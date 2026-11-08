@@ -6,7 +6,7 @@
   "lifecycle": { "disableable": true },
   "description": "Send feedback, feature ideas, or report a problem to the Asyar team",
   "type": "extension",
-  "searchable": true,
+  "searchable": false,
   "commands": [
     {
       "id": "send-feedback",

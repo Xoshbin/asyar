@@ -6,6 +6,8 @@
   import { feedbackSubmitService } from '../../services/feedback/feedbackSubmitService';
   import { authService } from '../../services/auth/authService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import extensionManager from '../../services/extension/extensionManager.svelte';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { t } from '../../services/i18n';
 
   let categories = $derived<{ id: string; label: string }[]>([
@@ -18,8 +20,12 @@
     if (authService.user?.email) feedbackViewState.email = authService.user.email;
   });
 
+  function cancel() {
+    extensionManager.goBack();
+  }
+
   async function submit() {
-    if (!feedbackViewState.canSubmit) return;
+    if (!feedbackViewState.canSubmit || feedbackViewState.submitting) return;
     feedbackViewState.submitting = true;
     try {
       await feedbackSubmitService.submit(feedbackViewState.toInput());
@@ -30,7 +36,10 @@
         retryable: false,
         context: { message: t('features.feedback.success_sent') },
       });
-      feedbackViewState.reset();
+      if (viewManager.activeView === 'feedback/DefaultView') {
+        feedbackViewState.reset();
+        extensionManager.goBack();
+      }
     } catch (e) {
       feedbackService.report({
         source: 'frontend',
@@ -65,7 +74,11 @@
     />
 
     <div class="feedback-actions">
-      <Button onclick={submit} disabled={!feedbackViewState.canSubmit}
+      <Button onclick={cancel}>{t('common.cancel')}</Button>
+      <Button
+        class="btn-primary"
+        onclick={submit}
+        disabled={!feedbackViewState.canSubmit || feedbackViewState.submitting}
         >{t('common.send_feedback')}</Button
       >
     </div>
@@ -98,5 +111,6 @@
   .feedback-actions {
     display: flex;
     justify-content: flex-end;
+    gap: var(--space-3);
   }
 </style>
