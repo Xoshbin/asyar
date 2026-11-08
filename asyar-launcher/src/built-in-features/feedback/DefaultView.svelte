@@ -7,7 +7,7 @@
   import { authService } from '../../services/auth/authService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
-  import viewManager from '../../services/extension/viewManager.svelte';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { t } from '../../services/i18n';
 
   let categories = $derived<{ id: string; label: string }[]>([
