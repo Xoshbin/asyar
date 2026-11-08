@@ -163,14 +163,7 @@ impl ManifestIcon {
     }
 }
 
-const HOST_IMAGE_SCHEMES: &[&str] = &[
-    "asyar-extension://",
-    "asyar-icon://",
-    "asyar-thumb://",
-    "http://asyar-icon.localhost/",
-    "http://asyar-extension.localhost/",
-    "http://asyar-thumb.localhost/",
-];
+const HOST_IMAGE_SCHEMES: &[&str] = &["asyar-extension://", "asyar-icon://", "asyar-thumb://"];
 
 /// Resolve a raw icon string.
 ///
@@ -330,11 +323,8 @@ mod tests {
     fn host_schemes_and_data_pass_through() {
         for raw in [
             "asyar-icon://localhost/safari.png",
-            "http://asyar-icon.localhost/safari.png",
             "asyar-thumb://localhost/a.png",
-            "http://asyar-thumb.localhost/a.png",
             "asyar-extension://org.x/icon.png",
-            "http://asyar-extension.localhost/org.x/icon.png",
             "data:image/png;base64,AAAA",
         ] {
             assert_eq!(resolve_icon(raw, Some("org.x"), false), img(raw));

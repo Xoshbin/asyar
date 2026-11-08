@@ -1176,11 +1176,14 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
         }
     }
 
-    // Extraction failed: preserve any previously working cached icon rather than dropping it
+    // Extraction failed: preserve any previously working cached icon rather than dropping it.
+    // Stamp the fallback file with source_mtime so subsequent scans don't repeatedly re-extract.
     if cache_file_png.exists() {
+        stamp_cache_file(&cache_file_png, source_mtime);
         return Some(icon_url(&cache_filename_png));
     }
     if cache_file_svg.exists() {
+        stamp_cache_file(&cache_file_svg, source_mtime);
         return Some(icon_url(&cache_filename_svg));
     }
 
@@ -2378,6 +2381,7 @@ mod tests {
         assert!(cached_icon_is_fresh(&cache_file, None));
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn test_extract_app_icon_refreshes_stale_cache_when_bundle_changes() {
         let tmp = tempfile::tempdir().unwrap();
@@ -2411,6 +2415,42 @@ mod tests {
         assert_ne!(
             bytes, b"stale-placeholder",
             "stale cached bytes must be replaced with fresh extraction"
+        );
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn test_extract_app_icon_fallback_stamps_stale_cache_on_extraction_failure() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        // An invalid app file where platform extraction returns None
+        let app_file = tmp.path().join("nonexistent_extractor_target.unknown");
+        std::fs::write(&app_file, b"data").unwrap();
+
+        let old_time =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_000);
+        let new_time =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        set_test_mtime(&app_file, new_time);
+
+        let cache_key = app_file
+            .to_string_lossy()
+            .replace(['/', '\\', ':', ' '], "_");
+        let base_name = truncate_cache_key(&cache_key, 200);
+        let cached = cache_dir.join(format!("{base_name}.png"));
+        std::fs::write(&cached, b"preserved-fallback").unwrap();
+        set_test_mtime(&cached, old_time);
+
+        let result = extract_app_icon(app_file.to_str().unwrap(), &cache_dir);
+        assert!(result.is_some(), "must return preserved fallback");
+        assert_eq!(std::fs::read(&cached).unwrap(), b"preserved-fallback");
+
+        // The fallback file must now be stamped with new_time so future scans don't loop
+        assert!(
+            cached_icon_is_fresh(&cached, Some(new_time)),
+            "fallback cache file must be stamped with source_mtime"
         );
     }
 
