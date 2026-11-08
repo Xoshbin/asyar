@@ -7,7 +7,15 @@ import type { ResolvedIcon } from '../bindings';
  */
 export type IconSource = ResolvedIcon | string | null | undefined;
 
-const IMAGE_PREFIXES = ['data:image/', 'asyar-extension://', 'asyar-icon://', 'asyar-thumb://'];
+const IMAGE_PREFIXES = [
+  'data:image/',
+  'asyar-extension://',
+  'asyar-icon://',
+  'asyar-thumb://',
+  'http://asyar-icon.localhost/',
+  'http://asyar-extension.localhost/',
+  'http://asyar-thumb.localhost/',
+];
 
 /**
  * Adapter for icon strings that never pass through the Rust resolver

@@ -9,6 +9,10 @@ describe('toResolvedIcon', () => {
       kind: 'image',
       src: 'asyar-thumb://localhost/a.png',
     });
+    expect(toResolvedIcon('http://asyar-icon.localhost/app.png')).toEqual({
+      kind: 'image',
+      src: 'http://asyar-icon.localhost/app.png',
+    });
     expect(toResolvedIcon('https://x.dev/a.png')).toEqual({
       kind: 'remote',
       url: 'https://x.dev/a.png',
