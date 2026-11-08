@@ -506,6 +506,25 @@ importers:
         specifier: '*'
         version: 4.65.0
 
+  extensions/asyar-zed-extension:
+    dependencies:
+      svelte:
+        specifier: ^5.0.0
+        version: 5.55.9(@typescript-eslint/types@8.72.1)
+    devDependencies:
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^5.0.0
+        version: 5.1.1(svelte@5.55.9(@typescript-eslint/types@8.72.1))(vite@6.4.3(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
+      asyar-sdk:
+        specifier: workspace:*
+        version: link:../../asyar-sdk
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vite:
+        specifier: 6.4.3
+        version: 6.4.3(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0)
+
   extensions/emoji:
     dependencies:
       svelte:
