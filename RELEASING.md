@@ -53,15 +53,17 @@ The launcher uses a release helper script (a thin wrapper over the shared `scrip
 From the monorepo root:
 
 ```bash
-pnpm --filter asyar-launcher run release <patch|minor|major|beta>   # add --dry-run to preview
+pnpm --filter asyar-launcher run release <patch|minor|major|beta> [--dry-run] [--yes|-y]
 ```
 
 Or from inside `asyar-launcher/`:
 
 ```bash
 cd asyar-launcher
-pnpm run release <patch|minor|major|beta>
+pnpm run release <patch|minor|major|beta> [--dry-run] [--yes|-y]
 ```
+
+> Add `--dry-run` to preview the bump without publishing. Add `--yes` (or `-y`) to bypass interactive confirmation prompts (e.g. In CI or automated scripts).
 
 ### Keywords
 

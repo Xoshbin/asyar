@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { Readable, Writable } from 'node:stream';
 import { computeNextVersion, VERSION_KEYWORDS } from './release-lib.mjs';
 
 test('patch/minor/major bump from a stable version', () => {
@@ -31,6 +32,7 @@ import {
   assertCleanTree,
   assertTagNotOnRemote,
   assertStableBetaReadiness,
+  defaultPrompt,
   releaseViaPr,
 } from './release-lib.mjs';
 
@@ -248,4 +250,56 @@ test('assertStableBetaReadiness logs dryRun info when commits exist since last b
     });
   });
   assert.ok(logs.some((l) => l.includes('[dry-run] Would prompt')));
+});
+
+test('defaultPrompt confirms yes and rejects closed input stream', async () => {
+  const yesStream = Readable.from(['yes\n']);
+  const devNull = new Writable({
+    write(_c, _e, cb) {
+      cb();
+    },
+  });
+  const confirmed = await defaultPrompt('Confirm? ', { input: yesStream, output: devNull });
+  assert.equal(confirmed, true);
+
+  const closedStream = Readable.from([]);
+  await assert.rejects(async () => {
+    await defaultPrompt('Confirm? ', { input: closedStream, output: devNull });
+  }, /Confirmation input closed/);
+});
+
+test('assertStableBetaReadiness fails closed if git commands throw an error', async () => {
+  const exec = {
+    dryRun: false,
+    capture(cmd) {
+      if (cmd.includes('git tag')) throw new Error('git tag lookup fatal error');
+      return '';
+    },
+  };
+  await assert.rejects(async () => {
+    await assertStableBetaReadiness(exec, {
+      cwd: '/repo',
+      targetVersion: '0.1.2',
+    });
+  }, /git tag lookup fatal error/);
+});
+
+test('assertStableBetaReadiness detects commits on main even if HEAD has no commits', async () => {
+  const logs = [];
+  const exec = fakeExec({
+    captures: {
+      'git tag -l': 'v0.1.2-0',
+      'git rev-parse --verify main': 'abc123',
+      'git log': 'e4f5g6h fix(main): commit on main',
+    },
+  });
+  await assert.rejects(async () => {
+    await assertStableBetaReadiness(exec, {
+      cwd: '/repo',
+      targetVersion: '0.1.2',
+      prompt: async () => false,
+      log: (m) => logs.push(m),
+    });
+  }, /Release aborted by user/);
+  assert.ok(logs.some((l) => l.includes('e4f5g6h fix(main): commit on main')));
 });
