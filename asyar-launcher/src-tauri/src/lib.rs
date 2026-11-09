@@ -247,23 +247,32 @@ pub mod window_management;
 pub const SPOTLIGHT_LABEL: &str = "main";
 pub const SETTINGS_LABEL: &str = "settings";
 
-/// Pure decision logic for the Linux WebKitGTK DMA-BUF workaround (issue
-/// #435): returns the (key, value) env var to set when `is_linux`, or
-/// `None` otherwise. Takes `is_linux` as a parameter rather than branching
-/// on `cfg!` internally so both branches are unit-testable from any host.
-fn linux_webkit_dmabuf_env_var(is_linux: bool) -> Option<(&'static str, &'static str)> {
-    if is_linux {
-        Some(("WEBKIT_DISABLE_DMABUF_RENDERER", "1"))
-    } else {
-        None
+/// Returns the `WEBKIT_DISABLE_DMABUF_RENDERER=1` pair to set, or `None`
+/// when the workaround must be skipped. Takes the gates as parameters rather
+/// than reading the environment internally so both branches are
+/// unit-testable from any host (issue #1000).
+fn linux_webkit_dmabuf_env_var(
+    is_linux: bool,
+    user_provided: bool,
+    opt_out: bool,
+) -> Option<(&'static str, &'static str)> {
+    if !is_linux || user_provided || opt_out {
+        return None;
     }
+    Some(("WEBKIT_DISABLE_DMABUF_RENDERER", "1"))
 }
 
-/// Applies the Linux WebKitGTK DMA-BUF workaround, if applicable to the
-/// current build target. Must run before the webview is created, so callers
-/// invoke this first thing in `main()`.
+/// Applies the Linux WebKitGTK DMA-BUF workaround, if applicable. Skipped
+/// when the user already provided `WEBKIT_DISABLE_DMABUF_RENDERER` or set
+/// the `ASYAR_ALLOW_WEBKIT_DMABUF=1` opt-out (issue #1000), mirroring the
+/// COLRv1 workaround pattern. Must run before the webview is created, so
+/// callers invoke this first thing in `main()`.
 pub fn apply_linux_webkit_dmabuf_workaround() {
-    if let Some((key, value)) = linux_webkit_dmabuf_env_var(cfg!(target_os = "linux")) {
+    let user_provided = std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_some();
+    let opt_out = std::env::var_os("ASYAR_ALLOW_WEBKIT_DMABUF").is_some_and(|v| v == "1");
+    if let Some((key, value)) =
+        linux_webkit_dmabuf_env_var(cfg!(target_os = "linux"), user_provided, opt_out)
+    {
         std::env::set_var(key, value);
     }
 }
@@ -815,20 +824,30 @@ mod linux_webkit_dmabuf_workaround_tests {
 
     // Issue #435: WebKitGTK's DMA-BUF renderer aborts the WebProcess with
     // "Could not create default EGL display: EGL_BAD_PARAMETER" on some
-    // Mesa/GPU driver combos. `is_linux` is taken as a parameter (rather than
-    // branching on `cfg!` inside the function) so both branches are
-    // unit-testable from any host platform, not just on Linux CI.
+    // Mesa/GPU driver combos, so Linux keeps the disable by default.
+    // Issue #1000: on WebKitGTK 2.54 + transparent windows the forced
+    // disable itself breaks rendering, hence the user override + opt-out.
     #[test]
     fn requests_dmabuf_disable_on_linux() {
         assert_eq!(
-            linux_webkit_dmabuf_env_var(true),
+            linux_webkit_dmabuf_env_var(true, false, false),
             Some(("WEBKIT_DISABLE_DMABUF_RENDERER", "1"))
         );
     }
 
     #[test]
     fn does_nothing_on_non_linux() {
-        assert_eq!(linux_webkit_dmabuf_env_var(false), None);
+        assert_eq!(linux_webkit_dmabuf_env_var(false, false, false), None);
+    }
+
+    #[test]
+    fn respects_user_provided_value() {
+        assert_eq!(linux_webkit_dmabuf_env_var(true, true, false), None);
+    }
+
+    #[test]
+    fn honors_asyar_opt_out() {
+        assert_eq!(linux_webkit_dmabuf_env_var(true, false, true), None);
     }
 }
 
