@@ -21,10 +21,27 @@ pub async fn check_and_maybe_download(
     crate::event_bridge::bridge_emit(app, "asyar:app-update:checking", ());
 
     // 2. Build updater with channel header
+    let channel_owned = channel.to_string();
     let updater = app
         .updater_builder()
         .header(CHANNEL_HEADER, channel)
         .map_err(|e| e.to_string())?
+        .version_comparator(move |current, release| {
+            // Standard semver: update if remote is newer
+            if release.version > current {
+                return true;
+            }
+            // If the user selected the stable channel, is currently running a pre-release (beta),
+            // and the release is a stable version (no pre-release):
+            // allow moving to stable even if the beta version number was higher (downgrade to stable).
+            if channel_owned == "stable"
+                && !current.pre.is_empty()
+                && release.version.pre.is_empty()
+            {
+                return true;
+            }
+            false
+        })
         .build()
         .map_err(|e| e.to_string())?;
 
