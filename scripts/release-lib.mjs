@@ -24,6 +24,8 @@ export function computeNextVersion(currentVersion, input) {
 }
 
 import { execSync } from 'node:child_process';
+import { stdin as defaultInput, stdout as defaultOutput } from 'node:process';
+import { createInterface } from 'node:readline/promises';
 
 export function makeExec({ dryRun = false, log = console.log } = {}) {
   return {
@@ -65,6 +67,149 @@ export function assertTagNotOnRemote(exec, tag, cwd) {
       `Tag ${tag} already exists on the remote. This version was already released. ` +
         `Bump to a higher version, or delete the tag to re-release.`,
     );
+  }
+}
+
+/**
+ * Prompts the user with a yes/no question using readline.
+ *
+ * @param {string} question - The prompt question to display.
+ * @param {{ input?: NodeJS.ReadableStream, output?: NodeJS.WritableStream }} [options] - Stream overrides.
+ * @returns {Promise<boolean>} True if user confirmed ('y' or 'yes'), false otherwise.
+ * @throws {Error} If confirmation input is closed before receiving an answer.
+ */
+export async function defaultPrompt(
+  question,
+  { input = defaultInput, output = defaultOutput } = {},
+) {
+  if (input.readableEnded || input.destroyed) {
+    throw new Error('Confirmation input closed. Re-run with --yes (-y) to proceed.');
+  }
+  const rl = createInterface({ input, output });
+  let settled = false;
+  try {
+    const closed = new Promise((_, reject) => {
+      rl.once('close', () => {
+        if (!settled) {
+          reject(new Error('Confirmation input closed. Re-run with --yes (-y) to proceed.'));
+        }
+      });
+    });
+    const answer = await Promise.race([rl.question(question), closed]);
+    settled = true;
+    return /^y(es)?$/i.test(answer.trim());
+  } finally {
+    settled = true;
+    rl.close();
+  }
+}
+
+/**
+ * Asserts readiness for graduating to a stable release.
+ *
+ * Inspects Git history for prior beta tags and warns if un-tested commits exist
+ * on main/HEAD or if no prior beta was cut for this release cycle.
+ *
+ * @param {ReturnType<typeof makeExec>} exec - The exec helper instance.
+ * @param {object} options - Configuration options.
+ * @param {string} options.cwd - The directory to execute git commands in.
+ * @param {string} options.targetVersion - The version being released.
+ * @param {boolean} [options.yes=false] - If true, bypass interactive confirmation prompts.
+ * @param {((q: string) => Promise<boolean>)|null} [options.prompt=null] - Custom prompter override.
+ * @param {(msg: string) => void} [options.log=console.log] - Logging function.
+ * @returns {Promise<void>}
+ * @throws {Error} If the release is aborted by user or git inspection fails.
+ */
+export async function assertStableBetaReadiness(
+  exec,
+  { cwd, targetVersion, yes = false, prompt = null, log = console.log } = {},
+) {
+  // Only stable releases (without pre-release hyphen) need beta readiness verification.
+  if (targetVersion.includes('-')) {
+    return;
+  }
+
+  const ask = prompt ?? defaultPrompt;
+
+  const tagOutput = exec.capture(`git tag -l "v${targetVersion}-*" --sort=-v:refname`, cwd);
+  const tags = tagOutput
+    .split('\n')
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  if (tags.length === 0) {
+    log(`\n⚠️  Notice: No prior beta (v${targetVersion}-*) was found for this version.`);
+    log(`   You are releasing ${targetVersion} directly to Stable without prior beta testing.\n`);
+
+    if (exec.dryRun) {
+      log(
+        `[dry-run] Would prompt: "Continue releasing ${targetVersion} directly to Stable? [y/N]"`,
+      );
+      return;
+    }
+
+    if (yes) {
+      log(`✓ Proceeding directly to Stable (--yes passed).`);
+      return;
+    }
+
+    const confirmed = await ask(`Continue releasing ${targetVersion} directly to Stable? [y/N] `);
+    if (!confirmed) {
+      throw new Error('Release aborted by user.');
+    }
+    return;
+  }
+
+  const latestBetaTag = tags[0];
+  const baseBranch = 'main';
+  let logTarget = `${latestBetaTag}..HEAD`;
+  try {
+    exec.capture(`git rev-parse --verify ${baseBranch}`, cwd);
+    logTarget = `${latestBetaTag}..HEAD ${latestBetaTag}..${baseBranch}`;
+  } catch {
+    /* baseBranch ref does not exist locally; check HEAD only */
+  }
+
+  const logOutput = exec.capture(`git log ${logTarget} --oneline`, cwd);
+  const commits = logOutput
+    .split('\n')
+    .map((c) => c.trim())
+    .filter(Boolean);
+
+  if (commits.length === 0) {
+    log(`✓ Last beta was ${latestBetaTag}. No new commits on main.`);
+    return;
+  }
+
+  const count = commits.length;
+  const commitSummary = count === 1 ? '1 commit was' : `${count} commits were`;
+  log(`\n⚠️  Warning: ${commitSummary} merged to main since the last beta (${latestBetaTag}):`);
+  const displayCommits = commits.slice(0, 10);
+  for (const c of displayCommits) {
+    log(`   - ${c}`);
+  }
+  if (commits.length > 10) {
+    log(`   ... and ${commits.length - 10} more commits`);
+  }
+  log('');
+
+  if (exec.dryRun) {
+    log(
+      `[dry-run] Would prompt: "Do you want to include these in Stable ${targetVersion} directly? [y/N]"`,
+    );
+    return;
+  }
+
+  if (yes) {
+    log(`✓ Proceeding with ${count} un-tested commit(s) in Stable (--yes passed).`);
+    return;
+  }
+
+  const confirmed = await ask(
+    `Do you want to include these in Stable ${targetVersion} directly? [y/N] `,
+  );
+  if (!confirmed) {
+    throw new Error('Release aborted by user.');
   }
 }
 
