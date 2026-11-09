@@ -9,6 +9,7 @@ import {
   makeExec,
   assertCleanTree,
   assertTagNotOnRemote,
+  assertStableBetaReadiness,
   syncLockfile,
   releaseViaPr,
 } from '../../scripts/release-lib.mjs';
@@ -19,9 +20,12 @@ const monorepoRoot = resolve(root, '..'); // repo root
 
 const argv = process.argv.slice(2);
 const dryRun = argv.includes('--dry-run');
-const input = argv.find((a) => !a.startsWith('--'));
+const autoYes = argv.includes('--yes') || argv.includes('-y');
+const input = argv.find((a) => !a.startsWith('-'));
 if (!input) {
-  console.error(`Usage: pnpm run release <${VERSION_KEYWORDS.join('|')}|x.y.z> [--dry-run]`);
+  console.error(
+    `Usage: pnpm run release <${VERSION_KEYWORDS.join('|')}|x.y.z> [--dry-run] [--yes|-y]`,
+  );
   process.exit(1);
 }
 
@@ -52,6 +56,11 @@ console.log(
 try {
   assertCleanTree(exec, root);
   assertTagNotOnRemote(exec, tag, root);
+  await assertStableBetaReadiness(exec, {
+    cwd: root,
+    targetVersion: version,
+    yes: autoYes,
+  });
 
   const filesToAdd = [
     'package.json',

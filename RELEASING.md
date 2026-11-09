@@ -77,14 +77,15 @@ pnpm run release <patch|minor|major|beta>
 ### What the release script does
 
 1. **Duplicate-tag guard**: aborts immediately if `vX.Y.Z` already exists on the remote, so a version is never released twice
-2. **Local SDK version**: reads the SDK version from `asyar-sdk/package.json` on disk — **no npm call** (the workspace always builds the local SDK, so a release can't be blocked by npm being down)
-3. **Version sync**: bumps `asyar-launcher/package.json` (its own version + the declared `asyar-sdk` dependency), `src-tauri/Cargo.toml`, `Cargo.lock`, the `scaffoldService.ts` offline fallback, and the root `pnpm-lock.yaml`
-4. **Git operations**: commits on a new `release/vX.Y.Z` branch, opens a **PR**, and pushes the `vX.Y.Z` tag (it does _not_ push straight to `main`)
-5. **CI trigger**: the `v*` tag triggers `.github/workflows/release-launcher.yml`
-6. **Build matrix**: macOS arm64 + x64 (per-arch, not a universal binary), Windows x64/arm64, Linux amd64/arm64 — all 6 required
-7. **GitHub Release**: published directly (not a draft) with auto-generated notes
-8. **Pre-release detection**: tags with a hyphen (e.g., `v0.1.0-1`) are automatically marked "Pre-release"
-9. **Updater notification**: asyar.org `/api/releases` is notified so the auto-update feed picks up the new version
+2. **Smart Beta-to-Stable guard**: when cutting a stable release, checks git history for prior beta tags (`vX.Y.Z-*`) and warns if un-tested commits were merged to `main` since the last beta or if no beta was released; prompts for confirmation before continuing (`--yes` / `-y` to bypass in CI)
+3. **Local SDK version**: reads the SDK version from `asyar-sdk/package.json` on disk — **no npm call** (the workspace always builds the local SDK, so a release can't be blocked by npm being down)
+4. **Version sync**: bumps `asyar-launcher/package.json` (its own version + the declared `asyar-sdk` dependency), `src-tauri/Cargo.toml`, `Cargo.lock`, the `scaffoldService.ts` offline fallback, and the root `pnpm-lock.yaml`
+5. **Git operations**: commits on a new `release/vX.Y.Z` branch, opens a **PR**, and pushes the `vX.Y.Z` tag (it does _not_ push straight to `main`)
+6. **CI trigger**: the `v*` tag triggers `.github/workflows/release-launcher.yml`
+7. **Build matrix**: macOS arm64 + x64 (per-arch, not a universal binary), Windows x64/arm64, Linux amd64/arm64 — all 6 required
+8. **GitHub Release**: published directly (not a draft) with auto-generated notes
+9. **Pre-release detection**: tags with a hyphen (e.g., `v0.1.0-1`) are automatically marked "Pre-release"
+10. **Updater notification**: asyar.org `/api/releases` is notified so the auto-update feed picks up the new version
 
 > The Rust `SUPPORTED_SDK_VERSION` is **not** set by the release script — `src-tauri/build.rs` injects it at compile time from the local `asyar-sdk/package.json`, so it can never drift.
 
