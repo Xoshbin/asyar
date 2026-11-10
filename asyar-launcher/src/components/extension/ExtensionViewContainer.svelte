@@ -51,7 +51,10 @@
 </script>
 
 <div
-  class="min-h-full flex flex-col flex-1 h-full overflow-hidden"
+  class="min-h-full flex flex-col flex-1 h-full"
+  class:overflow-hidden={!isBuiltIn}
+  class:overflow-y-auto={isBuiltIn}
+  class:custom-scrollbar={isBuiltIn}
   data-extension-view={activeView}
 >
   {#key extensionId}

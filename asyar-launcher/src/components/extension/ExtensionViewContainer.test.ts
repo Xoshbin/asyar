@@ -17,6 +17,10 @@ vi.mock('../../services/search/applyAccessoryFromCommand', () => ({
   applyAccessoryFromCommand: vi.fn(),
 }));
 
+vi.mock('../../lib/themeFonts', () => ({
+  buildFontFaceCSS: vi.fn().mockResolvedValue(''),
+}));
+
 import ExtensionViewContainer from './ExtensionViewContainer.svelte';
 import TestView from '../../built-in-features/help/DefaultView.svelte';
 
@@ -77,5 +81,48 @@ describe('ExtensionViewContainer', () => {
     });
 
     expect(container.textContent).not.toContain('Error: Built-in feature');
+  });
+
+  it('applies overflow-y-auto and custom-scrollbar for built-in views', () => {
+    const mockModule = {
+      DefaultView: TestView,
+    };
+    const mockExtensionManager = {
+      getManifestById: vi.fn().mockReturnValue({
+        id: 'test-builtin',
+        commands: [],
+      }),
+      getLoadedExtensionModule: vi.fn().mockReturnValue(mockModule),
+    };
+
+    const { container } = render(ExtensionViewContainer, {
+      activeView: 'test-builtin/DefaultView',
+      extensionManager: mockExtensionManager,
+    });
+
+    const root = container.querySelector('[data-extension-view]');
+    expect(root?.classList.contains('overflow-y-auto')).toBe(true);
+    expect(root?.classList.contains('custom-scrollbar')).toBe(true);
+    expect(root?.classList.contains('overflow-hidden')).toBe(false);
+  });
+
+  it('applies overflow-hidden for third-party iframe views', () => {
+    const mockExtensionManager = {
+      getManifestById: vi.fn().mockReturnValue({
+        id: 'external-extension',
+        commands: [],
+      }),
+      getLoadedExtensionModule: vi.fn().mockReturnValue(null),
+    };
+
+    const { container } = render(ExtensionViewContainer, {
+      activeView: 'external-extension/view',
+      extensionManager: mockExtensionManager,
+    });
+
+    const root = container.querySelector('[data-extension-view]');
+    expect(root?.classList.contains('overflow-hidden')).toBe(true);
+    expect(root?.classList.contains('overflow-y-auto')).toBe(false);
+    expect(root?.classList.contains('custom-scrollbar')).toBe(false);
   });
 });

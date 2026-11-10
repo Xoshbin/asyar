@@ -116,4 +116,41 @@ describe('themeInjector', () => {
     const style = document.getElementById('asyar-theme-fonts');
     expect(style).toBeNull();
   });
+
+  it('does not inject default view bg or alter inline styles in host window (parent === window)', () => {
+    setupThemeInjection();
+
+    expect(document.getElementById('asyar-default-view-bg')).toBeNull();
+    expect(document.documentElement.style.backgroundColor).toBe('');
+    expect(document.body.style.backgroundColor).toBe('');
+  });
+
+  it('injects low-precedence style fallback in iframe context (parent !== window)', () => {
+    const originalParent = window.parent;
+    try {
+      Object.defineProperty(window, 'parent', {
+        value: {},
+        writable: true,
+        configurable: true,
+      });
+
+      setupThemeInjection();
+
+      const bgStyle = document.getElementById('asyar-default-view-bg');
+      expect(bgStyle).toBeTruthy();
+      expect(bgStyle?.parentElement).toBe(document.head);
+      expect(bgStyle?.textContent).toContain(
+        ':root, html, body { background-color: transparent; }',
+      );
+      // Inline styles must remain untouched so author styles take precedence
+      expect(document.documentElement.style.backgroundColor).toBe('');
+      expect(document.body.style.backgroundColor).toBe('');
+    } finally {
+      Object.defineProperty(window, 'parent', {
+        value: originalParent,
+        writable: true,
+        configurable: true,
+      });
+    }
+  });
 });

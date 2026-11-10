@@ -13,14 +13,21 @@
 export function setupThemeInjection(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-  // Only set transparent background inside extension iframes, never in the host window.
+  // Only inject default transparent background inside extension iframes, never in the host window.
+  // Using a prepended style element provides transparent background as a default fallback
+  // with normal stylesheet precedence, so extension-defined styles/classes take priority.
   if (window.parent !== window) {
-    if (document.documentElement) {
-      document.documentElement.style.backgroundColor = 'transparent';
-    }
-    if (document.body) {
-      document.body.style.backgroundColor = 'transparent';
-    }
+    const ensureDefaultBg = () => {
+      if (document.getElementById('asyar-default-view-bg')) return;
+      const target = document.head || document.documentElement;
+      if (!target) return;
+      const style = document.createElement('style');
+      style.id = 'asyar-default-view-bg';
+      style.textContent = ':root, html, body { background-color: transparent; }';
+      target.prepend(style);
+    };
+
+    ensureDefaultBg();
   }
 
   window.addEventListener('message', (event: MessageEvent) => {
