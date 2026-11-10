@@ -3,10 +3,13 @@
   import { describePermission } from '../../services/extension/permissionCatalog';
   import { describeSecretRefs } from '../../services/extension/secretRefDisplay';
 
-  let { permissions, permissionArgs = {} } = $props<{
+  let {
+    permissions,
+    permissionArgs = {},
+  }: {
     permissions: string[];
     permissionArgs?: Record<string, unknown>;
-  }>();
+  } = $props();
 
   function argsFor(permission: string): { chips: string[] | null; json: string | null } {
     const value = permissionArgs?.[permission];

@@ -3,11 +3,15 @@
   import Button from '../../components/base/Button.svelte';
   import { t } from '../../services/i18n';
 
-  let { name, sizeBytes, onDecide } = $props<{
+  let {
+    name,
+    sizeBytes,
+    onDecide,
+  }: {
     name: string;
     sizeBytes: number;
     onDecide: (approved: boolean) => void;
-  }>();
+  } = $props();
 
   const sizeLabel = $derived(formatBytes(sizeBytes));
 

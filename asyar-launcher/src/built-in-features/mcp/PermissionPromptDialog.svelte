@@ -5,12 +5,17 @@
   import { agentService } from '../agents/agentService.svelte';
   import { t } from '../../services/i18n';
 
-  let { serverId, toolId, agentId, onDecide } = $props<{
+  let {
+    serverId,
+    toolId,
+    agentId,
+    onDecide,
+  }: {
     serverId: string;
     toolId: string;
     agentId: string;
     onDecide: (decision: 'allow_once' | 'allow_always' | 'never' | 'cancel') => void;
-  }>();
+  } = $props();
 
   const server = $derived(mcpService.servers.find((s) => s.id === serverId));
   const serverLabel = $derived(server?.displayName ?? serverId);

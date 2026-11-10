@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { total, position } = $props<{ total: number; position: number }>();
+  let { total, position }: { total: number; position: number } = $props();
 </script>
 
 <ol class="dots" aria-label={`Step ${position} of ${total}`}>

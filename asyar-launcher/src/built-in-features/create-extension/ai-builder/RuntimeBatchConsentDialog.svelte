@@ -4,10 +4,13 @@
   import type { MissingRuntime } from '../../../lib/ipc/extensionBuilderCommands';
   import { t } from '../../../services/i18n';
 
-  let { runtimes, onDecide } = $props<{
+  let {
+    runtimes,
+    onDecide,
+  }: {
     runtimes: MissingRuntime[];
     onDecide: (approved: boolean) => void;
-  }>();
+  } = $props();
 
   const totalBytes = $derived(
     runtimes.reduce((sum: number, r: MissingRuntime) => sum + r.sizeBytes, 0),

@@ -139,7 +139,8 @@
   data-mount-token={mountToken != null ? String(mountToken) : undefined}
   src={iframeSrc}
   title="Extension Sandbox - {manifest?.name || extensionId}"
-  class="w-full h-full border-none bg-transparent"
+  class="block w-full h-full border-none bg-transparent"
+  allowtransparency={true}
   sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
   onload={handleIframeLoad}
   onerror={handleIframeError}

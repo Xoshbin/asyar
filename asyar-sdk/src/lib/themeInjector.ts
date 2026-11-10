@@ -13,6 +13,13 @@
 export function setupThemeInjection(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
+  if (document.documentElement) {
+    document.documentElement.style.backgroundColor = 'transparent';
+  }
+  if (document.body) {
+    document.body.style.backgroundColor = 'transparent';
+  }
+
   window.addEventListener('message', (event: MessageEvent) => {
     if (event.data?.type === 'asyar:theme:variables') {
       const vars = event.data.payload as Record<string, string>;

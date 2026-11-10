@@ -6,11 +6,15 @@
   import type { PermissionConsentRequest } from '../../services/extension/permissionConsentService.svelte';
   import { t } from '../../services/i18n';
 
-  let { request, onAccept, onDecline } = $props<{
+  let {
+    request,
+    onAccept,
+    onDecline,
+  }: {
     request: PermissionConsentRequest;
     onAccept: () => void;
     onDecline: () => void;
-  }>();
+  } = $props();
 
   const subtitle = $derived.by(() => {
     switch (request.reason) {

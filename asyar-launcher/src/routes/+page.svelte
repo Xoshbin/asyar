@@ -514,7 +514,12 @@
     onArgExit={() => commandArgumentsService.exit()}
   />
 
-  <div class="shell-content custom-scrollbar">
+  <div
+    class="shell-content"
+    class:custom-scrollbar={!controller.activeViewVal}
+    class:overflow-y-auto={!controller.activeViewVal}
+    class:overflow-hidden={!!controller.activeViewVal}
+  >
     {#if controller.activeViewVal}
       <ExtensionViewContainer activeView={controller.activeViewVal} {extensionManager} />
     {:else if !isCompactIdle}

@@ -50,7 +50,10 @@
   });
 </script>
 
-<div class="min-h-full flex flex-col flex-1 h-full" data-extension-view={activeView}>
+<div
+  class="min-h-full flex flex-col flex-1 h-full overflow-hidden"
+  data-extension-view={activeView}
+>
   {#key extensionId}
     {#if isBuiltIn}
       {#if ActiveComponent}
