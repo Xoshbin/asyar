@@ -13,11 +13,14 @@
 export function setupThemeInjection(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-  if (document.documentElement) {
-    document.documentElement.style.backgroundColor = 'transparent';
-  }
-  if (document.body) {
-    document.body.style.backgroundColor = 'transparent';
+  // Only set transparent background inside extension iframes, never in the host window.
+  if (window.parent !== window) {
+    if (document.documentElement) {
+      document.documentElement.style.backgroundColor = 'transparent';
+    }
+    if (document.body) {
+      document.body.style.backgroundColor = 'transparent';
+    }
   }
 
   window.addEventListener('message', (event: MessageEvent) => {

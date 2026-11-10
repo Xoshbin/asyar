@@ -11,14 +11,6 @@
  *   import 'asyar-sdk/src/styles/tokens.css';
  */
 
-html,
-body {
-  background: transparent;
-  margin: 0;
-  padding: 0;
-  height: 100%;
-}
-
 :root {
   /* Backgrounds. Deep navy rather than neutral grey, and translucent — an
      Asyar surface lets the desktop read through it. */
