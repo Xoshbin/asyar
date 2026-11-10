@@ -163,7 +163,51 @@ impl ManifestIcon {
     }
 }
 
-const HOST_IMAGE_SCHEMES: &[&str] = &["asyar-extension://", "asyar-icon://", "asyar-thumb://"];
+const HOST_SCHEMES: &[&str] = &["asyar-extension", "asyar-icon", "asyar-thumb"];
+
+/// Normalize a host image URL (`data:image/`, `asyar-*://`, or Windows'
+/// `http://asyar-*.localhost/` bridge) for the target webview.
+///
+/// On Windows, WebView2 serves custom protocols over `http://{scheme}.localhost/`;
+/// on macOS and Linux, `http://asyar-*.localhost/` URLs are rejected so plain
+/// HTTP loopback requests can never be triggered by an icon string.
+fn resolve_host_image_url(raw: &str, is_windows: bool) -> Option<String> {
+    if raw.starts_with("data:image/") {
+        return Some(raw.into());
+    }
+
+    for scheme in HOST_SCHEMES {
+        let localhost_prefix = format!("{scheme}://localhost/");
+        let bare_prefix = format!("{scheme}://");
+        let windows_prefix = format!("http://{scheme}.localhost/");
+
+        if let Some(rest) = raw.strip_prefix(&localhost_prefix) {
+            if rest.is_empty() {
+                return None;
+            }
+            return Some(if is_windows {
+                format!("{windows_prefix}{rest}")
+            } else {
+                raw.into()
+            });
+        }
+        if let Some(rest) = raw.strip_prefix(&bare_prefix) {
+            if rest.is_empty() {
+                return None;
+            }
+            return Some(if is_windows {
+                format!("{windows_prefix}{rest}")
+            } else {
+                raw.into()
+            });
+        }
+        if is_windows && raw.starts_with(&windows_prefix) {
+            return (raw.len() > windows_prefix.len()).then(|| raw.into());
+        }
+    }
+
+    None
+}
 
 /// Resolve a raw icon string.
 ///
@@ -180,6 +224,15 @@ pub fn resolve_icon(
     extension_id: Option<&str>,
     allow_remote: bool,
 ) -> Option<ResolvedIcon> {
+    resolve_icon_for_platform(raw, extension_id, allow_remote, cfg!(target_os = "windows"))
+}
+
+fn resolve_icon_for_platform(
+    raw: &str,
+    extension_id: Option<&str>,
+    allow_remote: bool,
+    is_windows: bool,
+) -> Option<ResolvedIcon> {
     let raw = raw.trim();
     if raw.is_empty() {
         return None;
@@ -190,9 +243,9 @@ pub fn resolve_icon(
             color: None,
         });
     }
-    if raw.starts_with("data:image/") || HOST_IMAGE_SCHEMES.iter().any(|s| raw.starts_with(s)) {
+    if let Some(src) = resolve_host_image_url(raw, is_windows) {
         return Some(ResolvedIcon::Image {
-            src: raw.into(),
+            src,
             dark: None,
             tint: None,
         });
@@ -204,7 +257,7 @@ pub fn resolve_icon(
         return None;
     }
     if looks_like_path(raw) {
-        return bundled_file(raw, extension_id?);
+        return bundled_file(raw, extension_id?, is_windows);
     }
     Some(ResolvedIcon::Emoji { value: raw.into() })
 }
@@ -241,16 +294,18 @@ fn safe_relative_path(path: &str) -> Option<&str> {
 
 /// The URL carries [`copies::COPY_QUERY`] so `asyar-extension://` serves the
 /// 128px copy made at install when there is one.
-fn bundled_file(path: &str, extension_id: &str) -> Option<ResolvedIcon> {
+fn bundled_file(path: &str, extension_id: &str, is_windows: bool) -> Option<ResolvedIcon> {
     let path = safe_relative_path(path)?;
     if extension_id.is_empty() {
         return None;
     }
+    let canonical = format!(
+        "asyar-extension://{extension_id}/{path}?{}",
+        copies::COPY_QUERY
+    );
+    let src = resolve_host_image_url(&canonical, is_windows).unwrap_or(canonical);
     Some(ResolvedIcon::Image {
-        src: format!(
-            "asyar-extension://{extension_id}/{path}?{}",
-            copies::COPY_QUERY
-        ),
+        src,
         dark: None,
         tint: None,
     })
@@ -263,6 +318,14 @@ mod tests {
     fn img(src: &str) -> Option<ResolvedIcon> {
         Some(ResolvedIcon::Image {
             src: src.into(),
+            dark: None,
+            tint: None,
+        })
+    }
+
+    fn host_img(canonical: &str) -> Option<ResolvedIcon> {
+        Some(ResolvedIcon::Image {
+            src: resolve_host_image_url(canonical, cfg!(target_os = "windows")).unwrap(),
             dark: None,
             tint: None,
         })
@@ -291,11 +354,11 @@ mod tests {
     fn relative_paths_become_extension_urls() {
         assert_eq!(
             resolve_icon("assets/icon.png", Some("org.x"), false),
-            img("asyar-extension://org.x/assets/icon.png?icon")
+            host_img("asyar-extension://org.x/assets/icon.png?icon")
         );
         assert_eq!(
             resolve_icon("./icon.svg", Some("org.x"), false),
-            img("asyar-extension://org.x/icon.svg?icon")
+            host_img("asyar-extension://org.x/icon.svg?icon")
         );
         // No owner → nothing to resolve against.
         assert_eq!(resolve_icon("icon.png", None, false), None);
@@ -327,7 +390,7 @@ mod tests {
             "asyar-extension://org.x/icon.png",
             "data:image/png;base64,AAAA",
         ] {
-            assert_eq!(resolve_icon(raw, Some("org.x"), false), img(raw));
+            assert_eq!(resolve_icon(raw, Some("org.x"), false), host_img(raw));
         }
     }
 
@@ -355,7 +418,7 @@ mod tests {
             }))
             .unwrap();
         m.resolve_icons();
-        let ext_icon = img("asyar-extension://org.x/assets/icon.png?icon");
+        let ext_icon = host_img("asyar-extension://org.x/assets/icon.png?icon");
         assert_eq!(m.resolved_icon, ext_icon);
         assert_eq!(
             m.commands[0].resolved_icon,
@@ -490,8 +553,18 @@ mod tests {
         assert_eq!(
             image.resolve(Some("org.x"), false),
             Some(ResolvedIcon::Image {
-                src: "asyar-extension://org.x/a.png?icon".into(),
-                dark: Some("asyar-extension://org.x/b.png?icon".into()),
+                src: resolve_host_image_url(
+                    "asyar-extension://org.x/a.png?icon",
+                    cfg!(target_os = "windows")
+                )
+                .unwrap(),
+                dark: Some(
+                    resolve_host_image_url(
+                        "asyar-extension://org.x/b.png?icon",
+                        cfg!(target_os = "windows")
+                    )
+                    .unwrap()
+                ),
                 tint: Some(true),
             })
         );
@@ -511,7 +584,7 @@ mod tests {
         };
         assert_eq!(
             bad_dark.resolve(Some("org.x"), false),
-            img("asyar-extension://org.x/a.png?icon")
+            host_img("asyar-extension://org.x/a.png?icon")
         );
 
         let tile = ManifestIcon::Tile {
@@ -534,6 +607,55 @@ mod tests {
         for icon in [serde_json::json!("🍅"), tile] {
             let parsed = parse(icon.clone()).unwrap();
             assert_eq!(serde_json::to_value(&parsed).unwrap(), icon);
+        }
+    }
+
+    #[test]
+    fn windows_localhost_aliases_only_resolve_on_windows() {
+        for (input, windows_expected) in [
+            (
+                "http://asyar-icon.localhost/safari.png",
+                "http://asyar-icon.localhost/safari.png",
+            ),
+            (
+                "http://asyar-thumb.localhost/a.png",
+                "http://asyar-thumb.localhost/a.png",
+            ),
+            (
+                "http://asyar-extension.localhost/org.x/icon.png?icon",
+                "http://asyar-extension.localhost/org.x/icon.png?icon",
+            ),
+            (
+                "asyar-icon://localhost/safari.png",
+                "http://asyar-icon.localhost/safari.png",
+            ),
+            (
+                "asyar-thumb://localhost/a.png",
+                "http://asyar-thumb.localhost/a.png",
+            ),
+            (
+                "asyar-extension://org.x/assets/icon.png?icon",
+                "http://asyar-extension.localhost/org.x/assets/icon.png?icon",
+            ),
+        ] {
+            assert_eq!(
+                resolve_icon_for_platform(input, None, false, true),
+                img(windows_expected),
+                "windows: {input}"
+            );
+            if input.starts_with("http://") {
+                assert_eq!(
+                    resolve_icon_for_platform(input, None, false, false),
+                    None,
+                    "non-windows must reject {input}"
+                );
+            } else {
+                assert_eq!(
+                    resolve_icon_for_platform(input, None, false, false),
+                    img(input),
+                    "non-windows: {input}"
+                );
+            }
         }
     }
 }

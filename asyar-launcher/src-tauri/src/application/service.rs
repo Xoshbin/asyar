@@ -1129,14 +1129,26 @@ fn stamp_cache_file(path: &Path, source_mtime: Option<std::time::SystemTime>) {
         .and_then(|f| f.set_modified(time));
 }
 
-pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
-    let cache_key = app_path
+/// Builds the cache file stem for an application's extracted icon.
+///
+/// Windows prepends a version prefix (`w2_`) so caches created before HiDPI
+/// uncropping automatically regenerate once without altering `.lnk` mtimes.
+fn app_icon_cache_base_name_for_platform(app_path: &str, is_windows: bool) -> String {
+    let raw = app_path
         .replace(['/', '\\', ':', ' '], "_")
         .replace(".app", "")
         .replace(".desktop", "")
         .replace(".exe", "");
+    let cache_key = if is_windows { format!("w2_{raw}") } else { raw };
+    truncate_cache_key(&cache_key, 200).into_owned()
+}
 
-    let base_name = truncate_cache_key(&cache_key, 200);
+fn app_icon_cache_base_name(app_path: &str) -> String {
+    app_icon_cache_base_name_for_platform(app_path, cfg!(target_os = "windows"))
+}
+
+pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
+    let base_name = app_icon_cache_base_name(app_path);
     let cache_filename_png = format!("{base_name}.png");
     let cache_file_png = cache_dir.join(&cache_filename_png);
     let cache_filename_svg = format!("{base_name}.svg");
@@ -2184,12 +2196,23 @@ mod tests {
         let result = extract_app_icon("/nonexistent/path/app.desktop", &cache_dir);
         assert!(result.is_none());
 
-        let marker = cache_dir.join("_nonexistent_path_app.missing");
+        let marker = cache_dir.join(format!(
+            "{}.missing",
+            app_icon_cache_base_name("/nonexistent/path/app.desktop")
+        ));
         assert!(marker.exists(), "missing marker must be created");
 
         // Subsequent call immediately returns None via marker check
         let result2 = extract_app_icon("/nonexistent/path/app.desktop", &cache_dir);
         assert!(result2.is_none());
+    }
+
+    #[test]
+    fn test_app_icon_cache_base_name_versions_windows_cache_keys() {
+        let windows_key = app_icon_cache_base_name_for_platform("C:\\Apps\\Demo.exe", true);
+        let unix_key = app_icon_cache_base_name_for_platform("/Applications/Demo.app", false);
+        assert!(windows_key.starts_with("w2_"));
+        assert!(!unix_key.starts_with("w2_"));
     }
 
     #[test]
@@ -2205,8 +2228,7 @@ mod tests {
         let result = extract_app_icon(&path, &cache_dir);
         assert!(result.is_none());
 
-        let raw_key = format!("{prefix}』extra");
-        let expected_key = truncate_cache_key(&raw_key, 200);
+        let expected_key = app_icon_cache_base_name(&path);
         let marker = cache_dir.join(format!("{expected_key}.missing"));
         assert!(
             marker.exists(),
