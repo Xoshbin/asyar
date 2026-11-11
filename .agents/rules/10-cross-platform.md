@@ -1,6 +1,6 @@
 # Cross-Platform Compatibility (macOS, Windows, Linux)
 
-Asyar targets macOS, Windows, and Linux (X11 and Wayland). Local builds and `pnpm check:ci` only compile `#[cfg]` branches for the host OS; CI (`.github/workflows/test-and-lint.yml`) compiles, lints, and tests all three.
+Asyar targets macOS, Windows, and Linux (X11 and Wayland). Local builds and `pnpm check:ci` only compile `#[cfg]` branches for the host OS; CI (`.github/workflows/test-and-lint.yml`) compiles and runs Rust tests on all three, and runs Clippy on Linux and macOS. The Windows test job skips one layout-dependent test.
 
 ## 1. Platform Boundaries & Compilation
 
@@ -11,7 +11,7 @@ Asyar targets macOS, Windows, and Linux (X11 and Wayland). Local builds and `pnp
 ## 2. Paths, Filesystems & Schemes
 
 - **No Verbatim `\\?\` Paths**: Use `dunce::canonicalize` or `dunce::simplified` instead of `std::fs::canonicalize`. Windows verbatim prefixes break `Path::starts_with` and `cmd.exe` / `.bat` / `.cmd` execution.
-- **Case-Aware Security Checks**: Windows and macOS filesystems are case-insensitive (`CASE_INSENSITIVE_FS`). Use `files_scope::starts_with_case_aware` for root/deny-list checks, and check both `/` and `\` as path separators.
+- **Case-Aware Security Checks**: Windows and macOS filesystems are often case-insensitive but can be case-sensitive. Use `files_scope::starts_with_case_aware` for deny-list checks; it folds case on both OSes (`CASE_INSENSITIVE_FS`). For allow-list containment, verify the resolved path's relationship to the allowed root using filesystem-aware semantics; do not rely on this helper alone, since case folding can admit a distinct path. Check both `/` and `\` as path separators.
 - **Windows Custom-Scheme Origin**: WebView2 serves custom schemes as `http://{scheme}.localhost/`. Rust URI handlers must strip `{scheme}://localhost/`, `{scheme}://`, and `http://{scheme}.localhost/`; extension CSPs and `getExtensionFrameOrigin()` must account for `http://asyar-extension.localhost`.
 
 ## 3. Subprocesses, Webviews & Display Servers

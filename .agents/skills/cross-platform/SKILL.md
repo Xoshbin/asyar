@@ -65,11 +65,11 @@ let display_path = dunce::simplified(path).to_string_lossy().into_owned();
 let canonical_parent = parent.canonicalize()?;
 ```
 
-### Case-Insensitive Filesystem Checks
+### Case-Aware Filesystem Checks
 
-Windows (NTFS) and macOS (APFS/HFS+) compare paths case-insensitively (`CASE_INSENSITIVE_FS = cfg!(any(windows, target_os = "macos"))`). A naive `Path::starts_with` check on a security deny-list **fails open** on `c:\windows\...` or `~/library/keychains/...`.
+Windows and macOS filesystems are often case-insensitive but can be case-sensitive. `CASE_INSENSITIVE_FS = cfg!(any(windows, target_os = "macos"))` folds case on both OSes. A naive `Path::starts_with` check on a security deny-list can **fail open** on `c:\windows\...` or `~/library/keychains/...`.
 
-- Use `files_scope::starts_with_case_aware(&path, &root)` for security containment checks.
+- Use `files_scope::starts_with_case_aware(&path, &root)` for deny-list checks. For allow-list containment, verify the resolved path's relationship to the allowed root using filesystem-aware semantics; do not rely on this helper alone, since case folding can admit a distinct path.
 - Check both `/` and `\` when classifying explicit paths vs `PATH` lookups (`shell/mod.rs::is_explicit_path`) and when rejecting traversal in flat-cache URI handlers (`uri_schemes.rs::read_cache_file`).
 - Keep custom URL schemes at least 2 characters long (`opener_scope::validate_declared_scheme`) so a 1-letter scheme (`c:`) never collides with a Windows drive letter.
 - Use the `file-id` crate (`file_index/file_id.rs`) for stable `(volume, id)` identity instead of nightly-only Windows `MetadataExt` APIs.
