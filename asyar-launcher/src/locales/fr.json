@@ -432,7 +432,7 @@
       "name_placeholder": "Nom de la connexion au fournisseur",
       "connection_method": "Méthode de connexion",
       "connection_api_key": "Clé API directe (HTTP)",
-      "connection_cli": "CLI locale ({name}) (expérimental)",
+      "connection_cli": "CLI locale · {name} · expérimental",
       "connection_cli_desc": "Exécute directement votre CLI {name} locale. Utilise l'authentification existante de votre terminal ou de votre abonnement, sans clé API.",
       "connection_api_desc": "Requêtes HTTP directes vers l'API du fournisseur avec une clé API.",
       "cli_checking": "Vérification de la CLI…",
