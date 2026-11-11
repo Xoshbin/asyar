@@ -3,6 +3,7 @@ import enCatalog from '../../locales/en.json';
 import ptBRCatalog from '../../locales/pt-BR.json';
 import zhCNCatalog from '../../locales/zh-CN.json';
 import zhHantCatalog from '../../locales/zh-Hant.json';
+import frCatalog from '../../locales/fr.json';
 
 /** Interpolation placeholders such as `{title}` must survive translation verbatim. */
 function getPlaceholders(value: string): Set<string> {
@@ -48,6 +49,7 @@ describe('Translation Catalog Integrity', () => {
     { name: 'pt-BR.json', catalog: ptBRCatalog as Record<string, any> },
     { name: 'zh-CN.json', catalog: zhCNCatalog as Record<string, any> },
     { name: 'zh-Hant.json', catalog: zhHantCatalog as Record<string, any> },
+    { name: 'fr.json', catalog: frCatalog as Record<string, any> },
   ];
 
   const catalogs = [en, ...translatedCatalogs];

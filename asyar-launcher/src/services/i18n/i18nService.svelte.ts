@@ -2,6 +2,7 @@ import enCatalog from '../../locales/en.json';
 import ptBRCatalog from '../../locales/pt-BR.json';
 import zhCNCatalog from '../../locales/zh-CN.json';
 import zhHantCatalog from '../../locales/zh-Hant.json';
+import frCatalog from '../../locales/fr.json';
 import { getSystemLocale } from '../../lib/ipc/commands';
 
 function getNestedValue(obj: Record<string, any>, path: string): string | undefined {
@@ -112,6 +113,8 @@ export class I18nService {
     this.catalogs.set('zh-CN', zhCNCatalog as Record<string, any>);
     this.catalogs.set('zh-Hans', zhCNCatalog as Record<string, any>);
     this.catalogs.set('zh-Hant', zhHantCatalog as Record<string, any>);
+    // French is not script-split; the bare tag also covers fr-FR, fr-CA, fr-BE, fr-CH.
+    this.catalogs.set('fr', frCatalog as Record<string, any>);
   }
 
   registerCatalog(locale: string, catalog: Record<string, any>): void {
