@@ -68,6 +68,26 @@ describe('useShortcutCapture', () => {
     vi.useRealTimers();
   });
 
+  it.each(['pending', 'scheduled'])('teardown cancels %s completion', async (phase) => {
+    let resolve!: (value: true) => void;
+    const onDone = vi.fn();
+    const capture = useShortcutCapture({
+      onCapture: () => new Promise((r) => (resolve = r)),
+      onDone,
+    });
+    capture.startRecording();
+    window.dispatchEvent(makeKeyEvent('keydown', { key: 'k', code: 'KeyK', metaKey: true }));
+    if (phase === 'scheduled') {
+      resolve(true);
+      await Promise.resolve();
+      expect(capture.state.saveState).toBe('success');
+    }
+    capture.stopRecording({ notifyCancel: false });
+    if (phase === 'pending') resolve(true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
   it('starts idle', () => {
     const capture = useShortcutCapture({ onCapture: async () => true });
     expect(capture.state.isRecording).toBe(false);

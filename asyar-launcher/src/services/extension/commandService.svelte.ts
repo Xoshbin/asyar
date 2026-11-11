@@ -4,6 +4,13 @@ import { extensionPreferencesService } from './extensionPreferencesService.svelt
 import { preferencesPromptStore } from './preferencesPromptStore.svelte';
 import * as commands from '../../lib/ipc/commands';
 
+export class PreferencesRequiredError extends Error {
+  constructor(extensionId: string, commandId: string) {
+    super(`Extension '${extensionId}' requires preferences before running command '${commandId}'`);
+    this.name = 'PreferencesRequiredError';
+  }
+}
+
 interface RegisteredCommand {
   handler: CommandHandler;
   extensionId: string;
@@ -116,11 +123,10 @@ export class CommandService {
           extensionId: command.extensionId,
           commandId: shortCommandId,
           commandObjectId,
+          commandArgs: args,
           missing,
         });
-        throw new Error(
-          `Extension '${command.extensionId}' requires preferences before running command '${shortCommandId}'`,
-        );
+        throw new PreferencesRequiredError(command.extensionId, shortCommandId);
       }
     }
 

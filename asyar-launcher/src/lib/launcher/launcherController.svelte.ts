@@ -164,6 +164,7 @@ export class LauncherController {
     try {
       await commandArgumentsService.submit();
     } catch (err) {
+      if (err instanceof Error && err.name === 'PreferencesRequiredError') return;
       logService.error(`[argumentMode] submit failed: ${err}`);
       feedbackService.report({
         source: 'frontend',
@@ -238,6 +239,7 @@ export class LauncherController {
           searchStores.query = '';
         }
       } catch (error) {
+        if (error instanceof Error && error.name === 'PreferencesRequiredError') return;
         logService.error(`Action error: ${error}`);
         feedbackService.report({
           source: 'frontend',

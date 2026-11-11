@@ -1,3 +1,4 @@
+import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { getCompactSyncService } from '../../services/launcher/compactSyncService.svelte';
@@ -9,6 +10,7 @@ import { registerLauncherResetHook } from '../ipc/windowCommands';
 // goBack() must strictly shrink the stack; bail out if it does not rather than
 // spin forever.
 export function resetLauncherState(): void {
+  preferencesPromptStore.close();
   let prev = viewManager.getNavigationStackSize();
   while (prev > 0) {
     viewManager.goBack();

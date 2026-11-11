@@ -1,5 +1,8 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const VIEW_PROXY_NAMESPACES = [
   'log',
@@ -99,9 +102,16 @@ describe('asyar-sdk/view — entry surface', () => {
     expect(keys).toEqual([...VIEW_PROXY_NAMESPACES].sort());
   });
 
-  it('exposes DOM-capable helpers (registerIconElement)', async () => {
+  it('exposes DOM-capable helpers (registerIconElement) and never ships a UI widget kit', async () => {
     const mod = await import('./view');
     expect(mod.registerIconElement).toBeTypeOf('function');
+    // Architectural invariant (.agents/rules/05-architecture.md): asyar-sdk never
+    // ships interactive UI components or a custom-element widget library; only
+    // <asyar-icon> (SVG registry helper) is permitted.
+    const sdkSrcDir = dirname(fileURLToPath(import.meta.url));
+    expect(existsSync(resolve(sdkSrcDir, 'components'))).toBe(false);
+    const elementRegistrars = Object.keys(mod).filter((k) => /^register.*Element$/.test(k));
+    expect(elementRegistrars).toEqual(['registerIconElement']);
   });
 
   it('exposes request but not onRequest (view-only RPC direction)', async () => {

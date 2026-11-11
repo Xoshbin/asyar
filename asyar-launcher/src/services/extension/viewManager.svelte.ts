@@ -3,20 +3,28 @@ import { searchStores } from '../search/stores/search.svelte';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import type { ExtensionManifest, Extension } from 'asyar-sdk/contracts';
 
+export interface NavigateToViewOptions {
+  /** Override manifest-level `searchable` for this specific stacked view. */
+  searchable?: boolean;
+}
+
 // Internal state for navigation stack
 interface NavigationState {
   viewPath: string;
   searchable: boolean;
   extensionId: string;
+  savedSearchQuery?: string;
 }
 
 class ViewManagerClass {
   activeView = $state<string | null>(null);
   activeViewSearchable = $state<boolean>(false);
+  /** @deprecated Use actionService.registerAction({ ..., primary: true }). Remove in 0.2.0. */
   activeViewPrimaryActionLabel = $state<string | null>(null);
   activeViewSubtitle = $state<string | null>(null);
 
   // Internal state (NOT $state — not reactive)
+  private escapeInterceptors: Array<() => boolean> = [];
   private navigationStack: NavigationState[] = [];
   private initialMainQuery: string | null = null;
   // See withReplacementSemantics(); consumed by the next navigateToView.
@@ -63,7 +71,7 @@ class ViewManagerClass {
     }
   }
 
-  navigateToView(viewPath: string): void {
+  navigateToView(viewPath: string, options?: NavigateToViewOptions): void {
     logService.info(`[ViewManager] navigateToView called with path: ${viewPath}`);
     if (!this.manifestsMap) {
       logService.error('ViewManager not initialized properly.');
@@ -107,6 +115,13 @@ class ViewManagerClass {
       this.navigationStack = [];
       this.initialMainQuery = null;
       this.notifyViewDeactivated(prevTop);
+    } else if (this.navigationStack.length > 0) {
+      // Deactivate the covered parent view symmetrically so list keydown
+      // listeners and view actions don't bleed into the pushed child view,
+      // and snapshot its view-local search query for goBack() restoration.
+      const prevTop = this.navigationStack[this.navigationStack.length - 1];
+      prevTop.savedSearchQuery = searchStores.query;
+      this.notifyViewDeactivated(prevTop);
     }
 
     logService.info(`Navigating to view: ${viewPath} for extension: ${manifest.id}`);
@@ -120,7 +135,7 @@ class ViewManagerClass {
 
     const newState: NavigationState = {
       viewPath,
-      searchable: manifest.searchable ?? false,
+      searchable: options?.searchable ?? manifest.searchable ?? false,
       extensionId: manifest.id,
     };
     this.navigationStack.push(newState);
@@ -166,6 +181,7 @@ class ViewManagerClass {
     }
 
     const closedState = this.navigationStack.pop()!; // Remove the current view state
+    extensionIframeManager.hasInputFocus = false;
     logService.debug(
       `Going back from view: ${closedState.viewPath}. Stack size after pop: ${this.navigationStack.length}`,
     );
@@ -175,6 +191,8 @@ class ViewManagerClass {
       logService.debug(`Navigation stack empty, returning to main view.`);
       this.activeView = null;
       this.activeViewSearchable = false;
+      this.activeViewPrimaryActionLabel = null;
+      this.activeViewSubtitle = null;
 
       // Restore the initial main search query
       logService.debug(`Restoring initial main query: "${this.initialMainQuery}"`);
@@ -187,9 +205,13 @@ class ViewManagerClass {
       const newState = this.navigationStack[this.navigationStack.length - 1]; // Get the new top state
       logService.debug(`Returning to previous view: ${newState.viewPath}`);
 
+      this.notifyViewDeactivated(closedState);
+
       // Update active view stores to reflect the new top state
       this.activeView = newState.viewPath;
       this.activeViewSearchable = newState.searchable;
+      searchStores.query = newState.savedSearchQuery ?? '';
+      newState.savedSearchQuery = undefined;
 
       this.notifyViewActivated(newState);
     }
@@ -215,16 +237,20 @@ class ViewManagerClass {
 
     if (removedStates.length === 0) return;
 
-    // Notify deactivated for the removed states
+    this.navigationStack = remainingStack;
+    extensionIframeManager.hasInputFocus = false;
+
+    // Notify deactivated for the removed states (after pruning stack so listeners
+    // checking isViewInStack() see the view has left the stack).
     for (const state of removedStates) {
       this.notifyViewDeactivated(state);
     }
 
-    this.navigationStack = remainingStack;
-
     if (this.navigationStack.length === 0) {
       this.activeView = null;
       this.activeViewSearchable = false;
+      this.activeViewPrimaryActionLabel = null;
+      this.activeViewSubtitle = null;
       searchStores.query = this.initialMainQuery ?? '';
       this.initialMainQuery = null;
     } else {
@@ -296,6 +322,34 @@ class ViewManagerClass {
 
   getNavigationStackSize(): number {
     return this.navigationStack.length;
+  }
+
+  isViewInStack(viewPath: string): boolean {
+    return this.navigationStack.some((state) => state.viewPath === viewPath);
+  }
+
+  /**
+   * Register a LIFO Escape interceptor (used by open dropdown popovers, inline
+   * sub-forms, or the in-shell required-preferences screen) so pressing Escape
+   * closes the innermost layer before clearing search or popping the outer view.
+   */
+  registerEscapeInterceptor(handler: () => boolean): () => void {
+    this.escapeInterceptors.push(handler);
+    return () => {
+      const idx = this.escapeInterceptors.lastIndexOf(handler);
+      if (idx !== -1) this.escapeInterceptors.splice(idx, 1);
+    };
+  }
+
+  tryInterceptEscape(): boolean {
+    for (let i = this.escapeInterceptors.length - 1; i >= 0; i--) {
+      try {
+        if (this.escapeInterceptors[i]()) return true;
+      } catch (err) {
+        logService.error(`[ViewManager] Escape interceptor failed: ${err}`);
+      }
+    }
+    return false;
   }
 }
 

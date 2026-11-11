@@ -31,12 +31,21 @@ vi.mock('./index.svelte', () => ({
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: {
     report: vi.fn(),
+    registerRetry: vi.fn(() => 'retry-installation-status'),
     confirmAlert: vi.fn(),
   },
 }));
 
 import DetailView from './DetailView.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { storeViewState as store } from './state.svelte';
+import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
+
+function findDetailPrimaryAction(): ApplicationAction | undefined {
+  const calls = vi.mocked(actionService.registerAction).mock.calls;
+  const matching = calls.filter(([action]) => action.id === 'store:detail-primary');
+  return matching[matching.length - 1]?.[0] as ApplicationAction | undefined;
+}
 
 function mockExtensionResponse(extensionData: Record<string, unknown>) {
   const fullData = {
@@ -76,10 +85,12 @@ describe('DetailView SDK Version Compatibility', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listInstalledExtensions.mockResolvedValue([]);
+    vi.spyOn(actionService, 'registerAction');
+    vi.spyOn(actionService, 'unregisterAction');
     store.setSelectedExtensionSlug('test-ext');
   });
 
-  it('renders warning banner and disables install button when asyarSdk is incompatible', async () => {
+  it('renders warning banner and disables primary install action when asyarSdk is incompatible', async () => {
     mockExtensionResponse({ asyarSdk: '^5.0.0' });
 
     render(DetailView);
@@ -90,40 +101,116 @@ describe('DetailView SDK Version Compatibility', () => {
       ).toBeTruthy();
     });
 
-    const installBtn = screen.getByRole('button', {
-      name: /Incompatible \(Requires SDK \^5\.0\.0\)/i,
-    });
-    expect(installBtn).toBeTruthy();
-    expect((installBtn as HTMLButtonElement).disabled).toBe(true);
+    const installAction = findDetailPrimaryAction();
+    expect(installAction).toBeTruthy();
+    expect(installAction?.label).toMatch(/Incompatible \(Requires SDK \^5\.0\.0\)/i);
+    expect(installAction?.primary).toBe(true);
+    expect(installAction?.shortcut).toBe('Enter');
+    expect(installAction?.disabled).toBe(true);
   });
 
-  it('does NOT render warning banner and enables install button when asyarSdk is compatible', async () => {
+  it('does NOT render warning banner and enables primary install action when asyarSdk is compatible', async () => {
     mockExtensionResponse({ asyarSdk: '^4.10.0' });
 
     render(DetailView);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^Install Extension$/i })).toBeTruthy();
+      const installAction = findDetailPrimaryAction();
+      expect(installAction?.label).toBe('Install Extension');
+      expect(installAction?.disabled).toBe(false);
     });
 
     expect(screen.queryByText(/This extension requires a newer version of Asyar/)).toBeNull();
-
-    const installBtn = screen.getByRole('button', { name: /^Install Extension$/i });
-    expect((installBtn as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('does NOT render warning banner and enables install button when asyarSdk is omitted', async () => {
+  it('does NOT render warning banner and enables primary install action when asyarSdk is omitted', async () => {
     mockExtensionResponse({ asyarSdk: undefined });
 
     render(DetailView);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^Install Extension$/i })).toBeTruthy();
+      const installAction = findDetailPrimaryAction();
+      expect(installAction?.label).toBe('Install Extension');
+      expect(installAction?.disabled).toBe(false);
     });
 
     expect(screen.queryByText(/This extension requires a newer version of Asyar/)).toBeNull();
+  });
 
-    const installBtn = screen.getByRole('button', { name: /^Install Extension$/i });
-    expect((installBtn as HTMLButtonElement).disabled).toBe(false);
+  it('registers primary Run action and confirmed Control+X Uninstall action when installed without throwing', async () => {
+    listInstalledExtensions.mockResolvedValue(['org.asyar.test']);
+    mockExtensionResponse({ asyarSdk: '^4.10.0' });
+
+    render(DetailView);
+
+    await waitFor(() => {
+      const primaryAction = findDetailPrimaryAction();
+      expect(primaryAction?.label).toBe('Run Command 1');
+      expect(primaryAction?.shortcut).toBe('Enter');
+      expect(primaryAction?.primary).toBe(true);
+    });
+
+    const uninstallCall = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.filter(([action]) => action.id === 'store:detail-uninstall')
+      .pop()?.[0] as ApplicationAction | undefined;
+    expect(uninstallCall).toBeDefined();
+    expect(uninstallCall?.shortcut).toBe('Control+X');
+    expect(uninstallCall?.destructive).toBe(true);
+    expect(uninstallCall?.confirmInExecute).toBe(true);
+  });
+  it('disables install until installation status resolves', async () => {
+    let resolve!: (paths: string[]) => void;
+    listInstalledExtensions.mockReturnValue(
+      new Promise<string[]>((r) => {
+        resolve = r;
+      }),
+    );
+    mockExtensionResponse({});
+    render(DetailView);
+    await waitFor(() => expect(findDetailPrimaryAction()).toBeDefined());
+    expect(findDetailPrimaryAction()?.disabled).toBe(true);
+    resolve([]);
+    await waitFor(() => expect(findDetailPrimaryAction()?.disabled).toBe(false));
+  });
+  it('reports a failed installation check and retries without closing the detail view', async () => {
+    listInstalledExtensions.mockRejectedValueOnce(new Error('Status unavailable'));
+    mockExtensionResponse({});
+    render(DetailView);
+
+    await waitFor(() =>
+      expect(feedbackService.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'error',
+          retryable: true,
+          retryActionId: 'retry-installation-status',
+          context: { message: expect.stringContaining('installed status') },
+        }),
+      ),
+    );
+    expect(screen.getByRole('heading', { name: 'Test Extension' })).toBeTruthy();
+    expect(findDetailPrimaryAction()?.disabled).toBe(true);
+
+    let resolve!: (paths: string[]) => void;
+    listInstalledExtensions.mockReturnValueOnce(
+      new Promise<string[]>((r) => {
+        resolve = r;
+      }),
+    );
+    const retry = vi.mocked(feedbackService.registerRetry).mock.calls[0][0];
+    const pending = retry();
+    expect(findDetailPrimaryAction()?.disabled).toBe(true);
+    resolve(['org.asyar.test']);
+    await pending;
+    await waitFor(() => expect(findDetailPrimaryAction()?.label).toBe('Run Command 1'));
+    expect(listInstalledExtensions).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('heading', { name: 'Test Extension' })).toBeTruthy();
+  });
+  it('uses confirmed uninstall as primary for an installed item without commands or preferences', async () => {
+    listInstalledExtensions.mockResolvedValue(['org.asyar.test']);
+    mockExtensionResponse({ manifest: {} });
+    render(DetailView);
+    await waitFor(() => expect(findDetailPrimaryAction()?.label).toBe('Uninstall'));
+    expect(findDetailPrimaryAction()?.confirmInExecute).toBe(true);
   });
 });

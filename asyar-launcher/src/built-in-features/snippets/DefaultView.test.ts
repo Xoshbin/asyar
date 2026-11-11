@@ -1,8 +1,9 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import DefaultView from './DefaultView.svelte';
 import { snippetStore } from './snippetStore.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue([]),
@@ -54,5 +55,16 @@ describe('Snippets DefaultView', () => {
     expect(screen.getByText('Visibility')).toBeTruthy();
     expect(screen.getByText('Private (Local only)')).toBeTruthy();
     expect(screen.getByText('20 chars')).toBeTruthy();
+  });
+
+  it('pushes snippets/SnippetFormView with searchable: false when clicking empty-state CTA', async () => {
+    const navSpy = vi.spyOn(viewManager, 'navigateToView').mockImplementation(() => {});
+    render(DefaultView);
+
+    const cta = screen.getByRole('button', { name: /add your first snippet/i });
+    await fireEvent.click(cta);
+
+    expect(navSpy).toHaveBeenCalledWith('snippets/SnippetFormView', { searchable: false });
+    navSpy.mockRestore();
   });
 });

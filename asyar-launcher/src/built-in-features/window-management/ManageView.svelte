@@ -1,16 +1,12 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { ListItem, EmptyState, Modal, Input, Button } from '../../components';
+  import { ListItem, EmptyState } from '../../components';
   import { windowManagementState } from './state.svelte';
   import { windowManagementService } from '../../services/windowManagement/windowManagementService';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
-  import {
-    applyCustomLayout,
-    deleteLayout,
-    renameLayout,
-    syncLayoutToIndex,
-  } from './layoutLifecycle';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { applyCustomLayout, deleteLayout, syncLayoutToIndex } from './layoutLifecycle';
   import type { IStorageService } from 'asyar-sdk/contracts';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
@@ -19,10 +15,6 @@
     store?: IStorageService;
   }
   let { store }: Props = $props();
-
-  let isRenameModalOpen = $state(false);
-  let editingId = $state<string | null>(null);
-  let editingName = $state('');
 
   let layouts = $derived(windowManagementState.customLayouts);
   let selectedIndex = $derived(windowManagementState.selectedIndex);
@@ -59,30 +51,8 @@
   function startRename(id: string) {
     const layout = layouts.find((l) => l.id === id);
     if (!layout) return;
-    editingId = id;
-    editingName = layout.name;
-    isRenameModalOpen = true;
-  }
-
-  async function commitRename() {
-    if (!editingId) {
-      isRenameModalOpen = false;
-      return;
-    }
-    const id = editingId;
-    const newName = editingName.trim();
-    isRenameModalOpen = false;
-    editingId = null;
-    if (newName) {
-      await renameLayout(id, newName, store);
-      await feedbackService.showHUD(`Renamed to "${newName}"`);
-    }
-  }
-
-  function cancelRename() {
-    isRenameModalOpen = false;
-    editingId = null;
-    editingName = '';
+    windowManagementState.startRename(id);
+    viewManager.navigateToView('window-management/RenameLayoutView', { searchable: false });
   }
 
   async function handleDelete(id: string) {
@@ -123,6 +93,7 @@
       title: t('features.window_management.ui.apply_title', { name }),
       icon: 'icon:play',
       shortcut: 'Enter',
+      primary: true,
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,
@@ -198,29 +169,6 @@
   </div>
 </div>
 
-<Modal
-  bind:isOpen={isRenameModalOpen}
-  title={t('features.window_management.rename_layout_title')}
-  subtitle={t('features.window_management.rename_layout_subtitle')}
-  onEnter={commitRename}
-  onEscape={cancelRename}
->
-  <div class="modal-body">
-    <Input
-      placeholder={t('features.window_management.rename_layout_placeholder')}
-      bind:value={editingName}
-    />
-  </div>
-  {#snippet actions()}
-    <div class="modal-actions">
-      <Button onclick={cancelRename}>{t('common.cancel')}</Button>
-      <Button variant="primary" onclick={commitRename} disabled={!editingName.trim()}
-        >{t('common.save')}</Button
-      >
-    </div>
-  {/snippet}
-</Modal>
-
 <style>
   .view-container {
     display: flex;
@@ -253,16 +201,5 @@
     align-items: center;
     justify-content: center;
     font-size: var(--font-size-lg);
-  }
-
-  .modal-body {
-    padding: var(--space-4) 0;
-  }
-
-  .modal-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-3);
   }
 </style>

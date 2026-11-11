@@ -12,8 +12,8 @@
 
   let { activeView, extensionManager }: Props = $props();
 
-  const extensionId = $derived(activeView.split('/')[0]);
-  const viewName = $derived(activeView.split('/')[1] || 'DefaultView');
+  const extensionId = $derived(activeView ? activeView.split('/')[0] : '');
+  const viewName = $derived(activeView ? activeView.split('/')[1] || 'DefaultView' : 'DefaultView');
   const isBuiltIn = $derived(isBuiltInFeature(extensionId));
   const manifest = $derived(
     extensionManager.getManifestById ? extensionManager.getManifestById(extensionId) : null,
@@ -50,7 +50,7 @@
   });
 </script>
 
-<div class="min-h-full flex flex-col flex-1 h-full" data-extension-view={activeView}>
+<div class="flex flex-col flex-1 h-full min-h-0" data-extension-view={activeView}>
   {#key extensionId}
     {#if isBuiltIn}
       {#if ActiveComponent}

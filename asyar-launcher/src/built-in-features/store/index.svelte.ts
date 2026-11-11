@@ -465,17 +465,6 @@ class StoreExtension implements Extension {
 
     // Detail view specific keyboard handlers
     if (this.currentView === `${EXTENSION_ID}/DetailView`) {
-      if (event.key === 'Enter') {
-        // Guard: if installed state is still being checked, do nothing
-        if (this.currentDetailIsInstalled === null) return;
-        event.preventDefault();
-        event.stopPropagation();
-        if (this.currentDetailIsInstalled) {
-          actionService.executeAction(ACTION_ID_UNINSTALL_DETAIL);
-        } else {
-          actionService.executeAction(ACTION_ID_INSTALL_DETAIL);
-        }
-      }
       return;
     }
 
@@ -549,7 +538,8 @@ class StoreExtension implements Extension {
     };
   }
 
-  // Action for Detail View
+  // Action for Detail View (Install/Update/Run/Uninstall actions are registered
+  // reactively by DetailView.svelte with keyboard shortcuts and SDK gating).
   private registerDetailViewActions(): void {
     actionService.registerAction(
       this.buildOpenWebAction(
@@ -557,80 +547,6 @@ class StoreExtension implements Extension {
         () => storeViewState.selectedExtensionSlug,
       ),
     );
-    if (this.currentDetailIsInstalled === null) {
-      // Still checking installed state — show nothing
-      return;
-    }
-
-    // Check if an update is available
-    const hasUpdate = this.currentDetailExtensionId
-      ? !!extensionUpdateService.getUpdateForExtension(this.currentDetailExtensionId)
-      : false;
-
-    if (this.currentDetailIsInstalled && hasUpdate) {
-      // UPDATE available
-      this.logService?.debug(`Registering action: ${ACTION_ID_UPDATE_DETAIL}`);
-      const updateAction: ExtensionAction = {
-        id: ACTION_ID_UPDATE_DETAIL,
-        title: t('features.store.act.update'),
-        description: t('features.store.act.update_desc'),
-        icon: 'icon:arrow-up-circle',
-        extensionId: EXTENSION_ID,
-        execute: async () => {
-          const state = storeViewState;
-          const slug = state.selectedExtensionSlug;
-          if (slug && this.currentDetailExtensionId) {
-            try {
-              await this.updateExtension(slug, this.currentDetailExtensionId, undefined);
-            } catch (ignored) {}
-          }
-        },
-      };
-      actionService.registerAction(updateAction);
-      this.extensionManager?.setActiveViewActionLabel('Update');
-    } else if (this.currentDetailIsInstalled) {
-      // INSTALLED, no update
-      this.logService?.debug(`Registering action: ${ACTION_ID_UNINSTALL_DETAIL}`);
-      const uninstallAction: ExtensionAction = {
-        id: ACTION_ID_UNINSTALL_DETAIL,
-        title: t('features.store.act.uninstall'),
-        description: t('features.store.act.uninstall_desc'),
-        icon: 'icon:trash',
-        extensionId: EXTENSION_ID,
-        execute: async () => {
-          const state = storeViewState;
-          const slug = state.selectedExtensionSlug;
-          if (slug && this.currentDetailExtensionId) {
-            try {
-              await this.uninstallExtension(slug, this.currentDetailExtensionId, undefined);
-            } catch (ignored) {}
-          }
-        },
-      };
-      actionService.registerAction(uninstallAction);
-      this.extensionManager?.setActiveViewActionLabel('Uninstall');
-    } else {
-      // NOT INSTALLED
-      this.logService?.debug(`Registering action: ${ACTION_ID_INSTALL_DETAIL}`);
-      const installAction: ExtensionAction = {
-        id: ACTION_ID_INSTALL_DETAIL,
-        title: t('features.store.act.install'),
-        description: t('features.store.act.install_desc'),
-        icon: 'icon:download',
-        extensionId: EXTENSION_ID,
-        execute: async () => {
-          const state = storeViewState;
-          const slug = state.selectedExtensionSlug;
-          if (slug && this.currentDetailExtensionId) {
-            try {
-              await this.installExtension(slug, this.currentDetailExtensionId, undefined);
-            } catch (ignored) {}
-          }
-        },
-      };
-      actionService.registerAction(installAction);
-      this.extensionManager?.setActiveViewActionLabel('Install Extension');
-    }
   }
 
   private unregisterDetailViewActions(): void {

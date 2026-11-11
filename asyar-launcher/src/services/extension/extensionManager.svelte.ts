@@ -611,7 +611,11 @@ export class ExtensionManager implements IExtensionManager {
     return null;
   }
 
+  /**
+   * @deprecated Use `actionService.registerAction({ ..., primary: true })`. Remove in 0.2.0.
+   */
   public setActiveViewActionLabel(label: string | null): void {
+    // COMPAT(remove in 0.2.0): legacy label-only primary action indicator for published extensions
     logService.info(`[ExtensionManager] Setting active view action label to: ${label}`);
     viewManager.activeViewPrimaryActionLabel = label;
   }
@@ -637,15 +641,19 @@ export class ExtensionManager implements IExtensionManager {
 
   // --- Methods delegated to ViewManager ---
 
-  navigateToView(viewPath: string): void {
+  navigateToView(viewPath: string, options?: { searchable?: boolean }): void {
     logService.info(`[ExtensionManager] Navigating to view: ${viewPath}`);
     const extensionId = viewPath.split('/')[0];
 
     // Delegate usage tracking to state manager
     extensionStateManager.recordViewUsage(extensionId);
 
-    // Delegate to viewManager
-    viewManager.navigateToView(viewPath);
+    // Delegate to viewManager (preserve single-arg call when no options are provided)
+    if (options) {
+      viewManager.navigateToView(viewPath, options);
+    } else {
+      viewManager.navigateToView(viewPath);
+    }
   }
 
   // Renamed from closeView to match interface

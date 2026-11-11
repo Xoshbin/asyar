@@ -5,6 +5,7 @@ import extensionManager from '../../services/extension/extensionManager.svelte';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { contextActivationId } from '../../services/context/contextModeService.svelte';
 import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
+import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
 import type { LauncherState } from './launcherState.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import type { ContextHint, ActiveContext } from '../../services/context/contextModeService.svelte';
@@ -67,7 +68,7 @@ export function setupSearchEffects(state: LauncherState) {
       extensionManager.handleViewSearch(state.localSearchValue);
     }
     contextModeService.contextHint = nextContextHint({
-      activeViewActive: !!state.activeViewVal,
+      activeViewActive: !!state.activeViewVal || !!preferencesPromptStore.active,
       localSearchValue: state.localSearchValue ?? '',
       activeContext: state.activeContext ?? null,
       computeHint: (text) => contextModeService.getHint(text),

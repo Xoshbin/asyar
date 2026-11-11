@@ -15,6 +15,7 @@ interface PreferencesPromptState {
   extensionId: string;
   commandId: string;
   commandObjectId: string;
+  commandArgs?: Record<string, any>;
   missing: PreferenceDeclaration[];
 }
 

@@ -173,13 +173,17 @@ VS Code's architecture has a strict process boundary: the renderer process (UI),
 
 ## Principle 4: Anti-Patterns to Reject
 
-### Never Pass Raw UI Components to Extensions
+### Never Pass Raw UI Components or Ship a UI Widget Kit in `asyar-sdk`
 
 Early extensible platforms tried passing DOM access or UI framework components directly to extensions. This tightly couples extensions to the host's internal framework and breaks constantly when the host upgrades.
 
-**Asyar's correct approach:** Tier 2 extensions get sandboxed iframes for visual presentation (`role: 'view'`) and off-main-thread worker contexts for headless compute (`role: 'worker'`), communicating through typed IPC. They cannot touch the host's DOM or internal Svelte components. This is exactly how VS Code's Webview and Extension Host APIs work — extension views provide HTML content rendered in a sandboxed frame, while extension logic runs off the UI thread without accessing the host renderer DOM.
+The inverse trap is shipping an interactive Web Component widget library (`<asyar-select>`, `<asyar-button>`, `<asyar-input>`, `asyar-sdk/src/components/`, etc.) inside `asyar-sdk`. Because Tier 2 extensions bundle `asyar-sdk` into their own build, any UI widget exported by `asyar-sdk` freezes at build time inside published Store extensions, drifts away from launcher upgrades under `09-beta-compatibility-and-deprecation.md`, creates `@vscode/webview-ui-toolkit`-style maintenance drag, and clips inside the `750 × 384` view iframe.
 
-**For data-driven UI (like lists and trees):** Use declarative data structures. The extension provides data (title, icon, description, actions); the host renders it in the standard UI. This is the pattern behind `ExtensionResult[]` returned from `search()` — the extension describes results, the host renders them in `ResultsList`.
+**Asyar's correct approach (VS Code Webview + Extension Host model):**
+
+- Tier 2 extensions get sandboxed iframes for visual presentation (`role: 'view'`) and off-main-thread worker contexts for headless compute (`role: 'worker'`), communicating through typed IPC. They cannot touch the host's DOM or internal Svelte components.
+- Inside `asyar-sdk`, extensions receive **only** typed service proxies/contracts, host-pushed CSS design tokens (`tokens.css` / `asyar:theme:variables` / fonts), and `<asyar-icon>` (the SVG icon registry wrapper — the sole custom element, and **not** an interactive form/layout widget).
+- **For structured, uniform UI (lists, arguments, preferences, accessories, actions):** Use host-owned declarative data/IPC surfaces (`ExtensionResult[]`, `manifest.json` `arguments` and `preferences` → `RequiredPreferencesView`, `searchBarAccessory`, `ActionService` `primary: true` + shortcuts). Custom `role: 'view'` panels render their own HTML/framework controls styled with `tokens.css`.
 
 For the specific design tokens, components, and styling rules that apply to both host and extension UI, see the **design-language** skill.
 

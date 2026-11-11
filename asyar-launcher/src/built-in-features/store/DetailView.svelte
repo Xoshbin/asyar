@@ -9,8 +9,9 @@
     StatusDot,
     Badge,
     WarningBanner,
-    Button,
   } from '../../components';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { nameToGradient, storeIconSrc } from '../../lib/extensionAvatar';
 
@@ -61,7 +62,8 @@
 
   let extensionDetail = $state<ExtensionDetail | null>(null);
   let isLoading = $state(true);
-  let isInstalled = $state(false);
+  let isInstalled = $state<boolean | null>(null);
+  let installationCheck = 0;
   let error = $state<string | null>(null);
 
   let readmeHtml = $derived(
@@ -133,16 +135,42 @@
       storeExtension.notifyInstalledStateChanged(false, undefined);
       return;
     }
+    const check = ++installationCheck;
+    const slug = currentSlug;
+    isInstalled = null;
     try {
-      const installedPaths = await commands.listInstalledExtensions().catch(() => []);
+      const installedPaths = await commands.listInstalledExtensions();
+      if (
+        check !== installationCheck ||
+        slug !== currentSlug ||
+        extensionDetail?.id !== extensionId
+      )
+        return;
       isInstalled = installedPaths.some(
         (p) => p.endsWith(`/${extensionId}`) || p.endsWith(`\\${extensionId}`) || p === extensionId,
       );
       storeExtension.notifyInstalledStateChanged(isInstalled, extensionId);
     } catch (e) {
       logService?.error(`Failed to check installed status: ${e}`);
-      isInstalled = false;
-      storeExtension.notifyInstalledStateChanged(false, undefined);
+      if (
+        check !== installationCheck ||
+        slug !== currentSlug ||
+        extensionDetail?.id !== extensionId
+      )
+        return;
+      isInstalled = null;
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: true,
+        context: { message: t('features.store.ui.installation_status_failed') },
+        developerDetail: String(e),
+        retryActionId: feedbackService.registerRetry(async () => {
+          if (slug === currentSlug && extensionDetail?.id === extensionId)
+            await checkIsInstalled(extensionId);
+        }),
+      });
     }
   }
 
@@ -173,6 +201,8 @@
   async function fetchExtensionDetails(slug: string) {
     logService.debug(`[DetailView] fetchExtensionDetails START for slug: ${slug}`); // Log start
     isLoading = true;
+    isInstalled = null;
+    installationCheck += 1;
     error = null;
     extensionDetail = null;
     logService?.info(`Fetching details for slug: ${slug}`);
@@ -182,23 +212,26 @@
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
+      if (slug !== currentSlug) return;
       extensionDetail = data.data || data; // Handle both wrapped and direct JSON objects
       logService.debug(
         `[DetailView] Successfully fetched and parsed data: ${JSON.stringify(extensionDetail)}`,
       ); // Log success and data
       logService?.info(`Fetched details for ${extensionDetail?.name}`);
     } catch (e: any) {
+      if (slug !== currentSlug) return;
       logService.error(`[DetailView] Fetch error: ${e}`); // Log fetch errors
       logService?.error(`Failed to fetch extension details: ${e.message}`);
       error = `Failed to load details: ${e.message}`;
     } finally {
+      if (slug !== currentSlug) return;
       isLoading = false;
       logService.debug(`[DetailView] fetchExtensionDetails FINALLY. isLoading set to false.`); // Log end
     }
   }
 
   async function installExtension() {
-    if (!extensionDetail || !currentSlug) return;
+    if (!extensionDetail || !currentSlug || isInstalled !== false) return;
     if (!isSdkCompatibleWithHost) {
       feedbackService.report({
         source: 'frontend',
@@ -288,6 +321,136 @@
       logService?.error(`Failed to open preferences in settings: ${msg}`);
     }
   }
+
+  $effect(() => {
+    const detail = extensionDetail;
+    const installed = isInstalled;
+    const update = availableUpdate;
+    const primary = primaryCommand;
+    const cmds = declaredCommands;
+    const hasPrefs = declaredPreferences.length > 0;
+    const compatible = isSdkCompatibleWithHost;
+    const theme = isTheme;
+
+    const registeredIds: string[] = [];
+
+    if (!detail) {
+      actionService.unregisterAction('store:detail-primary');
+      actionService.unregisterAction('store:detail-configure');
+      actionService.unregisterAction('store:detail-uninstall');
+      return;
+    }
+
+    const uninstallConfig = {
+      label: t('common.uninstall'),
+      icon: 'icon:trash',
+      shortcut: 'Control+X',
+      disabled: false,
+      confirmInExecute: true,
+      destructive: true,
+      execute: () => uninstallExtension(),
+    };
+
+    const primaryConfig =
+      installed && hasUpdate && update
+        ? {
+            label: `Update to v${update.latestVersion}`,
+            icon: 'icon:arrow-up-circle',
+            disabled: false,
+            execute: () => handleUpdate(),
+          }
+        : installed && primary
+          ? {
+              label: `${t('common.run')} ${primary.name}`,
+              icon: primary.icon || '▶️',
+              disabled: false,
+              execute: () => runCommand(primary.id),
+            }
+          : installed && hasPrefs
+            ? {
+                label: t('features.store.ui.configure'),
+                icon: 'icon:settings',
+                disabled: false,
+                execute: () => openPreferences(),
+              }
+            : !installed
+              ? {
+                  label: !compatible
+                    ? `Incompatible (Requires SDK ${detail.asyarSdk})`
+                    : theme
+                      ? t('features.store.act.install')
+                      : t('features.store.act.install'),
+                  icon: 'icon:download',
+                  disabled: installed === null || !compatible,
+                  execute: () => installExtension(),
+                }
+              : uninstallConfig;
+
+    if (primaryConfig) {
+      actionService.registerAction({
+        id: 'store:detail-primary',
+        shortcut: 'Enter',
+        ...primaryConfig,
+        primary: true,
+        category: t('features.store.title'),
+        extensionId: 'store',
+        context: ActionContext.EXTENSION_VIEW,
+      });
+      registeredIds.push('store:detail-primary');
+    } else {
+      actionService.unregisterAction('store:detail-primary');
+    }
+
+    if (installed && hasPrefs) {
+      actionService.registerAction({
+        id: 'store:detail-configure',
+        label: t('features.store.ui.configure'),
+        icon: 'icon:settings',
+        shortcut: 'Mod+Shift+,',
+        category: t('features.store.title'),
+        extensionId: 'store',
+        context: ActionContext.EXTENSION_VIEW,
+        execute: () => openPreferences(),
+      });
+      registeredIds.push('store:detail-configure');
+    } else {
+      actionService.unregisterAction('store:detail-configure');
+    }
+
+    if (installed && (hasUpdate || primary || hasPrefs)) {
+      actionService.registerAction({
+        id: 'store:detail-uninstall',
+        ...uninstallConfig,
+        category: t('features.store.title'),
+        extensionId: 'store',
+        context: ActionContext.EXTENSION_VIEW,
+      });
+      registeredIds.push('store:detail-uninstall');
+
+      for (const cmd of cmds) {
+        if (!hasUpdate && primary && cmd.id === primary.id) continue;
+        const cmdActionId = `store:run-cmd:${cmd.id}`;
+        actionService.registerAction({
+          id: cmdActionId,
+          label: `${t('common.run')} ${cmd.name}`,
+          icon: cmd.icon || '▶️',
+          category: t('features.store.title'),
+          extensionId: 'store',
+          context: ActionContext.EXTENSION_VIEW,
+          execute: () => runCommand(cmd.id),
+        });
+        registeredIds.push(cmdActionId);
+      }
+    } else {
+      actionService.unregisterAction('store:detail-uninstall');
+    }
+
+    return () => {
+      for (const id of registeredIds) {
+        actionService.unregisterAction(id);
+      }
+    };
+  });
 </script>
 
 <div
@@ -349,50 +512,6 @@
             </div>
 
             <div class="flex items-center gap-3 flex-wrap">
-              {#if isInstalled && hasUpdate}
-                <Button class="btn-primary h-10 px-6 font-semibold" onclick={handleUpdate}>
-                  Update to v{availableUpdate?.latestVersion}
-                </Button>
-                <Button class="btn-danger h-10 px-5 font-semibold" onclick={uninstallExtension}>
-                  {t('common.uninstall')}
-                </Button>
-              {:else if isInstalled}
-                {#if primaryCommand}
-                  <Button
-                    class="btn-primary h-10 px-6 font-semibold"
-                    onclick={() => runCommand(primaryCommand.id)}
-                  >
-                    {t('common.run')}
-                    {primaryCommand.name}
-                  </Button>
-                {/if}
-                {#if declaredPreferences.length > 0}
-                  <Button class="btn-secondary h-10 px-4 font-semibold" onclick={openPreferences}>
-                    {t('features.store.ui.configure')}
-                  </Button>
-                {/if}
-                <Button class="btn-danger h-10 px-5 font-semibold" onclick={uninstallExtension}>
-                  {t('common.uninstall')}
-                </Button>
-              {:else}
-                <Button
-                  class="btn-primary h-10 px-6 font-semibold"
-                  disabled={!isSdkCompatibleWithHost}
-                  title={!isSdkCompatibleWithHost
-                    ? `This extension requires Asyar SDK ${extensionDetail?.asyarSdk}. Please update Asyar to install.`
-                    : undefined}
-                  onclick={installExtension}
-                >
-                  {#if !isSdkCompatibleWithHost}
-                    Incompatible (Requires SDK {extensionDetail?.asyarSdk})
-                  {:else if isTheme}
-                    Install Theme
-                  {:else}
-                    Install Extension
-                  {/if}
-                </Button>
-              {/if}
-
               {#if isInstalled && isTheme}
                 <div
                   class="flex items-center gap-2 px-4 py-2 rounded-lg text-caption"
@@ -498,15 +617,6 @@
                             </div>
                           </div>
                         </div>
-
-                        {#if isInstalled}
-                          <Button
-                            class="btn-secondary h-7 px-3 text-caption flex-shrink-0"
-                            onclick={() => runCommand(cmd.id)}
-                          >
-                            {t('common.run')}
-                          </Button>
-                        {/if}
                       </div>
 
                       {#if cmd.description}
@@ -553,11 +663,6 @@
               <section>
                 <div class="flex items-center justify-between mb-4">
                   <h3 class="text-section">{t('features.store.ui.configurable')}</h3>
-                  {#if isInstalled}
-                    <button class="preferences-link" onclick={openPreferences}>
-                      {t('features.store.ui.open_in_settings')}
-                    </button>
-                  {/if}
                 </div>
 
                 <div class="space-y-2">
@@ -715,20 +820,5 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: var(--space-3) var(--space-4);
-  }
-
-  .preferences-link {
-    font-size: var(--font-size-xs);
-    color: var(--accent-primary);
-    background: none;
-    border: none;
-    cursor: default;
-    padding: 0;
-    transition: opacity var(--dur-instant) var(--ease-travel);
-  }
-
-  .preferences-link:hover {
-    opacity: 0.8;
-    text-decoration: underline;
   }
 </style>

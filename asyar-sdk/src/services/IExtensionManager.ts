@@ -34,6 +34,7 @@ export interface IExtensionManager {
    * Allows an active view extension to suggest a primary action label
    * to be displayed in the UI (e.g., in the bottom action bar).
    * @param label The suggested label (e.g., "Paste", "Save"), or null to clear.
+   * @deprecated Use `actionService.registerAction({ ..., primary: true })`. Remove in 0.2.0.
    */
   setActiveViewActionLabel(label: string | null): void;
   /**

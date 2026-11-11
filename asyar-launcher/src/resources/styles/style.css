@@ -775,6 +775,10 @@ html[data-platform='macos'] .app-root {
     bottom: var(--shell-footer-h);
   }
 
+  .shell-content.shell-content--view {
+    overflow-y: hidden;
+  }
+
   /* The launcher's floating surfaces — the ⌘K action popup, the dropdown
      argument list. Defined once so they cannot drift apart; each caller
      supplies only its own position and size. */

@@ -108,6 +108,18 @@ actionService.registerAction(refreshAction);
 | `category`    | `string`                      | ❌       | Group label. Use `ActionCategory` constants for standard groups.                                                                                 |
 | `context`     | `ActionContext`               | ❌       | When this action is visible. Default: always visible.                                                                                            |
 | `shortcut`    | `string`                      | ❌       | Keyboard shortcut, shown in the drawer and bound. See [Action shortcuts](#action-shortcuts).                                                     |
+| `primary`     | `boolean`                     | ❌       | Promotes this action to the view's bottom bar (`↵` / `⌘↵`). Prefer this over inline form buttons.                                                |
+| `disabled`    | `boolean`                     | ❌       | Shows the action in the drawer/bar as disabled and prevents execution.                                                                           |
+
+### Primary actions in views (keyboard-first convention)
+
+Following Raycast conventions, forms and primary view actions belong in the bottom action bar (`primary: true`) rather than standalone inline `<button>` elements:
+
+- **Forms**: Register the submit action with `shortcut: 'Mod+Enter'` and `primary: true` so the bottom bar renders **`Save ⌘ ↵`** (or **`Continue ⌘ ↵`**) even while inputs are focused. `Esc` navigates back or cancels.
+- **Lists & empty states**: Register the default row/CTA action with `shortcut: 'Enter'` and `primary: true`.
+- **Structured pickers & view inputs**: Use host-rendered declarative surfaces (`preferences` in `manifest.json`, command `arguments`, or `searchBarAccessory` in `asyar-sdk/view`) when you want the launcher's built-in searchable dropdowns. Inside custom `role: 'view'` panels, use standard HTML/framework elements styled with `asyar-sdk/tokens.css` rather than expecting UI widget components from `asyar-sdk`.
+
+> ⚠️ **Migration (`0.2.0`):** `IExtensionManager.setActiveViewActionLabel(label)` is deprecated and will be removed in `0.2.0`. Register an `ExtensionAction` with `primary: true` (and `shortcut: 'Enter'` or `'Mod+Enter'`) instead.
 
 ### Action context reference
 

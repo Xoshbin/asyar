@@ -332,6 +332,9 @@ export function buildMappedItems({
             ...extra,
           });
         } catch (err) {
+          if (err instanceof Error && err.name === 'PreferencesRequiredError') {
+            throw err;
+          }
           logService.error(`extensionManager.handleCommandAction failed: ${err}`);
           onError(`Failed to run command ${name}`);
           throw err;

@@ -13,6 +13,7 @@ import { applyCustomLayout, syncLayoutToIndex, removeLayoutFromIndex } from './l
 import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import ManageView from './ManageView.svelte';
 import SwitchWindowsView from './SwitchWindowsView.svelte';
+import RenameLayoutView from './RenameLayoutView.svelte';
 import {
   type Extension,
   type ExtensionContext,
@@ -206,19 +207,25 @@ class WindowManagementExtension implements Extension {
   private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
 
   async viewActivated(viewPath: string): Promise<void> {
-    this.inView = true;
     if (viewPath === 'window-management/ManageView') {
+      this.inView = true;
       if (typeof window !== 'undefined') {
         window.removeEventListener('keydown', this.handleKeydownBound);
         window.addEventListener('keydown', this.handleKeydownBound);
       }
       this.registerManageActions();
       this.extensionManager?.setActiveViewActionLabel('Apply');
+    } else {
+      this.inView = false;
     }
     logService.debug(`[WindowManagement] View activated: ${viewPath}`);
   }
 
   async viewDeactivated(viewPath: string): Promise<void> {
+    if (viewPath === 'window-management/RenameLayoutView') {
+      windowManagementState.clearRename();
+      return;
+    }
     this.inView = false;
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound);
@@ -312,4 +319,4 @@ registerBuiltinSearchProvider({
   execute: (id, payload) => extension.executeSearchResult(id, payload),
 });
 export default extension;
-export { ManageView, SwitchWindowsView };
+export { ManageView, SwitchWindowsView, RenameLayoutView };

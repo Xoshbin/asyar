@@ -46,6 +46,7 @@ vi.mock('../../services/action/actionService.svelte', () => ({
 }));
 
 vi.mock('./DefaultView.svelte', () => ({ default: {} }));
+vi.mock('./PortalForm.svelte', () => ({ default: {} }));
 
 import portalsExtension, { portalsUiState } from './index.svelte';
 import { syncPortalToIndex, removePortalFromIndex } from './portalLifecycle';
@@ -87,8 +88,25 @@ describe('PortalsExtension', () => {
 
     await portalsExtension.viewDeactivated('portals/DefaultView');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('portals:new-portal');
-    expect(portalsUiState.openMode).toBe('list');
+    expect(portalsUiState.formMode).toBe('create');
+    expect(portalsUiState.editingPortal).toBeNull();
     expect(portalsUiState.selectedIndex).toBe(-1);
+  });
+
+  it('pushes portals/PortalFormView with searchable: false on portals:new-portal action', async () => {
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+    const navSpy = vi.spyOn(viewManager, 'navigateToView').mockImplementation(() => {});
+
+    await portalsExtension.viewActivated('portals/DefaultView');
+    const newAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find(([c]) => c.id === 'portals:new-portal')?.[0];
+
+    await newAction?.execute();
+
+    expect(portalsUiState.formMode).toBe('create');
+    expect(navSpy).toHaveBeenCalledWith('portals/PortalFormView', { searchable: false });
+    navSpy.mockRestore();
   });
 
   it('unindexes portals and resets view state on deactivate', async () => {
@@ -96,7 +114,8 @@ describe('PortalsExtension', () => {
 
     expect(actionService.unregisterAction).toHaveBeenCalledWith('portals:new-portal');
     expect(removePortalFromIndex).toHaveBeenCalledWith('p1');
-    expect(portalsUiState.openMode).toBe('list');
+    expect(portalsUiState.formMode).toBe('create');
+    expect(portalsUiState.editingPortal).toBeNull();
     expect(portalsUiState.selectedIndex).toBe(-1);
   });
 

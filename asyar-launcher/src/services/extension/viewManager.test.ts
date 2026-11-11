@@ -131,6 +131,30 @@ describe('navigateToView', () => {
     expect(viewManager.activeView).toBe('ext-a/ViewOne');
   });
 
+  it('allows overriding searchable: false on a pushed view and restores parent searchable + query on goBack', () => {
+    initWithManifests([makeManifest({ id: 'snippets', searchable: true })]);
+    searchStores.query = 'snip';
+    viewManager.navigateToView('snippets/DefaultView');
+    expect(viewManager.activeViewSearchable).toBe(true);
+
+    // User searches inside Snippets list before drilling down to the form
+    searchStores.query = 'email';
+    viewManager.navigateToView('snippets/SnippetFormView', { searchable: false });
+    expect(viewManager.activeView).toBe('snippets/SnippetFormView');
+    expect(viewManager.activeViewSearchable).toBe(false);
+    expect(searchStores.query).toBe('');
+
+    viewManager.goBack();
+    expect(viewManager.activeView).toBe('snippets/DefaultView');
+    expect(viewManager.activeViewSearchable).toBe(true);
+    expect(searchStores.query).toBe('email');
+
+    // Second goBack returns to root main search with original main query
+    viewManager.goBack();
+    expect(viewManager.activeView).toBeNull();
+    expect(searchStores.query).toBe('snip');
+  });
+
   it('skips duplicate push when the same view is already top of stack (idempotency guard)', () => {
     // Many built-in extensions call navigateToView() in executeCommand AND
     // return { type: 'view' }, causing handleCommandAction to push again.
@@ -546,7 +570,20 @@ describe('module resolver forwarding', () => {
       expect(tier1Module.viewDeactivated).toHaveBeenCalledWith('calc/DefaultView');
     });
 
-    it('calls viewActivated on previous view when popping within an extension', () => {
+    it('calls viewDeactivated on the parent view when pushing a child view within an extension', () => {
+      const tier1ModuleA = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
+      const modules = new Map<string, unknown>([['ext-a', tier1ModuleA]]);
+      initWithResolver([makeManifest({ id: 'ext-a' })], modules);
+      viewManager.navigateToView('ext-a/ViewOne');
+      vi.clearAllMocks();
+
+      viewManager.navigateToView('ext-a/ViewTwo');
+
+      expect(tier1ModuleA.viewDeactivated).toHaveBeenCalledWith('ext-a/ViewOne');
+      expect(tier1ModuleA.viewActivated).toHaveBeenCalledWith('ext-a/ViewTwo');
+    });
+
+    it('calls viewActivated on previous view and viewDeactivated on popped view when popping within an extension', () => {
       const tier1ModuleA = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
       const modules = new Map<string, unknown>([['ext-a', tier1ModuleA]]);
       initWithResolver([makeManifest({ id: 'ext-a' })], modules);
@@ -556,6 +593,7 @@ describe('module resolver forwarding', () => {
 
       viewManager.goBack();
 
+      expect(tier1ModuleA.viewDeactivated).toHaveBeenCalledWith('ext-a/ViewTwo');
       expect(tier1ModuleA.viewActivated).toHaveBeenCalledWith('ext-a/ViewOne');
     });
   });

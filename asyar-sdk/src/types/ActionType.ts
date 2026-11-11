@@ -51,6 +51,13 @@ export interface ExtensionAction {
    * is ignored (the action still registers) and the launcher logs a warning.
    */
   shortcut?: string;
+  /**
+   * Marks this action as the view's primary action shown in the bottom action bar
+   * with its shortcut keycap (e.g. `⌘ ↵` for forms or `↵` for lists).
+   */
+  primary?: boolean;
+  /** Disables keyboard dispatch and bottom-bar invocation while visible. */
+  disabled?: boolean;
   /** Renders in the launcher's danger color. Independent of `confirm`. */
   destructive?: boolean;
 }

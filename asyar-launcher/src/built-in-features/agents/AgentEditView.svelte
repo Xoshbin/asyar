@@ -1,8 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Textarea, EmptyState, PlaceholderPicker, ModelSelector } from '../../components';
+  import {
+    Textarea,
+    EmptyState,
+    PlaceholderPicker,
+    ModelSelector,
+    FormView,
+    SearchableSelect,
+    Button,
+    Input,
+  } from '../../components';
   import { agentsManager } from './agentsManager.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
   import {
     agentsEditorLoad,
@@ -23,8 +34,6 @@
   import type { ModelInfo, ProviderId } from '../../services/ai/IProviderPlugin';
   import { extractErrorMessage } from '../../lib/errors';
   import ToolPickerTree from './ToolPickerTree.svelte';
-  import Button from '../../components/base/Button.svelte';
-  import Input from '../../components/base/Input.svelte';
   import { fetchPlaceholders } from '../../lib/placeholders/placeholderResolver';
   import { formatEditorToolsUnavailableWarning } from './agentChatView.helpers';
 
@@ -259,12 +268,93 @@
       pickerOpen = true;
     }
   }
+
+  const providerOptions = $derived(providers.map((p) => ({ value: p.id, label: p.name })));
+  const inputSourceOptions = $derived([
+    { value: 'argument', label: t('features.agents.edit.input_argument') },
+    { value: 'selection', label: t('features.agents.edit.input_selection') },
+    { value: 'clipboard', label: t('features.agents.edit.input_clipboard') },
+    { value: 'none', label: t('features.agents.edit.input_none') },
+    { value: 'shortcodeMiss', label: t('features.agents.edit.input_shortcode') },
+  ]);
+  const outputActionOptions = $derived([
+    { value: 'replaceSelection', label: t('features.agents.edit.out_replace') },
+    { value: 'paste', label: t('features.agents.edit.out_paste') },
+    { value: 'copy', label: t('features.agents.edit.out_copy') },
+    { value: 'hud', label: t('features.agents.edit.out_hud') },
+  ]);
+
+  $effect(() => {
+    const pid = form?.providerId;
+    if (!pid) {
+      actionService.unregisterAction('agents:refresh-models');
+      return;
+    }
+    actionService.registerAction({
+      id: 'agents:refresh-models',
+      label: t('common.refresh'),
+      icon: 'icon:refresh',
+      shortcut: 'Mod+R',
+      category: t('categories.agents'),
+      extensionId: 'agents',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: () => fetchModelsForProvider(pid),
+    });
+    return () => {
+      actionService.unregisterAction('agents:refresh-models');
+    };
+  });
+
+  $effect(() => {
+    if (!editAgentId || !form?.silent || !form?.cacheResponses || cachedItems.length === 0) {
+      actionService.unregisterAction('agents:clear-cache');
+      return;
+    }
+    actionService.registerAction({
+      id: 'agents:clear-cache',
+      label: t('features.agents.edit.clear_cache'),
+      icon: 'icon:trash',
+      shortcut: 'Control+Shift+X',
+      confirm: true,
+      destructive: true,
+      category: t('categories.agents'),
+      extensionId: 'agents',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: () => clearCache(),
+    });
+    return () => {
+      actionService.unregisterAction('agents:clear-cache');
+    };
+  });
+
+  $effect(() => {
+    actionService.registerAction({
+      id: 'agents:insert-placeholder',
+      label: t('features.portals.ui.insert_placeholder'),
+      icon: 'icon:code',
+      shortcut: 'Mod+Shift+P',
+      category: t('categories.agents'),
+      extensionId: 'agents',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: () => openPickerViaButton(),
+    });
+    return () => {
+      actionService.unregisterAction('agents:insert-placeholder');
+    };
+  });
 </script>
 
-<div class="agent-edit-view">
-  <header class="agent-edit-header">
-    <h2>{editAgentId ? 'Edit agent' : 'New agent'}</h2>
-  </header>
+<FormView
+  actionId="agents:save"
+  submitLabel={saving ? t('features.agents.edit.saving') : t('common.save')}
+  extensionId="agents"
+  category={t('categories.agents')}
+  submitDisabled={saving || !form}
+  onsubmit={onSave}
+>
+  {#snippet header()}
+    <h2 class="agent-edit-heading">{editAgentId ? 'Edit agent' : 'New agent'}</h2>
+  {/snippet}
 
   {#if form}
     {@const activeForm = form}
@@ -334,12 +424,12 @@
             {t('features.agents.edit.no_providers')}
           </p>
         {:else}
-          <select id="agent-provider" class="field-select" bind:value={activeForm.providerId}>
-            <option value="">{t('features.agents.edit.select')}</option>
-            {#each providers as p (p.id)}
-              <option value={p.id}>{p.name}</option>
-            {/each}
-          </select>
+          <SearchableSelect
+            id="agent-provider"
+            options={providerOptions}
+            placeholder={t('features.agents.edit.select')}
+            bind:value={activeForm.providerId}
+          />
         {/if}
       </div>
 
@@ -356,9 +446,6 @@
           >
         {:else if modelsForProvider.length === 0}
           <p class="field-hint">{t('features.agents.edit.no_models')}</p>
-          <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}
-            >{t('common.refresh')}</Button
-          >
         {:else}
           <div class="model-row">
             <ModelSelector
@@ -369,9 +456,6 @@
                 activeForm.modelId = val;
               }}
             />
-            <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}
-              >{t('common.refresh')}</Button
-            >
           </div>
         {/if}
       </div>
@@ -417,18 +501,12 @@
         <label class="field-label" for="agent-input-source"
           >{t('features.agents.edit.input_from')}</label
         >
-        <select
+        <SearchableSelect
           id="agent-input-source"
-          class="field-select"
+          options={inputSourceOptions}
           bind:value={activeForm.inputSource}
           disabled={!activeForm.silent}
-        >
-          <option value="argument">{t('features.agents.edit.input_argument')}</option>
-          <option value="selection">{t('features.agents.edit.input_selection')}</option>
-          <option value="clipboard">{t('features.agents.edit.input_clipboard')}</option>
-          <option value="none">{t('features.agents.edit.input_none')}</option>
-          <option value="shortcodeMiss">{t('features.agents.edit.input_shortcode')}</option>
-        </select>
+        />
       </div>
 
       {#if activeForm.silent && activeForm.inputSource === 'shortcodeMiss'}
@@ -451,17 +529,12 @@
       <div class="form-field" class:disabled={!activeForm.silent}>
         <label class="field-label" for="agent-output-action">{t('features.agents.edit.then')}</label
         >
-        <select
+        <SearchableSelect
           id="agent-output-action"
-          class="field-select"
+          options={outputActionOptions}
           bind:value={activeForm.outputAction}
           disabled={!activeForm.silent}
-        >
-          <option value="replaceSelection">{t('features.agents.edit.out_replace')}</option>
-          <option value="paste">{t('features.agents.edit.out_paste')}</option>
-          <option value="copy">{t('features.agents.edit.out_copy')}</option>
-          <option value="hud">{t('features.agents.edit.out_hud')}</option>
-        </select>
+        />
       </div>
 
       {#if activeForm.silent}
@@ -515,26 +588,12 @@
       {#if validationError}
         <p class="field-error">{validationError}</p>
       {/if}
-
-      <div class="agent-edit-actions">
-        <Button onclick={onCancel} disabled={saving}>{t('common.cancel')}</Button>
-        <Button onclick={onSave} disabled={saving}
-          >{saving ? t('features.agents.edit.saving') : t('common.save')}</Button
-        >
-      </div>
     </div>
   {/if}
-</div>
+</FormView>
 
 <style>
-  .agent-edit-view {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-4);
-  }
-
-  .agent-edit-header h2 {
+  .agent-edit-heading {
     margin: 0;
     font-size: var(--font-size-md);
     font-weight: 600;
@@ -578,18 +637,6 @@
     border-color: var(--accent-primary);
   }
 
-  .field-select {
-    padding: var(--space-2);
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    font-size: var(--font-size-sm);
-    width: 100%;
-    box-sizing: border-box;
-    cursor: default;
-  }
-
   .field-error {
     font-size: var(--font-size-xs);
     color: var(--accent-danger);
@@ -616,12 +663,6 @@
     flex: 1;
   }
 
-  .agent-edit-actions {
-    display: flex;
-    gap: var(--space-2);
-    justify-content: flex-end;
-  }
-
   .silent-toggle {
     display: flex;
     align-items: center;
@@ -638,10 +679,6 @@
   .form-field.disabled {
     opacity: 0.5;
     pointer-events: none;
-  }
-
-  .field-select:disabled {
-    cursor: default;
   }
 
   .cache-manager {

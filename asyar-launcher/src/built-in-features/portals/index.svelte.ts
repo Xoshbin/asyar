@@ -1,16 +1,34 @@
 import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 import DefaultView from './DefaultView.svelte';
-import { portalStore } from './portalStore.svelte';
+import PortalForm from './PortalForm.svelte';
+import { portalStore, type Portal } from './portalStore.svelte';
 import { openUrl } from '../../lib/ipc/commands';
 import { actionService } from '../../services/action/actionService.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { syncPortalToIndex, removePortalFromIndex } from './portalLifecycle';
 import { resolveTemplate } from '../../lib/placeholders';
 
 class PortalsUiState {
-  openMode = $state<'list' | 'new'>('list');
   selectedIndex = $state<number>(-1);
+  formMode = $state<'create' | 'edit'>('create');
+  editingPortal = $state<Portal | null>(null);
+
+  startCreate() {
+    this.formMode = 'create';
+    this.editingPortal = null;
+  }
+
+  startEdit(portal: Portal) {
+    this.formMode = 'edit';
+    this.editingPortal = portal;
+  }
+
+  clearDraft() {
+    this.formMode = 'create';
+    this.editingPortal = null;
+  }
 }
 export const portalsUiState = new PortalsUiState();
 
@@ -43,9 +61,9 @@ class PortalsExtension implements Extension {
     }
   }
 
-  async viewActivated(_viewId: string): Promise<void> {
+  async viewActivated(viewId: string): Promise<void> {
+    if (viewId !== 'portals/DefaultView') return;
     this.inView = true;
-    portalsUiState.selectedIndex = -1;
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound);
       window.addEventListener('keydown', this.handleKeydownBound);
@@ -53,14 +71,20 @@ class PortalsExtension implements Extension {
     this.registerViewActions();
   }
 
-  async viewDeactivated(_viewId: string): Promise<void> {
+  async viewDeactivated(viewId: string): Promise<void> {
+    if (viewId === 'portals/PortalFormView') {
+      portalsUiState.clearDraft();
+      return;
+    }
     this.inView = false;
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound);
     }
     this.unregisterViewActions();
-    portalsUiState.openMode = 'list';
-    portalsUiState.selectedIndex = -1;
+    if (!viewManager.isViewInStack('portals/DefaultView')) {
+      portalsUiState.clearDraft();
+      portalsUiState.selectedIndex = -1;
+    }
   }
 
   private handleKeydown(event: KeyboardEvent) {
@@ -90,7 +114,8 @@ class PortalsExtension implements Extension {
       extensionId: 'portals',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
-        portalsUiState.openMode = 'new';
+        portalsUiState.startCreate();
+        viewManager.navigateToView('portals/PortalFormView', { searchable: false });
       },
     });
   }
@@ -112,7 +137,7 @@ class PortalsExtension implements Extension {
       window.removeEventListener('keydown', this.handleKeydownBound);
     }
     this.unregisterViewActions();
-    portalsUiState.openMode = 'list';
+    portalsUiState.clearDraft();
     portalsUiState.selectedIndex = -1;
     const portals = portalStore.portals;
     for (const portal of portals) {
@@ -122,4 +147,4 @@ class PortalsExtension implements Extension {
 }
 
 export default new PortalsExtension();
-export { DefaultView };
+export { DefaultView, PortalForm as PortalFormView };

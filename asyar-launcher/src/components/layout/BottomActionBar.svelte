@@ -3,9 +3,11 @@
     actionService,
     type ApplicationAction,
   } from '../../services/action/actionService.svelte';
+  import { invokeAction } from '../../services/action/invokeAction';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
+  import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
   import BottomBarButton from './BottomBarButton.svelte';
@@ -55,9 +57,13 @@
     })),
   );
 
-  // Inside an extension view the bottom-left shows the active extension;
-  // diagnostics take precedence when present.
+  // Inside an extension view (or required-preferences prompt) the bottom-left
+  // shows the active extension; diagnostics take precedence when present.
   let activeViewManifest = $derived.by(() => {
+    const promptExtId = preferencesPromptStore.active?.extensionId;
+    if (promptExtId) {
+      return extensionManager.getManifestById(promptExtId) ?? null;
+    }
     const view = viewManager.activeView;
     if (!view) return null;
     const extensionId = view.split('/')[0];
@@ -82,6 +88,26 @@
 
   let isUpdateReady = $derived(appUpdateState.phase === 'ready');
   let readyVersion = $derived(appUpdateState.pendingVersion);
+
+  let viewPrimaryAction = $derived<ApplicationAction | null>(
+    actionService.activeViewPrimaryAction ?? null,
+  );
+  let effectiveViewLabel = $derived(
+    viewPrimaryAction?.label ?? viewManager.activeViewPrimaryActionLabel,
+  );
+  let effectiveViewShortcut = $derived(
+    viewPrimaryAction
+      ? (viewPrimaryAction.shortcut ?? null)
+      : viewManager.activeViewPrimaryActionLabel
+        ? 'Enter'
+        : null,
+  );
+  let effectiveViewDisabled = $derived(Boolean(viewPrimaryAction?.disabled));
+
+  function handlePrimaryActionClick() {
+    if (!viewPrimaryAction || viewPrimaryAction.disabled) return;
+    void invokeAction(viewPrimaryAction, { reportSuccess: false });
+  }
 
   async function handleRestart() {
     await appRelaunch();
@@ -144,11 +170,14 @@
     {/if}
 
     <PrimaryActionDisplay
-      selectedItem={viewManager.activeView ? null : selectedItem}
-      activeViewLabel={viewManager.activeViewPrimaryActionLabel}
+      selectedItem={viewManager.activeView || effectiveViewLabel ? null : selectedItem}
+      activeViewLabel={effectiveViewLabel}
+      activeViewShortcut={effectiveViewShortcut}
+      disabled={effectiveViewDisabled}
+      onclick={viewPrimaryAction ? handlePrimaryActionClick : undefined}
     />
 
-    {#if (viewManager.activeView ? null : selectedItem) || viewManager.activeViewPrimaryActionLabel}
+    {#if (viewManager.activeView || effectiveViewLabel ? null : selectedItem) || effectiveViewLabel}
       <span aria-hidden="true" class="bottom-bar-separator"></span>
     {/if}
 

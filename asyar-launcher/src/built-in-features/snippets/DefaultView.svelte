@@ -1,10 +1,8 @@
 <script lang="ts">
-  import { Input, Textarea } from '../../components';
-  import { onMount } from 'svelte';
-  import { snippetStore, type Snippet } from './snippetStore.svelte';
-  import { snippetService, enabledPersistence, processSnippetExpansion } from './snippetService';
-  import { snippetUiState } from './snippetUiState.svelte';
+  import { onMount, untrack } from 'svelte';
+  import { snippetService, enabledPersistence } from './snippetService';
   import { snippetViewState } from './snippetViewState.svelte';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import {
     SplitListDetail,
     LauncherListRow,
@@ -13,95 +11,24 @@
     MetadataList,
     EmptyState,
     WarningBanner,
-    FormField,
     Button,
-    PlaceholderPicker,
-    Toggle,
   } from '../../components';
-  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
-  import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
 
   let permissionGranted = $state(true);
-  let prefillExpansion = $state<string | null>(null);
-
-  // Watch clipboard-history integration trigger
-  $effect(() => {
-    if (snippetUiState.editorTrigger === 'add') {
-      prefillExpansion = snippetUiState.prefillExpansion;
-      snippetUiState.editorTrigger = null;
-      snippetUiState.prefillExpansion = null;
-      snippetViewState.startCreate();
-    }
-  });
-
-  // Inline form state
-  let formName = $state('');
-  let formKeyword = $state('');
-  let formExpansion = $state('');
-  let formIsPrivate = $state(false);
-  let formError = $state<string | null>(null);
-  let formId = $state('');
-
-  let pickerOpen = $state(false);
-  let triggerCursorPos = $state(-1);
-  let formExpansionEl: HTMLTextAreaElement | undefined = $state();
-
-  function handleExpansionInput(e: Event) {
-    const input = e.target as HTMLTextAreaElement;
-    const cursorPos = input.selectionStart ?? input.value.length;
-    const charBefore = input.value[cursorPos - 1];
-    if (charBefore === '{') {
-      triggerCursorPos = cursorPos;
-      pickerOpen = true;
-    }
-  }
-
-  function openPickerViaButton() {
-    triggerCursorPos = -1;
-    pickerOpen = true;
-    formExpansionEl?.focus();
-  }
-
-  function handleInsert(token: string) {
-    if (!formExpansionEl) return;
-    formExpansionEl.focus();
-    if (triggerCursorPos > 0) {
-      const replaceStart = triggerCursorPos - 1;
-      const replaceEnd = triggerCursorPos;
-      formExpansionEl.setRangeText('{' + token + '}', replaceStart, replaceEnd, 'end');
-    } else {
-      const start = formExpansionEl.selectionStart ?? formExpansionEl.value.length;
-      const end = formExpansionEl.selectionEnd ?? formExpansionEl.value.length;
-      formExpansionEl.setRangeText('{' + token + '}', start, end, 'end');
-    }
-    formExpansion = formExpansionEl.value;
-  }
-
-  // Sync form fields when mode or editingSnippet changes
-  $effect(() => {
-    if (snippetViewState.mode === 'create') {
-      formName = '';
-      formKeyword = '';
-      formExpansion = prefillExpansion ?? '';
-      formIsPrivate = false;
-      formError = null;
-      formId = crypto.randomUUID();
-    } else if (snippetViewState.mode === 'edit' && snippetViewState.editingSnippet) {
-      const s = snippetViewState.editingSnippet;
-      formName = s.name;
-      formKeyword = s.keyword ?? '';
-      formExpansion = s.expansion;
-      formIsPrivate = s.isPrivate ?? false;
-      formError = null;
-      formId = s.id;
-    }
-  });
 
   let filteredSnippets = $derived(snippetViewState.getFilteredSnippets());
   let selectedIndex = $derived(snippetViewState.selectedIndex);
   let selectedSnippet = $derived(snippetViewState.selectedSnippet);
+
+  // Keep filteredActions and the bottom bar primary action synchronized when
+  // snippet list length or selection changes (visible() predicates).
+  $effect(() => {
+    filteredSnippets.length;
+    selectedSnippet?.id;
+    untrack(() => actionService.refreshFiltered());
+  });
 
   const dateFormat = new Intl.DateTimeFormat('en-US', {
     month: 'long',
@@ -116,90 +43,9 @@
     await snippetService.setEnabled(currentEnabled && permissionGranted);
   });
 
-  async function handleSave() {
-    if (!formName.trim()) {
-      formError = 'Name is required.';
-      return;
-    }
-    if (!formExpansion.trim()) {
-      formError = 'Expansion is required.';
-      return;
-    }
-    if (formKeyword.trim() && /[A-Z]/.test(formKeyword)) {
-      formError = 'Keyword must be lowercase.';
-      return;
-    }
-    const isDuplicate =
-      formKeyword.trim() &&
-      snippetStore.getAll().some((s) => s.keyword === formKeyword.trim() && s.id !== formId);
-    if (isDuplicate) {
-      formError = 'Keyword is already in use.';
-      return;
-    }
-
-    const { expansion: processedExpansion, redactedKinds } =
-      await processSnippetExpansion(formExpansion);
-    const payload: Snippet = {
-      id: formId,
-      name: formName.trim(),
-      keyword: formKeyword.trim().toLowerCase(),
-      expansion: processedExpansion,
-      isPrivate: formIsPrivate,
-      createdAt: snippetViewState.editingSnippet?.createdAt ?? Date.now(),
-      redactedKinds,
-    };
-
-    if (snippetViewState.mode === 'edit') {
-      snippetStore.update(formId, payload);
-    } else {
-      snippetStore.add(payload);
-      // Select new snippet
-      await snippetViewState.selectAfterMutation(formId);
-    }
-    await snippetService.syncToRust();
-    prefillExpansion = null;
-    snippetViewState.cancelEdit();
-  }
-
-  $effect(() => {
-    if (snippetViewState.mode !== 'edit' && snippetViewState.mode !== 'create') {
-      actionService.unregisterAction('snippets:save');
-      return;
-    }
-    actionService.registerAction({
-      id: 'snippets:save',
-      label: t('common.save'),
-      icon: 'icon:check',
-      shortcut: 'Mod+S',
-      category: t('categories.snippets'),
-      extensionId: 'snippets',
-      context: ActionContext.EXTENSION_VIEW,
-      execute: () => handleSave(),
-    });
-    return () => {
-      actionService.unregisterAction('snippets:save');
-    };
-  });
-
-  function handleFormKeydown(e: KeyboardEvent) {
-    if (pickerOpen) return;
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      snippetViewState.cancelEdit();
-      prefillExpansion = null;
-    }
-  }
-
-  async function confirmDeleteSnippet(id: string, name: string | null) {
-    const confirmed = await feedbackService.confirmAlert({
-      title: t('features.snippets.delete_confirm_title'),
-      message: `Delete "${name ?? t('features.snippets.this_snippet')}"? This cannot be undone.`,
-      confirmText: t('common.delete'),
-      variant: 'danger',
-    });
-    if (!confirmed) return;
-    snippetStore.remove(id);
-    await snippetService.syncToRust();
+  function openCreateSnippet() {
+    snippetViewState.startCreate();
+    viewManager.navigateToView('snippets/SnippetFormView', { searchable: false });
   }
 
   async function recheckPermission() {
@@ -208,36 +54,7 @@
     const currentEnabled = enabledPersistence.loadSync(true);
     if (permissionGranted && currentEnabled) await snippetService.setEnabled(true);
   }
-
-  function duplicateSnippet(snippet: Snippet) {
-    const newId = crypto.randomUUID();
-    // Make keyword unique: append -copy, then -copy2, -copy3, etc.
-    let newKeyword = snippet.keyword + '-copy';
-    const existing = snippetStore.getAll().map((s) => s.keyword);
-    let i = 2;
-    while (existing.includes(newKeyword)) {
-      newKeyword = snippet.keyword + `-copy${i}`;
-      i++;
-    }
-    return {
-      id: newId,
-      name: snippet.name + ' Copy',
-      keyword: newKeyword,
-      expansion: snippet.expansion,
-      isPrivate: snippet.isPrivate,
-      createdAt: Date.now(),
-    };
-  }
-
-  async function handleDuplicate(snippet: Snippet) {
-    const dup = duplicateSnippet(snippet);
-    snippetStore.add(dup);
-    await snippetService.syncToRust();
-    await snippetViewState.selectAfterMutation(dup.id);
-  }
 </script>
-
-<svelte:window onkeydown={handleFormKeydown} />
 
 <div class="view-container">
   {#if !permissionGranted}
@@ -315,98 +132,7 @@
     {/snippet}
 
     {#snippet detail()}
-      {#if snippetViewState.mode === 'edit' || snippetViewState.mode === 'create'}
-        <!-- Inline form — no modal -->
-        <div class="form-panel">
-          <div class="form-header">
-            <h2 class="form-title">
-              {snippetViewState.mode === 'edit' ? 'Edit Snippet' : 'New Snippet'}
-            </h2>
-          </div>
-          <div class="form-body custom-scrollbar">
-            <FormField label={t('features.snippets.name_label')} id="form-name">
-              <Input
-                unstyled
-                textIntent="natural"
-                id="form-name"
-                class="field-input"
-                type="text"
-                autocomplete="off"
-                bind:value={formName}
-                placeholder={t('features.snippets.ui.name_placeholder')}
-              />
-            </FormField>
-            <FormField
-              label={t('features.snippets.ui.keyword_optional')}
-              id="form-keyword"
-              hint={t('features.snippets.ui.keyword_hint')}
-            >
-              <Input
-                unstyled
-                textIntent="exact"
-                id="form-keyword"
-                class="field-input"
-                type="text"
-                autocomplete="off"
-                bind:value={formKeyword}
-                placeholder="e.g. ;email"
-              />
-            </FormField>
-            <FormField label={t('features.snippets.ui.expansion')} id="form-expansion">
-              <div style="position: relative">
-                <div class="textarea-wrapper">
-                  <Textarea
-                    unstyled
-                    textIntent="verbatim"
-                    id="form-expansion"
-                    class="field-textarea"
-                    autocomplete="off"
-                    bind:value={formExpansion}
-                    bind:ref={formExpansionEl}
-                    oninput={handleExpansionInput}
-                    placeholder="e.g. hello@example.com"
-                    rows="5"
-                  ></Textarea>
-                  <Button
-                    class="picker-toggle"
-                    title={t('features.snippets.ui.insert_placeholder')}
-                    onclick={openPickerViaButton}>{'{ }'}</Button
-                  >
-                </div>
-                {#if pickerOpen}
-                  <PlaceholderPicker onInsert={handleInsert} onClose={() => (pickerOpen = false)} />
-                {/if}
-              </div>
-              <p class="text-caption mt-2">
-                Supported: {`{Selected Text}, {Clipboard Text}, {UUID}, {Date}, {Time}, {Weekday}`}.
-                Custom format supported e.g.
-                <code class="code-inline">{'{Date format="YYYY-MM-DD"}'}</code>.<br />
-                {t('features.snippets.ui.browse_pre')} <code class="code-inline">{'{'}</code>
-                {t('features.snippets.ui.browse_post')}
-              </p>
-            </FormField>
-            <div class="private-toggle-row">
-              <div class="toggle-info">
-                <span class="toggle-label">{t('features.snippets.private_label')}</span>
-                <span class="toggle-hint">{t('features.snippets.private_hint')}</span>
-              </div>
-              <Toggle id="form-is-private" bind:checked={formIsPrivate} />
-            </div>
-            {#if formError}
-              <div class="form-error">{formError}</div>
-            {/if}
-          </div>
-          <div class="form-footer">
-            <Button
-              onclick={() => {
-                snippetViewState.cancelEdit();
-                prefillExpansion = null;
-              }}>{t('common.cancel')}</Button
-            >
-            <Button class="btn-primary" onclick={handleSave}>{t('common.save')}</Button>
-          </div>
-        </div>
-      {:else if selectedSnippet}
+      {#if selectedSnippet}
         <!-- Detail view -->
         <div class="snippet-detail-content custom-scrollbar">
           <div class="detail-header">
@@ -415,14 +141,6 @@
               {#if selectedSnippet.isPrivate}
                 <Badge text={t('features.snippets.private_badge')} variant="warning" />
               {/if}
-            </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <Button class="edit-btn" onclick={() => handleDuplicate(selectedSnippet)}
-                >{t('common.duplicate')}</Button
-              >
-              <Button class="edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}
-                >{t('common.edit')}</Button
-              >
             </div>
           </div>
           {#if selectedSnippet.keyword}
@@ -488,7 +206,7 @@
             </svg>
           {/snippet}
           {#if filteredSnippets.length === 0}
-            <Button class="btn-primary mt-4" onclick={() => snippetViewState.startCreate()}
+            <Button class="btn-primary mt-4" onclick={openCreateSnippet}
               >{t('features.snippets.ui.add_first')}</Button
             >
           {/if}
@@ -547,97 +265,6 @@
     border-radius: var(--radius-sm);
     padding: var(--space-6);
     margin: 0;
-  }
-  :global(.edit-btn) {
-    font-size: var(--font-size-xs);
-    padding: var(--space-1) var(--space-4);
-    flex-shrink: 0;
-  }
-
-  /* Inline form */
-  .form-panel {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-  .form-header {
-    padding: var(--space-7) var(--space-8) 0;
-    flex-shrink: 0;
-  }
-  .form-title {
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 var(--space-6);
-  }
-  .form-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 var(--space-8);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-    padding-bottom: var(--space-6);
-  }
-  .form-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-3);
-    padding: var(--space-5) var(--space-8);
-    border-top: 1px solid var(--separator);
-    flex-shrink: 0;
-  }
-  .form-error {
-    font-size: var(--font-size-sm);
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-sm);
-    color: var(--accent-danger);
-    background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
-  }
-
-  .textarea-wrapper {
-    display: flex;
-    gap: var(--space-3);
-    align-items: flex-start;
-  }
-  :global(.textarea-wrapper .field-textarea) {
-    flex: 1;
-    font-family: var(--font-mono);
-    line-height: 1.5;
-  }
-  :global(.picker-toggle) {
-    flex-shrink: 0;
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-  }
-  .code-inline {
-    background: var(--bg-hover);
-    padding: var(--space-0-5) var(--space-1);
-    border-radius: var(--radius-xs);
-    font-family: var(--font-mono);
-    font-size: 0.9em;
-  }
-  .private-toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-3) 0;
-    border-top: 1px solid var(--separator);
-  }
-  .toggle-info {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-  .toggle-label {
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-  .toggle-hint {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
   }
   .pin-badge {
     color: var(--accent-primary);

@@ -95,6 +95,11 @@ export interface ActionShortcutDispatcher {
    * consumer that only sees raw modifier flags: the Tier 2 iframe forwarder.
    */
   activeChords(): string[];
+  /**
+   * True when a visible, enabled action in the current context declares `Enter`,
+   * so Tier 2 iframes know to forward bare `Enter` from non-interactive areas.
+   */
+  hasEnterCandidate?(): boolean;
 }
 
 /** The ⌘K action panel mounts `.action-popup` for as long as it is open. */
@@ -180,5 +185,11 @@ export function createActionShortcutDispatcher(
     return [...chords];
   }
 
-  return { handle, activeChords };
+  function hasEnterCandidate(): boolean {
+    return deps
+      .getCandidates()
+      .some((a) => actionShortcutMatchesChord(a.shortcut, 'Enter', deps.platform));
+  }
+
+  return { handle, activeChords, hasEnterCandidate };
 }

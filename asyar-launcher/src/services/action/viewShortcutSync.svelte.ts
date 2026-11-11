@@ -33,10 +33,11 @@ export function announceActiveViewShortcuts(opts: { force?: boolean } = {}): voi
   if (isBuiltInFeature(extensionId)) return;
 
   const chords = actionShortcuts.activeChords().sort();
-  const signature = chords.join('|');
+  const enterPrimary = actionShortcuts.hasEnterCandidate?.() ?? false;
+  const signature = `${chords.join('|')}#enter:${enterPrimary ? '1' : '0'}`;
   if (!opts.force && lastSent.get(extensionId) === signature) return;
   lastSent.set(extensionId, signature);
-  extensionIframeManager.sendActionShortcuts(extensionId, chords);
+  extensionIframeManager.sendActionShortcuts(extensionId, chords, enterPrimary);
 }
 
 /** Re-announces on every change of view or of the visible actions. */

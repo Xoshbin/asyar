@@ -141,6 +141,16 @@ describe('StoreExtension lifecycle and commands', () => {
     expect(setActiveViewActionLabel).toHaveBeenCalledWith(null);
   });
 
+  it('leaves detail Enter to the shortcut dispatcher and native links', async () => {
+    await storeExtension.viewActivated('store/DetailView');
+    storeExtension.notifyInstalledStateChanged(false, 'test');
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(actionService.executeAction).not.toHaveBeenCalled();
+    await storeExtension.deactivate();
+  });
+
   it('detail view registers an "Open in Web" action that opens the asyar.org page', async () => {
     const ctx = makeContext({ setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() });
     await storeExtension.initialize(ctx as never);

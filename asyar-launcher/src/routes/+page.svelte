@@ -49,6 +49,8 @@
   import { i18nService } from '../services/i18n';
   import '../resources/styles/style.css';
   import { appListen } from '../lib/ipc/bridgeEvents';
+  import RequiredPreferencesView from '../components/settings/RequiredPreferencesView.svelte';
+  import { preferencesPromptStore } from '../services/extension/preferencesPromptStore.svelte';
 
   // Instantiate the controller
   const controller = new LauncherController();
@@ -56,6 +58,7 @@
   // DOM refs needed for binding (though controller handles elite state)
   let searchInput = $state<HTMLInputElement | null>(null);
   let listContainer = $state<HTMLDivElement | undefined>(undefined);
+  let shellContentEl = $state<HTMLDivElement | null>(null);
   let bottomActionBarInstance = $state<ReturnType<typeof BottomActionBar>>();
   let isActionPanelOpen = $state(false);
   // Bound by SearchHeader when the accessory dropdown is rendered. Task 15
@@ -73,7 +76,8 @@
     getInitialized: () => settingsService.initialized,
     getLaunchView: () => settingsService.currentSettings.appearance.launchView,
     getHideShowMoreBar: () => !!settingsService.currentSettings.appearance.hideCompactShowMore,
-    getActiveView: () => controller.activeViewVal,
+    getActiveView: () =>
+      controller.activeViewVal || (preferencesPromptStore.active ? 'preferences-prompt' : null),
     getActiveContext: () => controller.activeContext,
     getLocalSearchValue: () => controller.localSearchValue,
     getIsSearchLoading: () => controller.isSearchLoadingVal,
@@ -151,6 +155,14 @@
       keyboard.restoreSearchFocus({ select: true });
     }
   }
+
+  // Ensure switching from a scrolled root results list into a full-pane view
+  // starts at scrollTop 0 (each view owns its own internal scroller).
+  $effect(() => {
+    if ((controller.activeViewVal || preferencesPromptStore.active) && shellContentEl) {
+      shellContentEl.scrollTop = 0;
+    }
+  });
 
   // Run controller effects
   $effect(() => {
@@ -307,7 +319,14 @@
   // Ghost argument affordance: the selected result declares arguments, so
   // Tab (or a click on a hint chip) promotes it into argument mode.
   const argumentHint = $derived.by(() => {
-    if (argumentMode || controller.activeViewVal || controller.activeContextChip) return false;
+    if (
+      argumentMode ||
+      controller.activeViewVal ||
+      controller.activeContextChip ||
+      preferencesPromptStore.active
+    ) {
+      return false;
+    }
     // The chips belong to the highlighted row, and compact idle hides the
     // result list entirely, so there is no highlight for them to describe.
     if (isCompactIdle) return false;
@@ -480,19 +499,24 @@
     bind:ref={searchInput}
     bind:accessoryRef
     bind:value={controller.localSearchValue}
-    showBack={!!controller.activeViewVal}
+    showBack={!!controller.activeViewVal || !!preferencesPromptStore.active}
     hideSeparator={isCompactIdle &&
       !!settingsService.currentSettings.appearance.hideCompactShowMore}
-    searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}
-    placeholder={controller.activeViewVal
-      ? controller.activeViewSearchableVal
-        ? 'Search...'
-        : 'Press Escape to go back'
-      : 'Search or type a command...'}
-    activeContext={controller.activeContextChip}
+    searchable={!(
+      (controller.activeViewVal && !controller.activeViewSearchableVal) ||
+      preferencesPromptStore.active
+    )}
+    placeholder={preferencesPromptStore.active
+      ? 'Press Escape to go back'
+      : controller.activeViewVal
+        ? controller.activeViewSearchableVal
+          ? 'Search...'
+          : 'Press Escape to go back'
+        : 'Search or type a command...'}
+    activeContext={preferencesPromptStore.active ? null : controller.activeContextChip}
     activeViewId={controller.activeViewVal}
     bind:contextQuery={controller.contextQuery}
-    contextHint={controller.contextHintChip}
+    contextHint={preferencesPromptStore.active ? null : controller.contextHintChip}
     {argumentMode}
     {argumentHint}
     {argumentHintFields}
@@ -501,7 +525,14 @@
     oninput={(e) => controller.handleSearchInput(e)}
     oncompositionend={(e) => controller.handleSearchCompositionEnd(e)}
     onkeydown={keyboard.handleKeydown}
-    onclick={() => controller.handleBackClick()}
+    onclick={() => {
+      if (preferencesPromptStore.active) {
+        preferencesPromptStore.close();
+        keyboard.restoreSearchFocus({ select: true });
+      } else {
+        controller.handleBackClick();
+      }
+    }}
     oncontextDismiss={() => controller.handleChipDismiss()}
     oncontextQueryChange={(d) => controller.handleContextQueryChange(d)}
     onArgValueChange={(name, v) => commandArgumentsService.setValue(name, v)}
@@ -514,8 +545,22 @@
     onArgExit={() => commandArgumentsService.exit()}
   />
 
-  <div class="shell-content custom-scrollbar">
-    {#if controller.activeViewVal}
+  <div
+    bind:this={shellContentEl}
+    class="shell-content custom-scrollbar"
+    class:shell-content--view={!!controller.activeViewVal || !!preferencesPromptStore.active}
+  >
+    {#if preferencesPromptStore.active}
+      {@const prompt = preferencesPromptStore.active}
+      <RequiredPreferencesView
+        extensionId={prompt.extensionId}
+        commandId={prompt.commandId}
+        commandObjectId={prompt.commandObjectId}
+        commandArgs={prompt.commandArgs}
+        missing={prompt.missing}
+        onClose={() => keyboard.restoreSearchFocus({ select: true })}
+      />
+    {:else if controller.activeViewVal}
       <ExtensionViewContainer activeView={controller.activeViewVal} {extensionManager} />
     {:else if !isCompactIdle}
       <SearchResultsArea

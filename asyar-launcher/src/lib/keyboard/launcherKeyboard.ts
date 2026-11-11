@@ -23,6 +23,8 @@ import { resolveEscapeBehavior } from './escapeBehavior';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 import { quickLookPath } from '../ipc/fileSearchCommands';
 import { openerService } from '../../services/opener/openerService';
+import { actionService } from '../../services/action/actionService.svelte';
+import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
 
 /** Minimal contract the global ⌘P handler needs from the accessory dropdown. */
 export interface AccessoryRefHandle {
@@ -67,16 +69,38 @@ export interface KeyboardDeps {
 }
 
 export function createKeyboardHandlers(deps: KeyboardDeps) {
+  function releaseExtensionIframeFocus() {
+    extensionIframeManager.hasInputFocus = false;
+    if (typeof document === 'undefined') return;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active.tagName === 'IFRAME') {
+      active.blur?.();
+    }
+    if (typeof window !== 'undefined' && typeof window.focus === 'function') {
+      window.focus();
+    }
+  }
+
   function restoreSearchFocus(opts?: { select?: boolean }) {
+    let disabledRetries = 0;
     const focusAndMaybeSelect = () => {
       // Parked launcher (not key): focusing would leave a caret that macOS
       // anchors "Write with Siri" to. The window `focus` /
       // become-key listeners call back in here on reveal.
+      if (opts?.select && isInputFocused() && document.activeElement !== deps.getSearchInput())
+        return;
       if (!document.hasFocus()) return;
       const input = deps.getSearchInput();
-      input?.focus({ preventScroll: true });
+      if (!input) return;
+      if (input.disabled && disabledRetries < 4) {
+        disabledRetries += 1;
+        requestAnimationFrame(focusAndMaybeSelect);
+        return;
+      }
+      if (input.disabled) return;
+      input.focus({ preventScroll: true });
       // Raycast selects the restored query so the next keystroke replaces it.
-      if (opts?.select && input && input.value.length > 0) input.select();
+      if (opts?.select && input.value.length > 0) input.select();
     };
     if (opts?.select) {
       // Restoring text: do it on the next frame so the user sees focus + selection
@@ -138,7 +162,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   function tryEnterArgumentMode(event: KeyboardEvent): boolean {
     if (event.key !== 'Tab') return false;
     if (commandArgumentsService.active) return false;
-    if (deps.getActiveContext() || viewManager.activeView) return false;
+    if (deps.getActiveContext() || viewManager.activeView || preferencesPromptStore.active)
+      return false;
     // Compact idle hides the result list, so there is nothing selected to
     // promote — Tab belongs to the context hint (Ask AI) there. Selection is
     // cleared for the same reason (see selectionEffects); this keeps a stale
@@ -179,7 +204,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       event.key === 'Tab' &&
       deps.getContextHint() !== null &&
       !deps.getActiveContext() &&
-      !viewManager.activeView
+      !viewManager.activeView &&
+      !preferencesPromptStore.active
     ))
       return false;
     // Argument mode owns Tab — don't let the AI default steal it.
@@ -211,6 +237,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     event.preventDefault();
     if (viewManager.activeView) {
       deps.handleContextDismiss(true);
+      releaseExtensionIframeFocus();
       extensionManager.goBack();
       restoreSearchFocus();
     } else {
@@ -343,6 +370,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   function tryQuickLookSelectedFile(event: KeyboardEvent): boolean {
     if (
       viewManager.activeView ||
+      preferencesPromptStore.active ||
       !(event.metaKey || event.ctrlKey) ||
       event.shiftKey ||
       event.altKey ||
@@ -455,7 +483,50 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       return;
     }
     if (tryHandleEscape(event)) return;
-    tryRouteToActiveView(event);
+    if (tryRouteToActiveView(event)) return;
+    // Root-search safety net: if DOM focus ever sits on <body>/non-interactive
+    // container after tearing down a subframe or view, restore search focus and
+    // still handle root navigation / Backspace instead of silently dropping keys.
+    if (
+      !viewManager.activeView &&
+      !preferencesPromptStore.active &&
+      !deps.getActiveContext() &&
+      !commandArgumentsService.active &&
+      !deps.getBottomBar()?.isOpen() &&
+      !isInputFocused() &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey
+    ) {
+      const active =
+        typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+      const isInteractive =
+        active &&
+        (['button', 'a', 'select', 'input', 'textarea'].includes(
+          active.tagName?.toLowerCase() ?? '',
+        ) ||
+          Boolean(
+            active.closest?.(
+              'button, a[href], [role="button"], [role="menuitem"], [role="option"], [role="combobox"], [role="tab"]',
+            ),
+          ));
+      if (!isInteractive) {
+        const input = deps.getSearchInput();
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          if (input && !input.disabled) input.focus({ preventScroll: true });
+          tryHandleSearchNavigation(event);
+          return;
+        }
+        if (event.key === 'Backspace' && input && !input.disabled) {
+          input.focus({ preventScroll: true });
+          const val = deps.getLocalSearchValue();
+          if (val.length > 0) {
+            deps.setLocalSearchValue(val.slice(0, -1));
+            event.preventDefault();
+          }
+        }
+      }
+    }
   }
 
   // Maintain focus function
@@ -505,9 +576,14 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     });
   }
 
-  // Escape: focus-trap exit, navigate back, or hide window
+  // Escape: sub-view/popover intercept, focus-trap exit, navigate back, or hide window
   function tryHandleEscape(event: KeyboardEvent): boolean {
     if (event.key !== 'Escape') return false;
+    if (viewManager.tryInterceptEscape?.()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
     // Focus-trap only applies at root: when a view is active, Escape must
     // always navigate regardless of iframe-reported focus state (which can
     // go stale for Tier 2 extensions that auto-focus on mount and never
@@ -547,6 +623,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
           deps.setLocalSearchValue('');
           restoreSearchFocus();
         } else {
+          releaseExtensionIframeFocus();
           extensionManager.goBack();
           restoreSearchFocus({ select: true });
         }
@@ -596,6 +673,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       return true;
     }
     event.preventDefault();
+    releaseExtensionIframeFocus();
     extensionManager.goBack();
     restoreSearchFocus({ select: true });
     return true;
@@ -603,7 +681,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Arrow keys and Enter when no extension view is open
   function tryHandleSearchNavigation(event: KeyboardEvent): boolean {
-    if (viewManager.activeView) return false;
+    if (viewManager.activeView || preferencesPromptStore.active) return false;
     if (deps.isCompactIdle?.()) {
       if (event.key === 'ArrowUp') {
         event.preventDefault();
@@ -680,7 +758,11 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       return true;
     }
     // The extension owns Enter when it has declared a primary action.
-    if (viewManager.activeViewPrimaryActionLabel) return false;
+    if (
+      viewManager.activeViewPrimaryActionLabel ||
+      actionService.activeViewPrimaryAction?.shortcut === 'Enter'
+    )
+      return false;
     if (viewManager.activeViewSearchable && deps.getLocalSearchValue().trim()) {
       event.preventDefault();
       event.stopPropagation();

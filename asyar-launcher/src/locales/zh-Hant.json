@@ -1403,6 +1403,7 @@
         "screenshot_alt": "截圖",
         "sdk_too_old": "無法安裝 {name}：需要更新的 SDK（{sdk}）",
         "uninstall_confirm": "解除安裝 {name}？你可以隨時從商店重新安裝。",
+        "installation_status_failed": "無法檢查安裝狀態。",
         "run_failed": "無法執行指令「{command}」",
         "configure": "設定",
         "activate_theme": "在「設定 → 外觀 → 自訂主題」中啟用",

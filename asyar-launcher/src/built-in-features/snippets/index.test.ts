@@ -6,6 +6,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn(),
 }));
 vi.mock('./DefaultView.svelte', () => ({ default: {} }));
+vi.mock('./SnippetFormView.svelte', () => ({ default: {} }));
 vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: vi.fn() }));
 vi.mock('../../lib/rankItems', () => ({ rankItems: vi.fn() }));
 vi.mock('../../components/base/Modal.logic', () => ({
@@ -27,6 +28,10 @@ vi.mock('../../services/action/actionService.svelte', () => ({
 }));
 
 import snippetsExtension from './index';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+beforeEach(() => {
+  viewManager.activeView = 'snippets/DefaultView';
+});
 import { snippetStore } from './snippetStore.svelte';
 import { snippetViewState } from './snippetViewState.svelte';
 import { rankItems } from '../../lib/rankItems';
@@ -332,4 +337,46 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
     await snippetsExtension.deactivate();
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:add');
   });
+
+  it('pushes snippets/SnippetFormView with searchable: false on add and edit actions', async () => {
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+    const navSpy = vi.spyOn(viewManager, 'navigateToView').mockImplementation(() => {});
+
+    await snippetsExtension.viewActivated('snippets/DefaultView');
+    const byId = (id: string) =>
+      vi.mocked(actionService.registerAction).mock.calls.find(([c]) => c.id === id)?.[0] as any;
+
+    await byId('snippets:add').execute();
+    expect(snippetViewState.mode).toBe('create');
+    expect(navSpy).toHaveBeenCalledWith('snippets/SnippetFormView', { searchable: false });
+
+    snippetStore.snippets = [
+      {
+        id: '1',
+        name: 'Work Email',
+        keyword: ';email',
+        expansion: 'work@example.com',
+        createdAt: 1,
+      },
+    ];
+    snippetViewState.reset();
+    await byId('snippets:edit').execute();
+    expect(snippetViewState.mode).toBe('edit');
+    expect(snippetViewState.editingSnippet?.id).toBe('1');
+    expect(navSpy).toHaveBeenCalledWith('snippets/SnippetFormView', { searchable: false });
+
+    navSpy.mockRestore();
+  });
+});
+
+it('does not register actions after a pending activation is covered by the form', async () => {
+  let resolve!: (value: { permissionGranted: boolean }) => void;
+  vi.mocked(snippetService.onViewOpen).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+  vi.mocked(actionService.registerAction).mockClear();
+  const pending = snippetsExtension.viewActivated('snippets/DefaultView');
+  await snippetsExtension.viewDeactivated('snippets/DefaultView');
+  await snippetsExtension.viewActivated('snippets/SnippetFormView');
+  resolve({ permissionGranted: true });
+  await pending;
+  expect(actionService.registerAction).not.toHaveBeenCalled();
 });

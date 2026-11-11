@@ -1,12 +1,20 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { mcpService } from './mcpService.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
   import LoadingState from '../../components/feedback/LoadingState.svelte';
   import Badge from '../../components/base/Badge.svelte';
-  import Button from '../../components/base/Button.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
+  import { isAnyModalOpen } from '../../components/base/Modal.logic';
   import { t } from '../../services/i18n';
 
+  let tableRef = $state<HTMLTableElement | null>(null);
+
   let loading = $state(false);
+  let selectedIndex = $state(0);
+
+  const selectedRow = $derived(mcpService.permissions[selectedIndex] ?? null);
 
   async function load(): Promise<void> {
     loading = true;
@@ -28,8 +36,69 @@
     return 'default';
   }
 
-  // Load on mount
-  load();
+  function handleWindowKeydown(event: KeyboardEvent): void {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+    if (document.querySelector('.action-popup') || isAnyModalOpen(document)) return;
+    const count = mcpService.permissions.length;
+    if (count === 0) return;
+    if (event.key === 'ArrowDown') {
+      selectedIndex = Math.min(count - 1, selectedIndex + 1);
+      event.preventDefault();
+      event.stopPropagation();
+    } else if (event.key === 'ArrowUp') {
+      selectedIndex = Math.max(0, selectedIndex - 1);
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
+  $effect(() => {
+    const count = mcpService.permissions.length;
+    if (selectedIndex >= count && count > 0) {
+      selectedIndex = count - 1;
+    } else if (count === 0) {
+      selectedIndex = 0;
+    }
+  });
+
+  $effect(() => {
+    const index = selectedIndex;
+    if (loading || !tableRef || !selectedRow) return;
+    tableRef.querySelectorAll<HTMLElement>('tbody tr')[index]?.focus({ preventScroll: true });
+  });
+
+  $effect(() => {
+    const row = selectedRow;
+    if (!row) {
+      actionService.unregisterAction('mcp:revoke-permission');
+      return;
+    }
+    actionService.registerAction({
+      id: 'mcp:revoke-permission',
+      label: t('features.mcp.ui.revoke'),
+      icon: '🗑️',
+      shortcut: 'Control+X',
+      confirm: true,
+      destructive: true,
+      category: t('categories.mcp'),
+      extensionId: 'mcp',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: () => handleRevoke(row.serverId, row.toolId, row.agentId),
+    });
+    return () => {
+      actionService.unregisterAction('mcp:revoke-permission');
+    };
+  });
+
+  onMount(() => {
+    window.addEventListener('keydown', handleWindowKeydown, true);
+    void load();
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('keydown', handleWindowKeydown, true);
+    actionService.unregisterAction('mcp:revoke-permission');
+  });
 </script>
 
 <div class="permissions-view custom-scrollbar">
@@ -41,19 +110,28 @@
       description={t('features.mcp.no_permissions_description')}
     />
   {:else}
-    <table class="permissions-table">
+    <table bind:this={tableRef} class="permissions-table" role="grid">
       <thead>
         <tr>
           <th>{t('features.mcp.ui.col_server')}</th>
           <th>{t('features.mcp.ui.col_tool')}</th>
           <th>{t('features.mcp.ui.col_agent')}</th>
           <th>{t('features.mcp.ui.col_decision')}</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>
-        {#each mcpService.permissions as row (row.serverId + '/' + row.toolId + '/' + row.agentId)}
-          <tr class="permission-row">
+        {#each mcpService.permissions as row, index (row.serverId + '/' + row.toolId + '/' + row.agentId)}
+          <tr
+            class="permission-row"
+            class:selected={index === selectedIndex}
+            aria-selected={index === selectedIndex}
+            tabindex={index === selectedIndex ? 0 : -1}
+            onfocus={() => (selectedIndex = index)}
+            onclick={(event) => {
+              event.currentTarget.focus({ preventScroll: true });
+              selectedIndex = index;
+            }}
+          >
             <td class="cell-mono">{row.serverId}</td>
             <td class="cell-mono">{row.toolId}</td>
             <td class="cell-secondary">{row.agentId || '—'}</td>
@@ -62,11 +140,6 @@
                 text={row.decision.replace('_', ' ')}
                 variant={decisionVariant(row.decision)}
               />
-            </td>
-            <td>
-              <Button onclick={() => handleRevoke(row.serverId, row.toolId, row.agentId)}>
-                {t('features.mcp.ui.revoke')}
-              </Button>
             </td>
           </tr>
         {/each}
@@ -112,5 +185,9 @@
 
   .cell-secondary {
     color: var(--text-secondary);
+  }
+
+  .permission-row.selected {
+    background: var(--bg-selected);
   }
 </style>

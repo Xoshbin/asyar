@@ -1,8 +1,10 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import DefaultView from './DefaultView.svelte';
 import { portalStore } from './portalStore.svelte';
+import { portalsUiState } from './index.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue([]),
@@ -17,6 +19,8 @@ vi.mock('@tauri-apps/api/event', () => ({
 describe('Portals DefaultView', () => {
   beforeEach(() => {
     portalStore.portals = [];
+    portalsUiState.clearDraft();
+    portalsUiState.selectedIndex = -1;
   });
 
   it('renders metadata list for selected portal', () => {
@@ -37,5 +41,17 @@ describe('Portals DefaultView', () => {
     expect(screen.getAllByText('Placeholders').length).toBeGreaterThan(0);
     expect(screen.getByText('1 placeholder')).toBeTruthy();
     expect(screen.getByText('Created')).toBeTruthy();
+  });
+
+  it('pushes portals/PortalFormView with searchable: false when clicking empty-state CTA', async () => {
+    const navSpy = vi.spyOn(viewManager, 'navigateToView').mockImplementation(() => {});
+    render(DefaultView);
+
+    const cta = screen.getByRole('button', { name: /add your first portal/i });
+    await fireEvent.click(cta);
+
+    expect(portalsUiState.formMode).toBe('create');
+    expect(navSpy).toHaveBeenCalledWith('portals/PortalFormView', { searchable: false });
+    navSpy.mockRestore();
   });
 });

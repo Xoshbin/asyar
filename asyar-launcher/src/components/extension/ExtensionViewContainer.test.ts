@@ -2,6 +2,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
 
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockResolvedValue([]),
+  transformCallback: vi.fn(() => 0),
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn().mockResolvedValue(() => {}),
+  emit: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../services/extension/extensionDiscovery', () => ({
   isBuiltInFeature: vi.fn((id: string) => id === 'test-builtin'),
 }));
@@ -19,6 +29,12 @@ vi.mock('../../services/search/applyAccessoryFromCommand', () => ({
 
 import ExtensionViewContainer from './ExtensionViewContainer.svelte';
 import TestView from '../../built-in-features/help/DefaultView.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
+import shortcutsExt, {
+  DefaultView as ShortcutsDefaultView,
+  ShortcutEditView,
+} from '../../built-in-features/shortcuts';
 
 describe('ExtensionViewContainer', () => {
   beforeEach(() => {
@@ -77,5 +93,54 @@ describe('ExtensionViewContainer', () => {
     });
 
     expect(container.textContent).not.toContain('Error: Built-in feature');
+  });
+
+  it('switches cleanly from ShortcutEditView back to shortcuts DefaultView on Escape', async () => {
+    const { isBuiltInFeature } = await import('../../services/extension/extensionDiscovery');
+    vi.mocked(isBuiltInFeature).mockReturnValue(true);
+
+    shortcutStore.shortcuts = [
+      {
+        id: 'sc-1',
+        objectId: 'app-terminal',
+        itemName: 'Terminal',
+        itemType: 'application',
+        shortcut: 'Cmd+T',
+        itemPath: '/Applications/Utilities/Terminal.app',
+        createdAt: Date.now(),
+      },
+    ];
+    viewManager.init(
+      new Map([['shortcuts', { id: 'shortcuts', name: 'Shortcuts', searchable: true } as any]]),
+    );
+
+    const mockModule = {
+      DefaultView: ShortcutsDefaultView,
+      ShortcutEditView,
+      default: shortcutsExt,
+    };
+    const mockExtensionManager = {
+      getManifestById: vi.fn().mockReturnValue({ id: 'shortcuts', commands: [] }),
+      getLoadedExtensionModule: vi.fn().mockReturnValue(mockModule),
+      getCommandIcon: vi.fn(),
+    };
+
+    viewManager.navigateToView('shortcuts/DefaultView');
+    viewManager.navigateToView('shortcuts/ShortcutEditView', { searchable: false });
+
+    const { rerender, container } = render(ExtensionViewContainer, {
+      activeView: viewManager.activeView!,
+      extensionManager: mockExtensionManager,
+    });
+
+    const { fireEvent } = await import('@testing-library/svelte');
+    await fireEvent.keyDown(window, { key: 'Escape', bubbles: true, cancelable: true });
+
+    expect(viewManager.activeView).toBe('shortcuts/DefaultView');
+    await rerender({
+      activeView: viewManager.activeView!,
+      extensionManager: mockExtensionManager,
+    });
+    expect(container.textContent).toContain('Terminal');
   });
 });

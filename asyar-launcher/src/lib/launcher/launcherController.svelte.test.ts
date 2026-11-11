@@ -131,6 +131,20 @@ describe('LauncherController.handleEnterKey — nav-stack observation guard', ()
     controller.state.searchResultItemsMapped = [item];
   }
 
+  it('retains search when execution pauses for preferences', async () => {
+    const error = new Error('preferences');
+    error.name = 'PreferencesRequiredError';
+    selectItem({
+      type: 'command',
+      object_id: 'cmd_test',
+      action: vi.fn().mockRejectedValue(error),
+    });
+    await controller.handleEnterKey();
+    expect(controller.state.localSearchValue).toBe('hello');
+    expect(searchStores.query).toBe('hello');
+    expect(feedbackService.report).not.toHaveBeenCalled();
+  });
+
   it('saves the typed query when a result is used', async () => {
     const record = vi.spyOn(controller.state.queryHistory, 'record').mockResolvedValue(undefined);
     const action = vi.fn().mockResolvedValue(undefined);

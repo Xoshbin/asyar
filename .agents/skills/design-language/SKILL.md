@@ -809,6 +809,13 @@ view. Design rules apply to the **view**.
 - Icons come from the `<asyar-icon>` web component: call `registerIconElement()`
   once in the view entry, then `<asyar-icon name="calculator" size="20">`.
   Icons inherit `currentColor`.
+- **Never add interactive UI components or a widget kit to `asyar-sdk`** (no
+  `asyar-sdk/src/components/`, no `<asyar-select>` / `<asyar-button>` /
+  `<asyar-input>`): `<asyar-icon>` + `tokens.css` is the complete SDK UI
+  surface (`view.test.ts` enforces this). Structured platform controls belong in
+  host-owned declarative APIs (`manifest.json` `preferences`/`arguments`,
+  `searchBarAccessory`, `ActionService`); custom views style standard HTML with
+  `tokens.css`.
 - There is **no bare `asyar-sdk` entry point** — import from `asyar-sdk/view`,
   `asyar-sdk/worker`, or `asyar-sdk/contracts`. The icon helpers are
   DOM-dependent and ship on `/view` only.

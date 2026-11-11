@@ -340,6 +340,16 @@ describe('createActionShortcutDispatcher', () => {
       });
       expect(dispatcher.activeChords()).toEqual(['Control+N']);
     });
+
+    it('reports hasEnterCandidate when an active candidate binds bare Enter', () => {
+      const { dispatcher } = setup([action('a', 'Mod+N'), action('d', 'Enter')], {
+        platform: 'macos',
+      });
+      expect(dispatcher.hasEnterCandidate?.()).toBe(true);
+
+      const none = setup([action('a', 'Mod+N')], { platform: 'macos' });
+      expect(none.dispatcher.hasEnterCandidate?.()).toBe(false);
+    });
   });
 });
 

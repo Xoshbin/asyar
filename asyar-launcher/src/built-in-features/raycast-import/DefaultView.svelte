@@ -4,6 +4,9 @@
   import { raycastImportState as state } from './raycastImportState.svelte';
   import { setFocusLock } from '../../lib/ipc/commands';
   import { logService } from '../../services/log/logService';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { t } from '../../services/i18n';
 
   async function pickFile() {
@@ -59,6 +62,119 @@
       hint: t('features.raycast_import.category_aliases_hint'),
     },
   ]);
+
+  const anyCategorySelected = $derived(
+    state.selection.snippets ||
+      state.selection.portals ||
+      state.selection.shortcuts ||
+      state.selection.aliases,
+  );
+
+  $effect(() => {
+    const unregisterEscape = viewManager.registerEscapeInterceptor(() => {
+      if (state.phase === 'password' || state.phase === 'preview') {
+        state.reset();
+        return true;
+      }
+      if (state.phase === 'error') {
+        state.backToPreview();
+        return true;
+      }
+      return false;
+    });
+    return unregisterEscape;
+  });
+
+  $effect(() => {
+    const phase = state.phase;
+    const bundle = state.bundle;
+    const summary = state.summary;
+
+    if (phase === 'importing') {
+      actionService.unregisterAction('raycast-import:primary');
+      actionService.unregisterAction('raycast-import:start-over');
+      return;
+    }
+
+    const primaryConfig =
+      phase === 'pick'
+        ? {
+            label: t('features.raycast_import.ui.choose_file'),
+            icon: '📁',
+            disabled: state.parsing,
+            execute: () => pickFile(),
+          }
+        : phase === 'password'
+          ? {
+              label: t('features.raycast_import.ui.unlock'),
+              icon: '🔓',
+              disabled: !state.password || state.parsing,
+              execute: () => state.submitPassword(),
+            }
+          : phase === 'preview' && bundle
+            ? {
+                label: t('common.import'),
+                icon: '📥',
+                disabled: !anyCategorySelected,
+                execute: () => state.runImport(),
+              }
+            : phase === 'error'
+              ? {
+                  label: t('features.raycast_import.ui.back_preview'),
+                  icon: '↩️',
+                  disabled: false,
+                  execute: async () => {
+                    state.backToPreview();
+                  },
+                }
+              : phase === 'done' && summary
+                ? {
+                    label: t('features.raycast_import.ui.import_another'),
+                    icon: '📁',
+                    disabled: false,
+                    execute: async () => {
+                      state.reset();
+                    },
+                  }
+                : null;
+
+    if (primaryConfig) {
+      const isModEnterPhase = phase === 'password' || phase === 'preview';
+      actionService.registerAction({
+        id: 'raycast-import:primary',
+        ...primaryConfig,
+        shortcut: isModEnterPhase ? 'Mod+Enter' : 'Enter',
+        primary: true,
+        category: t('categories.extension'),
+        extensionId: 'raycast-import',
+        context: ActionContext.EXTENSION_VIEW,
+      });
+    } else {
+      actionService.unregisterAction('raycast-import:primary');
+    }
+
+    if (phase === 'password' || (phase === 'preview' && bundle) || phase === 'error') {
+      const isErrorPhase = phase === 'error';
+      actionService.registerAction({
+        id: 'raycast-import:start-over',
+        label: isErrorPhase ? t('features.raycast_import.ui.start_over') : t('common.back'),
+        icon: isErrorPhase ? '🔄' : '↩️',
+        category: t('categories.extension'),
+        extensionId: 'raycast-import',
+        context: ActionContext.EXTENSION_VIEW,
+        execute: async () => {
+          state.reset();
+        },
+      });
+    } else {
+      actionService.unregisterAction('raycast-import:start-over');
+    }
+
+    return () => {
+      actionService.unregisterAction('raycast-import:primary');
+      actionService.unregisterAction('raycast-import:start-over');
+    };
+  });
 </script>
 
 <div class="raycast-import-view">
@@ -76,7 +192,13 @@
         </Button>
       </EmptyState>
     {:else if state.phase === 'password'}
-      <div class="import-step">
+      <form
+        class="import-step"
+        onsubmit={(e) => {
+          e.preventDefault();
+          void state.submitPassword();
+        }}
+      >
         <p class="text-title">{t('features.raycast_import.ui.protected')}</p>
         <p class="text-caption">
           Enter the password you set in Raycast when exporting
@@ -87,26 +209,13 @@
           type="password"
           placeholder={t('features.raycast_import.ui.password_placeholder')}
           bind:value={state.password}
-          onkeydown={(e: KeyboardEvent) => {
-            if (e.key === 'Enter') state.submitPassword();
-          }}
         />
         {#if state.passwordError}
           <p class="text-caption password-error">
             {t('features.raycast_import.ui.wrong_password')}
           </p>
         {/if}
-        <div class="import-actions">
-          <Button onclick={() => state.reset()}>{t('common.back')}</Button>
-          <Button
-            class="btn-primary"
-            onclick={() => state.submitPassword()}
-            disabled={!state.password || state.parsing}
-          >
-            {t('features.raycast_import.ui.unlock')}
-          </Button>
-        </div>
-      </div>
+      </form>
     {:else if state.phase === 'preview' && state.bundle}
       <div class="import-step">
         <p class="text-title">
@@ -139,19 +248,6 @@
               bound to Raycast commands, missing apps, or with characters Asyar can't use{/if}.
           </p>
         {/if}
-        <div class="import-actions">
-          <Button onclick={() => state.reset()}>{t('common.back')}</Button>
-          <Button
-            class="btn-primary"
-            onclick={() => state.runImport()}
-            disabled={!state.selection.snippets &&
-              !state.selection.portals &&
-              !state.selection.shortcuts &&
-              !state.selection.aliases}
-          >
-            {t('common.import')}
-          </Button>
-        </div>
       </div>
     {:else if state.phase === 'importing'}
       <LoadingState message={t('features.raycast_import.ui.importing')} />
@@ -159,13 +255,6 @@
       <div class="import-step">
         <p class="text-title">{t('features.raycast_import.ui.failed')}</p>
         <p class="text-caption password-error">{state.errorMessage}</p>
-        <div class="import-actions">
-          <Button onclick={() => state.reset()}>{t('features.raycast_import.ui.start_over')}</Button
-          >
-          <Button class="btn-primary" onclick={() => state.backToPreview()}
-            >{t('features.raycast_import.ui.back_preview')}</Button
-          >
-        </div>
       </div>
     {:else if state.phase === 'done' && state.summary}
       <EmptyState
@@ -216,12 +305,6 @@
     gap: var(--space-4);
     max-width: 32rem;
     margin: 0 auto;
-  }
-
-  .import-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-3);
   }
 
   .category-row {
