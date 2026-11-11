@@ -63,6 +63,16 @@ describe('themeInjector', () => {
     expect(style?.textContent).toContain('--bg-primary: green;');
   });
 
+  it('injectThemeVariables passes color-scheme through to :root', () => {
+    injectThemeVariables({
+      '--bg-primary': 'rgba(30, 30, 32, 0.65)',
+      'color-scheme': 'dark',
+    });
+
+    const style = document.getElementById('asyar-theme-vars');
+    expect(style?.textContent).toContain('color-scheme: dark;');
+  });
+
   it('injectFontFaceCSS creates a <style id="asyar-theme-fonts"> in document.head', () => {
     const mockCSS = '@font-face { font-family: "Satoshi"; }';
     injectFontFaceCSS(mockCSS);
