@@ -9,11 +9,7 @@ The following rules are mandatory across all agent sessions, subagents, and task
 - The user commits and pushes everything themselves.
 - Always leave working tree changes clean, uncommitted, and unstaged for user review.
 
-## 2. No AI Attribution
-
-- **NEVER** add `Co-Authored-By: Claude ...`, `Co-Authored-By: Gemini ...`, or any other AI attribution trailer to git commits, pull request titles/descriptions, or comments.
-
-## 3. Mandatory Verification & Local CI Matrix
+## 2. Mandatory Verification & Local CI Matrix
 
 Asyar balances velocity and release-grade correctness using a **Two-Loop Verification Model**:
 
@@ -44,14 +40,14 @@ Or manually run the steps:
 
 8. **Type & Bindings Check (if bindings/types touched)**: `cargo test export_bindings -- --ignored` and check `git diff --exit-code -- asyar-launcher/src/bindings.ts`
 
-## 4. Formatting Enforcement
+## 3. Formatting Enforcement
 
 - Format-on-save does not run automatically on files edited by agents.
 - Before concluding a task, ensure modified files are formatted:
   - JS/TS/Svelte/JSON/MD: `pnpm exec prettier --write <file>` or `pnpm format`
   - Rust: `rustfmt <file>` or `cd asyar-launcher/src-tauri && cargo fmt`
 
-## 5. Architectural Invariants
+## 4. Architectural Invariants
 
 - **Data-Affinity & Zero-IPC Fast Path (Evolved Rust-First)**: Logic lives where the data natively resides:
   - **Rust Domain (System & Heavy Data)**: System applications, file system indexing, SQLite persistence, OS clipboard, native watchers, and global fuzzy ranking belong in Rust. Filter, rank, and truncate in Rust before crossing the IPC bridge, returning only top results.
@@ -79,19 +75,19 @@ Or manually run the steps:
   - Anything no published extension can observe (built-ins, frontend-only Tauri commands, internal modules) is not protected. Break it cleanly with no shims.
 - **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
 
-## 6. Tech Stack Standards
+## 5. Tech Stack Standards
 
 - **Svelte 5 Runes Only**: Always use runes (`$state`, `$derived`, `$props`, `$bindable`, `$effect`). Svelte 4 syntax (`export let`, `$:`) is strictly forbidden.
 - **Tauri 2 APIs**: Use modular `@tauri-apps/api/*` and Tauri 2 plugins.
 
 - **One Hint Look**: Every launcher hint (an offer, not a result) uses `variant: HINT_VARIANT` + `HINT_ICON` from `services/search/hintLook.ts`. The look lives only in `LauncherListRow`; never restyle or re-icon a hint. See `.agents/rules/06-tech-stack.md` §3.
 
-## 7. Keyboard Shortcuts & Input Safety
+## 6. Keyboard Shortcuts & Input Safety
 
 - **Preserve Text Editing**: Never bind native text editing shortcuts (`Cmd+Backspace`, `Option+Backspace`, `Cmd+A`, etc.) to list actions or item deletion.
 - **Destructive Actions in ⌘K**: Item deletion and trashing belong in the `⌘K` Action Panel, never bound directly to `Cmd+Backspace` / `Super+Backspace`.
 
-## 8. Rules, Skills & Memories Structure
+## 7. Rules, Skills & Memories Structure
 
 - Modular rules: `.agents/rules/*.md`
 - On-demand procedural skills: `.agents/skills/*/SKILL.md`
