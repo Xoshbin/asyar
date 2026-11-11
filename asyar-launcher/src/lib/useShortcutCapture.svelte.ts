@@ -53,6 +53,8 @@ export function useShortcutCapture(config: CaptureConfig) {
   let conflictInfo = $state<string | null>(null);
   let rejectedTimer: ReturnType<typeof setTimeout> | null = null;
   let savedWithoutCancel = false;
+  let completionTimer: ReturnType<typeof setTimeout> | null = null;
+  let captureGeneration = 0;
 
   let savedModifier = $state('');
   let savedKey = $state('');
@@ -79,9 +81,11 @@ export function useShortcutCapture(config: CaptureConfig) {
   }
 
   async function attemptSave(capturedModifier: string, capturedKey: string) {
+    const generation = captureGeneration;
     if (config.conflictChecker) {
       const shortcutString = capturedModifier ? `${capturedModifier}+${capturedKey}` : capturedKey;
       const conflict = await config.conflictChecker(shortcutString);
+      if (generation !== captureGeneration) return;
       if (conflict) {
         errorType = 'conflict';
         conflictInfo = conflict.name;
@@ -99,16 +103,17 @@ export function useShortcutCapture(config: CaptureConfig) {
     }
 
     savedWithoutCancel = true;
-    stopRecording();
+    stopRecording({ preserveCompletion: true });
 
     saveState = 'saving';
     savedModifier = capturedModifier;
     savedKey = capturedKey;
 
     const result = await config.onCapture({ modifier: capturedModifier, key: capturedKey });
+    if (generation !== captureGeneration) return;
     if (result === true) {
       saveState = 'success';
-      setTimeout(() => {
+      completionTimer = setTimeout(() => {
         saveState = 'idle';
         errorType = '';
         errorMessage = '';
@@ -126,7 +131,7 @@ export function useShortcutCapture(config: CaptureConfig) {
       errorMessage = result || 'Failed to save shortcut';
       savedModifier = '';
       savedKey = '';
-      setTimeout(() => {
+      completionTimer = setTimeout(() => {
         saveState = 'idle';
         errorType = '';
         errorMessage = '';
@@ -146,7 +151,12 @@ export function useShortcutCapture(config: CaptureConfig) {
     void resumeAllShortcuts();
   }
 
-  function stopRecording(options: { notifyCancel?: boolean } = {}) {
+  function stopRecording(options: { notifyCancel?: boolean; preserveCompletion?: boolean } = {}) {
+    if (!options.preserveCompletion) {
+      ++captureGeneration;
+      if (completionTimer !== null) clearTimeout(completionTimer);
+      completionTimer = null;
+    }
     const notifyCancel = options.notifyCancel ?? true;
     const wasRecording = isRecording;
     isRecording = false;

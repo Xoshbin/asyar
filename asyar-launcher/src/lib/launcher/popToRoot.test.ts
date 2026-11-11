@@ -32,6 +32,7 @@ vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
 import { resetLauncherState } from './launcherReset';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
@@ -47,6 +48,17 @@ describe('resetLauncherState', () => {
     vm.__setStackSize(0);
     vm.__setShrink(true);
     searchStores.query = 'leftover query';
+  });
+
+  it('closes required preferences when resetting to root search', () => {
+    preferencesPromptStore.open({
+      extensionId: 'test',
+      commandId: 'run',
+      commandObjectId: 'cmd_test_run',
+      missing: [],
+    });
+    resetLauncherState();
+    expect(preferencesPromptStore.active).toBeNull();
   });
 
   it('drains the navigation stack, clears search, and syncs compact mode', () => {

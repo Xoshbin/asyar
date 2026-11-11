@@ -37,6 +37,8 @@
   let query = $state('');
   let highlightedIndex = $state(0);
   const listboxId = $props.id();
+  let previousQuery = '';
+  const optionId = (value: string) => `${listboxId}-option-${encodeURIComponent(value)}`;
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let triggerRef = $state<HTMLButtonElement | null>(null);
@@ -55,6 +57,12 @@
     );
   });
 
+  const activeOptionId = $derived(
+    open && filteredOptions[highlightedIndex]
+      ? optionId(filteredOptions[highlightedIndex].value)
+      : undefined,
+  );
+
   function scrollHighlightedIntoView() {
     if (!listRef) return;
     const el = listRef.children[highlightedIndex] as HTMLElement | undefined;
@@ -65,7 +73,11 @@
 
   $effect(() => {
     const len = filteredOptions.length;
-    const _q = query;
+    const currentQuery = query;
+    if (currentQuery !== previousQuery) {
+      previousQuery = currentQuery;
+      highlightedIndex = 0;
+    }
     if (len === 0) {
       highlightedIndex = 0;
       return;
@@ -87,6 +99,7 @@
   export async function openPopover(): Promise<void> {
     if (disabled || open) return;
     query = '';
+    previousQuery = '';
     const idx = options.findIndex((o) => o.value === value);
     highlightedIndex = idx >= 0 ? idx : 0;
     placeAbove = false;
@@ -248,6 +261,10 @@
       {#if searchable}
         <div class="select-filter launcher-popup-search">
           <Input
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listboxId}
+            aria-activedescendant={activeOptionId}
             textIntent="exact"
             bind:ref={filterInputRef}
             bind:value={query}
@@ -261,6 +278,7 @@
         bind:this={listRef}
         class="select-list custom-scrollbar"
         role="listbox"
+        aria-activedescendant={activeOptionId}
         tabindex="-1"
       >
         {#each filteredOptions as opt, idx (opt.value)}
@@ -268,6 +286,7 @@
             <button
               type="button"
               role="option"
+              id={optionId(opt.value)}
               aria-selected={opt.value === value}
               class="select-option"
               class:highlighted={idx === highlightedIndex}

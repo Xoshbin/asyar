@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import {
     Button,
     FormField,
@@ -13,10 +13,23 @@
   import { actionService } from '../../services/action/actionService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { t } from '../../services/i18n';
-  import { processSnippetExpansion, snippetService } from './snippetService';
+  import { enabledPersistence, processSnippetExpansion, snippetService } from './snippetService';
   import { snippetStore, type Snippet } from './snippetStore.svelte';
   import { snippetUiState } from './snippetUiState.svelte';
   import { snippetViewState } from './snippetViewState.svelte';
+
+  let saving = false;
+  let saveGeneration = 0;
+  let mounted = true;
+  const ownsForm = () => mounted && viewManager.activeView === 'snippets/SnippetFormView';
+  onDestroy(() => {
+    mounted = false;
+    ++saveGeneration;
+  });
+  onMount(async () => {
+    const { permissionGranted } = await snippetService.onViewOpen();
+    await snippetService.setEnabled(enabledPersistence.loadSync(true) && permissionGranted);
+  });
 
   let formName = $state('');
   let formKeyword = $state('');
@@ -106,6 +119,7 @@
   }
 
   async function handleSave() {
+    if (saving || !ownsForm()) return;
     if (!formName.trim()) {
       formError = 'Name is required.';
       return;
@@ -126,36 +140,45 @@
       return;
     }
 
-    const { expansion: processedExpansion, redactedKinds } =
-      await processSnippetExpansion(formExpansion);
-    const payload: Snippet = {
-      id: formId,
-      name: formName.trim(),
-      keyword: formKeyword.trim().toLowerCase(),
-      expansion: processedExpansion,
-      isPrivate: formIsPrivate,
-      createdAt: snippetViewState.editingSnippet?.createdAt ?? Date.now(),
-      redactedKinds,
-    };
+    saving = true;
+    const generation = ++saveGeneration;
+    try {
+      const { expansion: processedExpansion, redactedKinds } =
+        await processSnippetExpansion(formExpansion);
+      if (generation !== saveGeneration || !ownsForm()) return;
+      const payload: Snippet = {
+        id: formId,
+        name: formName.trim(),
+        keyword: formKeyword.trim().toLowerCase(),
+        expansion: processedExpansion,
+        isPrivate: formIsPrivate,
+        createdAt: snippetViewState.editingSnippet?.createdAt ?? Date.now(),
+        redactedKinds,
+      };
 
-    if (isEdit) {
-      snippetStore.update(formId, payload);
-    } else {
-      snippetStore.add(payload);
-      await snippetViewState.selectAfterMutation(formId);
+      if (isEdit) {
+        snippetStore.update(formId, payload);
+      } else {
+        snippetStore.add(payload);
+        await snippetViewState.selectAfterMutation(formId);
+      }
+      await snippetService.syncToRust();
+      if (generation !== saveGeneration || !ownsForm()) return;
+      snippetUiState.prefillExpansion = null;
+      snippetViewState.cancelEdit();
+      viewManager.goBack();
+    } finally {
+      saving = false;
     }
-    await snippetService.syncToRust();
-    snippetUiState.prefillExpansion = null;
-    snippetViewState.cancelEdit();
-    viewManager.goBack();
   }
 
   function handleCancel() {
     if (pickerOpen) {
       pickerOpen = false;
       formExpansionEl?.focus();
-      return;
+      return false;
     }
+    ++saveGeneration;
     snippetUiState.prefillExpansion = null;
     snippetViewState.cancelEdit();
     viewManager.goBack();

@@ -49,3 +49,20 @@ describe('FormView', () => {
     unmount();
   });
 });
+
+it('does not schedule search focus when cancellation only closes a picker', () => {
+  const frame = vi.spyOn(window, 'requestAnimationFrame');
+  render(FormView, {
+    actionId: 'test:save',
+    submitLabel: 'Save',
+    onsubmit: vi.fn(),
+    autofocus: false,
+    restoreSearchFocusOnCancel: true,
+    oncancel: () => false,
+    children: (() => {}) as any,
+  });
+  frame.mockClear();
+  expect(viewManager.tryInterceptEscape()).toBe(true);
+  expect(frame).not.toHaveBeenCalled();
+  frame.mockRestore();
+});

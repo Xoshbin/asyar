@@ -13,6 +13,8 @@
   import Checkbox from '../../components/base/Checkbox.svelte';
   import TabGroup from '../../components/base/TabGroup.svelte';
 
+  let parseGeneration = 0;
+
   type Tab = 'detected' | 'paste';
 
   let activeTab = $state<Tab>('detected');
@@ -39,12 +41,18 @@
   const detectedConfigs = $derived(mcpService.detectedConfigs);
 
   async function handleParse(): Promise<void> {
+    const raw = pasteJson;
+    const generation = ++parseGeneration;
+    parsedServers = [];
+    parsedSelected = {};
     parseError = null;
     try {
-      const result = await mcpService.parseConfigJson(pasteJson);
+      const result = await mcpService.parseConfigJson(raw);
+      if (generation !== parseGeneration || raw !== pasteJson) return;
       parsedServers = result;
       parsedSelected = {};
     } catch {
+      if (generation !== parseGeneration || raw !== pasteJson) return;
       parseError = 'Failed to parse the JSON. Check the format and try again.';
       parsedServers = [];
     }
@@ -125,9 +133,13 @@
   );
 
   // Auto-parse valid JSON pasted into the Paste JSON tab so users don't need a Parse button.
-  $effect(() => {
-    if (activeTab !== 'paste') return;
+  $effect.pre(() => {
     const raw = pasteJson;
+    parseGeneration += 1;
+    parsedServers = [];
+    parsedSelected = {};
+    parseError = null;
+    if (activeTab !== 'paste') return;
     if (!raw.trim()) {
       parsedServers = [];
       parsedSelected = {};

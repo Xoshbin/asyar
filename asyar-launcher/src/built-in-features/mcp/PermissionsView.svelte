@@ -9,6 +9,8 @@
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
   import { t } from '../../services/i18n';
 
+  let tableRef = $state<HTMLTableElement | null>(null);
+
   let loading = $state(false);
   let selectedIndex = $state(0);
 
@@ -60,6 +62,12 @@
   });
 
   $effect(() => {
+    const index = selectedIndex;
+    if (loading || !tableRef || !selectedRow) return;
+    tableRef.querySelectorAll<HTMLElement>('tbody tr')[index]?.focus({ preventScroll: true });
+  });
+
+  $effect(() => {
     const row = selectedRow;
     if (!row) {
       actionService.unregisterAction('mcp:revoke-permission');
@@ -102,7 +110,7 @@
       description={t('features.mcp.no_permissions_description')}
     />
   {:else}
-    <table class="permissions-table" role="grid">
+    <table bind:this={tableRef} class="permissions-table" role="grid">
       <thead>
         <tr>
           <th>{t('features.mcp.ui.col_server')}</th>
@@ -117,7 +125,10 @@
             class="permission-row"
             class:selected={index === selectedIndex}
             aria-selected={index === selectedIndex}
-            onclick={() => {
+            tabindex={index === selectedIndex ? 0 : -1}
+            onfocus={() => (selectedIndex = index)}
+            onclick={(event) => {
+              event.currentTarget.focus({ preventScroll: true });
               selectedIndex = index;
             }}
           >

@@ -151,6 +151,7 @@ class ClipboardHistoryExtension implements Extension {
 
   // Called when this extension's view is activated
   async viewActivated(viewPath: string): Promise<void> {
+    if (viewPath === 'clipboard-history/DefaultView') this.registerViewActions();
     this.inView = true;
     this.logService?.debug(`Clipboard History view activated: ${viewPath}`);
 

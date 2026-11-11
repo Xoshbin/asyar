@@ -1076,3 +1076,12 @@ describe('Ask AI about this action', () => {
     expect(searchStores.query).toBe('');
   });
 });
+
+it('restores clipboard actions when returning from a child view', async () => {
+  const { actionService } = await import('../../services/action/actionService.svelte');
+  vi.mocked(actionService.registerAction).mockClear();
+  await extension.viewActivated('clipboard-history/DefaultView');
+  expect(actionService.registerAction).toHaveBeenCalledWith(
+    expect.objectContaining({ id: 'clipboard-history:save-as-snippet' }),
+  );
+});

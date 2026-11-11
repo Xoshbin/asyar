@@ -4,6 +4,8 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import ShortcutEditView from './ShortcutEditView.svelte';
 import { shortcutStore } from './shortcutStore.svelte';
 import { shortcutViewState } from './shortcutViewState.svelte';
+import { shortcutService } from './shortcutService';
+import { VALID_KEYS } from './shortcutFormatter';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -18,6 +20,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 describe('ShortcutEditView', () => {
   beforeEach(() => {
+    viewManager.activeView = 'shortcuts/ShortcutEditView';
     shortcutStore.shortcuts = [];
     shortcutViewState.reset();
   });
@@ -82,5 +85,34 @@ describe('ShortcutEditView', () => {
     unmount();
 
     expect(goBackSpy).not.toHaveBeenCalled();
+  });
+  it('does not complete after unmount during a pending save', async () => {
+    vi.useFakeTimers();
+    try {
+      VALID_KEYS.add('T');
+      shortcutViewState.startEdit({
+        id: 's',
+        objectId: 'app',
+        itemName: 'App',
+        itemType: 'application',
+        shortcut: 'Super+T',
+        createdAt: 1,
+      });
+      vi.spyOn(shortcutService, 'isConflict').mockResolvedValue(null);
+      let resolve!: (value: { ok: true }) => void;
+      const register = vi
+        .spyOn(shortcutService, 'register')
+        .mockReturnValue(new Promise((r) => (resolve = r)));
+      const goBack = vi.spyOn(viewManager, 'goBack').mockImplementation(() => {});
+      const { unmount } = render(ShortcutEditView);
+      await fireEvent.keyDown(window, { key: 't', code: 'KeyT', metaKey: true });
+      expect(register).toHaveBeenCalled();
+      unmount();
+      resolve({ ok: true });
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(goBack).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

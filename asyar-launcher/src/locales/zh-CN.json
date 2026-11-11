@@ -1403,6 +1403,7 @@
         "screenshot_alt": "截图",
         "sdk_too_old": "无法安装 {name}：需要更新的 SDK（{sdk}）",
         "uninstall_confirm": "卸载 {name}？你可以随时从商店重新安装。",
+        "installation_status_failed": "无法检查安装状态。",
         "run_failed": "无法运行命令“{command}”",
         "configure": "配置",
         "activate_theme": "在“设置 → 外观 → 自定义主题”中启用",

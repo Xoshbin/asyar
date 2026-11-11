@@ -99,7 +99,7 @@
     // open dialog — stop every keydown here so none of them leak through
     // once the event has reached the dialog.
     event.stopPropagation();
-    if (event.key !== 'Enter') return;
+    if (event.key !== 'Enter' || event.isComposing) return;
     // No preventDefault when onEnter isn't wired: a dialog with no explicit
     // Enter action (e.g. one relying on a native <form onsubmit>) should get
     // native Enter behavior, not have it silently swallowed.

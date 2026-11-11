@@ -28,6 +28,10 @@ vi.mock('../../services/action/actionService.svelte', () => ({
 }));
 
 import snippetsExtension from './index';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+beforeEach(() => {
+  viewManager.activeView = 'snippets/DefaultView';
+});
 import { snippetStore } from './snippetStore.svelte';
 import { snippetViewState } from './snippetViewState.svelte';
 import { rankItems } from '../../lib/rankItems';
@@ -363,4 +367,16 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
 
     navSpy.mockRestore();
   });
+});
+
+it('does not register actions after a pending activation is covered by the form', async () => {
+  let resolve!: (value: { permissionGranted: boolean }) => void;
+  vi.mocked(snippetService.onViewOpen).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+  vi.mocked(actionService.registerAction).mockClear();
+  const pending = snippetsExtension.viewActivated('snippets/DefaultView');
+  await snippetsExtension.viewDeactivated('snippets/DefaultView');
+  await snippetsExtension.viewActivated('snippets/SnippetFormView');
+  resolve({ permissionGranted: true });
+  await pending;
+  expect(actionService.registerAction).not.toHaveBeenCalled();
 });

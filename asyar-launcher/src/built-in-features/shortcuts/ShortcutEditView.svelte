@@ -8,6 +8,8 @@
   import { shortcutStore } from './shortcutStore.svelte';
   import { shortcutViewState } from './shortcutViewState.svelte';
 
+  let mounted = true;
+
   let captureModifier = $state('');
   let captureKey = $state('');
 
@@ -22,6 +24,7 @@
     (document.activeElement as HTMLElement)?.blur();
 
     return () => {
+      mounted = false;
       shortcutStore.isCapturing = false;
       extensionIframeManager.hasInputFocus = false;
     };
@@ -57,7 +60,7 @@
   let closing = false;
 
   function handleClose() {
-    if (closing) return;
+    if (closing || !mounted || viewManager.activeView !== 'shortcuts/ShortcutEditView') return;
     closing = true;
     shortcutViewState.clearEdit();
     viewManager.goBack();

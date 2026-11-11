@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import SnippetFormView from './SnippetFormView.svelte';
 import { snippetStore } from './snippetStore.svelte';
 import { snippetViewState } from './snippetViewState.svelte';
@@ -31,8 +31,11 @@ vi.mock('./snippetService', () => ({
   })),
 }));
 
+import { processSnippetExpansion, snippetService } from './snippetService';
+
 describe('SnippetFormView', () => {
   beforeEach(() => {
+    viewManager.activeView = 'snippets/SnippetFormView';
     snippetStore.snippets = [];
     snippetViewState.reset();
     snippetUiState.prefillExpansion = null;
@@ -91,5 +94,52 @@ describe('SnippetFormView', () => {
       'copied snippet body',
     );
     expect(snippetUiState.prefillExpansion).toBeNull();
+  });
+  it.each(['cancel', 'unmount', 'concurrent'])('guards a pending save: %s', async (mode) => {
+    snippetViewState.startCreate();
+    const goBack = vi.spyOn(viewManager, 'goBack').mockImplementation(() => {});
+    const { unmount } = render(SnippetFormView);
+    await fireEvent.input(screen.getByLabelText(/name/i), { target: { value: 'Test' } });
+    await fireEvent.input(screen.getByLabelText(/expansion/i), { target: { value: 'body' } });
+    let resolve!: (value: { expansion: string; redactedKinds: never[] }) => void;
+    const process = vi
+      .mocked(processSnippetExpansion)
+      .mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    process.mockClear();
+    const save = actionService.getAllActions().find((a) => a.id === 'snippets:save')!;
+    const pending = save.execute();
+    if (mode === 'cancel') viewManager.tryInterceptEscape();
+    if (mode === 'unmount') unmount();
+    if (mode === 'concurrent') await save.execute();
+    resolve({ expansion: 'body', redactedKinds: [] });
+    await pending;
+    expect(process).toHaveBeenCalledTimes(1);
+    expect(snippetStore.getAll()).toHaveLength(mode === 'concurrent' ? 1 : 0);
+    expect(goBack).toHaveBeenCalledTimes(mode === 'unmount' ? 0 : 1);
+  });
+
+  it.each([
+    [false, true],
+    [true, false],
+    [true, true],
+  ])('initializes expansion with enabled=%s and permission=%s', async (preference, permission) => {
+    const { enabledPersistence } = await import('./snippetService');
+    vi.mocked(enabledPersistence.loadSync).mockReturnValueOnce(preference);
+    vi.mocked(snippetService.onViewOpen).mockResolvedValueOnce({ permissionGranted: permission });
+    const enabled = vi.mocked(snippetService.setEnabled).mockClear();
+    render(SnippetFormView);
+    await vi.waitFor(() => expect(enabled).toHaveBeenCalledWith(preference && permission));
+  });
+  it('allows retry after processing fails', async () => {
+    snippetViewState.startCreate();
+    vi.spyOn(viewManager, 'goBack').mockImplementation(() => {});
+    render(SnippetFormView);
+    await fireEvent.input(screen.getByLabelText(/name/i), { target: { value: 'Test' } });
+    await fireEvent.input(screen.getByLabelText(/expansion/i), { target: { value: 'body' } });
+    vi.mocked(processSnippetExpansion).mockRejectedValueOnce(new Error('failed'));
+    const save = actionService.getAllActions().find((a) => a.id === 'snippets:save')!;
+    await expect(save.execute()).rejects.toThrow('failed');
+    await save.execute();
+    expect(snippetStore.getAll()).toHaveLength(1);
   });
 });

@@ -465,17 +465,6 @@ class StoreExtension implements Extension {
 
     // Detail view specific keyboard handlers
     if (this.currentView === `${EXTENSION_ID}/DetailView`) {
-      if (event.key === 'Enter') {
-        // Guard: if installed state is still being checked, do nothing
-        if (this.currentDetailIsInstalled === null) return;
-        event.preventDefault();
-        event.stopPropagation();
-        if (this.currentDetailIsInstalled) {
-          actionService.executeAction(ACTION_ID_UNINSTALL_DETAIL);
-        } else {
-          actionService.executeAction(ACTION_ID_INSTALL_DETAIL);
-        }
-      }
       return;
     }
 

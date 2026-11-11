@@ -556,6 +556,7 @@
         extensionId={prompt.extensionId}
         commandId={prompt.commandId}
         commandObjectId={prompt.commandObjectId}
+        commandArgs={prompt.commandArgs}
         missing={prompt.missing}
         onClose={() => keyboard.restoreSearchFocus({ select: true })}
       />

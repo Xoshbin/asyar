@@ -156,10 +156,15 @@ describe('preference gate bypass', () => {
       { name: 'apiKey', type: 'password', title: 'API Key', required: true },
     ]);
 
-    await expect(svc.executeCommand('cmd_ext_normal')).rejects.toThrow('requires preferences');
+    const args = { query: 'original query', arguments: { text: 'hello' } };
+    await expect(svc.executeCommand('cmd_ext_normal', args)).rejects.toThrow(
+      'requires preferences',
+    );
 
     expect(extensionPreferencesService.getMissingRequired).toHaveBeenCalledWith('ext', 'normal');
-    expect(preferencesPromptStore.open).toHaveBeenCalled();
+    expect(preferencesPromptStore.open).toHaveBeenCalledWith(
+      expect.objectContaining({ commandObjectId: 'cmd_ext_normal', commandArgs: args }),
+    );
     expect(handler.execute).not.toHaveBeenCalled();
   });
 });

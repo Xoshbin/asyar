@@ -62,7 +62,8 @@
 
   let extensionDetail = $state<ExtensionDetail | null>(null);
   let isLoading = $state(true);
-  let isInstalled = $state(false);
+  let isInstalled = $state<boolean | null>(null);
+  let installationCheck = 0;
   let error = $state<string | null>(null);
 
   let readmeHtml = $derived(
@@ -134,16 +135,42 @@
       storeExtension.notifyInstalledStateChanged(false, undefined);
       return;
     }
+    const check = ++installationCheck;
+    const slug = currentSlug;
+    isInstalled = null;
     try {
-      const installedPaths = await commands.listInstalledExtensions().catch(() => []);
+      const installedPaths = await commands.listInstalledExtensions();
+      if (
+        check !== installationCheck ||
+        slug !== currentSlug ||
+        extensionDetail?.id !== extensionId
+      )
+        return;
       isInstalled = installedPaths.some(
         (p) => p.endsWith(`/${extensionId}`) || p.endsWith(`\\${extensionId}`) || p === extensionId,
       );
       storeExtension.notifyInstalledStateChanged(isInstalled, extensionId);
     } catch (e) {
       logService?.error(`Failed to check installed status: ${e}`);
-      isInstalled = false;
-      storeExtension.notifyInstalledStateChanged(false, undefined);
+      if (
+        check !== installationCheck ||
+        slug !== currentSlug ||
+        extensionDetail?.id !== extensionId
+      )
+        return;
+      isInstalled = null;
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: true,
+        context: { message: t('features.store.ui.installation_status_failed') },
+        developerDetail: String(e),
+        retryActionId: feedbackService.registerRetry(async () => {
+          if (slug === currentSlug && extensionDetail?.id === extensionId)
+            await checkIsInstalled(extensionId);
+        }),
+      });
     }
   }
 
@@ -174,6 +201,8 @@
   async function fetchExtensionDetails(slug: string) {
     logService.debug(`[DetailView] fetchExtensionDetails START for slug: ${slug}`); // Log start
     isLoading = true;
+    isInstalled = null;
+    installationCheck += 1;
     error = null;
     extensionDetail = null;
     logService?.info(`Fetching details for slug: ${slug}`);
@@ -183,23 +212,26 @@
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
+      if (slug !== currentSlug) return;
       extensionDetail = data.data || data; // Handle both wrapped and direct JSON objects
       logService.debug(
         `[DetailView] Successfully fetched and parsed data: ${JSON.stringify(extensionDetail)}`,
       ); // Log success and data
       logService?.info(`Fetched details for ${extensionDetail?.name}`);
     } catch (e: any) {
+      if (slug !== currentSlug) return;
       logService.error(`[DetailView] Fetch error: ${e}`); // Log fetch errors
       logService?.error(`Failed to fetch extension details: ${e.message}`);
       error = `Failed to load details: ${e.message}`;
     } finally {
+      if (slug !== currentSlug) return;
       isLoading = false;
       logService.debug(`[DetailView] fetchExtensionDetails FINALLY. isLoading set to false.`); // Log end
     }
   }
 
   async function installExtension() {
-    if (!extensionDetail || !currentSlug) return;
+    if (!extensionDetail || !currentSlug || isInstalled !== false) return;
     if (!isSdkCompatibleWithHost) {
       feedbackService.report({
         source: 'frontend',
@@ -309,6 +341,16 @@
       return;
     }
 
+    const uninstallConfig = {
+      label: t('common.uninstall'),
+      icon: 'icon:trash',
+      shortcut: 'Control+X',
+      disabled: false,
+      confirmInExecute: true,
+      destructive: true,
+      execute: () => uninstallExtension(),
+    };
+
     const primaryConfig =
       installed && hasUpdate && update
         ? {
@@ -339,16 +381,16 @@
                       ? t('features.store.act.install')
                       : t('features.store.act.install'),
                   icon: 'icon:download',
-                  disabled: !compatible,
+                  disabled: installed === null || !compatible,
                   execute: () => installExtension(),
                 }
-              : null;
+              : uninstallConfig;
 
     if (primaryConfig) {
       actionService.registerAction({
         id: 'store:detail-primary',
-        ...primaryConfig,
         shortcut: 'Enter',
+        ...primaryConfig,
         primary: true,
         category: t('features.store.title'),
         extensionId: 'store',
@@ -375,18 +417,13 @@
       actionService.unregisterAction('store:detail-configure');
     }
 
-    if (installed) {
+    if (installed && (hasUpdate || primary || hasPrefs)) {
       actionService.registerAction({
         id: 'store:detail-uninstall',
-        label: t('common.uninstall'),
-        icon: 'icon:trash',
-        shortcut: 'Control+X',
-        confirmInExecute: true,
-        destructive: true,
+        ...uninstallConfig,
         category: t('features.store.title'),
         extensionId: 'store',
         context: ActionContext.EXTENSION_VIEW,
-        execute: () => uninstallExtension(),
       });
       registeredIds.push('store:detail-uninstall');
 

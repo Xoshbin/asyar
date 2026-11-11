@@ -17,6 +17,7 @@ class SnippetsExtension implements Extension {
   onUnload = () => {};
   private extensionManager?: IExtensionManager;
   private inView = false;
+  private activationGeneration = 0;
   private handleKeydownBound = (e: KeyboardEvent) => this.handleKeydown(e);
 
   async initialize(context: ExtensionContext): Promise<void> {
@@ -265,6 +266,7 @@ class SnippetsExtension implements Extension {
   }
 
   async viewActivated(viewId: string): Promise<void> {
+    const generation = ++this.activationGeneration;
     if (viewId !== 'snippets/DefaultView') return;
     this.inView = true;
     if (typeof window !== 'undefined') {
@@ -272,10 +274,18 @@ class SnippetsExtension implements Extension {
       window.addEventListener('keydown', this.handleKeydownBound, true);
     }
     await snippetService.onViewOpen();
+    if (
+      generation !== this.activationGeneration ||
+      !this.inView ||
+      viewManager.activeView !== 'snippets/DefaultView'
+    )
+      return;
     this.registerViewActions();
   }
 
   async viewDeactivated(viewId: string): Promise<void> {
+    ++this.activationGeneration;
+    this.inView = false;
     if (viewId === 'snippets/SnippetFormView') {
       snippetUiState.prefillExpansion = null;
       snippetViewState.cancelEdit();
@@ -300,6 +310,7 @@ class SnippetsExtension implements Extension {
   }
 
   async deactivate(): Promise<void> {
+    ++this.activationGeneration;
     this.inView = false;
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound, true);

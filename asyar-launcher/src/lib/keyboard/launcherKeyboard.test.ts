@@ -2098,6 +2098,25 @@ describe('launcherKeyboard characterization tests', () => {
       expect(input.select).not.toHaveBeenCalled();
     });
 
+    it('does not steal modal focus on a disabled-input retry', async () => {
+      const input = {
+        disabled: true,
+        focus: vi.fn(),
+        select: vi.fn(),
+        value: 'sdk',
+      } as unknown as HTMLInputElement;
+      const { restoreSearchFocus } = createKeyboardHandlers(
+        createMockDeps({ getSearchInput: () => input }),
+      );
+      restoreSearchFocus({ select: true });
+      await new Promise((r) => requestAnimationFrame(r));
+      (document as any).activeElement = { tagName: 'INPUT', type: 'text' };
+      input.disabled = false;
+      await new Promise((r) => requestAnimationFrame(r));
+      expect(input.focus).not.toHaveBeenCalled();
+      (document as any).activeElement = null;
+    });
+
     it('waits a frame if search input is still disabled when returning from a non-searchable view', async () => {
       const input = {
         disabled: true,

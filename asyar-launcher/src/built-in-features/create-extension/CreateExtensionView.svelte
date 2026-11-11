@@ -267,7 +267,7 @@
             placeholder={t('features.create_extension.select_folder')}
             onclick={handleBrowse}
             onkeydown={(e) => {
-              if (e.key === ' ') {
+              if (e.key === ' ' || e.key === 'Enter') {
                 e.preventDefault();
                 void handleBrowse();
               }

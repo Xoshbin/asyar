@@ -1403,6 +1403,7 @@
         "screenshot_alt": "Captura de tela",
         "sdk_too_old": "Não é possível instalar {name}: requer um SDK mais recente ({sdk})",
         "uninstall_confirm": "Desinstalar {name}? Você pode reinstalá-lo pela loja.",
+        "installation_status_failed": "Não foi possível verificar o estado da instalação.",
         "run_failed": "Não foi possível executar o comando \"{command}\"",
         "configure": "Configurar",
         "activate_theme": "Ative em Configurações → Aparência → Temas personalizados",

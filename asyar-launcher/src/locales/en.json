@@ -1403,6 +1403,7 @@
         "screenshot_alt": "Screenshot",
         "sdk_too_old": "Cannot install {name}: requires newer SDK ({sdk})",
         "uninstall_confirm": "Uninstall {name}? You can reinstall it from the store.",
+        "installation_status_failed": "Failed to check installed status.",
         "run_failed": "Could not run command \"{command}\"",
         "configure": "Configure",
         "activate_theme": "Activate in Settings → Appearance → Custom Themes",

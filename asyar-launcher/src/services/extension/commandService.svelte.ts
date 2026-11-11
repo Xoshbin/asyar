@@ -123,6 +123,7 @@ export class CommandService {
           extensionId: command.extensionId,
           commandId: shortCommandId,
           commandObjectId,
+          commandArgs: args,
           missing,
         });
         throw new PreferencesRequiredError(command.extensionId, shortCommandId);

@@ -93,6 +93,37 @@ describe('RequiredPreferencesView', () => {
     expect(mockExecute).toHaveBeenCalledWith('cmd_org.asyar.google-translate_translate');
   });
 
+  it('shows the failed preference and retries with the original arguments', async () => {
+    const args = { query: 'translate this', arguments: { text: 'hello' } };
+    render(RequiredPreferencesView, {
+      props: {
+        extensionId: 'test',
+        commandId: 'translate',
+        commandObjectId: 'cmd_test_translate',
+        commandArgs: args,
+        missing: [
+          {
+            name: 'targetLang',
+            title: 'Primary Language',
+            type: 'textfield',
+            required: true,
+            default: 'en',
+          },
+        ],
+      },
+    });
+    mockSet.mockRejectedValueOnce(new Error('Save failed'));
+    const action = actionService
+      .getAllActions()
+      .find((a) => a.id === 'preferences-prompt:continue')!;
+    await action.execute();
+    expect(screen.getByRole('alert').textContent).toContain('Primary Language');
+    expect(mockClose).not.toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
+    await action.execute();
+    expect(mockExecute).toHaveBeenCalledWith('cmd_test_translate', args);
+  });
+
   it('closes on Escape via viewManager interceptor', () => {
     const onClose = vi.fn();
     render(RequiredPreferencesView, {

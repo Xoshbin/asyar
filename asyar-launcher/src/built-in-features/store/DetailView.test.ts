@@ -31,11 +31,13 @@ vi.mock('./index.svelte', () => ({
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: {
     report: vi.fn(),
+    registerRetry: vi.fn(() => 'retry-installation-status'),
     confirmAlert: vi.fn(),
   },
 }));
 
 import DetailView from './DetailView.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { storeViewState as store } from './state.svelte';
 import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
 
@@ -156,5 +158,59 @@ describe('DetailView SDK Version Compatibility', () => {
     expect(uninstallCall?.shortcut).toBe('Control+X');
     expect(uninstallCall?.destructive).toBe(true);
     expect(uninstallCall?.confirmInExecute).toBe(true);
+  });
+  it('disables install until installation status resolves', async () => {
+    let resolve!: (paths: string[]) => void;
+    listInstalledExtensions.mockReturnValue(
+      new Promise<string[]>((r) => {
+        resolve = r;
+      }),
+    );
+    mockExtensionResponse({});
+    render(DetailView);
+    await waitFor(() => expect(findDetailPrimaryAction()).toBeDefined());
+    expect(findDetailPrimaryAction()?.disabled).toBe(true);
+    resolve([]);
+    await waitFor(() => expect(findDetailPrimaryAction()?.disabled).toBe(false));
+  });
+  it('reports a failed installation check and retries without closing the detail view', async () => {
+    listInstalledExtensions.mockRejectedValueOnce(new Error('Status unavailable'));
+    mockExtensionResponse({});
+    render(DetailView);
+
+    await waitFor(() =>
+      expect(feedbackService.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'error',
+          retryable: true,
+          retryActionId: 'retry-installation-status',
+          context: { message: expect.stringContaining('installed status') },
+        }),
+      ),
+    );
+    expect(screen.getByRole('heading', { name: 'Test Extension' })).toBeTruthy();
+    expect(findDetailPrimaryAction()?.disabled).toBe(true);
+
+    let resolve!: (paths: string[]) => void;
+    listInstalledExtensions.mockReturnValueOnce(
+      new Promise<string[]>((r) => {
+        resolve = r;
+      }),
+    );
+    const retry = vi.mocked(feedbackService.registerRetry).mock.calls[0][0];
+    const pending = retry();
+    expect(findDetailPrimaryAction()?.disabled).toBe(true);
+    resolve(['org.asyar.test']);
+    await pending;
+    await waitFor(() => expect(findDetailPrimaryAction()?.label).toBe('Run Command 1'));
+    expect(listInstalledExtensions).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('heading', { name: 'Test Extension' })).toBeTruthy();
+  });
+  it('uses confirmed uninstall as primary for an installed item without commands or preferences', async () => {
+    listInstalledExtensions.mockResolvedValue(['org.asyar.test']);
+    mockExtensionResponse({ manifest: {} });
+    render(DetailView);
+    await waitFor(() => expect(findDetailPrimaryAction()?.label).toBe('Uninstall'));
+    expect(findDetailPrimaryAction()?.confirmInExecute).toBe(true);
   });
 });

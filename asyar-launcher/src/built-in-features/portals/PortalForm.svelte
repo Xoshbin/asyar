@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { FormField, FormView, Input, PlaceholderPicker } from '../../components';
   import { portalStore, type Portal } from './portalStore.svelte';
   import { portalsUiState } from './index.svelte';
@@ -29,6 +29,11 @@
   const resolvedPortal = $derived<Partial<Portal>>(
     portal ?? (resolvedIsEditing ? (portalsUiState.editingPortal ?? {}) : {}),
   );
+
+  let cancelled = false;
+  onDestroy(() => {
+    cancelled = true;
+  });
 
   let name = $state('');
   let url = $state('');
@@ -68,7 +73,7 @@
       });
     } finally {
       portalsUiState.clearDraft();
-      viewManager.goBack();
+      if (!cancelled && viewManager.activeView === 'portals/PortalFormView') viewManager.goBack();
     }
   }
 
@@ -91,8 +96,9 @@
   function handleCancel() {
     if (pickerOpen) {
       closePicker();
-      return;
+      return false;
     }
+    cancelled = true;
     if (oncancel) {
       oncancel();
       return;

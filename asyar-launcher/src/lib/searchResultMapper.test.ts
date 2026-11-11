@@ -580,7 +580,7 @@ describe('buildMappedItems: portal command uses activeContext.query', () => {
       selectedIndex: 0,
       onError,
     });
-    await expect(mappedItems[0].action()).resolves.toBeUndefined();
+    await expect(mappedItems[0].action()).rejects.toBe(err);
     expect(onError).not.toHaveBeenCalled();
   });
 });

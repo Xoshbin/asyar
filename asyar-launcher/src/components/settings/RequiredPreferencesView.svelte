@@ -14,18 +14,21 @@
     extensionId,
     commandId,
     commandObjectId,
+    commandArgs,
     missing,
     onClose,
   }: {
     extensionId: string;
     commandId: string;
     commandObjectId: string;
+    commandArgs?: Record<string, any>;
     missing: PreferenceDeclaration[];
     onClose?: () => void;
   } = $props();
 
   let values = $state<Record<string, unknown>>({});
   let isSaving = $state(false);
+  let errors = $state<Record<string, string>>({});
 
   // Seed any defaults declared on the missing preferences so dropdowns with
   // defaults start ready without extra clicks.
@@ -58,11 +61,13 @@
 
   function handleChange(key: string, value: unknown) {
     values = { ...values, [key]: value };
+    delete errors[key];
   }
 
   async function handleSave() {
     if (!isComplete || isSaving) return;
     isSaving = true;
+    errors = {};
     try {
       for (const [key, value] of Object.entries(values)) {
         const decl = missing.find((p) => p.name === key);
@@ -75,6 +80,7 @@
         try {
           await extensionPreferencesService.set(extensionId, scope, key, value);
         } catch (err) {
+          errors[key] = `${decl.title ?? key}: ${err instanceof Error ? err.message : String(err)}`;
           logService.error(
             `RequiredPreferencesView: failed to save '${key}' for ${extensionId}: ${err}`,
           );
@@ -85,7 +91,8 @@
       preferencesPromptStore.close();
 
       try {
-        await commandService.executeCommand(commandObjectId);
+        if (commandArgs === undefined) await commandService.executeCommand(commandObjectId);
+        else await commandService.executeCommand(commandObjectId, commandArgs);
       } catch (err) {
         logService.error(
           `RequiredPreferencesView: command re-invocation failed for ${commandObjectId}: ${err}`,
@@ -128,7 +135,7 @@
       <ExtensionPreferencesForm
         preferences={missing}
         {values}
-        errors={{}}
+        {errors}
         disabled={isSaving}
         onChange={handleChange}
       />

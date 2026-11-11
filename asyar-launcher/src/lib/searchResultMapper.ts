@@ -333,7 +333,7 @@ export function buildMappedItems({
           });
         } catch (err) {
           if (err instanceof Error && err.name === 'PreferencesRequiredError') {
-            return undefined;
+            throw err;
           }
           logService.error(`extensionManager.handleCommandAction failed: ${err}`);
           onError(`Failed to run command ${name}`);

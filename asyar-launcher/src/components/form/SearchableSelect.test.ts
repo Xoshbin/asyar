@@ -59,3 +59,13 @@ describe('SearchableSelect', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 });
+
+it('resets highlight when filtering and identifies the active option', async () => {
+  render(SearchableSelect, { options: OPTIONS, value: 'ckb' });
+  await fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' });
+  const input = screen.getByPlaceholderText(/filter/i);
+  expect(input.getAttribute('aria-activedescendant')).toBe(screen.getAllByRole('option')[2].id);
+  await fireEvent.input(input, { target: { value: 'ku' } });
+  expect(screen.getAllByRole('option')[0].classList.contains('highlighted')).toBe(true);
+  expect(input.getAttribute('aria-activedescendant')).toBe(screen.getAllByRole('option')[0].id);
+});

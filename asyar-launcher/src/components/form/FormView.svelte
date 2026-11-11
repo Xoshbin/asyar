@@ -28,7 +28,7 @@
     autofocus?: boolean;
     restoreSearchFocusOnCancel?: boolean;
     onsubmit: () => void | Promise<void>;
-    oncancel?: () => void;
+    oncancel?: () => void | boolean;
     header?: Snippet;
     children: Snippet;
   } = $props();
@@ -73,8 +73,8 @@
   $effect(() => {
     if (!oncancel) return;
     const unregister = viewManager.registerEscapeInterceptor(() => {
-      oncancel();
-      restoreSearchFocus();
+      const leftForm = oncancel();
+      if (leftForm !== false) restoreSearchFocus();
       return true;
     });
     return unregister;

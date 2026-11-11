@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import PortalForm from './PortalForm.svelte';
 import { portalStore } from './portalStore.svelte';
 import { portalsUiState } from './index.svelte';
@@ -22,8 +22,11 @@ vi.mock('./portalLifecycle', () => ({
   removePortalFromIndex: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { syncPortalToIndex, removePortalFromIndex } from './portalLifecycle';
+
 describe('Portals PortalFormView', () => {
   beforeEach(() => {
+    viewManager.activeView = 'portals/PortalFormView';
     portalStore.portals = [];
     portalsUiState.clearDraft();
   });
@@ -69,5 +72,28 @@ describe('Portals PortalFormView', () => {
     expect(goBackSpy).toHaveBeenCalledTimes(1);
     expect(portalsUiState.formMode).toBe('create');
     expect(portalsUiState.editingPortal).toBeNull();
+  });
+  it.each(['remove', 'sync'])('does not pop again after cancel during %s', async (phase) => {
+    portalsUiState.startEdit({
+      id: 'p',
+      name: 'Portal',
+      url: 'https://example.com',
+      icon: '',
+      createdAt: 1,
+    });
+    const goBack = vi.spyOn(viewManager, 'goBack').mockImplementation(() => {});
+    render(PortalForm);
+    let resolve!: () => void;
+    vi.mocked(phase === 'remove' ? removePortalFromIndex : syncPortalToIndex).mockReturnValueOnce(
+      new Promise((r) => (resolve = r)),
+    );
+    const pending = actionService
+      .getAllActions()
+      .find((a) => a.id === 'portals:save')!
+      .execute();
+    viewManager.tryInterceptEscape();
+    resolve();
+    await pending;
+    expect(goBack).toHaveBeenCalledTimes(1);
   });
 });

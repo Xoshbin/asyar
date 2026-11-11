@@ -87,6 +87,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       // Parked launcher (not key): focusing would leave a caret that macOS
       // anchors "Write with Siri" to. The window `focus` /
       // become-key listeners call back in here on reveal.
+      if (opts?.select && isInputFocused() && document.activeElement !== deps.getSearchInput())
+        return;
       if (!document.hasFocus()) return;
       const input = deps.getSearchInput();
       if (!input) return;

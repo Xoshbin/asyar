@@ -239,6 +239,7 @@ export class LauncherController {
           searchStores.query = '';
         }
       } catch (error) {
+        if (error instanceof Error && error.name === 'PreferencesRequiredError') return;
         logService.error(`Action error: ${error}`);
         feedbackService.report({
           source: 'frontend',
