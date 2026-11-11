@@ -87,11 +87,11 @@
       "backup": "Sauvegarde",
       "sync": "Synchronisation",
       "account": "Compte",
-      "privacy": "Confidentialité et autorisations",
+      "privacy": "Confidentialité",
       "advanced": "Avancé",
       "developer": "Développeur",
       "about": "À propos",
-      "built_in_features": "Fonctionnalités intégrées"
+      "built_in_features": "Fonctions intégrées"
     },
     "general": {
       "section_startup": "Démarrage",
@@ -251,7 +251,7 @@
     "backup": {
       "password_optional": "Mot de passe (facultatif)",
       "password_optional_description": "Chiffrer les champs sensibles dans l'export.",
-      "password_optional_placeholder": "Laissez vide pour retirer les champs sensibles",
+      "password_optional_placeholder": "Vide : champs sensibles retirés",
       "sensitive_stripped_warning": "Les champs sensibles seront retirés de cet export. Définissez un mot de passe pour les garder chiffrés à la place.",
       "export_api_keys_note": "Les clés API ne sont pas incluses dans les exports. Vous les saisirez à nouveau dans Réglages → IA sur l'autre appareil.",
       "export_backup": "Exporter une sauvegarde",
@@ -835,7 +835,7 @@
       "group_app": "App",
       "group_system": "Système",
       "group_results": "Résultats",
-      "account_subtitle": "Compte et synchronisation cloud",
+      "account_subtitle": "Compte et synchro cloud",
       "back": "Retour",
       "forward": "Suivant",
       "search_placeholder": "Rechercher",
@@ -870,7 +870,7 @@
     "ai_step_connected": "✓ Connecté par défaut",
     "ai_step_scanning_clis": "Recherche des CLI locales…",
     "ai_step_feature_zero_key": "IA sans clé",
-    "ai_step_feature_web_search": "Recherche web en direct",
+    "ai_step_feature_web_search": "Recherche web",
     "ai_step_feature_web_search_desc": "Tous les modèles peuvent chercher sur le web en direct et citer leurs sources grâce à DuckDuckGo / SearXNG intégrés, sans configuration.",
     "ai_step_feature_mcp": "Serveur MCP local",
     "ai_step_feature_mcp_desc": "Asyar met sa calculatrice, ses outils de fichiers et sa recherche web à disposition de vos agents CLI via un serveur MCP local.",
