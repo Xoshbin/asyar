@@ -77,17 +77,18 @@ Built-in features declare Raycast-aligned shortcuts while their view is active. 
 
 **Snippets**
 
-| Shortcut | What it does                        |
-| -------- | ----------------------------------- |
-| `↵`      | Paste the selected snippet          |
-| `⌘N`     | Create a new snippet                |
-| `⌘S`     | Save changes when editing a snippet |
-| `⌘E`     | Edit the selected snippet           |
-| `⌘D`     | Duplicate the selected snippet      |
-| `⌘⇧C`    | Copy snippet expansion              |
-| `⌘.`     | Pin / Unpin the selected snippet    |
-| `⌃X`     | Delete the selected snippet         |
-| `⌃⇧X`    | Clear all snippets                  |
+| Shortcut | What it does                              |
+| -------- | ----------------------------------------- |
+| `↵`      | Paste the selected snippet                |
+| `⌘↵`     | Save form / submit changes in edit views  |
+| `⌘N`     | Create a new snippet                      |
+| `⌘E`     | Edit the selected snippet                 |
+| `⌘D`     | Duplicate the selected snippet            |
+| `⌘⇧P`    | Insert dynamic placeholder (when editing) |
+| `⌘⇧C`    | Copy snippet expansion                    |
+| `⌘.`     | Pin / Unpin the selected snippet          |
+| `⌃X`     | Delete the selected snippet               |
+| `⌃⇧X`    | Clear all snippets                        |
 
 **Clipboard History**
 
@@ -156,6 +157,7 @@ Built-in features declare Raycast-aligned shortcuts while their view is active. 
 
 | Feature         | Shortcut | What it does                                |
 | --------------- | -------- | ------------------------------------------- |
+| Portals         | `⌘↵`     | Save portal form                            |
 | Portals         | `⌘N`     | Create a new portal                         |
 | Portals         | `⌘E`     | Edit selected portal                        |
 | Portals         | `⌘D`     | Duplicate selected portal                   |
@@ -164,7 +166,12 @@ Built-in features declare Raycast-aligned shortcuts while their view is active. 
 | Script Commands | `⌘R`     | Reveal selected script in Finder            |
 | Script Commands | `⌘⇧C`    | Copy selected script path                   |
 | MCP Servers     | `⌘N`     | Install MCP server                          |
+| MCP Servers     | `⌘T`     | Test MCP server connection (Install form)   |
 | MCP Servers     | `⌘R`     | Refresh MCP server status                   |
+| MCP Permissions | `⌃X`     | Revoke selected tool permission             |
+| Store           | `↵`      | Install / Update / Run selected extension   |
+| Store           | `⌘⇧,`    | Open extension preferences (Detail view)    |
+| Store           | `⌃X`     | Uninstall extension (Detail view)           |
 | Store           | `⌘O`     | Open extension page in web browser          |
 | Shortcuts       | `⌘E`     | Change global shortcut                      |
 | Shortcuts       | `⌃X`     | Remove global shortcut (with confirmation)  |

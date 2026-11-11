@@ -22,7 +22,7 @@
 
 <button
   type="button"
-  {onclick}
+  onclick={disabled ? undefined : onclick}
   {disabled}
   aria-haspopup={ariaHaspopup}
   aria-expanded={ariaExpanded}

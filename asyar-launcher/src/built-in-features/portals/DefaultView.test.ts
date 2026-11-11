@@ -38,4 +38,19 @@ describe('Portals DefaultView', () => {
     expect(screen.getByText('1 placeholder')).toBeTruthy();
     expect(screen.getByText('Created')).toBeTruthy();
   });
+
+  it('registers Mod+Enter primary action without Save/Cancel buttons in create mode', async () => {
+    const { portalsUiState } = await import('./index.svelte');
+    const { actionService } = await import('../../services/action/actionService.svelte');
+
+    portalsUiState.openMode = 'new';
+    render(DefaultView);
+
+    expect(screen.queryByRole('button', { name: /cancel/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /save/i })).toBeNull();
+
+    const saveAction = actionService.getAllActions().find((a) => a.id === 'portals:save');
+    expect(saveAction?.shortcut).toBe('Mod+Enter');
+    expect(saveAction?.primary).toBe(true);
+  });
 });

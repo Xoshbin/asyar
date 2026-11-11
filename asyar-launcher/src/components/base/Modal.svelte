@@ -104,7 +104,8 @@
     // Enter action (e.g. one relying on a native <form onsubmit>) should get
     // native Enter behavior, not have it silently swallowed.
     if (!onEnter) return;
-    if (isActionableElementFocused(document.activeElement)) return;
+    const isModEnter = event.metaKey || event.ctrlKey;
+    if (!isModEnter && isActionableElementFocused(document.activeElement)) return;
     event.preventDefault();
     onEnter?.();
   }

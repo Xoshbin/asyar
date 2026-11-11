@@ -93,6 +93,9 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
     });
   }
 
+  /**
+   * @deprecated Use `actionService.registerAction({ ..., primary: true })`. Remove in 0.2.0.
+   */
   setActiveViewActionLabel(label: string | null): void {
     this.broker
       .invoke('extensions:setActiveViewActionLabel', { label })

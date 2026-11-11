@@ -81,8 +81,10 @@ export { default as CredentialField } from './settings/CredentialField.svelte';
 
 // Form
 export { default as FormField } from './form/FormField.svelte';
+export { default as FormView } from './form/FormView.svelte';
 export { default as PlaceholderPicker } from './form/PlaceholderPicker.svelte';
 export { default as ModelSelector } from './form/ModelSelector.svelte';
+export { default as SearchableSelect } from './form/SearchableSelect.svelte';
 
 // Onboarding
 export { default as GuidanceStep } from './onboarding/GuidanceStep.svelte';
@@ -144,10 +146,9 @@ export { default as ShellTrustManager } from './settings/ShellTrustManager.svelt
 export { default as DisableE2eeDialog } from './settings/DisableE2eeDialog.svelte';
 export { default as EncryptionEnrolmentDialog } from './settings/EncryptionEnrolmentDialog.svelte';
 export { default as PassphraseDialog } from './settings/PassphraseDialog.svelte';
-export { default as PreferencesPromptHost } from './settings/PreferencesPromptHost.svelte';
 export { default as RecoverWithMnemonicDialog } from './settings/RecoverWithMnemonicDialog.svelte';
 export { default as RecoveryPhraseDialog } from './settings/RecoveryPhraseDialog.svelte';
-export { default as RequiredPreferencesDialog } from './settings/RequiredPreferencesDialog.svelte';
+export { default as RequiredPreferencesView } from './settings/RequiredPreferencesView.svelte';
 export { default as ResetCloudSyncDialog } from './settings/ResetCloudSyncDialog.svelte';
 export { default as RotatePassphraseDialog } from './settings/RotatePassphraseDialog.svelte';
 

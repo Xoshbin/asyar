@@ -164,6 +164,7 @@ export class LauncherController {
     try {
       await commandArgumentsService.submit();
     } catch (err) {
+      if (err instanceof Error && err.name === 'PreferencesRequiredError') return;
       logService.error(`[argumentMode] submit failed: ${err}`);
       feedbackService.report({
         source: 'frontend',

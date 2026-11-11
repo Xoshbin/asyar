@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   viewManager: { activeView: null as string | null },
   actionService: { filteredActions: [] as unknown[] },
   chords: [] as string[],
+  enterPrimary: false,
   builtIn: false,
   send: vi.fn(),
 }));
@@ -13,7 +14,10 @@ const state = vi.hoisted(() => ({
 vi.mock('../extension/viewManager.svelte', () => ({ viewManager: state.viewManager }));
 vi.mock('./actionService.svelte', () => ({ actionService: state.actionService }));
 vi.mock('./actionShortcuts', () => ({
-  actionShortcuts: { activeChords: () => state.chords },
+  actionShortcuts: {
+    activeChords: () => state.chords,
+    hasEnterCandidate: () => state.enterPrimary,
+  },
 }));
 vi.mock('../extension/extensionDiscovery', () => ({
   isBuiltInFeature: () => state.builtIn,
@@ -32,6 +36,7 @@ describe('announceActiveViewShortcuts', () => {
   beforeEach(() => {
     state.viewManager.activeView = null;
     state.chords = [];
+    state.enterPrimary = false;
     state.builtIn = false;
     state.send.mockReset();
   });
@@ -40,7 +45,15 @@ describe('announceActiveViewShortcuts', () => {
     state.viewManager.activeView = 'org.acme.ext/DefaultView';
     state.chords = ['Super+N'];
     announceActiveViewShortcuts({ force: true });
-    expect(state.send).toHaveBeenCalledWith('org.acme.ext', ['Super+N']);
+    expect(state.send).toHaveBeenCalledWith('org.acme.ext', ['Super+N'], false);
+  });
+
+  it('forwards enterPrimary flag when an Enter primary action is active', () => {
+    state.viewManager.activeView = 'org.acme.ext/DefaultView';
+    state.chords = [];
+    state.enterPrimary = true;
+    announceActiveViewShortcuts({ force: true });
+    expect(state.send).toHaveBeenCalledWith('org.acme.ext', [], true);
   });
 
   it('does nothing without an active view', () => {
@@ -82,7 +95,7 @@ describe('announceActiveViewShortcuts', () => {
     state.chords = ['Super+N', 'Super+M'];
     announceActiveViewShortcuts();
     // Sent sorted, so the signature does not depend on candidate order.
-    expect(state.send).toHaveBeenLastCalledWith('org.acme.ext', ['Super+M', 'Super+N']);
+    expect(state.send).toHaveBeenLastCalledWith('org.acme.ext', ['Super+M', 'Super+N'], false);
   });
 });
 
@@ -94,7 +107,7 @@ describe('startViewShortcutSync', () => {
     const stop = startViewShortcutSync();
     flushSync();
     await Promise.resolve();
-    expect(state.send).toHaveBeenCalledWith('org.acme.ext', ['Super+A']);
+    expect(state.send).toHaveBeenCalledWith('org.acme.ext', ['Super+A'], false);
     stop();
   });
 });

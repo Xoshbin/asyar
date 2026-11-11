@@ -611,7 +611,11 @@ export class ExtensionManager implements IExtensionManager {
     return null;
   }
 
+  /**
+   * @deprecated Use `actionService.registerAction({ ..., primary: true })`. Remove in 0.2.0.
+   */
   public setActiveViewActionLabel(label: string | null): void {
+    // COMPAT(remove in 0.2.0): legacy label-only primary action indicator for published extensions
     logService.info(`[ExtensionManager] Setting active view action label to: ${label}`);
     viewManager.activeViewPrimaryActionLabel = label;
   }

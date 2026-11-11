@@ -88,6 +88,8 @@ export interface ApplicationAction {
   destructive?: boolean;
   /** Panel position for built-ins; unmarked actions are the selected item's own. See `actionTier`. */
   placement?: ActionPlacement;
+  /** Marks this action as the view's primary action shown in the bottom bar. */
+  primary?: boolean;
   execute: () => Promise<void> | void;
   shortcut?: string;
   visible?: () => boolean;
@@ -107,6 +109,7 @@ function sameActionMetadata(a: ApplicationAction, b: ApplicationAction): boolean
     a.confirmInExecute === b.confirmInExecute &&
     a.destructive === b.destructive &&
     a.placement === b.placement &&
+    a.primary === b.primary &&
     a.shortcut === b.shortcut &&
     a.disabled === b.disabled
   );
@@ -118,8 +121,8 @@ function sameActionMetadata(a: ApplicationAction, b: ApplicationAction): boolean
  */
 export class ActionService implements IActionService {
   private allActions: Map<string, ApplicationAction> = new Map();
-  private currentContext: ActionContext = ActionContext.CORE;
-  private currentExtensionId?: string;
+  private currentContext = $state<ActionContext>(ActionContext.CORE);
+  private currentExtensionId = $state<string | undefined>(undefined);
   private sendToExtension?: (
     extensionId: string,
     actionId: string,
@@ -136,6 +139,23 @@ export class ActionService implements IActionService {
 
   // Svelte 5 reactive state
   public filteredActions = $state<ApplicationAction[]>([]);
+
+  /**
+   * Primary action for the active extension view, shown in BottomActionBar with
+   * its keyboard shortcut (`Mod+Enter` for forms, `Enter` for lists/empty states).
+   */
+  public activeViewPrimaryAction = $derived.by((): ApplicationAction | null => {
+    const actions = this.filteredActions;
+    if (this.currentContext !== ActionContext.EXTENSION_VIEW) return null;
+    const viewActions = actions.filter((a) => a.context === ActionContext.EXTENSION_VIEW);
+    const explicit = viewActions.find((a) => a.primary);
+    if (explicit) return explicit;
+    return (
+      viewActions.find((a) => a.shortcut === 'Mod+Enter') ??
+      viewActions.find((a) => a.shortcut === 'Enter') ??
+      null
+    );
+  });
 
   constructor() {
     this.registerBuiltInActions();
@@ -234,6 +254,7 @@ export class ActionService implements IActionService {
       confirmInExecute: 'confirmInExecute' in action ? action.confirmInExecute : undefined,
       destructive: 'destructive' in action ? action.destructive : undefined,
       placement: 'placement' in action ? action.placement : undefined,
+      primary: 'primary' in action ? action.primary : undefined,
       shortcut: 'shortcut' in action ? action.shortcut : undefined,
       execute: action.execute,
       disabled: 'disabled' in action ? action.disabled : undefined,
@@ -503,6 +524,10 @@ export class ActionService implements IActionService {
     const action = this.allActions.get(actionId); // Get from the master list
     if (!action) {
       throw new Error(`Action not found: ${actionId}`);
+    }
+    if (action.disabled) {
+      logService.debug(`Skipping disabled action: ${actionId}`);
+      return;
     }
 
     logService.info(`Executing action: ${actionId} from ${action.extensionId || 'core'}`);

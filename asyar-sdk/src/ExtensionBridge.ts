@@ -46,6 +46,7 @@ export class ExtensionBridge {
    * these are forwarded from the iframe; see `installNavigationKeyForwarder`.
    */
   private actionShortcutChords: Set<string> = new Set();
+  private enterPrimaryActive = false;
 
   constructor() {
     this.broker = messageBroker;
@@ -83,6 +84,22 @@ export class ExtensionBridge {
       const tag = el.tagName?.toLowerCase();
       return tag === 'input' || tag === 'textarea' || el.isContentEditable;
     };
+    const isInteractiveEnterTarget = (event: KeyboardEvent) => {
+      if (isEditableTarget()) return true;
+      const checkElement = (el: Element | null): boolean => {
+        if (!el) return false;
+        const tag = el.tagName?.toLowerCase();
+        if (['input', 'textarea', 'select', 'button', 'a'].includes(tag)) {
+          return true;
+        }
+        return Boolean(
+          el.closest?.(
+            'button, a[href], select, [role="button"], [role="menuitem"], [role="option"], [role="combobox"], [role="listbox"], [role="tab"]',
+          ),
+        );
+      };
+      return checkElement(document.activeElement) || checkElement(event.target as Element | null);
+    };
     const forward = (event: KeyboardEvent) => {
       event.preventDefault();
       window.parent.postMessage(
@@ -118,7 +135,25 @@ export class ExtensionBridge {
           return;
         }
       }
-      if ((event.key === 'Escape' || event.key === 'Backspace') && !isEditableTarget()) {
+      if (
+        this.enterPrimaryActive &&
+        event.key === 'Enter' &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.shiftKey &&
+        !event.defaultPrevented &&
+        !event.isComposing &&
+        !isInteractiveEnterTarget(event)
+      ) {
+        forward(event);
+        return;
+      }
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        forward(event);
+        return;
+      }
+      if (event.key === 'Backspace' && !isEditableTarget()) {
         forward(event);
       }
     });
@@ -130,7 +165,9 @@ export class ExtensionBridge {
     // full current set, so a stale chord stops forwarding as soon as its
     // action disappears.
     this.broker.on('asyar:event:actions:shortcuts', (raw: unknown) => {
-      const chords = (raw as { chords?: unknown } | undefined)?.chords;
+      const payload = raw as { chords?: unknown; enterPrimary?: unknown } | undefined;
+      this.enterPrimaryActive = payload?.enterPrimary === true;
+      const chords = payload?.chords;
       if (!Array.isArray(chords)) return;
       this.actionShortcutChords = new Set(chords.filter((c): c is string => typeof c === 'string'));
     });

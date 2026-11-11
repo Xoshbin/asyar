@@ -55,4 +55,20 @@ describe('Snippets DefaultView', () => {
     expect(screen.getByText('Private (Local only)')).toBeTruthy();
     expect(screen.getByText('20 chars')).toBeTruthy();
   });
+
+  it('registers Mod+Enter primary action without Save/Cancel buttons in create mode', async () => {
+    const { snippetViewState } = await import('./snippetViewState.svelte');
+    const { actionService } = await import('../../services/action/actionService.svelte');
+
+    snippetViewState.startCreate();
+    render(DefaultView);
+
+    expect(screen.queryByRole('button', { name: /cancel/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull();
+
+    const saveAction = actionService.getAllActions().find((a) => a.id === 'snippets:save');
+    expect(saveAction?.shortcut).toBe('Mod+Enter');
+    expect(saveAction?.primary).toBe(true);
+    snippetViewState.cancelEdit();
+  });
 });

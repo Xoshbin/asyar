@@ -8,6 +8,12 @@ vi.mock('./agentsManager.svelte', () => ({
 vi.mock('../../components', async () => ({
   Textarea: (await import('../../components/base/Textarea.svelte')).default,
   ModelSelector: (await import('../../components/form/ModelSelector.svelte')).default,
+  FormView: (await import('../../components/form/FormView.svelte')).default,
+  SearchableSelect: (await import('../../components/form/SearchableSelect.svelte')).default,
+  Button: (await import('../../components/base/Button.svelte')).default,
+  Input: (await import('../../components/base/Input.svelte')).default,
+  EmptyState: (await import('../../components/feedback/EmptyState.svelte')).default,
+  PlaceholderPicker: (await import('../../components/form/PlaceholderPicker.svelte')).default,
 }));
 vi.mock('../../services/extension/viewManager.svelte', () => ({
   viewManager: { goBack: vi.fn() },
@@ -38,6 +44,15 @@ import {
 } from '../../lib/ipc/commands';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
+import { actionService } from '../../services/action/actionService.svelte';
+
+async function triggerSaveAction() {
+  const saveAction = actionService.getAllActions().find((a) => a.id === 'agents:save');
+  expect(saveAction).toBeTruthy();
+  expect(saveAction?.shortcut).toBe('Mod+Enter');
+  expect(saveAction?.primary).toBe(true);
+  await saveAction!.execute();
+}
 
 const form = {
   name: 'Rust Agent',
@@ -64,12 +79,14 @@ describe('AgentEditView', () => {
     vi.mocked(agentsEditorSave).mockResolvedValue({ id: 'agent-1' } as never);
   });
 
-  it('renders the Rust view-model and submits the bound form back to Rust', async () => {
+  it('renders the Rust view-model and submits via Mod+Enter primary action without Save/Cancel buttons', async () => {
     render(AgentEditView);
     const name = await screen.findByDisplayValue('Rust Agent');
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
     await fireEvent.input(name, { target: { value: 'Updated Agent' } });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await triggerSaveAction();
 
     await waitFor(() =>
       expect(agentsEditorSave).toHaveBeenCalledWith(
@@ -92,7 +109,7 @@ describe('AgentEditView', () => {
     render(AgentEditView);
     await screen.findByDisplayValue('Rust Agent');
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await triggerSaveAction();
 
     expect(await screen.findByText('name must not be empty')).toBeTruthy();
     expect(viewManager.goBack).not.toHaveBeenCalled();
@@ -131,7 +148,7 @@ describe('AgentEditView', () => {
     const haikuOption = screen.getByText('Claude 3.5 Haiku');
     await fireEvent.click(haikuOption);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await triggerSaveAction();
 
     await waitFor(() =>
       expect(agentsEditorSave).toHaveBeenCalledWith(

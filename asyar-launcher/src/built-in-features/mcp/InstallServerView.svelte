@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { Input, Textarea } from '../../components';
+  import { Input, Textarea, FormView } from '../../components';
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import {
     validateInstallForm,
@@ -10,7 +12,6 @@
     type EnvRow,
   } from './installServerView.helpers';
   import type { McpTestResult } from './types';
-  import Button from '../../components/base/Button.svelte';
   import IconButton from '../../components/base/IconButton.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import { runtimeService } from '../../services/runtime/runtimeService.svelte';
@@ -127,10 +128,36 @@
       installing = false;
     }
   }
+  $effect(() => {
+    const isTesting = testing;
+    actionService.registerAction({
+      id: 'mcp:test-connection',
+      label: isTesting ? t('features.mcp.testing') : t('features.mcp.test_connection'),
+      icon: '🧪',
+      shortcut: 'Mod+T',
+      category: t('categories.mcp'),
+      extensionId: 'mcp',
+      context: ActionContext.EXTENSION_VIEW,
+      disabled: isTesting,
+      execute: () => handleTest(),
+    });
+    return () => {
+      actionService.unregisterAction('mcp:test-connection');
+    };
+  });
 </script>
 
-<div class="install-view">
-  <form class="install-form custom-scrollbar" onsubmit={(e) => e.preventDefault()}>
+<FormView
+  actionId="mcp:install-submit"
+  submitLabel={installLabel}
+  submitIcon="➕"
+  extensionId="mcp"
+  category={t('categories.mcp')}
+  submitDisabled={installing}
+  onsubmit={handleInstall}
+  oncancel={() => viewManager.goBack()}
+>
+  <div class="install-form-fields">
     <!-- ID -->
     <div class="field">
       <label for="srv-id" class="field-label">ID <span class="required">*</span></label>
@@ -347,30 +374,11 @@
         {/if}
       </div>
     {/if}
-
-    <div class="form-actions">
-      <Button onclick={handleTest} disabled={testing}>
-        {testing ? t('features.mcp.testing') : t('features.mcp.test_connection')}
-      </Button>
-      <Button class="btn-primary" onclick={handleInstall} disabled={installing}>
-        {installLabel}
-      </Button>
-      <Button onclick={() => viewManager.goBack()}>{t('common.cancel')}</Button>
-    </div>
-  </form>
-</div>
+  </div>
+</FormView>
 
 <style>
-  .install-view {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-
-  .install-form {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-4);
+  .install-form-fields {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
@@ -444,11 +452,5 @@
   .test-fail {
     background: color-mix(in srgb, var(--accent-danger) 15%, transparent);
     color: var(--accent-danger);
-  }
-
-  .form-actions {
-    display: flex;
-    gap: var(--space-2);
-    padding-top: var(--space-2);
   }
 </style>

@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { Input } from '../../components';
+  import { Input, FormView } from '../../components';
   import { open } from '@tauri-apps/plugin-dialog';
   import { generateExtension, type ExtensionType } from './scaffoldService';
   import { logService } from '../../services/log/logService';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
   import { FormField, Icon } from '../../components';
   import { setFocusLock } from '../../lib/ipc/commands';
   import { t } from '../../services/i18n';
@@ -141,10 +143,37 @@
       window.location.origin,
     );
   }
+  $effect(() => {
+    const busy = isBrowsing;
+    actionService.registerAction({
+      id: 'create-extension:browse',
+      label: t('common.browse'),
+      icon: '📁',
+      shortcut: 'Mod+O',
+      category: t('categories.extension'),
+      extensionId: 'create-extension',
+      context: ActionContext.EXTENSION_VIEW,
+      disabled: busy,
+      execute: () => handleBrowse(),
+    });
+    return () => {
+      actionService.unregisterAction('create-extension:browse');
+    };
+  });
 </script>
 
-<div class="view-container">
-  <div class="form-body custom-scrollbar">
+<FormView
+  actionId="create-extension:create"
+  submitLabel={isGenerating
+    ? t('features.create_extension.creating_button')
+    : t('features.create_extension.create_button')}
+  submitIcon="✨"
+  extensionId="create-extension"
+  category={t('categories.extension')}
+  submitDisabled={!isValidForm || isGenerating}
+  onsubmit={handleCreate}
+>
+  <div class="form-body">
     <div class="header">
       <h1 class="text-page-title">{t('features.create_extension.title')}</h1>
       <p class="text-subtitle">{t('features.create_extension.subtitle')}</p>
@@ -236,39 +265,36 @@
             value={finalSaveLocation || saveLocation}
             readonly
             placeholder={t('features.create_extension.select_folder')}
+            onclick={handleBrowse}
+            onkeydown={(e) => {
+              if (e.key === ' ') {
+                e.preventDefault();
+                void handleBrowse();
+              }
+            }}
             onfocus={handleFocus}
             onblur={handleBlur}
             class="field-input text-mono"
           />
-          <button onclick={handleBrowse} disabled={isBrowsing} class="btn-secondary">
-            {t('common.browse')}
-          </button>
         </div>
       </FormField>
+
+      {#if generateStatus}
+        <p class="status-text">
+          {#if isGenerating}
+            <span class="animate-pulse">{generateStatus}</span>
+          {:else}
+            {generateStatus}
+          {/if}
+        </p>
+      {/if}
     </div>
   </div>
-
-  <footer class="form-footer">
-    <span class="status-text">
-      {#if isGenerating}
-        <span class="animate-pulse">{generateStatus}</span>
-      {:else if generateStatus}
-        {generateStatus}
-      {/if}
-    </span>
-    <button onclick={handleCreate} disabled={!isValidForm || isGenerating} class="btn-primary">
-      {isGenerating
-        ? t('features.create_extension.creating_button')
-        : t('features.create_extension.create_button')}
-    </button>
-  </footer>
-</div>
+</FormView>
 
 <style>
   .form-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-8) var(--space-8) var(--space-6);
+    padding: var(--space-4) var(--space-4) var(--space-2);
     display: flex;
     flex-direction: column;
     gap: var(--space-7);
@@ -358,19 +384,9 @@
     cursor: default;
   }
 
-  .form-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 var(--space-6);
-    height: 52px;
-    flex-shrink: 0;
-    border-top: 1px solid var(--separator);
-    background: var(--bg-secondary);
-  }
-
   .status-text {
     font-size: var(--font-size-sm);
     color: var(--text-tertiary);
+    margin: 0;
   }
 </style>

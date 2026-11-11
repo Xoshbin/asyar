@@ -65,11 +65,11 @@ export class ExtensionIframeManager {
    * launcher. Uses the `asyar:event:*` namespace the iframe's MessageBroker
    * routes to listeners. `chords` must be plain strings (structured clone).
    */
-  sendActionShortcuts(extensionId: string, chords: string[]): void {
+  sendActionShortcuts(extensionId: string, chords: string[], enterPrimary = false): void {
     const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
-        { type: 'asyar:event:actions:shortcuts', payload: { chords } },
+        { type: 'asyar:event:actions:shortcuts', payload: { chords, enterPrimary } },
         getExtensionFrameOrigin(extensionId),
       );
     }

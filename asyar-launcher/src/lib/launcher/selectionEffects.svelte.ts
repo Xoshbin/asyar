@@ -21,6 +21,7 @@ import { runService } from '../../services/run/runService.svelte';
 import { untrack } from 'svelte';
 import { createRootFileIconCache } from './rootFileIcons.svelte';
 import { buildFileActions } from '../../built-in-features/file-search/fileActions';
+import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
 
 export function setupSelectionEffects(state: LauncherState) {
   const rootFileIcons = createRootFileIconCache();
@@ -65,7 +66,12 @@ export function setupSelectionEffects(state: LauncherState) {
   // Effect 7: Extension view cleanup
   $effect(() => {
     const currentView = state.activeViewVal;
-    const currentExtId = currentView ? currentView.split('/')[0] : undefined;
+    const promptActive = preferencesPromptStore.active;
+    const currentExtId = promptActive
+      ? 'preferences-prompt'
+      : currentView
+        ? currentView.split('/')[0]
+        : undefined;
     const previousExtId = state.lastActiveViewId ? state.lastActiveViewId.split('/')[0] : undefined;
 
     if (previousExtId && previousExtId !== currentExtId) {
@@ -73,7 +79,7 @@ export function setupSelectionEffects(state: LauncherState) {
     }
     state.lastActiveViewId = currentView;
     actionService.setContext(
-      currentView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE,
+      currentView || promptActive ? ActionContext.EXTENSION_VIEW : ActionContext.CORE,
       currentExtId,
     );
   });

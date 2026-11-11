@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { Textarea } from '../../components';
+  import { Textarea, TabGroup, Input, FormView } from '../../components';
   import { onMount } from 'svelte';
-  import { TabGroup, Input, Button } from '../../components';
   import { feedbackViewState } from './feedbackState.svelte';
   import { feedbackSubmitService } from '../../services/feedback/feedbackSubmitService';
   import { authService } from '../../services/auth/authService.svelte';
@@ -19,10 +18,6 @@
   onMount(() => {
     if (authService.user?.email) feedbackViewState.email = authService.user.email;
   });
-
-  function cancel() {
-    extensionManager.goBack();
-  }
 
   async function submit() {
     if (!feedbackViewState.canSubmit || feedbackViewState.submitting) return;
@@ -55,62 +50,34 @@
   }
 </script>
 
-<div class="feedback-view">
-  <div class="feedback-body custom-scrollbar">
-    <TabGroup variant="pills" tabs={categories} bind:activeTab={feedbackViewState.category} />
+<FormView
+  actionId="feedback:submit"
+  submitLabel={t('common.send_feedback')}
+  extensionId="feedback"
+  submitDisabled={!feedbackViewState.canSubmit || feedbackViewState.submitting}
+  onsubmit={submit}
+>
+  <TabGroup variant="pills" tabs={categories} bind:activeTab={feedbackViewState.category} />
 
-    <Textarea
-      textIntent="natural"
-      class="input feedback-message"
-      placeholder={t('features.feedback.placeholder_tell_us')}
-      rows="6"
-      bind:value={feedbackViewState.message}
-    ></Textarea>
+  <Textarea
+    textIntent="natural"
+    class="input feedback-message"
+    placeholder={t('features.feedback.placeholder_tell_us')}
+    rows="6"
+    bind:value={feedbackViewState.message}
+  ></Textarea>
 
-    <Input
-      textIntent="exact"
-      placeholder={t('features.feedback.placeholder_email')}
-      bind:value={feedbackViewState.email}
-    />
-
-    <div class="feedback-actions">
-      <Button onclick={cancel}>{t('common.cancel')}</Button>
-      <Button
-        class="btn-primary"
-        onclick={submit}
-        disabled={!feedbackViewState.canSubmit || feedbackViewState.submitting}
-        >{t('common.send_feedback')}</Button
-      >
-    </div>
-  </div>
-</div>
+  <Input
+    textIntent="exact"
+    placeholder={t('features.feedback.placeholder_email')}
+    bind:value={feedbackViewState.email}
+  />
+</FormView>
 
 <style>
-  .feedback-view {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .feedback-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-5);
-    overflow-y: auto;
-    flex: 1;
-  }
-
   :global(.feedback-message) {
     resize: vertical;
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
-  }
-
-  .feedback-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-3);
   }
 </style>

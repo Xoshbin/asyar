@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { FormField, Input, PlaceholderPicker } from '../../components';
+  import { FormField, FormView, Input, PlaceholderPicker } from '../../components';
   import type { Portal } from './portalStore.svelte';
   import { fetchPlaceholders } from '../../lib/placeholders/placeholderResolver';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
 
   let {
@@ -43,17 +45,29 @@
     });
   }
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (pickerOpen) return; // picker handles its own keys
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-      e.preventDefault();
-      handleSave();
+  function handleCancel() {
+    if (pickerOpen) {
+      closePicker();
+      return;
     }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      oncancel?.();
-    }
+    oncancel?.();
   }
+
+  $effect(() => {
+    actionService.registerAction({
+      id: 'portals:insert-placeholder',
+      label: t('features.portals.ui.insert_placeholder'),
+      icon: 'icon:code',
+      shortcut: 'Mod+Shift+P',
+      category: t('categories.portals'),
+      extensionId: 'portals',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: () => openPickerViaButton(),
+    });
+    return () => {
+      actionService.unregisterAction('portals:insert-placeholder');
+    };
+  });
 
   function handleUrlInput(e: Event) {
     const input = e.target as HTMLInputElement;
@@ -107,9 +121,20 @@
   });
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+<FormView
+  actionId="portals:save"
+  submitLabel={isEditing ? t('common.update') || 'Update' : t('common.save')}
+  extensionId="portals"
+  category={t('categories.portals')}
+  submitDisabled={!name.trim() || !url.trim()}
+  restoreSearchFocusOnCancel={true}
+  onsubmit={handleSave}
+  oncancel={handleCancel}
+>
+  {#snippet header()}
+    <h2 class="form-title">{isEditing ? 'Edit Portal' : 'New Portal'}</h2>
+  {/snippet}
 
-<div class="portal-form p-4">
   <FormField label={t('common.name')} id="portal-name">
     <Input
       unstyled
@@ -119,7 +144,6 @@
       type="text"
       bind:value={name}
       placeholder={t('features.portals.placeholder_search')}
-      autofocus
     />
   </FormField>
 
@@ -140,6 +164,7 @@
         <button
           class="btn-secondary picker-toggle"
           type="button"
+          tabindex={-1}
           title={t('features.portals.ui.insert_placeholder')}
           onclick={openPickerViaButton}>{'{ }'}</button
         >
@@ -170,34 +195,19 @@
     {t('features.portals.ui.browse_mid')} <strong>{'{ }'}</strong>
     {t('features.portals.ui.browse_post')}
   </p>
-
-  <div class="flex justify-end gap-2 pt-1">
-    <button class="btn-secondary" onclick={() => oncancel?.()}>{t('common.cancel')}</button>
-    <button class="btn-primary" onclick={handleSave} disabled={!name.trim() || !url.trim()}>
-      {isEditing ? 'Update' : t('common.save')} <span class="shortcut-hint">⌘S</span>
-    </button>
-  </div>
-</div>
+</FormView>
 
 <style>
-  .portal-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-    background: var(--bg-secondary);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
+  .form-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--space-2);
   }
   .code-inline {
     background: var(--bg-hover);
     padding: var(--space-0-5) var(--space-1);
     border-radius: var(--radius-xs);
-  }
-  .shortcut-hint {
-    opacity: 0.7;
-    font-size: var(--font-size-xs);
-    margin-left: var(--space-2);
-    font-weight: 500;
   }
   .url-input-row {
     display: flex;
@@ -210,9 +220,9 @@
   }
   .picker-toggle {
     flex-shrink: 0;
-    height: 32px;
+    height: var(--size-xl);
     padding: 0 var(--space-4);
-    font-family: monospace;
+    font-family: var(--font-mono);
     font-size: var(--font-size-sm);
     white-space: nowrap;
   }

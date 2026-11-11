@@ -4,6 +4,9 @@
   import ServerCard from './ServerCard.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
   import Badge from '../../components/base/Badge.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { t } from '../../services/i18n';
 
   const servers = $derived(mcpService.servers);
@@ -15,6 +18,29 @@
   // is the first to query the MCP feature.
   onMount(() => {
     void mcpService.refresh();
+  });
+
+  $effect(() => {
+    if (loading || servers.length > 0) {
+      actionService.unregisterAction('mcp:empty-install');
+      return;
+    }
+    actionService.registerAction({
+      id: 'mcp:empty-install',
+      label: t('features.mcp.act.install'),
+      icon: '➕',
+      shortcut: 'Enter',
+      primary: true,
+      category: t('categories.mcp'),
+      extensionId: 'mcp',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: () => {
+        viewManager.navigateToView('mcp/InstallServerView');
+      },
+    });
+    return () => {
+      actionService.unregisterAction('mcp:empty-install');
+    };
   });
 </script>
 

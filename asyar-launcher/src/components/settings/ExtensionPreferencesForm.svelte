@@ -2,7 +2,7 @@
   import { t } from '../../services/i18n';
   import Input from '../base/Input.svelte';
   import Toggle from '../base/Toggle.svelte';
-  import Select from '../base/Select.svelte';
+  import SearchableSelect from '../form/SearchableSelect.svelte';
   import SettingsFormRow from './SettingsFormRow.svelte';
   import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
 
@@ -11,10 +11,18 @@
     values: Record<string, any>;
     errors?: Record<string, string>;
     disabled?: boolean;
+    allowEmptyDropdown?: boolean;
     onChange: (name: string, value: any) => void;
   }
 
-  let { preferences, values = {}, errors = {}, disabled = false, onChange }: Props = $props();
+  let {
+    preferences,
+    values = {},
+    errors = {},
+    disabled = false,
+    allowEmptyDropdown = false,
+    onChange,
+  }: Props = $props();
 
   function handleValueChange(name: string, value: any) {
     if (disabled) return;
@@ -34,7 +42,7 @@
     const v = values[pref.name];
     if (typeof v === 'string') return v;
     if (typeof pref.default === 'string') return pref.default;
-    return pref.data?.[0]?.value ?? '';
+    return allowEmptyDropdown ? '' : (pref.data?.[0]?.value ?? '');
   }
 
   function dropdownOptions(pref: PreferenceDeclaration) {
@@ -81,7 +89,7 @@
           />
         {:else if pref.type === 'dropdown'}
           {#if pref.data && pref.data.length > 0}
-            <Select
+            <SearchableSelect
               value={dropdownValue(pref)}
               options={dropdownOptions(pref)}
               {disabled}

@@ -2,13 +2,14 @@
   import { Textarea, EmptyState } from '../../components';
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { runtimeService } from '../../services/runtime/runtimeService.svelte';
   import { formatRuntimeDownloadStatus } from '../../services/runtime/runtimeDownloadStatus';
   import { importServers, type ImportOutcome } from './importServersView.helpers';
-  import type { McpServerInstallInput, DetectedConfig } from './types';
-  import Button from '../../components/base/Button.svelte';
+  import type { McpServerInstallInput } from './types';
   import Checkbox from '../../components/base/Checkbox.svelte';
   import TabGroup from '../../components/base/TabGroup.svelte';
 
@@ -116,6 +117,71 @@
   async function handleImportParsed(): Promise<void> {
     await importSelected(getParsedSelectedServers());
   }
+
+  const activeSelectedCount = $derived(
+    activeTab === 'detected'
+      ? getDetectedSelectedServers().length
+      : getParsedSelectedServers().length,
+  );
+
+  // Auto-parse valid JSON pasted into the Paste JSON tab so users don't need a Parse button.
+  $effect(() => {
+    if (activeTab !== 'paste') return;
+    const raw = pasteJson;
+    if (!raw.trim()) {
+      parsedServers = [];
+      parsedSelected = {};
+      parseError = null;
+      return;
+    }
+    const timer = setTimeout(() => {
+      void handleParse();
+    }, 200);
+    return () => clearTimeout(timer);
+  });
+
+  $effect(() => {
+    const label = importLabel;
+    const disabled = importing || activeSelectedCount === 0;
+    const tab = activeTab;
+    actionService.registerAction({
+      id: 'mcp:import-submit',
+      label,
+      icon: '📥',
+      shortcut: 'Mod+Enter',
+      primary: true,
+      category: t('categories.mcp'),
+      extensionId: 'mcp',
+      context: ActionContext.EXTENSION_VIEW,
+      disabled,
+      execute: () => (tab === 'detected' ? handleImportDetected() : handleImportParsed()),
+    });
+    return () => {
+      actionService.unregisterAction('mcp:import-submit');
+    };
+  });
+
+  $effect(() => {
+    if (activeTab !== 'paste') {
+      actionService.unregisterAction('mcp:parse-json');
+      return;
+    }
+    const disabled = !pasteJson.trim();
+    actionService.registerAction({
+      id: 'mcp:parse-json',
+      label: t('features.mcp.ui.parse'),
+      icon: '🔍',
+      shortcut: 'Mod+Shift+P',
+      category: t('categories.mcp'),
+      extensionId: 'mcp',
+      context: ActionContext.EXTENSION_VIEW,
+      disabled,
+      execute: () => handleParse(),
+    });
+    return () => {
+      actionService.unregisterAction('mcp:parse-json');
+    };
+  });
 </script>
 
 <div class="import-view">
@@ -148,14 +214,6 @@
             {/each}
           </div>
         {/each}
-        <div class="import-btn">
-          <Button
-            onclick={handleImportDetected}
-            disabled={importing || getDetectedSelectedServers().length === 0}
-          >
-            {importLabel}
-          </Button>
-        </div>
         {@render importResultsList()}
       {/if}
     {:else}
@@ -168,11 +226,6 @@
           bind:value={pasteJson}
           rows={8}
         ></Textarea>
-        <div>
-          <Button onclick={handleParse} disabled={!pasteJson.trim()}
-            >{t('features.mcp.ui.parse')}</Button
-          >
-        </div>
         {#if parseError}
           <p class="parse-error">{parseError}</p>
         {/if}
@@ -194,14 +247,6 @@
                 {/if}
               </label>
             {/each}
-            <div class="import-btn">
-              <Button
-                onclick={handleImportParsed}
-                disabled={importing || getParsedSelectedServers().length === 0}
-              >
-                {importLabel}
-              </Button>
-            </div>
             {@render importResultsList()}
           </div>
         {/if}
@@ -272,10 +317,6 @@
   .srv-desc {
     color: var(--text-tertiary);
     font-size: var(--font-size-xs);
-  }
-
-  .import-btn {
-    margin-top: var(--space-3);
   }
 
   .paste-section {

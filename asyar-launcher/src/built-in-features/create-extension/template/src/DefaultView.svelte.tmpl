@@ -17,9 +17,14 @@
   // component never constructs its own context. Creating a second
   // context would attach duplicate focus listeners and double up IPC.
   // ──────────────────────────────────────────────────────────────────────
-  import { onDestroy } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import type { ExtensionContext } from 'asyar-sdk/view';
-  import type { ILogService } from 'asyar-sdk/contracts';
+  import {
+    ActionCategory,
+    ActionContext,
+    type IActionService,
+    type ILogService,
+  } from 'asyar-sdk/contracts';
 
   interface Props {
     context: ExtensionContext;
@@ -27,7 +32,26 @@
   }
   let { context, logger }: Props = $props();
 
+  const actions = context.getService<IActionService>('actions');
+  const INCREMENT_ACTION_ID = '{{EXTENSION_ID}}:increment';
+
   let count = $state(0);
+
+  // Register a keyboard-first primary action so pressing Enter invokes it
+  // from the bottom action bar as well as clicking the button below.
+  onMount(() => {
+    actions.registerAction({
+      id: INCREMENT_ACTION_ID,
+      title: 'Increment Counter',
+      icon: '➕',
+      shortcut: 'Enter',
+      primary: true,
+      extensionId: '{{EXTENSION_ID}}',
+      category: ActionCategory.PRIMARY,
+      context: ActionContext.EXTENSION_VIEW,
+      execute: () => handleClick(),
+    });
+  });
 
   // Read the `greeting` preference from the manifest. The template's
   // manifest.json declares this as a textfield with a default, so
@@ -49,7 +73,10 @@
     logger.info('{{EXTENSION_NAME}}: preferences changed, new greeting = ' + (context.preferences.greeting as string));
   });
 
-  onDestroy(() => unsubscribe());
+  onDestroy(() => {
+    actions.unregisterAction(INCREMENT_ACTION_ID);
+    unsubscribe();
+  });
 
   function handleClick() {
     count++;

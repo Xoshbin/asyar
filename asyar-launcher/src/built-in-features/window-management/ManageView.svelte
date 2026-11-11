@@ -123,6 +123,7 @@
       title: t('features.window_management.ui.apply_title', { name }),
       icon: 'icon:play',
       shortcut: 'Enter',
+      primary: true,
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,

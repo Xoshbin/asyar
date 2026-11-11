@@ -21,8 +21,10 @@ describe('ExtensionBridge key forwarder: action shortcuts', () => {
     keydown(event);
     return { event, preventDefault };
   };
-  const pushChords = (chords: string[]) =>
-    handlers.get('asyar:event:actions:shortcuts')!({ chords });
+  const pushChords = (chords: string[], enterPrimary?: boolean) =>
+    handlers.get('asyar:event:actions:shortcuts')!(
+      enterPrimary === undefined ? { chords } : { chords, enterPrimary },
+    );
   const forwarded = () => postMessage.mock.calls.map((c) => c[0]);
 
   beforeEach(async () => {
@@ -116,7 +118,7 @@ describe('ExtensionBridge key forwarder: action shortcuts', () => {
     expect(forwarded()).toHaveLength(2);
   });
 
-  it('keeps forwarding Escape and Backspace only when no field is being edited', () => {
+  it('keeps forwarding Backspace only when no field is being edited, while Escape forwards unless consumed', () => {
     press({ key: 'Escape', code: 'Escape' });
     expect(forwarded()).toHaveLength(1);
     const input = document.createElement('input');
@@ -124,6 +126,16 @@ describe('ExtensionBridge key forwarder: action shortcuts', () => {
     input.focus();
     press({ key: 'Backspace', code: 'Backspace' });
     expect(forwarded()).toHaveLength(1);
+    press({ key: 'Escape', code: 'Escape' });
+    expect(forwarded()).toHaveLength(2);
+    const consumed = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      code: 'Escape',
+      cancelable: true,
+    });
+    consumed.preventDefault();
+    keydown(consumed);
+    expect(forwarded()).toHaveLength(2);
   });
 
   it('never forwards a plain key even if the host announced something odd', () => {
@@ -131,5 +143,38 @@ describe('ExtensionBridge key forwarder: action shortcuts', () => {
     press({ key: 'n', code: 'KeyN' });
     press({ key: 'Enter', code: 'Enter' });
     expect(forwarded()).toEqual([]);
+  });
+
+  it('forwards bare Enter when enterPrimary is active and target is non-interactive', () => {
+    pushChords([], true);
+    const { preventDefault } = press({ key: 'Enter', code: 'Enter' });
+    expect(preventDefault).toHaveBeenCalled();
+    expect(forwarded()).toHaveLength(1);
+    expect(forwarded()[0].payload.key).toBe('Enter');
+
+    const btn = document.createElement('button');
+    document.body.appendChild(btn);
+    btn.focus();
+    press({ key: 'Enter', code: 'Enter' });
+    expect(forwarded()).toHaveLength(1);
+
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    press({ key: 'Enter', code: 'Enter' });
+    expect(forwarded()).toHaveLength(1);
+
+    const tab = document.createElement('div');
+    tab.setAttribute('role', 'tab');
+    tab.tabIndex = 0;
+    document.body.appendChild(tab);
+    tab.focus();
+    press({ key: 'Enter', code: 'Enter' });
+    expect(forwarded()).toHaveLength(1);
+
+    pushChords([], false);
+    tab.blur();
+    press({ key: 'Enter', code: 'Enter' });
+    expect(forwarded()).toHaveLength(1);
   });
 });

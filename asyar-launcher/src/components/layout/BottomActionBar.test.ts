@@ -24,6 +24,7 @@ vi.mock('../../services/i18n', () => ({
 vi.mock('../../services/action/actionService.svelte', () => ({
   actionService: {
     filteredActions: [],
+    activeViewPrimaryAction: null,
   },
 }));
 

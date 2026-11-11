@@ -13,10 +13,12 @@ interface NavigationState {
 class ViewManagerClass {
   activeView = $state<string | null>(null);
   activeViewSearchable = $state<boolean>(false);
+  /** @deprecated Use actionService.registerAction({ ..., primary: true }). Remove in 0.2.0. */
   activeViewPrimaryActionLabel = $state<string | null>(null);
   activeViewSubtitle = $state<string | null>(null);
 
   // Internal state (NOT $state — not reactive)
+  private escapeInterceptors: Array<() => boolean> = [];
   private navigationStack: NavigationState[] = [];
   private initialMainQuery: string | null = null;
   // See withReplacementSemantics(); consumed by the next navigateToView.
@@ -166,6 +168,7 @@ class ViewManagerClass {
     }
 
     const closedState = this.navigationStack.pop()!; // Remove the current view state
+    extensionIframeManager.hasInputFocus = false;
     logService.debug(
       `Going back from view: ${closedState.viewPath}. Stack size after pop: ${this.navigationStack.length}`,
     );
@@ -175,6 +178,8 @@ class ViewManagerClass {
       logService.debug(`Navigation stack empty, returning to main view.`);
       this.activeView = null;
       this.activeViewSearchable = false;
+      this.activeViewPrimaryActionLabel = null;
+      this.activeViewSubtitle = null;
 
       // Restore the initial main search query
       logService.debug(`Restoring initial main query: "${this.initialMainQuery}"`);
@@ -221,10 +226,13 @@ class ViewManagerClass {
     }
 
     this.navigationStack = remainingStack;
+    extensionIframeManager.hasInputFocus = false;
 
     if (this.navigationStack.length === 0) {
       this.activeView = null;
       this.activeViewSearchable = false;
+      this.activeViewPrimaryActionLabel = null;
+      this.activeViewSubtitle = null;
       searchStores.query = this.initialMainQuery ?? '';
       this.initialMainQuery = null;
     } else {
@@ -296,6 +304,30 @@ class ViewManagerClass {
 
   getNavigationStackSize(): number {
     return this.navigationStack.length;
+  }
+
+  /**
+   * Register a LIFO Escape interceptor (used by open dropdown popovers, inline
+   * sub-forms, or the in-shell required-preferences screen) so pressing Escape
+   * closes the innermost layer before clearing search or popping the outer view.
+   */
+  registerEscapeInterceptor(handler: () => boolean): () => void {
+    this.escapeInterceptors.push(handler);
+    return () => {
+      const idx = this.escapeInterceptors.lastIndexOf(handler);
+      if (idx !== -1) this.escapeInterceptors.splice(idx, 1);
+    };
+  }
+
+  tryInterceptEscape(): boolean {
+    for (let i = this.escapeInterceptors.length - 1; i >= 0; i--) {
+      try {
+        if (this.escapeInterceptors[i]()) return true;
+      } catch (err) {
+        logService.error(`[ViewManager] Escape interceptor failed: ${err}`);
+      }
+    }
+    return false;
   }
 }
 

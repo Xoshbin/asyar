@@ -63,6 +63,7 @@ class SnippetsExtension implements Extension {
       label: t('features.snippets.act.paste'),
       icon: 'icon:keyboard',
       shortcut: 'Enter',
+      primary: true,
       description: t('features.snippets.act.paste_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
@@ -71,6 +72,21 @@ class SnippetsExtension implements Extension {
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) await snippetService.pasteSnippet(s.expansion);
+      },
+    });
+    actionService.registerAction({
+      id: 'snippets:create-empty',
+      label: t('features.snippets.ui.add_first'),
+      icon: 'icon:plus',
+      shortcut: 'Enter',
+      primary: true,
+      category: t('categories.snippets'),
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      visible: () =>
+        snippetViewState.mode === 'view' && snippetViewState.getFilteredSnippets().length === 0,
+      execute: async () => {
+        snippetViewState.startCreate();
       },
     });
     actionService.registerAction({
@@ -237,6 +253,7 @@ class SnippetsExtension implements Extension {
   private unregisterViewActions(): void {
     actionService.unregisterAction('snippets:add');
     actionService.unregisterAction('snippets:paste');
+    actionService.unregisterAction('snippets:create-empty');
     actionService.unregisterAction('snippets:edit');
     actionService.unregisterAction('snippets:delete');
     actionService.unregisterAction('snippets:copy-expansion');
@@ -254,7 +271,6 @@ class SnippetsExtension implements Extension {
       window.addEventListener('keydown', this.handleKeydownBound, true);
     }
     await snippetService.onViewOpen();
-    this.extensionManager?.setActiveViewActionLabel('Paste');
     this.registerViewActions();
   }
 
@@ -264,7 +280,6 @@ class SnippetsExtension implements Extension {
       window.removeEventListener('keydown', this.handleKeydownBound, true);
     }
     snippetViewState.reset();
-    this.extensionManager?.setActiveViewActionLabel(null);
     this.unregisterViewActions();
   }
 
@@ -282,7 +297,6 @@ class SnippetsExtension implements Extension {
       window.removeEventListener('keydown', this.handleKeydownBound, true);
     }
     snippetViewState.reset();
-    this.extensionManager?.setActiveViewActionLabel(null);
     this.unregisterViewActions();
   }
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Input, Textarea } from '../../components';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { snippetStore, type Snippet } from './snippetStore.svelte';
   import { snippetService, enabledPersistence, processSnippetExpansion } from './snippetService';
   import { snippetUiState } from './snippetUiState.svelte';
@@ -14,6 +14,7 @@
     EmptyState,
     WarningBanner,
     FormField,
+    FormView,
     Button,
     PlaceholderPicker,
     Toggle,
@@ -103,6 +104,15 @@
   let selectedIndex = $derived(snippetViewState.selectedIndex);
   let selectedSnippet = $derived(snippetViewState.selectedSnippet);
 
+  // Keep filteredActions and the bottom bar primary action synchronized when
+  // snippet list length, selection, or mode changes (visible() predicates).
+  $effect(() => {
+    snippetViewState.mode;
+    filteredSnippets.length;
+    selectedSnippet?.id;
+    untrack(() => actionService.refreshFiltered());
+  });
+
   const dateFormat = new Intl.DateTimeFormat('en-US', {
     month: 'long',
     day: 'numeric',
@@ -163,43 +173,32 @@
 
   $effect(() => {
     if (snippetViewState.mode !== 'edit' && snippetViewState.mode !== 'create') {
-      actionService.unregisterAction('snippets:save');
+      actionService.unregisterAction('snippets:insert-placeholder');
       return;
     }
     actionService.registerAction({
-      id: 'snippets:save',
-      label: t('common.save'),
-      icon: 'icon:check',
-      shortcut: 'Mod+S',
+      id: 'snippets:insert-placeholder',
+      label: t('features.snippets.ui.insert_placeholder'),
+      icon: 'icon:code',
+      shortcut: 'Mod+Shift+P',
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
-      execute: () => handleSave(),
+      execute: () => openPickerViaButton(),
     });
     return () => {
-      actionService.unregisterAction('snippets:save');
+      actionService.unregisterAction('snippets:insert-placeholder');
     };
   });
 
-  function handleFormKeydown(e: KeyboardEvent) {
-    if (pickerOpen) return;
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      snippetViewState.cancelEdit();
-      prefillExpansion = null;
+  function cancelSnippetForm() {
+    if (pickerOpen) {
+      pickerOpen = false;
+      formExpansionEl?.focus();
+      return;
     }
-  }
-
-  async function confirmDeleteSnippet(id: string, name: string | null) {
-    const confirmed = await feedbackService.confirmAlert({
-      title: t('features.snippets.delete_confirm_title'),
-      message: `Delete "${name ?? t('features.snippets.this_snippet')}"? This cannot be undone.`,
-      confirmText: t('common.delete'),
-      variant: 'danger',
-    });
-    if (!confirmed) return;
-    snippetStore.remove(id);
-    await snippetService.syncToRust();
+    snippetViewState.cancelEdit();
+    prefillExpansion = null;
   }
 
   async function recheckPermission() {
@@ -208,36 +207,7 @@
     const currentEnabled = enabledPersistence.loadSync(true);
     if (permissionGranted && currentEnabled) await snippetService.setEnabled(true);
   }
-
-  function duplicateSnippet(snippet: Snippet) {
-    const newId = crypto.randomUUID();
-    // Make keyword unique: append -copy, then -copy2, -copy3, etc.
-    let newKeyword = snippet.keyword + '-copy';
-    const existing = snippetStore.getAll().map((s) => s.keyword);
-    let i = 2;
-    while (existing.includes(newKeyword)) {
-      newKeyword = snippet.keyword + `-copy${i}`;
-      i++;
-    }
-    return {
-      id: newId,
-      name: snippet.name + ' Copy',
-      keyword: newKeyword,
-      expansion: snippet.expansion,
-      isPrivate: snippet.isPrivate,
-      createdAt: Date.now(),
-    };
-  }
-
-  async function handleDuplicate(snippet: Snippet) {
-    const dup = duplicateSnippet(snippet);
-    snippetStore.add(dup);
-    await snippetService.syncToRust();
-    await snippetViewState.selectAfterMutation(dup.id);
-  }
 </script>
-
-<svelte:window onkeydown={handleFormKeydown} />
 
 <div class="view-container">
   {#if !permissionGranted}
@@ -316,96 +286,97 @@
 
     {#snippet detail()}
       {#if snippetViewState.mode === 'edit' || snippetViewState.mode === 'create'}
-        <!-- Inline form — no modal -->
-        <div class="form-panel">
-          <div class="form-header">
+        <!-- Keyboard-first inline form: primary submit in bottom bar (⌘↵), Esc cancels -->
+        <FormView
+          actionId="snippets:save"
+          submitLabel={snippetViewState.mode === 'edit'
+            ? t('common.save')
+            : t('features.snippets.act.add')}
+          extensionId="snippets"
+          category={t('categories.snippets')}
+          restoreSearchFocusOnCancel={true}
+          onsubmit={handleSave}
+          oncancel={cancelSnippetForm}
+        >
+          {#snippet header()}
             <h2 class="form-title">
               {snippetViewState.mode === 'edit' ? 'Edit Snippet' : 'New Snippet'}
             </h2>
-          </div>
-          <div class="form-body custom-scrollbar">
-            <FormField label={t('features.snippets.name_label')} id="form-name">
-              <Input
-                unstyled
-                textIntent="natural"
-                id="form-name"
-                class="field-input"
-                type="text"
-                autocomplete="off"
-                bind:value={formName}
-                placeholder={t('features.snippets.ui.name_placeholder')}
-              />
-            </FormField>
-            <FormField
-              label={t('features.snippets.ui.keyword_optional')}
+          {/snippet}
+
+          <FormField label={t('features.snippets.name_label')} id="form-name">
+            <Input
+              unstyled
+              textIntent="natural"
+              id="form-name"
+              class="field-input"
+              type="text"
+              autocomplete="off"
+              bind:value={formName}
+              placeholder={t('features.snippets.ui.name_placeholder')}
+            />
+          </FormField>
+          <FormField
+            label={t('features.snippets.ui.keyword_optional')}
+            id="form-keyword"
+            hint={t('features.snippets.ui.keyword_hint')}
+          >
+            <Input
+              unstyled
+              textIntent="exact"
               id="form-keyword"
-              hint={t('features.snippets.ui.keyword_hint')}
-            >
-              <Input
-                unstyled
-                textIntent="exact"
-                id="form-keyword"
-                class="field-input"
-                type="text"
-                autocomplete="off"
-                bind:value={formKeyword}
-                placeholder="e.g. ;email"
-              />
-            </FormField>
-            <FormField label={t('features.snippets.ui.expansion')} id="form-expansion">
-              <div style="position: relative">
-                <div class="textarea-wrapper">
-                  <Textarea
-                    unstyled
-                    textIntent="verbatim"
-                    id="form-expansion"
-                    class="field-textarea"
-                    autocomplete="off"
-                    bind:value={formExpansion}
-                    bind:ref={formExpansionEl}
-                    oninput={handleExpansionInput}
-                    placeholder="e.g. hello@example.com"
-                    rows="5"
-                  ></Textarea>
-                  <Button
-                    class="picker-toggle"
-                    title={t('features.snippets.ui.insert_placeholder')}
-                    onclick={openPickerViaButton}>{'{ }'}</Button
-                  >
-                </div>
-                {#if pickerOpen}
-                  <PlaceholderPicker onInsert={handleInsert} onClose={() => (pickerOpen = false)} />
-                {/if}
+              class="field-input"
+              type="text"
+              autocomplete="off"
+              bind:value={formKeyword}
+              placeholder="e.g. ;email"
+            />
+          </FormField>
+          <FormField label={t('features.snippets.ui.expansion')} id="form-expansion">
+            <div style="position: relative">
+              <div class="textarea-wrapper">
+                <Textarea
+                  unstyled
+                  textIntent="verbatim"
+                  id="form-expansion"
+                  class="field-textarea"
+                  autocomplete="off"
+                  bind:value={formExpansion}
+                  bind:ref={formExpansionEl}
+                  oninput={handleExpansionInput}
+                  placeholder="e.g. hello@example.com"
+                  rows="5"
+                ></Textarea>
+                <Button
+                  class="picker-toggle"
+                  tabindex={-1}
+                  title={t('features.snippets.ui.insert_placeholder')}
+                  onclick={openPickerViaButton}>{'{ }'}</Button
+                >
               </div>
-              <p class="text-caption mt-2">
-                Supported: {`{Selected Text}, {Clipboard Text}, {UUID}, {Date}, {Time}, {Weekday}`}.
-                Custom format supported e.g.
-                <code class="code-inline">{'{Date format="YYYY-MM-DD"}'}</code>.<br />
-                {t('features.snippets.ui.browse_pre')} <code class="code-inline">{'{'}</code>
-                {t('features.snippets.ui.browse_post')}
-              </p>
-            </FormField>
-            <div class="private-toggle-row">
-              <div class="toggle-info">
-                <span class="toggle-label">{t('features.snippets.private_label')}</span>
-                <span class="toggle-hint">{t('features.snippets.private_hint')}</span>
-              </div>
-              <Toggle id="form-is-private" bind:checked={formIsPrivate} />
+              {#if pickerOpen}
+                <PlaceholderPicker onInsert={handleInsert} onClose={() => (pickerOpen = false)} />
+              {/if}
             </div>
-            {#if formError}
-              <div class="form-error">{formError}</div>
-            {/if}
+            <p class="text-caption mt-2">
+              Supported: {`{Selected Text}, {Clipboard Text}, {UUID}, {Date}, {Time}, {Weekday}`}.
+              Custom format supported e.g.
+              <code class="code-inline">{'{Date format="YYYY-MM-DD"}'}</code>.<br />
+              {t('features.snippets.ui.browse_pre')} <code class="code-inline">{'{'}</code>
+              {t('features.snippets.ui.browse_post')}
+            </p>
+          </FormField>
+          <div class="private-toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-label">{t('features.snippets.private_label')}</span>
+              <span class="toggle-hint">{t('features.snippets.private_hint')}</span>
+            </div>
+            <Toggle id="form-is-private" bind:checked={formIsPrivate} />
           </div>
-          <div class="form-footer">
-            <Button
-              onclick={() => {
-                snippetViewState.cancelEdit();
-                prefillExpansion = null;
-              }}>{t('common.cancel')}</Button
-            >
-            <Button class="btn-primary" onclick={handleSave}>{t('common.save')}</Button>
-          </div>
-        </div>
+          {#if formError}
+            <div class="form-error">{formError}</div>
+          {/if}
+        </FormView>
       {:else if selectedSnippet}
         <!-- Detail view -->
         <div class="snippet-detail-content custom-scrollbar">
@@ -415,14 +386,6 @@
               {#if selectedSnippet.isPrivate}
                 <Badge text={t('features.snippets.private_badge')} variant="warning" />
               {/if}
-            </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <Button class="edit-btn" onclick={() => handleDuplicate(selectedSnippet)}
-                >{t('common.duplicate')}</Button
-              >
-              <Button class="edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}
-                >{t('common.edit')}</Button
-              >
             </div>
           </div>
           {#if selectedSnippet.keyword}
@@ -548,44 +511,11 @@
     padding: var(--space-6);
     margin: 0;
   }
-  :global(.edit-btn) {
-    font-size: var(--font-size-xs);
-    padding: var(--space-1) var(--space-4);
-    flex-shrink: 0;
-  }
-
-  /* Inline form */
-  .form-panel {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-  .form-header {
-    padding: var(--space-7) var(--space-8) 0;
-    flex-shrink: 0;
-  }
   .form-title {
     font-size: var(--font-size-lg);
     font-weight: 600;
     color: var(--text-primary);
-    margin: 0 0 var(--space-6);
-  }
-  .form-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 var(--space-8);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-    padding-bottom: var(--space-6);
-  }
-  .form-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-3);
-    padding: var(--space-5) var(--space-8);
-    border-top: 1px solid var(--separator);
-    flex-shrink: 0;
+    margin: 0 0 var(--space-2);
   }
   .form-error {
     font-size: var(--font-size-sm);

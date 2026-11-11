@@ -49,6 +49,27 @@
   });
 
   $effect(() => {
+    if (mode !== 'view' || portals.length > 0) {
+      actionService.unregisterAction('portals:create-empty');
+      return;
+    }
+    actionService.registerAction({
+      id: 'portals:create-empty',
+      label: t('features.portals.ui.add_first'),
+      icon: 'icon:plus',
+      shortcut: 'Enter',
+      primary: true,
+      extensionId: 'portals',
+      category: t('categories.portals'),
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => startCreate(),
+    });
+    return () => {
+      actionService.unregisterAction('portals:create-empty');
+    };
+  });
+
+  $effect(() => {
     const portal = selectedPortal;
     if (!portal || mode !== 'view') {
       actionService.unregisterAction('portals:edit');
@@ -224,19 +245,12 @@
 
     {#snippet detail()}
       {#if mode === 'create' || mode === 'edit'}
-        <div class="form-panel">
-          <div class="form-header">
-            <h2 class="form-title">{mode === 'edit' ? 'Edit Portal' : 'New Portal'}</h2>
-          </div>
-          <div class="form-body custom-scrollbar">
-            <PortalForm
-              portal={editingPortal ?? undefined}
-              isEditing={mode === 'edit'}
-              onsave={handleSave}
-              oncancel={cancelEdit}
-            />
-          </div>
-        </div>
+        <PortalForm
+          portal={editingPortal ?? undefined}
+          isEditing={mode === 'edit'}
+          onsave={handleSave}
+          oncancel={cancelEdit}
+        />
       {:else if selectedPortal}
         {@const tokens = parseUrlPlaceholders(selectedPortal.url)}
         <div class="portal-detail-content custom-scrollbar">
@@ -369,26 +383,5 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
-  }
-
-  .form-panel {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-  .form-header {
-    padding: var(--space-7) var(--space-8) 0;
-    flex-shrink: 0;
-  }
-  .form-title {
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 var(--space-6);
-  }
-  .form-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 var(--space-8) var(--space-6);
   }
 </style>

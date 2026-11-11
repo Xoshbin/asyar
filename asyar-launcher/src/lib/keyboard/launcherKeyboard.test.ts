@@ -56,6 +56,7 @@ vi.mock('../../services/extension/extensionIframeManager.svelte', () => {
 
 import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
 import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
+import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
 
 vi.mock('../../services/search/searchBarAccessoryService.svelte', () => {
   return {
@@ -2095,6 +2096,95 @@ describe('launcherKeyboard characterization tests', () => {
 
       expect(input.focus).toHaveBeenCalledWith({ preventScroll: true });
       expect(input.select).not.toHaveBeenCalled();
+    });
+
+    it('waits a frame if search input is still disabled when returning from a non-searchable view', async () => {
+      const input = {
+        disabled: true,
+        focus: vi.fn(),
+        select: vi.fn(),
+        value: 'sdk',
+      } as unknown as HTMLInputElement;
+      const deps = createMockDeps({
+        getSearchInput: () => input,
+      });
+      const { restoreSearchFocus } = createKeyboardHandlers(deps);
+
+      restoreSearchFocus({ select: true });
+      await new Promise((r) => requestAnimationFrame(r));
+      expect(input.focus).not.toHaveBeenCalled();
+
+      (input as any).disabled = false;
+      await new Promise((r) => requestAnimationFrame(r));
+      expect(input.focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(input.select).toHaveBeenCalled();
+    });
+  });
+
+  describe('preferencesPromptStore and root focus safety nets', () => {
+    afterEach(() => {
+      preferencesPromptStore.close();
+      extensionIframeManager.hasInputFocus = false;
+    });
+
+    it('blocks Tab from activating AI context hint or argument mode while Required Preferences is active', () => {
+      preferencesPromptStore.open({
+        extensionId: 'org.asyar.sdk-playground',
+        commandId: 'required-prefs-demo',
+        commandObjectId: 'cmd_org.asyar.sdk-playground_required-prefs-demo',
+        missing: [],
+      });
+      const deps = createMockDeps({
+        getContextHint: () => ({
+          type: 'ai',
+          provider: { id: 'ai', type: 'stream', display: { name: 'AI', icon: '' } } as any,
+        }),
+        getSelectedItem: () => ({ object_id: 'cmd_x', type: 'command', hasArguments: true }) as any,
+      });
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const tabEvent = createKeyEvent('Tab');
+      handleGlobalKeydown(tabEvent);
+      expect(tabEvent.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('clears extensionIframeManager.hasInputFocus on Escape back from view and handles root ArrowDown and Backspace on body', () => {
+      viewManager.activeView = 'org.asyar.sdk-playground/DefaultView';
+      extensionIframeManager.hasInputFocus = true;
+      const input = {
+        disabled: false,
+        focus: vi.fn(),
+        select: vi.fn(),
+        value: 'hello',
+      } as unknown as HTMLInputElement;
+      let query = '';
+      const setLocalSearchValue = vi.fn((v: string) => {
+        query = v;
+      });
+      const deps = createMockDeps({
+        getSearchInput: () => input,
+        getLocalSearchValue: () => query,
+        setLocalSearchValue,
+        getSearchResultsLength: () => 3,
+      });
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+      handleGlobalKeydown(createKeyEvent('Escape'));
+      expect(mockExtensionManager.goBack).toHaveBeenCalled();
+      expect(extensionIframeManager.hasInputFocus).toBe(false);
+
+      viewManager.activeView = null;
+      query = 'hello';
+      (document as any)._activeElement = { tagName: 'BODY' };
+      const down = createKeyEvent('ArrowDown');
+      handleGlobalKeydown(down);
+      expect(input.focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(down.preventDefault).toHaveBeenCalled();
+
+      const back = createKeyEvent('Backspace');
+      handleGlobalKeydown(back);
+      expect(setLocalSearchValue).toHaveBeenCalledWith('hell');
+      expect(back.preventDefault).toHaveBeenCalled();
+      (document as any)._activeElement = null;
     });
   });
 });

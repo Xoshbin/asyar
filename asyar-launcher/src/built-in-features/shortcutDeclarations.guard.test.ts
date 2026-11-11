@@ -168,7 +168,12 @@ describe('built-in action shortcut declarations', () => {
         for (const [chord, count] of chordCounts) {
           if (count > 1) {
             if (chord === 'Mod+.' && count === 2) continue;
-            if (feature === 'scripts' && chord === 'Enter' && count === 2) continue;
+            if (
+              (feature === 'scripts' || feature === 'snippets') &&
+              chord === 'Enter' &&
+              count === 2
+            )
+              continue;
             expect(count, `${feature} (${scope}) in-view actions sharing chord ${chord}`).toBe(1);
           }
         }

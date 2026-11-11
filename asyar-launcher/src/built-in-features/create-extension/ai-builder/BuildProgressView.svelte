@@ -42,23 +42,35 @@
   $effect(() => {
     const status = job?.status ?? null;
 
-    if (status === null) {
+    if (
+      status === null ||
+      (status === 'waiting' && job?.pendingQuestion && job.pendingQuestion.inputKind !== 'confirm')
+    ) {
+      const isIdle = status === null;
+      const actionId = isIdle ? 'ai-builder:start-build' : 'ai-builder:send-answer';
       actionService.registerAction({
-        id: 'ai-builder:start-build',
-        label: t('features.create_extension.view.build'),
-        icon: 'icon:sparkles',
-        description: t('features.create_extension.view.subtitle'),
+        id: actionId,
+        label: isIdle
+          ? t('features.create_extension.view.build')
+          : t('features.create_extension.view.send_answer'),
+        icon: isIdle ? 'icon:sparkles' : 'icon:arrow-right',
+        description: isIdle ? t('features.create_extension.view.subtitle') : undefined,
         category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
-        disabled: !prompt.trim() || isStarting,
+        disabled: isIdle ? !prompt.trim() || isStarting : !answer.trim(),
         shortcut: 'Mod+Enter',
+        primary: true,
         execute: async () => {
-          await onStart();
+          if (isIdle) {
+            await onStart();
+          } else {
+            await onAnswer();
+          }
         },
       });
       return () => {
-        actionService.unregisterAction('ai-builder:start-build');
+        actionService.unregisterAction(actionId);
       };
     }
 
@@ -80,53 +92,35 @@
       };
     }
 
-    if (status === 'waiting' && job?.pendingQuestion) {
-      if (job.pendingQuestion.inputKind === 'confirm') {
-        actionService.registerAction({
-          id: 'ai-builder:confirm-yes',
-          label: t('features.create_extension.view.yes'),
-          icon: 'icon:check',
-          category: t('categories.ai_builder'),
-          extensionId: 'create-extension',
-          context: ActionContext.EXTENSION_VIEW,
-          execute: async () => {
-            await onConfirm('yes');
-          },
-        });
-        actionService.registerAction({
-          id: 'ai-builder:confirm-no',
-          label: t('features.create_extension.view.no'),
-          icon: 'icon:cross',
-          category: t('categories.ai_builder'),
-          extensionId: 'create-extension',
-          context: ActionContext.EXTENSION_VIEW,
-          execute: async () => {
-            await onConfirm('no');
-          },
-        });
-        return () => {
-          actionService.unregisterAction('ai-builder:confirm-yes');
-          actionService.unregisterAction('ai-builder:confirm-no');
-        };
-      } else {
-        if (answer.trim()) {
-          actionService.registerAction({
-            id: 'ai-builder:send-answer',
-            label: t('features.create_extension.view.send_answer'),
-            icon: 'icon:arrow-right',
-            category: t('categories.ai_builder'),
-            extensionId: 'create-extension',
-            context: ActionContext.EXTENSION_VIEW,
-            execute: async () => {
-              await onAnswer();
-            },
-          });
-          return () => {
-            actionService.unregisterAction('ai-builder:send-answer');
-          };
-        }
-      }
-      return () => {};
+    if (status === 'waiting' && job?.pendingQuestion?.inputKind === 'confirm') {
+      actionService.registerAction({
+        id: 'ai-builder:confirm-yes',
+        label: t('features.create_extension.view.yes'),
+        icon: 'icon:check',
+        shortcut: 'Enter',
+        primary: true,
+        category: t('categories.ai_builder'),
+        extensionId: 'create-extension',
+        context: ActionContext.EXTENSION_VIEW,
+        execute: async () => {
+          await onConfirm('yes');
+        },
+      });
+      actionService.registerAction({
+        id: 'ai-builder:confirm-no',
+        label: t('features.create_extension.view.no'),
+        icon: 'icon:cross',
+        category: t('categories.ai_builder'),
+        extensionId: 'create-extension',
+        context: ActionContext.EXTENSION_VIEW,
+        execute: async () => {
+          await onConfirm('no');
+        },
+      });
+      return () => {
+        actionService.unregisterAction('ai-builder:confirm-yes');
+        actionService.unregisterAction('ai-builder:confirm-no');
+      };
     }
 
     if (status === 'done' && job?.result) {
@@ -242,26 +236,12 @@
     }
   }
 
-  function handlePromptKeydown(e: KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      e.preventDefault();
-      void onStart();
-    }
-  }
-
   // ── waiting state: send an answer ─────────────────────────────────────────
   async function onAnswer() {
     const trimmed = answer.trim();
     if (!trimmed) return;
     await submitAnswer(trimmed);
     answer = '';
-  }
-
-  function handleAnswerKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void onAnswer();
-    }
   }
 
   // ── waiting state: answer a confirm question ──────────────────────────────
@@ -304,7 +284,6 @@
             autocomplete="off"
             onfocus={handleFocus}
             onblur={handleBlur}
-            onkeydown={handlePromptKeydown}
             class="field-textarea prompt-textarea"
           ></Textarea>
         </FormField>
@@ -376,7 +355,6 @@
                 autocomplete="off"
                 onfocus={handleFocus}
                 onblur={handleBlur}
-                onkeydown={handleAnswerKeydown}
               />
             {:else}
               <Input
@@ -386,17 +364,9 @@
                 autocomplete="off"
                 onfocus={handleFocus}
                 onblur={handleBlur}
-                onkeydown={handleAnswerKeydown}
               />
             {/if}
           </FormField>
-
-          <div class="answer-actions">
-            <span class="text-caption">{t('features.create_extension.view.press_enter')}</span>
-            <Button class="btn-primary" disabled={!answer.trim()} onclick={() => void onAnswer()}>
-              {t('features.create_extension.view.send_answer')}
-            </Button>
-          </div>
         </div>
       {/if}
 
@@ -493,14 +463,6 @@
   .confirm-actions {
     display: flex;
     gap: var(--space-3);
-  }
-
-  /* ── answer inline actions ─────────────────────────────────────────────── */
-  .answer-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
   }
 
   /* ── starting status ───────────────────────────────────────────────────── */

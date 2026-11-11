@@ -49,6 +49,8 @@
   import { i18nService } from '../services/i18n';
   import '../resources/styles/style.css';
   import { appListen } from '../lib/ipc/bridgeEvents';
+  import RequiredPreferencesView from '../components/settings/RequiredPreferencesView.svelte';
+  import { preferencesPromptStore } from '../services/extension/preferencesPromptStore.svelte';
 
   // Instantiate the controller
   const controller = new LauncherController();
@@ -73,7 +75,8 @@
     getInitialized: () => settingsService.initialized,
     getLaunchView: () => settingsService.currentSettings.appearance.launchView,
     getHideShowMoreBar: () => !!settingsService.currentSettings.appearance.hideCompactShowMore,
-    getActiveView: () => controller.activeViewVal,
+    getActiveView: () =>
+      controller.activeViewVal || (preferencesPromptStore.active ? 'preferences-prompt' : null),
     getActiveContext: () => controller.activeContext,
     getLocalSearchValue: () => controller.localSearchValue,
     getIsSearchLoading: () => controller.isSearchLoadingVal,
@@ -307,7 +310,14 @@
   // Ghost argument affordance: the selected result declares arguments, so
   // Tab (or a click on a hint chip) promotes it into argument mode.
   const argumentHint = $derived.by(() => {
-    if (argumentMode || controller.activeViewVal || controller.activeContextChip) return false;
+    if (
+      argumentMode ||
+      controller.activeViewVal ||
+      controller.activeContextChip ||
+      preferencesPromptStore.active
+    ) {
+      return false;
+    }
     // The chips belong to the highlighted row, and compact idle hides the
     // result list entirely, so there is no highlight for them to describe.
     if (isCompactIdle) return false;
@@ -480,19 +490,24 @@
     bind:ref={searchInput}
     bind:accessoryRef
     bind:value={controller.localSearchValue}
-    showBack={!!controller.activeViewVal}
+    showBack={!!controller.activeViewVal || !!preferencesPromptStore.active}
     hideSeparator={isCompactIdle &&
       !!settingsService.currentSettings.appearance.hideCompactShowMore}
-    searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}
-    placeholder={controller.activeViewVal
-      ? controller.activeViewSearchableVal
-        ? 'Search...'
-        : 'Press Escape to go back'
-      : 'Search or type a command...'}
-    activeContext={controller.activeContextChip}
+    searchable={!(
+      (controller.activeViewVal && !controller.activeViewSearchableVal) ||
+      preferencesPromptStore.active
+    )}
+    placeholder={preferencesPromptStore.active
+      ? 'Press Escape to go back'
+      : controller.activeViewVal
+        ? controller.activeViewSearchableVal
+          ? 'Search...'
+          : 'Press Escape to go back'
+        : 'Search or type a command...'}
+    activeContext={preferencesPromptStore.active ? null : controller.activeContextChip}
     activeViewId={controller.activeViewVal}
     bind:contextQuery={controller.contextQuery}
-    contextHint={controller.contextHintChip}
+    contextHint={preferencesPromptStore.active ? null : controller.contextHintChip}
     {argumentMode}
     {argumentHint}
     {argumentHintFields}
@@ -501,7 +516,14 @@
     oninput={(e) => controller.handleSearchInput(e)}
     oncompositionend={(e) => controller.handleSearchCompositionEnd(e)}
     onkeydown={keyboard.handleKeydown}
-    onclick={() => controller.handleBackClick()}
+    onclick={() => {
+      if (preferencesPromptStore.active) {
+        preferencesPromptStore.close();
+        keyboard.restoreSearchFocus({ select: true });
+      } else {
+        controller.handleBackClick();
+      }
+    }}
     oncontextDismiss={() => controller.handleChipDismiss()}
     oncontextQueryChange={(d) => controller.handleContextQueryChange(d)}
     onArgValueChange={(name, v) => commandArgumentsService.setValue(name, v)}
@@ -515,7 +537,16 @@
   />
 
   <div class="shell-content custom-scrollbar">
-    {#if controller.activeViewVal}
+    {#if preferencesPromptStore.active}
+      {@const prompt = preferencesPromptStore.active}
+      <RequiredPreferencesView
+        extensionId={prompt.extensionId}
+        commandId={prompt.commandId}
+        commandObjectId={prompt.commandObjectId}
+        missing={prompt.missing}
+        onClose={() => keyboard.restoreSearchFocus({ select: true })}
+      />
+    {:else if controller.activeViewVal}
       <ExtensionViewContainer activeView={controller.activeViewVal} {extensionManager} />
     {:else if !isCompactIdle}
       <SearchResultsArea

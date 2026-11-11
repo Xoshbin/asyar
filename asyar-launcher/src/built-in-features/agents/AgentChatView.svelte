@@ -40,6 +40,8 @@
   import { aiGetCredentialStatus, showSettingsWindow } from '../../lib/ipc/commands';
   import type { CredentialState } from '../../bindings';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
@@ -346,6 +348,27 @@
       });
     }
   }
+
+  $effect(() => {
+    if (agentId) {
+      actionService.unregisterAction('agents:setup-ai');
+      return;
+    }
+    actionService.registerAction({
+      id: 'agents:setup-ai',
+      label: t('features.agents.setup_ai_button'),
+      icon: 'icon:settings',
+      shortcut: 'Enter',
+      primary: true,
+      category: t('categories.agents'),
+      extensionId: 'agents',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: () => handleSetUpAi(),
+    });
+    return () => {
+      actionService.unregisterAction('agents:setup-ai');
+    };
+  });
 
   onMount(async () => {
     // capture: true so we run before the launcher's keyboard handler.

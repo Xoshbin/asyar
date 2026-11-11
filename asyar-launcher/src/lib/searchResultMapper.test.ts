@@ -565,6 +565,24 @@ describe('buildMappedItems: portal command uses activeContext.query', () => {
       query: 'typed text',
     });
   });
+
+  it('suppresses error toast when command pauses with PreferencesRequiredError', async () => {
+    const err = new Error('Extension requires preferences');
+    err.name = 'PreferencesRequiredError';
+    vi.mocked(extensionManager.handleCommandAction).mockRejectedValueOnce(err);
+    const onError = vi.fn();
+    const result = makeResult({ objectId: 'cmd_prefs', type: 'command', name: 'Req Prefs' });
+    const { mappedItems } = buildMappedItems({
+      searchItems: [result],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError,
+    });
+    await expect(mappedItems[0].action()).resolves.toBeUndefined();
+    expect(onError).not.toHaveBeenCalled();
+  });
 });
 
 // ── buildMappedItems: run injection query-awareness ───────────────────────────
