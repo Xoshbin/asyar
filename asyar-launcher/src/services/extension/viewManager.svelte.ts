@@ -3,11 +3,17 @@ import { searchStores } from '../search/stores/search.svelte';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import type { ExtensionManifest, Extension } from 'asyar-sdk/contracts';
 
+export interface NavigateToViewOptions {
+  /** Override manifest-level `searchable` for this specific stacked view. */
+  searchable?: boolean;
+}
+
 // Internal state for navigation stack
 interface NavigationState {
   viewPath: string;
   searchable: boolean;
   extensionId: string;
+  savedSearchQuery?: string;
 }
 
 class ViewManagerClass {
@@ -65,7 +71,7 @@ class ViewManagerClass {
     }
   }
 
-  navigateToView(viewPath: string): void {
+  navigateToView(viewPath: string, options?: NavigateToViewOptions): void {
     logService.info(`[ViewManager] navigateToView called with path: ${viewPath}`);
     if (!this.manifestsMap) {
       logService.error('ViewManager not initialized properly.');
@@ -109,6 +115,13 @@ class ViewManagerClass {
       this.navigationStack = [];
       this.initialMainQuery = null;
       this.notifyViewDeactivated(prevTop);
+    } else if (this.navigationStack.length > 0) {
+      // Deactivate the covered parent view symmetrically so list keydown
+      // listeners and view actions don't bleed into the pushed child view,
+      // and snapshot its view-local search query for goBack() restoration.
+      const prevTop = this.navigationStack[this.navigationStack.length - 1];
+      prevTop.savedSearchQuery = searchStores.query;
+      this.notifyViewDeactivated(prevTop);
     }
 
     logService.info(`Navigating to view: ${viewPath} for extension: ${manifest.id}`);
@@ -122,7 +135,7 @@ class ViewManagerClass {
 
     const newState: NavigationState = {
       viewPath,
-      searchable: manifest.searchable ?? false,
+      searchable: options?.searchable ?? manifest.searchable ?? false,
       extensionId: manifest.id,
     };
     this.navigationStack.push(newState);
@@ -192,9 +205,13 @@ class ViewManagerClass {
       const newState = this.navigationStack[this.navigationStack.length - 1]; // Get the new top state
       logService.debug(`Returning to previous view: ${newState.viewPath}`);
 
+      this.notifyViewDeactivated(closedState);
+
       // Update active view stores to reflect the new top state
       this.activeView = newState.viewPath;
       this.activeViewSearchable = newState.searchable;
+      searchStores.query = newState.savedSearchQuery ?? '';
+      newState.savedSearchQuery = undefined;
 
       this.notifyViewActivated(newState);
     }
@@ -220,13 +237,14 @@ class ViewManagerClass {
 
     if (removedStates.length === 0) return;
 
-    // Notify deactivated for the removed states
+    this.navigationStack = remainingStack;
+    extensionIframeManager.hasInputFocus = false;
+
+    // Notify deactivated for the removed states (after pruning stack so listeners
+    // checking isViewInStack() see the view has left the stack).
     for (const state of removedStates) {
       this.notifyViewDeactivated(state);
     }
-
-    this.navigationStack = remainingStack;
-    extensionIframeManager.hasInputFocus = false;
 
     if (this.navigationStack.length === 0) {
       this.activeView = null;
@@ -304,6 +322,10 @@ class ViewManagerClass {
 
   getNavigationStackSize(): number {
     return this.navigationStack.length;
+  }
+
+  isViewInStack(viewPath: string): boolean {
+    return this.navigationStack.some((state) => state.viewPath === viewPath);
   }
 
   /**

@@ -6,6 +6,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn(),
 }));
 vi.mock('./DefaultView.svelte', () => ({ default: {} }));
+vi.mock('./SnippetFormView.svelte', () => ({ default: {} }));
 vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: vi.fn() }));
 vi.mock('../../lib/rankItems', () => ({ rankItems: vi.fn() }));
 vi.mock('../../components/base/Modal.logic', () => ({
@@ -331,5 +332,35 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
   it('deactivate() is safe and idempotent when not in view', async () => {
     await snippetsExtension.deactivate();
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:add');
+  });
+
+  it('pushes snippets/SnippetFormView with searchable: false on add and edit actions', async () => {
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+    const navSpy = vi.spyOn(viewManager, 'navigateToView').mockImplementation(() => {});
+
+    await snippetsExtension.viewActivated('snippets/DefaultView');
+    const byId = (id: string) =>
+      vi.mocked(actionService.registerAction).mock.calls.find(([c]) => c.id === id)?.[0] as any;
+
+    await byId('snippets:add').execute();
+    expect(snippetViewState.mode).toBe('create');
+    expect(navSpy).toHaveBeenCalledWith('snippets/SnippetFormView', { searchable: false });
+
+    snippetStore.snippets = [
+      {
+        id: '1',
+        name: 'Work Email',
+        keyword: ';email',
+        expansion: 'work@example.com',
+        createdAt: 1,
+      },
+    ];
+    snippetViewState.reset();
+    await byId('snippets:edit').execute();
+    expect(snippetViewState.mode).toBe('edit');
+    expect(snippetViewState.editingSnippet?.id).toBe('1');
+    expect(navSpy).toHaveBeenCalledWith('snippets/SnippetFormView', { searchable: false });
+
+    navSpy.mockRestore();
   });
 });

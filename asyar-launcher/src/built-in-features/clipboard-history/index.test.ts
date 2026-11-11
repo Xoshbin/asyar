@@ -19,7 +19,12 @@ vi.mock('../../services/action/actionService.svelte', () => ({
 vi.mock('../snippets/snippetUiState.svelte', () => ({
   snippetUiState: {
     prefillExpansion: null,
-    editorTrigger: null,
+  },
+}));
+
+vi.mock('../snippets/snippetViewState.svelte', () => ({
+  snippetViewState: {
+    startCreate: vi.fn(),
   },
 }));
 
@@ -30,6 +35,7 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
 vi.mock('../../services/extension/viewManager.svelte', () => ({
   viewManager: {
     goBack: vi.fn(),
+    navigateToView: vi.fn(),
   },
 }));
 
@@ -554,7 +560,6 @@ describe('Save as Snippet action', () => {
 
     const { snippetUiState } = await import('../snippets/snippetUiState.svelte');
     snippetUiState.prefillExpansion = null;
-    snippetUiState.editorTrigger = null;
 
     mockNavigateToView = vi.fn();
     mockContext = {
@@ -620,7 +625,7 @@ describe('Save as Snippet action', () => {
     expect(snippetUiState.prefillExpansion).toBe('Hello from clipboard');
   });
 
-  it('execute() sets snippetUiState.editorTrigger to add', async () => {
+  it('execute() starts snippet create mode', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -639,11 +644,11 @@ describe('Save as Snippet action', () => {
 
     await saveAction!.execute();
 
-    const { snippetUiState } = await import('../snippets/snippetUiState.svelte');
-    expect(snippetUiState.editorTrigger).toBe('add');
+    const { snippetViewState } = await import('../snippets/snippetViewState.svelte');
+    expect(snippetViewState.startCreate).toHaveBeenCalled();
   });
 
-  it('execute() calls navigateToView with snippets/DefaultView', async () => {
+  it('execute() calls viewManager.navigateToView with snippets/SnippetFormView (searchable: false)', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -662,7 +667,10 @@ describe('Save as Snippet action', () => {
 
     await saveAction!.execute();
 
-    expect(mockNavigateToView).toHaveBeenCalledWith('snippets/DefaultView');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+    expect(viewManager.navigateToView).toHaveBeenCalledWith('snippets/SnippetFormView', {
+      searchable: false,
+    });
   });
 
   it('execute() does nothing if selected item type is Image', async () => {

@@ -40,6 +40,7 @@ vi.mock('./state.svelte', () => ({
     renameCustomLayout: vi.fn(),
     setIndex: vi.fn(),
     moveSelection: vi.fn(),
+    clearRename: vi.fn(),
     reset: vi.fn(),
   },
 }));
@@ -50,6 +51,7 @@ vi.mock('./layoutLifecycle', () => ({
 }));
 vi.mock('./ManageView.svelte', () => ({ default: {} }));
 vi.mock('./SwitchWindowsView.svelte', () => ({ default: {} }));
+vi.mock('./RenameLayoutView.svelte', () => ({ default: {} }));
 
 import extension from './index';
 import { windowManagementService } from '../../services/windowManagement/windowManagementService';

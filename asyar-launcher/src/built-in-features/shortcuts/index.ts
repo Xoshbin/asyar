@@ -1,8 +1,10 @@
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
+import ShortcutEditView from './ShortcutEditView.svelte';
 import { shortcutStore } from './shortcutStore.svelte';
 import { shortcutViewState } from './shortcutViewState.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 
 class ShortcutsExtension implements Extension {
   onUnload = () => {};
@@ -31,7 +33,8 @@ class ShortcutsExtension implements Extension {
     }
   }
 
-  async viewActivated(_viewId: string): Promise<void> {
+  async viewActivated(viewId: string): Promise<void> {
+    if (viewId !== 'shortcuts/DefaultView') return;
     this.inView = true;
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound);
@@ -39,12 +42,18 @@ class ShortcutsExtension implements Extension {
     }
   }
 
-  async viewDeactivated(_viewId: string): Promise<void> {
+  async viewDeactivated(viewId: string): Promise<void> {
+    if (viewId === 'shortcuts/ShortcutEditView') {
+      shortcutViewState.clearEdit();
+      return;
+    }
     this.inView = false;
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound);
     }
-    shortcutViewState.reset();
+    if (!viewManager.isViewInStack('shortcuts/DefaultView')) {
+      shortcutViewState.reset();
+    }
   }
 
   async activate(): Promise<void> {
@@ -61,4 +70,4 @@ class ShortcutsExtension implements Extension {
 }
 
 export default new ShortcutsExtension();
-export { DefaultView };
+export { DefaultView, ShortcutEditView };

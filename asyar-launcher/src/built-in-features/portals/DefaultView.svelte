@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { tick, untrack } from 'svelte';
+  import { tick } from 'svelte';
   import { portalStore, type Portal } from './portalStore.svelte';
   import { portalsUiState } from './index.svelte';
-  import { syncPortalToIndex, removePortalFromIndex, deletePortal } from './portalLifecycle';
+  import { syncPortalToIndex, deletePortal } from './portalLifecycle';
   import { parseUrlPlaceholders } from '../../lib/placeholders';
-  import PortalForm from './PortalForm.svelte';
   import {
     SplitListDetail,
     LauncherListRow,
@@ -15,24 +14,9 @@
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
-
-  type Mode = 'view' | 'create' | 'edit';
-  let mode = $state<Mode>('view');
-  let editingPortal = $state<Portal | null>(null);
-
-  $effect(() => {
-    if (portalsUiState.openMode === 'new') {
-      // A second "New Portal" (⌘N) while the form is open must not reset the
-      // draft the user is typing.
-      if (untrack(() => mode) === 'view') {
-        mode = 'create';
-        editingPortal = null;
-      }
-      portalsUiState.openMode = 'list';
-    }
-  });
 
   let portals = $derived(portalStore.portals);
   let selectedIndex = $derived(portalsUiState.selectedIndex);
@@ -49,7 +33,7 @@
   });
 
   $effect(() => {
-    if (mode !== 'view' || portals.length > 0) {
+    if (portals.length > 0) {
       actionService.unregisterAction('portals:create-empty');
       return;
     }
@@ -71,7 +55,7 @@
 
   $effect(() => {
     const portal = selectedPortal;
-    if (!portal || mode !== 'view') {
+    if (!portal) {
       actionService.unregisterAction('portals:edit');
       actionService.unregisterAction('portals:duplicate');
       actionService.unregisterAction('portals:delete');
@@ -129,44 +113,13 @@
   });
 
   function startCreate() {
-    editingPortal = null;
-    mode = 'create';
+    portalsUiState.startCreate();
+    viewManager.navigateToView('portals/PortalFormView', { searchable: false });
   }
 
   function startEdit(portal: Portal) {
-    editingPortal = portal;
-    mode = 'edit';
-  }
-
-  function cancelEdit() {
-    mode = 'view';
-    editingPortal = null;
-  }
-
-  async function handleSave(portal: Portal) {
-    try {
-      if (mode === 'edit' && editingPortal) {
-        const editingId = editingPortal.id;
-        portalStore.update(editingId, portal);
-        await removePortalFromIndex(editingId);
-        await syncPortalToIndex({ ...portal, id: editingId });
-      } else {
-        portalStore.add(portal);
-        await syncPortalToIndex(portal);
-        const idx = portalStore.portals.findIndex((p) => p.id === portal.id);
-        if (idx >= 0) portalsUiState.selectedIndex = idx;
-      }
-    } catch (err) {
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'error',
-        retryable: false,
-        context: { message: t('features.portals.ui.save_failed', { error: String(err) }) },
-      });
-    } finally {
-      cancelEdit();
-    }
+    portalsUiState.startEdit(portal);
+    viewManager.navigateToView('portals/PortalFormView', { searchable: false });
   }
 
   async function handleDelete(portal: Portal) {
@@ -244,14 +197,7 @@
     {/snippet}
 
     {#snippet detail()}
-      {#if mode === 'create' || mode === 'edit'}
-        <PortalForm
-          portal={editingPortal ?? undefined}
-          isEditing={mode === 'edit'}
-          onsave={handleSave}
-          oncancel={cancelEdit}
-        />
-      {:else if selectedPortal}
+      {#if selectedPortal}
         {@const tokens = parseUrlPlaceholders(selectedPortal.url)}
         <div class="portal-detail-content custom-scrollbar">
           <div class="detail-header">

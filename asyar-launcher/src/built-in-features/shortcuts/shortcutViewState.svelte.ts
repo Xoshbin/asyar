@@ -4,6 +4,7 @@ import { useListSelection } from '../../lib/listSelection.svelte';
 
 class ShortcutViewStateClass {
   private selection = useListSelection<ItemShortcut>({ items: () => this.orderedItems });
+  editingShortcut = $state<ItemShortcut | null>(null);
 
   get groups(): { applications: ItemShortcut[]; commands: ItemShortcut[] } {
     const all = shortcutStore.shortcuts;
@@ -40,8 +41,17 @@ class ShortcutViewStateClass {
     this.selection.moveSelection(direction);
   }
 
+  startEdit(shortcut: ItemShortcut) {
+    this.editingShortcut = shortcut;
+  }
+
+  clearEdit() {
+    this.editingShortcut = null;
+  }
+
   reset() {
     this.selection.setIndex(0);
+    this.editingShortcut = null;
   }
 }
 

@@ -16,6 +16,7 @@ export class WindowManagementState {
   customLayouts = $state<CustomLayout[]>([]);
   previousBounds = $state<WindowBounds | null>(null);
   store = $state<IStorageService | null>(null);
+  renamingLayoutId = $state<string | null>(null);
 
   private selection = useListSelection({ items: () => this.customLayouts });
 
@@ -106,8 +107,17 @@ export class WindowManagementState {
     }
   }
 
+  startRename(id: string): void {
+    this.renamingLayoutId = id;
+  }
+
+  clearRename(): void {
+    this.renamingLayoutId = null;
+  }
+
   reset(): void {
     this.selection.setIndex(0);
+    this.renamingLayoutId = null;
   }
 }
 

@@ -17,6 +17,7 @@ import AgentListView from './AgentListView.svelte';
 import AgentEditView from './AgentEditView.svelte';
 import AgentChatView from './AgentChatView.svelte';
 import { registerBuiltinDynamicDispatcher } from '../../services/extension/builtinDynamicDispatchers';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 import type { ThreadDef } from './types';
 
 export { AgentListView, AgentEditView, AgentChatView };
@@ -108,12 +109,12 @@ class AgentsExtension implements Extension {
 
   private runNewAgent(): void {
     agentsManager.currentAgentId = null;
-    this.extensionManager?.navigateToView('agents/AgentEditView');
+    viewManager.navigateToView('agents/AgentEditView', { searchable: false });
   }
 
   private runEditAgent(): void {
     if (!agentsManager.currentAgentId) return;
-    this.extensionManager?.navigateToView('agents/AgentEditView');
+    viewManager.navigateToView('agents/AgentEditView', { searchable: false });
   }
 
   private async runDeleteAgent(): Promise<void> {

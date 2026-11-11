@@ -1,8 +1,10 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import DefaultView from './DefaultView.svelte';
 import { portalStore } from './portalStore.svelte';
+import { portalsUiState } from './index.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue([]),
@@ -17,6 +19,8 @@ vi.mock('@tauri-apps/api/event', () => ({
 describe('Portals DefaultView', () => {
   beforeEach(() => {
     portalStore.portals = [];
+    portalsUiState.clearDraft();
+    portalsUiState.selectedIndex = -1;
   });
 
   it('renders metadata list for selected portal', () => {
@@ -39,18 +43,15 @@ describe('Portals DefaultView', () => {
     expect(screen.getByText('Created')).toBeTruthy();
   });
 
-  it('registers Mod+Enter primary action without Save/Cancel buttons in create mode', async () => {
-    const { portalsUiState } = await import('./index.svelte');
-    const { actionService } = await import('../../services/action/actionService.svelte');
-
-    portalsUiState.openMode = 'new';
+  it('pushes portals/PortalFormView with searchable: false when clicking empty-state CTA', async () => {
+    const navSpy = vi.spyOn(viewManager, 'navigateToView').mockImplementation(() => {});
     render(DefaultView);
 
-    expect(screen.queryByRole('button', { name: /cancel/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /save/i })).toBeNull();
+    const cta = screen.getByRole('button', { name: /add your first portal/i });
+    await fireEvent.click(cta);
 
-    const saveAction = actionService.getAllActions().find((a) => a.id === 'portals:save');
-    expect(saveAction?.shortcut).toBe('Mod+Enter');
-    expect(saveAction?.primary).toBe(true);
+    expect(portalsUiState.formMode).toBe('create');
+    expect(navSpy).toHaveBeenCalledWith('portals/PortalFormView', { searchable: false });
+    navSpy.mockRestore();
   });
 });

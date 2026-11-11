@@ -2,28 +2,21 @@
   import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
   import { shortcutViewState } from './shortcutViewState.svelte';
   import { shortcutService } from './shortcutService';
-  import { toDisplayKeys, normalizeShortcut } from './shortcutFormatter';
-  import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
+  import { toDisplayKeys } from './shortcutFormatter';
   import {
     SplitListDetail,
     LauncherListRow,
     KeyboardHint,
-    ShortcutRecorder,
-    Badge,
     MetadataList,
     EmptyState,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
-  import { searchStores } from '../../services/search/stores/search.svelte';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
   import extensionManager from '../../services/extension/extensionManager.svelte';
   import { toResolvedIcon } from '../../lib/icon';
-
-  let mode = $state<'view' | 'edit'>('view');
-  let captureModifier = $state('');
-  let captureKey = $state('');
 
   const grouped = $derived(shortcutViewState.groups);
   const orderedItems = $derived(shortcutViewState.orderedItems);
@@ -69,55 +62,10 @@
     };
   });
 
-  // Keystroke-gate lifecycle while the capture surface is mounted. Mirrors
-  // the old ShortcutCapture.svelte exactly — the launcher's keystroke
-  // routing depends on these flags being set during capture.
-  $effect(() => {
-    if (mode !== 'edit') return;
-    shortcutStore.isCapturing = true;
-    extensionIframeManager.hasInputFocus = true;
-    (document.activeElement as HTMLElement)?.blur();
-    return () => {
-      shortcutStore.isCapturing = false;
-      extensionIframeManager.hasInputFocus = false;
-    };
-  });
-
   function startEdit() {
-    captureModifier = '';
-    captureKey = '';
-    mode = 'edit';
-  }
-
-  function cancelEdit() {
-    mode = 'view';
-  }
-
-  async function conflictChecker(shortcut: string): Promise<{ name: string } | null> {
-    const conflict = await shortcutService.isConflict(
-      normalizeShortcut(shortcut),
-      selectedShortcut?.objectId,
-    );
-    if (conflict) return { name: conflict.itemName };
-    return null;
-  }
-
-  async function handleSave(detail: { modifier: string; key: string }): Promise<string | true> {
-    if (!selectedShortcut) return 'No item selected';
-    const shortcut = `${detail.modifier}+${detail.key}`;
-    const result = await shortcutService.register(
-      selectedShortcut.objectId,
-      selectedShortcut.itemName,
-      selectedShortcut.itemType,
-      shortcut,
-      selectedShortcut.itemPath,
-      selectedShortcut.itemIcon,
-    );
-    if (!result.ok) {
-      const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';
-      return `Could not assign: ${reason}`;
-    }
-    return true;
+    if (!selectedShortcut) return;
+    shortcutViewState.startEdit(selectedShortcut);
+    viewManager.navigateToView('shortcuts/ShortcutEditView', { searchable: false });
   }
 
   async function handleRemove(id: string, name: string) {
@@ -173,27 +121,7 @@
     {/snippet}
 
     {#snippet detail()}
-      {#if mode === 'edit' && selectedShortcut}
-        <div class="form-panel">
-          <div class="form-header">
-            <h2 class="form-title">{t('features.shortcuts.ui.assign')}</h2>
-            <p class="form-subtitle">
-              Press the combination you want to use for {selectedShortcut.itemName}.
-            </p>
-          </div>
-          <div class="form-body custom-scrollbar">
-            <ShortcutRecorder
-              bind:modifier={captureModifier}
-              bind:key={captureKey}
-              autoRecord={true}
-              onsave={handleSave}
-              oncancel={cancelEdit}
-              ondone={cancelEdit}
-              {conflictChecker}
-            />
-          </div>
-        </div>
-      {:else if selectedShortcut}
+      {#if selectedShortcut}
         <div class="shortcut-detail-content custom-scrollbar">
           <div class="detail-header">
             <h2 class="shortcut-name">{selectedShortcut.itemName}</h2>
@@ -271,31 +199,5 @@
     padding: var(--space-7) var(--space-5);
     background: var(--bg-secondary);
     border-radius: var(--radius-md);
-  }
-
-  .form-panel {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-  .form-header {
-    padding: var(--space-7) var(--space-8) 0;
-    flex-shrink: 0;
-  }
-  .form-title {
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-  .form-subtitle {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    margin: var(--space-2) 0 var(--space-6);
-  }
-  .form-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 var(--space-8) var(--space-6);
   }
 </style>

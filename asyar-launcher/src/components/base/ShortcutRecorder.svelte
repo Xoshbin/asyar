@@ -81,11 +81,12 @@
   });
 
   // untrack: avoid re-triggering when capture state changes; cleanup resumes shortcuts
+  // without triggering onCancel during unmount teardown.
   $effect(() => {
     if (autoRecord) {
       untrack(() => handleStartRecording());
     }
-    return () => capture.stopRecording();
+    return () => capture.stopRecording({ notifyCancel: false });
   });
 
   let idleChips = $derived.by(() => {

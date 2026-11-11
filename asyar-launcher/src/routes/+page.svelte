@@ -58,6 +58,7 @@
   // DOM refs needed for binding (though controller handles elite state)
   let searchInput = $state<HTMLInputElement | null>(null);
   let listContainer = $state<HTMLDivElement | undefined>(undefined);
+  let shellContentEl = $state<HTMLDivElement | null>(null);
   let bottomActionBarInstance = $state<ReturnType<typeof BottomActionBar>>();
   let isActionPanelOpen = $state(false);
   // Bound by SearchHeader when the accessory dropdown is rendered. Task 15
@@ -154,6 +155,14 @@
       keyboard.restoreSearchFocus({ select: true });
     }
   }
+
+  // Ensure switching from a scrolled root results list into a full-pane view
+  // starts at scrollTop 0 (each view owns its own internal scroller).
+  $effect(() => {
+    if ((controller.activeViewVal || preferencesPromptStore.active) && shellContentEl) {
+      shellContentEl.scrollTop = 0;
+    }
+  });
 
   // Run controller effects
   $effect(() => {
@@ -536,7 +545,11 @@
     onArgExit={() => commandArgumentsService.exit()}
   />
 
-  <div class="shell-content custom-scrollbar">
+  <div
+    bind:this={shellContentEl}
+    class="shell-content custom-scrollbar"
+    class:shell-content--view={!!controller.activeViewVal || !!preferencesPromptStore.active}
+  >
     {#if preferencesPromptStore.active}
       {@const prompt = preferencesPromptStore.active}
       <RequiredPreferencesView

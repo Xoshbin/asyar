@@ -1,23 +1,34 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { FormField, FormView, Input, PlaceholderPicker } from '../../components';
-  import type { Portal } from './portalStore.svelte';
+  import { portalStore, type Portal } from './portalStore.svelte';
+  import { portalsUiState } from './index.svelte';
+  import { syncPortalToIndex, removePortalFromIndex } from './portalLifecycle';
   import { fetchPlaceholders } from '../../lib/placeholders/placeholderResolver';
   import { actionService } from '../../services/action/actionService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
 
   let {
-    portal = {},
-    isEditing = false,
+    portal,
+    isEditing,
     onsave,
     oncancel,
   }: {
     portal?: Partial<Portal>;
     isEditing?: boolean;
-    onsave?: (portal: Portal) => void;
+    onsave?: (portal: Portal) => void | Promise<void>;
     oncancel?: () => void;
   } = $props();
+
+  const resolvedIsEditing = $derived(
+    isEditing ?? (portalsUiState.formMode === 'edit' && Boolean(portalsUiState.editingPortal)),
+  );
+  const resolvedPortal = $derived<Partial<Portal>>(
+    portal ?? (resolvedIsEditing ? (portalsUiState.editingPortal ?? {}) : {}),
+  );
 
   let name = $state('');
   let url = $state('');
@@ -29,20 +40,52 @@
   let triggerCursorPos = $state(-1);
 
   $effect(() => {
-    name = portal.name ?? '';
-    url = portal.url ?? '';
-    icon = portal.icon ?? '🌐';
+    name = resolvedPortal.name ?? '';
+    url = resolvedPortal.url ?? '';
+    icon = resolvedPortal.icon ?? '🌐';
   });
 
-  function handleSave() {
+  async function saveToStore(nextPortal: Portal): Promise<void> {
+    try {
+      if (resolvedIsEditing && resolvedPortal.id) {
+        const editingId = resolvedPortal.id;
+        portalStore.update(editingId, nextPortal);
+        await removePortalFromIndex(editingId);
+        await syncPortalToIndex({ ...nextPortal, id: editingId });
+      } else {
+        portalStore.add(nextPortal);
+        await syncPortalToIndex(nextPortal);
+        const idx = portalStore.portals.findIndex((p) => p.id === nextPortal.id);
+        if (idx >= 0) portalsUiState.selectedIndex = idx;
+      }
+    } catch (err) {
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: t('features.portals.ui.save_failed', { error: String(err) }) },
+      });
+    } finally {
+      portalsUiState.clearDraft();
+      viewManager.goBack();
+    }
+  }
+
+  async function handleSave() {
     if (!name.trim() || !url.trim()) return;
-    onsave?.({
-      id: portal.id ?? crypto.randomUUID(),
+    const nextPortal: Portal = {
+      id: resolvedPortal.id ?? crypto.randomUUID(),
       name: name.trim(),
       url: url.trim(),
       icon: icon.trim() || '🌐',
-      createdAt: portal.createdAt ?? Date.now(),
-    });
+      createdAt: resolvedPortal.createdAt ?? Date.now(),
+    };
+    if (onsave) {
+      await onsave(nextPortal);
+      return;
+    }
+    await saveToStore(nextPortal);
   }
 
   function handleCancel() {
@@ -50,7 +93,12 @@
       closePicker();
       return;
     }
-    oncancel?.();
+    if (oncancel) {
+      oncancel();
+      return;
+    }
+    portalsUiState.clearDraft();
+    viewManager.goBack();
   }
 
   $effect(() => {
@@ -123,7 +171,7 @@
 
 <FormView
   actionId="portals:save"
-  submitLabel={isEditing ? t('common.update') || 'Update' : t('common.save')}
+  submitLabel={resolvedIsEditing ? t('common.update') || 'Update' : t('common.save')}
   extensionId="portals"
   category={t('categories.portals')}
   submitDisabled={!name.trim() || !url.trim()}
@@ -132,7 +180,7 @@
   oncancel={handleCancel}
 >
   {#snippet header()}
-    <h2 class="form-title">{isEditing ? 'Edit Portal' : 'New Portal'}</h2>
+    <h2 class="form-title">{resolvedIsEditing ? 'Edit Portal' : 'New Portal'}</h2>
   {/snippet}
 
   <FormField label={t('common.name')} id="portal-name">

@@ -166,13 +166,15 @@ describe('handleSelectAgentForEdit', () => {
     expect(manager.currentAgentId).toBe('agent-7');
   });
 
-  it('navigates to agents/AgentEditView', () => {
+  it('navigates to agents/AgentEditView with searchable: false', () => {
     const manager = { currentAgentId: null as string | null };
     const viewMgr = { navigateToView: vi.fn() };
 
     handleSelectAgentForEdit('agent-7', { manager, viewManager: viewMgr });
 
-    expect(viewMgr.navigateToView).toHaveBeenCalledWith('agents/AgentEditView');
+    expect(viewMgr.navigateToView).toHaveBeenCalledWith('agents/AgentEditView', {
+      searchable: false,
+    });
   });
 });
 
@@ -188,12 +190,14 @@ describe('handleNewAgent', () => {
     expect(manager.currentAgentId).toBeNull();
   });
 
-  it('navigates to agents/AgentEditView', () => {
+  it('navigates to agents/AgentEditView with searchable: false', () => {
     const manager = { currentAgentId: null as string | null };
     const viewMgr = { navigateToView: vi.fn() };
 
     handleNewAgent({ manager, viewManager: viewMgr });
 
-    expect(viewMgr.navigateToView).toHaveBeenCalledWith('agents/AgentEditView');
+    expect(viewMgr.navigateToView).toHaveBeenCalledWith('agents/AgentEditView', {
+      searchable: false,
+    });
   });
 });

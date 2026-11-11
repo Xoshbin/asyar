@@ -123,7 +123,9 @@
 
   .form-view-body {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior-y: contain;
     padding: var(--space-5);
     display: flex;
     flex-direction: column;

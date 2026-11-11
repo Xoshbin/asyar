@@ -23,6 +23,7 @@ import {
 } from 'asyar-sdk/contracts';
 import type { ExtensionAction, IActionService } from 'asyar-sdk/contracts';
 import { snippetUiState } from '../snippets/snippetUiState.svelte';
+import { snippetViewState } from '../snippets/snippetViewState.svelte';
 
 // Define static results for clipboard extension
 const clipboardResults = [
@@ -369,8 +370,8 @@ class ClipboardHistoryExtension implements Extension {
         if (!item || item.type === ClipboardItemType.Image || item.type === ClipboardItemType.Files)
           return;
         snippetUiState.prefillExpansion = await clipboardViewState.getPlainText(item);
-        snippetUiState.editorTrigger = 'add';
-        this.extensionManager?.navigateToView('snippets/DefaultView');
+        snippetViewState.startCreate();
+        viewManager.navigateToView('snippets/SnippetFormView', { searchable: false });
       },
     });
 

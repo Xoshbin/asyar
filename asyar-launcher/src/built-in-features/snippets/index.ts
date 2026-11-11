@@ -2,10 +2,13 @@ import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
+import SnippetFormView from './SnippetFormView.svelte';
 import { snippetStore } from './snippetStore.svelte';
 import { snippetService } from './snippetService';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+import { snippetUiState } from './snippetUiState.svelte';
 import { snippetViewState } from './snippetViewState.svelte';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import { isAnyModalOpen } from '../../components/base/Modal.logic';
@@ -52,10 +55,8 @@ class SnippetsExtension implements Extension {
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
-        // The form owns the keyboard once it is open; a second ⌘N must not
-        // reset the draft the user is typing.
-        if (snippetViewState.mode !== 'view') return;
         snippetViewState.startCreate();
+        viewManager.navigateToView('snippets/SnippetFormView', { searchable: false });
       },
     });
     actionService.registerAction({
@@ -68,7 +69,7 @@ class SnippetsExtension implements Extension {
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
-      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
+      visible: () => Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) await snippetService.pasteSnippet(s.expansion);
@@ -83,10 +84,10 @@ class SnippetsExtension implements Extension {
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
-      visible: () =>
-        snippetViewState.mode === 'view' && snippetViewState.getFilteredSnippets().length === 0,
+      visible: () => snippetViewState.getFilteredSnippets().length === 0,
       execute: async () => {
         snippetViewState.startCreate();
+        viewManager.navigateToView('snippets/SnippetFormView', { searchable: false });
       },
     });
     actionService.registerAction({
@@ -98,10 +99,13 @@ class SnippetsExtension implements Extension {
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
-      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
+      visible: () => Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
-        if (s) snippetViewState.startEdit(s);
+        if (s) {
+          snippetViewState.startEdit(s);
+          viewManager.navigateToView('snippets/SnippetFormView', { searchable: false });
+        }
       },
     });
     actionService.registerAction({
@@ -115,7 +119,7 @@ class SnippetsExtension implements Extension {
       context: ActionContext.EXTENSION_VIEW,
       confirm: true,
       destructive: true,
-      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
+      visible: () => Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
@@ -133,7 +137,7 @@ class SnippetsExtension implements Extension {
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
-      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
+      visible: () => Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) await writeText(s.expansion);
@@ -148,7 +152,7 @@ class SnippetsExtension implements Extension {
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
-      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
+      visible: () => Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (!s) return;
@@ -181,8 +185,7 @@ class SnippetsExtension implements Extension {
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       visible: () =>
-        snippetViewState.mode === 'view' &&
-        (snippetViewState.selectedSnippet ? !snippetViewState.selectedSnippet.pinned : false),
+        snippetViewState.selectedSnippet ? !snippetViewState.selectedSnippet.pinned : false,
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
@@ -201,10 +204,7 @@ class SnippetsExtension implements Extension {
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       visible: () =>
-        snippetViewState.mode === 'view' &&
-        (snippetViewState.selectedSnippet
-          ? Boolean(snippetViewState.selectedSnippet.pinned)
-          : false),
+        snippetViewState.selectedSnippet ? Boolean(snippetViewState.selectedSnippet.pinned) : false,
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
@@ -221,7 +221,7 @@ class SnippetsExtension implements Extension {
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
-      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
+      visible: () => Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
@@ -241,7 +241,7 @@ class SnippetsExtension implements Extension {
       context: ActionContext.EXTENSION_VIEW,
       confirm: true,
       destructive: true,
-      visible: () => snippetViewState.mode === 'view' && snippetStore.getAll().length > 0,
+      visible: () => snippetStore.getAll().length > 0,
       execute: async () => {
         snippetStore.clearAll();
         await snippetService.syncToRust();
@@ -264,7 +264,8 @@ class SnippetsExtension implements Extension {
     actionService.unregisterAction('snippets:clear-all');
   }
 
-  async viewActivated(_viewId: string): Promise<void> {
+  async viewActivated(viewId: string): Promise<void> {
+    if (viewId !== 'snippets/DefaultView') return;
     this.inView = true;
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound, true);
@@ -274,12 +275,19 @@ class SnippetsExtension implements Extension {
     this.registerViewActions();
   }
 
-  async viewDeactivated(_viewId: string): Promise<void> {
+  async viewDeactivated(viewId: string): Promise<void> {
+    if (viewId === 'snippets/SnippetFormView') {
+      snippetUiState.prefillExpansion = null;
+      snippetViewState.cancelEdit();
+      return;
+    }
     this.inView = false;
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound, true);
     }
-    snippetViewState.reset();
+    if (!viewManager.isViewInStack('snippets/DefaultView')) {
+      snippetViewState.reset();
+    }
     this.unregisterViewActions();
   }
 
@@ -296,10 +304,11 @@ class SnippetsExtension implements Extension {
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeydownBound, true);
     }
+    snippetUiState.prefillExpansion = null;
     snippetViewState.reset();
     this.unregisterViewActions();
   }
 }
 
 export default new SnippetsExtension();
-export { DefaultView };
+export { DefaultView, SnippetFormView };

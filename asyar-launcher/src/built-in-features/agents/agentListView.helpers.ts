@@ -1,4 +1,5 @@
 import type { AgentDef, ThreadDef } from './types';
+import type { NavigateToViewOptions } from '../../services/extension/viewManager.svelte';
 
 export interface AgentRowProps {
   title: string;
@@ -12,18 +13,18 @@ export interface DeleteDeps {
 
 export interface ChatNavDeps {
   manager: { currentAgentId: string | null; currentThreadId: string | null };
-  viewManager: { navigateToView(path: string): void };
+  viewManager: { navigateToView(path: string, options?: NavigateToViewOptions): void };
   service: { listThreads(agentId: string): Promise<ThreadDef[]> };
 }
 
 export interface EditNavDeps {
   manager: { currentAgentId: string | null };
-  viewManager: { navigateToView(path: string): void };
+  viewManager: { navigateToView(path: string, options?: NavigateToViewOptions): void };
 }
 
 export interface NewAgentDeps {
   manager: { currentAgentId: string | null };
-  viewManager: { navigateToView(path: string): void };
+  viewManager: { navigateToView(path: string, options?: NavigateToViewOptions): void };
 }
 
 export function buildAgentRowProps(agent: AgentDef): AgentRowProps {
@@ -48,10 +49,10 @@ export async function handleSelectAgentForChat(agentId: string, deps: ChatNavDep
 
 export function handleSelectAgentForEdit(agentId: string, deps: EditNavDeps): void {
   deps.manager.currentAgentId = agentId;
-  deps.viewManager.navigateToView('agents/AgentEditView');
+  deps.viewManager.navigateToView('agents/AgentEditView', { searchable: false });
 }
 
 export function handleNewAgent(deps: NewAgentDeps): void {
   deps.manager.currentAgentId = null;
-  deps.viewManager.navigateToView('agents/AgentEditView');
+  deps.viewManager.navigateToView('agents/AgentEditView', { searchable: false });
 }

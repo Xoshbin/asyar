@@ -146,7 +146,8 @@ export function useShortcutCapture(config: CaptureConfig) {
     void resumeAllShortcuts();
   }
 
-  function stopRecording() {
+  function stopRecording(options: { notifyCancel?: boolean } = {}) {
+    const notifyCancel = options.notifyCancel ?? true;
     const wasRecording = isRecording;
     isRecording = false;
     partialModifiers = [];
@@ -155,7 +156,7 @@ export function useShortcutCapture(config: CaptureConfig) {
 
     if (wasRecording) {
       removeListeners();
-      if (!savedWithoutCancel) {
+      if (notifyCancel && !savedWithoutCancel) {
         config.onCancel?.();
       }
     }

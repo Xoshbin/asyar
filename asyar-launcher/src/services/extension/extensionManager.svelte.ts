@@ -641,15 +641,19 @@ export class ExtensionManager implements IExtensionManager {
 
   // --- Methods delegated to ViewManager ---
 
-  navigateToView(viewPath: string): void {
+  navigateToView(viewPath: string, options?: { searchable?: boolean }): void {
     logService.info(`[ExtensionManager] Navigating to view: ${viewPath}`);
     const extensionId = viewPath.split('/')[0];
 
     // Delegate usage tracking to state manager
     extensionStateManager.recordViewUsage(extensionId);
 
-    // Delegate to viewManager
-    viewManager.navigateToView(viewPath);
+    // Delegate to viewManager (preserve single-arg call when no options are provided)
+    if (options) {
+      viewManager.navigateToView(viewPath, options);
+    } else {
+      viewManager.navigateToView(viewPath);
+    }
   }
 
   // Renamed from closeView to match interface

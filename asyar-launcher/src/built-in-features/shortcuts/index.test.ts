@@ -15,6 +15,13 @@ vi.mock('./shortcutViewState.svelte', () => ({
 }));
 
 vi.mock('./DefaultView.svelte', () => ({ default: {} }));
+vi.mock('./ShortcutEditView.svelte', () => ({ default: {} }));
+
+vi.mock('../../services/extension/viewManager.svelte', () => ({
+  viewManager: {
+    isViewInStack: vi.fn(() => false),
+  },
+}));
 
 import shortcutsExtension from './index';
 import { shortcutStore } from './shortcutStore.svelte';
@@ -52,6 +59,19 @@ describe('ShortcutsExtension', () => {
 
     await shortcutsExtension.viewDeactivated('shortcuts/DefaultView');
     expect(shortcutViewState.reset).toHaveBeenCalled();
+  });
+
+  it('preserves list selection when pushing ShortcutEditView and clears edit draft on edit view deactivation', async () => {
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+    (shortcutViewState as any).clearEdit = vi.fn();
+
+    vi.mocked(viewManager.isViewInStack).mockReturnValueOnce(true);
+    await shortcutsExtension.viewActivated('shortcuts/DefaultView');
+    await shortcutsExtension.viewDeactivated('shortcuts/DefaultView');
+    expect(shortcutViewState.reset).not.toHaveBeenCalled();
+
+    await shortcutsExtension.viewDeactivated('shortcuts/ShortcutEditView');
+    expect((shortcutViewState as any).clearEdit).toHaveBeenCalledTimes(1);
   });
 
   it('ignores keydown when isCapturing is true', async () => {
