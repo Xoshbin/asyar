@@ -1,4 +1,5 @@
 import { t } from '../../services/i18n';
+import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
 import { clipboardViewState } from './state.svelte';
 import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from '../../services/action/actionService.svelte';
@@ -173,12 +174,6 @@ class ClipboardHistoryExtension implements Extension {
     const state = clipboardViewState;
     if (!state.filteredItems.length) return;
 
-    if (event.key === 'Enter') {
-      this.logService?.debug(
-        `[clipboard] Enter pressed. selectedItem=${!!state.selectedItem}, items=${state.items.length}, activeElement=${document.activeElement?.tagName}`,
-      );
-    }
-
     if (
       (event.metaKey || event.ctrlKey) &&
       (event.key === 'ArrowUp' || event.key === 'ArrowDown')
@@ -193,18 +188,6 @@ class ClipboardHistoryExtension implements Extension {
       event.preventDefault();
       event.stopPropagation();
       clipboardViewState.moveSelection(event.key === 'ArrowUp' ? 'up' : 'down');
-    } else if (event.key === 'Enter' && event.shiftKey && state.selectedItem) {
-      event.preventDefault();
-      event.stopPropagation();
-      clipboardViewState.pasteAsPlainText();
-    } else if (event.key === 'Enter' && state.selectedItem) {
-      event.preventDefault();
-      event.stopPropagation();
-      if (state.selectedIds.length > 1) {
-        clipboardViewState.pasteMergedSelection();
-      } else {
-        clipboardViewState.handleItemAction(state.selectedItem, 'paste');
-      }
     }
   }
 
@@ -217,12 +200,50 @@ class ClipboardHistoryExtension implements Extension {
     this.logService?.debug('Registering clipboard view actions...');
 
     actionService.registerAction({
+      id: 'clipboard-history:paste',
+      label: t('features.clipboard.paste_action'),
+      icon: 'icon:clipboard',
+      shortcut: 'Enter',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      category: 'clipboard-action',
+      visible: () => Boolean(clipboardViewState.selectedItem),
+      execute: async () => {
+        if (clipboardViewState.selectedIds.length > 1) {
+          await clipboardViewState.pasteMergedSelection();
+        } else if (clipboardViewState.selectedItem) {
+          await clipboardViewState.handleItemAction(clipboardViewState.selectedItem, 'paste');
+        }
+      },
+    });
+
+    actionService.registerAction({
+      id: 'clipboard-history:copy',
+      label: t('features.clipboard.copy_action'),
+      icon: 'icon:copy',
+      shortcut: 'Mod+Enter',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      category: 'clipboard-action',
+      visible: () => Boolean(clipboardViewState.selectedItem),
+      execute: async () => {
+        const selected = clipboardViewState.selectedItem;
+        if (selected) {
+          await clipboardViewState.copyItem(selected);
+        }
+      },
+    });
+
+    actionService.registerAction({
       id: 'clipboard-history:clear-history',
       title: t('features.clipboard.act.clear_history'),
       description: t('features.clipboard.act.clear_history_desc'),
       icon: 'icon:trash',
+      shortcut: 'Control+Shift+X',
       extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
       category: 'clipboard-action',
+      confirm: true,
       destructive: true,
       execute: async () => {
         try {
@@ -251,41 +272,51 @@ class ClipboardHistoryExtension implements Extension {
     };
     actionService.registerAction(toggleHtmlAction);
 
-    const openInBrowserAction: ExtensionAction = {
+    actionService.registerAction({
       id: 'clipboard-history:open-in-browser',
-      title: t('features.clipboard.act.open_browser'),
+      label: t('features.clipboard.act.open_browser'),
       description: t('features.clipboard.act.open_browser_desc'),
       icon: 'icon:link',
+      shortcut: 'Mod+O',
       extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
       category: 'clipboard-action',
+      visible: () => {
+        const selected = clipboardViewState.selectedItem;
+        const raw = (selected?.content ?? selected?.preview ?? '').trim();
+        return Boolean(raw && /^https?:\/\/[^\s]+$/.test(raw));
+      },
       execute: async () => {
         const selected = clipboardViewState.selectedItem;
-        if (selected?.content && /^https?:\/\/[^\s]+$/.test(selected.content.trim())) {
-          await openUrl(selected.content.trim());
+        if (!selected) return;
+        const text = (selected.content ?? (await clipboardViewState.getPlainText(selected))).trim();
+        if (/^https?:\/\/[^\s]+$/.test(text)) {
+          await openUrl(text);
         }
       },
-    };
-    actionService.registerAction(openInBrowserAction);
+    });
 
-    const pasteAsPlainTextAction: ExtensionAction = {
+    actionService.registerAction({
       id: 'clipboard-history:paste-as-plain-text',
-      title: t('features.clipboard.act.paste_plain'),
+      label: t('features.clipboard.act.paste_plain'),
       description: t('features.clipboard.act.paste_plain_desc'),
       icon: 'icon:type',
+      shortcut: getHostPlatform() === 'macos' ? 'Control+Mod+Enter' : 'Mod+Shift+Enter',
       extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
       category: 'clipboard-action',
+      visible: () => Boolean(clipboardViewState.selectedItem),
       execute: async () => {
         await clipboardViewState.pasteAsPlainText();
       },
-    };
-    actionService.registerAction(pasteAsPlainTextAction);
+    });
 
     actionService.registerAction({
       id: 'clipboard-history:pin',
       title: t('features.clipboard.pin_action'),
       description: t('features.clipboard.act.toggle_favorite_desc'),
       icon: 'icon:pin',
-      shortcut: 'Mod+Shift+P',
+      shortcut: 'Mod+.',
       extensionId: 'clipboard-history',
       context: ActionContext.EXTENSION_VIEW,
       category: 'clipboard-action',
@@ -307,7 +338,7 @@ class ClipboardHistoryExtension implements Extension {
       title: t('features.clipboard.unpin_action'),
       description: t('features.clipboard.act.toggle_favorite_desc'),
       icon: 'icon:pin',
-      shortcut: 'Mod+Shift+P',
+      shortcut: 'Mod+.',
       extensionId: 'clipboard-history',
       context: ActionContext.EXTENSION_VIEW,
       category: 'clipboard-action',
@@ -328,6 +359,7 @@ class ClipboardHistoryExtension implements Extension {
       id: 'clipboard-history:save-as-snippet',
       title: t('features.clipboard.act.save_snippet'),
       icon: 'icon:scissors',
+      shortcut: 'Mod+S',
       description: t('features.clipboard.act.save_snippet_desc'),
       category: 'clipboard-action',
       extensionId: 'clipboard-history',
@@ -347,10 +379,13 @@ class ClipboardHistoryExtension implements Extension {
       title: 'Delete',
       description: t('features.clipboard.act.delete_desc'),
       icon: 'icon:trash',
+      shortcut: 'Control+X',
       category: 'clipboard-action',
       extensionId: 'clipboard-history',
+      confirm: true,
       destructive: true,
       context: ActionContext.EXTENSION_VIEW,
+      visible: () => Boolean(clipboardViewState.selectedItem),
       execute: async () => {
         const selected = clipboardViewState.selectedItem;
         if (!selected) return;
@@ -377,6 +412,7 @@ class ClipboardHistoryExtension implements Extension {
       title: t('features.clipboard.act.ask_ai'),
       description: t('features.clipboard.act.ask_ai_desc'),
       icon: 'icon:ai-chat',
+      shortcut: 'Mod+I',
       category: 'clipboard-action',
       extensionId: 'clipboard-history',
       context: ActionContext.EXTENSION_VIEW,
@@ -418,6 +454,8 @@ class ClipboardHistoryExtension implements Extension {
   // Helper method to unregister view-specific actions
   private unregisterViewActions() {
     this.logService?.debug('Unregistering clipboard view actions...');
+    actionService.unregisterAction('clipboard-history:paste');
+    actionService.unregisterAction('clipboard-history:copy');
     actionService.unregisterAction('clipboard-history:clear-history');
     actionService.unregisterAction('clipboard-history:toggle-html-view');
     actionService.unregisterAction('clipboard-history:pin');

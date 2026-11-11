@@ -23,7 +23,7 @@ import type { UninstallScanResult } from '../application/applicationService';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import { canRunAsAdmin, hasAppFilePath } from './appLocation';
 import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
-import { assertActionShortcut } from '../../lib/keyboard/actionShortcut';
+import { assertActionShortcut, resolveActionChord } from '../../lib/keyboard/actionShortcut';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
 import { compareActionTier, type ActionPlacement } from './actionTier';
@@ -83,6 +83,8 @@ export interface ApplicationAction {
   disabled?: boolean;
   context?: ActionContext; // Use the enum type here too for consistency
   confirm?: boolean;
+  /** True when `execute()` runs its own `confirmAlert(...)` dialog so `invokeAction` does not double-confirm. */
+  confirmInExecute?: boolean;
   destructive?: boolean;
   /** Panel position for built-ins; unmarked actions are the selected item's own. See `actionTier`. */
   placement?: ActionPlacement;
@@ -102,6 +104,7 @@ function sameActionMetadata(a: ApplicationAction, b: ApplicationAction): boolean
     a.extensionId === b.extensionId &&
     a.context === b.context &&
     a.confirm === b.confirm &&
+    a.confirmInExecute === b.confirmInExecute &&
     a.destructive === b.destructive &&
     a.placement === b.placement &&
     a.shortcut === b.shortcut &&
@@ -228,6 +231,7 @@ export class ActionService implements IActionService {
       // Use the context provided, default if necessary, ensure it's the enum type
       context: action.context || ActionContext.EXTENSION_VIEW,
       confirm: 'confirm' in action ? action.confirm : undefined,
+      confirmInExecute: 'confirmInExecute' in action ? action.confirmInExecute : undefined,
       destructive: 'destructive' in action ? action.destructive : undefined,
       placement: 'placement' in action ? action.placement : undefined,
       shortcut: 'shortcut' in action ? action.shortcut : undefined,
@@ -281,7 +285,9 @@ export class ActionService implements IActionService {
    * A declared `shortcut` both shows a hint and binds the key, so it is held
    * to the canonical grammar at the door: a bad one throws instead of
    * rendering a hint that nothing answers.
-   *  - Destructive actions never get a direct shortcut; they live in ⌘K.
+   *  - Destructive actions may only bind the approved Raycast delete chords
+   *    (`Control+X` for single-item delete, `Control+Shift+X` for bulk delete)
+   *    and MUST require confirmation (`confirm: true` or `confirmInExecute: true`).
    *  - Two actions in one scope (same context and owner) that are both
    *    unconditionally visible would fight over the chord on every keypress,
    *    so the second registration is refused. Actions that gate on `visible()`
@@ -291,9 +297,19 @@ export class ActionService implements IActionService {
     const shortcut = 'shortcut' in action ? action.shortcut : undefined;
     if (shortcut === undefined) return;
     assertActionShortcut(shortcut, action.id);
-    if ('destructive' in action && action.destructive) {
+    const destructive = 'destructive' in action && action.destructive;
+    if (shortcut === 'Control+X' || shortcut === 'Control+Shift+X') {
+      const hasConfirmation =
+        ('confirm' in action && action.confirm === true) ||
+        ('confirmInExecute' in action && action.confirmInExecute === true);
+      if (!destructive || !hasConfirmation) {
+        throw new Error(
+          `Action '${action.id}' must be destructive and require confirmation to bind '${shortcut}'`,
+        );
+      }
+    } else if (destructive) {
       throw new Error(
-        `Action '${action.id}' is destructive and cannot bind shortcut '${shortcut}'; destructive actions are only reachable through the ⌘K panel`,
+        `Action '${action.id}' is destructive and cannot bind shortcut '${shortcut}'; only confirmed delete chords (Control+X, Control+Shift+X) are permitted`,
       );
     }
     const visible = 'visible' in action ? (action as ApplicationAction).visible : undefined;
@@ -304,9 +320,13 @@ export class ActionService implements IActionService {
       context: action.context,
       extensionId: 'extensionId' in action ? action.extensionId : undefined,
     });
+    const resolvedMine = resolveActionChord(shortcut, HOST_PLATFORM);
     for (const other of this.allActions.values()) {
-      if (other.id === action.id || other.visible || other.shortcut !== shortcut) continue;
-      if (scope(other) === mine) {
+      if (other.id === action.id || other.visible || !other.shortcut) continue;
+      if (
+        resolveActionChord(other.shortcut, HOST_PLATFORM) === resolvedMine &&
+        scope(other) === mine
+      ) {
         throw new Error(
           `Action '${action.id}' cannot bind shortcut '${shortcut}': '${other.id}' already binds it in the same scope`,
         );
@@ -616,6 +636,7 @@ export class ActionService implements IActionService {
           ? t('core_actions.reveal_app_win')
           : t('core_actions.reveal_app'),
       icon: 'icon:folder',
+      shortcut: 'Mod+R',
       description: t('core_actions.reveal_app_desc'),
       category: t('categories.item'),
       context: ActionContext.CORE,
@@ -635,6 +656,7 @@ export class ActionService implements IActionService {
       id: 'copy_application_path',
       label: t('core_actions.copy_app_path'),
       icon: 'icon:clipboard',
+      shortcut: 'Mod+Shift+C',
       description: t('core_actions.copy_app_path_desc'),
       category: t('categories.item'),
       context: ActionContext.CORE,
@@ -676,12 +698,13 @@ export class ActionService implements IActionService {
       id: 'uninstall_application',
       label: t('core_actions.uninstall_app'),
       icon: 'icon:trash',
+      shortcut: 'Control+X',
       description: IS_MACOS
         ? t('core_actions.uninstall_desc_mac')
         : t('core_actions.uninstall_desc_win'),
       category: t('categories.danger'),
       context: ActionContext.CORE,
-      confirm: true,
+      confirmInExecute: true,
       destructive: true,
       visible: () => {
         if (!UNINSTALL_SUPPORTED) return false;

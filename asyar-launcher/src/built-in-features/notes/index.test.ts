@@ -144,24 +144,35 @@ describe('NotesExtension lifecycle: viewActivated, viewDeactivated, activate, de
     expect(listen).toHaveBeenCalledWith('notes:changed', expect.any(Function), undefined);
     expect(noteStore.reload).toHaveBeenCalled();
     expect(actionService.registerAction).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'notes:add' }),
+      expect.objectContaining({ id: 'notes:add', shortcut: 'Mod+N' }),
     );
     expect(actionService.registerAction).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'notes:pin',
         icon: 'icon:pin',
-        shortcut: 'Mod+Shift+P',
+        shortcut: 'Mod+.',
       }),
     );
     expect(actionService.registerAction).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'notes:unpin',
         icon: 'icon:pin',
-        shortcut: 'Mod+Shift+P',
+        shortcut: 'Mod+.',
       }),
     );
     expect(actionService.registerAction).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'notes:delete' }),
+      expect.objectContaining({ id: 'notes:duplicate', shortcut: 'Mod+D' }),
+    );
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'notes:copy-markdown', shortcut: 'Mod+Shift+C' }),
+    );
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'notes:delete',
+        shortcut: 'Control+X',
+        confirm: true,
+        destructive: true,
+      }),
     );
   });
 

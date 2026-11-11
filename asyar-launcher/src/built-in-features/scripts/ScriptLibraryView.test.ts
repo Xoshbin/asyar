@@ -116,28 +116,8 @@ beforeEach(() => {
 });
 
 describe('ScriptLibraryView keyboard', () => {
-  it('runs the selected script on Enter', async () => {
+  it('leaves Enter to the central action dispatcher even when a script is selected', async () => {
     selectScript();
-    render(ScriptLibraryView);
-
-    const notConsumed = await fireEvent.keyDown(window, { key: 'Enter' });
-
-    expect(runSelectedScript).toHaveBeenCalled();
-    expect(notConsumed).toBe(false);
-  });
-
-  it('repairs a not-executable script instead of running it', async () => {
-    selectIssue(notExecutableIssue);
-    render(ScriptLibraryView);
-
-    const notConsumed = await fireEvent.keyDown(window, { key: 'Enter' });
-
-    expect(scriptsManager.makeSelectedExecutable).toHaveBeenCalled();
-    expect(runSelectedScript).not.toHaveBeenCalled();
-    expect(notConsumed).toBe(false);
-  });
-
-  it('leaves Enter to the launcher when nothing is selected', async () => {
     render(ScriptLibraryView);
 
     const notConsumed = await fireEvent.keyDown(window, { key: 'Enter' });

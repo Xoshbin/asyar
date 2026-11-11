@@ -70,8 +70,18 @@ describe('RunsExtension keyboard navigation', () => {
 
     expect(actionService.registerAction).toHaveBeenCalledWith(
       expect.objectContaining({
+        id: 'runs:clear-recent',
+        shortcut: 'Control+Shift+X',
+        confirm: true,
+        destructive: true,
+      }),
+    );
+
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({
         id: 'agents:open-run-in-chat',
         extensionId: 'runs',
+        shortcut: 'Enter',
       }),
     );
 
@@ -79,15 +89,27 @@ describe('RunsExtension keyboard navigation', () => {
     expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:open-run-in-chat');
   });
 
-  it('the registered conversation action opens the selected agent run', async () => {
-    (runService as any).combined = [{ id: 'agent-run-1', kind: 'agent' }];
+  it('the registered conversation action opens the selected agent run and hides on non-agent runs', async () => {
+    (runService as any).combined = [
+      { id: 'agent-run-1', kind: 'agent' },
+      { id: 'script-run-1', kind: 'shell-script' },
+    ];
     (runService as any).selectedRunId = 'agent-run-1';
     await RunsExtension.viewActivated!('runs/RunView');
 
     const action = vi
       .mocked(actionService.registerAction)
-      .mock.calls.map(([registered]) => registered)
+      .mock.calls.map(
+        ([registered]) =>
+          registered as { id: string; visible?: () => boolean; execute: () => unknown },
+      )
       .find((registered) => registered.id === 'agents:open-run-in-chat');
+    expect(action?.visible?.()).toBe(true);
+
+    (runService as any).selectedRunId = 'script-run-1';
+    expect(action?.visible?.()).toBe(false);
+
+    (runService as any).selectedRunId = 'agent-run-1';
     await action?.execute();
 
     expect(openAgentRunInChat).toHaveBeenCalledWith('agent-run-1');
@@ -126,54 +148,16 @@ describe('RunsExtension keyboard navigation', () => {
     await RunsExtension.viewDeactivated!('runs/RunView');
   });
 
-  it('non-arrow keys are ignored', async () => {
-    (runService as any).combined = [{ id: 'a1' }];
+  it('leaves non-arrow keys (including Enter) to the central shortcut dispatcher', async () => {
+    (runService as any).combined = [{ id: 'agent-run-1', kind: 'agent' }];
+    (runService as any).selectedRunId = 'agent-run-1';
     await RunsExtension.viewActivated!('runs/RunView');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+    window.dispatchEvent(enterEvent);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
     expect((runService as any).moveSelection).not.toHaveBeenCalled();
     expect(actionService.executeAction).not.toHaveBeenCalled();
-    await RunsExtension.viewDeactivated!('runs/RunView');
-  });
-
-  it('Enter with no selection does not read the combined run list', async () => {
-    const combinedGetter = vi.fn(() => []);
-    Object.defineProperty(runService, 'combined', {
-      configurable: true,
-      get: combinedGetter,
-    });
-
-    try {
-      await RunsExtension.viewActivated!('runs/RunView');
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-
-      expect(combinedGetter).not.toHaveBeenCalled();
-    } finally {
-      await RunsExtension.viewDeactivated!('runs/RunView');
-      Object.defineProperty(runService, 'combined', {
-        configurable: true,
-        writable: true,
-        value: [],
-      });
-    }
-  });
-
-  it('Enter opens the conversation for the selected agent run', async () => {
-    (runService as any).combined = [
-      { id: 'agent-run-1', kind: 'agent' },
-      { id: 'script-run-1', kind: 'shell-script' },
-    ];
-    (runService as any).selectedRunId = 'agent-run-1';
-    await RunsExtension.viewActivated!('runs/RunView');
-
-    const event = new KeyboardEvent('keydown', {
-      key: 'Enter',
-      cancelable: true,
-    });
-    window.dispatchEvent(event);
-
-    expect(actionService.executeAction).toHaveBeenCalledWith('agents:open-run-in-chat');
-    expect(event.defaultPrevented).toBe(true);
+    expect(enterEvent.defaultPrevented).toBe(false);
     await RunsExtension.viewDeactivated!('runs/RunView');
   });
 });

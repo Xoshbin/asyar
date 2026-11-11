@@ -77,15 +77,57 @@ describe('Action & Shortcut Registry Integrity Guard', () => {
     expect(ids.length).toBe(uniqueIds.size);
   });
 
-  it('all built-in action shortcuts are unique and well-formed', () => {
+  it('all built-in action shortcuts are unique per visible selection state and well-formed', () => {
     const actions = actionService.getAllActions();
     const shortcuts = actions.map((a) => a.shortcut).filter(Boolean) as string[];
-    const uniqueShortcuts = new Set(shortcuts);
-
-    expect(shortcuts.length).toBe(uniqueShortcuts.size);
-
     for (const shortcut of shortcuts) {
       expect(validateActionShortcut(shortcut), shortcut).toBeNull();
+    }
+
+    const scenarios: Array<{
+      name: string;
+      items: typeof mockSearchOrchestrator.items;
+      selectedIndex: number;
+    }> = [
+      { name: 'no selection', items: [], selectedIndex: -1 },
+      {
+        name: 'application selected',
+        items: [
+          {
+            objectId: 'app_foo',
+            name: 'Foo',
+            type: 'application',
+            score: 1,
+            path: '/Applications/Foo.app',
+          },
+        ],
+        selectedIndex: 0,
+      },
+      {
+        name: 'command selected',
+        items: [
+          {
+            objectId: 'cmd_notes_new',
+            name: 'New Note',
+            type: 'command',
+            extensionId: 'notes',
+            score: 1,
+          },
+        ],
+        selectedIndex: 0,
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      mockSearchOrchestrator.items = scenario.items;
+      mockSearchStores.selectedIndex = scenario.selectedIndex;
+      actionService.refreshFiltered();
+      const visibleShortcuts = actionService.filteredActions
+        .map((a) => a.shortcut)
+        .filter(Boolean) as string[];
+      expect(visibleShortcuts.length, `${scenario.name}: ${visibleShortcuts.join(', ')}`).toBe(
+        new Set(visibleShortcuts).size,
+      );
     }
   });
 

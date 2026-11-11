@@ -1144,6 +1144,51 @@ describe('launcherKeyboard characterization tests', () => {
       const { handleGlobalKeydown } = createKeyboardHandlers(createMockDeps());
       expect(() => handleGlobalKeydown(createKeyEvent('n', { metaKey: true }))).not.toThrow();
     });
+
+    it('blocks bare Enter action shortcuts when command arguments, active context, or non-search inputs own Enter', () => {
+      const handleActionShortcut = vi.fn(() => true);
+      const searchInput = { focus: vi.fn(), value: '' };
+      const deps = createMockDeps({
+        handleActionShortcut,
+        getSearchInput: () => searchInput as any,
+      });
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+      // Command argument mode active
+      (commandArgumentsService as any).active = { commandId: 'test' };
+      handleGlobalKeydown(createKeyEvent('Enter'));
+      expect(handleActionShortcut).not.toHaveBeenCalled();
+      (commandArgumentsService as any).active = null;
+
+      // Context chip active
+      const depsWithCtx = createMockDeps({
+        handleActionShortcut,
+        getActiveContext: () =>
+          ({ provider: { id: 'ai', name: 'AI', icon: '', color: '' }, query: 'hi' }) as any,
+      });
+      createKeyboardHandlers(depsWithCtx).handleGlobalKeydown(createKeyEvent('Enter'));
+      expect(handleActionShortcut).not.toHaveBeenCalled();
+
+      // Iframe input focus
+      extensionIframeManager.hasInputFocus = true;
+      handleGlobalKeydown(createKeyEvent('Enter'));
+      expect(handleActionShortcut).not.toHaveBeenCalled();
+      extensionIframeManager.hasInputFocus = false;
+
+      // Non-search textarea/button focused
+      (document as any).activeElement = { tagName: 'TEXTAREA' };
+      handleGlobalKeydown(createKeyEvent('Enter'));
+      expect(handleActionShortcut).not.toHaveBeenCalled();
+
+      (document as any).activeElement = { tagName: 'BUTTON' };
+      handleGlobalKeydown(createKeyEvent('Enter'));
+      expect(handleActionShortcut).not.toHaveBeenCalled();
+
+      // Main search input focused: allowed!
+      (document as any).activeElement = searchInput;
+      handleGlobalKeydown(createKeyEvent('Enter'));
+      expect(handleActionShortcut).toHaveBeenCalledOnce();
+    });
   });
 
   describe('handleKeydown', () => {

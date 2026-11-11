@@ -33,6 +33,9 @@ class RunsExtension implements Extension {
       id: CLEAR_RECENT_ACTION_ID,
       label: t('features.runs.act.clear_recent'),
       icon: 'icon:trash',
+      shortcut: 'Control+Shift+X',
+      confirm: true,
+      destructive: true,
       extensionId: 'runs',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
@@ -46,6 +49,7 @@ class RunsExtension implements Extension {
       id: OPEN_AGENT_RUN_IN_CHAT_ACTION_ID,
       label: t('features.runs.act.view_conversation'),
       icon: '💬',
+      shortcut: 'Enter',
       description: t('features.runs.act.view_conversation_desc'),
       category: t('categories.agents'),
       extensionId: 'runs',
@@ -109,13 +113,6 @@ class RunsExtension implements Extension {
 
   private handleKeydown(event: KeyboardEvent): void {
     if (!this.inView) return;
-    if (event.key === 'Enter') {
-      if (!this.selectedAgentRunId()) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void actionService.executeAction(OPEN_AGENT_RUN_IN_CHAT_ACTION_ID);
-      return;
-    }
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
     if (runService.combined.length === 0) return;
     event.preventDefault();

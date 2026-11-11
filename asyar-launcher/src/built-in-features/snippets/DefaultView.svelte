@@ -19,6 +19,8 @@
     Toggle,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
 
   let permissionGranted = $state(true);
@@ -159,12 +161,29 @@
     snippetViewState.cancelEdit();
   }
 
+  $effect(() => {
+    if (snippetViewState.mode !== 'edit' && snippetViewState.mode !== 'create') {
+      actionService.unregisterAction('snippets:save');
+      return;
+    }
+    actionService.registerAction({
+      id: 'snippets:save',
+      label: t('common.save'),
+      icon: 'icon:check',
+      shortcut: 'Mod+S',
+      category: t('categories.snippets'),
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: () => handleSave(),
+    });
+    return () => {
+      actionService.unregisterAction('snippets:save');
+    };
+  });
+
   function handleFormKeydown(e: KeyboardEvent) {
     if (pickerOpen) return;
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       e.preventDefault();
       snippetViewState.cancelEdit();
       prefillExpansion = null;

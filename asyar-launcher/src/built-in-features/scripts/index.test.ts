@@ -89,7 +89,8 @@ describe('ScriptsExtension', () => {
   it('registers_and_unregisters_script_library_actions_with_the_view', async () => {
     await ScriptsExtension.viewActivated?.('scripts/ScriptLibraryView');
 
-    const ids = vi.mocked(actionService.registerAction).mock.calls.map(([action]) => action.id);
+    const actions = vi.mocked(actionService.registerAction).mock.calls.map(([action]) => action);
+    const ids = actions.map((action) => action.id);
     expect(ids).toEqual(
       expect.arrayContaining([
         'scripts:run',
@@ -100,6 +101,11 @@ describe('ScriptsExtension', () => {
         'scripts:make-executable',
       ]),
     );
+    const byId = (id: string) => actions.find((a) => a.id === id);
+    expect(byId('scripts:run')?.shortcut).toBe('Enter');
+    expect(byId('scripts:make-executable')?.shortcut).toBe('Enter');
+    expect(byId('scripts:reveal')?.shortcut).toBe('Mod+R');
+    expect(byId('scripts:copy-path')?.shortcut).toBe('Mod+Shift+C');
 
     await ScriptsExtension.viewDeactivated?.('scripts/ScriptLibraryView');
 

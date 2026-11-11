@@ -72,20 +72,6 @@ class FileSearchExtension implements Extension {
       return;
     }
 
-    if (event.key === 'Enter') {
-      const selected = getSelectedFile();
-      if (!selected) return;
-      event.preventDefault();
-      event.stopPropagation();
-      try {
-        await recordSelectionForCurrentQuery(selected.fileId);
-      } catch (err) {
-        logService.debug(`[FileSearch] recordSelectionForCurrentQuery failed: ${err}`);
-      }
-      await openerService.openPath(null, selected.path);
-      return;
-    }
-
     // Space = Quick Look
     if (event.key === ' ') {
       const selected = getSelectedFile();
@@ -101,7 +87,7 @@ class FileSearchExtension implements Extension {
     const actions = buildFileActions({
       getFile: getSelectedFile,
       context: ActionContext.EXTENSION_VIEW,
-      include: { deepSearch: true, clearHistory: true },
+      include: { deepSearch: true, clearHistory: true, open: true },
       onRemoved: (fileId) => {
         fileSearchViewState.results = fileSearchViewState.results.filter(
           (r) => r.fileId !== fileId,
@@ -121,7 +107,7 @@ class FileSearchExtension implements Extension {
     for (const action of buildFileActions({
       getFile: getSelectedFile,
       context: ActionContext.EXTENSION_VIEW,
-      include: { deepSearch: true, clearHistory: true },
+      include: { deepSearch: true, clearHistory: true, open: true },
     })) {
       actionService.unregisterAction(action.id);
     }

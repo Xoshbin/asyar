@@ -442,6 +442,8 @@ describe('filteredActions ordering', () => {
     for (const id of ['reveal_application', 'copy_application_path']) {
       expect(byId.get(id)?.placement, id).toBeUndefined();
     }
+    expect(byId.get('reveal_application')?.shortcut).toBe('Mod+R');
+    expect(byId.get('copy_application_path')?.shortcut).toBe('Mod+Shift+C');
     expect(byId.get('factory_reset')?.destructive).toBe(true);
     expect(byId.get('uninstall_application')?.destructive).toBe(true);
   });
@@ -1003,9 +1005,9 @@ describe('uninstall_application built-in action', () => {
     const action = svc.getAllActions().find((a) => a.id === 'uninstall_application');
     expect(action).toBeDefined();
     expect(action!.icon).toBe('icon:trash');
-    expect(action!.shortcut).toBeUndefined();
+    expect(action!.shortcut).toBe('Control+X');
     expect(action!.category).toBe('Danger');
-    expect(action!.confirm).toBe(true);
+    expect(action!.confirmInExecute).toBe(true);
     expect(action!.context).toBe(ActionContext.CORE);
   });
 

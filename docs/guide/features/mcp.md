@@ -53,12 +53,13 @@ When strict mode is on, every MCP tool call asks for your permission — even fo
 
 ## Shortcuts & actions
 
-| Action                       | How                                   |
-| ---------------------------- | ------------------------------------- |
-| Open server list             | Search "Manage MCP Servers" → `Enter` |
-| Install a new server         | Search "Install MCP Server" → `Enter` |
-| Import from existing configs | Search "Import MCP Servers" → `Enter` |
-| Go back                      | `Esc`                                 |
+| Action                       | How                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| Open server list             | Search "Manage MCP Servers" → `Enter`                                      |
+| Refresh server status        | `⌘R` (in Manage MCP Servers view)                                          |
+| Install a new server         | `⌘N` (in Manage MCP Servers view) or search "Install MCP Server" → `Enter` |
+| Import from existing configs | Search "Import MCP Servers" → `Enter`                                      |
+| Go back                      | `Esc`                                                                      |
 
 ## Tips
 

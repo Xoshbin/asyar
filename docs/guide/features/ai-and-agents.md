@@ -128,13 +128,14 @@ So the workflow is: select some text → press the hotkey → done. No windows, 
 | ------------------------- | -------------------------------------------------- |
 | Enter AI mode             | `Tab` from the search bar                          |
 | Send a message            | `Enter` (while in AI mode or inside the chat view) |
-| Copy Last Response        | `⌘K` → **Copy Last Response**                      |
+| Copy Last Response        | `⌘⇧C`                                              |
+| Pin / Unpin Thread        | `⌘.` (in chat view)                                |
 | Open Manage Agents        | Search "Manage Agents" → `Enter`                   |
-| New Agent                 | `⌘K` → **New Agent** (in Manage Agents view)       |
-| Edit Agent                | `⌘K` → **Edit Agent**                              |
-| Delete Agent              | `⌘K` → **Delete Agent**                            |
-| New Thread                | `⌘K` → **New Thread** (in chat view)               |
-| Delete Current Thread     | `⌘K` → **Delete Current Thread**                   |
+| New Agent                 | `⌘N` (in Manage Agents view)                       |
+| Edit Agent                | `⌘E` (in Manage Agents view)                       |
+| Delete Agent (confirm)    | `⌃X` (in Manage Agents view)                       |
+| New Thread                | `⌘N` (in chat view)                                |
+| Delete Thread (confirm)   | `⌃X` (in chat view)                                |
 | Cancel a running response | `⌘K` → **Cancel Run**                              |
 | Navigate threads          | `↑` / `↓`                                          |
 

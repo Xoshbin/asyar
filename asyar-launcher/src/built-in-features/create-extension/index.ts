@@ -44,14 +44,6 @@ class CreateExtension implements Extension {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
       createdExtensionsViewState.moveSelection(e.key === 'ArrowUp' ? 'up' : 'down');
-      return;
-    }
-    if (e.key === 'Enter') {
-      const sel = createdExtensionsViewState.selectedItem;
-      if (sel) {
-        e.preventDefault();
-        await openInEditor(sel.path);
-      }
     }
   }
 
@@ -75,10 +67,12 @@ class CreateExtension implements Extension {
         id: 'ai-builder:open-created',
         label: t('features.create_extension.act.open_editor'),
         icon: 'icon:terminal',
+        shortcut: 'Enter',
         description: t('features.create_extension.act.open_editor_desc'),
         category: t('categories.ai_builder'),
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
+        visible: () => Boolean(createdExtensionsViewState.selectedItem),
         execute: async () => {
           const s = createdExtensionsViewState.selectedItem;
           if (s) await openInEditor(s.path);

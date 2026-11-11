@@ -165,12 +165,6 @@
       event.stopPropagation();
       selectedIndex = (selectedIndex - 1 + filteredWindows.length) % filteredWindows.length;
       scrollToSelected();
-    } else if (event.key === 'Enter') {
-      if (selectedWindow) {
-        event.preventDefault();
-        event.stopPropagation();
-        void handleFocus(selectedWindow.id);
-      }
     }
   }
 
@@ -190,6 +184,7 @@
       id: 'window-management:focus-window',
       title: t('features.window_management.focus_window'),
       icon: 'icon:window',
+      shortcut: 'Enter',
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,

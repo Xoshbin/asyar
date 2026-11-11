@@ -7,16 +7,19 @@
  * physical key press is turned back into that form, so the hint and the
  * binding can never disagree.
  *
- * Canonical form: `Mod[+Alt][+Shift]+Key`, or a bare `F1`–`F24`.
+ * Canonical form: `Mod[+Alt][+Shift]+Key`, bare `F1`–`F24`, `Enter`, `Alt+Enter`,
+ * `Control+Mod+Enter` (macOS Paste as Plain Text), or approved destructive delete
+ * chords (`Control+X`, `Control+Shift+X`).
  *  - `Mod` is the platform's primary modifier: ⌘ on macOS, Ctrl on Windows and
  *    Linux. It is the only way to say "the usual modifier"; literal `Super`,
- *    `Control`, `Cmd`, `Ctrl` and the ⌘ glyph are rejected rather than aliased.
- *  - Modifiers appear in the fixed order Mod, Alt, Shift.
+ *    `Control`, `Cmd`, `Ctrl` and the ⌘ glyph are rejected rather than aliased
+ *    (except for the approved `Control+X`, `Control+Shift+X`, and `Control+Mod+Enter` chords).
+ *  - Modifiers appear in the fixed order Control, Mod, Alt, Shift.
  *  - The key is an uppercase letter or digit, one of `, . / ; ' [ ] \ - = \``,
- *    `Space` or `Enter`.
- *  - A chord needs `Mod`: plain keys (and Shift/Alt-only chords, which type
- *    characters) belong to text entry and list navigation, never to actions.
- *    F-keys are the one bare-key exception.
+ *    or `Enter`.
+ *  - Plain keys and Shift/Alt-only chords belong to text entry and list
+ *    navigation, never to actions — with F-keys, bare `Enter`, and `Alt+Enter`
+ *    as the explicit exceptions.
  *
  * Built-ins that break it throw at registration; a Tier 2 extension's action
  * keeps loading with the shortcut dropped (see `ActionService.admitShortcut`).
@@ -28,8 +31,9 @@ export type ActionShortcutPlatform = HostPlatform;
 
 const F_KEY = /^F([1-9]|1[0-9]|2[0-4])$/;
 const PUNCTUATION = new Set([',', '.', '/', ';', "'", '[', ']', '\\', '-', '=', '`']);
-const NAMED_KEYS = new Set(['Space', 'Enter']);
-const MODIFIER_ORDER = ['Mod', 'Alt', 'Shift'];
+const NAMED_KEYS = new Set(['Enter']);
+const MODIFIER_ORDER = ['Control', 'Mod', 'Alt', 'Shift'];
+const APPROVED_CONTROL_CHORDS = new Set(['Control+X', 'Control+Shift+X', 'Control+Mod+Enter']);
 
 /**
  * Chords the launcher or the OS text field already owns. An action may never
@@ -57,7 +61,7 @@ function isKey(key: string): boolean {
 export function validateActionShortcut(shortcut: string): string | null {
   if (typeof shortcut !== 'string' || shortcut === '') return 'shortcut is empty';
   if (/\s/.test(shortcut)) return 'shortcut must not contain whitespace';
-  if (F_KEY.test(shortcut)) return null;
+  if (F_KEY.test(shortcut) || shortcut === 'Enter') return null;
 
   const parts = shortcut.split('+');
   const key = parts[parts.length - 1];
@@ -65,22 +69,31 @@ export function validateActionShortcut(shortcut: string): string | null {
 
   if (key === '') return 'shortcut is missing its key';
   if (!isKey(key)) {
-    return `'${key}' is not a bindable key (use an uppercase letter or digit, punctuation, Space, Enter or F1–F24)`;
+    return `'${key}' is not a bindable key (use an uppercase letter or digit, punctuation, Enter or F1–F24)`;
   }
   for (const m of modifiers) {
     if (!MODIFIER_ORDER.includes(m)) {
-      return `'${m}' is not a valid modifier (use Mod, Alt and Shift; Mod is ⌘ on macOS and Ctrl elsewhere)`;
+      return `'${m}' is not a valid modifier (use Control, Mod, Alt and Shift; Mod is ⌘ on macOS and Ctrl elsewhere)`;
     }
   }
   if (new Set(modifiers).size !== modifiers.length) return 'shortcut repeats a modifier';
-  if (!modifiers.includes('Mod')) {
-    return 'shortcut must include Mod; plain keys and Shift/Alt-only chords are reserved for typing and navigation';
-  }
   const ordered = [...modifiers].sort(
     (a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b),
   );
   if (ordered.join('+') !== modifiers.join('+')) {
-    return `modifiers must be ordered Mod, Alt, Shift (write '${[...ordered, key].join('+')}')`;
+    return `modifiers must be ordered Control, Mod, Alt, Shift (write '${[...ordered, key].join('+')}')`;
+  }
+  if (modifiers.includes('Control')) {
+    if (!APPROVED_CONTROL_CHORDS.has(shortcut)) {
+      return `use Mod instead of Control for portable shortcuts (Control is only valid for Control+X, Control+Shift+X, and Control+Mod+Enter)`;
+    }
+    return null;
+  }
+  if (!modifiers.includes('Mod')) {
+    if (key === 'Enter' && modifiers.length === 1 && modifiers[0] === 'Alt') {
+      return null;
+    }
+    return 'shortcut must include Mod; plain keys and Shift/Alt-only chords are reserved for typing and navigation';
   }
   const reserved = RESERVED_ACTION_SHORTCUTS.get(shortcut);
   if (reserved) return `${shortcut} is reserved: it ${reserved}`;
@@ -124,12 +137,27 @@ export function eventToActionChord(
   // characters, so it is never an action chord.
   if (e.getModifierState?.('AltGraph')) return null;
   const mac = platform === 'macos';
-  const primary = mac ? e.metaKey : e.ctrlKey;
-  const foreign = mac ? e.ctrlKey : e.metaKey;
-  if (foreign) return null;
-
   const key = actionKeyFromEvent(e);
-  if (!primary) return F_KEY.test(key) && !e.altKey && !e.shiftKey ? key : null;
+
+  if (mac) {
+    if (e.ctrlKey && e.metaKey) {
+      return !e.altKey && !e.shiftKey && key === 'Enter' ? 'Control+Mod+Enter' : null;
+    }
+    if (e.ctrlKey && !e.metaKey) {
+      if (e.altKey || key !== 'X') return null;
+      return e.shiftKey ? 'Control+Shift+X' : 'Control+X';
+    }
+    if (!e.metaKey) {
+      if (key === 'Enter' && !e.shiftKey) return e.altKey ? 'Alt+Enter' : 'Enter';
+      return F_KEY.test(key) && !e.altKey && !e.shiftKey ? key : null;
+    }
+  } else {
+    if (e.metaKey) return null;
+    if (!e.ctrlKey) {
+      if (key === 'Enter' && !e.shiftKey) return e.altKey ? 'Alt+Enter' : 'Enter';
+      return F_KEY.test(key) && !e.altKey && !e.shiftKey ? key : null;
+    }
+  }
 
   const parts = ['Mod'];
   if (e.altKey) parts.push('Alt');
@@ -144,5 +172,25 @@ export function eventToActionChord(
  * `Control` elsewhere, then Alt, Shift.
  */
 export function resolveActionChord(shortcut: string, platform: ActionShortcutPlatform): string {
-  return shortcut.replace(/^Mod\b/, platform === 'macos' ? 'Super' : 'Control');
+  return shortcut.replace(/\bMod\b/, platform === 'macos' ? 'Super' : 'Control');
+}
+
+/**
+ * Whether an action's declared `shortcut` matches the chord from `eventToActionChord`
+ * on `platform`. On Windows/Linux, `Control+X` and `Control+Shift+X` map to the same
+ * physical `Ctrl+X` / `Ctrl+Shift+X` key press as `Mod+X` / `Mod+Shift+X`, while still
+ * never allowing a literal `Mod+X` declaration to match.
+ */
+export function actionShortcutMatchesChord(
+  actionShortcut: string | undefined,
+  chord: string,
+  platform: ActionShortcutPlatform,
+): boolean {
+  if (!actionShortcut || RESERVED_ACTION_SHORTCUTS.has(actionShortcut)) return false;
+  if (actionShortcut === chord) return true;
+  if (platform !== 'macos') {
+    if (actionShortcut === 'Control+X' && chord === 'Mod+X') return true;
+    if (actionShortcut === 'Control+Shift+X' && chord === 'Mod+Shift+X') return true;
+  }
+  return false;
 }

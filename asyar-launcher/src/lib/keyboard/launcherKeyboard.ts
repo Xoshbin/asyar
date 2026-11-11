@@ -302,12 +302,41 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return true;
   }
 
+  function canDispatchEnterShortcut(event: KeyboardEvent): boolean {
+    if (commandArgumentsService.active) return false;
+    if (deps.getActiveContext()) return false;
+    if (extensionIframeManager.hasInputFocus) return false;
+    const searchInput = deps.getSearchInput();
+    const isNonSearchInteractive = (el: Element | null): boolean => {
+      if (!el || el === searchInput) return false;
+      const tag = el.tagName?.toLowerCase();
+      if (['input', 'textarea', 'select', 'button', 'a'].includes(tag)) return true;
+      if ((el as HTMLElement).isContentEditable) return true;
+      return Boolean(
+        el.closest?.('button, a[href], [role="button"], [role="menuitem"], [role="option"]'),
+      );
+    };
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    const target = event.target as HTMLElement | null;
+    return !isNonSearchInteractive(active) && !isNonSearchInteractive(target);
+  }
+
   // A declared action shortcut (manifest, built-in view, core or Tier 2).
   // Runs after every launcher-reserved chord above so those can never be
   // shadowed, and before view routing so a view's own actions win over its
   // forwarded keys. Compact idle has no action panel and so no actions.
   function tryRunActionShortcut(event: KeyboardEvent): boolean {
     if (deps.isCompactIdle?.()) return false;
+    if (
+      event.key === 'Enter' &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.shiftKey &&
+      !canDispatchEnterShortcut(event)
+    ) {
+      return false;
+    }
     return deps.handleActionShortcut?.(event) ?? false;
   }
 

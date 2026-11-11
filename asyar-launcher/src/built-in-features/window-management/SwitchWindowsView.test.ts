@@ -151,27 +151,31 @@ describe('SwitchWindowsView', () => {
     expect(getByText('features.window_management.no_windows')).toBeTruthy();
   });
 
-  it('switches to window and hides launcher on Enter', async () => {
+  it('switches to window and hides launcher when focus-window executes', async () => {
     render(SwitchWindowsView);
     await flush();
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    await flush();
+    const focus = mockRegisterAction.mock.calls
+      .map(([a]: any[]) => a)
+      .find((a: any) => a.id === 'window-management:focus-window');
+    await focus.execute();
 
     expect(mockFocusWindow).toHaveBeenCalledWith('win-1');
     expect(mockHideWindow).toHaveBeenCalled();
     expect(mockResetLauncherState).toHaveBeenCalled();
   });
 
-  it('navigates with ArrowDown and selects next window', async () => {
+  it('navigates with ArrowDown and selects next window for focus-window', async () => {
     render(SwitchWindowsView);
     await flush();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
     await flush();
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    await flush();
+    const focus = mockRegisterAction.mock.calls
+      .map(([a]: any[]) => a)
+      .findLast((a: any) => a.id === 'window-management:focus-window');
+    await focus.execute();
 
     expect(mockFocusWindow).toHaveBeenCalledWith('win-2');
   });
@@ -242,14 +246,21 @@ describe('SwitchWindowsView', () => {
     expect(mockCloseWindow).toHaveBeenCalledWith('win-1');
   });
 
-  it('does not bind plain Enter as an action shortcut (it is list navigation)', async () => {
+  it('binds Enter on window-management:focus-window and leaves Enter to the central dispatcher', async () => {
     render(SwitchWindowsView);
     await flush();
 
     const focus = mockRegisterAction.mock.calls
       .map(([a]: any[]) => a)
       .find((a: any) => a.id === 'window-management:focus-window');
-    expect(focus.shortcut).toBeUndefined();
+    expect(focus.shortcut).toBe('Enter');
+
+    const evt = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+    window.dispatchEvent(evt);
+    await flush();
+
+    expect(mockFocusWindow).not.toHaveBeenCalled();
+    expect(evt.defaultPrevented).toBe(false);
   });
 
   it('leaves modifier chords, including the text-copy chord, to the dispatcher and the input', async () => {

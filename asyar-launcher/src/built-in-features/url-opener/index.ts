@@ -80,6 +80,7 @@ class UrlOpenerExtension implements Extension {
         label: t('features.url_opener.copy_url'),
         description: t('features.url_opener.copy_url_desc'),
         icon: 'icon:copy',
+        shortcut: 'Mod+Shift+C',
         execute: async () => {
           await writeText(url);
           await feedbackService.showHUD(t('features.url_opener.copied'));

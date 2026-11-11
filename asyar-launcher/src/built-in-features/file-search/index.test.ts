@@ -123,7 +123,14 @@ describe('FileSearchExtension class contract', () => {
       .find((a) => a.id === 'file-search:clear-history');
     expect(action).toBeDefined();
     expect(action.destructive).toBe(true);
-    expect(action.shortcut).toBeUndefined();
+    expect(action.confirm).toBe(true);
+    expect(action.shortcut).toBe('Control+Shift+X');
+
+    const openAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.map(([a]) => a as any)
+      .find((a) => a.id === 'file-search:open');
+    expect(openAction?.shortcut).toBe('Enter');
 
     await action.execute();
     expect(fileSearchClearHistory).toHaveBeenCalled();

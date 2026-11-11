@@ -59,25 +59,31 @@ describe('buildFileActions', () => {
 
     const pin = core.find((a) => a.id === 'file-search:pin');
     const unpin = core.find((a) => a.id === 'file-search:unpin');
+    const trash = core.find((a) => a.id === 'file-search:move-to-trash');
     expect(pin?.icon).toBe('icon:pin');
-    expect(pin?.shortcut).toBe('Mod+Shift+P');
+    expect(pin?.shortcut).toBe('Mod+.');
     expect(unpin?.icon).toBe('icon:pin');
-    expect(unpin?.shortcut).toBe('Mod+Shift+P');
+    expect(unpin?.shortcut).toBe('Mod+.');
     expect(pin?.visible?.()).toBe(true);
     expect(unpin?.visible?.()).toBe(false);
+    expect(trash?.shortcut).toBe('Control+X');
+    expect(trash?.confirmInExecute).toBe(true);
+    expect(trash?.destructive).toBe(true);
   });
 
   it('omits view-only actions unless requested and binds Quick Look to Mod+Y', () => {
     const shared = buildFileActions({ getFile: () => file, context: ActionContext.CORE });
     expect(shared.map((action) => action.id)).not.toContain('file-search:deep-search');
+    expect(shared.map((action) => action.id)).not.toContain('file-search:open');
     expect(shared.find((action) => action.id === 'file-search:quick-look')?.shortcut).toBe('Mod+Y');
 
     const view = buildFileActions({
       getFile: () => file,
       context: ActionContext.EXTENSION_VIEW,
-      include: { deepSearch: true, clearHistory: true },
+      include: { open: true, deepSearch: true, clearHistory: true },
     });
-    expect(view).toHaveLength(14);
+    expect(view).toHaveLength(15);
+    expect(view.find((action) => action.id === 'file-search:open')?.shortcut).toBe('Enter');
   });
 
   it('falls back to opening the file when Quick Look reports failure', async () => {

@@ -35,19 +35,22 @@ Type `portals` and press `Enter` to open the Portals view. Use `↑` / `↓` to 
 
 ## Shortcuts & actions
 
-| Action               | How   |
-| -------------------- | ----- |
-| New portal (in view) | `⌘N`  |
-| Save form            | `⌘S`  |
-| Cancel form          | `Esc` |
-| Open action panel    | `⌘K`  |
+| Action                  | How   |
+| ----------------------- | ----- |
+| New portal (in view)    | `⌘N`  |
+| Edit portal             | `⌘E`  |
+| Duplicate portal        | `⌘D`  |
+| Delete portal (confirm) | `⌃X`  |
+| Save form               | `⌘S`  |
+| Cancel form             | `Esc` |
+| Open action panel       | `⌘K`  |
 
 **Action panel (⌘K) entries inside the Portals view:**
 
-- **New Portal** — open the new-portal form.
-- **Edit** — edit the selected portal's name, URL, or icon.
-- **Duplicate** — create a copy of the selected portal.
-- **Delete** — permanently remove the selected portal (with confirmation).
+- **New Portal** (`⌘N`) — open the new-portal form.
+- **Edit** (`⌘E`) — edit the selected portal's name, URL, or icon.
+- **Duplicate** (`⌘D`) — create a copy of the selected portal.
+- **Delete** (`⌃X`) — permanently remove the selected portal (with confirmation).
 
 ## Available placeholders
 

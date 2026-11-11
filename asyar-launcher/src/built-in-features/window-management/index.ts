@@ -237,13 +237,6 @@ class WindowManagementExtension implements Extension {
       event.preventDefault();
       event.stopPropagation();
       windowManagementState.moveSelection(event.key === 'ArrowUp' ? 'up' : 'down');
-    } else if (event.key === 'Enter') {
-      const selected = windowManagementState.selectedLayout;
-      if (selected) {
-        event.preventDefault();
-        event.stopPropagation();
-        void applyCustomLayout(selected, this.store);
-      }
     }
   }
 

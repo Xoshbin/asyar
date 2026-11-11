@@ -10,7 +10,12 @@ import { fileManagerService } from '../../services/fileManager/fileManagerServic
 import { t } from '../../services/i18n';
 import { openerService } from '../../services/opener/openerService';
 import { primeAiChipForFile } from './aiChipBridge';
-import { fileSearchViewState, runDeepSearch, togglePin } from './state.svelte';
+import {
+  fileSearchViewState,
+  recordSelectionForCurrentQuery,
+  runDeepSearch,
+  togglePin,
+} from './state.svelte';
 
 type RootFile = {
   path?: string;
@@ -46,12 +51,15 @@ function parentDirOf(file: { isDir?: boolean; path?: string }): string {
   return file.isDir ? file.path : file.path.replace(/[/\\][^/\\]*$/, '');
 }
 
-export type FileAction = ExtensionAction & { visible?: () => boolean };
+export type FileAction = ExtensionAction & {
+  visible?: () => boolean;
+  confirmInExecute?: boolean;
+};
 
 export function buildFileActions(opts: {
   getFile: () => ActionableFile | null | undefined;
   context: ActionContext;
-  include?: { deepSearch?: boolean; clearHistory?: boolean };
+  include?: { deepSearch?: boolean; clearHistory?: boolean; open?: boolean };
   onRemoved?: (fileId: string) => void;
 }): FileAction[] {
   const getFile = (): ActionableFile | null => {
@@ -63,7 +71,34 @@ export function buildFileActions(opts: {
     category: 'file-action',
     context: opts.context,
   };
-  const actions: FileAction[] = [
+  const actions: FileAction[] = [];
+
+  if (opts.include?.open) {
+    actions.push({
+      ...base,
+      id: 'file-search:open',
+      title: t('actions.open'),
+      icon: 'icon:file',
+      shortcut: 'Enter',
+      visible: () => Boolean(getFile()?.path || getFile()?.url),
+      execute: async () => {
+        const file = getFile();
+        if (!file) return;
+        try {
+          await recordSelectionForCurrentQuery(file.fileId);
+        } catch {
+          // Non-fatal: still open the file even if frecency recording fails.
+        }
+        if (file.path) {
+          await openerService.openPath(null, file.path);
+        } else if (file.url) {
+          await openerService.open(null, file.url);
+        }
+      },
+    });
+  }
+
+  actions.push(
     {
       ...base,
       id: 'file-search:open-in-browser',
@@ -163,7 +198,7 @@ export function buildFileActions(opts: {
       title: t('features.file_search.act.pin'),
       description: t('features.file_search.act.toggle_pin_desc'),
       icon: 'icon:pin',
-      shortcut: 'Mod+Shift+P',
+      shortcut: 'Mod+.',
       visible: () => {
         const file = getFile();
         return file && file.path && !file.extensionId
@@ -181,7 +216,7 @@ export function buildFileActions(opts: {
       title: t('features.file_search.act.unpin'),
       description: t('features.file_search.act.toggle_pin_desc'),
       icon: 'icon:pin',
-      shortcut: 'Mod+Shift+P',
+      shortcut: 'Mod+.',
       visible: () => {
         const file = getFile();
         return file && file.path && !file.extensionId
@@ -199,6 +234,8 @@ export function buildFileActions(opts: {
       title: t('features.file_search.act.trash'),
       description: t('features.file_search.act.trash_desc'),
       icon: 'icon:trash',
+      shortcut: 'Control+X',
+      confirmInExecute: true,
       destructive: true,
       visible: () => {
         const file = getFile();
@@ -258,7 +295,7 @@ export function buildFileActions(opts: {
         if (file) await primeAiChipForFile(file as FileHit);
       },
     },
-  ];
+  );
 
   if (opts.include?.clearHistory) {
     actions.push({
@@ -267,6 +304,8 @@ export function buildFileActions(opts: {
       title: t('features.file_search.act.clear_history'),
       description: t('features.file_search.act.clear_history_desc'),
       icon: 'icon:trash',
+      shortcut: 'Control+Shift+X',
+      confirm: true,
       destructive: true,
       execute: async () => {
         await fileSearchClearHistory();

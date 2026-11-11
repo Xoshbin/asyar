@@ -59,28 +59,34 @@ Standard formatting tokens (`YYYY`, `yyyy`, `MMMM`, `MMM`, `MM`, `dd`, `d`, `HH`
 **To delete a snippet:**
 
 1. Select the snippet in the list.
-2. Open the action panel with `⌘K` and choose **Delete Snippet** — a confirmation dialog appears before the snippet is permanently removed.
+2. Press `⌃X` (`Ctrl+X` on Windows/Linux) or open the action panel with `⌘K` and choose **Delete Snippet** — a confirmation dialog appears before the snippet is permanently removed.
 
 ## Shortcuts & actions
 
-| Action                 | How     |
-| ---------------------- | ------- |
-| Add snippet            | `⌘N`    |
-| Paste selected snippet | `Enter` |
-| Save form              | `⌘S`    |
-| Cancel form            | `Esc`   |
-| Open action panel      | `⌘K`    |
+| Action                   | How     |
+| ------------------------ | ------- |
+| Paste selected snippet   | `Enter` |
+| Add snippet              | `⌘N`    |
+| Edit snippet             | `⌘E`    |
+| Duplicate snippet        | `⌘D`    |
+| Copy expansion           | `⌘⇧C`   |
+| Pin / Unpin snippet      | `⌘.`    |
+| Delete snippet (confirm) | `⌃X`    |
+| Clear all snippets       | `⌃⇧X`   |
+| Save form                | `⌘S`    |
+| Cancel form              | `Esc`   |
+| Open action panel        | `⌘K`    |
 
 **Action panel (⌘K) entries while the view is open:**
 
-- **Add Snippet** — open the new-snippet form.
-- **Paste Snippet** — paste the selected snippet's expansion.
-- **Edit Snippet** — open the edit form for the selected snippet.
-- **Delete Snippet** — delete with confirmation.
-- **Copy Expansion** — copy the expansion text to the clipboard without pasting.
-- **Duplicate Snippet** — create a copy with an auto-suffixed keyword.
-- **Pin / Unpin Snippet** — pin a snippet to the top of the list.
-- **Clear All Snippets** — remove every snippet (with confirmation).
+- **Add Snippet** (`⌘N`) — open the new-snippet form.
+- **Paste Snippet** (`↵`) — paste the selected snippet's expansion.
+- **Edit Snippet** (`⌘E`) — open the edit form for the selected snippet.
+- **Delete Snippet** (`⌃X`) — delete with confirmation.
+- **Copy Expansion** (`⌘⇧C`) — copy the expansion text to the clipboard without pasting.
+- **Duplicate Snippet** (`⌘D`) — create a copy with an auto-suffixed keyword.
+- **Pin / Unpin Snippet** (`⌘.`) — pin a snippet to the top of the list.
+- **Clear All Snippets** (`⌃⇧X`) — remove every snippet (with confirmation).
 
 ## Tips
 

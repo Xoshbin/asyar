@@ -312,14 +312,12 @@ describe('Keyboard shortcut: Cmd+Arrow extends selection', () => {
   });
 });
 
-describe('Keyboard shortcut: Enter routes to merge-paste when multi-selected', () => {
+describe('Action: clipboard-history:paste routes to merge-paste when multi-selected', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(window, 'addEventListener');
-    vi.spyOn(window, 'removeEventListener');
   });
 
-  async function activateWithSelection(selectedIds: string[]) {
+  async function activateAndGetPasteAction(selectedIds: string[]) {
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
         if (name === 'extensions') {
@@ -332,6 +330,7 @@ describe('Keyboard shortcut: Enter routes to merge-paste when multi-selected', (
       }),
     };
     await extension.initialize(mockContext as any);
+    await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
     (mockState.clipboardViewState as any).items = [{ id: 'test-1', content: 'hello' }];
@@ -339,34 +338,28 @@ describe('Keyboard shortcut: Enter routes to merge-paste when multi-selected', (
     (mockState.clipboardViewState as any).selectedItem = { id: 'test-1', content: 'hello' };
     (mockState.clipboardViewState as any).selectedIds = selectedIds;
 
-    await extension.viewActivated('some/path');
-    const handler = vi
-      .mocked(window.addEventListener)
-      .mock.calls.find((call) => call[0] === 'keydown')?.[1] as EventListener;
-    return { handler, mockState };
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const pasteAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.map((c) => c[0])
+      .find((a) => a.id === 'clipboard-history:paste');
+    return { pasteAction, mockState };
   }
 
   it('calls pasteMergedSelection when 2+ items are selected', async () => {
-    const { handler, mockState } = await activateWithSelection(['a', 'b']);
+    const { pasteAction, mockState } = await activateAndGetPasteAction(['a', 'b']);
 
-    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
-    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
-    handler(event);
-    await new Promise((r) => setTimeout(r, 10));
+    expect(pasteAction?.shortcut).toBe('Enter');
+    await pasteAction?.execute();
 
     expect(mockState.clipboardViewState.pasteMergedSelection).toHaveBeenCalled();
     expect(mockState.clipboardViewState.handleItemAction).not.toHaveBeenCalled();
   });
 
   it('calls handleItemAction (normal paste) when only 1 item is toggled selected', async () => {
-    const { handler, mockState } = await activateWithSelection(['test-1']);
+    const { pasteAction, mockState } = await activateAndGetPasteAction(['test-1']);
 
-    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
-    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
-    handler(event);
-    await new Promise((r) => setTimeout(r, 10));
+    await pasteAction?.execute();
 
     expect(mockState.clipboardViewState.handleItemAction).toHaveBeenCalledWith(
       { id: 'test-1', content: 'hello' },
@@ -376,13 +369,9 @@ describe('Keyboard shortcut: Enter routes to merge-paste when multi-selected', (
   });
 
   it('calls handleItemAction (normal paste) when nothing is multi-selected', async () => {
-    const { handler, mockState } = await activateWithSelection([]);
+    const { pasteAction, mockState } = await activateAndGetPasteAction([]);
 
-    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
-    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
-    handler(event);
-    await new Promise((r) => setTimeout(r, 10));
+    await pasteAction?.execute();
 
     expect(mockState.clipboardViewState.handleItemAction).toHaveBeenCalled();
     expect(mockState.clipboardViewState.pasteMergedSelection).not.toHaveBeenCalled();
@@ -441,18 +430,31 @@ describe('Action registration', () => {
     expect(actionIds).not.toContain('clipboard-history:filter-text');
     expect(actionIds).not.toContain('clipboard-history:filter-images');
     expect(actionIds).not.toContain('clipboard-history:filter-files');
+    expect(actionIds).toContain('clipboard-history:paste');
+    expect(actionIds).toContain('clipboard-history:copy');
     expect(actionIds).toContain('clipboard-history:toggle-html-view');
     expect(actionIds).toContain('clipboard-history:pin');
     expect(actionIds).toContain('clipboard-history:unpin');
     expect(actionIds).toContain('clipboard-history:paste-as-plain-text');
+    expect(actionIds).toContain('clipboard-history:delete');
     expect(actionIds).toContain('clipboard-history:clear-multi-selection');
 
-    const pinAction = registerCalls.find((call) => call[0].id === 'clipboard-history:pin')?.[0];
-    const unpinAction = registerCalls.find((call) => call[0].id === 'clipboard-history:unpin')?.[0];
-    expect(pinAction?.icon).toBe('icon:pin');
-    expect(pinAction?.shortcut).toBe('Mod+Shift+P');
-    expect(unpinAction?.icon).toBe('icon:pin');
-    expect(unpinAction?.shortcut).toBe('Mod+Shift+P');
+    const byId = (id: string) => registerCalls.find((call) => call[0].id === id)?.[0] as any;
+    expect(byId('clipboard-history:paste')?.shortcut).toBe('Enter');
+    expect(byId('clipboard-history:copy')?.shortcut).toBe('Mod+Enter');
+    expect(['Control+Mod+Enter', 'Mod+Shift+Enter']).toContain(
+      byId('clipboard-history:paste-as-plain-text')?.shortcut,
+    );
+    expect(byId('clipboard-history:open-in-browser')?.shortcut).toBe('Mod+O');
+    expect(byId('clipboard-history:save-as-snippet')?.shortcut).toBe('Mod+S');
+    expect(byId('clipboard-history:ask-ai-about-this')?.shortcut).toBe('Mod+I');
+    expect(byId('clipboard-history:delete')?.shortcut).toBe('Control+X');
+    expect(byId('clipboard-history:delete')?.confirm).toBe(true);
+    expect(byId('clipboard-history:delete')?.destructive).toBe(true);
+    expect(byId('clipboard-history:pin')?.icon).toBe('icon:pin');
+    expect(byId('clipboard-history:pin')?.shortcut).toBe('Mod+.');
+    expect(byId('clipboard-history:unpin')?.icon).toBe('icon:pin');
+    expect(byId('clipboard-history:unpin')?.shortcut).toBe('Mod+.');
   });
 
   it('registers Clear Clipboard History as an in-view destructive action', async () => {
@@ -479,7 +481,8 @@ describe('Action registration', () => {
       .find((a) => a.id === 'clipboard-history:clear-history');
     expect(action).toBeDefined();
     expect(action.destructive).toBe(true);
-    expect(action.shortcut).toBeUndefined();
+    expect(action.confirm).toBe(true);
+    expect(action.shortcut).toBe('Control+Shift+X');
 
     await action.execute();
     expect(clearNonFavorites).toHaveBeenCalled();

@@ -38,33 +38,30 @@ Keep a daily running journal or scratchpad:
 
 Keep important information visible over your workspace:
 
-1. In the Notes view, select any note and press `⌘S` (or choose **Stick to Desktop** from `⌘K`).
+1. In the Notes view, select any note and choose **Stick to Desktop** from the action panel (`⌘K`).
 2. The note detaches into a lightweight, floating desktop sticky window that stays on top of other applications.
 3. Or type `sticky` from the search bar to create a fresh blank sticky note on your desktop.
 
 ## Shortcuts & actions
 
-| Action                   | Shortcut           |
-| :----------------------- | :----------------- |
-| Notes                    | `Enter` on Notes   |
-| Create New Note          | `⌘N`               |
-| Toggle Pin / Unpin       | `⌘P`               |
-| Stick to Desktop (Float) | `⌘S`               |
-| Copy as Markdown         | `⌘⇧C`              |
-| Duplicate Note           | `⌘D`               |
-| Export as Markdown file  | `⌘E`               |
-| Delete Note              | `⌘K` → Delete Note |
-| Open Action Panel        | `⌘K`               |
+| Action                | Shortcut |
+| :-------------------- | :------- |
+| Create New Note       | `⌘N`     |
+| Toggle Pin / Unpin    | `⌘.`     |
+| Duplicate Note        | `⌘D`     |
+| Copy as Markdown      | `⌘⇧C`    |
+| Delete Note (confirm) | `⌃X`     |
+| Open Action Panel     | `⌘K`     |
 
 **Action panel (⌘K) entries while Notes is open:**
 
 - **New Note** (`⌘N`) — creates a blank note and places the cursor in the editor.
-- **Toggle Pin** (`⌘P`) — pins or unpins the selected note. Pinned notes always sort to the top.
-- **Stick to Desktop** (`⌘S`) — floats the note as a desktop sticky window.
-- **Copy Markdown** (`⌘⇧C`) — copies the note's formatted title and body to your clipboard.
+- **Pin Note / Unpin Note** (`⌘.`) — pins or unpins the selected note. Pinned notes always sort to the top.
 - **Duplicate Note** (`⌘D`) — clones the note into a new copy.
-- **Export Markdown** (`⌘E`) — exports the note to a standalone `.md` file on your filesystem.
-- **Delete Note** — permanently deletes the note (prompts for confirmation).
+- **Copy as Markdown** (`⌘⇧C`) — copies the note's formatted title and body to your clipboard.
+- **Stick to Desktop** — floats the note as a desktop sticky window.
+- **Export as Markdown…** — exports the note to a standalone `.md` file on your filesystem.
+- **Delete Note** (`⌃X`) — permanently deletes the note (prompts for confirmation).
 
 ## Tips
 

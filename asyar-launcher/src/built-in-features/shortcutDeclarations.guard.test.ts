@@ -43,14 +43,49 @@ function manifestOf(feature: string): Manifest | null {
   }
 }
 
-/** `shortcut: '…'` literals declared on actions in a feature's source. */
-function sourceDeclarations(feature: string): { file: string; shortcut: string }[] {
-  const out: { file: string; shortcut: string }[] = [];
+/** `shortcut: '…'` literals (and platform ternaries) declared on actions in a feature's source. */
+function sourceDeclarations(feature: string): {
+  file: string;
+  scope: string;
+  shortcut: string;
+  ternaryGroup?: number;
+}[] {
+  const out: { file: string; scope: string; shortcut: string; ternaryGroup?: number }[] = [];
+  let nextGroup = 1;
   for (const file of sourceFiles(join(ROOT, feature))) {
     const text = readFileSync(file, 'utf8');
-    for (const m of text.matchAll(/\bshortcut:\s*(['"`])([^'"`]*)\1/g)) {
-      out.push({ file: file.slice(ROOT.length + 1), shortcut: m[2] });
+    const rel = file.slice(ROOT.length + 1);
+    const lines = text.split('\n');
+    let currentMethod = '';
+
+    const scopeAtOffset = (offset: number): string => {
+      const upTo = text.slice(0, offset);
+      const lineIdx = upTo.split('\n').length - 1;
+      for (let i = lineIdx; i >= 0; i--) {
+        const m = lines[i].match(/\b(register\w*Actions)\s*\(/);
+        if (m) return `${rel}#${m[1]}`;
+      }
+      return rel;
+    };
+
+    const ternaryMatches: Array<{ start: number; end: number }> = [];
+    for (const m of text.matchAll(
+      /\bshortcut:\s*[^,\n;]*?\?\s*(['"`])([^'"`]+)\1\s*:\s*(['"`])([^'"`]+)\3/g,
+    )) {
+      const idx = m.index ?? 0;
+      const scope = scopeAtOffset(idx);
+      const group = nextGroup++;
+      ternaryMatches.push({ start: idx, end: idx + m[0].length });
+      out.push({ file: rel, scope, shortcut: m[2], ternaryGroup: group });
+      out.push({ file: rel, scope, shortcut: m[4], ternaryGroup: group });
     }
+
+    for (const m of text.matchAll(/\bshortcut:\s*(['"`])([^'"`]*)\1/g)) {
+      const idx = m.index ?? 0;
+      if (ternaryMatches.some((r) => idx >= r.start && idx < r.end)) continue;
+      out.push({ file: rel, scope: scopeAtOffset(idx), shortcut: m[2] });
+    }
+    void currentMethod;
   }
   return out;
 }
@@ -108,19 +143,34 @@ describe('built-in action shortcut declarations', () => {
         const chords = visible.map((a) => a.shortcut);
         expect(new Set(chords).size, `${feature}/${cmd.id} root actions`).toBe(chords.length);
       }
-      // In-view: every source-declared shortcut in one feature is live in the
-      // same view context, so they must all be distinct, with the exception of
-      // complementary pin/unpin actions whose mutually exclusive visibility
-      // lets them share the standard Mod+Shift+P chord.
+      // In-view: source-declared shortcuts within the same view scope must all
+      // be distinct, with exceptions only for mutually-exclusive visibility gates:
+      //  - complementary pin/unpin actions sharing `Mod+.`
+      //  - scripts:run and scripts:make-executable sharing `Enter`
       const declarations = sourceDeclarations(feature);
-      const chordCounts = new Map<string, number>();
+      const byScope = new Map<string, typeof declarations>();
       for (const d of declarations) {
-        chordCounts.set(d.shortcut, (chordCounts.get(d.shortcut) ?? 0) + 1);
+        const list = byScope.get(d.scope) ?? [];
+        list.push(d);
+        byScope.set(d.scope, list);
       }
-      for (const [chord, count] of chordCounts) {
-        if (count > 1) {
-          if (chord === 'Mod+Shift+P' && count === 2) continue;
-          expect(count, `${feature} in-view actions sharing chord ${chord}`).toBe(1);
+      for (const [scope, scopeDecls] of byScope) {
+        // Count each platform ternary once per action declaration.
+        const seenGroups = new Set<number>();
+        const chordCounts = new Map<string, number>();
+        for (const d of scopeDecls) {
+          if (d.ternaryGroup !== undefined) {
+            if (seenGroups.has(d.ternaryGroup)) continue;
+            seenGroups.add(d.ternaryGroup);
+          }
+          chordCounts.set(d.shortcut, (chordCounts.get(d.shortcut) ?? 0) + 1);
+        }
+        for (const [chord, count] of chordCounts) {
+          if (count > 1) {
+            if (chord === 'Mod+.' && count === 2) continue;
+            if (feature === 'scripts' && chord === 'Enter' && count === 2) continue;
+            expect(count, `${feature} (${scope}) in-view actions sharing chord ${chord}`).toBe(1);
+          }
         }
       }
     });
@@ -132,29 +182,57 @@ describe('built-in action shortcut declarations', () => {
           .filter((k) => /^[A-Z0-9]$/.test(k))
           .map((k) => k.toLowerCase()),
       );
-      if (keys.size === 0) return;
+      const declaresEnter = declared.some((d) => d.shortcut === 'Enter');
+      if (keys.size === 0 && !declaresEnter) return;
       for (const file of sourceFiles(join(ROOT, feature))) {
+        const rel = file.slice(ROOT.length + 1);
         const text = readFileSync(file, 'utf8');
-        if (!/keydown/i.test(text) || !/\.(metaKey|ctrlKey)/.test(text)) continue;
+        const fileDeclaresEnter = declared.some((d) => d.where === rel && d.shortcut === 'Enter');
+        if (fileDeclaresEnter && /keydown/i.test(text)) {
+          const enterCheck = /(?:\.key\s*===?\s*['"]Enter['"]|case\s+['"]Enter['"])/;
+          expect(
+            enterCheck.test(text),
+            `${rel} hand-handles Enter, which it also declares as an action shortcut; delete the handler`,
+          ).toBe(false);
+        }
+        if (keys.size === 0 || !/keydown/i.test(text) || !/\.(metaKey|ctrlKey)/.test(text))
+          continue;
         for (const m of text.matchAll(/\.key(?:\.toLowerCase\(\))?\s*===?\s*(['"])(.)\1/g)) {
           const letter = m[2].toLowerCase();
           expect(
             keys.has(letter),
-            `${file.slice(ROOT.length + 1)} hand-handles ⌘/Ctrl+${letter.toUpperCase()}, which ${feature} also declares as an action shortcut; delete the handler`,
+            `${rel} hand-handles ⌘/Ctrl+${letter.toUpperCase()}, which ${feature} also declares as an action shortcut; delete the handler`,
           ).toBe(false);
         }
       }
     });
   });
 
-  it('migrated the known duplicated chords to a single declaration', () => {
+  it('migrated the known duplicated and standardized Raycast chords', () => {
+    const clipboard = sourceDeclarations('clipboard-history').map((d) => d.shortcut);
     const notes = sourceDeclarations('notes').map((d) => d.shortcut);
     const snippets = sourceDeclarations('snippets').map((d) => d.shortcut);
     const portals = sourceDeclarations('portals').map((d) => d.shortcut);
+    const fileSearch = sourceDeclarations('file-search').map((d) => d.shortcut);
     const agents = sourceDeclarations('agents').map((d) => d.shortcut);
+
+    expect(clipboard).toContain('Mod+.');
+    expect(clipboard).toContain('Control+X');
+    expect(clipboard).toContain('Control+Shift+X');
     expect(notes).toContain('Mod+N');
+    expect(notes).toContain('Mod+.');
+    expect(notes).toContain('Control+X');
     expect(snippets).toContain('Mod+N');
+    expect(snippets).toContain('Mod+.');
+    expect(snippets).toContain('Control+X');
+    expect(snippets).toContain('Control+Shift+X');
     expect(portals).toContain('Mod+N');
+    expect(portals).toContain('Control+X');
+    expect(fileSearch).toContain('Mod+.');
+    expect(fileSearch).toContain('Control+X');
+    expect(fileSearch).toContain('Control+Shift+X');
     expect(agents).toContain('Mod+N');
+    expect(agents).toContain('Mod+.');
+    expect(agents).toContain('Control+X');
   });
 });

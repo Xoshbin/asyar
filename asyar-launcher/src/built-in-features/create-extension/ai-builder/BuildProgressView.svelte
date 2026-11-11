@@ -135,6 +135,7 @@
         id: 'ai-builder:open-editor',
         label: t('features.create_extension.action_open_in_editor'),
         icon: 'icon:terminal',
+        shortcut: 'Mod+O',
         description: t('features.create_extension.action_open_in_editor_desc'),
         category: t('categories.ai_builder'),
         extensionId: 'create-extension',

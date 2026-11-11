@@ -96,20 +96,6 @@
       scriptsManager.moveSelection(event.key === 'ArrowDown' ? 1 : -1);
       event.preventDefault();
       event.stopPropagation();
-      return;
-    }
-    // Consume Enter only when the selection has something to do — an Enter we
-    // ignore has to keep bubbling to the launcher's own handler.
-    if (event.key === 'Enter') {
-      if (selectedScript) {
-        void runSelectedScript();
-      } else if (selectedIssue?.fix === 'makeExecutable') {
-        void scriptsManager.makeSelectedExecutable();
-      } else {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
     }
   }
 
