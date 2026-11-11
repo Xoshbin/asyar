@@ -50,6 +50,8 @@
     return `${base}?${params.toString()}`;
   });
 
+  let loadedSrc = $state<string | null>(null);
+
   let mountToken = $derived(viewRegistry.getEntry(extensionId)?.mountToken);
 
   function handleIframeError() {
@@ -116,6 +118,7 @@
   }
 
   async function handleIframeLoad() {
+    loadedSrc = iframeSrc;
     sendThemeVariables();
     // A fresh load starts with no announced shortcuts: forget what this
     // extension was last sent, then resend the live set if its view is active.
@@ -168,6 +171,7 @@
   src={iframeSrc}
   title="Extension Sandbox - {manifest?.name || extensionId}"
   class="w-full h-full border-none bg-transparent"
+  class:opacity-0={loadedSrc !== iframeSrc}
   sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
   onload={handleIframeLoad}
   onerror={handleIframeError}

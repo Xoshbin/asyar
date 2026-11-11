@@ -76,6 +76,21 @@ describe('ExtensionIframe', () => {
     expect(themeCall![0].payload['color-scheme']).toBe('dark');
   });
 
+  it('keeps the frame invisible until its src has loaded', async () => {
+    const { container } = render(ExtensionIframe, {
+      extensionId: 'org.asyar.google-translate',
+      view: 'org.asyar.google-translate/TranslateView',
+      manifest: null,
+    });
+
+    const iframe = container.querySelector('iframe') as HTMLIFrameElement;
+    expect(iframe.classList.contains('opacity-0')).toBe(true);
+
+    mockIframePostMessage(iframe);
+    await fireEvent.load(iframe);
+    expect(iframe.classList.contains('opacity-0')).toBe(false);
+  });
+
   it('updates color-scheme via postMessage on live theme switch without reloading iframeSrc', async () => {
     document.documentElement.dataset.theme = 'dark';
 
