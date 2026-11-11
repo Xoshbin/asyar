@@ -31,6 +31,7 @@ export interface BuiltinRowAction {
   label: string;
   description?: string;
   icon?: string;
+  shortcut?: string;
   category?: string;
   execute(): Promise<void> | void;
 }

@@ -56,7 +56,13 @@ If you use multiple displays, use display navigation commands:
 | Action                   | How                                                    |
 | ------------------------ | ------------------------------------------------------ |
 | Apply any preset         | Search its name, then `Enter`                          |
-| Switch active windows    | Search `switch windows`, filter, then `Enter`          |
+| Switch active windows    | Search `switch windows`, filter, then `Enter` (`↵`)    |
+| Close selected window    | `⌘W` (in Switch Windows view)                          |
+| Copy window title        | `⌘⇧C` (in Switch Windows view)                         |
+| Save current layout      | `⌘N` (in Manage Window Layouts view)                   |
+| Rename selected layout   | `⌘R` (in Manage Window Layouts view)                   |
+| Apply saved layout       | `Enter` (`↵`, in Manage Window Layouts view)           |
+| Delete selected layout   | `⌃X` (in Manage Window Layouts view, with confirm)     |
 | Move to next display     | Search `next display`, then `Enter`                    |
 | Move to previous display | Search `previous display`, then `Enter`                |
 | Undo last layout         | Search `restore`, then `Enter`                         |
@@ -64,9 +70,10 @@ If you use multiple displays, use display navigation commands:
 
 **Action panel (⌘K) entries in Manage Layouts:**
 
-- **Save Current Window as Layout** — captures the active window's current bounds.
-- **Rename** — renames the selected custom layout.
-- **Delete** — removes the selected custom layout.
+- **Apply Layout** (`↵`) — applies the selected saved layout.
+- **Save Current Window as Layout** (`⌘N`) — captures the active window's current bounds.
+- **Rename** (`⌘R`) — renames the selected custom layout.
+- **Delete** (`⌃X`) — removes the selected custom layout (with confirmation).
 
 ## Built-in presets
 

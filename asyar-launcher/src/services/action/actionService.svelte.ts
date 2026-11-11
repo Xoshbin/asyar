@@ -636,6 +636,7 @@ export class ActionService implements IActionService {
           ? t('core_actions.reveal_app_win')
           : t('core_actions.reveal_app'),
       icon: 'icon:folder',
+      shortcut: 'Mod+R',
       description: t('core_actions.reveal_app_desc'),
       category: t('categories.item'),
       context: ActionContext.CORE,
@@ -655,6 +656,7 @@ export class ActionService implements IActionService {
       id: 'copy_application_path',
       label: t('core_actions.copy_app_path'),
       icon: 'icon:clipboard',
+      shortcut: 'Mod+Shift+C',
       description: t('core_actions.copy_app_path_desc'),
       category: t('categories.item'),
       context: ActionContext.CORE,
@@ -696,12 +698,13 @@ export class ActionService implements IActionService {
       id: 'uninstall_application',
       label: t('core_actions.uninstall_app'),
       icon: 'icon:trash',
+      shortcut: 'Control+X',
       description: IS_MACOS
         ? t('core_actions.uninstall_desc_mac')
         : t('core_actions.uninstall_desc_win'),
       category: t('categories.danger'),
       context: ActionContext.CORE,
-      confirm: true,
+      confirmInExecute: true,
       destructive: true,
       visible: () => {
         if (!UNINSTALL_SUPPORTED) return false;

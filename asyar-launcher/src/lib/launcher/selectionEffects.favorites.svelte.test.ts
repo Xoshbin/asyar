@@ -7,7 +7,13 @@ const mockActions = vi.hoisted(
   () =>
     new Map<
       string,
-      { id: string; label: string; execute: () => Promise<void> | void; category?: string }
+      {
+        id: string;
+        label: string;
+        shortcut?: string;
+        execute: () => Promise<void> | void;
+        category?: string;
+      }
     >(),
 );
 
@@ -16,6 +22,7 @@ vi.mock('../../services/action/actionService.svelte', () => ({
     registerAction: (action: {
       id: string;
       label: string;
+      shortcut?: string;
       execute: () => Promise<void> | void;
       category?: string;
     }) => {
@@ -133,6 +140,7 @@ describe('selectionEffects - favorites lifecycle', () => {
     expect(mockActions.has('favorite_item')).toBe(true);
     expect(mockActions.has('unfavorite_item')).toBe(false);
     expect(mockActions.get('favorite_item')?.label).toBe('Add to favorites');
+    expect(mockActions.get('favorite_item')?.shortcut).toBe('Mod+Shift+F');
 
     // Execute the action
     await mockActions.get('favorite_item')?.execute();
@@ -179,6 +187,7 @@ describe('selectionEffects - favorites lifecycle', () => {
     expect(mockActions.has('unfavorite_item')).toBe(true);
     expect(mockActions.has('favorite_item')).toBe(false);
     expect(mockActions.get('unfavorite_item')?.label).toBe('Remove from favorites');
+    expect(mockActions.get('unfavorite_item')?.shortcut).toBe('Mod+Shift+F');
 
     // Execute the action
     await mockActions.get('unfavorite_item')?.execute();

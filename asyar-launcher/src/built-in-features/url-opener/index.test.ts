@@ -73,7 +73,11 @@ describe('url-opener built-in', () => {
   it('offers Copy URL in the action panel', async () => {
     const actions = getBuiltinRowActions('url-opener', ROW_ID, { url: 'https://a.com' });
     expect(actions).toHaveLength(1);
-    expect(actions[0]).toMatchObject({ id: 'url-opener:copy-url', label: 'Copy URL' });
+    expect(actions[0]).toMatchObject({
+      id: 'url-opener:copy-url',
+      label: 'Copy URL',
+      shortcut: 'Mod+Shift+C',
+    });
     await actions[0].execute();
     expect(writeText).toHaveBeenCalledWith('https://a.com');
     expect(feedbackService.showHUD).toHaveBeenCalledWith('Copied URL');

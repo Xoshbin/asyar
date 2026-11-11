@@ -126,17 +126,17 @@ actionService.registerAction(refreshAction);
 
 A `shortcut` is a declaration, not just a hint: the launcher shows it next to the action in the ⌘K drawer **and** runs the action when the user presses it. This works for actions you register at runtime with `registerAction`, including while your view iframe has focus — the launcher tells your iframe which chords are live and the SDK forwards exactly those key presses to it. You do not add a `keydown` listener for them.
 
-**Format:** `Mod[+Alt][+Shift]+Key`, or a bare function key `F1`–`F24`.
+**Format:** `Mod[+Alt][+Shift]+Key`, bare `F1`–`F24`, `Enter`, `Alt+Enter`, `Control+Mod+Enter`, `Control+X`, or `Control+Shift+X`.
 
 - `Mod` is the platform's primary modifier: ⌘ on macOS, Ctrl on Windows and Linux. The hint is rendered per platform (`Mod+N` shows `⌘N` on macOS and `Ctrl N` elsewhere), so write it once.
-- Modifiers go in the order `Mod`, `Alt`, `Shift`. The key is an uppercase letter or digit, one of ``, . / ; ' [ ] \ - = ` ``, `Space` or `Enter`.
+- Modifiers go in the order `Control`, `Mod`, `Alt`, `Shift`. The key is an uppercase letter or digit, one of ``, . / ; ' [ ] \ - = ` ``, `Space` or `Enter`.
 - Examples: `Mod+N`, `Mod+Shift+C`, `Mod+Alt+Shift+F`, `Mod+Shift+,`, `F5`.
 
 **Rules**
 
-- **Plain keys are not bindable.** `Enter`, arrows, `Space`, `Tab`, `Esc`, `Backspace` and Shift/Alt-only chords belong to typing and list navigation. A shortcut must include `Mod` (function keys excepted).
-- **Reserved:** `Mod+K`, `Mod+,`, `Mod+P`, `Mod+Q` (launcher) and `Mod+A`, `Mod+C`, `Mod+V`, `Mod+X`, `Mod+Z`, `Mod+Y`, `Mod+Shift+Z` (text editing).
-- **Destructive actions get no shortcut.** An action with `destructive: true` that declares one keeps working, but its shortcut is ignored; it stays in the ⌘K drawer.
+- **Arrows, Space, Tab, Esc, Backspace, and Shift-only chords are not bindable.** They belong to typing and list navigation. Portable non-function shortcuts should include `Mod` (`Alt+Enter` is supported for secondary Enter actions).
+- **Reserved:** `Mod+K`, `Mod+,`, `Mod+P`, `Mod+Q` (launcher) and `Mod+A`, `Mod+C`, `Mod+V`, `Mod+X`, `Mod+Z`, `Mod+Shift+Z` (text editing).
+- **Destructive actions require confirmation.** An unconfirmed `destructive: true` action (without `confirm: true`) or any destructive action using a shortcut other than `Control+X` / `Control+Shift+X` keeps registering with its shortcut dropped; delete chords always live alongside confirmation dialogs in the ⌘K drawer.
 - **Only visible actions fire.** A runtime action fires while the extension's view is the active one. Shortcuts do nothing while the ⌘K drawer or a dialog is open.
 - **No collisions.** Two actions that are visible together must not share a chord; the second always-visible action registered with the same chord keeps working without its shortcut. If a tie still happens the view's own action wins, then registration order, and the launcher logs a warning.
 - Old formats (`"⌘N"`, `"Ctrl+N"`, `"Super+N"`) are not accepted: the action still registers, but its shortcut is ignored and the launcher logs why. Rewrite it as `Mod+N`.

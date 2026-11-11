@@ -60,12 +60,14 @@ path, rescan watched directories, add a directory, or make a selected script exe
 
 ## Shortcuts & actions
 
-| Action                  | How                                                |
-| ----------------------- | -------------------------------------------------- |
-| Run a script            | Select it and press `Enter`                        |
-| Open the Script Library | Search for **Script Library** and press `Enter`    |
-| Open library actions    | Press `⌘K` inside the Script Library               |
-| Remove a watched folder | Settings → Scripts → trash icon next to the folder |
+| Action                      | How                                                |
+| --------------------------- | -------------------------------------------------- |
+| Run a script (or make exec) | Select it and press `Enter` (`↵`)                  |
+| Reveal script in Finder     | `⌘R` (in Script Library)                           |
+| Copy script path            | `⌘⇧C` (in Script Library)                          |
+| Open the Script Library     | Search for **Script Library** and press `Enter`    |
+| Open library actions        | Press `⌘K` inside the Script Library               |
+| Remove a watched folder     | Settings → Scripts → trash icon next to the folder |
 
 ## Tips
 

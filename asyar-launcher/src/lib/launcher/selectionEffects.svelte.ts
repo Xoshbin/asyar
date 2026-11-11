@@ -232,6 +232,7 @@ export function setupSelectionEffects(state: LauncherState) {
         label: action.label,
         description: action.description,
         icon: action.icon,
+        shortcut: action.shortcut,
         category: action.category,
         extensionId: item.extensionId ?? undefined,
         context: ActionContext.CORE,
@@ -427,6 +428,7 @@ export function setupSelectionEffects(state: LauncherState) {
       id: actionId,
       label: item.favorite ? t('selection_actions.unfavorite') : t('selection_actions.favorite'),
       icon: 'icon:star',
+      shortcut: 'Mod+Shift+F',
       description: item.favorite
         ? t('selection_actions.unfavorite_desc')
         : t('selection_actions.favorite_desc'),

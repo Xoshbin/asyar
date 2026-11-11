@@ -53,6 +53,18 @@ You can change what `Esc` does when a view is open in **Settings → Advanced �
 
 Built-in features declare Raycast-aligned shortcuts while their view is active. Every shortcut is shown next to its action in the `⌘K` panel and pressing it runs that action cleanly through the central dispatcher. Shortcuts do nothing while the `⌘K` panel or a dialog is open, and text-editing keys such as `⌘A`, `⌘C`, `⌘V`, `⌘Z`, and `⌘⌫` remain reserved for editing. Destructive actions (`⌃X` for single-item delete, `⌃⇧X` for bulk clear; `Ctrl+X` / `Ctrl+Shift+X` on Windows & Linux) always require confirmation (and on Windows/Linux, `Ctrl+X` cuts text whenever text is selected in the focused input).
 
+**Root Search**
+
+| Shortcut | What it does                                        |
+| -------- | --------------------------------------------------- |
+| `⌘⇧F`    | Add / Remove favorite (Apps & Commands)             |
+| `⌘.`     | Pin / Unpin selected file                           |
+| `⌘R`     | Reveal selected application or file in Finder       |
+| `⌘⇧C`    | Copy Path (Apps/Files), Deeplink (Commands), or URL |
+| `⌘⇧E`    | View all commands of the selected extension         |
+| `⌘⇧,`    | Configure selected extension settings               |
+| `⌃X`     | Uninstall selected app or Trash file (with confirm) |
+
 **Notes**
 
 | Shortcut | What it does                  |

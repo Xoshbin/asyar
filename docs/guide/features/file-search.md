@@ -36,22 +36,25 @@ You don't always need to enter File Search to find a document. As you type queri
 | Copy Path                       | `⌘⇧C`                                                  |
 | Copy Name                       | `⌘⌥C`                                                  |
 | Open in Terminal                | `⌘T`                                                   |
-| Toggle Pin                      | `⌘P`                                                   |
+| Toggle Pin                      | `⌘.`                                                   |
 | Send to Asyar AI                | `Tab` or `⌘I`                                          |
 | Search Everywhere (Deep Search) | `⌘⇧F`                                                  |
+| Move to Trash (with confirm)    | `⌃X`                                                   |
+| Clear Search History (confirm)  | `⌃⇧X` (in File Search view)                            |
 | Open action panel               | `⌘K`                                                   |
 
 **Action panel (⌘K) entries while the list is open:**
 
-- **Reveal in Finder** — shows the file in your system file manager.
-- **Copy Path / Copy Name** — copies the absolute path or just the filename to your clipboard.
-- **Open in Terminal** — opens the file's containing folder in your default terminal app.
-- **Toggle Pin** — pins the file so it shows up first when you open File Search with no query yet, or unpins it.
-- **Move to Trash** — moves the file to the system trash. This is destructive — Asyar asks for confirmation.
-- **Quick Look** — a full preview without opening the file.
-- **Send to Asyar AI** — opens AI Chat with the file's path (and, for text/code files under the size cap, its contents) pre-filled so you can ask a question about it.
-- **Search Everywhere** — escalates your current query to your OS's native search (Spotlight on macOS, Everything on Windows if installed, `plocate` on Linux if installed). Useful for finding something outside your indexed folders, or by content rather than name. This runs once, on demand — never automatically as you type.
-- **Clear Search History** — forgets which files you've selected before (used to rank frequently-opened files higher). Also available from the root search bar without opening the view.
+- **Open** (`↵`) — opens the selected file with its default app (in File Search view).
+- **Reveal in Finder** (`⌘R`) — shows the file in your system file manager.
+- **Copy Path / Copy Name** (`⌘⇧C` / `⌘⌥C`) — copies the absolute path or just the filename to your clipboard.
+- **Open in Terminal** (`⌘T`) — opens the file's containing folder in your default terminal app.
+- **Toggle Pin** (`⌘.`) — pins the file so it shows up first when you open File Search with no query yet, or unpins it.
+- **Move to Trash** (`⌃X`) — moves the file to the system trash. This is destructive — Asyar asks for confirmation.
+- **Quick Look** (`Space` in view / `⌘Y` in root search) — a full preview without opening the file.
+- **Send to Asyar AI** (`⌘I`) — opens AI Chat with the file's path (and, for text/code files under the size cap, its contents) pre-filled so you can ask a question about it.
+- **Search Everywhere** (`⌘⇧F`) — escalates your current query to your OS's native search (Spotlight on macOS, Everything on Windows if installed, `plocate` on Linux if installed). Useful for finding something outside your indexed folders, or by content rather than name. This runs once, on demand — never automatically as you type.
+- **Clear Search History** (`⌃⇧X`) — forgets which files you've selected before (used to rank frequently-opened files higher). Also available from the root search bar without opening the view.
 
 ## Tips
 
