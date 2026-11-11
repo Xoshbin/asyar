@@ -327,7 +327,7 @@
       "create_extension": "Créer une extension…",
       "section_create": "Créer",
       "add_alias": "Ajouter un alias",
-      "record_hotkey": "Enregistrer un raccourci",
+      "record_hotkey": "Définir",
       "revoke_permissions_title": "Révoquer les autorisations",
       "revoke_permissions_msg": "« {title} » perdra l'accès aux autorisations accordées jusqu'à ce que vous les vérifiiez et les autorisiez à nouveau. L'extension reste installée et activée.",
       "revoke": "Révoquer",
