@@ -106,6 +106,8 @@ type RegisteredAction = {
   id: string;
   icon?: string;
   shortcut?: string;
+  confirm?: boolean;
+  destructive?: boolean;
   visible?: () => boolean;
   execute: () => Promise<void> | void;
 };
@@ -273,9 +275,13 @@ describe('agents:pin-thread / agents:unpin-thread actions', () => {
     expect(pin.visible?.()).toBe(true);
     expect(unpin.visible?.()).toBe(false);
     expect(pin.icon).toBe('icon:pin');
-    expect(pin.shortcut).toBe('Mod+Shift+P');
+    expect(pin.shortcut).toBe('Mod+.');
     expect(unpin.icon).toBe('icon:pin');
-    expect(unpin.shortcut).toBe('Mod+Shift+P');
+    expect(unpin.shortcut).toBe('Mod+.');
+    const deleteThread = getRegisteredAction('agents:delete-thread');
+    expect(deleteThread.shortcut).toBe('Control+X');
+    expect(deleteThread.confirm).toBe(true);
+    expect(deleteThread.destructive).toBe(true);
   });
 
   it('offers Unpin for a pinned active thread and hides Pin', async () => {

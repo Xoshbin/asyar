@@ -122,6 +122,7 @@
       id: 'window-management:apply-layout',
       title: t('features.window_management.ui.apply_title', { name }),
       icon: 'icon:play',
+      shortcut: 'Enter',
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,
@@ -141,8 +142,11 @@
 
     actionService.registerAction({
       id: 'window-management:delete-layout',
-      title: t('features.window_management.ui.delete_title', { name }),
+      label: t('features.window_management.ui.delete_title', { name }),
       icon: 'icon:trash',
+      shortcut: 'Control+X',
+      confirm: true,
+      destructive: true,
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,

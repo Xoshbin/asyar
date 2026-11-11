@@ -51,62 +51,88 @@ You can change what `Esc` does when a view is open in **Settings → Advanced �
 
 ## Per-feature
 
-A few built-in features add extra shortcuts while their view is active. Each one is declared on an action, so the same key is shown next to the action in the `⌘K` panel and pressing it runs the action. Shortcuts do nothing while the `⌘K` panel or a dialog is open, and they never take text-editing keys such as `⌘A`, `⌘C`, `⌘V`, `⌘X`, `⌘Z` or `⌘⌫`. Destructive actions (delete, trash, uninstall) have no direct shortcut and live in the `⌘K` panel only.
+Built-in features declare Raycast-aligned shortcuts while their view is active. Every shortcut is shown next to its action in the `⌘K` panel and pressing it runs that action cleanly through the central dispatcher. Shortcuts do nothing while the `⌘K` panel or a dialog is open, and text-editing keys such as `⌘A`, `⌘C`, `⌘V`, `⌘Z`, and `⌘⌫` remain reserved for editing. Destructive actions (`⌃X` for single-item delete, `⌃⇧X` for bulk clear; `Ctrl+X` / `Ctrl+Shift+X` on Windows & Linux) always require confirmation (and on Windows/Linux, `Ctrl+X` cuts text whenever text is selected in the focused input).
 
 **Notes**
 
-| Shortcut | What it does  |
-| -------- | ------------- |
-| `⌘N`     | Create a note |
+| Shortcut | What it does                  |
+| -------- | ----------------------------- |
+| `⌘N`     | Create a note                 |
+| `⌘.`     | Pin / Unpin the selected note |
+| `⌘D`     | Duplicate the selected note   |
+| `⌘⇧C`    | Copy note as Markdown         |
+| `⌃X`     | Delete the selected note      |
 
 **Snippets**
 
 | Shortcut | What it does                        |
 | -------- | ----------------------------------- |
+| `↵`      | Paste the selected snippet          |
 | `⌘N`     | Create a new snippet                |
 | `⌘S`     | Save changes when editing a snippet |
+| `⌘E`     | Edit the selected snippet           |
+| `⌘D`     | Duplicate the selected snippet      |
+| `⌘⇧C`    | Copy snippet expansion              |
+| `⌘.`     | Pin / Unpin the selected snippet    |
+| `⌃X`     | Delete the selected snippet         |
+| `⌃⇧X`    | Clear all snippets                  |
 
 **Clipboard History**
 
-| Shortcut    | What it does                      |
-| ----------- | --------------------------------- |
-| `Enter`     | Paste selected item               |
-| `⇧Enter`    | Paste as plain text               |
-| `⌘↑` / `⌘↓` | Extend selection for merged paste |
+| Shortcut                      | What it does                               |
+| ----------------------------- | ------------------------------------------ |
+| `↵`                           | Paste selected item (or merge & paste)     |
+| `⌘↵`                          | Copy selected item to clipboard            |
+| `⌃⌘↵` (`Ctrl+Shift+↵` Win/Ln) | Paste as plain text                        |
+| `⌘↑` / `⌘↓`                   | Extend selection for merged paste          |
+| `⌘.`                          | Pin / Unpin the selected item              |
+| `⌘O`                          | Open URL item in browser                   |
+| `⌘S`                          | Save text item as snippet                  |
+| `⌘I`                          | Ask AI about selected text                 |
+| `⌃X`                          | Delete selected item (with confirmation)   |
+| `⌃⇧X`                         | Clear clipboard history (non-pinned items) |
 
-**AI & Agents (Chat View)**
+**AI & Agents**
 
-| Shortcut          | What it does                             |
-| ----------------- | ---------------------------------------- |
-| `Enter`           | Send user message or follow-up prompt    |
-| `⌘⇧C`             | Copy the assistant's last reply directly |
-| `⌘N`              | Start a clean conversation thread        |
-| `⌘K` → Cancel Run | Abort an active streaming response       |
+| Shortcut | What it does                                          |
+| -------- | ----------------------------------------------------- |
+| `⌘N`     | Create a new agent (Agents view) / Start a new thread |
+| `⌘E`     | Edit the selected agent (Agents view)                 |
+| `⌃X`     | Delete selected agent or thread (with confirmation)   |
+| `⌘.`     | Pin / Unpin active thread (Chat view)                 |
+| `⌘⇧C`    | Copy the assistant's last reply (Chat view)           |
+| `Enter`  | Send user message or follow-up prompt (Chat view)     |
+| `↵`      | Open agent run in chat (Recent Runs view)             |
+| `⌃⇧X`    | Clear recent runs (Recent Runs view)                  |
 
-**Window Management (Switch Windows View)**
+**Window Management**
 
 | Shortcut | What it does                                    |
 | -------- | ----------------------------------------------- |
-| `Enter`  | Switch immediately to the selected window       |
+| `↵`      | Switch to selected window / Apply saved layout  |
 | `⌘W`     | Close the selected window                       |
 | `⌘⇧C`    | Copy the window title                           |
 | `⌘N`     | Save the current window layout (Manage Layouts) |
 | `⌘R`     | Rename the selected layout                      |
+| `⌃X`     | Delete the selected layout (with confirmation)  |
 | `⌘K`     | Open actions for the selected window or layout  |
 
 **File Search**
 
 | Shortcut     | What it does                                                           |
 | ------------ | ---------------------------------------------------------------------- |
+| `↵`          | Open selected file (File Search view)                                  |
 | `⌘Y`         | Quick Look preview of selected file in main search (preserves `Space`) |
 | `Space`      | Quick Look preview of selected file (in dedicated File Search view)    |
-| `⌘R`         | Reveal in Finder                                                       |
+| `⌘R`         | Reveal in Finder / File Explorer                                       |
 | `⌘⇧C`        | Copy Path                                                              |
 | `⌘⌥C`        | Copy Name                                                              |
 | `⌘T`         | Open in Terminal                                                       |
-| `⌘⇧P`        | Toggle Pin                                                             |
+| `⌘.`         | Toggle Pin                                                             |
 | `Tab` / `⌘I` | Send to Asyar AI                                                       |
 | `⌘⇧F`        | Search Everywhere (deep OS-native search)                              |
+| `⌃X`         | Move to Trash (with confirmation)                                      |
+| `⌃⇧X`        | Clear File Search history (File Search view)                           |
 
 **Screen OCR**
 
@@ -114,11 +140,25 @@ A few built-in features add extra shortcuts while their view is active. Each one
 | -------- | --------------------------------------------- |
 | `Esc`    | Cancel interactive screen selection crosshair |
 
-**Portals**
+**Portals, Scripts, MCP, Store, Shortcuts & Help**
 
-| Shortcut | What it does        |
-| -------- | ------------------- |
-| `⌘N`     | Create a new portal |
+| Feature         | Shortcut | What it does                                |
+| --------------- | -------- | ------------------------------------------- |
+| Portals         | `⌘N`     | Create a new portal                         |
+| Portals         | `⌘E`     | Edit selected portal                        |
+| Portals         | `⌘D`     | Duplicate selected portal                   |
+| Portals         | `⌃X`     | Delete selected portal (with confirmation)  |
+| Script Commands | `↵`      | Run selected script (or make executable)    |
+| Script Commands | `⌘R`     | Reveal selected script in Finder            |
+| Script Commands | `⌘⇧C`    | Copy selected script path                   |
+| MCP Servers     | `⌘N`     | Install MCP server                          |
+| MCP Servers     | `⌘R`     | Refresh MCP server status                   |
+| Store           | `⌘O`     | Open extension page in web browser          |
+| Shortcuts       | `⌘E`     | Change global shortcut                      |
+| Shortcuts       | `⌃X`     | Remove global shortcut (with confirmation)  |
+| AI Builder      | `↵`      | Open created extension (Created Extensions) |
+| AI Builder      | `⌘O`     | Open created extension directory in editor  |
+| Help            | `⌘O`     | Open User Guide                             |
 
 For all other features, use `⌘K` to open the action panel — every available action for the selected item is listed there.
 

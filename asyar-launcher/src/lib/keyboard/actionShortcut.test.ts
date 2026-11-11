@@ -14,11 +14,19 @@ const ev = (init: KeyboardEventInit & { code?: string }) => new KeyboardEvent('k
 describe('validateActionShortcut', () => {
   it.each([
     'Mod+N',
+    'Mod+.',
     'Mod+Shift+C',
     'Mod+Alt+C',
     'Mod+Alt+Shift+F',
     'Mod+Shift+,',
+    'Enter',
+    'Alt+Enter',
     'Mod+Enter',
+    'Mod+Alt+Enter',
+    'Mod+Shift+Enter',
+    'Control+Mod+Enter',
+    'Control+X',
+    'Control+Shift+X',
     'F5',
   ])('accepts canonical %s', (s) => {
     expect(validateActionShortcut(s)).toBeNull();
@@ -29,20 +37,22 @@ describe('validateActionShortcut', () => {
     ['Cmd+N', 'alias'],
     ['Ctrl+N', 'alias'],
     ['Control+N', 'literal control'],
+    ['Control+Enter', 'literal control on Enter without Mod'],
     ['Super+N', 'super'],
     ['Meta+N', 'meta'],
     ['mod+n', 'lowercase'],
     ['Mod+n', 'lowercase key'],
     ['Shift+Mod+N', 'non-canonical order'],
     ['Alt+Mod+N', 'non-canonical order'],
+    ['Mod+Control+Enter', 'non-canonical order'],
     ['', 'empty'],
     ['Mod+', 'missing key'],
     ['Mod', 'modifier only'],
     ['Mod+Mod+N', 'duplicate modifier'],
     ['N', 'plain letter'],
     ['Shift+N', 'typing chord'],
+    ['Shift+Enter', 'newline chord in textareas'],
     ['Alt+N', 'no Mod'],
-    ['Enter', 'plain key'],
     ['Space', 'plain key'],
     ['Escape', 'plain key'],
     ['Mod+Tab', 'unbindable key'],
@@ -104,10 +114,35 @@ describe('eventToActionChord', () => {
     expect(eventToActionChord(ev({ key: 'n', code: 'KeyN', metaKey: true }), 'other')).toBeNull();
   });
 
-  it('rejects both ⌘ and Ctrl held together', () => {
+  it('rejects both ⌘ and Ctrl held together for non-Control+Mod+Enter chords', () => {
     expect(
       eventToActionChord(ev({ key: 'n', code: 'KeyN', metaKey: true, ctrlKey: true }), 'macos'),
     ).toBeNull();
+  });
+
+  it('maps Control+Mod+Enter on macOS and Control+X / Control+Shift+X on macOS', () => {
+    expect(
+      eventToActionChord(
+        ev({ key: 'Enter', code: 'Enter', ctrlKey: true, metaKey: true }),
+        'macos',
+      ),
+    ).toBe('Control+Mod+Enter');
+    expect(eventToActionChord(ev({ key: 'x', code: 'KeyX', ctrlKey: true }), 'macos')).toBe(
+      'Control+X',
+    );
+    expect(
+      eventToActionChord(ev({ key: 'X', code: 'KeyX', ctrlKey: true, shiftKey: true }), 'macos'),
+    ).toBe('Control+Shift+X');
+  });
+
+  it('maps Enter and Alt+Enter across platforms', () => {
+    for (const p of ['macos', 'windows', 'other'] as ActionShortcutPlatform[]) {
+      expect(eventToActionChord(ev({ key: 'Enter', code: 'Enter' }), p)).toBe('Enter');
+      expect(eventToActionChord(ev({ key: 'Enter', code: 'Enter', altKey: true }), p)).toBe(
+        'Alt+Enter',
+      );
+      expect(eventToActionChord(ev({ key: 'Enter', code: 'Enter', shiftKey: true }), p)).toBeNull();
+    }
   });
 
   it('orders modifiers canonically', () => {
@@ -141,9 +176,9 @@ describe('eventToActionChord', () => {
     expect(eventToActionChord(ev({ key: 'F5', code: 'F5' }), 'macos')).toBe('F5');
   });
 
-  it('returns null for plain keys', () => {
+  it('returns null for plain keys other than Enter/F-keys', () => {
     expect(eventToActionChord(ev({ key: 'n', code: 'KeyN' }), 'macos')).toBeNull();
-    expect(eventToActionChord(ev({ key: 'Enter', code: 'Enter' }), 'macos')).toBeNull();
+    expect(eventToActionChord(ev({ key: ' ', code: 'Space' }), 'macos')).toBeNull();
   });
 });
 
@@ -178,6 +213,7 @@ describe('resolveActionChord', () => {
     expect(resolveActionChord('Mod+Shift+C', 'macos')).toBe('Super+Shift+C');
     expect(resolveActionChord('Mod+Shift+C', 'windows')).toBe('Control+Shift+C');
     expect(resolveActionChord('Mod+Alt+N', 'other')).toBe('Control+Alt+N');
+    expect(resolveActionChord('Control+Mod+Enter', 'macos')).toBe('Control+Super+Enter');
   });
 
   it('leaves bare F-keys alone', () => {

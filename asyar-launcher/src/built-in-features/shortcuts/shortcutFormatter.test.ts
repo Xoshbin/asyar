@@ -474,9 +474,26 @@ describe('toDisplayKeys with the platform-neutral Mod modifier', () => {
     expect(toDisplayKeys('Mod+Alt+Shift+C', 'other')).toEqual(['Ctrl', 'Alt', 'Shift', 'C']);
   });
 
-  it('renders a comma key and Enter', () => {
+  it('renders a comma key, dot, and Enter-family chords', () => {
     expect(toDisplayKeys('Mod+Shift+,', 'macos')).toEqual(['⌘', '⇧', ',']);
+    expect(toDisplayKeys('Mod+.', 'macos')).toEqual(['⌘', '.']);
+    expect(toDisplayKeys('Mod+.', 'windows')).toEqual(['Ctrl', '.']);
+    expect(toDisplayKeys('Enter', 'macos')).toEqual(['↵']);
     expect(toDisplayKeys('Mod+Enter', 'macos')).toEqual(['⌘', '↵']);
+    expect(toDisplayKeys('Mod+Enter', 'windows')).toEqual(['Ctrl', '↵']);
+    expect(toDisplayKeys('Alt+Enter', 'macos')).toEqual(['⌥', '↵']);
+    expect(toDisplayKeys('Alt+Enter', 'windows')).toEqual(['Alt', '↵']);
+    expect(toDisplayKeys('Control+Mod+Enter', 'macos')).toEqual(['⌃', '⌘', '↵']);
+    expect(toDisplayKeys('Mod+Shift+Enter', 'windows')).toEqual(['Ctrl', 'Shift', '↵']);
+  });
+
+  it('renders approved destructive delete chords per platform', () => {
+    expect(toDisplayKeys('Control+X', 'macos')).toEqual(['⌃', 'X']);
+    expect(toDisplayKeys('Control+X', 'windows')).toEqual(['Ctrl', 'X']);
+    expect(toDisplayKeys('Control+X', 'other')).toEqual(['Ctrl', 'X']);
+    expect(toDisplayKeys('Control+Shift+X', 'macos')).toEqual(['⌃', '⇧', 'X']);
+    expect(toDisplayKeys('Control+Shift+X', 'windows')).toEqual(['Ctrl', 'Shift', 'X']);
+    expect(toDisplayKeys('Control+Shift+X', 'other')).toEqual(['Ctrl', 'Shift', 'X']);
   });
 
   it('renders a bare F-key unchanged', () => {

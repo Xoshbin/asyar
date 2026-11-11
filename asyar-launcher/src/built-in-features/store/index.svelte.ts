@@ -535,6 +535,7 @@ class StoreExtension implements Extension {
       title: t('features.store.act.open_web'),
       description: t('features.store.act.open_web_desc'),
       icon: 'icon:globe',
+      shortcut: 'Mod+O',
       extensionId: EXTENSION_ID,
       execute: async () => {
         const slug = getSlug();

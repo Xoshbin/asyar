@@ -19,32 +19,41 @@ Asyar also records which app each item came from, so you can see the source appl
 2. The clipboard view opens. Use `↑` / `↓` to move through the list.
 3. Type in the search bar to filter. Full-text search runs across all text entries.
 4. To narrow by content type, click the dropdown in the search bar (or press `⌘P`) and choose **All Types**, **Text**, **Images**, or **Files**.
-5. Press `Enter` to paste the selected item into the app that was in focus before you opened Asyar.
-6. Press `⇧Enter` to paste as plain text, stripping any formatting.
+5. Press `Enter` (`↵`) to paste the selected item into the app that was in focus before you opened Asyar, or `⌘↵` (`Ctrl+↵` on Windows/Linux) to copy it back to your clipboard without pasting.
+6. Press `⌃⌘↵` (`Ctrl+Shift+↵` on Windows/Linux) to paste as plain text, stripping any formatting.
 7. To paste several items at once, `⌘Click` (or `Ctrl+Click` on Windows/Linux) each item you want, or hold `⌘`/`Ctrl` and press `↑`/`↓` to sweep through a range — then press `Enter` to merge them into a single paste.
 
 ## Shortcuts & actions
 
-| Action                          | How         |
-| ------------------------------- | ----------- |
-| Paste                           | `Enter`     |
-| Paste as Plain Text             | `⇧Enter`    |
-| Toggle an item in the selection | `⌘Click`    |
-| Extend the selection            | `⌘↑` / `⌘↓` |
-| Merge & paste the selection     | `Enter`     |
-| Open action panel               | `⌘K`        |
+| Action                          | How                    |
+| ------------------------------- | ---------------------- |
+| Paste                           | `↵` (`Enter`)          |
+| Copy to Clipboard               | `⌘↵` (`Ctrl+↵`)        |
+| Paste as Plain Text             | `⌃⌘↵` (`Ctrl+Shift+↵`) |
+| Pin / Unpin (Toggle Favorite)   | `⌘.` (`Ctrl+.`)        |
+| Open in Browser (URL items)     | `⌘O` (`Ctrl+O`)        |
+| Save as Snippet                 | `⌘S` (`Ctrl+S`)        |
+| Ask AI about this               | `⌘I` (`Ctrl+I`)        |
+| Delete (with confirmation)      | `⌃X` (`Ctrl+X`)        |
+| Clear History (with confirm)    | `⌃⇧X` (`Ctrl+Shift+X`) |
+| Toggle an item in the selection | `⌘Click`               |
+| Extend the selection            | `⌘↑` / `⌘↓`            |
+| Merge & paste the selection     | `↵` (`Enter`)          |
+| Open action panel               | `⌘K`                   |
 
 **Action panel (⌘K) entries while the list is open:**
 
-- **Paste as Plain Text** — strips formatting before pasting.
-- **Toggle Favorite** — pins or unpins the selected item. Favourites are never deleted by "Clear Clipboard History".
+- **Paste** (`↵`) — pastes the selected item directly into the previously active app.
+- **Copy to Clipboard** (`⌘↵`) — copies the selected item back to your system clipboard.
+- **Paste as Plain Text** (`⌃⌘↵` / `Ctrl+Shift+↵`) — strips formatting before pasting.
+- **Pin / Unpin** (`⌘.`) — pins or unpins the selected item. Favourites are never deleted by "Clear Clipboard History".
 - **Toggle HTML Rendered / Source** — switches the detail pane between rendered HTML and raw source (useful for HTML or RTF items).
-- **Open in Browser** — opens a selected URL item in your default browser.
-- **Save as Snippet** — sends the selected text item directly to the Snippets editor so you can give it a keyword.
-- **Delete** — removes the selected item permanently.
+- **Open in Browser** (`⌘O`) — opens a selected URL item in your default browser.
+- **Save as Snippet** (`⌘S`) — sends the selected text item directly to the Snippets editor so you can give it a keyword.
+- **Delete** (`⌃X`) — asks for confirmation and removes the selected item permanently.
 - **Clear Selection** — deselects all multi-selected items, without leaving the view. Only appears while a selection is active.
-- **Ask AI about this** — opens AI Chat with the selected text pre-filled.
-- **Clear Clipboard History** — removes all non-favourited items (available from the root search bar too, without opening the view).
+- **Ask AI about this** (`⌘I`) — opens AI Chat with the selected text pre-filled.
+- **Clear Clipboard History** (`⌃⇧X`) — asks for confirmation and removes all non-favourited items (available from the root search bar too, without opening the view).
 
 ## Tips
 

@@ -15,7 +15,12 @@ const key = (init: KeyboardEventInit & { code?: string }) =>
 
 function setup(
   actions: DispatchableAction[],
-  opts: { platform?: ActionShortcutPlatform; suppressed?: boolean } = {},
+  opts: {
+    platform?: ActionShortcutPlatform;
+    suppressed?: boolean;
+    canDispatchEnter?: (e: KeyboardEvent) => boolean;
+    hasTextSelection?: () => boolean;
+  } = {},
 ) {
   const run = vi.fn().mockResolvedValue(undefined);
   const warn = vi.fn();
@@ -24,6 +29,8 @@ function setup(
     run,
     platform: opts.platform ?? 'macos',
     isSuppressed: () => opts.suppressed ?? false,
+    canDispatchEnter: opts.canDispatchEnter,
+    hasTextSelection: opts.hasTextSelection,
     warn,
   });
   return { dispatcher, run, warn };
@@ -181,6 +188,84 @@ describe('createActionShortcutDispatcher', () => {
       expect(run).toHaveBeenCalledOnce();
       input.remove();
     });
+
+    it('dispatches bare Enter only when allowed and never when an input/button is focused', () => {
+      const { dispatcher, run } = setup([action('paste', 'Enter')]);
+      expect(dispatcher.handle(key({ key: 'Enter', code: 'Enter' }))).toBe(true);
+      expect(run).toHaveBeenCalledOnce();
+
+      const btn = document.createElement('button');
+      document.body.appendChild(btn);
+      btn.focus();
+      expect(dispatcher.handle(key({ key: 'Enter', code: 'Enter' }))).toBe(false);
+      expect(run).toHaveBeenCalledOnce();
+      btn.remove();
+
+      const blocked = setup([action('paste', 'Enter')], { canDispatchEnter: () => false });
+      expect(blocked.dispatcher.handle(key({ key: 'Enter', code: 'Enter' }))).toBe(false);
+      expect(blocked.run).not.toHaveBeenCalled();
+    });
+
+    it('dispatches Control+X on macOS without disturbing Cmd+X Cut', () => {
+      const { dispatcher, run } = setup([action('del', 'Control+X', { confirm: true })], {
+        platform: 'macos',
+      });
+      expect(dispatcher.handle(key({ key: 'x', code: 'KeyX', metaKey: true }))).toBe(false);
+      expect(run).not.toHaveBeenCalled();
+
+      expect(dispatcher.handle(key({ key: 'x', code: 'KeyX', ctrlKey: true }))).toBe(true);
+      expect(run).toHaveBeenCalledOnce();
+    });
+
+    it('dispatches Control+X as Ctrl+X on Windows/Linux ONLY when no text is selected in the focused input', () => {
+      for (const platform of ['windows', 'other'] as ActionShortcutPlatform[]) {
+        const input = document.createElement('input');
+        input.value = 'hello';
+        document.body.appendChild(input);
+        input.focus();
+        input.setSelectionRange(0, 3); // "hel" selected
+
+        const { dispatcher, run } = setup([action('del', 'Control+X', { confirm: true })], {
+          platform,
+        });
+        const cutEvent = key({ key: 'x', code: 'KeyX', ctrlKey: true });
+        expect(dispatcher.handle(cutEvent)).toBe(false);
+        expect(cutEvent.defaultPrevented).toBe(false);
+        expect(run).not.toHaveBeenCalled();
+
+        input.setSelectionRange(5, 5); // collapsed caret
+        expect(dispatcher.handle(key({ key: 'x', code: 'KeyX', ctrlKey: true }))).toBe(true);
+        expect(run).toHaveBeenCalledOnce();
+        input.remove();
+      }
+    });
+
+    it('never matches a stale Mod+X candidate even when no text is selected on Windows', () => {
+      const { dispatcher, run } = setup([action('bad-x', 'Mod+X')], {
+        platform: 'windows',
+        hasTextSelection: () => false,
+      });
+      expect(dispatcher.handle(key({ key: 'x', code: 'KeyX', ctrlKey: true }))).toBe(false);
+      expect(run).not.toHaveBeenCalled();
+    });
+
+    it('dispatches Control+Shift+X on macOS and Ctrl+Shift+X on Windows/Linux', () => {
+      const mac = setup([action('clear', 'Control+Shift+X', { confirm: true })], {
+        platform: 'macos',
+      });
+      expect(
+        mac.dispatcher.handle(key({ key: 'X', code: 'KeyX', ctrlKey: true, shiftKey: true })),
+      ).toBe(true);
+      expect(mac.run).toHaveBeenCalledOnce();
+
+      for (const platform of ['windows', 'other'] as ActionShortcutPlatform[]) {
+        const win = setup([action('clear', 'Control+Shift+X', { confirm: true })], { platform });
+        expect(
+          win.dispatcher.handle(key({ key: 'X', code: 'KeyX', ctrlKey: true, shiftKey: true })),
+        ).toBe(true);
+        expect(win.run).toHaveBeenCalledOnce();
+      }
+    });
   });
 
   describe('collisions', () => {
@@ -215,9 +300,9 @@ describe('createActionShortcutDispatcher', () => {
   });
 
   describe('active chord set', () => {
-    it('lists the physical chords the Tier 2 iframe should forward', () => {
+    it('lists the physical chords the Tier 2 iframe should forward (excluding bare Enter)', () => {
       const { dispatcher } = setup(
-        [action('a', 'Mod+N'), action('b', 'Mod+Shift+C'), action('c', 'F5')],
+        [action('a', 'Mod+N'), action('b', 'Mod+Shift+C'), action('c', 'F5'), action('d', 'Enter')],
         { platform: 'macos' },
       );
       expect(dispatcher.activeChords().sort()).toEqual(['F5', 'Super+N', 'Super+Shift+C']);

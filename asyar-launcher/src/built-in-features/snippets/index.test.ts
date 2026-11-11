@@ -136,20 +136,17 @@ describe('SnippetsExtension keyboard navigation and search', () => {
     expect(rankItems).toHaveBeenCalledTimes(1);
   });
 
-  it('calls pasteSnippet on Enter when a snippet is selected', async () => {
+  it('exposes snippets:paste with Enter shortcut and calls pasteSnippet on execute', async () => {
     await snippetsExtension.viewActivated('snippets/DefaultView');
     expect(snippetViewState.selectedSnippet?.expansion).toBe('work@example.com');
 
-    const enterEvent = new KeyboardEvent('keydown', {
-      key: 'Enter',
-      bubbles: true,
-      cancelable: true,
-    });
-    const stopSpy = vi.spyOn(enterEvent, 'stopPropagation');
-    window.dispatchEvent(enterEvent);
+    const pasteCall = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find(([call]) => call.id === 'snippets:paste');
+    expect(pasteCall).toBeDefined();
+    expect(pasteCall![0].shortcut).toBe('Enter');
 
-    expect(enterEvent.defaultPrevented).toBe(true);
-    expect(stopSpy).toHaveBeenCalled();
+    await pasteCall![0].execute();
     expect(snippetService.pasteSnippet).toHaveBeenCalledWith('work@example.com');
   });
 
@@ -287,9 +284,20 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
     const unpinAction = unpinCall![0] as any;
 
     expect(pinAction.icon).toBe('icon:pin');
-    expect(pinAction.shortcut).toBe('Mod+Shift+P');
+    expect(pinAction.shortcut).toBe('Mod+.');
     expect(unpinAction.icon).toBe('icon:pin');
-    expect(unpinAction.shortcut).toBe('Mod+Shift+P');
+    expect(unpinAction.shortcut).toBe('Mod+.');
+
+    const byId = (id: string) =>
+      vi.mocked(actionService.registerAction).mock.calls.find(([c]) => c.id === id)?.[0] as any;
+    expect(byId('snippets:add')?.shortcut).toBe('Mod+N');
+    expect(byId('snippets:edit')?.shortcut).toBe('Mod+E');
+    expect(byId('snippets:copy-expansion')?.shortcut).toBe('Mod+Shift+C');
+    expect(byId('snippets:duplicate')?.shortcut).toBe('Mod+D');
+    expect(byId('snippets:delete')?.shortcut).toBe('Control+X');
+    expect(byId('snippets:delete')?.confirm).toBe(true);
+    expect(byId('snippets:clear-all')?.shortcut).toBe('Control+Shift+X');
+    expect(byId('snippets:clear-all')?.confirm).toBe(true);
 
     expect(pinAction.visible()).toBe(true);
     expect(unpinAction.visible()).toBe(false);

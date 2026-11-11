@@ -432,6 +432,29 @@ export class ClipboardViewStateClass {
     }
   }
 
+  async copyItem(item: ClipboardHistoryItem): Promise<boolean> {
+    if (!item?.id || !this.clipboardService) return false;
+    try {
+      const payload = item.content
+        ? ($state.snapshot(item) as ClipboardHistoryItem)
+        : ((await clipboardHistoryStore.fetchFullItem(item.id)) as ClipboardHistoryItem | null);
+      if (!payload) return false;
+      await this.clipboardService.writeToClipboard(payload);
+      await feedbackService.showHUD(t('common.copied'));
+      return true;
+    } catch (error) {
+      this.logService?.error(`Failed to copy clipboard item: ${error}`);
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'clipboard/copy-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(error),
+      });
+      return false;
+    }
+  }
+
   async hidePanel() {
     if (!this.clipboardService) {
       this.logService?.error('Clipboard service not initialized in hidePanel');

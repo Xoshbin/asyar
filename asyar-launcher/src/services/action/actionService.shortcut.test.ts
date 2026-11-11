@@ -45,7 +45,7 @@ describe('ActionService shortcut registration', () => {
     expect(svc.getAllActions().find((a) => a.id === 'notes:add')?.shortcut).toBe('Mod+N');
   });
 
-  it.each(['⌘N', 'Super+N', 'Ctrl+N', 'N', 'Enter', 'Mod+K', 'Mod+C', 'Mod+Backspace'])(
+  it.each(['⌘N', 'Super+N', 'Ctrl+N', 'N', 'Mod+K', 'Mod+C', 'Mod+X', 'Mod+Backspace'])(
     'rejects %s and does not register the action',
     (shortcut) => {
       expect(() => svc.registerAction(base({ id: 'x', shortcut }) as any)).toThrow(/shortcut/i);
@@ -53,12 +53,52 @@ describe('ActionService shortcut registration', () => {
     },
   );
 
-  it('refuses a direct shortcut on a destructive action', () => {
+  it('allows Enter and Enter-chords on non-destructive actions', () => {
+    svc.registerAction(base({ id: 'paste', shortcut: 'Enter' }) as any);
+    svc.registerAction(base({ id: 'alt-enter', shortcut: 'Alt+Enter' }) as any);
+    svc.registerAction(base({ id: 'mod-alt-enter', shortcut: 'Mod+Alt+Enter' }) as any);
+    svc.registerAction(base({ id: 'plain', shortcut: 'Control+Mod+Enter' }) as any);
+    expect(svc.getAllActions().find((a) => a.id === 'paste')?.shortcut).toBe('Enter');
+    expect(svc.getAllActions().find((a) => a.id === 'plain')?.shortcut).toBe('Control+Mod+Enter');
+  });
+
+  it('refuses arbitrary shortcuts or unconfirmed delete chords on destructive actions', () => {
     expect(() =>
       svc.registerAction(base({ id: 'd', shortcut: 'Mod+Shift+D', destructive: true }) as any),
     ).toThrow(/destructive/i);
+    expect(() =>
+      svc.registerAction(
+        base({ id: 'd-unconfirmed', shortcut: 'Control+X', destructive: true }) as any,
+      ),
+    ).toThrow(/confirm/i);
+    expect(() =>
+      svc.registerAction(
+        base({ id: 'd-clear-unconfirmed', shortcut: 'Control+Shift+X', destructive: true }) as any,
+      ),
+    ).toThrow(/confirm/i);
     // Destructive actions without a shortcut stay available in the ⌘K panel.
     expect(() => svc.registerAction(base({ id: 'd', destructive: true }) as any)).not.toThrow();
+  });
+
+  it('allows Control+X and Control+Shift+X on confirmed destructive actions', () => {
+    svc.registerAction(
+      base({ id: 'del', shortcut: 'Control+X', destructive: true, confirm: true }) as any,
+    );
+    svc.registerAction(
+      base({ id: 'clr', shortcut: 'Control+Shift+X', destructive: true, confirm: true }) as any,
+    );
+    svc.registerAction(
+      base({
+        id: 'del-self',
+        shortcut: 'Control+X',
+        destructive: true,
+        confirmInExecute: true,
+        visible: () => true,
+      }) as any,
+    );
+    expect(svc.getAllActions().find((a) => a.id === 'del')?.shortcut).toBe('Control+X');
+    expect(svc.getAllActions().find((a) => a.id === 'clr')?.shortcut).toBe('Control+Shift+X');
+    expect(svc.getAllActions().find((a) => a.id === 'del-self')?.shortcut).toBe('Control+X');
   });
 
   it('rejects two always-visible actions that share a chord in one scope', () => {
@@ -128,7 +168,7 @@ describe('ActionService: Tier 2 runtime registrations', () => {
     },
   );
 
-  it('keeps a Tier 2 destructive action, without its shortcut', () => {
+  it('keeps a Tier 2 destructive action without its shortcut when unconfirmed or non-delete chord', () => {
     svc.registerAction(
       base({
         id: 'ext:d',
@@ -137,7 +177,16 @@ describe('ActionService: Tier 2 runtime registrations', () => {
         destructive: true,
       }) as any,
     );
+    svc.registerAction(
+      base({
+        id: 'ext:d2',
+        extensionId: 'org.acme.ext',
+        shortcut: 'Control+X',
+        destructive: true,
+      }) as any,
+    );
     expect(svc.getAllActions().find((x) => x.id === 'ext:d')?.shortcut).toBeUndefined();
+    expect(svc.getAllActions().find((x) => x.id === 'ext:d2')?.shortcut).toBeUndefined();
   });
 
   it('still throws for built-in features, where a bad shortcut is a bug', () => {

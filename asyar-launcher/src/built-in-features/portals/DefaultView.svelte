@@ -60,6 +60,7 @@
       id: 'portals:edit',
       title: t('features.portals.action_edit'),
       icon: 'icon:pencil',
+      shortcut: 'Mod+E',
       extensionId: 'portals',
       category: t('categories.portals'),
       context: ActionContext.EXTENSION_VIEW,
@@ -71,6 +72,7 @@
       id: 'portals:duplicate',
       title: t('features.portals.action_duplicate'),
       icon: 'icon:copy',
+      shortcut: 'Mod+D',
       extensionId: 'portals',
       category: t('categories.portals'),
       context: ActionContext.EXTENSION_VIEW,
@@ -80,11 +82,13 @@
     });
     actionService.registerAction({
       id: 'portals:delete',
-      title: t('features.portals.action_delete'),
+      label: t('features.portals.action_delete'),
       icon: 'icon:trash',
+      shortcut: 'Control+X',
       extensionId: 'portals',
       category: t('categories.portals'),
       destructive: true,
+      confirmInExecute: true,
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         await handleDelete(portal);

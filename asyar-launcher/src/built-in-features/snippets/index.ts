@@ -31,12 +31,6 @@ class SnippetsExtension implements Extension {
       e.preventDefault();
       e.stopPropagation();
       snippetViewState.moveSelection(e.key === 'ArrowUp' ? 'up' : 'down');
-      return;
-    }
-    if (e.key === 'Enter' && snippetViewState.selectedSnippet) {
-      e.preventDefault();
-      e.stopPropagation();
-      await snippetService.pasteSnippet(snippetViewState.selectedSnippet.expansion);
     }
   }
 
@@ -68,10 +62,12 @@ class SnippetsExtension implements Extension {
       id: 'snippets:paste',
       label: t('features.snippets.act.paste'),
       icon: 'icon:keyboard',
+      shortcut: 'Enter',
       description: t('features.snippets.act.paste_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) await snippetService.pasteSnippet(s.expansion);
@@ -81,10 +77,12 @@ class SnippetsExtension implements Extension {
       id: 'snippets:edit',
       label: t('features.snippets.act.edit'),
       icon: 'icon:pencil',
+      shortcut: 'Mod+E',
       description: t('features.snippets.act.edit_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) snippetViewState.startEdit(s);
@@ -94,12 +92,14 @@ class SnippetsExtension implements Extension {
       id: 'snippets:delete',
       label: t('features.snippets.act.delete'),
       icon: 'icon:trash',
+      shortcut: 'Control+X',
       description: t('features.snippets.act.delete_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       confirm: true,
       destructive: true,
+      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
@@ -112,10 +112,12 @@ class SnippetsExtension implements Extension {
       id: 'snippets:copy-expansion',
       label: t('features.snippets.act.copy'),
       icon: 'icon:copy',
+      shortcut: 'Mod+Shift+C',
       description: t('features.snippets.act.copy_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) await writeText(s.expansion);
@@ -125,10 +127,12 @@ class SnippetsExtension implements Extension {
       id: 'snippets:duplicate',
       label: t('features.snippets.act.duplicate'),
       icon: 'icon:layers',
+      shortcut: 'Mod+D',
       description: t('features.snippets.act.duplicate_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (!s) return;
@@ -155,13 +159,14 @@ class SnippetsExtension implements Extension {
       id: 'snippets:pin',
       label: t('features.snippets.act.pin_snippet'),
       icon: 'icon:pin',
-      shortcut: 'Mod+Shift+P',
+      shortcut: 'Mod+.',
       description: t('features.snippets.act.pin_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       visible: () =>
-        snippetViewState.selectedSnippet ? !snippetViewState.selectedSnippet.pinned : false,
+        snippetViewState.mode === 'view' &&
+        (snippetViewState.selectedSnippet ? !snippetViewState.selectedSnippet.pinned : false),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
@@ -174,13 +179,16 @@ class SnippetsExtension implements Extension {
       id: 'snippets:unpin',
       label: t('features.snippets.act.unpin_snippet'),
       icon: 'icon:pin',
-      shortcut: 'Mod+Shift+P',
+      shortcut: 'Mod+.',
       description: t('features.snippets.act.pin_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       visible: () =>
-        snippetViewState.selectedSnippet ? Boolean(snippetViewState.selectedSnippet.pinned) : false,
+        snippetViewState.mode === 'view' &&
+        (snippetViewState.selectedSnippet
+          ? Boolean(snippetViewState.selectedSnippet.pinned)
+          : false),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
@@ -197,6 +205,7 @@ class SnippetsExtension implements Extension {
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      visible: () => snippetViewState.mode === 'view' && Boolean(snippetViewState.selectedSnippet),
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
@@ -209,12 +218,14 @@ class SnippetsExtension implements Extension {
       id: 'snippets:clear-all',
       label: t('features.snippets.act.clear_all'),
       icon: 'icon:trash',
+      shortcut: 'Control+Shift+X',
       description: t('features.snippets.act.clear_all_desc'),
       category: t('categories.snippets'),
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
       confirm: true,
       destructive: true,
+      visible: () => snippetViewState.mode === 'view' && snippetStore.getAll().length > 0,
       execute: async () => {
         snippetStore.clearAll();
         await snippetService.syncToRust();

@@ -67,6 +67,7 @@ class HelpExtension implements Extension {
       title: t('features.help.act.guide'),
       description: t('features.help.act.guide_desc'),
       icon: 'icon:globe',
+      shortcut: 'Mod+O',
       extensionId: 'help',
       category: 'help-action',
       execute: async () => {

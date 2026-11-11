@@ -41,6 +41,7 @@
       id: 'shortcuts:change',
       title: t('features.shortcuts.action_change'),
       icon: 'icon:pencil',
+      shortcut: 'Mod+E',
       extensionId: 'shortcuts',
       category: t('categories.shortcuts'),
       context: ActionContext.EXTENSION_VIEW,
@@ -50,11 +51,13 @@
     });
     actionService.registerAction({
       id: 'shortcuts:remove',
-      title: t('features.shortcuts.action_remove'),
+      label: t('features.shortcuts.action_remove'),
       icon: 'icon:trash',
+      shortcut: 'Control+X',
       extensionId: 'shortcuts',
       category: t('categories.shortcuts'),
       destructive: true,
+      confirmInExecute: true,
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         await handleRemove(s.objectId, s.itemName);

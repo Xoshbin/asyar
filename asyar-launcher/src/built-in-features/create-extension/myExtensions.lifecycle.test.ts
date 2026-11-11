@@ -235,15 +235,19 @@ describe('my-extensions command lifecycle', () => {
       expect(mockMoveSelection).toHaveBeenCalledWith('up');
     });
 
-    it('Enter calls openInEditor for selectedItem', async () => {
+    it('registers ai-builder:open-created with Enter shortcut and opens selected item in editor', async () => {
       _selectedItem = { path: '/ext/myext' };
       await createExtensionDefault.initialize(makeContext() as any);
       await createExtensionDefault.viewActivated(MY_EXT_VIEW_ID);
 
-      const evt = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
-      window.dispatchEvent(evt);
-      await Promise.resolve();
+      const { actionService } = await import('../../services/action/actionService.svelte');
+      const openCreated = vi
+        .mocked(actionService.registerAction)
+        .mock.calls.map(([a]) => a)
+        .find((a) => a.id === 'ai-builder:open-created');
+      expect(openCreated?.shortcut).toBe('Enter');
 
+      await openCreated?.execute();
       expect(mockOpenInEditor).toHaveBeenCalledWith('/ext/myext');
     });
 

@@ -19,6 +19,7 @@
 import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import {
   RESERVED_ACTION_SHORTCUTS,
+  actionShortcutMatchesChord,
   eventToActionChord,
   resolveActionChord,
   type ActionShortcutPlatform,
@@ -39,8 +40,53 @@ export interface ActionShortcutDispatcherDeps {
   platform: ActionShortcutPlatform;
   /** True while the ⌘K panel or a modal owns the keyboard. */
   isSuppressed: () => boolean;
+  /** Optional gate for bare `Enter` dispatch (defaults to checking non-interactive activeElement). */
+  canDispatchEnter?: (event: KeyboardEvent) => boolean;
+  /** Optional probe for active text selection (used on Windows/Linux so Ctrl+X runs native Cut when text is selected). */
+  hasTextSelection?: () => boolean;
   /** Dev-time diagnostics for colliding declarations. */
   warn: (message: string) => void;
+}
+
+/** True when the focused DOM element currently holds a non-empty text selection. */
+export function hasFocusedTextSelection(doc: Document | undefined): boolean {
+  if (!doc) return false;
+  const active = doc.activeElement as HTMLElement | null;
+  if (!active) return false;
+  const tag = active.tagName?.toLowerCase();
+  if (tag === 'textarea') {
+    const ta = active as HTMLTextAreaElement;
+    return ta.selectionStart !== ta.selectionEnd;
+  }
+  if (tag === 'input') {
+    const inp = active as HTMLInputElement;
+    try {
+      return (
+        inp.selectionStart !== null &&
+        inp.selectionEnd !== null &&
+        inp.selectionStart !== inp.selectionEnd
+      );
+    } catch {
+      return false;
+    }
+  }
+  if (active.isContentEditable) {
+    const sel = doc.defaultView?.getSelection?.();
+    return Boolean(sel && !sel.isCollapsed && sel.toString().length > 0);
+  }
+  return false;
+}
+
+function isInteractiveActiveElement(doc: Document | undefined): boolean {
+  if (!doc) return false;
+  const active = doc.activeElement as HTMLElement | null;
+  if (!active) return false;
+  const tag = active.tagName?.toLowerCase();
+  if (['input', 'textarea', 'select', 'button', 'a'].includes(tag)) return true;
+  if (active.isContentEditable) return true;
+  return Boolean(
+    active.closest?.('button, a[href], [role="button"], [role="menuitem"], [role="option"]'),
+  );
 }
 
 export interface ActionShortcutDispatcher {
@@ -72,12 +118,27 @@ export function createActionShortcutDispatcher(
     if (event.defaultPrevented || event.isComposing) return false;
     const chord = eventToActionChord(event, deps.platform);
     if (!chord) return false;
+    if (chord === 'Enter') {
+      const allowed = deps.canDispatchEnter
+        ? deps.canDispatchEnter(event)
+        : !isInteractiveActiveElement(typeof document !== 'undefined' ? document : undefined);
+      if (!allowed) return false;
+    }
+    const allowConditionalCut = deps.platform !== 'macos' && chord === 'Mod+X';
     // Reserved chords belong to the launcher or to the focused text field. They
     // can never be registered, so this only guards against a stale candidate.
-    if (RESERVED_ACTION_SHORTCUTS.has(chord)) return false;
+    if (RESERVED_ACTION_SHORTCUTS.has(chord) && !allowConditionalCut) return false;
+    if (allowConditionalCut) {
+      const selected = deps.hasTextSelection
+        ? deps.hasTextSelection()
+        : hasFocusedTextSelection(typeof document !== 'undefined' ? document : undefined);
+      if (selected) return false;
+    }
     if (deps.isSuppressed()) return false;
 
-    const matches = deps.getCandidates().filter((a) => a.shortcut === chord);
+    const matches = deps
+      .getCandidates()
+      .filter((a) => actionShortcutMatchesChord(a.shortcut, chord, deps.platform));
     if (matches.length === 0) return false;
 
     if (matches.length > 1 && !warned.has(chord)) {
@@ -108,7 +169,8 @@ export function createActionShortcutDispatcher(
   function activeChords(): string[] {
     const chords = new Set<string>();
     for (const a of deps.getCandidates()) {
-      if (a.shortcut) chords.add(resolveActionChord(a.shortcut, deps.platform));
+      if (!a.shortcut || a.shortcut === 'Enter') continue;
+      chords.add(resolveActionChord(a.shortcut, deps.platform));
     }
     return [...chords];
   }
