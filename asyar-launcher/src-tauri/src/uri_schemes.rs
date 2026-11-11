@@ -254,7 +254,9 @@ fn handle_extension_request<R: Runtime>(
             let content = match file_path {
                 "view.html" => {
                     let with_role = inject_asyar_role(&raw, "view");
-                    maybe_inject_dev_inspector_flag(with_role)
+                    let with_scheme =
+                        inject_color_scheme(&with_role, view_color_scheme(request.uri().query()));
+                    maybe_inject_dev_inspector_flag(with_scheme)
                 }
                 "worker.html" => {
                     let with_role = inject_asyar_role(&raw, "worker");
@@ -315,6 +317,59 @@ pub(crate) fn extension_csp_header() -> &'static str {
     resolve_extension_csp(cfg!(debug_assertions))
 }
 
+/// Inserts `snippet` immediately after `<head>` (case-insensitive), or wraps
+/// it in `<head>...</head>` before the document body when `<head>` is absent.
+fn inject_into_head(html: &[u8], snippet: &str) -> Vec<u8> {
+    let html_str = match std::str::from_utf8(html) {
+        Ok(s) => s,
+        Err(_) => return html.to_vec(),
+    };
+    // A full HTML parser is not available here; a single-pass search is
+    // sufficient because <head> appears once at the top of well-formed
+    // extension HTML files.
+    let lower = html_str.to_ascii_lowercase();
+    if let Some(pos) = lower.find("<head>") {
+        let insert_at = pos + "<head>".len();
+        let mut result = String::with_capacity(html_str.len() + snippet.len());
+        result.push_str(&html_str[..insert_at]);
+        result.push_str(snippet);
+        result.push_str(&html_str[insert_at..]);
+        result.into_bytes()
+    } else {
+        let mut result = String::with_capacity(html_str.len() + snippet.len() + 15);
+        result.push_str("<head>");
+        result.push_str(snippet);
+        result.push_str("</head>");
+        result.push_str(html_str);
+        result.into_bytes()
+    }
+}
+
+/// Extracts the host-resolved color scheme (`"dark"` or `"light"`) from a
+/// `view.html` query string, falling back to `"light dark"` when absent.
+pub(crate) fn view_color_scheme(query: Option<&str>) -> &'static str {
+    let theme = query.and_then(|q| {
+        q.split('&').find_map(|pair| {
+            let (k, v) = pair.split_once('=')?;
+            (k == "theme").then_some(v)
+        })
+    });
+    match theme {
+        Some("dark") => "dark",
+        Some("light") => "light",
+        _ => "light dark",
+    }
+}
+
+/// Injects `<meta name="color-scheme" content="<scheme>">` into `view.html` so
+/// the embedded document's root `color-scheme` matches the host `<iframe>`
+/// before first paint. Without this, Chromium/WebView2 forces an opaque white
+/// canvas whenever the host is dark and the extension omits `color-scheme`.
+pub(crate) fn inject_color_scheme(html: &[u8], scheme: &str) -> Vec<u8> {
+    let meta = format!(r#"<meta name="color-scheme" content="{scheme}">"#);
+    inject_into_head(html, &meta)
+}
+
 /// Injects `<script>window.__ASYAR_ROLE__ = "<role>";</script>` immediately
 /// after the opening `<head>` tag of the given HTML bytes. If no `<head>` tag
 /// is present the script is prepended before the first byte of content.
@@ -324,31 +379,7 @@ pub(crate) fn extension_csp_header() -> &'static str {
 /// without modification.
 pub(crate) fn inject_asyar_role(html: &[u8], role: &str) -> Vec<u8> {
     let script = format!("<script>window.__ASYAR_ROLE__ = \"{}\";</script>", role);
-    let html_str = match std::str::from_utf8(html) {
-        Ok(s) => s,
-        Err(_) => return html.to_vec(),
-    };
-    // Find <head> (case-insensitive) and insert immediately after it.
-    // A full HTML parser is not available here; a single-pass search is
-    // sufficient because <head> appears exactly once at the top of any
-    // well-formed extension HTML file.
-    let lower = html_str.to_ascii_lowercase();
-    if let Some(pos) = lower.find("<head>") {
-        let insert_at = pos + "<head>".len();
-        let mut result = String::with_capacity(html_str.len() + script.len());
-        result.push_str(&html_str[..insert_at]);
-        result.push_str(&script);
-        result.push_str(&html_str[insert_at..]);
-        result.into_bytes()
-    } else {
-        // No <head> — prepend the script wrapped in <head>.
-        let mut result = String::with_capacity(html_str.len() + script.len() + 15);
-        result.push_str("<head>");
-        result.push_str(&script);
-        result.push_str("</head>");
-        result.push_str(html_str);
-        result.into_bytes()
-    }
+    inject_into_head(html, &script)
 }
 
 /// Debug-only wrapper around [`inject_dev_inspector_flag`]: production
@@ -373,27 +404,10 @@ pub(crate) fn maybe_inject_dev_inspector_flag(html: Vec<u8>) -> Vec<u8> {
 /// Always callable at the function level — the `cfg` guard is at the call
 /// site so tests can exercise the pure injector.
 pub(crate) fn inject_dev_inspector_flag(html: &[u8]) -> Vec<u8> {
-    let script = "<script>window.__ASYAR_DEV_INSPECTOR_ACTIVE__ = true;</script>";
-    let html_str = match std::str::from_utf8(html) {
-        Ok(s) => s,
-        Err(_) => return html.to_vec(),
-    };
-    let lower = html_str.to_ascii_lowercase();
-    if let Some(pos) = lower.find("<head>") {
-        let insert_at = pos + "<head>".len();
-        let mut result = String::with_capacity(html_str.len() + script.len());
-        result.push_str(&html_str[..insert_at]);
-        result.push_str(script);
-        result.push_str(&html_str[insert_at..]);
-        result.into_bytes()
-    } else {
-        let mut result = String::with_capacity(html_str.len() + script.len() + 15);
-        result.push_str("<head>");
-        result.push_str(script);
-        result.push_str("</head>");
-        result.push_str(html_str);
-        result.into_bytes()
-    }
+    inject_into_head(
+        html,
+        "<script>window.__ASYAR_DEV_INSPECTOR_ACTIVE__ = true;</script>",
+    )
 }
 
 // ── asyar-icon:// ─────────────────────────────────────────────────────────────
@@ -672,6 +686,44 @@ mod role_injection_tests {
             assert!(!csp.contains("'unsafe-eval'"));
         }
     }
+
+    #[test]
+    fn view_color_scheme_parses_theme_query_param() {
+        use super::view_color_scheme;
+        assert_eq!(
+            view_color_scheme(Some("view=TranslateView&theme=dark")),
+            "dark"
+        );
+        assert_eq!(view_color_scheme(Some("theme=light")), "light");
+        assert_eq!(view_color_scheme(Some("view=DefaultView")), "light dark");
+        assert_eq!(view_color_scheme(Some("theme=invalid")), "light dark");
+        assert_eq!(view_color_scheme(None), "light dark");
+    }
+
+    #[test]
+    fn color_scheme_meta_is_injected_inside_head() {
+        use super::inject_color_scheme;
+        let html = b"<html><head><title>Test</title></head><body></body></html>";
+        let result = inject_color_scheme(html, "dark");
+        let s = String::from_utf8(result).unwrap();
+        let meta_pos = s
+            .find(r#"<meta name="color-scheme" content="dark">"#)
+            .expect("color-scheme meta must be present");
+        let head_end = s.find("</head>").expect("</head> must be present");
+        assert!(meta_pos < head_end, "meta must appear before </head>");
+    }
+
+    #[test]
+    fn color_scheme_meta_works_without_head_tag() {
+        use super::inject_color_scheme;
+        let html = b"<html><body>content</body></html>";
+        let result = inject_color_scheme(html, "light");
+        let s = String::from_utf8(result).unwrap();
+        assert!(
+            s.contains(r#"<meta name="color-scheme" content="light">"#),
+            "meta must be injected even when <head> is absent, got: {s}"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -863,5 +915,58 @@ mod scheme_registry_tests {
             let res = get(handle_icon_request, app.handle(), uri);
             assert_eq!(res.status().as_u16(), 403, "{uri}");
         }
+    }
+
+    #[test]
+    fn view_html_injects_color_scheme_matching_theme_query_while_worker_does_not() {
+        let app = isolated_app("org.asyar.test.uri-schemes-color-scheme");
+        let handle = app.handle();
+        let dist = handle
+            .path()
+            .app_data_dir()
+            .unwrap()
+            .join("extensions/scheme-probe/dist");
+        std::fs::create_dir_all(&dist).unwrap();
+        std::fs::write(
+            dist.join("view.html"),
+            b"<html><head></head><body></body></html>",
+        )
+        .unwrap();
+        std::fs::write(
+            dist.join("worker.html"),
+            b"<html><head></head><body></body></html>",
+        )
+        .unwrap();
+
+        let handler = handle_extension_request::<MockRuntime>;
+        let get_body =
+            |uri: &str| String::from_utf8(get(handler, handle, uri).body().clone()).unwrap();
+
+        let dark = get_body(
+            "http://asyar-extension.localhost/scheme-probe/view.html?view=TranslateView&theme=dark",
+        );
+        assert!(
+            dark.contains(r#"<meta name="color-scheme" content="dark">"#),
+            "{dark}"
+        );
+        assert!(dark.contains("window.__ASYAR_ROLE__ = \"view\""), "{dark}");
+
+        let light = get_body("asyar-extension://scheme-probe/view.html?theme=light");
+        assert!(
+            light.contains(r#"<meta name="color-scheme" content="light">"#),
+            "{light}"
+        );
+
+        let fallback = get_body("asyar-extension://scheme-probe/view.html");
+        assert!(
+            fallback.contains(r#"<meta name="color-scheme" content="light dark">"#),
+            "{fallback}"
+        );
+
+        let worker =
+            get_body("http://asyar-extension.localhost/scheme-probe/worker.html?theme=dark");
+        assert!(!worker.contains("color-scheme"), "{worker}");
+
+        let _ = std::fs::remove_dir_all(handle.path().app_data_dir().unwrap());
     }
 }

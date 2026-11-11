@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { logService as logger } from '../../services/log/logService';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import { viewRegistry } from '../../services/extension/viewRegistry.svelte';
@@ -26,11 +27,28 @@
 
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
 
-  let iframeSrc = $derived(
-    isWindows
-      ? `http://asyar-extension.localhost/${extensionId}/view.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`
-      : `asyar-extension://${extensionId}/view.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`,
-  );
+  function resolveColorScheme(): 'dark' | 'light' {
+    const explicit = document.documentElement.dataset.theme;
+    if (explicit === 'dark' || explicit === 'light') return explicit;
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  let iframeSrc = $derived.by(() => {
+    const base = isWindows
+      ? `http://asyar-extension.localhost/${extensionId}/view.html`
+      : `asyar-extension://${extensionId}/view.html`;
+    const params = new URLSearchParams();
+    if (view) {
+      params.set('view', view.split('/')[1] || 'DefaultView');
+    }
+    // Capture the initial resolved color scheme non-reactively so live theme
+    // toggles update the iframe via postMessage instead of reloading it.
+    params.set(
+      'theme',
+      untrack(() => resolveColorScheme()),
+    );
+    return `${base}?${params.toString()}`;
+  });
 
   let mountToken = $derived(viewRegistry.getEntry(extensionId)?.mountToken);
 
@@ -87,8 +105,18 @@
     logger.debug(`Received message from iframe (${extensionId}): ${type}`);
   }
 
+  function sendThemeVariables() {
+    sendMessage('asyar:theme:variables', {
+      ...collectThemeVariables(document.documentElement),
+      // Keep the iframe root's CSS color-scheme aligned with the host iframe
+      // (without this, Chromium/WebView2 paints an opaque white canvas when
+      // the parent is dark and the child defaults to color-scheme: normal).
+      'color-scheme': resolveColorScheme(),
+    });
+  }
+
   async function handleIframeLoad() {
-    sendMessage('asyar:theme:variables', collectThemeVariables(document.documentElement));
+    sendThemeVariables();
     // A fresh load starts with no announced shortcuts: forget what this
     // extension was last sent, then resend the live set if its view is active.
     forgetAnnouncedShortcuts(extensionId);
@@ -105,7 +133,7 @@
     fontCSS = buildFontFaceCSS();
 
     const observer = new MutationObserver(() => {
-      sendMessage('asyar:theme:variables', collectThemeVariables(document.documentElement));
+      sendThemeVariables();
     });
     observer.observe(document.documentElement, {
       attributes: true,
