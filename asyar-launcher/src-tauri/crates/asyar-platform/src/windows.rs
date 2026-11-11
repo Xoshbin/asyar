@@ -3,28 +3,36 @@
 pub mod calendar;
 pub mod media;
 
-use std::ffi::OsStr;
-use std::os::windows::ffi::OsStrExt;
-use std::path::Path;
-use windows::core::{PCWSTR, PWSTR};
+use std::ffi::{OsStr, OsString};
+use std::os::windows::ffi::{OsStrExt, OsStringExt};
+use std::path::{Path, PathBuf};
+use windows::core::{Interface, PCWSTR, PWSTR};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Dwm::{
     DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
 };
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, SelectObject, BITMAPINFO,
-    BITMAPINFOHEADER, DIB_RGB_COLORS,
+    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, BITMAPINFO, BITMAPINFOHEADER,
+    DIB_RGB_COLORS,
 };
 use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
+    COINIT_APARTMENTTHREADED, STGM_READ,
+};
+use windows::Win32::System::Environment::ExpandEnvironmentStringsW;
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
 };
-use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
+use windows::Win32::UI::Shell::{
+    IShellLinkW, SHGetFileInfoW, ShellLink, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     DestroyIcon, GetForegroundWindow, GetIconInfo, GetWindowLongPtrW, GetWindowLongW,
-    GetWindowTextW, GetWindowThreadProcessId, SetForegroundWindow, SetWindowLongPtrW,
-    SetWindowLongW, SetWindowPos, GWL_EXSTYLE, GWL_STYLE, ICONINFO, SWP_FRAMECHANGED, SWP_NOMOVE,
-    SWP_NOSIZE, SWP_NOZORDER, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_POPUP,
+    GetWindowTextW, GetWindowThreadProcessId, PrivateExtractIconsW, SetForegroundWindow,
+    SetWindowLongPtrW, SetWindowLongW, SetWindowPos, GWL_EXSTYLE, GWL_STYLE, HICON, ICONINFO,
+    SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
+    WS_POPUP,
 };
 
 /// Configures a window handle with Windows-specific Spotlight styling: DWM polish
@@ -87,10 +95,128 @@ pub fn restore_foreground_window(hwnd: isize) {
     }
 }
 
-/// Extracts a high-resolution PNG icon from a Windows executable or shortcut.
+/// Initialises COM on the current thread for as long as the guard lives.
+///
+/// Icon extraction runs on pooled tokio workers and the index-watcher thread,
+/// none of which are guaranteed to have COM initialised, so `extract_icon`
+/// owns its own init/uninit pair. `CoUninitialize` is only balanced against a
+/// successful init; `RPC_E_CHANGED_MODE` (thread already in another apartment)
+/// is tolerated by simply proceeding without having initialised anything.
+struct ComGuard(bool);
+
+impl ComGuard {
+    fn new() -> Self {
+        // SAFETY: CoInitializeEx has no preconditions beyond being called from
+        // the thread it initialises; the result is checked before pairing it
+        // with CoUninitialize in Drop.
+        let hr = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
+        Self(hr.is_ok())
+    }
+}
+
+impl Drop for ComGuard {
+    fn drop(&mut self) {
+        if self.0 {
+            // SAFETY: balances the successful CoInitializeEx in `new`.
+            unsafe { CoUninitialize() };
+        }
+    }
+}
+
+fn wide_to_path(buf: &[u16]) -> PathBuf {
+    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    PathBuf::from(OsString::from_wide(&buf[..len]))
+}
+
+/// Resolves where a `.lnk` shortcut's icon comes from: its explicit icon
+/// location when set, otherwise its target. Returns `None` when the shortcut
+/// cannot be resolved (e.g. advertised MSI shortcuts without a path).
+fn resolve_shortcut_icon_source(lnk: &Path) -> Option<(PathBuf, i32)> {
+    let wide: Vec<u16> = lnk.as_os_str().encode_wide().chain(Some(0)).collect();
+
+    // SAFETY: COM is initialised by the caller's ComGuard; every buffer passed
+    // below is a live, correctly sized stack array.
+    unsafe {
+        let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).ok()?;
+        let persist: IPersistFile = link.cast().ok()?;
+        persist.Load(PCWSTR(wide.as_ptr()), STGM_READ).ok()?;
+
+        let mut icon_buf = [0u16; 260];
+        let mut index = 0i32;
+        if link.GetIconLocation(&mut icon_buf, &mut index).is_ok() && icon_buf[0] != 0 {
+            let mut expanded = [0u16; 520];
+            let n = ExpandEnvironmentStringsW(PCWSTR(icon_buf.as_ptr()), Some(&mut expanded));
+            let path = if n > 0 && (n as usize) <= expanded.len() {
+                wide_to_path(&expanded)
+            } else {
+                wide_to_path(&icon_buf)
+            };
+            return Some((path, index));
+        }
+
+        let mut target_buf = [0u16; 260];
+        link.GetPath(&mut target_buf, std::ptr::null_mut(), 0)
+            .ok()?;
+        if target_buf[0] == 0 {
+            return None;
+        }
+        Some((wide_to_path(&target_buf), 0))
+    }
+}
+
+/// Extracts the icon resource at `index` straight from an exe/dll/ico. Unlike
+/// `SHGetFileInfoW`, a failure yields no icon rather than the shell's generic
+/// placeholder, and no shortcut-arrow overlay is applied.
+fn extract_icon_from_resource(path: &Path, index: i32) -> Option<Vec<u8>> {
+    let mut wide = [0u16; 260];
+    let src: Vec<u16> = path.as_os_str().encode_wide().collect();
+    if src.is_empty() || src.len() >= wide.len() {
+        return None;
+    }
+    wide[..src.len()].copy_from_slice(&src);
+
+    let mut icons = [HICON::default(); 1];
+    // SAFETY: `wide` is a NUL-terminated buffer and `icons` has room for the
+    // single requested icon.
+    let n = unsafe { PrivateExtractIconsW(&wide, index, 32, 32, Some(&mut icons), None, 0) };
+    if n == 0 || n == u32::MAX || icons[0].is_invalid() {
+        return None;
+    }
+    hicon_to_png(icons[0])
+}
+
+/// Extracts a PNG icon from a Windows executable or shortcut.
+///
+/// For `.lnk` files the icon is taken from the shortcut's real source (icon
+/// location or target) so a target that is momentarily missing (a Scoop/winget
+/// update swapping directories) yields `None` — a retryable miss — instead of
+/// the shell's generic shortcut icon, which would otherwise be cached forever.
 pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
+    let _com = ComGuard::new();
+
+    let is_lnk = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("lnk"));
+    if is_lnk {
+        if let Some((source, index)) = resolve_shortcut_icon_source(path) {
+            if !source.exists() {
+                return None;
+            }
+            if let Some(png) = extract_icon_from_resource(&source, index) {
+                return Some(png);
+            }
+        }
+    }
+
+    shell_file_icon(path)
+}
+
+/// Icon the shell associates with `path` (exe resource, or a shortcut's
+/// overlaid icon). Last-resort path; may return the generic placeholder.
+fn shell_file_icon(path: &Path) -> Option<Vec<u8>> {
     let exe_path = path.to_str()?;
 
+    // Convert path to null-terminated wide string
     let wide_path: Vec<u16> = OsStr::new(exe_path)
         .encode_wide()
         .chain(std::iter::once(0))
@@ -98,6 +224,8 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
 
     let mut file_info = SHFILEINFOW::default();
 
+    // SAFETY: wide_path is a valid null-terminated UTF-16 string; SHGetFileInfoW
+    // writes into file_info which is properly initialized and sized.
     let result = unsafe {
         SHGetFileInfoW(
             PCWSTR(wide_path.as_ptr()),
@@ -116,7 +244,11 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     if hicon.is_invalid() {
         return None;
     }
+    hicon_to_png(hicon)
+}
 
+/// Renders an HICON to a 32px RGBA PNG and destroys the handle.
+fn hicon_to_png(hicon: HICON) -> Option<Vec<u8>> {
     let mut icon_info = ICONINFO::default();
     let got_info = unsafe { GetIconInfo(hicon, &mut icon_info) };
 
@@ -148,8 +280,6 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     };
 
     let mut pixels: Vec<u8> = vec![0u8; (size * size * 4) as usize];
-    let old_obj = unsafe { SelectObject(dc, icon_info.hbmColor.into()) };
-
     let rows = unsafe {
         GetDIBits(
             dc,
@@ -163,7 +293,6 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     };
 
     unsafe {
-        SelectObject(dc, old_obj);
         let _ = DeleteDC(dc);
         if !icon_info.hbmColor.is_invalid() {
             let _ = DeleteObject(icon_info.hbmColor.into());
@@ -243,5 +372,42 @@ pub fn get_frontmost_application_metadata() -> Option<(String, String, String)> 
             .to_string();
 
         Some((name, path, title))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Writes a `.lnk` at `lnk` pointing at `target` via IShellLinkW.
+    fn make_shortcut(lnk: &Path, target: &Path) {
+        let _com = ComGuard::new();
+        let wide = |p: &Path| -> Vec<u16> { p.as_os_str().encode_wide().chain(Some(0)).collect() };
+        // SAFETY: COM is initialised by `_com`; all pointers outlive the calls.
+        unsafe {
+            let link: IShellLinkW =
+                CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).unwrap();
+            link.SetPath(PCWSTR(wide(target).as_ptr())).unwrap();
+            let persist: IPersistFile = link.cast().unwrap();
+            persist.Save(PCWSTR(wide(lnk).as_ptr()), true).unwrap();
+        }
+    }
+
+    #[test]
+    #[ignore = "needs a Windows desktop session with shell32 icon resources"]
+    fn lnk_icon_comes_from_target_and_missing_target_is_none() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        let lnk = tmp.path().join("notepad.lnk");
+        make_shortcut(&lnk, Path::new(r"C:\Windows\System32\notepad.exe"));
+        let png = extract_icon(&lnk).expect("icon for shortcut with a valid target");
+        assert!(png.starts_with(b"\x89PNG"));
+
+        let gone = tmp.path().join("gone.lnk");
+        make_shortcut(&gone, &tmp.path().join("missing").join("app.exe"));
+        assert!(
+            extract_icon(&gone).is_none(),
+            "a missing target must be a retryable miss, not a generic icon"
+        );
     }
 }
