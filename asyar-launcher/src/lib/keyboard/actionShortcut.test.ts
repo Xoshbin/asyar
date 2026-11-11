@@ -54,6 +54,8 @@ describe('validateActionShortcut', () => {
     ['Shift+Enter', 'newline chord in textareas'],
     ['Alt+N', 'no Mod'],
     ['Space', 'plain key'],
+    ['Mod+Space', 'unbindable key'],
+    ['Mod+Alt+Shift+Space', 'unbindable key'],
     ['Escape', 'plain key'],
     ['Mod+Tab', 'unbindable key'],
     ['Mod+Escape', 'unbindable key'],

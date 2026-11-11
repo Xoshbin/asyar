@@ -80,6 +80,22 @@ describe('ActionService shortcut registration', () => {
     expect(() => svc.registerAction(base({ id: 'd', destructive: true }) as any)).not.toThrow();
   });
 
+  it.each(['Control+X', 'Control+Shift+X'])(
+    'reserves %s for confirmed destructive actions',
+    (shortcut) => {
+      for (const confirmation of [{}, { confirm: true }, { confirmInExecute: true }]) {
+        for (const destructive of [undefined, false]) {
+          expect(() =>
+            svc.registerAction(
+              base({ id: 'unsafe', shortcut, destructive, ...confirmation }) as any,
+            ),
+          ).toThrow(/destructive/i);
+          expect(svc.getAllActions().find((a) => a.id === 'unsafe')).toBeUndefined();
+        }
+      }
+    },
+  );
+
   it('allows Control+X and Control+Shift+X on confirmed destructive actions', () => {
     svc.registerAction(
       base({ id: 'del', shortcut: 'Control+X', destructive: true, confirm: true }) as any,

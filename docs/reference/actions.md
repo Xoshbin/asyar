@@ -129,7 +129,7 @@ A `shortcut` is a declaration, not just a hint: the launcher shows it next to th
 **Format:** `Mod[+Alt][+Shift]+Key`, bare `F1`–`F24`, `Enter`, `Alt+Enter`, `Control+Mod+Enter`, `Control+X`, or `Control+Shift+X`.
 
 - `Mod` is the platform's primary modifier: ⌘ on macOS, Ctrl on Windows and Linux. The hint is rendered per platform (`Mod+N` shows `⌘N` on macOS and `Ctrl N` elsewhere), so write it once.
-- Modifiers go in the order `Control`, `Mod`, `Alt`, `Shift`. The key is an uppercase letter or digit, one of ``, . / ; ' [ ] \ - = ` ``, `Space` or `Enter`.
+- Modifiers go in the order `Control`, `Mod`, `Alt`, `Shift`. The key is an uppercase letter or digit, one of `,`, `.`, `/`, `;`, `'`, `[`, `]`, `\`, `-`, `=`, `` ` ``, or `Enter`.
 - Examples: `Mod+N`, `Mod+Shift+C`, `Mod+Alt+Shift+F`, `Mod+Shift+,`, `F5`.
 
 **Rules**

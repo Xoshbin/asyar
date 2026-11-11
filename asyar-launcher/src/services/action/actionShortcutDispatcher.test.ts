@@ -206,6 +206,32 @@ describe('createActionShortcutDispatcher', () => {
       expect(blocked.run).not.toHaveBeenCalled();
     });
 
+    it('allows Enter from the main search input but rejects other interactive targets', () => {
+      const input = document.createElement('input');
+      input.className = 'search-input-clean';
+      document.body.appendChild(input);
+      input.focus();
+      const { dispatcher, run } = setup([action('paste', 'Enter')]);
+      const enter = key({ key: 'Enter', code: 'Enter' });
+      input.dispatchEvent(enter);
+      expect(dispatcher.handle(enter)).toBe(true);
+      expect(run).toHaveBeenCalledOnce();
+      for (const tag of ['input', 'textarea', 'select', 'button', 'a']) {
+        const other = document.createElement(tag);
+        other.tabIndex = 0;
+        document.body.appendChild(other);
+        const event = key({ key: 'Enter', code: 'Enter' });
+        other.dispatchEvent(event);
+        expect(dispatcher.handle(event)).toBe(false);
+        other.focus();
+        expect(dispatcher.handle(key({ key: 'Enter', code: 'Enter' }))).toBe(false);
+        other.remove();
+        input.focus();
+      }
+      expect(run).toHaveBeenCalledOnce();
+      input.remove();
+    });
+
     it('dispatches Control+X on macOS without disturbing Cmd+X Cut', () => {
       const { dispatcher, run } = setup([action('del', 'Control+X', { confirm: true })], {
         platform: 'macos',

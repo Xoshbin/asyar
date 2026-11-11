@@ -297,20 +297,20 @@ export class ActionService implements IActionService {
     const shortcut = 'shortcut' in action ? action.shortcut : undefined;
     if (shortcut === undefined) return;
     assertActionShortcut(shortcut, action.id);
-    if ('destructive' in action && action.destructive) {
-      if (shortcut !== 'Control+X' && shortcut !== 'Control+Shift+X') {
-        throw new Error(
-          `Action '${action.id}' is destructive and cannot bind shortcut '${shortcut}'; only confirmed delete chords (Control+X, Control+Shift+X) are permitted`,
-        );
-      }
+    const destructive = 'destructive' in action && action.destructive;
+    if (shortcut === 'Control+X' || shortcut === 'Control+Shift+X') {
       const hasConfirmation =
         ('confirm' in action && action.confirm === true) ||
         ('confirmInExecute' in action && action.confirmInExecute === true);
-      if (!hasConfirmation) {
+      if (!destructive || !hasConfirmation) {
         throw new Error(
-          `Action '${action.id}' is destructive and must require confirmation to bind '${shortcut}'`,
+          `Action '${action.id}' must be destructive and require confirmation to bind '${shortcut}'`,
         );
       }
+    } else if (destructive) {
+      throw new Error(
+        `Action '${action.id}' is destructive and cannot bind shortcut '${shortcut}'; only confirmed delete chords (Control+X, Control+Shift+X) are permitted`,
+      );
     }
     const visible = 'visible' in action ? (action as ApplicationAction).visible : undefined;
     if (visible) return;

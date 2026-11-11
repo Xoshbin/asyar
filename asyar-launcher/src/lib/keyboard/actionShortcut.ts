@@ -16,7 +16,7 @@
  *    (except for the approved `Control+X`, `Control+Shift+X`, and `Control+Mod+Enter` chords).
  *  - Modifiers appear in the fixed order Control, Mod, Alt, Shift.
  *  - The key is an uppercase letter or digit, one of `, . / ; ' [ ] \ - = \``,
- *    `Space` or `Enter`.
+ *    or `Enter`.
  *  - Plain keys and Shift/Alt-only chords belong to text entry and list
  *    navigation, never to actions — with F-keys, bare `Enter`, and `Alt+Enter`
  *    as the explicit exceptions.
@@ -31,7 +31,7 @@ export type ActionShortcutPlatform = HostPlatform;
 
 const F_KEY = /^F([1-9]|1[0-9]|2[0-4])$/;
 const PUNCTUATION = new Set([',', '.', '/', ';', "'", '[', ']', '\\', '-', '=', '`']);
-const NAMED_KEYS = new Set(['Space', 'Enter']);
+const NAMED_KEYS = new Set(['Enter']);
 const MODIFIER_ORDER = ['Control', 'Mod', 'Alt', 'Shift'];
 const APPROVED_CONTROL_CHORDS = new Set(['Control+X', 'Control+Shift+X', 'Control+Mod+Enter']);
 
@@ -69,7 +69,7 @@ export function validateActionShortcut(shortcut: string): string | null {
 
   if (key === '') return 'shortcut is missing its key';
   if (!isKey(key)) {
-    return `'${key}' is not a bindable key (use an uppercase letter or digit, punctuation, Space, Enter or F1–F24)`;
+    return `'${key}' is not a bindable key (use an uppercase letter or digit, punctuation, Enter or F1–F24)`;
   }
   for (const m of modifiers) {
     if (!MODIFIER_ORDER.includes(m)) {

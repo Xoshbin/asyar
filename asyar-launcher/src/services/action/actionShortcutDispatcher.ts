@@ -40,7 +40,7 @@ export interface ActionShortcutDispatcherDeps {
   platform: ActionShortcutPlatform;
   /** True while the ⌘K panel or a modal owns the keyboard. */
   isSuppressed: () => boolean;
-  /** Optional gate for bare `Enter` dispatch (defaults to checking non-interactive activeElement). */
+  /** Optional gate for bare `Enter` dispatch (defaults to allowing the main search input and non-interactive elements). */
   canDispatchEnter?: (event: KeyboardEvent) => boolean;
   /** Optional probe for active text selection (used on Windows/Linux so Ctrl+X runs native Cut when text is selected). */
   hasTextSelection?: () => boolean;
@@ -77,10 +77,8 @@ export function hasFocusedTextSelection(doc: Document | undefined): boolean {
   return false;
 }
 
-function isInteractiveActiveElement(doc: Document | undefined): boolean {
-  if (!doc) return false;
-  const active = doc.activeElement as HTMLElement | null;
-  if (!active) return false;
+function isInteractiveElement(active: HTMLElement | null, doc: Document | undefined): boolean {
+  if (!active || active === doc?.querySelector('input.search-input-clean')) return false;
   const tag = active.tagName?.toLowerCase();
   if (['input', 'textarea', 'select', 'button', 'a'].includes(tag)) return true;
   if (active.isContentEditable) return true;
@@ -121,7 +119,14 @@ export function createActionShortcutDispatcher(
     if (chord === 'Enter') {
       const allowed = deps.canDispatchEnter
         ? deps.canDispatchEnter(event)
-        : !isInteractiveActiveElement(typeof document !== 'undefined' ? document : undefined);
+        : !isInteractiveElement(
+            typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null,
+            typeof document !== 'undefined' ? document : undefined,
+          ) &&
+          !isInteractiveElement(
+            event.target as HTMLElement | null,
+            typeof document !== 'undefined' ? document : undefined,
+          );
       if (!allowed) return false;
     }
     const allowConditionalCut = deps.platform !== 'macos' && chord === 'Mod+X';
