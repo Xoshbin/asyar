@@ -1,5 +1,6 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
 import type { ISettingsService } from './ISettingsService';
+import { listenToHost } from '../ipc/hostChannel';
 
 export class SettingsServiceProxy extends BaseServiceProxy implements ISettingsService {
   async get<T>(section: string, key: string): Promise<T> {
@@ -17,10 +18,6 @@ export class SettingsServiceProxy extends BaseServiceProxy implements ISettingsS
       }
     };
 
-    window.addEventListener('message', handler);
-
-    return () => {
-      window.removeEventListener('message', handler);
-    };
+    return listenToHost(handler);
   }
 }

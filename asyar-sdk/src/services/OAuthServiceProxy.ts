@@ -1,5 +1,6 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
 import type { IOAuthService, OAuthConfig, OAuthToken, OAuthError } from './IOAuthService';
+import { listenToHost } from '../ipc/hostChannel';
 
 /**
  * SDK proxy for the OAuthService.
@@ -17,13 +18,17 @@ export class OAuthServiceProxy extends BaseServiceProxy implements IOAuthService
     return new Promise<OAuthToken>((resolve, reject) => {
       // crypto.randomUUID is available in modern browsers and in Tauri WebViews.
       const flowId = crypto.randomUUID();
+      let stopListening: () => void = () => {};
+      const cleanup = () => {
+        stopListening();
+      };
 
       const handler = (event: MessageEvent) => {
         const msg = event.data;
         if (msg?.type !== 'asyar:oauth:result') return;
         if (msg?.flowId !== flowId) return;
 
-        window.removeEventListener('message', handler);
+        cleanup();
 
         if (msg.error) {
           const err = msg.error as OAuthError;
@@ -35,7 +40,7 @@ export class OAuthServiceProxy extends BaseServiceProxy implements IOAuthService
 
       // Register BEFORE invoke — prevents race condition where deep-link
       // callback resolves synchronously before the listener is attached.
-      window.addEventListener('message', handler);
+      stopListening = listenToHost(handler);
 
       this.broker
         .invoke<OAuthToken | { pending: true }>('oauth:authorize', {
@@ -52,13 +57,13 @@ export class OAuthServiceProxy extends BaseServiceProxy implements IOAuthService
         .then((result) => {
           if ('accessToken' in result) {
             // Host returned a cached token directly — no postMessage needed
-            window.removeEventListener('message', handler);
+            cleanup();
             resolve(result as OAuthToken);
           }
           // If { pending: true }, keep the listener active and wait
         })
         .catch((err) => {
-          window.removeEventListener('message', handler);
+          cleanup();
           reject(err);
         });
     });
