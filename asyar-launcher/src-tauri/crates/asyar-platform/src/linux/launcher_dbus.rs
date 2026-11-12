@@ -47,7 +47,7 @@ pub enum LauncherDbusError {
 }
 
 impl fmt::Display for LauncherDbusError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::UnsupportedIdentifier(identifier) => write!(
                 formatter,
@@ -86,9 +86,12 @@ impl LauncherDbusEndpoint {
     }
 }
 
-/// Owns the connection so its well-known name and object remain registered
-/// until application shutdown.
+/// Owns the handler and the connection so the well-known name, its object,
+/// and the handler remain alive until application shutdown. The handler must
+/// be owned here: the endpoint only holds a Weak reference, so dropping the
+/// caller's Arc would otherwise kill every summon call after startup.
 pub struct LauncherDbusService {
+    _handler: Arc<dyn LauncherActionHandler>,
     _connection: zbus::blocking::Connection,
 }
 
@@ -116,6 +119,7 @@ pub fn start(
     }
 
     Ok(LauncherDbusService {
+        _handler: Arc::clone(handler),
         _connection: connection,
     })
 }
@@ -152,5 +156,53 @@ mod tests {
             error.to_string(),
             "unsupported application identifier for launcher D-Bus service: org.example.asyar"
         );
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod dbus_session_tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    struct RecordingHandler {
+        actions: Arc<Mutex<Vec<LauncherAction>>>,
+    }
+
+    impl LauncherActionHandler for RecordingHandler {
+        fn handle_action(&self, action: LauncherAction) -> Result<(), String> {
+            self.actions.lock().unwrap().push(action);
+            Ok(())
+        }
+    }
+
+    // Regression test: the caller drops its Arc after start(); the service
+    // must keep the handler alive so the endpoint's Weak can upgrade.
+    // Requires a session bus (CI runs this suite under dbus-run-session).
+    #[test]
+    fn service_keeps_handler_alive_after_caller_drops_arc() {
+        let actions = Arc::new(Mutex::new(Vec::new()));
+        let handler: Arc<dyn LauncherActionHandler> = Arc::new(RecordingHandler {
+            actions: Arc::clone(&actions),
+        });
+        let service = start("org.asyar.dev", &handler).expect("launcher dbus start");
+
+        drop(handler); // the refactor bug: this used to kill the endpoint's Weak
+
+        let connection = zbus::blocking::Connection::session().expect("session bus");
+        connection
+            .call_method(
+                Some("org.asyar.dev.Launcher"),
+                "/org/asyar/dev/Launcher",
+                Some("org.asyar.Launcher1"),
+                "Toggle",
+                &(),
+            )
+            .expect("Toggle must succeed while the service is alive");
+
+        assert_eq!(
+            actions.lock().unwrap().as_slice(),
+            &[LauncherAction::Toggle]
+        );
+        drop(service);
     }
 }
