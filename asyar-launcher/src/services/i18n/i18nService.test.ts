@@ -75,9 +75,7 @@ describe('I18nService', () => {
     'resolves the French catalog for %s',
     (locale) => {
       const service = new I18nService(locale);
-      expect(service.t('search.placeholder')).toBe(
-        'Rechercher des applications et des commandes…',
-      );
+      expect(service.t('search.placeholder')).toBe('Rechercher des applications et des commandes…');
     },
   );
 
