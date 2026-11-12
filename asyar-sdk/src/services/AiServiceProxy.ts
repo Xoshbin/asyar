@@ -1,4 +1,5 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
+import { listenToHost, postToHost } from '../ipc/hostChannel';
 import type { IAiService, AiCompletionOptions, AiStreamOptions } from '../contracts/IAiService';
 import type {
   WebSearchEngineRegistration,
@@ -73,10 +74,9 @@ export class AiServiceProxy extends BaseServiceProxy implements IAiService {
     let accumulated = '';
 
     return new Promise<string>((resolve, reject) => {
+      let stopListening: () => void = () => {};
       const cleanup = () => {
-        if (typeof window !== 'undefined') {
-          window.removeEventListener('message', onMessage);
-        }
+        stopListening();
         if (options?.signal) {
           options.signal.removeEventListener('abort', onAbort);
         }
@@ -94,15 +94,10 @@ export class AiServiceProxy extends BaseServiceProxy implements IAiService {
       };
 
       const onAbort = () => {
-        if (typeof window !== 'undefined' && window.parent) {
-          window.parent.postMessage(
-            {
-              type: 'asyar:stream:abort',
-              streamId,
-            },
-            '*',
-          );
-        }
+        postToHost({
+          type: 'asyar:stream:abort',
+          streamId,
+        });
         settle(options?.signal?.reason ?? new Error('Operation was aborted'));
       };
 
@@ -139,9 +134,7 @@ export class AiServiceProxy extends BaseServiceProxy implements IAiService {
         }
       };
 
-      if (typeof window !== 'undefined') {
-        window.addEventListener('message', onMessage);
-      }
+      stopListening = listenToHost(onMessage);
 
       this.broker
         .invoke<string>('ai:streamChat', {
