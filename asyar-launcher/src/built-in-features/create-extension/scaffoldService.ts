@@ -38,7 +38,7 @@ async function getLatestSdkVersion(): Promise<string> {
       return `^${output.stdout.trim()}`;
     }
   } catch {}
-  return '^4.17.0'; // Offline fallback
+  return '^4.18.1'; // Offline fallback
 }
 
 /**
