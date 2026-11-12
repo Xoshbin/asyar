@@ -94,12 +94,25 @@ function parseCheckboxes(section) {
 /**
  * Validate a pull request body against Asyar's contribution checklist.
  *
- * @param {{ body?: string, author?: string, changedFiles?: string[] }} input
+ * @param {{ body?: string, author?: string, changedFiles?: string[], exemptLogins?: string[] }} input
  * @returns {{ ok: boolean, skipped?: string, errors: string[] }}
  */
-export function validatePullRequestBody({ body = '', author = '', changedFiles = [] }) {
+export function validatePullRequestBody({
+  body = '',
+  author = '',
+  changedFiles = [],
+  exemptLogins = [],
+}) {
   if (EXEMPT_BOTS.has(author)) {
     return { ok: true, skipped: `Exempt bot author: ${author}`, errors: [] };
+  }
+
+  const normalizedAuthor = author.trim().toLowerCase();
+  if (
+    normalizedAuthor &&
+    exemptLogins.some((login) => login.trim().toLowerCase() === normalizedAuthor)
+  ) {
+    return { ok: true, skipped: `Exempt author: ${author}`, errors: [] };
   }
 
   const normalizedFiles = changedFiles.map((f) => f.trim()).filter(Boolean);
@@ -217,7 +230,7 @@ export function validatePullRequestBody({ body = '', author = '', changedFiles =
 }
 
 function parseArgs(argv) {
-  const args = { eventPath: null, bodyFile: null, filesPath: null };
+  const args = { eventPath: null, bodyFile: null, filesPath: null, exemptLogins: [] };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--event' && argv[i + 1]) {
@@ -226,13 +239,15 @@ function parseArgs(argv) {
       args.bodyFile = argv[++i];
     } else if (arg === '--files' && argv[i + 1]) {
       args.filesPath = argv[++i];
+    } else if (arg === '--exempt-login' && argv[i + 1]) {
+      args.exemptLogins.push(argv[++i]);
     }
   }
   return args;
 }
 
 function main() {
-  const { eventPath, bodyFile, filesPath } = parseArgs(process.argv.slice(2));
+  const { eventPath, bodyFile, filesPath, exemptLogins } = parseArgs(process.argv.slice(2));
   let body = '';
   let author = '';
   let changedFiles = [];
@@ -245,7 +260,7 @@ function main() {
     body = readFileSync(bodyFile, 'utf8');
   } else {
     console.error(
-      'Usage: node scripts/check-pr.mjs [--event <path> | --body-file <path>] [--files <path>]',
+      'Usage: node scripts/check-pr.mjs [--event <path> | --body-file <path>] [--files <path>] [--exempt-login <login>]',
     );
     process.exit(2);
   }
@@ -257,7 +272,7 @@ function main() {
       .filter(Boolean);
   }
 
-  const result = validatePullRequestBody({ body, author, changedFiles });
+  const result = validatePullRequestBody({ body, author, changedFiles, exemptLogins });
   if (result.ok) {
     const suffix = result.skipped ? ` (${result.skipped})` : '';
     console.log(`PR description check passed${suffix}.`);

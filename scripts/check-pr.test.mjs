@@ -158,3 +158,14 @@ test('fails when a required boundary checkbox is missing even if 4 boxes are che
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((err) => err.includes('Hot paths remain fast')));
 });
+
+test('exempts repository owner when passed in exemptLogins (case-insensitive)', () => {
+  const result = validatePullRequestBody({
+    body: 'Quick fix',
+    author: 'xoshbin',
+    changedFiles: ['asyar-launcher/src/App.svelte'],
+    exemptLogins: ['Xoshbin'],
+  });
+  assert.equal(result.ok, true);
+  assert.ok(result.skipped?.includes('Exempt author'));
+});
