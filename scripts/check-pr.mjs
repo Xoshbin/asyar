@@ -64,7 +64,13 @@ function extractSection(body, heading) {
  * @returns {string}
  */
 function stripHtmlComments(text) {
-  return text.replace(/<!--[\s\S]*?-->/g, '');
+  let previous;
+  let current = text;
+  do {
+    previous = current;
+    current = current.replace(/<!--[\s\S]*?-->/g, '');
+  } while (current !== previous);
+  return current;
 }
 
 /**
@@ -109,11 +115,34 @@ export function validatePullRequestBody({ body = '', author = '', changedFiles =
     errors.push('Missing `## What changed` section.');
   } else {
     const cleaned = stripHtmlComments(whatChanged)
-      .replace(/^\s*[-*]\s+\*\*(Before|After)[^*]*\*\*:\s*$/gim, '')
+      .replace(/^\s*[-*]\s+\*\*(Before|After)[^*]*?\*\*:?\s*$/gim, '')
       .trim();
     if (cleaned.length < 15) {
       errors.push(
         '`## What changed` needs a brief plain-English summary (and Before/After behavior) for reviewers.',
+      );
+    }
+  }
+
+  // 2. AI usage (Crest-style two-box rule, enforced for all PRs including docs-only)
+  const aiUsage = extractSection(normalizedBody, 'AI usage');
+  if (aiUsage === null) {
+    if (!docsOnly) {
+      errors.push('Missing `## AI usage` section.');
+    }
+  } else {
+    const boxes = parseCheckboxes(aiUsage);
+    const aiHelped = boxes.find((box) => /AI tools helped/i.test(box.label));
+    const skillRan = boxes.find((box) => /asyar-contribution/i.test(box.label));
+    if (!aiHelped || !skillRan) {
+      errors.push('Keep both checkboxes in `## AI usage` intact.');
+    } else if (aiHelped.checked && !skillRan.checked) {
+      errors.push(
+        'If AI tools helped produce this change, also run `.agents/skills/asyar-contribution/SKILL.md`, review every generated line, and check the second `## AI usage` box.',
+      );
+    } else if (!aiHelped.checked && skillRan.checked) {
+      errors.push(
+        'Check `AI tools helped produce this change.` if you ran the `asyar-contribution` skill.',
       );
     }
   }
@@ -127,7 +156,7 @@ export function validatePullRequestBody({ body = '', author = '', changedFiles =
     };
   }
 
-  // 2. Affected areas
+  // 3. Affected areas
   const affectedAreas = extractSection(normalizedBody, 'Affected areas');
   if (affectedAreas === null) {
     errors.push('Missing `## Affected areas` section.');
@@ -138,7 +167,7 @@ export function validatePullRequestBody({ body = '', author = '', changedFiles =
     }
   }
 
-  // 3. Manual smoke test & Validation
+  // 4. Manual smoke test & Validation
   const smokeTest = extractSection(normalizedBody, 'Manual smoke test & Validation');
   if (smokeTest === null) {
     errors.push('Missing `## Manual smoke test & Validation` section.');
@@ -157,27 +186,6 @@ export function validatePullRequestBody({ body = '', author = '', changedFiles =
     if (descriptionOnly.length < 10) {
       errors.push(
         'Briefly describe what you tested in the running app and which automated checks ran under `## Manual smoke test & Validation`.',
-      );
-    }
-  }
-
-  // 4. AI usage (Crest-style two-box rule)
-  const aiUsage = extractSection(normalizedBody, 'AI usage');
-  if (aiUsage === null) {
-    errors.push('Missing `## AI usage` section.');
-  } else {
-    const boxes = parseCheckboxes(aiUsage);
-    const aiHelped = boxes.find((box) => /AI tools helped/i.test(box.label));
-    const skillRan = boxes.find((box) => /asyar-contribution/i.test(box.label));
-    if (!aiHelped || !skillRan) {
-      errors.push('Keep both checkboxes in `## AI usage` intact.');
-    } else if (aiHelped.checked && !skillRan.checked) {
-      errors.push(
-        'If AI tools helped produce this change, also run `.agents/skills/asyar-contribution/SKILL.md`, review every generated line, and check the second `## AI usage` box.',
-      );
-    } else if (!aiHelped.checked && skillRan.checked) {
-      errors.push(
-        'Check `AI tools helped produce this change.` if you ran the `asyar-contribution` skill.',
       );
     }
   }

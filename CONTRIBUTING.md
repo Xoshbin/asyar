@@ -173,9 +173,9 @@ If you want to contribute but aren't sure where to start:
      - **Affected areas**: Check all applicable areas (`Launcher UI / UX`, `SDK / Extensions`, `Rust Backend / Platform`, `Docs / Tooling / Other`).
      - **Manual smoke test & Validation**: Confirm your visual smoke test and list the checks you ran.
    - Link related issue numbers (e.g., `Fixes #123`).
-   - You can validate your PR description locally before pushing with:
+   - You can validate your PR description locally before pushing (passing changed files so docs/locale-only exemptions match CI):
      ```bash
-     node scripts/check-pr.mjs --body-file <path-to-pr-body.md>
+     node scripts/check-pr.mjs --body-file <path-to-pr-body.md> --files <(git diff --name-only origin/main...HEAD)
      ```
 
 ---

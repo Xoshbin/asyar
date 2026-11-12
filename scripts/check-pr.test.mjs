@@ -103,3 +103,43 @@ Updated the extension quickstart guide with the new dev command.
   assert.equal(result.ok, true, result.errors.join('\n'));
   assert.equal(isDocsOrLocaleFile('asyar-launcher/src/App.svelte'), false);
 });
+
+test('fails when Before/After placeholders are left empty even if other sections are filled', () => {
+  const emptyWhatChanged = VALID_BODY.replace(
+    /## What changed[\s\S]*?## Affected areas/,
+    `## What changed
+
+<!-- Describe the fix or feature in plain English from the user's or extension developer's POV. -->
+
+- **Before (issue / current behavior):** <!-- How to reproduce or what happened previously -->
+- **After (fix / new behavior):** <!-- What happens now and how to see it -->
+
+## Affected areas`,
+  );
+  const result = validatePullRequestBody({
+    body: emptyWhatChanged,
+    author: 'contributor',
+    changedFiles: ['asyar-launcher/src/App.svelte'],
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((err) => err.includes('What changed')));
+});
+
+test('enforces AI usage two-box rule on docs-only PRs', () => {
+  const docsWithPartialAi = `## What changed
+
+Updated the contributing guide with clearer formatting.
+
+## AI usage
+
+- [x] AI tools helped produce this change.
+- [ ] I ran the \`asyar-contribution\` skill (\`.agents/skills/asyar-contribution/SKILL.md\`), followed it, and reviewed every generated line.
+`;
+  const result = validatePullRequestBody({
+    body: docsWithPartialAi,
+    author: 'contributor',
+    changedFiles: ['CONTRIBUTING.md'],
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((err) => err.includes('asyar-contribution')));
+});
