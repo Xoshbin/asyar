@@ -161,12 +161,28 @@ If you want to contribute but aren't sure where to start:
    - Every pull request must address **exactly one feature or bug fix**.
    - Do not bundle unrelated changes together (e.g., pairing a UI redesign with search ranking tweaks and action service modifications). Small, focused PRs are much easier to review, test, and merge quickly. Large, multi-concern PRs will be asked to be split.
 2. **Branching**: Create a feature branch off `main` (e.g. `feat/my-feature` or `fix/issue-description`).
-3. **Testing & Verification**:
-   - Write automated unit tests for new logic or bug fixes.
-   - Run the full local CI verification matrix: `pnpm check:ci` (ensures Prettier formatting, design token compliance, frontend tests, i18n enforcement, cargo fmt, clippy, and Rust tests all pass).
+3. **Testing & Manual Smoke Test**:
+   - Write automated unit tests for new logic or bug fixes and run `pnpm check:ci` (ensures Prettier formatting, design token compliance, frontend tests, i18n enforcement, `cargo fmt`, `clippy`, and Rust tests all pass).
+   - **Manual Smoke Test**: Automated tests do not replace running the app. For code changes, manually smoke-test your fix or feature in `pnpm dev`, visually verify it works, and check the smoke-test confirmation in the PR template. Screenshots or screen recordings are optional (encouraged for UI changes, never required). Docs-only and locale-only PRs are exempt from smoke testing.
 4. **Code Style & Formatting**:
    - Run `pnpm format` before opening a pull request.
    - Use Svelte 5 runes (`$state`, `$derived`, `$props`, `$effect`) exclusively. Svelte 4 syntax (`export let`, `$:`) is not accepted.
 5. **Pull Request Description**:
-   - Describe the problem being solved and how your changes address it.
+   - Fill out [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) so a reviewer can understand the PR quickly without reading every diff:
+     - **What changed**: Explain the change from the user's or extension developer's POV using **Before** (steps to reproduce / current behavior) and **After** (new behavior / how to see the fix).
+     - **Affected areas**: Check all applicable areas (`Launcher UI / UX`, `SDK / Extensions`, `Rust Backend / Platform`, `Docs / Tooling / Other`).
+     - **Manual smoke test & Validation**: Confirm your visual smoke test and list the checks you ran.
    - Link related issue numbers (e.g., `Fixes #123`).
+   - You can validate your PR description locally before pushing with:
+     ```bash
+     node scripts/check-pr.mjs --body-file <path-to-pr-body.md>
+     ```
+
+---
+
+## AI-Assisted Contributions
+
+You are welcome to use AI coding tools when contributing to Asyar, provided you remain responsible for understanding, validating, and explaining everything you submit:
+
+1. **Use the Contribution Skill**: Any change an AI tool helped produce should follow the [`asyar-contribution` skill](.agents/skills/asyar-contribution/SKILL.md), which walks through scope classification, `pnpm check:ci`, manual smoke-test confirmation, and drafting a clean PR description.
+2. **Declare AI Usage**: The PR template includes an `AI usage` section with two checkboxes (`AI tools helped produce this change.` and `I ran the asyar-contribution skill...`). Leave both empty for human-only PRs; if AI tools helped, check **both** boxes after reviewing every generated line. The **PR Checks** workflow fails if the first box is checked without the second.

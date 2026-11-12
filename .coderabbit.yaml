@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: '@coderabbitai summary'
+  collapse_walkthrough: false
+  poem: false
+  sequence_diagrams: false
+  changed_files_summary: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: 'asyar-launcher/src/**'
+      instructions: |
+        Summarize any user-facing UI/UX changes from the end user's point of view.
+        Flag any Svelte 4 syntax (`export let`, `$:`), hardcoded user-facing strings (must use `t()` from `src/services/i18n`), or non-token CSS values.
+    - path: 'asyar-sdk/**'
+      instructions: |
+        Highlight any public API, manifest schema, or host-extension IPC contract changes.
+        Flag breaking changes to published third-party extensions that lack a compatibility adapter or deprecation notice.
+    - path: 'asyar-launcher/src-tauri/**'
+      instructions: |
+        Summarize backend, Tauri command, search, storage, or OS-specific changes and note any cross-platform impact (macOS, Windows, Linux).
