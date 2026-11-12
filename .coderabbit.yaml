@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: '@coderabbitai summary'
+  collapse_walkthrough: false
+  poem: false
+  sequence_diagrams: false
+  changed_files_summary: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: 'asyar-launcher/src/**'
+      instructions: |
+        Summarize any user-facing UI/UX changes from the end user's point of view.
+        Flag any Svelte 4 syntax (`export let`, `$:`), hardcoded user-facing strings (must use `t()` from `src/services/i18n`), or non-token CSS values.
+        Flag performance regressions: awaiting extension/network/disk work during `showWindow`/`hideWindow` or keystrokes, serializing frontend in-memory arrays over Tauri IPC on keystrokes, heavy compute on the main thread instead of `role: 'worker'`, or unnecessary reactive allocations in search-result hot paths.
+    - path: 'asyar-sdk/**'
+      instructions: |
+        Highlight any public API, manifest schema, or host-extension IPC contract changes.
+        Flag breaking changes to published third-party extensions that lack a compatibility adapter or deprecation notice.
+    - path: 'asyar-launcher/src-tauri/**'
+      instructions: |
+        Summarize backend, Tauri command, search, storage, or OS-specific changes and note any cross-platform impact (macOS, Windows, Linux).
+        Flag performance regressions in hot paths: synchronous disk/network I/O on command/search threads, unnecessary `.clone()`/`.to_vec()` in tight loops, unindexed SQLite queries, or work that blocks launcher reveal/keystroke latency.
