@@ -63,12 +63,13 @@ jobs:
           echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
 
       # SDK releases are stable by default, but beta builds (e.g. 2.7.0-1)
-      # must still be marked as prereleases. Derive the flag from the version
-      # after stripping the `sdk-v` prefix, rather than from the tag shape.
+      # must still be marked as prereleases. Derive the flag from the SDK's
+      # own version rather than the tag shape, so a hyphen in the version
+      # (betas) still marks a prerelease while stable versions don't.
       - name: Derive prerelease flag from version
         id: pre
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(node -p "require('./asyar-sdk/package.json').version")
           if [[ "$VERSION" == *-* ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
