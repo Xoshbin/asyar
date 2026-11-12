@@ -144,3 +144,17 @@ Updated the contributing guide with clearer formatting.
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((err) => err.includes('asyar-contribution')));
 });
+
+test('fails when a required boundary checkbox is missing even if 4 boxes are checked', () => {
+  const missingHotPathBoundary = VALID_BODY.replace(
+    '- [x] Hot paths remain fast and unblocked (window reveal, keystroke search, and 120 FPS UI responsiveness).',
+    '- [x] Some unrelated custom checkbox.',
+  );
+  const result = validatePullRequestBody({
+    body: missingHotPathBoundary,
+    author: 'contributor',
+    changedFiles: ['asyar-launcher/src/App.svelte'],
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((err) => err.includes('Hot paths remain fast')));
+});

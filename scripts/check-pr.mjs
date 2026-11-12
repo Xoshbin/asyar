@@ -191,13 +191,25 @@ export function validatePullRequestBody({ body = '', author = '', changedFiles =
   }
 
   // 5. Boundaries
+  const requiredBoundaries = [
+    { name: 'Zero-hardcoded-strings i18n', pattern: /Zero-hardcoded-strings i18n/i },
+    {
+      name: 'Third-party extension compatibility',
+      pattern: /Third-party extension compatibility/i,
+    },
+    { name: 'Hot paths remain fast', pattern: /Hot paths remain fast/i },
+    { name: 'pnpm check:ci', pattern: /pnpm check:ci/i },
+  ];
   const boundaries = extractSection(normalizedBody, 'Boundaries');
   if (boundaries === null) {
     errors.push('Missing `## Boundaries` section.');
   } else {
     const boxes = parseCheckboxes(boundaries);
-    if (boxes.length < 4 || boxes.some((box) => !box.checked)) {
-      errors.push('All checkboxes under `## Boundaries` must be checked.');
+    for (const required of requiredBoundaries) {
+      const match = boxes.find((box) => required.pattern.test(box.label));
+      if (!match || !match.checked) {
+        errors.push(`Confirm \`${required.name}\` under \`## Boundaries\`.`);
+      }
     }
   }
 
