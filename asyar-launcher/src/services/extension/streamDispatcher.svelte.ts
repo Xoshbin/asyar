@@ -1,6 +1,5 @@
 import { logService } from '../log/logService';
-import { getExtensionFrameOrigin } from '$lib/ipc/extensionOrigin';
-import { pickExtensionIframe } from './extensionIframeSelector';
+import { postToExtension } from './extensionDelivery';
 
 export interface StreamHandle {
   sendChunk(data: unknown): void;
@@ -106,18 +105,13 @@ export class StreamDispatcher {
     entry: StreamEntry,
     payload: { phase: 'chunk' | 'done' | 'error'; data?: unknown },
   ): void {
-    // Prefer the originating iframe role; legacy callers without an origin
-    // fall back to view-first, matching the historical default.
-    const iframe = pickExtensionIframe(entry.extensionId, entry.originRole ?? 'view');
-    if (!iframe?.contentWindow) {
-      logService.warn(
-        `[StreamDispatcher] iframe for ${entry.extensionId} not found; dropping ${payload.phase} message`,
-      );
-      return;
-    }
-    iframe.contentWindow.postMessage(
+    // Worker streams go to the Web Worker; view streams (and legacy callers
+    // without an origin) go to the view iframe. postToExtension owns that choice.
+    postToExtension(
+      entry.extensionId,
+      entry.originRole ?? 'view',
       { type: 'asyar:stream', streamId, ...payload },
-      getExtensionFrameOrigin(entry.extensionId),
+      { logTag: 'StreamDispatcher' },
     );
   }
 }
