@@ -180,7 +180,7 @@ Copy the structure of `en.json` and translate each leaf string value:
 
 Register your new catalog in [`asyar-launcher/src/services/i18n/i18nService.svelte.ts`](../../asyar-launcher/src/services/i18n/i18nService.svelte.ts) or dynamically via `i18nService.registerCatalog('ckb', ckbCatalog)`.
 
-The catalogs registered today are `en`, `pt-BR`, `zh-CN` and `zh-Hant`. Every catalog must contain exactly the keys of `en.json` and keep the same `{placeholders}`; `catalogs.test.ts` enforces this.
+The catalogs registered today are `en`, `fr`, `pt-BR`, `zh-CN` and `zh-Hant`. Every catalog must contain exactly the keys of `en.json` and keep the same `{placeholders}`; `catalogs.test.ts` enforces this.
 
 ### Step 4: Add the Native (Rust) Strings
 

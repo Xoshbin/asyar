@@ -71,6 +71,14 @@ describe('I18nService', () => {
     expect(service.t('search.placeholder')).toBe('Pesquisar aplicativos e comandos...');
   });
 
+  it.each(['fr', 'fr-FR', 'fr-CA', 'fr_BE.UTF-8', 'fr-CH'])(
+    'resolves the French catalog for %s',
+    (locale) => {
+      const service = new I18nService(locale);
+      expect(service.t('search.placeholder')).toBe('Rechercher des applications et des commandes…');
+    },
+  );
+
   describe('Chinese locale resolution', () => {
     const SIMPLIFIED = '搜索应用与命令……';
     const TRADITIONAL = '搜尋應用程式與命令……';

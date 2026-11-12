@@ -5,13 +5,14 @@
 use super::ParsedLocale;
 
 /// Languages with a native-string table. Mirrors the frontend catalogs
-/// (`en`, `pt-BR`, `zh-CN`, `zh-Hant`).
+/// (`en`, `pt-BR`, `zh-CN`, `zh-Hant`, `fr`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeLang {
     En,
     PtBr,
     ZhHans,
     ZhHant,
+    Fr,
 }
 
 /// Strings Rust shows to the user without going through the frontend.
@@ -32,6 +33,7 @@ impl NativeLang {
     pub fn from_locale(locale: &ParsedLocale) -> Self {
         match locale.language.as_str() {
             "pt" => Self::PtBr,
+            "fr" => Self::Fr,
             "zh" => match (locale.script.as_deref(), locale.region.as_deref()) {
                 (Some("Hant"), _) => Self::ZhHant,
                 (Some(_), _) => Self::ZhHans,
@@ -51,31 +53,37 @@ pub fn native_text(locale: &ParsedLocale, key: NativeText) -> &'static str {
         (NativeText::TrayQuit, NativeLang::PtBr) => "Sair do Asyar",
         (NativeText::TrayQuit, NativeLang::ZhHans) => "退出 Asyar",
         (NativeText::TrayQuit, NativeLang::ZhHant) => "結束 Asyar",
+        (NativeText::TrayQuit, NativeLang::Fr) => "Quitter Asyar",
 
         (NativeText::TrayCheckUpdates, NativeLang::En) => "Check for Updates",
         (NativeText::TrayCheckUpdates, NativeLang::PtBr) => "Verificar atualizações",
         (NativeText::TrayCheckUpdates, NativeLang::ZhHans) => "检查更新",
         (NativeText::TrayCheckUpdates, NativeLang::ZhHant) => "檢查更新",
+        (NativeText::TrayCheckUpdates, NativeLang::Fr) => "Rechercher des mises à jour",
 
         (NativeText::TraySettings, NativeLang::En) => "Settings",
         (NativeText::TraySettings, NativeLang::PtBr) => "Configurações",
         (NativeText::TraySettings, NativeLang::ZhHans) => "设置",
         (NativeText::TraySettings, NativeLang::ZhHant) => "設定",
+        (NativeText::TraySettings, NativeLang::Fr) => "Réglages",
 
         (NativeText::SettingsWindowTitle, NativeLang::En) => "Asyar Settings",
         (NativeText::SettingsWindowTitle, NativeLang::PtBr) => "Configurações do Asyar",
         (NativeText::SettingsWindowTitle, NativeLang::ZhHans) => "Asyar 设置",
         (NativeText::SettingsWindowTitle, NativeLang::ZhHant) => "Asyar 設定",
+        (NativeText::SettingsWindowTitle, NativeLang::Fr) => "Réglages Asyar",
 
         (NativeText::StickyNoteTitle, NativeLang::En) => "Sticky Note",
         (NativeText::StickyNoteTitle, NativeLang::PtBr) => "Nota adesiva",
         (NativeText::StickyNoteTitle, NativeLang::ZhHans) => "便笺",
         (NativeText::StickyNoteTitle, NativeLang::ZhHant) => "便利貼",
+        (NativeText::StickyNoteTitle, NativeLang::Fr) => "Pense-bête",
 
         (NativeText::OnboardingTitle, NativeLang::En) => "Welcome to Asyar",
         (NativeText::OnboardingTitle, NativeLang::PtBr) => "Boas-vindas ao Asyar",
         (NativeText::OnboardingTitle, NativeLang::ZhHans) => "欢迎使用 Asyar",
         (NativeText::OnboardingTitle, NativeLang::ZhHant) => "歡迎使用 Asyar",
+        (NativeText::OnboardingTitle, NativeLang::Fr) => "Bienvenue dans Asyar",
     }
 }
 
@@ -106,6 +114,9 @@ mod tests {
         assert_eq!(lang("de-DE"), NativeLang::En);
         assert_eq!(lang("pt-BR"), NativeLang::PtBr);
         assert_eq!(lang("pt-PT"), NativeLang::PtBr);
+        assert_eq!(lang("fr-FR"), NativeLang::Fr);
+        assert_eq!(lang("fr-CA"), NativeLang::Fr);
+        assert_eq!(lang("fr"), NativeLang::Fr);
     }
 
     #[test]
@@ -131,7 +142,7 @@ mod tests {
             NativeText::StickyNoteTitle,
             NativeText::OnboardingTitle,
         ];
-        for tag in ["en-US", "pt-BR", "zh-CN", "zh-Hant"] {
+        for tag in ["en-US", "pt-BR", "zh-CN", "zh-Hant", "fr-FR"] {
             let locale = ParsedLocale::parse(tag).unwrap();
             for key in keys {
                 assert!(!native_text(&locale, key).is_empty(), "{tag} {key:?}");
