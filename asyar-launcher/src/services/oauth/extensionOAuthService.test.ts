@@ -26,7 +26,7 @@ if (typeof document === 'undefined') {
 
 function setMockIframes(n: number): typeof mockIframes {
   mockIframes = Array.from({ length: n }, () => makeMockIframe());
-  mockPostMessage = mockIframes[0].contentWindow.postMessage;
+  mockPostMessage = mockIframes[0]?.contentWindow.postMessage ?? vi.fn();
   return mockIframes;
 }
 
@@ -55,6 +55,12 @@ vi.mock('../log/logService', () => ({
   logService: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
+const workerHostMock = vi.hoisted(() => ({
+  hasWorker: vi.fn((_id: string) => false),
+  post: vi.fn(),
+}));
+vi.mock('../extension/workerHost.svelte', () => ({ workerHost: workerHostMock }));
+
 // ── Imports ───────────────────────────────────────────────────────────────────
 
 import { ExtensionOAuthService } from './extensionOAuthService.svelte';
@@ -81,6 +87,7 @@ function validToken(): commands.OAuthTokenPayload {
 describe('ExtensionOAuthService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    workerHostMock.hasWorker.mockReturnValue(false);
   });
 
   describe('authorize()', () => {
@@ -263,6 +270,27 @@ describe('ExtensionOAuthService', () => {
           expect.any(String),
         );
       }
+    });
+
+    it('delivers result to the Web Worker when workerHost has an active worker', async () => {
+      const service = makeService();
+      const token = validToken();
+      setMockIframes(0);
+      workerHostMock.hasWorker.mockReturnValue(true);
+
+      vi.mocked(commands.oauthExchangeCode).mockResolvedValue({
+        extensionId: 'ext.worker',
+        flowId: 'flow-worker',
+        token,
+      });
+
+      await (service as any)._handleCallback('asyar://oauth/callback?code=c&state=state-w');
+
+      expect(workerHostMock.post).toHaveBeenCalledWith('ext.worker', {
+        type: 'asyar:oauth:result',
+        flowId: 'flow-worker',
+        token,
+      });
     });
   });
 });

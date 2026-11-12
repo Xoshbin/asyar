@@ -4,6 +4,7 @@ import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import * as commands from '../../lib/ipc/commands';
 import type { OAuthTokenPayload } from '../../lib/ipc/commands';
 import { appListen } from '../../lib/ipc/bridgeEvents';
+import { workerHost } from '../extension/workerHost.svelte';
 
 export class ExtensionOAuthService {
   /**
@@ -116,17 +117,20 @@ export class ExtensionOAuthService {
 
   private _postToIframe(extensionId: string, flowId: string, payload: object): void {
     // OAuth can be initiated from either role (worker or view); broadcast to
-    // all iframes of this extension and rely on the SDK OAuthServiceProxy's
-    // flowId filter to drop the message in the non-initiator iframe. Worker
-    // and view share origin (asyar-extension://<id>), so the token payload
-    // crossing between them is within the extension's trust boundary.
+    // the active Web Worker (if mounted) and all iframes of this extension,
+    // relying on the SDK OAuthServiceProxy's flowId filter to drop the message
+    // in non-initiators. Worker and view share the extension's trust boundary.
+    const message = { type: 'asyar:oauth:result', flowId, ...payload };
+    if (workerHost.hasWorker(extensionId)) {
+      workerHost.post(extensionId, message);
+    }
     const iframes = Array.from(
       document.querySelectorAll<HTMLIFrameElement>(`iframe[data-extension-id="${extensionId}"]`),
     );
     const origin = getExtensionFrameOrigin(extensionId);
     for (const iframe of iframes) {
       if (!iframe.contentWindow) continue;
-      iframe.contentWindow.postMessage({ type: 'asyar:oauth:result', flowId, ...payload }, origin);
+      iframe.contentWindow.postMessage(message, origin);
     }
   }
 }
