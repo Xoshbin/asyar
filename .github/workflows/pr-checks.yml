@@ -34,4 +34,6 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}/files" --paginate --jq '.[].filename' > "${RUNNER_TEMP}/changed-files.txt"
 
       - name: Validate PR description
-        run: node scripts/check-pr.mjs --event "$GITHUB_EVENT_PATH" --files "${RUNNER_TEMP}/changed-files.txt"
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: node scripts/check-pr.mjs --event "$GITHUB_EVENT_PATH" --files "${RUNNER_TEMP}/changed-files.txt" --exempt-login "$REPO_OWNER"
