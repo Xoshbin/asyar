@@ -67,7 +67,7 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           draft: false
-          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
+          prerelease: false
           generate_release_notes: true
           # GitHub's auto-notes otherwise diffs against the most recently
           # published release repo-wide, which is usually a launcher `v*`
