@@ -18,6 +18,7 @@ reviews:
       instructions: |
         Summarize any user-facing UI/UX changes from the end user's point of view.
         Flag any Svelte 4 syntax (`export let`, `$:`), hardcoded user-facing strings (must use `t()` from `src/services/i18n`), or non-token CSS values.
+        Flag performance regressions: awaiting extension/network/disk work during `showWindow`/`hideWindow` or keystrokes, serializing frontend in-memory arrays over Tauri IPC on keystrokes, heavy compute on the main thread instead of `role: 'worker'`, or unnecessary reactive allocations in search-result hot paths.
     - path: 'asyar-sdk/**'
       instructions: |
         Highlight any public API, manifest schema, or host-extension IPC contract changes.
@@ -25,3 +26,4 @@ reviews:
     - path: 'asyar-launcher/src-tauri/**'
       instructions: |
         Summarize backend, Tauri command, search, storage, or OS-specific changes and note any cross-platform impact (macOS, Windows, Linux).
+        Flag performance regressions in hot paths: synchronous disk/network I/O on command/search threads, unnecessary `.clone()`/`.to_vec()` in tight loops, unindexed SQLite queries, or work that blocks launcher reveal/keystroke latency.

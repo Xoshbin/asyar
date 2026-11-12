@@ -196,7 +196,7 @@ export function validatePullRequestBody({ body = '', author = '', changedFiles =
     errors.push('Missing `## Boundaries` section.');
   } else {
     const boxes = parseCheckboxes(boundaries);
-    if (boxes.length < 3 || boxes.some((box) => !box.checked)) {
+    if (boxes.length < 4 || boxes.some((box) => !box.checked)) {
       errors.push('All checkboxes under `## Boundaries` must be checked.');
     }
   }

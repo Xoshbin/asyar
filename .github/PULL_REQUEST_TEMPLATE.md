@@ -31,4 +31,5 @@
 
 - [ ] Zero-hardcoded-strings i18n policy respected (if UI strings were added/changed).
 - [ ] Third-party extension compatibility preserved (no breaking changes to published extension contracts without deprecation/boundary adapter).
+- [ ] Hot paths remain fast and unblocked (window reveal, keystroke search, and 120 FPS UI responsiveness).
 - [ ] `pnpm check:ci` (or the relevant inner-loop checks) passes locally.

@@ -30,6 +30,7 @@ Opened Calculator view in \`pnpm dev\`, pressed Escape, and verified it returned
 
 - [x] Zero-hardcoded-strings i18n policy respected (if UI strings were added/changed).
 - [x] Third-party extension compatibility preserved (no breaking changes to published extension contracts without deprecation/boundary adapter).
+- [x] Hot paths remain fast and unblocked (window reveal, keystroke search, and 120 FPS UI responsiveness).
 - [x] \`pnpm check:ci\` (or the relevant inner-loop checks) passes locally.
 `;
 

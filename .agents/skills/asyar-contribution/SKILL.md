@@ -27,6 +27,7 @@ Verify that:
 
 - Zero-hardcoded-strings i18n policy is respected (use `t()` from `src/services/i18n` for any user-facing strings).
 - No breaking changes were introduced to published third-party extension contracts without a deprecation/compatibility adapter.
+- Hot paths remain fast and unblocked (window reveal, keystroke search, and 120 FPS UI responsiveness).
 - All modified files are formatted (`pnpm format` / `cargo fmt`).
 
 ## 3. Confirm Manual Smoke Test (Required for Code Changes)
