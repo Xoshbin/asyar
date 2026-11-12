@@ -285,4 +285,18 @@ describe('Settings → Applications enable toggle', () => {
     expect(setApplicationEnabledMock).toHaveBeenCalledWith('a1', false);
     expect(updateSettingsMock).not.toHaveBeenCalled();
   });
+
+  it('renders application icons through AppIcon and shows the fallback when missing', () => {
+    applicationsCache.apps = [
+      { id: 'a1', name: 'With Icon', icon: 'asyar-icon://localhost/app.png' } as never,
+      { id: 'a2', name: 'No Icon', icon: null } as never,
+    ];
+    applicationsCache.hasLoadedOnce = true;
+    const { container } = render(ApplicationsTab);
+
+    const imgs = container.querySelectorAll('img.app-icon');
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]?.getAttribute('src')).toBe('asyar-icon://localhost/app.png');
+    expect(container.querySelector('.app-icon-fallback')?.textContent).toBe('🖥️');
+  });
 });
