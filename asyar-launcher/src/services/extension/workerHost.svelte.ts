@@ -225,6 +225,8 @@ export class WorkerHost {
   private failWorker(extensionId: string, mountToken: number, reason?: unknown): void {
     const current = this.activeWorkers.get(extensionId);
     if (current && current.mountToken !== mountToken) return;
+    const detail = String(reason ?? 'Worker startup failed');
+    logService.error(`[workerHost] worker failed for ${extensionId}: ${detail}`);
     this.unmount(extensionId, 'worker_failed');
     void feedbackService.report({
       source: 'extension',
@@ -233,7 +235,7 @@ export class WorkerHost {
       retryable: true,
       context: { extensionId, role: 'worker' },
       extensionId,
-      developerDetail: String(reason ?? 'Worker startup failed'),
+      developerDetail: detail,
     });
   }
 
@@ -280,6 +282,8 @@ export class WorkerHost {
             this.fallbackToIframe(extensionId, mountToken, detail);
             return;
           }
+          const detail = String((err as ErrorEvent)?.message || err);
+          logService.error(`[workerHost] worker error for ${extensionId}: ${detail}`);
           feedbackService.report({
             source: 'extension',
             kind: 'extension_crash',
@@ -288,7 +292,7 @@ export class WorkerHost {
             context: {
               extensionId,
               role: 'worker',
-              detail: String((err as ErrorEvent)?.message || err),
+              detail,
             },
             extensionId,
           });
@@ -340,6 +344,9 @@ export class WorkerHost {
         this.fallbackToIframe(extensionId, mountToken, data.payload?.developerDetail);
         return;
       }
+      logService.error(
+        `[workerHost] uncaught error in worker ${extensionId}: ${data.payload?.developerDetail ?? data.payload?.kind ?? 'unknown'}`,
+      );
       void feedbackService.report({
         source: 'extension',
         kind: data.payload?.kind ?? 'worker_uncaught',

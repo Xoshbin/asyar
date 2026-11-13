@@ -1450,6 +1450,17 @@ pub(crate) async fn set_enabled(
                 ),
             }
         }
+
+        // Clear any stale feedback diagnostics published by or for this extension.
+        if let Some(feedback_state) =
+            app_handle.try_state::<crate::feedback::channel::FeedbackChannelState>()
+        {
+            if matches!(feedback_state.dismiss_for_extension(extension_id), Ok(true)) {
+                if let Ok(current) = feedback_state.current() {
+                    crate::event_bridge::bridge_emit(app_handle, "feedback:changed", current);
+                }
+            }
+        }
     } else if has_background_main {
         // Register any manifest-declared agent tools so they're available
         // to the agent runtime as soon as the extension's worker comes up.

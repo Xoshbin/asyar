@@ -1,5 +1,5 @@
 import type { IconSource } from '../../lib/icon';
-import { setWorkerEntryProvider } from './workerRegistry.svelte';
+import { setWorkerEntryProvider, setWorkerEntryFallbackProvider } from './workerRegistry.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import type {
@@ -63,6 +63,12 @@ export class ExtensionManager implements IExtensionManager {
   private manifestsById: Map<string, ExtendedManifest> = new Map();
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private initialized = false;
+  private reloadInFlight: Promise<void> | null = null;
+  private stagingLoad: {
+    manifests: Map<string, ExtendedManifest>;
+    modules: Map<string, LoadedExtensionModule>;
+    commands: { cmd: ExtensionCommand; manifest: ExtensionManifest; isBuiltIn: boolean }[];
+  } | null = null;
   private eventSubscriptions = new ExtensionEventSubscriptions();
   private timerBridge = new TimerBridge();
   private allLoadedCommands: {
@@ -127,13 +133,13 @@ export class ExtensionManager implements IExtensionManager {
     this.loader = new ExtensionLoader(
       this.bridge,
       (id, manifest) => {
-        this.manifestsById.set(id, manifest);
+        (this.stagingLoad?.manifests ?? this.manifestsById).set(id, manifest);
       },
       (id, module) => {
-        this.extensionModulesById.set(id, module);
+        (this.stagingLoad?.modules ?? this.extensionModulesById).set(id, module);
       },
       (cmd, manifest, isBuiltIn) => {
-        this.allLoadedCommands.push({ cmd, manifest, isBuiltIn });
+        (this.stagingLoad?.commands ?? this.allLoadedCommands).push({ cmd, manifest, isBuiltIn });
       },
     );
 
@@ -144,6 +150,7 @@ export class ExtensionManager implements IExtensionManager {
       () => searchService.saveIndex(),
     );
     setWorkerEntryProvider((id) => this.getManifestById(id)?.background?.main);
+    setWorkerEntryFallbackProvider((id) => this.resolveWorkerEntry(id));
     ipcRouter.setup();
     registerExtensionNameResolver((id) => this.getManifestById(id)?.name);
     registerFileSearchManifestResolver((id) => this.getManifestById(id));
@@ -171,7 +178,7 @@ export class ExtensionManager implements IExtensionManager {
       }
 
       performanceService.startTiming('extension-loading');
-      await this.loadExtensions(); // This now uses the loader service internally
+      await this.trackReload(() => this.loadExtensions()); // This now uses the loader service internally
       const loadMetrics = performanceService.stopTiming('extension-loading');
       logService.custom(
         `🧩 Extensions loaded in ${loadMetrics.duration?.toFixed(2)}ms`,
@@ -375,40 +382,82 @@ export class ExtensionManager implements IExtensionManager {
     }
   }
 
+  private trackReload(fn: () => Promise<void>): Promise<void> {
+    const prev = this.reloadInFlight ?? Promise.resolve();
+    const run = prev
+      .catch(() => {})
+      .then(fn)
+      .finally(() => {
+        if (this.reloadInFlight === run) {
+          this.reloadInFlight = null;
+        }
+      });
+    this.reloadInFlight = run;
+    return run;
+  }
+
+  private skipIfMissingRuntime(extensionId: string): boolean {
+    if (!extensionStateManager.needsRuntime.includes(extensionId)) return false;
+    logService.warn(
+      `[ExtensionManager] skipping worker mount for ${extensionId}: required runtime is not installed`,
+    );
+    return true;
+  }
+
+  private async resolveWorkerEntry(extensionId: string): Promise<string | null | undefined> {
+    if (this.reloadInFlight) {
+      await this.reloadInFlight.catch(() => {});
+    }
+    const existing = this.getManifestById(extensionId)?.background?.main;
+    if (existing) return existing;
+    if (this.skipIfMissingRuntime(extensionId)) return null;
+
+    await this.reloadExtensions().catch(() => {});
+    const reloaded = this.getManifestById(extensionId)?.background?.main;
+    if (reloaded) return reloaded;
+    if (this.skipIfMissingRuntime(extensionId)) return null;
+
+    return undefined;
+  }
+
   // Helper for toggleExtensionState to avoid circular dependency or method binding issues
   private async reloadExtensionsFilesAndSync(): Promise<void> {
-    await this.unloadExtensions();
-    await this.loadExtensions();
-    await this.syncCommandIndex();
-    await this.syncWalkthroughTasks();
+    return this.trackReload(async () => {
+      await this.unloadExtensions();
+      await this.loadExtensions();
+      await this.syncCommandIndex();
+      await this.syncWalkthroughTasks();
+    });
   }
 
   async reloadExtensions(): Promise<void> {
-    logService.info('Explicitly reloading extensions...');
-    try {
-      // Clear existing commands first
-      this.manifestsById.forEach((manifest) => {
-        if (manifest && manifest.id) {
-          commandService.clearCommandsForExtension(manifest.id);
-        }
-      });
+    return this.trackReload(async () => {
+      logService.info('Explicitly reloading extensions...');
+      try {
+        // Clear existing commands first
+        this.manifestsById.forEach((manifest) => {
+          if (manifest && manifest.id) {
+            commandService.clearCommandsForExtension(manifest.id);
+          }
+        });
 
-      performanceService.startTiming('extension-reloading');
-      await this.loadExtensions();
+        performanceService.startTiming('extension-reloading');
+        await this.loadExtensions();
 
-      performanceService.startTiming('command-index-sync');
-      await this.syncCommandIndex();
-      const syncMetrics = performanceService.stopTiming('command-index-sync');
-      const loadMetrics = performanceService.stopTiming('extension-reloading');
-      logService.custom(
-        `🔄 Extensions reloaded and synced in ${loadMetrics.duration?.toFixed(2)}ms`,
-        'PERF',
-        'green',
-      );
-    } catch (e) {
-      logService.error(`Failed to reload extensions: ${e}`);
-      throw e;
-    }
+        performanceService.startTiming('command-index-sync');
+        await this.syncCommandIndex();
+        const syncMetrics = performanceService.stopTiming('command-index-sync');
+        const loadMetrics = performanceService.stopTiming('extension-reloading');
+        logService.custom(
+          `🔄 Extensions reloaded and synced in ${loadMetrics.duration?.toFixed(2)}ms`,
+          'PERF',
+          'green',
+        );
+      } catch (e) {
+        logService.error(`Failed to reload extensions: ${e}`);
+        throw e;
+      }
+    });
   }
 
   async unloadExtensions(): Promise<void> {
@@ -470,10 +519,14 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   async loadExtensions() {
-    // Clear previous state before loading
-    this.extensionModulesById.clear();
-    this.manifestsById.clear();
-    this.allLoadedCommands = [];
+    // Stage into temporary collections so running extensions never observe an
+    // empty `manifestsById` map while `loadAllExtensions()` is awaiting IPC.
+    const staging = {
+      manifests: new Map<string, ExtendedManifest>(),
+      modules: new Map<string, LoadedExtensionModule>(),
+      commands: [] as { cmd: ExtensionCommand; manifest: ExtensionManifest; isBuiltIn: boolean }[],
+    };
+    this.stagingLoad = staging;
 
     // We pass this.isReady as a boolean now, let's see if loadExtensions expects a writable
     // If it does, we might need a wrapper.
@@ -487,7 +540,22 @@ export class ExtensionManager implements IExtensionManager {
       },
     };
 
-    await this.loader.loadExtensions(this.navigateToView.bind(this), isReadyWrapper as any);
+    try {
+      await this.loader.loadExtensions(this.navigateToView.bind(this), isReadyWrapper as any);
+    } finally {
+      this.stagingLoad = null;
+    }
+
+    this.manifestsById.clear();
+    for (const [id, manifest] of staging.manifests) {
+      this.manifestsById.set(id, manifest);
+    }
+    this.extensionModulesById.clear();
+    for (const [id, mod] of staging.modules) {
+      this.extensionModulesById.set(id, mod);
+    }
+    this.allLoadedCommands.splice(0, this.allLoadedCommands.length, ...staging.commands);
+
     this.updateExtensionRecords();
   }
 

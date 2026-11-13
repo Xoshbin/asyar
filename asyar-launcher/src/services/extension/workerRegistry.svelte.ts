@@ -14,6 +14,14 @@ export function setWorkerEntryProvider(provider: typeof workerEntryProvider): vo
   workerEntryProvider = provider;
 }
 
+let workerEntryFallbackProvider:
+  ((extensionId: string) => Promise<string | null | undefined>) | null = null;
+export function setWorkerEntryFallbackProvider(
+  provider: ((extensionId: string) => Promise<string | null | undefined>) | null,
+): void {
+  workerEntryFallbackProvider = provider;
+}
+
 class WorkerRegistry {
   private _entries = $state<WorkerRegistryEntry[]>([]);
   private unlistenMount: (() => void) | null = null;
@@ -60,7 +68,34 @@ class WorkerRegistry {
     } else {
       this._entries.push(entry);
     }
-    workerHost.mount(p.extensionId, p.mountToken, workerEntryProvider(p.extensionId));
+    const entryPath = workerEntryProvider(p.extensionId);
+    if (entryPath) {
+      workerHost.mount(p.extensionId, p.mountToken, entryPath);
+      return;
+    }
+
+    if (workerEntryFallbackProvider) {
+      void this.mountAfterResolve(p.extensionId, p.mountToken, workerEntryFallbackProvider);
+      return;
+    }
+
+    workerHost.mount(p.extensionId, p.mountToken, undefined);
+  }
+
+  private async mountAfterResolve(
+    extensionId: string,
+    mountToken: number,
+    resolver: (extensionId: string) => Promise<string | null | undefined>,
+  ): Promise<void> {
+    let resolved: string | null | undefined;
+    try {
+      resolved = await resolver(extensionId);
+    } catch (err) {
+      logService.warn(`[workerRegistry] failed to resolve entry for ${extensionId}: ${err}`);
+    }
+    if (this.getEntry(extensionId)?.mountToken !== mountToken) return;
+    if (resolved === null) return;
+    workerHost.mount(extensionId, mountToken, resolved);
   }
 
   async handleUnmount(p: { extensionId: string; reason: string; role?: string }): Promise<void> {
