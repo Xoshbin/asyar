@@ -126,6 +126,14 @@ pub struct FeedbackChannel {
     announcers_seen: HashSet<String>,
 }
 
+fn is_same_diagnostic(a: &FeedbackItem, b: &FeedbackItem) -> bool {
+    a.source == b.source
+        && a.kind == b.kind
+        && a.severity == b.severity
+        && a.extension_id == b.extension_id
+        && a.developer_detail == b.developer_detail
+}
+
 impl FeedbackChannel {
     pub fn current(&self) -> Option<&FeedbackItem> {
         self.current.as_ref()
@@ -146,6 +154,14 @@ impl FeedbackChannel {
                 return;
             }
             self.last_transient_at.insert(key, now_ms);
+        } else if item.progress.is_none()
+            && (self
+                .current
+                .as_ref()
+                .is_some_and(|c| is_same_diagnostic(c, &item))
+                || self.queued.iter().any(|q| is_same_diagnostic(q, &item)))
+        {
+            return;
         }
 
         let Some(current) = self.current.as_ref() else {
@@ -173,6 +189,22 @@ impl FeedbackChannel {
             return;
         }
         self.queued.retain(|item| item.id != id);
+    }
+
+    pub fn dismiss_for_extension(&mut self, extension_id: &str) -> bool {
+        let prev_len = self.queued.len();
+        self.queued
+            .retain(|item| item.extension_id.as_deref() != Some(extension_id));
+        let mut changed = self.queued.len() != prev_len;
+        if self
+            .current
+            .as_ref()
+            .is_some_and(|item| item.extension_id.as_deref() == Some(extension_id))
+        {
+            self.current = self.queued.pop_front();
+            changed = true;
+        }
+        changed
     }
 
     pub fn replace(&mut self, item: FeedbackItem) -> bool {
@@ -356,6 +388,14 @@ impl FeedbackChannelState {
         channel.dismiss(id);
         Ok(true)
     }
+
+    pub fn dismiss_for_extension(
+        &self,
+        extension_id: &str,
+    ) -> Result<bool, FeedbackChannelLockError> {
+        let mut channel = self.channel.lock().map_err(|_| FeedbackChannelLockError)?;
+        Ok(channel.dismiss_for_extension(extension_id))
+    }
 }
 
 #[cfg(test)]
@@ -532,5 +572,42 @@ mod tests {
 
         assert!(!channel.replace_sorted(item("unknown", FeedbackSeverity::Fatal)));
         assert_eq!(channel.current().map(|i| i.id.as_str()), Some("a"));
+    }
+
+    #[test]
+    fn duplicate_errors_are_deduplicated_so_dismiss_clears_them() {
+        let mut channel = FeedbackChannel::default();
+        let mut first = item("err-1", FeedbackSeverity::Error);
+        first.kind = "extension_crash".into();
+        first.extension_id = Some("org.asyar.sdk-playground".into());
+        first.developer_detail = Some("Error: Invalid background.main module path".into());
+
+        let mut second = first.clone();
+        second.id = "err-2".into();
+
+        channel.publish(first, 0);
+        channel.publish(second, 5_000);
+
+        assert_eq!(channel.current().map(|i| i.id.as_str()), Some("err-1"));
+        assert_eq!(channel.queued_len(), 0);
+
+        channel.dismiss("err-1");
+        assert!(channel.current().is_none());
+    }
+
+    #[test]
+    fn dismiss_for_extension_clears_only_that_extensions_items() {
+        let mut channel = FeedbackChannel::default();
+        let mut ext_a = item("a", FeedbackSeverity::Error);
+        ext_a.extension_id = Some("ext.a".into());
+        let mut ext_b = item("b", FeedbackSeverity::Error);
+        ext_b.extension_id = Some("ext.b".into());
+
+        channel.publish(ext_a, 0);
+        channel.publish(ext_b, 1);
+
+        assert!(channel.dismiss_for_extension("ext.a"));
+        assert_eq!(channel.current().map(|i| i.id.as_str()), Some("b"));
+        assert!(!channel.dismiss_for_extension("ext.a"));
     }
 }

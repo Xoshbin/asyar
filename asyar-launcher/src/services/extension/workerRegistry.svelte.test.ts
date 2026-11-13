@@ -19,7 +19,11 @@ vi.mock('../log/logService', () => ({
 import { iframeUnmountAck } from '../../lib/ipc/iframeLifecycleCommands';
 import { BUILT_IN_FEATURE_IDS, builtInManifestContext } from './extensionDiscovery';
 import { workerHost } from './workerHost.svelte';
-import { workerRegistry } from './workerRegistry.svelte';
+import {
+  setWorkerEntryFallbackProvider,
+  setWorkerEntryProvider,
+  workerRegistry,
+} from './workerRegistry.svelte';
 
 describe('workerRegistry', () => {
   beforeEach(async () => {
@@ -91,6 +95,62 @@ describe('workerRegistry', () => {
       payload: { extensionId: 'ext.b', mountToken: 3, role: 'view' },
     });
     expect(workerRegistry.entries).toHaveLength(0);
+  });
+
+  it('resolves missing entry asynchronously via fallback provider before mounting', async () => {
+    setWorkerEntryProvider(() => undefined);
+    setWorkerEntryFallbackProvider(async (id) =>
+      id === 'ext.lazy' ? 'dist/worker.js' : undefined,
+    );
+    const mount = vi.spyOn(workerHost, 'mount');
+
+    workerRegistry.handleMount({ extensionId: 'ext.lazy', mountToken: 9, role: 'worker' });
+    expect(mount).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => {
+      expect(mount).toHaveBeenCalledWith('ext.lazy', 9, 'dist/worker.js');
+    });
+    setWorkerEntryFallbackProvider(null);
+    mount.mockRestore();
+  });
+
+  it('skips stale fallback mount if extension was unmounted while resolving', async () => {
+    let resolveEntry!: (v: string | undefined) => void;
+    setWorkerEntryProvider(() => undefined);
+    setWorkerEntryFallbackProvider(
+      () =>
+        new Promise((resolve) => {
+          resolveEntry = resolve;
+        }),
+    );
+    const mount = vi.spyOn(workerHost, 'mount');
+
+    workerRegistry.handleMount({ extensionId: 'ext.lazy', mountToken: 9, role: 'worker' });
+    await workerRegistry.handleUnmount({
+      extensionId: 'ext.lazy',
+      reason: 'disabled',
+      role: 'worker',
+    });
+    resolveEntry('dist/worker.js');
+    await Promise.resolve();
+
+    expect(mount).not.toHaveBeenCalled();
+    setWorkerEntryFallbackProvider(null);
+    mount.mockRestore();
+  });
+
+  it('skips mount without error when fallback provider returns null (missing runtime)', async () => {
+    setWorkerEntryProvider(() => undefined);
+    setWorkerEntryFallbackProvider(async () => null);
+    const mount = vi.spyOn(workerHost, 'mount');
+
+    workerRegistry.handleMount({ extensionId: 'ext.needs-uv', mountToken: 11, role: 'worker' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mount).not.toHaveBeenCalled();
+    setWorkerEntryFallbackProvider(null);
+    mount.mockRestore();
   });
 });
 
