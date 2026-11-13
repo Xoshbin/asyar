@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isDocsOrLocaleFile, validatePullRequestBody } from './check-pr.mjs';
+import { validatePullRequestBody } from './check-pr.mjs';
 
 const VALID_BODY = `## What changed
 
@@ -19,8 +19,6 @@ const VALID_BODY = `## What changed
 
 - [x] I manually smoke-tested this in the running app (\`pnpm dev\`) and visually verified the fix/feature works.
 
-Opened Calculator view in \`pnpm dev\`, pressed Escape, and verified it returned to the search bar with focus intact. Ran \`pnpm check:ci\`.
-
 ## AI usage
 
 - [ ] AI tools helped produce this change.
@@ -34,79 +32,47 @@ Opened Calculator view in \`pnpm dev\`, pressed Escape, and verified it returned
 - [x] \`pnpm check:ci\` (or the relevant inner-loop checks) passes locally.
 `;
 
+const AI_BOTH_CHECKED = VALID_BODY.replace(
+  '- [ ] AI tools helped produce this change.\n- [ ] I ran the `asyar-contribution`',
+  '- [x] AI tools helped produce this change.\n- [x] I ran the `asyar-contribution`',
+);
+
 test('passes for a complete human-authored PR body', () => {
-  const result = validatePullRequestBody({
-    body: VALID_BODY,
-    author: 'contributor',
-    changedFiles: ['asyar-launcher/src/App.svelte'],
-  });
+  const result = validatePullRequestBody({ body: VALID_BODY, author: 'contributor' });
   assert.equal(result.ok, true, result.errors.join('\n'));
 });
 
 test('passes when both AI usage boxes are checked', () => {
-  const aiBody = VALID_BODY.replace(
-    '- [ ] AI tools helped produce this change.\n- [ ] I ran the `asyar-contribution`',
-    '- [x] AI tools helped produce this change.\n- [x] I ran the `asyar-contribution`',
-  );
-  const result = validatePullRequestBody({
-    body: aiBody,
-    author: 'contributor',
-    changedFiles: ['asyar-launcher/src/App.svelte'],
-  });
+  const result = validatePullRequestBody({ body: AI_BOTH_CHECKED, author: 'contributor' });
   assert.equal(result.ok, true, result.errors.join('\n'));
 });
 
 test('fails when AI tools helped is checked without running the skill', () => {
-  const partialAiBody = VALID_BODY.replace(
+  const body = VALID_BODY.replace(
     '- [ ] AI tools helped produce this change.',
     '- [x] AI tools helped produce this change.',
   );
-  const result = validatePullRequestBody({
-    body: partialAiBody,
-    author: 'contributor',
-    changedFiles: ['asyar-launcher/src/App.svelte'],
-  });
+  const result = validatePullRequestBody({ body, author: 'contributor' });
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((err) => err.includes('asyar-contribution')));
 });
 
+test('fails when the AI usage section is removed', () => {
+  const body = VALID_BODY.replace(/## AI usage[\s\S]*?## Boundaries/, '## Boundaries');
+  const result = validatePullRequestBody({ body, author: 'contributor' });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((err) => err.includes('AI usage')));
+});
+
 test('fails on the unmodified PR template', () => {
   const template = readFileSync('.github/PULL_REQUEST_TEMPLATE.md', 'utf8');
-  const result = validatePullRequestBody({
-    body: template,
-    author: 'contributor',
-    changedFiles: ['asyar-launcher/src/App.svelte'],
-  });
+  const result = validatePullRequestBody({ body: template, author: 'contributor' });
   assert.equal(result.ok, false);
-  assert.ok(result.errors.length >= 4);
+  assert.ok(result.errors.some((err) => err.includes('What changed')));
 });
 
-test('exempts bot authors', () => {
-  const result = validatePullRequestBody({
-    body: 'Bump dependency',
-    author: 'dependabot[bot]',
-    changedFiles: ['package.json'],
-  });
-  assert.equal(result.ok, true);
-  assert.ok(result.skipped?.includes('dependabot[bot]'));
-});
-
-test('exempts docs-only and locale-only PRs from smoke test and boundaries', () => {
-  const docsBody = `## What changed
-
-Updated the extension quickstart guide with the new dev command.
-`;
-  const result = validatePullRequestBody({
-    body: docsBody,
-    author: 'contributor',
-    changedFiles: ['docs/tutorials/quickstart.md', 'asyar-launcher/src/locales/en.json'],
-  });
-  assert.equal(result.ok, true, result.errors.join('\n'));
-  assert.equal(isDocsOrLocaleFile('asyar-launcher/src/App.svelte'), false);
-});
-
-test('fails when Before/After placeholders are left empty even if other sections are filled', () => {
-  const emptyWhatChanged = VALID_BODY.replace(
+test('fails when Before/After placeholders are left empty', () => {
+  const body = VALID_BODY.replace(
     /## What changed[\s\S]*?## Affected areas/,
     `## What changed
 
@@ -117,53 +83,42 @@ test('fails when Before/After placeholders are left empty even if other sections
 
 ## Affected areas`,
   );
-  const result = validatePullRequestBody({
-    body: emptyWhatChanged,
-    author: 'contributor',
-    changedFiles: ['asyar-launcher/src/App.svelte'],
-  });
+  const result = validatePullRequestBody({ body, author: 'contributor' });
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((err) => err.includes('What changed')));
 });
 
-test('enforces AI usage two-box rule on docs-only PRs', () => {
-  const docsWithPartialAi = `## What changed
-
-Updated the contributing guide with clearer formatting.
-
-## AI usage
-
-- [x] AI tools helped produce this change.
-- [ ] I ran the \`asyar-contribution\` skill (\`.agents/skills/asyar-contribution/SKILL.md\`), followed it, and reviewed every generated line.
-`;
-  const result = validatePullRequestBody({
-    body: docsWithPartialAi,
-    author: 'contributor',
-    changedFiles: ['CONTRIBUTING.md'],
-  });
-  assert.equal(result.ok, false);
-  assert.ok(result.errors.some((err) => err.includes('asyar-contribution')));
+test('does not gate on unchecked smoke-test, affected-area, or boundary boxes', () => {
+  const body = AI_BOTH_CHECKED.replace(/- \[x\] (?!AI tools|I ran)/g, '- [ ] ');
+  const result = validatePullRequestBody({ body, author: 'contributor' });
+  assert.equal(result.ok, true, result.errors.join('\n'));
 });
 
-test('fails when a required boundary checkbox is missing even if 4 boxes are checked', () => {
-  const missingHotPathBoundary = VALID_BODY.replace(
-    '- [x] Hot paths remain fast and unblocked (window reveal, keystroke search, and 120 FPS UI responsiveness).',
-    '- [x] Some unrelated custom checkbox.',
+test('passes PR #1044 shape: honest unchecked check:ci note and no smoke-test prose', () => {
+  const body = AI_BOTH_CHECKED.replace(
+    '- [x] `pnpm check:ci` (or the relevant inner-loop checks) passes locally.',
+    '- [ ] `pnpm check:ci` (or the relevant inner-loop checks) passes locally. Everything passes except unrelated items.',
   );
-  const result = validatePullRequestBody({
-    body: missingHotPathBoundary,
-    author: 'contributor',
-    changedFiles: ['asyar-launcher/src/App.svelte'],
-  });
-  assert.equal(result.ok, false);
-  assert.ok(result.errors.some((err) => err.includes('Hot paths remain fast')));
+  const result = validatePullRequestBody({ body, author: 'contributor' });
+  assert.equal(result.ok, true, result.errors.join('\n'));
+});
+
+test('ignores the CodeRabbit summary appended at the bottom', () => {
+  const body = `${AI_BOTH_CHECKED}\n## Summary by CodeRabbit\n\n- **New Features**\n  - Something.\n`;
+  const result = validatePullRequestBody({ body, author: 'contributor' });
+  assert.equal(result.ok, true, result.errors.join('\n'));
+});
+
+test('exempts bot authors', () => {
+  const result = validatePullRequestBody({ body: 'Bump dependency', author: 'dependabot[bot]' });
+  assert.equal(result.ok, true);
+  assert.ok(result.skipped?.includes('dependabot[bot]'));
 });
 
 test('exempts repository owner when passed in exemptLogins (case-insensitive)', () => {
   const result = validatePullRequestBody({
     body: 'Quick fix',
     author: 'xoshbin',
-    changedFiles: ['asyar-launcher/src/App.svelte'],
     exemptLogins: ['Xoshbin'],
   });
   assert.equal(result.ok, true);
