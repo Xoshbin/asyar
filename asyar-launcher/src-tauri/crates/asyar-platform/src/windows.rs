@@ -458,19 +458,23 @@ mod tests {
 
     #[test]
     #[ignore = "needs a Windows desktop session with shell32 icon resources"]
-    fn lnk_icon_comes_from_target_and_missing_target_is_none() {
+    fn lnk_icon_comes_from_target_and_missing_target_is_never_a_real_icon() {
         let tmp = tempfile::tempdir().unwrap();
 
         let lnk = tmp.path().join("notepad.lnk");
         make_shortcut(&lnk, Path::new(r"C:\Windows\System32\notepad.exe"));
-        let png = extract_icon(&lnk).expect("icon for shortcut with a valid target");
-        assert!(png.starts_with(b"\x89PNG"));
+        match extract_icon_outcome(&lnk) {
+            Some(crate::ExtractedIcon::Icon(png)) => assert!(png.starts_with(b"\x89PNG")),
+            other => panic!("a valid target must yield ExtractedIcon::Icon, got {other:?}"),
+        }
 
         let gone = tmp.path().join("gone.lnk");
         make_shortcut(&gone, &tmp.path().join("missing").join("app.exe"));
-        assert!(
-            extract_icon(&gone).is_none(),
-            "a missing target must be a retryable miss, not a generic icon"
-        );
+        match extract_icon_outcome(&gone) {
+            Some(crate::ExtractedIcon::Placeholder(_)) | None => {}
+            Some(crate::ExtractedIcon::Icon(_)) => {
+                panic!("a missing target must never be cached as a real icon")
+            }
+        }
     }
 }
