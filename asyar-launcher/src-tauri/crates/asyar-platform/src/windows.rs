@@ -95,15 +95,6 @@ pub fn restore_foreground_window(hwnd: isize) {
     }
 }
 
-/// Validates positive icon bitmap dimensions within a safe ceiling (max 1024px per side).
-fn icon_bitmap_dimensions(width: i32, height: i32) -> Option<(i32, i32)> {
-    const MAX_ICON_SIDE: i32 = 1024;
-    if width <= 0 || height <= 0 || width > MAX_ICON_SIDE || height > MAX_ICON_SIDE {
-        return None;
-    }
-    Some((width, height))
-}
-
 /// Initialises COM on the current thread for as long as the guard lives.
 ///
 /// Icon extraction runs on pooled tokio workers and the index-watcher thread,
