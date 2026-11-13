@@ -2569,7 +2569,7 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[test]
-    fn test_extract_app_icon_fallback_stamps_stale_cache_on_extraction_failure() {
+    fn test_extract_app_icon_fallback_preserves_stale_cache_and_stays_retryable() {
         let tmp = tempfile::tempdir().unwrap();
         let cache_dir = tmp.path().join("icon_cache");
         std::fs::create_dir_all(&cache_dir).unwrap();
@@ -2596,10 +2596,11 @@ mod tests {
         assert!(result.is_some(), "must return preserved fallback");
         assert_eq!(std::fs::read(&cached).unwrap(), b"preserved-fallback");
 
-        // The fallback file must now be stamped with new_time so future scans don't loop
+        // The preserved fallback must NOT be re-stamped: an unstamped cache file
+        // stays retryable, so it repairs itself once extraction succeeds again.
         assert!(
-            cached_icon_is_fresh(&cached, Some(new_time)),
-            "fallback cache file must be stamped with source_mtime"
+            !cached_icon_is_fresh(&cached, Some(new_time)),
+            "fallback cache file must stay unstamped so extraction is retried"
         );
     }
 
