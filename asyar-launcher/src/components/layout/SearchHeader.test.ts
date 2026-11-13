@@ -76,4 +76,93 @@ describe('SearchHeader searchbar accessory', () => {
     });
     expect(view.container.textContent).not.toContain('Asyar Assistant');
   });
+
+  it('does not crash when exiting context mode in the same flush that unmounts the active view and clears its accessory', async () => {
+    const ExtensionViewContainer = (await import('../extension/ExtensionViewContainer.svelte'))
+      .default;
+    const { flushSync } = await import('svelte');
+    // @ts-expect-error svelte/internal/client has no public declaration file
+    const $ = await import('svelte/internal/client');
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    const manifest = {
+      id: 'agents',
+      name: 'Agents',
+      commands: [{ id: 'ask', component: 'AgentChatView' }],
+    } as any;
+    viewManager.init(new Map([['agents', manifest]]));
+
+    contextModeService.registerProvider({
+      id: 'agents:default',
+      triggers: [],
+      display: { name: 'AI', icon: '💬' },
+      type: 'stream',
+      onActivate: () => {
+        viewManager.navigateToView('agents/AgentChatView');
+      },
+    });
+
+    contextModeService.activate('agents:default', '');
+    await searchBarAccessoryService.declare({
+      extensionId: 'agents',
+      commandId: 'ask',
+      options,
+      value: 'a',
+    });
+
+    const extensionManager = {
+      getManifestById: () => manifest,
+      getLoadedExtensionModule: () => ({
+        AgentChatView: () => {},
+      }),
+    };
+
+    function SingleRoot($$anchor: any, $$props: any) {
+      $.push($$props, true, SingleRoot);
+      const frag = $.comment();
+      const node1 = $.first_child(frag);
+      SearchHeader(node1, {
+        get activeContext() {
+          return contextModeService.activeContext
+            ? {
+                id: contextModeService.activeContext.provider.id,
+                name: contextModeService.activeContext.provider.display.name,
+                icon: contextModeService.activeContext.provider.display.icon,
+              }
+            : null;
+        },
+      });
+      $.if(node1, ($$render: any) => {
+        if (viewManager.activeView) {
+          $$render((anchor: any) => {
+            ExtensionViewContainer(anchor, {
+              get activeView() {
+                return viewManager.activeView!;
+              },
+              extensionManager,
+            });
+          });
+        }
+      });
+      $.append($$anchor, frag);
+      return $.pop({});
+    }
+    (SingleRoot as any)[$.FILENAME] = 'SingleRoot.svelte';
+
+    const view = render(SingleRoot as any);
+    expect(view.container.querySelector('.context-search-row')).not.toBeNull();
+    expect(view.container.textContent).toContain('Asyar Assistant');
+
+    expect(() =>
+      flushSync(() => {
+        contextModeService.deactivate();
+        viewManager.goBack();
+      }),
+    ).not.toThrow();
+
+    expect(view.container.querySelector('.context-search-row')).toBeNull();
+    expect(view.container.querySelector('.search-input-row')).not.toBeNull();
+    expect(view.container.textContent).not.toContain('Asyar Assistant');
+  });
 });

@@ -456,8 +456,8 @@
       {#if !argumentMode && accessory}
         <SearchBarAccessoryDropdown
           bind:this={accessoryRef}
-          options={accessory.options}
-          value={accessory.value}
+          options={accessory?.options ?? []}
+          value={accessory?.value ?? ''}
           onChange={onAccessoryChange}
         />
       {/if}
