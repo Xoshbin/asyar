@@ -1,26 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const EXEMPT_BOTS = new Set(['dependabot[bot]', 'renovate[bot]', 'github-actions[bot]']);
-
 /**
- * Determine whether a changed file path is documentation-only or a locale catalog.
+ * PR description check, modeled on Crest's `check-contribution.py`.
  *
- * @param {string} filePath
- * @returns {boolean}
+ * CI enforces only two things:
+ *   1. `## What changed` has a real description (not the untouched template).
+ *   2. `## AI usage` keeps both boxes, and ticking "AI tools helped" requires
+ *      ticking the `asyar-contribution` skill box too.
+ *
+ * Every other template section (Affected areas, Manual smoke test, Boundaries)
+ * is a guide for the author and the reviewer, not a CI gate.
  */
-export function isDocsOrLocaleFile(filePath) {
-  const normalized = filePath.trim().replaceAll('\\', '/');
-  if (!normalized) {
-    return true;
-  }
-  return (
-    normalized.startsWith('docs/') ||
-    normalized.startsWith('asyar-launcher/src/locales/') ||
-    normalized.endsWith('.md') ||
-    normalized === 'LICENSE'
-  );
-}
+
+const EXEMPT_BOTS = new Set(['dependabot[bot]', 'renovate[bot]', 'github-actions[bot]']);
 
 /**
  * Extract the markdown body under a level-2 heading (`## Heading`).
@@ -92,17 +85,12 @@ function parseCheckboxes(section) {
 }
 
 /**
- * Validate a pull request body against Asyar's contribution checklist.
+ * Validate a pull request body against Asyar's contribution policy.
  *
- * @param {{ body?: string, author?: string, changedFiles?: string[], exemptLogins?: string[] }} input
+ * @param {{ body?: string, author?: string, exemptLogins?: string[] }} input
  * @returns {{ ok: boolean, skipped?: string, errors: string[] }}
  */
-export function validatePullRequestBody({
-  body = '',
-  author = '',
-  changedFiles = [],
-  exemptLogins = [],
-}) {
+export function validatePullRequestBody({ body = '', author = '', exemptLogins = [] }) {
   if (EXEMPT_BOTS.has(author)) {
     return { ok: true, skipped: `Exempt bot author: ${author}`, errors: [] };
   }
@@ -115,130 +103,52 @@ export function validatePullRequestBody({
     return { ok: true, skipped: `Exempt author: ${author}`, errors: [] };
   }
 
-  const normalizedFiles = changedFiles.map((f) => f.trim()).filter(Boolean);
-  const docsOnly =
-    normalizedFiles.length > 0 && normalizedFiles.every((file) => isDocsOrLocaleFile(file));
-
   const errors = [];
   const normalizedBody = body.replace(/\r\n/g, '\n');
 
-  // 1. What changed
+  // 1. What changed: a real description, not the untouched template.
   const whatChanged = extractSection(normalizedBody, 'What changed');
   if (whatChanged === null) {
-    errors.push('Missing `## What changed` section.');
+    errors.push(
+      'The description is missing the `## What changed` section from the pull request template.',
+    );
   } else {
     const cleaned = stripHtmlComments(whatChanged)
       .replace(/^\s*[-*]\s+\*\*(Before|After)[^*]*?\*\*:?\s*$/gim, '')
       .trim();
     if (cleaned.length < 15) {
       errors.push(
-        '`## What changed` needs a brief plain-English summary (and Before/After behavior) for reviewers.',
+        '`## What changed` is empty. Briefly describe the change from the user’s or extension developer’s point of view (Before → After).',
       );
     }
   }
 
-  // 2. AI usage (Crest-style two-box rule, enforced for all PRs including docs-only)
+  // 2. AI usage: Crest-style two-box rule.
   const aiUsage = extractSection(normalizedBody, 'AI usage');
-  if (aiUsage === null) {
-    if (!docsOnly) {
-      errors.push('Missing `## AI usage` section.');
-    }
-  } else {
-    const boxes = parseCheckboxes(aiUsage);
-    const aiHelped = boxes.find((box) => /AI tools helped/i.test(box.label));
-    const skillRan = boxes.find((box) => /asyar-contribution/i.test(box.label));
-    if (!aiHelped || !skillRan) {
-      errors.push('Keep both checkboxes in `## AI usage` intact.');
-    } else if (aiHelped.checked && !skillRan.checked) {
-      errors.push(
-        'If AI tools helped produce this change, also run `.agents/skills/asyar-contribution/SKILL.md`, review every generated line, and check the second `## AI usage` box.',
-      );
-    } else if (!aiHelped.checked && skillRan.checked) {
-      errors.push(
-        'Check `AI tools helped produce this change.` if you ran the `asyar-contribution` skill.',
-      );
-    }
-  }
-
-  if (docsOnly) {
-    return {
-      ok: errors.length === 0,
-      skipped:
-        errors.length === 0 ? 'Docs/locale-only PR (smoke test & boundaries exempt)' : undefined,
-      errors,
-    };
-  }
-
-  // 3. Affected areas
-  const affectedAreas = extractSection(normalizedBody, 'Affected areas');
-  if (affectedAreas === null) {
-    errors.push('Missing `## Affected areas` section.');
-  } else {
-    const boxes = parseCheckboxes(affectedAreas);
-    if (!boxes.some((box) => box.checked)) {
-      errors.push('Check at least one box under `## Affected areas`.');
-    }
-  }
-
-  // 4. Manual smoke test & Validation
-  const smokeTest = extractSection(normalizedBody, 'Manual smoke test & Validation');
-  if (smokeTest === null) {
-    errors.push('Missing `## Manual smoke test & Validation` section.');
-  } else {
-    const boxes = parseCheckboxes(smokeTest);
-    const smokeBox = boxes.find((box) => /manually smoke-tested/i.test(box.label));
-    if (!smokeBox || !smokeBox.checked) {
-      errors.push(
-        'Confirm you manually smoke-tested the running app by checking the box under `## Manual smoke test & Validation`.',
-      );
-    }
-
-    const descriptionOnly = stripHtmlComments(smokeTest)
-      .replace(/^\s*[-*]\s+\[[ xX]\]\s+.+$/gm, '')
-      .trim();
-    if (descriptionOnly.length < 10) {
-      errors.push(
-        'Briefly describe what you tested in the running app and which automated checks ran under `## Manual smoke test & Validation`.',
-      );
-    }
-  }
-
-  // 5. Boundaries
-  const requiredBoundaries = [
-    { name: 'Zero-hardcoded-strings i18n', pattern: /Zero-hardcoded-strings i18n/i },
-    {
-      name: 'Third-party extension compatibility',
-      pattern: /Third-party extension compatibility/i,
-    },
-    { name: 'Hot paths remain fast', pattern: /Hot paths remain fast/i },
-    { name: 'pnpm check:ci', pattern: /pnpm check:ci/i },
-  ];
-  const boundaries = extractSection(normalizedBody, 'Boundaries');
-  if (boundaries === null) {
-    errors.push('Missing `## Boundaries` section.');
-  } else {
-    const boxes = parseCheckboxes(boundaries);
-    for (const required of requiredBoundaries) {
-      const match = boxes.find((box) => required.pattern.test(box.label));
-      if (!match || !match.checked) {
-        errors.push(`Confirm \`${required.name}\` under \`## Boundaries\`.`);
-      }
-    }
+  const boxes = aiUsage === null ? [] : parseCheckboxes(aiUsage);
+  const aiHelped = boxes.find((box) => /AI tools helped/i.test(box.label));
+  const skillRan = boxes.find((box) => /asyar-contribution/i.test(box.label));
+  if (!aiHelped || !skillRan) {
+    errors.push(
+      'The description is missing the `## AI usage` section from the pull request template. Restore both checkboxes, then tick the ones that apply (leave both empty if no AI tool was used).',
+    );
+  } else if (aiHelped.checked && !skillRan.checked) {
+    errors.push(
+      'AI tools helped produce this change, so the `asyar-contribution` skill must be run and its box ticked. See `.agents/skills/asyar-contribution/SKILL.md`.',
+    );
   }
 
   return { ok: errors.length === 0, errors };
 }
 
 function parseArgs(argv) {
-  const args = { eventPath: null, bodyFile: null, filesPath: null, exemptLogins: [] };
+  const args = { eventPath: null, bodyFile: null, exemptLogins: [] };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--event' && argv[i + 1]) {
       args.eventPath = argv[++i];
     } else if (arg === '--body-file' && argv[i + 1]) {
       args.bodyFile = argv[++i];
-    } else if (arg === '--files' && argv[i + 1]) {
-      args.filesPath = argv[++i];
     } else if (arg === '--exempt-login' && argv[i + 1]) {
       args.exemptLogins.push(argv[++i]);
     }
@@ -247,10 +157,9 @@ function parseArgs(argv) {
 }
 
 function main() {
-  const { eventPath, bodyFile, filesPath, exemptLogins } = parseArgs(process.argv.slice(2));
+  const { eventPath, bodyFile, exemptLogins } = parseArgs(process.argv.slice(2));
   let body = '';
   let author = '';
-  let changedFiles = [];
 
   if (eventPath) {
     const event = JSON.parse(readFileSync(eventPath, 'utf8'));
@@ -260,19 +169,12 @@ function main() {
     body = readFileSync(bodyFile, 'utf8');
   } else {
     console.error(
-      'Usage: node scripts/check-pr.mjs [--event <path> | --body-file <path>] [--files <path>] [--exempt-login <login>]',
+      'Usage: node scripts/check-pr.mjs [--event <path> | --body-file <path>] [--exempt-login <login>]',
     );
     process.exit(2);
   }
 
-  if (filesPath) {
-    changedFiles = readFileSync(filesPath, 'utf8')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-  }
-
-  const result = validatePullRequestBody({ body, author, changedFiles, exemptLogins });
+  const result = validatePullRequestBody({ body, author, exemptLogins });
   if (result.ok) {
     const suffix = result.skipped ? ` (${result.skipped})` : '';
     console.log(`PR description check passed${suffix}.`);

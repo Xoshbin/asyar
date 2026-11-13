@@ -46,7 +46,9 @@ Write a concise PR description matching `.github/PULL_REQUEST_TEMPLATE.md` so a 
 2. **Affected areas**: Check all matching areas.
 3. **Manual smoke test & Validation**: Checked confirmation + what was visually tested in `pnpm dev` + which automated checks passed.
 4. **AI usage**: Check **both** `AI tools helped produce this change.` and `I ran the asyar-contribution skill...` (and ensure the contributor reviewed every generated line).
-5. **Boundaries**: Check all three boundary confirmations after verifying them.
+5. **Boundaries**: Tick each boundary you actually verified. If one doesn't hold or you couldn't verify it (e.g. `pnpm check:ci` fails on something unrelated), leave it unchecked and add a short note. Honesty beats a fully ticked list.
+
+CI (`scripts/check-pr.mjs`) only gates on a non-empty `What changed` and a consistent `AI usage` section; the reviewer reads the rest.
 
 Validate the drafted PR body locally before posting:
 
