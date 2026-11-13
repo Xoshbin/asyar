@@ -28,11 +28,11 @@ use windows::Win32::UI::Shell::{
     IShellLinkW, SHGetFileInfoW, ShellLink, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    DestroyIcon, GetForegroundWindow, GetIconInfo, GetWindowLongPtrW, GetWindowLongW,
-    GetWindowTextW, GetWindowThreadProcessId, PrivateExtractIconsW, SetForegroundWindow,
-    SetWindowLongPtrW, SetWindowLongW, SetWindowPos, GWL_EXSTYLE, GWL_STYLE, HICON, ICONINFO,
-    SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
-    WS_POPUP,
+    DestroyIcon, GetForegroundWindow, GetIconInfo, GetSystemMetrics, GetWindowLongPtrW,
+    GetWindowLongW, GetWindowTextW, GetWindowThreadProcessId, PrivateExtractIconsW,
+    SetForegroundWindow, SetWindowLongPtrW, SetWindowLongW, SetWindowPos, GWL_EXSTYLE, GWL_STYLE,
+    HICON, ICONINFO, SM_CXICON, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+    WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_POPUP,
 };
 
 /// Configures a window handle with Windows-specific Spotlight styling: DWM polish
@@ -184,23 +184,37 @@ fn extract_icon_from_resource(path: &Path, index: i32) -> Option<Vec<u8>> {
     }
     wide[..src.len()].copy_from_slice(&src);
 
+    // Match the system large-icon size so HiDPI Windows 11 icons are not
+    // downscaled to 32px before encoding.
+    let size = unsafe { GetSystemMetrics(SM_CXICON) }.max(32);
     let mut icons = [HICON::default(); 1];
     // SAFETY: `wide` is a NUL-terminated buffer and `icons` has room for the
     // single requested icon.
-    let n = unsafe { PrivateExtractIconsW(&wide, index, 32, 32, Some(&mut icons), None, 0) };
+    let n = unsafe { PrivateExtractIconsW(&wide, index, size, size, Some(&mut icons), None, 0) };
     if n == 0 || n == u32::MAX || icons[0].is_invalid() {
         return None;
     }
     hicon_to_png(icons[0])
 }
 
-/// Extracts a PNG icon from a Windows executable or shortcut.
-///
-/// For `.lnk` files the icon is taken from the shortcut's real source (icon
-/// location or target) so a target that is momentarily missing (a Scoop/winget
-/// update swapping directories) yields `None` — a retryable miss — instead of
-/// the shell's generic shortcut icon, which would otherwise be cached forever.
+/// Extracts a PNG icon from a Windows executable or shortcut, returning `None`
+/// for `.lnk` shortcuts whose target is missing or temporarily unreadable.
 pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
+    match extract_icon_outcome(path) {
+        Some(crate::ExtractedIcon::Icon(png)) => Some(png),
+        Some(crate::ExtractedIcon::Placeholder(_)) | None => None,
+    }
+}
+
+/// Extracts a PNG icon from a Windows executable or shortcut while tagging
+/// fallback shell icons as [`crate::ExtractedIcon::Placeholder`].
+///
+/// For `.lnk` files, the icon is taken from the shortcut's real source (icon
+/// location or target). If the target is momentarily missing or locked (for
+/// example, a Scoop/winget update swapping directories), the shell's fallback
+/// icon is returned as a `Placeholder` so the UI still has an icon without
+/// caching it forever.
+pub fn extract_icon_outcome(path: &Path) -> Option<crate::ExtractedIcon> {
     let _com = ComGuard::new();
 
     let is_lnk = path
@@ -208,16 +222,16 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
         .is_some_and(|e| e.eq_ignore_ascii_case("lnk"));
     if is_lnk {
         if let Some((source, index)) = resolve_shortcut_icon_source(path) {
-            if !source.exists() {
-                return None;
+            if source.exists() {
+                if let Some(png) = extract_icon_from_resource(&source, index) {
+                    return Some(crate::ExtractedIcon::Icon(png));
+                }
             }
-            if let Some(png) = extract_icon_from_resource(&source, index) {
-                return Some(png);
-            }
+            return shell_file_icon(path).map(crate::ExtractedIcon::Placeholder);
         }
     }
 
-    shell_file_icon(path)
+    shell_file_icon(path).map(crate::ExtractedIcon::Icon)
 }
 
 /// Icon the shell associates with `path` (exe resource, or a shortcut's
@@ -256,7 +270,16 @@ fn shell_file_icon(path: &Path) -> Option<Vec<u8>> {
     hicon_to_png(hicon)
 }
 
-/// Renders an HICON to a 32px RGBA PNG and destroys the handle.
+/// Validates positive icon bitmap dimensions within a safe ceiling (max 1024px per side).
+fn icon_bitmap_dimensions(width: i32, height: i32) -> Option<(i32, i32)> {
+    const MAX_ICON_SIDE: i32 = 1024;
+    if width <= 0 || height <= 0 || width > MAX_ICON_SIDE || height > MAX_ICON_SIDE {
+        return None;
+    }
+    Some((width, height))
+}
+
+/// Renders an HICON to an RGBA PNG at its native DPI-scaled dimensions and destroys the handle.
 fn hicon_to_png(hicon: HICON) -> Option<Vec<u8>> {
     let mut icon_info = ICONINFO::default();
     let got_info = unsafe { GetIconInfo(hicon, &mut icon_info) };
