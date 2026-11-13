@@ -178,7 +178,7 @@ export class ExtensionManager implements IExtensionManager {
       }
 
       performanceService.startTiming('extension-loading');
-      await this.loadExtensions(); // This now uses the loader service internally
+      await this.trackReload(() => this.loadExtensions()); // This now uses the loader service internally
       const loadMetrics = performanceService.stopTiming('extension-loading');
       logService.custom(
         `🧩 Extensions loaded in ${loadMetrics.duration?.toFixed(2)}ms`,
@@ -396,23 +396,26 @@ export class ExtensionManager implements IExtensionManager {
     return run;
   }
 
+  private skipIfMissingRuntime(extensionId: string): boolean {
+    if (!extensionStateManager.needsRuntime.includes(extensionId)) return false;
+    logService.warn(
+      `[ExtensionManager] skipping worker mount for ${extensionId}: required runtime is not installed`,
+    );
+    return true;
+  }
+
   private async resolveWorkerEntry(extensionId: string): Promise<string | null | undefined> {
     if (this.reloadInFlight) {
       await this.reloadInFlight.catch(() => {});
     }
     const existing = this.getManifestById(extensionId)?.background?.main;
     if (existing) return existing;
+    if (this.skipIfMissingRuntime(extensionId)) return null;
 
     await this.reloadExtensions().catch(() => {});
     const reloaded = this.getManifestById(extensionId)?.background?.main;
     if (reloaded) return reloaded;
-
-    if (extensionStateManager.needsRuntime.includes(extensionId)) {
-      logService.warn(
-        `[ExtensionManager] skipping worker mount for ${extensionId}: required runtime is not installed`,
-      );
-      return null;
-    }
+    if (this.skipIfMissingRuntime(extensionId)) return null;
 
     return undefined;
   }

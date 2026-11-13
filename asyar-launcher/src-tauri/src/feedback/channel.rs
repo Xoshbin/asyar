@@ -132,6 +132,9 @@ fn is_same_diagnostic(a: &FeedbackItem, b: &FeedbackItem) -> bool {
         && a.severity == b.severity
         && a.extension_id == b.extension_id
         && a.developer_detail == b.developer_detail
+        && a.context == b.context
+        && a.retry_action_id == b.retry_action_id
+        && a.report_action_id == b.report_action_id
 }
 
 impl FeedbackChannel {
@@ -609,5 +612,25 @@ mod tests {
         assert!(channel.dismiss_for_extension("ext.a"));
         assert_eq!(channel.current().map(|i| i.id.as_str()), Some("b"));
         assert!(!channel.dismiss_for_extension("ext.a"));
+    }
+
+    #[test]
+    fn errors_with_different_context_are_not_deduplicated() {
+        let mut channel = FeedbackChannel::default();
+        let mut first = item("err-1", FeedbackSeverity::Error);
+        first.kind = "manual".into();
+        first.context.insert("message".into(), "First error".into());
+
+        let mut second = item("err-2", FeedbackSeverity::Error);
+        second.kind = "manual".into();
+        second
+            .context
+            .insert("message".into(), "Second error".into());
+
+        channel.publish(first, 0);
+        channel.publish(second, 1);
+
+        assert_eq!(channel.current().map(|i| i.id.as_str()), Some("err-1"));
+        assert_eq!(channel.queued_len(), 1);
     }
 }
