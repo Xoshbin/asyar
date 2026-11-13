@@ -334,6 +334,10 @@
     transition: none;
   }
 
+  .item:not(.active):hover {
+    background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  }
+
   .item.active {
     background: color-mix(in srgb, var(--text-primary) 8%, transparent);
     color: var(--text-primary);
