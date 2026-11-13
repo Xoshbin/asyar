@@ -6,6 +6,7 @@
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import StatusDot from '../base/StatusDot.svelte';
   import type { ItemStatus } from '../../services/launcher/itemStatusLogic';
+  import { t } from '../../services/i18n';
 
   let {
     selected = false,
@@ -24,6 +25,7 @@
     sourceLabel,
     variant = 'default',
     status = null,
+    running = false,
     leading,
     trailing,
     ...rest
@@ -62,6 +64,8 @@
      * nothing. Derivation lives in services/launcher/itemStatusLogic.ts.
      */
     status?: ItemStatus | null;
+    /** Marks an application as open: a small dot under the icon. */
+    running?: boolean;
     leading?: Snippet;
     trailing?: Snippet;
     [key: string]: any;
@@ -82,7 +86,12 @@
     {#if leading}
       {@render leading()}
     {:else}
-      <AppIcon {icon} {extensionId} size={22} glyphSize={14} emojiSize={12} tile alt={title} />
+      <div class="row-icon">
+        <AppIcon {icon} {extensionId} size={22} glyphSize={14} emojiSize={12} tile alt={title} />
+        {#if running}
+          <span class="running-dot" role="img" aria-label={t('search.app_running')}></span>
+        {/if}
+      </div>
     {/if}
 
     <div class="row-body">
@@ -150,6 +159,23 @@
     align-items: center;
     min-width: 0;
     gap: var(--space-5);
+  }
+
+  .row-icon {
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  .running-dot {
+    position: absolute;
+    left: 50%;
+    bottom: calc(-1 * var(--space-2));
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background-color: var(--text-tertiary);
+    transform: translateX(-50%);
   }
 
   /* The hint row, shared by every hint in the launcher. The tint and the text come from the

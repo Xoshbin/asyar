@@ -119,6 +119,11 @@ pub fn default_watcher() -> Box<dyn AppEventsWatcher> {
 /// per-platform; a fake is available for unit tests.
 pub trait AppPresenceQuery: Send + Sync {
     fn is_running(&self, bundle_id: &str) -> bool;
+
+    /// One snapshot of every running app, keyed the way
+    /// `Application::presence_key` keys an indexed app: bundle ids on macOS,
+    /// lowercased executable basenames on Windows and Linux.
+    fn running_keys(&self) -> std::collections::HashSet<String>;
 }
 
 #[cfg(target_os = "macos")]
@@ -180,6 +185,10 @@ pub mod fake {
                 .lock()
                 .map(|s| s.contains(bundle_id))
                 .unwrap_or(false)
+        }
+
+        fn running_keys(&self) -> HashSet<String> {
+            self.running.lock().map(|s| s.clone()).unwrap_or_default()
         }
     }
 }

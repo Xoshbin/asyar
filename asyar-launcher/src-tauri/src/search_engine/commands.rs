@@ -95,6 +95,18 @@ pub async fn merged_search(
         }
     }
     response.results.truncate(20);
+    // One process snapshot per search, and only when an app row needs it.
+    if response
+        .results
+        .iter()
+        .any(|r| r.result_type == "application")
+    {
+        if let Some(presence) =
+            app_handle.try_state::<std::sync::Arc<dyn crate::app_events::AppPresenceQuery>>()
+        {
+            state.mark_running(&mut response.results, &presence.running_keys())?;
+        }
+    }
     if response.alias_match.as_ref().is_some_and(|alias| {
         !response
             .results
@@ -514,6 +526,7 @@ mod tests {
             icon: None,
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         })
     }
 

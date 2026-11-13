@@ -13,7 +13,8 @@
     "navigate_hint": "Naviguer",
     "select_hint": "Ouvrir",
     "back": "Retour",
-    "scoped_tools_hint": "Outils et commandes"
+    "scoped_tools_hint": "Outils et commandes",
+    "app_running": "En cours d'exécution"
   },
   "actions": {
     "title": "Actions",
@@ -164,7 +165,9 @@
       "theme_aria": "Thème d'apparence",
       "window_mode_aria": "Mode de fenêtre",
       "hide_show_more": "Masquer la barre « Afficher plus »",
-      "hide_show_more_description": "N'afficher que la barre de recherche en mode compact. Appuyez sur ↓ pour déplier."
+      "hide_show_more_description": "N'afficher que la barre de recherche en mode compact. Appuyez sur ↓ pour déplier.",
+      "show_running_indicator": "Afficher l'indicateur d'exécution",
+      "show_running_indicator_description": "Affiche un point sous l'icône des apps ouvertes."
     },
     "advanced": {
       "section_extension_surface": "Surface des extensions",

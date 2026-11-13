@@ -13,7 +13,8 @@
     "navigate_hint": "切換",
     "select_hint": "開啟",
     "back": "返回",
-    "scoped_tools_hint": "工具與命令"
+    "scoped_tools_hint": "工具與命令",
+    "app_running": "執行中"
   },
   "actions": {
     "title": "操作",
@@ -164,7 +165,9 @@
       "theme_aria": "外觀主題",
       "window_mode_aria": "視窗模式",
       "hide_show_more": "隱藏「顯示更多」列",
-      "hide_show_more_description": "緊湊模式下僅顯示搜尋列。按 ↓ 展開。"
+      "hide_show_more_description": "緊湊模式下僅顯示搜尋列。按 ↓ 展開。",
+      "show_running_indicator": "顯示執行指示",
+      "show_running_indicator_description": "在已開啟應用程式的圖示下方顯示一個圓點。"
     },
     "advanced": {
       "section_extension_surface": "擴充套件展示範圍",

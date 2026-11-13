@@ -87,6 +87,7 @@ pub fn exact_path_row(path: &Path, home: Option<&Path>) -> Option<SearchResult> 
         style: None,
         alias: None,
         tier: Tier::ExactTitle as u8,
+        is_running: false,
     })
 }
 
@@ -226,6 +227,7 @@ mod tests {
             style: None,
             alias: None,
             tier: Tier::ExactTitle as u8,
+            is_running: false,
         }
     }
 

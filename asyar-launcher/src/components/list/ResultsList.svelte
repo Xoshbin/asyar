@@ -42,6 +42,7 @@
         typeLabel={item.kindLabel}
         sourceLabel={item.sourceLabel}
         variant={item.variant === 'hint' ? 'hint' : 'default'}
+        running={item.isRunning}
         {status}
       />
     {/if}

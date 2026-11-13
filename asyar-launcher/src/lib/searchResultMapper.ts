@@ -123,6 +123,8 @@ export type BuildMappedItemsParams = {
    * A run absent from this map (e.g. the round-trip hasn't resolved yet for
    * the current query) defaults to NO_MATCH_TIER. */
   runTiers?: Map<string, number>;
+  /** Settings gate for the running-app dot (`appearance.hideRunningIndicator`). */
+  showRunningIndicator?: boolean;
   /** When non-empty, runs are demoted below the mapped search results.
    * When empty, runs are prepended (default-mode browse view). */
   query?: string;
@@ -248,6 +250,7 @@ export function buildMappedItems({
   scriptResultRuns = [],
   runTiers,
   query,
+  showRunningIndicator = true,
 }: BuildMappedItemsParams): BuildMappedItemsResult {
   // --- Portal injection for url/view-type contexts ---
   let baseItems: SearchResult[] = searchItems;
@@ -434,6 +437,7 @@ export function buildMappedItems({
       variant: result.variant,
       shortcut: shortcutMap.get(objectId)?.shortcut,
       favorite: result.favorite ?? false,
+      isRunning: showRunningIndicator && result.isRunning === true,
       // Optimistic override: a freshly assigned alias appears in the chip
       // immediately, before the next search round-trip refreshes result.alias.
       alias: aliasStore.byObjectId.get(objectId) ?? result.alias ?? undefined,

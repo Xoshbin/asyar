@@ -13,7 +13,8 @@
     "navigate_hint": "Navegar",
     "select_hint": "Abrir",
     "back": "Voltar",
-    "scoped_tools_hint": "Ferramentas e comandos"
+    "scoped_tools_hint": "Ferramentas e comandos",
+    "app_running": "Em execução"
   },
   "actions": {
     "title": "Ações",
@@ -164,7 +165,9 @@
       "theme_aria": "Tema de aparência",
       "window_mode_aria": "Modo de janela",
       "hide_show_more": "Ocultar barra Mostrar mais",
-      "hide_show_more_description": "Exibe apenas a barra de pesquisa no modo compacto. Pressione ↓ para expandir."
+      "hide_show_more_description": "Exibe apenas a barra de pesquisa no modo compacto. Pressione ↓ para expandir.",
+      "show_running_indicator": "Mostrar indicador de execução",
+      "show_running_indicator_description": "Mostra um ponto abaixo do ícone dos apps que estão abertos."
     },
     "advanced": {
       "section_extension_surface": "Superfície de extensões",

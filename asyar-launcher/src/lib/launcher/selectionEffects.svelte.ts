@@ -18,6 +18,7 @@ import {
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { aliasStore } from '../../built-in-features/aliases/aliasStore.svelte';
 import { runService } from '../../services/run/runService.svelte';
+import { settingsService } from '../../services/settings/settingsService.svelte';
 import { untrack } from 'svelte';
 import { createRootFileIconCache } from './rootFileIcons.svelte';
 import { buildFileActions } from '../../built-in-features/file-search/fileActions';
@@ -130,6 +131,7 @@ export function setupSelectionEffects(state: LauncherState) {
       scriptResultRuns: runService.unacknowledgedScriptResults,
       runTiers: runTierMap,
       query: state.localSearchValue,
+      showRunningIndicator: !settingsService.currentSettings.appearance.hideRunningIndicator,
       onError: (msg) =>
         feedbackService.report({
           source: 'frontend',

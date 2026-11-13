@@ -345,6 +345,33 @@ mod watcher {
             }
             false
         }
+        fn running_keys(&self) -> std::collections::HashSet<String> {
+            use ::windows::Win32::System::Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+                TH32CS_SNAPPROCESS,
+            };
+            let mut keys = std::collections::HashSet::new();
+            unsafe {
+                let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
+                    return keys;
+                };
+                let mut entry = PROCESSENTRY32W {
+                    dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+                    ..Default::default()
+                };
+                let mut more = Process32FirstW(snap, &mut entry).is_ok();
+                while more {
+                    let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(0);
+                    keys.insert(
+                        String::from_utf16_lossy(&entry.szExeFile[..len]).to_ascii_lowercase(),
+                    );
+                    more = Process32NextW(snap, &mut entry).is_ok();
+                }
+                // Runs on every search, so the snapshot handle must not leak.
+                let _ = ::windows::Win32::Foundation::CloseHandle(snap);
+            }
+            keys
+        }
     }
 }
 

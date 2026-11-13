@@ -106,7 +106,7 @@ pub fn run_as_administrator(path: &str) -> Result<(), AppError> {
 }
 
 #[cfg(target_os = "windows")]
-mod windows_impl {
+pub(super) mod windows_impl {
     use super::*;
     use windows::core::{Interface, HSTRING, PCWSTR};
     use windows::Win32::System::Com::{
@@ -122,7 +122,7 @@ mod windows_impl {
 
     /// Resolves a `.lnk` to its target path. Runs on a dedicated thread so the
     /// COM apartment it initialises never collides with the caller's.
-    pub(super) fn resolve_shortcut_target(lnk: &Path) -> Option<PathBuf> {
+    pub(in crate::application) fn resolve_shortcut_target(lnk: &Path) -> Option<PathBuf> {
         let lnk = lnk.to_path_buf();
         std::thread::spawn(move || unsafe {
             let initialised = CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_ok();

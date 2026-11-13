@@ -350,6 +350,23 @@ mod watcher {
             }
             false
         }
+
+        fn running_keys(&self) -> std::collections::HashSet<String> {
+            // `/proc/<pid>/exe` rather than `comm`: comm is cut at 15 chars.
+            // Other users' processes fail `exe()` and are skipped.
+            procfs::process::all_processes()
+                .map(|iter| {
+                    iter.filter_map(Result::ok)
+                        .filter_map(|p| p.exe().ok())
+                        .filter_map(|exe| {
+                            exe.file_name()
+                                .and_then(|n| n.to_str())
+                                .map(str::to_lowercase)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
     }
 }
 

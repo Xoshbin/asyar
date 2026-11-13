@@ -13,7 +13,8 @@
     "navigate_hint": "切换",
     "select_hint": "打开",
     "back": "返回",
-    "scoped_tools_hint": "工具与命令"
+    "scoped_tools_hint": "工具与命令",
+    "app_running": "正在运行"
   },
   "actions": {
     "title": "操作",
@@ -164,7 +165,9 @@
       "theme_aria": "外观主题",
       "window_mode_aria": "窗口模式",
       "hide_show_more": "隐藏“显示更多”栏",
-      "hide_show_more_description": "紧凑模式下仅显示搜索栏。按 ↓ 展开。"
+      "hide_show_more_description": "紧凑模式下仅显示搜索栏。按 ↓ 展开。",
+      "show_running_indicator": "显示运行指示",
+      "show_running_indicator_description": "在已打开应用的图标下方显示一个圆点。"
     },
     "advanced": {
       "section_extension_surface": "扩展展示范围",

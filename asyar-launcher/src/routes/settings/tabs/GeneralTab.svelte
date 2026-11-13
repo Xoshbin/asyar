@@ -365,6 +365,18 @@
         />
       </SettingsRow>
     {/if}
+    <SettingsRow
+      label={t('settings.appearance.show_running_indicator')}
+      description={t('settings.appearance.show_running_indicator_description')}
+    >
+      <Toggle
+        checked={!handler.settings.appearance.hideRunningIndicator}
+        onchange={() =>
+          settingsService.updateSettings('appearance', {
+            hideRunningIndicator: !handler.settings.appearance.hideRunningIndicator,
+          })}
+      />
+    </SettingsRow>
   </div>
 </SettingsCard>
 

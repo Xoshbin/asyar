@@ -189,24 +189,34 @@ impl DesktopEntry {
             }
         }
 
-        if let Some(ref exec) = self.exec {
-            let first_token = exec
-                .split_whitespace()
-                .next()
-                .unwrap_or("")
-                .trim_matches(|c| c == '"' || c == '\'');
-            if !first_token.is_empty() {
-                let basename = Path::new(first_token)
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or(first_token);
-                if !basename.is_empty() {
-                    return Some(basename.to_string());
-                }
-            }
-        }
+        self.exec_program()
+    }
 
-        None
+    /// Basename of the program `Exec=` launches, for matching against running
+    /// processes. `None` for wrapper launchers (`env`, shells, `flatpak`):
+    /// their basename names the wrapper, which would mark unrelated apps as
+    /// running.
+    pub fn exec_basename(&self) -> Option<String> {
+        const WRAPPERS: [&str; 4] = ["env", "sh", "bash", "flatpak"];
+        self.exec_program()
+            .filter(|name| !WRAPPERS.contains(&name.as_str()))
+    }
+
+    fn exec_program(&self) -> Option<String> {
+        let exec = self.exec.as_ref()?;
+        let first_token = exec
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .trim_matches(|c| c == '"' || c == '\'');
+        if first_token.is_empty() {
+            return None;
+        }
+        let basename = Path::new(first_token)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(first_token);
+        (!basename.is_empty()).then(|| basename.to_string())
     }
 }
 
@@ -465,5 +475,27 @@ Exec=gedit --new-window
             entry_with_exec.extract_bundle_id(),
             Some("google-chrome-stable".to_string())
         );
+    }
+
+    #[test]
+    fn exec_basename_ignores_wm_class_and_rejects_wrappers() {
+        let code = DesktopEntry {
+            startup_wm_class: Some("Code".to_string()),
+            exec: Some("/usr/share/code/code --unity-launch %F".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(code.exec_basename(), Some("code".to_string()));
+
+        for exec in [
+            "/usr/bin/flatpak run org.mozilla.firefox",
+            "env GDK_BACKEND=x11 slack",
+            "sh -c \"app --flag\"",
+        ] {
+            let entry = DesktopEntry {
+                exec: Some(exec.to_string()),
+                ..Default::default()
+            };
+            assert_eq!(entry.exec_basename(), None, "{exec}");
+        }
     }
 }

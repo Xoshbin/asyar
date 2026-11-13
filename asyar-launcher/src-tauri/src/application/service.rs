@@ -198,6 +198,7 @@ pub fn sync_application_index<R: tauri::Runtime>(
                 icon: extract_app_icon(path_str, &icon_cache_dir),
                 last_used_at: None,
                 bundle_id: extract_bundle_id(Path::new(path_str)),
+                exe_name: extract_exe_name(path),
             },
         );
     }
@@ -217,6 +218,7 @@ pub fn sync_application_index<R: tauri::Runtime>(
                 icon: extract_uwp_app_icon(&uwp.aumid, &uwp.install_location, &icon_cache_dir),
                 last_used_at: None,
                 bundle_id: Some(uwp.aumid.clone()),
+                exe_name: None,
             },
         );
     }
@@ -348,6 +350,8 @@ fn refresh_display_names(
         if changed {
             renamed += 1;
         }
+        // Not a rename: backfills apps indexed before `exe_name` existed.
+        indexed.exe_name.clone_from(&fresh.exe_name);
     }
     renamed
 }
@@ -374,6 +378,7 @@ pub fn list_applications<R: tauri::Runtime>(
             icon: extract_app_icon(path_str, &icon_cache_dir),
             last_used_at: None,
             bundle_id: extract_bundle_id(Path::new(path_str)),
+            exe_name: None,
         });
     }
 
@@ -390,6 +395,7 @@ pub fn list_applications<R: tauri::Runtime>(
             icon: extract_uwp_app_icon(&uwp.aumid, &uwp.install_location, &icon_cache_dir),
             last_used_at: None,
             bundle_id: Some(uwp.aumid.clone()),
+            exe_name: None,
         });
     }
 
@@ -1040,6 +1046,39 @@ pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
     }
 }
 
+/// Lowercased executable basename the running indicator matches against
+/// `AppPresenceQuery::running_keys`. `None` on macOS (matched by bundle id)
+/// and wherever no executable can be named, so the app simply gets no dot.
+pub(crate) fn extract_exe_name(path: &Path) -> Option<String> {
+    #[cfg(target_os = "linux")]
+    let exe = crate::platform::linux::DesktopEntry::from_file(path)
+        .and_then(|entry| entry.exec_basename());
+
+    #[cfg(target_os = "windows")]
+    let exe = {
+        let is_lnk = path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("lnk"));
+        let target = if is_lnk {
+            super::location::windows_impl::resolve_shortcut_target(path)?
+        } else {
+            path.to_path_buf()
+        };
+        target
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(str::to_string)
+    };
+
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    let exe: Option<String> = {
+        let _ = path;
+        None
+    };
+
+    exe.map(|name| name.to_lowercase())
+}
+
 fn get_icon_cache_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
     app.path()
         .app_data_dir()
@@ -1434,6 +1473,7 @@ mod tests {
             icon: None,
             last_used_at: Some(1_700_000_000),
             bundle_id: None,
+            exe_name: None,
         })
     }
 
@@ -1449,6 +1489,7 @@ mod tests {
                 icon: None,
                 last_used_at: None,
                 bundle_id: None,
+                exe_name: None,
             },
         )
     }
@@ -2309,6 +2350,7 @@ mod tests {
             icon: None,
             last_used_at: Some(1_700_000_000),
             bundle_id: None,
+            exe_name: None,
         })];
 
         let mut scanned = HashMap::new();
@@ -2322,6 +2364,7 @@ mod tests {
                 icon: Some("asyar-icon://localhost/demo.png".into()),
                 last_used_at: None,
                 bundle_id: None,
+                exe_name: None,
             },
         );
 
@@ -2517,6 +2560,7 @@ mod tests {
             icon: None,
             last_used_at: Some(1724000000),
             bundle_id: Some(aumid.to_string()),
+            exe_name: None,
         });
 
         let search_state = SearchState::new_for_test();

@@ -31,6 +31,8 @@ export type MappedSearchItem = {
   shortcut?: string;
   alias?: string;
   favorite?: boolean;
+  /** Application rows only: the app is running (dot under the icon). */
+  isRunning?: boolean;
   /**
    * Runs the row. `extra` is merged into the payload the command receives:
    * how declared argument values reach a command Enter fired without stopping
