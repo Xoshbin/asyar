@@ -50,11 +50,30 @@
     return `${base}?${params.toString()}`;
   });
 
-  let loadedSrc = $state<string | null>(null);
+  const LOAD_REVEAL_TIMEOUT_MS = 2000;
+  let generationCounter = 0;
+  let srcGeneration = $derived.by(() => {
+    void iframeSrc;
+    return ++generationCounter;
+  });
+  let loadedGeneration = $state(0);
+  let hidden = $derived(loadedGeneration !== srcGeneration);
+
+  function reveal() {
+    loadedGeneration = srcGeneration;
+  }
+
+  // Fallback so a load that never fires cannot leave a transparent pane.
+  $effect(() => {
+    void srcGeneration;
+    const timer = setTimeout(reveal, LOAD_REVEAL_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  });
 
   let mountToken = $derived(viewRegistry.getEntry(extensionId)?.mountToken);
 
   function handleIframeError() {
+    reveal();
     feedbackService.report({
       source: 'extension',
       kind: 'extension_crash',
@@ -118,7 +137,7 @@
   }
 
   async function handleIframeLoad() {
-    loadedSrc = iframeSrc;
+    reveal();
     sendThemeVariables();
     // A fresh load starts with no announced shortcuts: forget what this
     // extension was last sent, then resend the live set if its view is active.
@@ -171,7 +190,8 @@
   src={iframeSrc}
   title="Extension Sandbox - {manifest?.name || extensionId}"
   class="w-full h-full border-none bg-transparent"
-  class:opacity-0={loadedSrc !== iframeSrc}
+  class:opacity-0={hidden}
+  inert={hidden}
   sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
   onload={handleIframeLoad}
   onerror={handleIframeError}

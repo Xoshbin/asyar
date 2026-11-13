@@ -411,25 +411,11 @@ pub fn sync_command_index_internal_with_aliases(
     let removed = to_remove.len() as u32;
 
     // 4. Update SearchState
-    {
+    if !to_add.is_empty() || !to_remove.is_empty() {
         let mut items = search_state
             .items
             .write()
             .map_err(|_| crate::error::AppError::Lock)?;
-
-        // Refresh kept commands so manifest edits (icon, name, trigger) show
-        // up; usage stats and runtime metadata stay.
-        for item in items.iter_mut() {
-            if let SearchableItem::Command(cmd) = item {
-                if let Some(input) = current_commands.get(&cmd.id) {
-                    cmd.name.clone_from(&input.name);
-                    cmd.extension.clone_from(&input.extension);
-                    cmd.trigger.clone_from(&input.trigger);
-                    cmd.command_type.clone_from(&input.command_type);
-                    cmd.icon.clone_from(&input.icon);
-                }
-            }
-        }
 
         // Remove stale commands
         if !to_remove.is_empty() {
@@ -651,24 +637,6 @@ mod tests {
 
         sync_command_index_internal(vec![cmd(None)], &state).unwrap();
         assert!(state.search("brew").unwrap().is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_sync_refreshes_kept_commands_and_keeps_usage() {
-        let state = make_test_state();
-        state.index_one(make_cmd("cmd_1", "Old", 7)).unwrap();
-
-        let mut input = named_input("cmd_1", "New", "test_ext", None);
-        input.icon = Some("icon:timer".to_string().into());
-        sync_command_index_internal(vec![input], &state).unwrap();
-
-        let items = state.items.read().unwrap();
-        let SearchableItem::Command(cmd) = &items[0] else {
-            panic!("expected a command");
-        };
-        assert_eq!(cmd.name, "New");
-        assert_eq!(cmd.icon, Some("icon:timer".to_string().into()));
-        assert_eq!(cmd.usage_count, 7);
     }
 
     #[tokio::test]
