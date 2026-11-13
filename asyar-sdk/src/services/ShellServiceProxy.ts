@@ -1,4 +1,5 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
+import { listenToHost, postToHost } from '../ipc/hostChannel';
 import {
   IShellService,
   ShellChunk,
@@ -48,8 +49,9 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
     let doneCb: (exitCode?: number) => void = () => {};
     let errorCb: (error: { code: string; message: string }) => void = () => {};
 
+    let stopListening: () => void = () => {};
     const cleanup = () => {
-      window.removeEventListener('message', onMessage);
+      stopListening();
     };
 
     const settle = (err?: { code: string; message: string }, exitCode?: number) => {
@@ -86,7 +88,7 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
       }
     };
 
-    window.addEventListener('message', onMessage);
+    stopListening = listenToHost(onMessage);
 
     invokeCall().catch((err) => {
       const errorStr = String(err.message || err);
@@ -106,13 +108,10 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
       },
       abort: () => {
         if (settled) return;
-        window.parent.postMessage(
-          {
-            type: 'asyar:stream:abort',
-            streamId: spawnId,
-          },
-          '*',
-        );
+        postToHost({
+          type: 'asyar:stream:abort',
+          streamId: spawnId,
+        });
         settle({ code: 'ABORTED', message: 'Process was aborted by the extension' });
       },
       write: async (data: string) => {

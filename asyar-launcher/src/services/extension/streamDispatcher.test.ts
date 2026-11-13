@@ -8,6 +8,12 @@ vi.mock('../log/logService', () => ({
   logService: { warn: vi.fn(), error: vi.fn(), debug: vi.fn(), info: vi.fn(), custom: vi.fn() },
 }));
 
+const workerHostMock = vi.hoisted(() => ({
+  hasWorker: vi.fn((_id: string) => false),
+  post: vi.fn(),
+}));
+vi.mock('./workerHost.svelte', () => ({ workerHost: workerHostMock }));
+
 // We'll try to import from the file that doesn't exist yet
 // @ts-ignore - file won't exist initially
 import { StreamDispatcher } from './streamDispatcher.svelte';
@@ -30,6 +36,7 @@ describe('StreamDispatcher', () => {
     // @ts-ignore
     dispatcher = new StreamDispatcher();
     vi.clearAllMocks();
+    workerHostMock.hasWorker.mockReturnValue(false);
     querySpy = vi.fn();
     vi.stubGlobal('document', { querySelector: querySpy });
   });
@@ -325,5 +332,57 @@ describe('StreamDispatcher', () => {
     // Each stream routed to its own iframe
     expect(pm1.mock.calls[0][0]).toMatchObject({ streamId: 'stream-1' });
     expect(pm2.mock.calls[0][0]).toMatchObject({ streamId: 'stream-2' });
+  });
+
+  // ── Web Worker delivery ──────────────────────────────────────────────────
+  // A background worker is a Web Worker, not an iframe. Stream events for a
+  // worker-origin stream must go through workerHost (issue #1028).
+
+  it('worker-originated stream is delivered to the Web Worker, not an iframe', () => {
+    workerHostMock.hasWorker.mockReturnValue(true);
+    const { iframe, postMessage } = makeIframe('ext-1');
+    querySpy.mockReturnValue(iframe);
+
+    const handle = dispatcher.create('ext-1', 'stream-ww', 'worker');
+    handle.sendChunk({ stream: 'stdout', data: 'hi' });
+    handle.sendDone(0);
+
+    expect(workerHostMock.post).toHaveBeenNthCalledWith(1, 'ext-1', {
+      type: 'asyar:stream',
+      streamId: 'stream-ww',
+      phase: 'chunk',
+      data: { stream: 'stdout', data: 'hi' },
+    });
+    expect(workerHostMock.post).toHaveBeenNthCalledWith(2, 'ext-1', {
+      type: 'asyar:stream',
+      streamId: 'stream-ww',
+      phase: 'done',
+      data: { exitCode: 0 },
+    });
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it('worker-originated error phase reaches the Web Worker', () => {
+    workerHostMock.hasWorker.mockReturnValue(true);
+    const handle = dispatcher.create('ext-1', 'stream-we', 'worker');
+    handle.sendError({ code: 'X', message: 'boom' });
+
+    expect(workerHostMock.post).toHaveBeenCalledWith('ext-1', {
+      type: 'asyar:stream',
+      streamId: 'stream-we',
+      phase: 'error',
+      data: { error: { code: 'X', message: 'boom' } },
+    });
+  });
+
+  it('view-originated stream never goes to the Web Worker', () => {
+    workerHostMock.hasWorker.mockReturnValue(true);
+    const { iframe, postMessage } = makeIframe('ext-1');
+    querySpy.mockReturnValue(iframe);
+
+    dispatcher.create('ext-1', 'stream-vv', 'view').sendChunk({ token: 'x' });
+
+    expect(workerHostMock.post).not.toHaveBeenCalled();
+    expect(postMessage).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,6 +3,7 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { emit } from '@tauri-apps/api/event';
   import {
+    AppIcon,
     Button,
     EmptyState,
     Icon,
@@ -385,11 +386,11 @@
           {@const shortcut = shortcutsByObjectId.get(app.id)}
           <div class="app-row" role="row">
             <div class="col-name" role="cell">
-              {#if app.icon}
-                <img class="app-icon" src={app.icon} alt="" />
-              {:else}
-                <span class="app-icon app-icon-fallback" aria-hidden="true">🖥️</span>
-              {/if}
+              <AppIcon icon={app.icon} size={22} alt="">
+                {#snippet fallback()}
+                  <span class="app-icon app-icon-fallback" aria-hidden="true">🖥️</span>
+                {/snippet}
+              </AppIcon>
               <span class="app-name" title={app.path}>{app.name}</span>
             </div>
             <div class="col-alias" role="cell">

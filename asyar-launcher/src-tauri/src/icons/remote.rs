@@ -89,7 +89,14 @@ pub fn cached_icon(cache_dir: &Path, key: &str) -> Option<String> {
 }
 
 fn icon_url(filename: &str) -> String {
-    format!("asyar-icon://localhost/{filename}")
+    #[cfg(target_os = "windows")]
+    {
+        format!("http://asyar-icon.localhost/{filename}")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        format!("asyar-icon://localhost/{filename}")
+    }
 }
 
 /// Fetches, processes and caches a remote icon, returning its `asyar-icon://`
@@ -386,10 +393,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            result,
-            format!("asyar-icon://localhost/{CACHE_PREFIX}{key}.png")
-        );
+        assert_eq!(result, icon_url(&format!("{CACHE_PREFIX}{key}.png")));
     }
 
     #[tokio::test]

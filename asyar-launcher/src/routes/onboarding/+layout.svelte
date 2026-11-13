@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t } from '../../services/i18n';
+  import { i18nService, t } from '../../services/i18n';
   import { platform } from '@tauri-apps/plugin-os';
   import { onboardingService } from '../../services/onboarding/onboardingService.svelte';
   import { settingsService } from '../../services/settings/settingsService.svelte';
@@ -18,6 +18,10 @@
   let { children } = $props();
 
   onMount(async () => {
+    // Separate webview: load the system UI language here too, otherwise the
+    // tour always renders in English.
+    await i18nService.init();
+
     // The launcher webview sets data-platform in its own +layout. The
     // onboarding is a separate webview, so platform-conditional CSS
     // (transparent .onboarding-frame on Windows so Acrylic shows through)

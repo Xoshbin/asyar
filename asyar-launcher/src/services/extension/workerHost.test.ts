@@ -470,6 +470,9 @@ it('does not bypass invalid worker paths through compatibility', () => {
     expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({ extensionId: 'ext.invalid' }),
     );
+    expect(logService.error).toHaveBeenCalledWith(
+      expect.stringContaining('worker failed for ext.invalid'),
+    );
   } finally {
     workerHost.reset();
     vi.unstubAllGlobals();

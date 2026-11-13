@@ -178,7 +178,7 @@ A few strings are rendered natively by Rust before or outside the webview, so th
 
 [`locale/native.rs`](../../asyar-launcher/src-tauri/src/locale/native.rs) holds a small, compile-time translation table for them:
 
-- `NativeLang` mirrors the frontend catalogs (`En`, `PtBr`, `ZhHans`, `ZhHant`). `NativeLang::from_locale` resolves a `ParsedLocale` to a table: an explicit Chinese script wins, otherwise `TW`/`HK`/`MO` map to Traditional and other Chinese locales to Simplified; unknown languages fall back to English.
+- `NativeLang` mirrors the frontend catalogs (`En`, `Fr`, `PtBr`, `ZhHans`, `ZhHant`). `NativeLang::from_locale` resolves a `ParsedLocale` to a table: an explicit Chinese script wins, otherwise `TW`/`HK`/`MO` map to Traditional and other Chinese locales to Simplified; unknown languages fall back to English.
 - `NativeText` lists every native string, and `native_text(locale, key)` returns the translation. The `match` is exhaustive, so adding a key or a language without translating it does not compile.
 - `app_native_text(manager, key)` reads the locale from the managed `LocaleService`, falling back to the host locale before the service is registered.
 

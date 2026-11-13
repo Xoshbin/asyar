@@ -5,7 +5,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
-  import { toResolvedIcon, type IconSource } from '../../lib/icon';
+  import { normalizeHostImageUrl, toResolvedIcon, type IconSource } from '../../lib/icon';
   import { resolveRemoteIcon } from '../../services/icon/remoteIconService';
 
   let {
@@ -57,8 +57,9 @@
 
     void resolveRemoteIcon(owner, url).then((iconUrl) => {
       if (token !== requestToken) return;
-      remoteSrc = iconUrl;
-      remoteState = iconUrl ? 'ready' : 'failed';
+      const normalized = iconUrl ? normalizeHostImageUrl(iconUrl) : null;
+      remoteSrc = normalized;
+      remoteState = normalized ? 'ready' : 'failed';
     });
 
     return () => {

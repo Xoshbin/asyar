@@ -18,7 +18,7 @@ export function getHostPlatform(): HostPlatform {
     resolved = p === 'macos' ? 'macos' : p === 'windows' ? 'windows' : 'other';
   } catch {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-    resolved = /Mac/i.test(ua) ? 'macos' : /Win/i.test(ua) ? 'windows' : 'other';
+    resolved = /Mac/i.test(ua) ? 'macos' : /\bWin(dows|32|64|NT)\b/i.test(ua) ? 'windows' : 'other';
   }
   cached = resolved;
   return resolved;

@@ -194,6 +194,7 @@ If you are moving over from Raycast, you don't have to rebuild your configuratio
 The launcher interface follows your system language and is available in:
 
 - English
+- Français
 - Português (Brasil)
 - 简体中文 (Simplified Chinese)
 - 繁體中文 (Traditional Chinese)

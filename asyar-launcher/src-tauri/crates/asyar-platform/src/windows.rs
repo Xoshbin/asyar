@@ -12,7 +12,7 @@ use windows::Win32::Graphics::Dwm::{
     DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
 };
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, SelectObject, BITMAPINFO,
+    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW, BITMAP, BITMAPINFO,
     BITMAPINFOHEADER, DIB_RGB_COLORS,
 };
 use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
@@ -87,6 +87,15 @@ pub fn restore_foreground_window(hwnd: isize) {
     }
 }
 
+/// Validates positive icon bitmap dimensions within a safe ceiling (max 1024px per side).
+fn icon_bitmap_dimensions(width: i32, height: i32) -> Option<(i32, i32)> {
+    const MAX_ICON_SIDE: i32 = 1024;
+    if width <= 0 || height <= 0 || width > MAX_ICON_SIDE || height > MAX_ICON_SIDE {
+        return None;
+    }
+    Some((width, height))
+}
+
 /// Extracts a high-resolution PNG icon from a Windows executable or shortcut.
 pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     let exe_path = path.to_str()?;
@@ -127,14 +136,34 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
         return None;
     }
 
-    let size: i32 = 32;
+    // Query the icon bitmap's native DPI-scaled dimensions instead of hardcoding 32x32,
+    // which otherwise crops HiDPI Windows 11 icons (40x40, 48x48, 64x64) to their top-left corner.
+    let mut bmp = BITMAP::default();
+    let (width, height) = if !icon_info.hbmColor.is_invalid()
+        && unsafe {
+            GetObjectW(
+                icon_info.hbmColor.into(),
+                std::mem::size_of::<BITMAP>() as i32,
+                Some(&mut bmp as *mut BITMAP as *mut _),
+            )
+        } > 0
+    {
+        icon_bitmap_dimensions(bmp.bmWidth, bmp.bmHeight).unwrap_or((32, 32))
+    } else {
+        (32, 32)
+    };
+
+    let pixel_bytes = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|px| px.checked_mul(4))?;
+
     let dc = unsafe { CreateCompatibleDC(None) };
 
     let mut bmi = BITMAPINFO {
         bmiHeader: BITMAPINFOHEADER {
             biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: size,
-            biHeight: -size, // top-down
+            biWidth: width,
+            biHeight: -height, // top-down
             biPlanes: 1,
             biBitCount: 32,
             biCompression: 0,
@@ -147,15 +176,15 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
         bmiColors: [Default::default()],
     };
 
-    let mut pixels: Vec<u8> = vec![0u8; (size * size * 4) as usize];
-    let old_obj = unsafe { SelectObject(dc, icon_info.hbmColor.into()) };
+    let mut pixels: Vec<u8> = vec![0u8; pixel_bytes];
 
+    // hbmColor must NOT be selected into the DC when calling GetDIBits.
     let rows = unsafe {
         GetDIBits(
             dc,
             icon_info.hbmColor,
             0,
-            size as u32,
+            height as u32,
             Some(pixels.as_mut_ptr() as *mut _),
             &mut bmi,
             DIB_RGB_COLORS,
@@ -163,7 +192,6 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     };
 
     unsafe {
-        SelectObject(dc, old_obj);
         let _ = DeleteDC(dc);
         if !icon_info.hbmColor.is_invalid() {
             let _ = DeleteObject(icon_info.hbmColor.into());
@@ -195,7 +223,7 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     let mut buf = Vec::new();
     {
         let mut encoder =
-            png::Encoder::new(std::io::Cursor::new(&mut buf), size as u32, size as u32);
+            png::Encoder::new(std::io::Cursor::new(&mut buf), width as u32, height as u32);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder.write_header().ok()?;
@@ -243,5 +271,19 @@ pub fn get_frontmost_application_metadata() -> Option<(String, String, String)> 
             .to_string();
 
         Some((name, path, title))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn icon_bitmap_dimensions_accepts_hidpi_sizes_and_rejects_invalid() {
+        assert_eq!(icon_bitmap_dimensions(32, 32), Some((32, 32)));
+        assert_eq!(icon_bitmap_dimensions(48, 48), Some((48, 48)));
+        assert_eq!(icon_bitmap_dimensions(64, 64), Some((64, 64)));
+        assert_eq!(icon_bitmap_dimensions(0, 32), None);
+        assert_eq!(icon_bitmap_dimensions(-16, 32), None);
     }
 }

@@ -62,12 +62,30 @@ jobs:
           PREV_TAG=$(git tag -l 'sdk-v*' --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | head -n 1)
           echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
 
+      # SDK releases are stable by default, but beta builds (e.g. 2.7.0-1)
+      # must still be marked as prereleases. Derive the flag from the SDK's
+      # own version rather than the tag shape, so a hyphen in the version
+      # (betas) still marks a prerelease while stable versions don't.
+      - name: Derive prerelease flag from version
+        id: pre
+        run: |
+          VERSION=$(node -p "require('./asyar-sdk/package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.6.1
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           draft: false
-          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
+          prerelease: ${{ steps.pre.outputs.prerelease }}
+          # SDK releases must never become the repo's "latest" release — the
+          # README's macOS download link points at launcher installers, not
+          # SDK tarballs, so a stable SDK surfacing as latest breaks that link.
+          make_latest: false
           generate_release_notes: true
           # GitHub's auto-notes otherwise diffs against the most recently
           # published release repo-wide, which is usually a launcher `v*`
