@@ -14,6 +14,8 @@ pub mod windows;
 #[cfg(target_os = "windows")]
 pub mod windows_key_resolver;
 
+pub use asyar_platform::{extract_icon_outcome, ExtractedIcon};
+
 // Re-export the platform icon extractor under a unified name
 #[cfg(target_os = "linux")]
 pub use linux::extract_icon;

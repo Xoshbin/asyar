@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   pr-description:
-    name: PR description & smoke test
+    name: PR description & AI usage
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -26,14 +26,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Fetch changed files
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}/files" --paginate --jq '.[].filename' > "${RUNNER_TEMP}/changed-files.txt"
-
       - name: Validate PR description
         env:
           REPO_OWNER: ${{ github.repository_owner }}
-        run: node scripts/check-pr.mjs --event "$GITHUB_EVENT_PATH" --files "${RUNNER_TEMP}/changed-files.txt" --exempt-login "$REPO_OWNER"
+        run: node scripts/check-pr.mjs --event "$GITHUB_EVENT_PATH" --exempt-login "$REPO_OWNER"

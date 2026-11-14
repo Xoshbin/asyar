@@ -1,6 +1,6 @@
 //! Thumbnail cache: directory resolution, content-addressed key derivation,
 //! and a size-capped eviction sweep. Mirrors the app-icon cache
-//! (`application::service::get_icon_cache_dir` / `extract_app_icon`) —
+//! (`application::service::icon_cache_dir` / `extract_app_icon`) —
 //! same shape, different invalidation semantics: an app icon is keyed by
 //! install path alone (apps rarely change in place), but an arbitrary file
 //! can be edited, so the key must include `mtime` + `size` too.

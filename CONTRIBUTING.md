@@ -163,7 +163,7 @@ If you want to contribute but aren't sure where to start:
 2. **Branching**: Create a feature branch off `main` (e.g. `feat/my-feature` or `fix/issue-description`).
 3. **Testing & Manual Smoke Test**:
    - Write automated unit tests for new logic or bug fixes and run `pnpm check:ci` (ensures Prettier formatting, design token compliance, frontend tests, i18n enforcement, `cargo fmt`, `clippy`, and Rust tests all pass).
-   - **Manual Smoke Test**: Automated tests do not replace running the app. For code changes, manually smoke-test your fix or feature in `pnpm dev`, visually verify it works, and check the smoke-test confirmation in the PR template. Screenshots or screen recordings are optional (encouraged for UI changes, never required). Docs-only and locale-only PRs are exempt from smoke testing.
+   - **Manual Smoke Test**: Automated tests do not replace running the app. For code changes, manually smoke-test your fix or feature in `pnpm dev`, visually verify it works, and check the smoke-test confirmation in the PR template. Screenshots or screen recordings are optional (encouraged for UI changes, never required). Docs-only and locale-only PRs don't need a smoke test.
 4. **Code Style & Formatting**:
    - Run `pnpm format` before opening a pull request.
    - Use Svelte 5 runes (`$state`, `$derived`, `$props`, `$effect`) exclusively. Svelte 4 syntax (`export let`, `$:`) is not accepted.
@@ -173,9 +173,10 @@ If you want to contribute but aren't sure where to start:
      - **Affected areas**: Check all applicable areas (`Launcher UI / UX`, `SDK / Extensions`, `Rust Backend / Platform`, `Docs / Tooling / Other`).
      - **Manual smoke test & Validation**: Confirm your visual smoke test and list the checks you ran.
    - Link related issue numbers (e.g., `Fixes #123`).
-   - You can validate your PR description locally before pushing (passing changed files so docs/locale-only exemptions match CI):
+   - The **PR Checks** workflow only fails when `What changed` is left empty or the `AI usage` section is missing or inconsistent. The other sections help the reviewer and are not CI gates: if something doesn't apply or you couldn't verify it, leave the box unchecked and add a short note.
+   - You can validate your PR description locally before pushing:
      ```bash
-     node scripts/check-pr.mjs --body-file <path-to-pr-body.md> --files <(git diff --name-only origin/main...HEAD)
+     node scripts/check-pr.mjs --body-file <path-to-pr-body.md>
      ```
 
 ---

@@ -76,6 +76,93 @@ describe('ExtensionIframe', () => {
     expect(themeCall![0].payload['color-scheme']).toBe('dark');
   });
 
+  describe('load gate', () => {
+    const props = {
+      extensionId: 'org.asyar.google-translate',
+      view: 'org.asyar.google-translate/TranslateView',
+      manifest: null,
+    };
+    const viewA = props.view;
+    const viewB = 'org.asyar.google-translate/OtherView';
+
+    function isHidden(iframe: HTMLIFrameElement) {
+      const opacityHidden = iframe.classList.contains('opacity-0');
+      expect(iframe.inert).toBe(opacityHidden);
+      return opacityHidden;
+    }
+
+    function setup() {
+      const result = render(ExtensionIframe, props);
+      const iframe = result.container.querySelector('iframe') as HTMLIFrameElement;
+      mockIframePostMessage(iframe);
+      return { ...result, iframe };
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('stays hidden and inert until the initial src has loaded', async () => {
+      const { iframe } = setup();
+      expect(isHidden(iframe)).toBe(true);
+
+      await fireEvent.load(iframe);
+      expect(isHidden(iframe)).toBe(false);
+    });
+
+    it('hides again when switching view until the new src loads', async () => {
+      const { iframe, rerender } = setup();
+      await fireEvent.load(iframe);
+
+      await rerender({ ...props, view: viewB });
+      expect(isHidden(iframe)).toBe(true);
+
+      await fireEvent.load(iframe);
+      expect(isHidden(iframe)).toBe(false);
+    });
+
+    it('does not reuse an older load when switching A → B → A', async () => {
+      const { iframe, rerender } = setup();
+      await fireEvent.load(iframe);
+
+      await rerender({ ...props, view: viewB });
+      await rerender({ ...props, view: viewA });
+      expect(isHidden(iframe)).toBe(true);
+
+      await fireEvent.load(iframe);
+      expect(isHidden(iframe)).toBe(false);
+    });
+
+    it('reveals a late load once it arrives', async () => {
+      vi.useFakeTimers();
+      const { iframe } = setup();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(isHidden(iframe)).toBe(true);
+
+      await fireEvent.load(iframe);
+      expect(isHidden(iframe)).toBe(false);
+    });
+
+    it('reveals after a timeout when no load event fires', async () => {
+      vi.useFakeTimers();
+      const { iframe } = setup();
+
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(isHidden(iframe)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(isHidden(iframe)).toBe(false);
+    });
+
+    it('reveals when the frame errors', async () => {
+      const { iframe } = setup();
+
+      await fireEvent.error(iframe);
+      expect(isHidden(iframe)).toBe(false);
+    });
+  });
+
   it('updates color-scheme via postMessage on live theme switch without reloading iframeSrc', async () => {
     document.documentElement.dataset.theme = 'dark';
 

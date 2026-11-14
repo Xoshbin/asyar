@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::platform::ExtractedIcon;
 use crate::search_engine::models::{build_app_id, Application, SearchableItem};
 use crate::search_engine::SearchState;
 use log::info;
@@ -178,7 +179,7 @@ pub fn sync_application_index<R: tauri::Runtime>(
     let mut scanner = AppScanner::new();
     scanner.scan_all(extra_paths)?;
 
-    let icon_cache_dir = get_icon_cache_dir(app);
+    let icon_cache_dir = icon_cache_dir(app);
 
     // 2. Build current app set
     let mut current_apps: HashMap<String, Application> = HashMap::new();
@@ -363,7 +364,7 @@ pub fn list_applications<R: tauri::Runtime>(
     let mut scanner = AppScanner::new();
     scanner.scan_all(extra_paths)?;
 
-    let icon_cache_dir = get_icon_cache_dir(app);
+    let icon_cache_dir = icon_cache_dir(app);
     let mut applications = Vec::new();
 
     for path_str in &scanner.paths {
@@ -1236,7 +1237,14 @@ pub(crate) fn extract_exe_name(path: &Path) -> Option<String> {
     }
 }
 
-fn get_icon_cache_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
+/// How long a "no icon found" marker suppresses re-extraction on Windows.
+/// On macOS and Linux the marker only expires when the source mtime changes.
+const MISSING_MARKER_TTL: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
+/// Resolves the directory used to cache extracted app icons. Icons are never
+/// purged from here: clipboard history references source-app icons from this
+/// directory and only regenerates them on a new capture.
+fn icon_cache_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
     app.path()
         .app_data_dir()
         .map(|p| p.join("icon_cache"))
@@ -1315,6 +1323,64 @@ fn cached_icon_is_fresh(cached: &Path, source_mtime: Option<std::time::SystemTim
     }
 }
 
+/// Writes a "no icon found" marker. Instead of stamping the file's mtime (which
+/// a `.lnk` never gets when its target changes), the source mtime is stored in
+/// the marker's contents so a changed source retries immediately. The marker's
+/// own mtime remains the TTL clock.
+fn write_missing_marker(marker: &Path, source_mtime: Option<std::time::SystemTime>) {
+    let _ = std::fs::create_dir_all(marker.parent().unwrap());
+    let contents = source_mtime
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs().to_string())
+        .unwrap_or_default();
+    let _ = std::fs::write(marker, contents);
+}
+
+/// A negative result is retried when either the marker is older than
+/// [`MISSING_MARKER_TTL`] (Windows only) or the source mtime differs from the
+/// one stored when the marker was written. A `.lnk` is untouched while its
+/// target changes underneath it, so the source mtime check is what makes a
+/// re-pointed shortcut repair itself right away.
+fn missing_marker_is_fresh(
+    marker: &Path,
+    source_mtime: Option<std::time::SystemTime>,
+    is_windows: bool,
+) -> bool {
+    let Ok(metadata) = marker.metadata().and_then(|m| m.modified()) else {
+        return false;
+    };
+    // The source mtime is stored in the marker contents; a changed source means
+    // the marker is stale regardless of age.
+    let source_unchanged = match source_mtime {
+        None => true,
+        Some(current) => {
+            let Ok(contents) = std::fs::read_to_string(marker) else {
+                return false;
+            };
+            let Ok(stored_secs) = contents.trim().parse::<u64>() else {
+                return false;
+            };
+            let stored = std::time::UNIX_EPOCH + std::time::Duration::from_secs(stored_secs);
+            stored == current
+                || stored
+                    .duration_since(current)
+                    .or_else(|_| current.duration_since(stored))
+                    .map(|d| d.as_secs() == 0)
+                    .unwrap_or(false)
+        }
+    };
+    if !source_unchanged {
+        return false;
+    }
+    if is_windows {
+        return metadata
+            .elapsed()
+            .map(|age| age < MISSING_MARKER_TTL)
+            .unwrap_or(false);
+    }
+    true
+}
+
 fn stamp_cache_file(path: &Path, source_mtime: Option<std::time::SystemTime>) {
     let Some(time) = source_mtime else {
         return;
@@ -1327,15 +1393,17 @@ fn stamp_cache_file(path: &Path, source_mtime: Option<std::time::SystemTime>) {
 
 /// Builds the cache file stem for an application's extracted icon.
 ///
-/// Windows prepends a version prefix (`w2_`) so caches created before HiDPI
-/// uncropping automatically regenerate once without altering `.lnk` mtimes.
+/// Windows prepends a version prefix (`w3_`) so caches written by the
+/// placeholder-soft-cache scheme are orphaned instead of purged (old `.lnk`
+/// entries, including ones shortened by `truncate_cache_key`, simply stop
+/// matching).
 fn app_icon_cache_base_name_for_platform(app_path: &str, is_windows: bool) -> String {
     let raw = app_path
         .replace(['/', '\\', ':', ' '], "_")
         .replace(".app", "")
         .replace(".desktop", "")
         .replace(".exe", "");
-    let cache_key = if is_windows { format!("w2_{raw}") } else { raw };
+    let cache_key = if is_windows { format!("w3_{raw}") } else { raw };
     truncate_cache_key(&cache_key, 200).into_owned()
 }
 
@@ -1352,11 +1420,15 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
     let missing_marker = cache_dir.join(format!("{base_name}.missing"));
 
     let source_mtime = icon_source_mtime(Path::new(app_path));
+    let is_windows = cfg!(target_os = "windows");
 
-    #[cfg(target_os = "windows")]
-    let icon_url = |filename: &str| format!("http://asyar-icon.localhost/{filename}");
-    #[cfg(not(target_os = "windows"))]
-    let icon_url = |filename: &str| format!("asyar-icon://localhost/{filename}");
+    let icon_url = move |filename: &str| -> String {
+        if is_windows {
+            format!("http://asyar-icon.localhost/{filename}")
+        } else {
+            format!("asyar-icon://localhost/{filename}")
+        }
+    };
 
     if cached_icon_is_fresh(&cache_file_png, source_mtime) {
         return Some(icon_url(&cache_filename_png));
@@ -1364,44 +1436,88 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
     if cached_icon_is_fresh(&cache_file_svg, source_mtime) {
         return Some(icon_url(&cache_filename_svg));
     }
-    if cached_icon_is_fresh(&missing_marker, source_mtime) {
+    if missing_marker_is_fresh(&missing_marker, source_mtime, is_windows) {
         return None;
     }
 
-    if let Some(bytes) = crate::platform::extract_icon(Path::new(app_path)) {
-        let _ = std::fs::create_dir_all(cache_dir);
-        let is_svg = bytes.starts_with(b"<") || bytes.windows(4).take(32).any(|w| w == b"<svg");
-        let (chosen_filename, chosen_file, obsolete_file) = if is_svg {
-            (&cache_filename_svg, &cache_file_svg, &cache_file_png)
-        } else {
-            (&cache_filename_png, &cache_file_png, &cache_file_svg)
-        };
-        if std::fs::write(chosen_file, bytes).is_ok() {
-            let _ = std::fs::remove_file(obsolete_file);
-            let _ = std::fs::remove_file(&missing_marker);
-            stamp_cache_file(chosen_file, source_mtime);
-            return Some(icon_url(chosen_filename));
+    let entry = IconCacheFiles {
+        cache_dir: cache_dir.to_path_buf(),
+        png_file: cache_file_png,
+        png_name: cache_filename_png,
+        svg_file: cache_file_svg,
+        svg_name: cache_filename_svg,
+        missing_marker,
+    };
+
+    match crate::platform::extract_icon_outcome(Path::new(app_path)) {
+        Some(ExtractedIcon::Icon(bytes)) => {
+            store_extracted_icon(&entry, bytes, source_mtime, &icon_url)
         }
+        Some(ExtractedIcon::Placeholder(bytes)) => {
+            // Soft cache: write the placeholder so the user still sees an icon,
+            // but do not stamp it with `source_mtime` — it must be re-extracted
+            // on the next scan and repairs itself when the target reappears.
+            store_extracted_icon(&entry, bytes, None, &icon_url)
+        }
+        None => on_extraction_failed(&entry, source_mtime, &icon_url),
+    }
+}
+
+/// All the cache paths for a single app icon entry.
+struct IconCacheFiles {
+    cache_dir: PathBuf,
+    png_file: PathBuf,
+    png_name: String,
+    svg_file: PathBuf,
+    svg_name: String,
+    missing_marker: PathBuf,
+}
+
+/// Writes extracted icon bytes to the cache and removes the negative marker.
+/// `stamp` is the source mtime to stamp the file with; `None` means a soft
+/// cached placeholder that must stay retryable.
+fn store_extracted_icon(
+    entry: &IconCacheFiles,
+    bytes: Vec<u8>,
+    stamp: Option<std::time::SystemTime>,
+    icon_url: &dyn Fn(&str) -> String,
+) -> Option<String> {
+    let _ = std::fs::create_dir_all(&entry.cache_dir);
+    let is_svg = bytes.starts_with(b"<") || bytes.windows(4).take(32).any(|w| w == b"<svg");
+    let (chosen_filename, chosen_file, obsolete_file) = if is_svg {
+        (&entry.svg_name, &entry.svg_file, &entry.png_file)
+    } else {
+        (&entry.png_name, &entry.png_file, &entry.svg_file)
+    };
+    if std::fs::write(chosen_file, bytes).is_ok() {
+        let _ = std::fs::remove_file(obsolete_file);
+        let _ = std::fs::remove_file(&entry.missing_marker);
+        stamp_cache_file(chosen_file, stamp);
+        return Some(icon_url(chosen_filename));
+    }
+    None
+}
+
+/// Extraction failed: preserve any previously working cached icon rather than
+/// dropping it, but never re-stamp it — an unstamped placeholder must stay
+/// retryable, and stamping would make it forever-fresh.
+fn on_extraction_failed(
+    entry: &IconCacheFiles,
+    source_mtime: Option<std::time::SystemTime>,
+    icon_url: &dyn Fn(&str) -> String,
+) -> Option<String> {
+    if entry.png_file.exists() {
+        return Some(icon_url(&entry.png_name));
+    }
+    if entry.svg_file.exists() {
+        return Some(icon_url(&entry.svg_name));
     }
 
-    // Extraction failed: preserve any previously working cached icon rather than dropping it.
-    // Stamp the fallback file with source_mtime so subsequent scans don't repeatedly re-extract.
-    if cache_file_png.exists() {
-        stamp_cache_file(&cache_file_png, source_mtime);
-        return Some(icon_url(&cache_filename_png));
-    }
-    if cache_file_svg.exists() {
-        stamp_cache_file(&cache_file_svg, source_mtime);
-        return Some(icon_url(&cache_filename_svg));
-    }
-
-    // Cache the negative result so future launches skip expensive extraction
-    let _ = std::fs::create_dir_all(cache_dir);
-    if let Ok(file) = std::fs::File::create(&missing_marker) {
-        if let Some(time) = source_mtime {
-            let _ = file.set_modified(time);
-        }
-    }
+    // Cache the negative result so future launches skip expensive extraction.
+    // The source mtime is stored in the marker contents; the marker is not
+    // stamped with it.
+    let _ = std::fs::create_dir_all(&entry.cache_dir);
+    write_missing_marker(&entry.missing_marker, source_mtime);
 
     None
 }
@@ -2409,8 +2525,8 @@ mod tests {
     fn test_app_icon_cache_base_name_versions_windows_cache_keys() {
         let windows_key = app_icon_cache_base_name_for_platform("C:\\Apps\\Demo.exe", true);
         let unix_key = app_icon_cache_base_name_for_platform("/Applications/Demo.app", false);
-        assert!(windows_key.starts_with("w2_"));
-        assert!(!unix_key.starts_with("w2_"));
+        assert!(windows_key.starts_with("w3_"));
+        assert!(!unix_key.starts_with("w3_"));
     }
 
     #[test]
@@ -2536,6 +2652,17 @@ mod tests {
         assert_eq!(app.last_used_at, Some(1_700_000_000));
     }
 
+    fn icon_cache_files(cache_dir: &Path, stem: &str) -> IconCacheFiles {
+        IconCacheFiles {
+            cache_dir: cache_dir.to_path_buf(),
+            png_file: cache_dir.join(format!("{stem}.png")),
+            png_name: format!("{stem}.png"),
+            svg_file: cache_dir.join(format!("{stem}.svg")),
+            svg_name: format!("{stem}.svg"),
+            missing_marker: cache_dir.join(format!("{stem}.missing")),
+        }
+    }
+
     fn set_test_mtime(path: &Path, time: std::time::SystemTime) {
         #[cfg(unix)]
         {
@@ -2642,7 +2769,7 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[test]
-    fn test_extract_app_icon_fallback_stamps_stale_cache_on_extraction_failure() {
+    fn test_extract_app_icon_fallback_preserves_stale_cache_and_stays_retryable() {
         let tmp = tempfile::tempdir().unwrap();
         let cache_dir = tmp.path().join("icon_cache");
         std::fs::create_dir_all(&cache_dir).unwrap();
@@ -2669,11 +2796,123 @@ mod tests {
         assert!(result.is_some(), "must return preserved fallback");
         assert_eq!(std::fs::read(&cached).unwrap(), b"preserved-fallback");
 
-        // The fallback file must now be stamped with new_time so future scans don't loop
+        // The preserved fallback must NOT be re-stamped: an unstamped cache file
+        // stays retryable, so it repairs itself once extraction succeeds again.
         assert!(
-            cached_icon_is_fresh(&cached, Some(new_time)),
-            "fallback cache file must be stamped with source_mtime"
+            !cached_icon_is_fresh(&cached, Some(new_time)),
+            "fallback cache file must stay unstamped so extraction is retried"
         );
+    }
+
+    #[test]
+    fn test_missing_marker_fresh_requires_unchanged_source_mtime() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let marker = cache_dir.join("demo.missing");
+        let source_mtime = std::time::SystemTime::now();
+        write_missing_marker(&marker, Some(source_mtime));
+
+        // Young and unchanged: fresh on every platform.
+        assert!(missing_marker_is_fresh(&marker, Some(source_mtime), true));
+        assert!(missing_marker_is_fresh(&marker, Some(source_mtime), false));
+
+        // A changed source mtime retries immediately, before the TTL expires.
+        let changed = source_mtime + std::time::Duration::from_secs(10);
+        assert!(!missing_marker_is_fresh(&marker, Some(changed), true));
+        assert!(!missing_marker_is_fresh(&marker, Some(changed), false));
+    }
+
+    #[test]
+    fn test_missing_marker_ttl_is_windows_only() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let marker = cache_dir.join("demo.missing");
+        let source_mtime = std::time::SystemTime::now();
+        write_missing_marker(&marker, Some(source_mtime));
+        set_test_mtime(
+            &marker,
+            std::time::SystemTime::now() - MISSING_MARKER_TTL * 2,
+        );
+
+        // Past the TTL with an unchanged source: stale on Windows ...
+        assert!(!missing_marker_is_fresh(&marker, Some(source_mtime), true));
+        // ... but not on macOS or Linux, where only the source mtime matters.
+        assert!(missing_marker_is_fresh(&marker, Some(source_mtime), false));
+    }
+
+    #[test]
+    fn test_stale_missing_marker_is_retried() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let marker = cache_dir.join("_nonexistent_path_app.missing");
+        let source_mtime = std::time::SystemTime::now();
+        write_missing_marker(&marker, Some(source_mtime));
+
+        // Fresh marker: short-circuits without touching it.
+        assert!(missing_marker_is_fresh(&marker, Some(source_mtime), true));
+        assert!(extract_app_icon("/nonexistent/path/app.desktop", &cache_dir).is_none());
+
+        // Age the marker past the TTL; the retry fails again and rewrites it.
+        let old = std::time::SystemTime::now() - MISSING_MARKER_TTL * 2;
+        set_test_mtime(&marker, old);
+        assert!(!missing_marker_is_fresh(&marker, Some(source_mtime), true));
+
+        // A failed re-extraction rewrites the marker (via `on_extraction_failed`),
+        // which on Windows makes it fresh again immediately.
+        write_missing_marker(&marker, None);
+        set_test_mtime(&marker, std::time::SystemTime::now());
+        assert!(
+            missing_marker_is_fresh(&marker, None, true),
+            "rewritten marker must be fresh"
+        );
+    }
+
+    #[test]
+    fn test_placeholder_icon_is_soft_cached_and_not_stamped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let entry = icon_cache_files(&cache_dir, "demo");
+        let source_mtime = std::time::SystemTime::now() - std::time::Duration::from_secs(1000);
+        let url = store_extracted_icon(&entry, b"placeholder-bytes".to_vec(), None, &|filename| {
+            format!("http://asyar-icon.localhost/{filename}")
+        });
+        assert_eq!(
+            url,
+            Some("http://asyar-icon.localhost/demo.png".to_string())
+        );
+        assert_eq!(
+            std::fs::read(&entry.png_file).unwrap(),
+            b"placeholder-bytes"
+        );
+        // Not stamped with source_mtime: the next scan treats it as stale and
+        // re-extracts, so a reappearing target repairs the cache.
+        assert!(!cached_icon_is_fresh(&entry.png_file, Some(source_mtime)));
+    }
+
+    #[test]
+    fn test_real_icon_is_stamped_with_source_mtime() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let entry = icon_cache_files(&cache_dir, "demo");
+        let source_mtime = std::time::SystemTime::now() - std::time::Duration::from_secs(1000);
+        let url = store_extracted_icon(
+            &entry,
+            b"real-png-bytes".to_vec(),
+            Some(source_mtime),
+            &|filename| format!("asyar-icon://localhost/{filename}"),
+        );
+        assert_eq!(url, Some("asyar-icon://localhost/demo.png".to_string()));
+        assert!(cached_icon_is_fresh(&entry.png_file, Some(source_mtime)));
     }
 
     #[test]
