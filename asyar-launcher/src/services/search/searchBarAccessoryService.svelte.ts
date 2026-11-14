@@ -39,6 +39,11 @@ function hasSelectableValue(options: SearchBarAccessoryDropdownOption[], value: 
   return false;
 }
 
+function firstSelectableValue(options: SearchBarAccessoryDropdownOption[]): string {
+  const first = options[0];
+  return first.children?.length ? firstSelectableValue(first.children) : first.value;
+}
+
 type Subscriber = {
   extensionId: string;
   commandId: string;
@@ -71,6 +76,7 @@ export class SearchBarAccessoryServiceClass {
   popoverOpen = $state(false);
   private subscribers = new Set<Subscriber>();
   #seq = 0;
+  #pendingSelection: { seq: number; value: string } | undefined;
 
   async declare(input: DeclareInput): Promise<void> {
     if (input.options.length === 0) {
@@ -103,7 +109,7 @@ export class SearchBarAccessoryServiceClass {
     } else if (input.default !== undefined && hasSelectableValue(input.options, input.default)) {
       seed = input.default;
     } else {
-      seed = input.options[0].value;
+      seed = firstSelectableValue(input.options);
     }
 
     this.active = {
@@ -154,9 +160,16 @@ export class SearchBarAccessoryServiceClass {
       throw new Error(`searchBarAccessory.setSelected: value '${value}' not in options`);
     }
 
+    const mySeq = ++this.#seq;
+    this.#pendingSelection = { seq: mySeq, value };
     const persisted = await searchbarAccessorySet(extensionId, commandId, value);
-    if (!persisted) return;
-    this.#seq++;
+    if (
+      !persisted ||
+      mySeq !== this.#seq ||
+      this.active?.extensionId !== extensionId ||
+      this.active.commandId !== commandId
+    )
+      return;
     this.active = { ...this.active, value };
     this.broadcast(extensionId, commandId, value, /*toView=*/ true);
   }
@@ -195,7 +208,7 @@ export class SearchBarAccessoryServiceClass {
       nextOptions = opts.options;
       // Prefer existing value if still valid, else first option.
       if (!hasSelectableValue(nextOptions, nextValue)) {
-        nextValue = nextOptions[0].value;
+        nextValue = firstSelectableValue(nextOptions);
       }
     }
 
@@ -207,6 +220,11 @@ export class SearchBarAccessoryServiceClass {
     }
 
     const valueChanged = nextValue !== this.active.value;
+    const invalidatesSelection =
+      this.#pendingSelection?.seq === this.#seq &&
+      !hasSelectableValue(nextOptions, this.#pendingSelection.value);
+    const mySeq =
+      valueChanged || opts.value !== undefined || invalidatesSelection ? ++this.#seq : this.#seq;
 
     // Persist FIRST so a SQLite failure aborts before in-memory state is
     // updated. Mirrors setSelected()'s order — keeps the two paths
@@ -214,10 +232,14 @@ export class SearchBarAccessoryServiceClass {
     // silently rolling back the user's intent.
     if (valueChanged) {
       const persisted = await searchbarAccessorySet(extensionId, commandId, nextValue);
-      if (!persisted) return;
+      if (
+        !persisted ||
+        mySeq !== this.#seq ||
+        this.active?.extensionId !== extensionId ||
+        this.active.commandId !== commandId
+      )
+        return;
     }
-
-    this.#seq++;
     this.active = {
       ...this.active,
       options: nextOptions,

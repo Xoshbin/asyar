@@ -25,6 +25,52 @@ describe('SearchBarAccessoryDropdown', () => {
     return { view, button, onChange, onclose };
   }
 
+  it('resolves nested leaf titles and returns through the submenu path', async () => {
+    const { view, button, onChange } = await renderDropdown({
+      options: [
+        {
+          value: 'root',
+          title: 'Root',
+          children: [
+            { value: 'inner', title: 'Inner', children: [{ value: 'leaf', title: 'Leaf' }] },
+          ],
+        },
+      ],
+      value: 'leaf',
+    });
+    expect(button.textContent).toContain('Leaf');
+    await fireEvent.click(button);
+    const input = view.container.querySelector<HTMLInputElement>('.accessory-filter-input')!;
+    await fireEvent.keyDown(input, { key: 'ArrowRight' });
+    await fireEvent.keyDown(input, { key: 'ArrowRight' });
+    expect(view.container.querySelector('.accessory-submenu-back')?.textContent).toContain('Inner');
+    await fireEvent.keyDown(input, { key: 'Escape' });
+    expect(view.container.querySelector('.accessory-submenu-back')?.textContent).toContain('Root');
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('leaf');
+  });
+
+  it('can enter a new root submenu after the old parent is removed', async () => {
+    const { view, button, onChange } = await renderDropdown({
+      options: [
+        { value: 'old', title: 'Old', children: [{ value: 'old-leaf', title: 'Old leaf' }] },
+      ],
+    });
+    await fireEvent.click(button);
+    const input = view.container.querySelector<HTMLInputElement>('.accessory-filter-input')!;
+    await fireEvent.keyDown(input, { key: 'ArrowRight' });
+    await view.rerender({
+      options: [
+        { value: 'new', title: 'New', children: [{ value: 'new-leaf', title: 'New leaf' }] },
+      ],
+    });
+    await fireEvent.keyDown(input, { key: 'ArrowRight' });
+    expect(view.container.querySelector('.accessory-submenu-back')?.textContent).toContain('New');
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('new-leaf');
+  });
+
   it.each(['Enter', 'Escape', 'ArrowDown', 'ArrowUp', 'Tab'])(
     'leaves %s to the input method while composing in the filter input',
     async (key) => {

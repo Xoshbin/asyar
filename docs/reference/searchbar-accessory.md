@@ -100,7 +100,9 @@ Each `SearchBarAccessoryDropdownOption` entry supports:
 5. **Arrow keys** (`↑` / `↓`) navigate the (filtered) options. **Enter** selects.
    **Escape** closes the popover and refocuses the trigger button.
    **Tab** closes.
-6. **In-place submenus**: If an option defines `children`, pressing `Enter`, `ArrowRight`, or clicking it replaces the list in-place with that child list and shows a `←` back header at the top. Pressing `Escape`, pressing `Backspace` or `ArrowLeft` when the filter input is empty, or clicking the `←` header returns to the parent list instead of closing the popover.
+
+6. **In-place submenus**: If an option defines `children`, pressing `Enter` or clicking it replaces the list in-place with that child list and shows a `←` back header at the top. `ArrowRight` opens a child list only when the filter is empty and no submenu is active; it does nothing for a filtered root list or an option in an active submenu. Pressing `Escape`, pressing `Backspace` or `ArrowLeft` when the filter input is empty, or clicking the `←` header returns to the parent list instead of closing the popover.
+
 7. Clicking the trigger button toggles the popover.
 
 ## SDK API

@@ -543,7 +543,7 @@ export async function onSearchChanged(query: string): Promise<void> {
       clipboardHistoryStore.clearSearch();
       if (parsed.hasActiveFilter && filter) {
         await clipboardHistoryStore.loadInitial(100, filter);
-      } else if (clipboardHistoryStore.activeFilter) {
+      } else if (clipboardHistoryStore.requestedFilter || clipboardHistoryStore.activeFilter) {
         await clipboardHistoryStore.loadInitial(100);
       }
       return;

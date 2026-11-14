@@ -207,11 +207,17 @@ pub struct CommandArgument {
 /// `SearchBarAccessoryDropdownOption` shape declared by view-mode commands
 /// in their manifest. `value` is the stable identifier the view receives
 /// when this option is selected; `title` is the human-readable label.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchBarAccessoryDropdownOption {
     pub value: String,
     pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<SearchBarAccessoryDropdownOption>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<String>,
 }
 
 /// Mirrors the `SearchBarAccessory` declaration from asyar-sdk — an inline
@@ -820,18 +826,30 @@ fn validate_shell_open_url_args(m: &ExtensionManifest) -> Result<(), AppError> {
 
 /// Validate a `searchBarAccessory` declaration in isolation. Enforces:
 /// - `options` is non-empty.
-/// - When `default` is set, its value matches one of the declared options.
+/// - When `default` is set, its value matches a selectable leaf option.
 ///
 /// Mode-level rules (only legal on `mode: "view"`) live in
 /// [`validate_extension_command`].
 pub fn validate_search_bar_accessory(acc: &SearchBarAccessory) -> Result<(), String> {
+    fn contains(options: &[SearchBarAccessoryDropdownOption], value: &str) -> bool {
+        options.iter().any(|option| {
+            match option
+                .children
+                .as_ref()
+                .filter(|children| !children.is_empty())
+            {
+                Some(children) => contains(children, value),
+                None => option.value == value,
+            }
+        })
+    }
     match acc {
         SearchBarAccessory::Dropdown { default, options } => {
             if options.is_empty() {
                 return Err("searchBarAccessory.options must be a non-empty array".to_string());
             }
             if let Some(d) = default {
-                if !options.iter().any(|o| &o.value == d) {
+                if !contains(options, d) {
                     return Err(format!(
                         "searchBarAccessory.default '{}' is not present in options",
                         d
@@ -1645,6 +1663,49 @@ mod tests {
     }
 
     #[test]
+    fn nested_accessory_manifest_preserves_fields_and_validates_default() {
+        let json = serde_json::json!({
+            "type": "dropdown", "default": "leaf",
+            "options": [{"value": "parent", "title": "Parent", "children": [
+                {"value": "inner", "title": "Inner", "children": [
+                    {"value": "leaf", "title": "Leaf", "selected": true, "subtitle": "Details"}
+                ]}
+            ]}]
+        });
+        let acc: SearchBarAccessory = serde_json::from_value(json.clone()).unwrap();
+        assert!(validate_search_bar_accessory(&acc).is_ok());
+        assert_eq!(serde_json::to_value(acc).unwrap(), json);
+    }
+
+    #[test]
+    fn accessory_defaults_must_be_selectable_leaves() {
+        for (value, valid) in [
+            ("apps", false),
+            ("browsers", false),
+            ("leaf", true),
+            ("empty", true),
+        ] {
+            let acc: SearchBarAccessory = serde_json::from_value(serde_json::json!({
+                "type": "dropdown", "default": value,
+                "options": [
+                    {"value": "apps", "title": "Apps", "children": [
+                        {"value": "browsers", "title": "Browsers", "children": [
+                            {"value": "leaf", "title": "Leaf"}
+                        ]}
+                    ]},
+                    {"value": "empty", "title": "Empty", "children": []}
+                ]
+            }))
+            .unwrap();
+            assert_eq!(
+                validate_search_bar_accessory(&acc).is_ok(),
+                valid,
+                "{value}"
+            );
+        }
+    }
+
+    #[test]
     fn validate_search_bar_accessory_rejects_empty_options() {
         let acc = SearchBarAccessory::Dropdown {
             default: None,
@@ -1661,6 +1722,7 @@ mod tests {
             options: vec![SearchBarAccessoryDropdownOption {
                 value: "all".to_string(),
                 title: "All".to_string(),
+                ..Default::default()
             }],
         };
         let err = validate_search_bar_accessory(&acc).unwrap_err();
@@ -1674,6 +1736,7 @@ mod tests {
             options: vec![SearchBarAccessoryDropdownOption {
                 value: "all".to_string(),
                 title: "All".to_string(),
+                ..Default::default()
             }],
         };
         assert!(validate_search_bar_accessory(&acc).is_ok());
@@ -1687,10 +1750,12 @@ mod tests {
                 SearchBarAccessoryDropdownOption {
                     value: "all".to_string(),
                     title: "All".to_string(),
+                    ..Default::default()
                 },
                 SearchBarAccessoryDropdownOption {
                     value: "text".to_string(),
                     title: "Text".to_string(),
+                    ..Default::default()
                 },
             ],
         };
@@ -1741,6 +1806,7 @@ mod tests {
                 options: vec![SearchBarAccessoryDropdownOption {
                     value: "x".to_string(),
                     title: "X".to_string(),
+                    ..Default::default()
                 }],
             }),
         };

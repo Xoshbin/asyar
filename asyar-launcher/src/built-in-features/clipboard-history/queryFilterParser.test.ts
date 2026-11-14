@@ -8,6 +8,34 @@ import {
 describe('queryFilterParser', () => {
   const fixedNow = new Date(2026, 4, 15, 14, 30, 0, 0).getTime();
 
+  it('round trips an app with an embedded apostrophe', () => {
+    const query = applyDropdownSelectionToQuery('date:today report', "app:Bob'sTool");
+    expect(query).toBe("app:Bob'sTool date:today report");
+    const parsed = parseClipboardSearchQuery(query, fixedNow);
+    expect(parsed.appFilter).toBe("Bob'sTool");
+    expect(parsed.dateFilter).toBe('today');
+    expect(parsed.textQuery).toBe('report');
+  });
+
+  it.each([
+    [2026, 2, 9, 23],
+    [2026, 10, 2, 25],
+  ])('uses local yesterday across DST %s/%s/%s', (year, month, day, hours) => {
+    const oldTZ = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      const now = new Date(year, month, day, 12).getTime();
+      const parsed = parseClipboardSearchQuery('date:yesterday', now);
+      const today = new Date(year, month, day).getTime();
+      expect(parsed.sqlFilter?.createdAfter).toBe(new Date(year, month, day - 1).getTime());
+      expect(parsed.sqlFilter?.createdBefore).toBe(today - 1);
+      expect(today - parsed.sqlFilter!.createdAfter!).toBe(hours * 3600000);
+    } finally {
+      if (oldTZ === undefined) delete process.env.TZ;
+      else process.env.TZ = oldTZ;
+    }
+  });
+
   it('parses plain text queries cleanly without filters', () => {
     const parsed = parseClipboardSearchQuery('cloudflare api token', fixedNow);
     expect(parsed.textQuery).toBe('cloudflare api token');

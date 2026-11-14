@@ -44,7 +44,7 @@ You can type any of these tokens directly in the search bar, alone or combined w
 | `date:7d`, `date:30d`, `date:YYYY-MM-DD` | Items from the last 7 days, last 30 days, or a specific date       |
 | `after:YYYY-MM-DD`, `after:7d`           | Items copied on or after the given date or relative window         |
 
-All filters run directly against your local SQLite history database, so older entries beyond the first 100 items are always included.
+When browsing without search words, filters run against your local SQLite history database before paging, so matching older entries remain available. Filtered text searches check only the highest-ranked full-text candidates (at least 1,000), then apply the filters. For common search terms, older matches outside that candidate set may be omitted.
 
 ## Shortcuts & actions
 

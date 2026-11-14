@@ -665,18 +665,18 @@ pub fn search(
         });
     }
 
-    let fts_limit = if active_filter.is_some() {
-        limit.saturating_mul(20).max(1000)
-    } else {
-        limit
-    };
-    let ids = fts.search(trimmed, fts_limit)?;
-    if ids.is_empty() {
+    if limit == 0 {
         return Ok(SearchResult {
             items: Vec::new(),
             index_state: "ready",
         });
     }
+    let page_size = if active_filter.is_some() {
+        limit.max(1000)
+    } else {
+        limit
+    };
+    let mut offset = 0;
 
     // Per-id PK lookup in ranked order; SQLite evaluates any active filter
     // constraints before decrypting `preview`.
@@ -684,20 +684,28 @@ pub fn search(
     let mut row_params: Vec<rusqlite::types::Value> = vec![rusqlite::types::Value::Null];
     append_filter_clauses(&mut select_one, &mut row_params, active_filter);
 
-    let mut items: Vec<ClipboardListItem> = Vec::with_capacity(limit.min(ids.len()));
+    let mut items: Vec<ClipboardListItem> = Vec::new();
     let mut stmt = conn
         .prepare(&select_one)
         .map_err(|e| AppError::Database(format!("search lookup prepare: {e}")))?;
-    for id in ids {
-        row_params[0] = rusqlite::types::Value::Text(id);
-        if let Ok(item) = stmt.query_row(
-            rusqlite::params_from_iter(row_params.iter()),
-            list_row_to_item_factory(master_key),
-        ) {
-            items.push(item);
-            if items.len() >= limit {
-                break;
+    loop {
+        let ids = fts.search_page(trimmed, page_size, offset)?;
+        let exhausted = ids.len() < page_size;
+        offset += ids.len();
+        for id in ids {
+            row_params[0] = rusqlite::types::Value::Text(id);
+            if let Ok(item) = stmt.query_row(
+                rusqlite::params_from_iter(row_params.iter()),
+                list_row_to_item_factory(master_key),
+            ) {
+                items.push(item);
+                if items.len() >= limit {
+                    break;
+                }
             }
+        }
+        if items.len() >= limit || exhausted || active_filter.is_none() {
+            break;
         }
     }
 
@@ -2710,6 +2718,35 @@ mod tests {
         assert_eq!(MAX_HISTORY_ITEMS, 50_000);
     }
 
+    fn filtered_search_fills_limit_beyond_initial_candidates() {
+        let (conn, fts) = setup_with_fts();
+        let key = test_key();
+        for n in 0..1002 {
+            let mut item = make_item(
+                &format!("candidate-{n}"),
+                &format!("apple unique{n}"),
+                false,
+            );
+            item.created_at = n as f64;
+            record_capture_with_fts(&conn, &item, None, &key, &fts, None).unwrap();
+        }
+        let ranked = fts.search("apple", 2000).unwrap();
+        let last = ranked.last().unwrap();
+        conn.execute(
+            "UPDATE clipboard_items SET created_at = 10000 WHERE id = ?1",
+            [last],
+        )
+        .unwrap();
+        let filter = ClipboardFilter {
+            created_after: Some(10000.0),
+            ..Default::default()
+        };
+        crate::clipboard_fts::mark_ready();
+        let result = search(&conn, &fts, "apple", 1, &key, Some(&filter)).unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(&result.items[0].id, last);
+    }
+
     #[test]
     fn search_returns_list_items_for_fts_matches() {
         let (conn, fts) = setup_with_fts();
@@ -2745,6 +2782,8 @@ mod tests {
         };
         let recent_filtered = search(&conn, &fts, "apple", 20, &key, Some(&date_filter)).unwrap();
         assert_eq!(recent_filtered.items.len(), 2);
+
+        filtered_search_fills_limit_beyond_initial_candidates();
 
         // Clean up for other tests.
         crate::clipboard_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);

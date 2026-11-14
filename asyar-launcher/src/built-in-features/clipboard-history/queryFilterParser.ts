@@ -41,7 +41,7 @@ function tokenizeQuery(input: string): QueryToken[] {
           inQuote = null;
         }
         i++;
-      } else if (ch === '"' || ch === "'") {
+      } else if ((ch === '"' || ch === "'") && (i === start || input[i - 1] === ':')) {
         inQuote = ch;
         i++;
       } else if (/\s/.test(ch)) {
@@ -114,7 +114,8 @@ function parseDateValue(
   if (clean === 'yesterday') {
     const todayStart = new Date(nowMs);
     todayStart.setHours(0, 0, 0, 0);
-    const yesterdayStart = new Date(todayStart.getTime() - MS_PER_DAY);
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
     return {
       normalized: 'yesterday',
       after: yesterdayStart.getTime(),

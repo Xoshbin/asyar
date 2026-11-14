@@ -47,6 +47,120 @@ beforeEach(() => {
 });
 
 describe('clipboardHistoryStore', () => {
+  it('ignores stale initial and older pages after a newer listing', async () => {
+    let initialDone!: (value: unknown) => void;
+    mockListInitial.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          initialDone = resolve;
+        }),
+    );
+    const initial = clipboardHistoryStore.loadInitial(100, { sourceApp: 'Old' });
+    mockListInitial.mockResolvedValueOnce({
+      favorites: [],
+      recent: [],
+      nextCursor: { createdAt: 1, id: 'new' },
+    });
+    await clipboardHistoryStore.loadInitial(100, { sourceApp: 'New' });
+    initialDone({ favorites: [], recent: [{ id: 'stale' }] });
+    await initial;
+    expect(clipboardHistoryStore.recent).toEqual([]);
+    expect(clipboardHistoryStore.activeFilter).toEqual({ sourceApp: 'New' });
+    let olderDone!: (value: unknown) => void;
+    mockListOlder.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          olderDone = resolve;
+        }),
+    );
+    const older = clipboardHistoryStore.loadOlder();
+    mockListInitial.mockResolvedValueOnce({ favorites: [], recent: [] });
+    await clipboardHistoryStore.loadInitial();
+    olderDone({ items: [{ id: 'stale' }] });
+    await older;
+    expect(clipboardHistoryStore.recent).toEqual([]);
+    expect(clipboardHistoryStore.activeFilter).toBeUndefined();
+  });
+
+  it('keeps the committed filter when an initial request fails', async () => {
+    mockListInitial.mockRejectedValueOnce(new Error('failed'));
+    await expect(clipboardHistoryStore.loadInitial(100, { sourceApp: 'Failed' })).rejects.toThrow();
+    expect(clipboardHistoryStore.activeFilter).toBeUndefined();
+  });
+
+  it('restores pagination of committed rows after a current listing failure', async () => {
+    const cursor = { createdAt: 10, id: 'old' };
+    const filter = { sourceApp: 'Old' };
+    mockListInitial.mockResolvedValueOnce({
+      favorites: [],
+      recent: [{ id: 'old' }],
+      nextCursor: cursor,
+    });
+    await clipboardHistoryStore.loadInitial(100, filter);
+    mockListInitial.mockRejectedValueOnce(new Error('failed'));
+    await expect(clipboardHistoryStore.loadInitial(100, { sourceApp: 'New' })).rejects.toThrow();
+    expect(clipboardHistoryStore.recent).toEqual([{ id: 'old' }]);
+    expect(clipboardHistoryStore.activeFilter).toEqual(filter);
+    expect(clipboardHistoryStore.nextOlderCursor).toEqual(cursor);
+    mockListOlder.mockResolvedValueOnce({ items: [{ id: 'older' }] });
+    await clipboardHistoryStore.loadOlder();
+    expect(mockListOlder).toHaveBeenCalledWith(cursor, 200, filter);
+  });
+
+  it('tracks a pending filter and drops its response after an unfiltered request', async () => {
+    let finish!: (value: unknown) => void;
+    mockListInitial.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = clipboardHistoryStore.loadInitial(100, { sourceApp: 'Safari' });
+    expect(clipboardHistoryStore.requestedFilter).toEqual({ sourceApp: 'Safari' });
+    expect(clipboardHistoryStore.activeFilter).toBeUndefined();
+    mockListInitial.mockResolvedValueOnce({ favorites: [], recent: [] });
+    await clipboardHistoryStore.loadInitial();
+    finish({
+      favorites: [],
+      recent: [{ id: 'filtered' }],
+      nextCursor: { id: 'filtered', createdAt: 1 },
+    });
+    await pending;
+    expect(clipboardHistoryStore.recent).toEqual([]);
+    expect(clipboardHistoryStore.nextOlderCursor).toBeUndefined();
+    expect(clipboardHistoryStore.requestedFilter).toBeUndefined();
+  });
+
+  it('does not restore pagination when a superseded listing rejects', async () => {
+    const cursor = { createdAt: 10, id: 'old' };
+    mockListInitial.mockResolvedValueOnce({ favorites: [], recent: [], nextCursor: cursor });
+    await clipboardHistoryStore.loadInitial();
+    let rejectOld!: (reason: Error) => void;
+    mockListInitial.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectOld = reject;
+        }),
+    );
+    const old = clipboardHistoryStore.loadInitial(100, { sourceApp: 'Old' });
+    const rejected = expect(old).rejects.toThrow('failed');
+    let finish!: (value: unknown) => void;
+    mockListInitial.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const current = clipboardHistoryStore.loadInitial(100, { sourceApp: 'New' });
+    rejectOld(new Error('failed'));
+    await rejected;
+    await clipboardHistoryStore.loadOlder();
+    expect(mockListOlder).not.toHaveBeenCalled();
+    expect(clipboardHistoryStore.requestedFilter).toEqual({ sourceApp: 'New' });
+    finish({ favorites: [], recent: [] });
+    await current;
+  });
+
   it('loadInitial populates favorites + recent and stores nextCursor', async () => {
     mockListInitial.mockResolvedValue({
       favorites: [{ id: 'f1', type: 'text', createdAt: 100, favorite: true }],

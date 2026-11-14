@@ -27,6 +27,97 @@ describe('searchBarAccessoryService', () => {
     searchBarAccessoryService.clear();
   });
 
+  it('falls back to a leaf in nested options in declare and set', async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+    await searchBarAccessoryService.declare({
+      extensionId: EXT,
+      commandId: CMD,
+      options: [{ value: 'parent', title: 'Parent', children: [{ value: 'leaf', title: 'Leaf' }] }],
+    });
+    expect(searchBarAccessoryService.active?.value).toBe('leaf');
+    await searchBarAccessoryService.set(EXT, {
+      options: [{ value: 'other', title: 'Other', children: [{ value: 'next', title: 'Next' }] }],
+    });
+    expect(searchBarAccessoryService.active?.value).toBe('next');
+  });
+
+  it.each(['set', 'setSelected'] as const)(
+    'ignores stale %s persistence after typed state sync',
+    async (method) => {
+      const options = [
+        { value: 'all', title: 'All' },
+        { value: 'images', title: 'Images' },
+      ];
+      searchBarAccessoryService.syncViewState({
+        extensionId: EXT,
+        commandId: CMD,
+        options,
+        value: 'all',
+      });
+      let finish!: (value: unknown) => void;
+      vi.mocked(invoke).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const pending =
+        method === 'set'
+          ? searchBarAccessoryService.set(EXT, { value: 'images', buttonTitle: 'Old' })
+          : searchBarAccessoryService.setSelected(EXT, CMD, 'images');
+      searchBarAccessoryService.syncViewState({
+        extensionId: EXT,
+        commandId: CMD,
+        options,
+        value: 'all',
+        buttonTitle: 'Typed',
+      });
+      finish(null);
+      await pending;
+      expect(searchBarAccessoryService.active?.value).toBe('all');
+      expect(searchBarAccessoryService.active?.buttonTitle).toBe('Typed');
+    },
+  );
+
+  it.each(['title', 'options', 'removed'] as const)(
+    'handles %s updates during a pending selection',
+    async (update) => {
+      const options = [
+        { value: 'all', title: 'All' },
+        { value: 'images', title: 'Images' },
+      ];
+      searchBarAccessoryService.syncViewState({
+        extensionId: EXT,
+        commandId: CMD,
+        options,
+        value: 'all',
+      });
+      let finish!: (value: unknown) => void;
+      vi.mocked(invoke).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const pending = searchBarAccessoryService.setSelected(EXT, CMD, 'images');
+      await searchBarAccessoryService.set(
+        EXT,
+        update === 'title'
+          ? { buttonTitle: 'Updated' }
+          : {
+              options:
+                update === 'removed'
+                  ? [options[0]]
+                  : options.map((o) => ({ ...o, title: o.title + ' updated' })),
+            },
+      );
+      finish(undefined);
+      await pending;
+      expect(searchBarAccessoryService.active?.value).toBe(update === 'removed' ? 'all' : 'images');
+      if (update === 'title') expect(searchBarAccessoryService.active?.buttonTitle).toBe('Updated');
+    },
+  );
+
   it('declare seeds from persisted value when present', async () => {
     vi.mocked(invoke).mockResolvedValueOnce('images'); // searchbar_accessory_get
     await searchBarAccessoryService.declare({

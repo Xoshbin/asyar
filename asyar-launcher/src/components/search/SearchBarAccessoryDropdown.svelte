@@ -57,17 +57,36 @@
   let filterInputRef = $state<HTMLInputElement | null>(null);
   let highlightedIndex = $state(0);
   let filterQuery = $state('');
-  let activeSubmenuParentValue = $state<string | null>(null);
+  let submenuPath = $state<string[]>([]);
+
+  function findLeaf(options: Option[], value: string): Option | undefined {
+    for (const option of options) {
+      if (option.children?.length) {
+        const leaf = findLeaf(option.children, value);
+        if (leaf) return leaf;
+      } else if (option.value === value) return option;
+    }
+    return undefined;
+  }
 
   let currentTitle = $derived(
-    buttonTitle || options.find((o) => o.value === value)?.title || options[0]?.title || '',
+    buttonTitle || findLeaf(options, value)?.title || options[0]?.title || '',
   );
 
-  let activeSubmenu = $derived(
-    activeSubmenuParentValue
-      ? (options.find((o) => o.value === activeSubmenuParentValue && o.children?.length) ?? null)
-      : null,
-  );
+  let activeSubmenu = $derived.by(() => {
+    let siblings = options;
+    let parent: Option | undefined;
+    for (const value of submenuPath) {
+      parent = siblings.find((option) => option.value === value && option.children?.length);
+      if (!parent) return null;
+      siblings = parent.children!;
+    }
+    return parent ?? null;
+  });
+
+  $effect(() => {
+    if (submenuPath.length && !activeSubmenu) submenuPath = [];
+  });
 
   let activeOptions = $derived(activeSubmenu?.children ?? options);
 
@@ -114,7 +133,7 @@
 
   export async function openPopover(): Promise<void> {
     if (open) return;
-    activeSubmenuParentValue = null;
+    submenuPath = [];
     filterQuery = '';
     open = true;
     // Highlight the currently-selected option if it exists in the unfiltered
@@ -142,14 +161,14 @@
   }
 
   function closePopover(): void {
-    activeSubmenuParentValue = null;
+    submenuPath = [];
     open = false;
     onclose?.();
   }
 
   function openSubmenu(parentOpt: Option): void {
     if (!parentOpt.children?.length) return;
-    activeSubmenuParentValue = parentOpt.value;
+    submenuPath = [...submenuPath, parentOpt.value];
     filterQuery = '';
     const selectedChildIdx = parentOpt.children.findIndex((c) =>
       c.selected !== undefined ? c.selected : c.value === value,
@@ -159,10 +178,10 @@
   }
 
   function goBackFromSubmenu(): void {
-    const prevParentVal = activeSubmenuParentValue;
-    activeSubmenuParentValue = null;
+    const prevParentVal = activeSubmenu?.value;
+    submenuPath = submenuPath.slice(0, -1);
     filterQuery = '';
-    const parentIdx = prevParentVal ? options.findIndex((o) => o.value === prevParentVal) : 0;
+    const parentIdx = prevParentVal ? activeOptions.findIndex((o) => o.value === prevParentVal) : 0;
     highlightedIndex = Math.max(0, parentIdx);
     void tick().then(() => filterInputRef?.focus());
   }
@@ -207,7 +226,7 @@
       e.preventDefault();
       e.stopPropagation();
       goBackFromSubmenu();
-    } else if (e.key === 'ArrowRight' && !activeSubmenu && filterQuery === '') {
+    } else if (e.key === 'ArrowRight' && filterQuery === '') {
       const opt = filteredOptions[highlightedIndex];
       if (opt?.children?.length) {
         e.preventDefault();
@@ -388,7 +407,7 @@
     padding: var(--space-1) var(--space-3);
     background: var(--bg-tertiary);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    border: var(--border-width-thin) solid var(--border-color);
     border-radius: var(--radius-sm);
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
@@ -408,9 +427,9 @@
     background: var(--bg-selected);
   }
   .accessory-title {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     color: var(--text-primary);
-    max-width: 14rem;
+    max-width: var(--accessory-title-max-width);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -426,11 +445,11 @@
     position: absolute;
     top: calc(100% + var(--space-2));
     right: 0;
-    min-width: 220px;
-    max-height: 320px;
+    min-width: var(--accessory-popover-min-width);
+    max-height: var(--accessory-popover-max-height);
     overflow-y: auto;
     background: var(--bg-popup);
-    border: 1px solid var(--border-color);
+    border: var(--border-width-thin) solid var(--border-color);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-popup);
     padding: var(--space-1);
@@ -439,7 +458,7 @@
 
   .accessory-filter-row {
     padding: var(--space-2) var(--space-2) var(--space-1);
-    border-bottom: 1px solid var(--separator);
+    border-bottom: var(--border-width-thin) solid var(--separator);
     margin-bottom: var(--space-1);
   }
 
@@ -467,12 +486,12 @@
     margin-bottom: var(--space-1);
     background: transparent;
     border: none;
-    border-bottom: 1px solid var(--separator);
+    border-bottom: var(--border-width-thin) solid var(--separator);
     border-radius: var(--radius-xs);
     color: var(--text-secondary);
     font-family: var(--font-ui);
     font-size: var(--font-size-xs);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     text-align: left;
     cursor: default;
     transition: background var(--transition-fast);
@@ -525,7 +544,7 @@
     color: var(--text-tertiary);
     font-size: var(--font-size-xs);
     flex-shrink: 0;
-    max-width: 8rem;
+    max-width: var(--accessory-subtitle-max-width);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

@@ -955,8 +955,16 @@ describe('search token filtering and onSearchChanged', () => {
         sourceApp: { name: 'Google Chrome', bundleId: 'com.google.Chrome' },
       },
       {
-        id: 'safari-text-old',
+        id: 'safari-text-today',
         type: 'text' as any,
+        preview: 'current note',
+        createdAt: now,
+        favorite: false,
+        sourceApp: { name: 'Safari', bundleId: 'com.apple.Safari' },
+      },
+      {
+        id: 'safari-image-old',
+        type: 'image' as any,
         preview: 'old note',
         createdAt: now - 40 * 86_400_000,
         favorite: false,
@@ -986,6 +994,13 @@ describe('search token filtering and onSearchChanged', () => {
     expect(clipboardHistoryStore.search).toHaveBeenCalledWith('hello world', 200, {
       sourceApp: 'Safari',
     });
+  });
+
+  it('reloads unfiltered while a filtered initial request is pending', async () => {
+    Object.assign(clipboardHistoryStore, { requestedFilter: { sourceApp: 'Safari' } });
+    await onSearchChanged('');
+    expect(clipboardHistoryStore.loadInitial).toHaveBeenCalledWith(100);
+    Object.assign(clipboardHistoryStore, { requestedFilter: undefined });
   });
 
   it('reloads unfiltered initial window when clearing an active filter', async () => {

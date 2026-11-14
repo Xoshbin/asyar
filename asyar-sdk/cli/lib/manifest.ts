@@ -1275,16 +1275,22 @@ export function validateSearchBarAccessory(
     }
   });
 
+  const hasValue = (options: SearchBarAccessoryDropdownOption[]): boolean =>
+    options.some(
+      (o) =>
+        o &&
+        (Array.isArray(o.children) && o.children.length > 0
+          ? hasValue(o.children)
+          : typeof o.value === 'string' && o.value === acc.default),
+    );
+
   if (accRaw.default !== undefined) {
     if (typeof acc.default !== 'string') {
       errors.push({
         field: `${pathPrefix}.default`,
         message: 'default must be a string',
       });
-    } else if (
-      acc.options.length > 0 &&
-      !acc.options.some((o) => o && typeof o.value === 'string' && o.value === acc.default)
-    ) {
+    } else if (acc.options.length > 0 && !hasValue(acc.options)) {
       errors.push({
         field: `${pathPrefix}.default`,
         message: `default '${acc.default}' is not in options`,

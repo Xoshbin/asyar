@@ -178,7 +178,11 @@ impl ClipboardFts {
                 preview, content, source_app,
                 prefix='2 3',
                 tokenize='unicode61 remove_diacritics 2'
-            );",
+            );
+            CREATE VIRTUAL TABLE query_tokens USING fts5(
+                text, tokenize='unicode61 remove_diacritics 2'
+            );
+            CREATE VIRTUAL TABLE query_vocab USING fts5vocab(query_tokens, 'instance');",
         )
         .map_err(|e| AppError::Database(format!("Failed to create FTS table: {e}")))?;
         Ok(Self {
@@ -254,19 +258,28 @@ impl ClipboardFts {
     /// best-match first. Caller JOINs to `clipboard_items` for the row
     /// payload.
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<String>, AppError> {
-        let sanitized = sanitize_for_fts5(query);
+        self.search_page(query, limit, 0)
+    }
+
+    pub fn search_page(
+        &self,
+        query: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<String>, AppError> {
+        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
+        let sanitized = sanitize_for_fts5(&conn, query)?;
         if sanitized.is_empty() {
             return Ok(Vec::new());
         }
-        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
         let ids: Vec<String> = conn
             .prepare(
                 "SELECT clip_id FROM fts_clipboard \
                   WHERE fts_clipboard MATCH ?1 \
-                  ORDER BY bm25(fts_clipboard) LIMIT ?2",
+                  ORDER BY bm25(fts_clipboard), rowid LIMIT ?2 OFFSET ?3",
             )
             .map_err(|e| AppError::Database(format!("FTS search prepare: {e}")))?
-            .query_map(params![sanitized, limit as i64], |row| {
+            .query_map(params![sanitized, limit as i64, offset as i64], |row| {
                 row.get::<_, String>(0)
             })
             .map_err(|e| AppError::Database(format!("FTS search query: {e}")))?
@@ -286,23 +299,42 @@ impl ClipboardFts {
 /// word. Appending `*` to each token (`appl*`) enables prefix matching,
 /// so results refine smoothly as the user types.
 ///
-/// All non-alphanumeric characters (quotes, commas, colons, brackets, etc.)
-/// act as token separators, and tokens are lowercased so uppercase words
-/// like `AND`, `OR`, `NOT`, or `NEAR` cannot be interpreted as FTS5 query
-/// operators without operands. Multi-term queries combine with FTS5's
-/// implicit AND, e.g. `"\"token\", \"cloudflare\""` -> `token* cloudflare*`.
-fn sanitize_for_fts5(query: &str) -> String {
-    query
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|s| !s.is_empty())
-        .map(|token| format!("{}*", token.to_lowercase()))
-        .collect::<Vec<_>>()
-        .join(" ")
+/// Delegate token boundaries, case folding, and accent removal to the same
+/// unicode61 tokenizer as the index, then quote each term before adding its
+/// prefix operator. The scratch table is protected by the connection mutex.
+fn sanitize_for_fts5(conn: &Connection, query: &str) -> Result<String, AppError> {
+    let tokenize = || -> rusqlite::Result<String> {
+        conn.execute("DELETE FROM query_tokens", [])?;
+        conn.execute(
+            "INSERT INTO query_tokens(rowid, text) VALUES (1, ?1)",
+            [query],
+        )?;
+        let mut stmt = conn.prepare("SELECT term FROM query_vocab ORDER BY offset")?;
+        let terms = stmt
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(terms
+            .into_iter()
+            .map(|term| format!("\"{}\"*", term.replace('"', "\"\"")))
+            .collect::<Vec<_>>()
+            .join(" "))
+    };
+    tokenize().map_err(|e| AppError::Database(format!("FTS tokenize query: {e}")))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decomposed_query_matches_composed_word() {
+        let fts = ClipboardFts::new_in_memory().unwrap();
+        fts.upsert("accent", Some("café résumé"), None).unwrap();
+        assert_eq!(
+            fts.search("cafe\u{301} re\u{301}su", 10).unwrap(),
+            vec!["accent"]
+        );
+    }
 
     #[test]
     fn rowid_is_deterministic() {
@@ -434,12 +466,18 @@ mod tests {
 
     #[test]
     fn sanitize_strips_quotes_and_punctuation() {
-        assert_eq!(sanitize_for_fts5("hello \"world\""), "hello* world*");
+        let fts = ClipboardFts::new_in_memory().unwrap();
+        let conn = fts.conn.lock().unwrap();
+        let sanitize_for_fts5 = |query: &str| super::sanitize_for_fts5(&conn, query).unwrap();
+        assert_eq!(
+            sanitize_for_fts5("hello \"world\""),
+            "\"hello\"* \"world\"*"
+        );
         assert_eq!(
             sanitize_for_fts5("\"token\", \"cloudflare\""),
-            "token* cloudflare*"
+            "\"token\"* \"cloudflare\"*"
         );
-        assert_eq!(sanitize_for_fts5("AND OR NOT"), "and* or* not*");
+        assert_eq!(sanitize_for_fts5("AND OR NOT"), "\"and\"* \"or\"* \"not\"*");
     }
 
     #[test]
