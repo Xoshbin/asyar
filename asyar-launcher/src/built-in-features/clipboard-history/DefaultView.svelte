@@ -673,6 +673,7 @@
     if (clampedX !== previewContextMenu.x || clampedY !== previewContextMenu.y) {
       previewContextMenu = { ...previewContextMenu, x: clampedX, y: clampedY };
     }
+    contextMenuEl.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }
 
   async function handleContextOpen() {
@@ -687,6 +688,27 @@
     if (!menu) return;
     previewContextMenu = null;
     await revealFile(menu.path);
+  }
+
+  function handleContextMenuKeydown(e: KeyboardEvent) {
+    if (!contextMenuEl) return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const items = Array.from(contextMenuEl.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    if (items.length === 0) return;
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    let nextIndex = 0;
+    if (e.key === 'ArrowDown') {
+      nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % items.length;
+    } else if (e.key === 'ArrowUp') {
+      nextIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+    } else if (e.key === 'End') {
+      nextIndex = items.length - 1;
+    }
+    items[nextIndex]?.focus();
   }
 
   function getWordCount(item: { type: string; content?: string }): number {
@@ -1182,6 +1204,7 @@
       tabindex="-1"
       aria-label={t('actions.title')}
       style="top: {previewContextMenu.y}px; left: {previewContextMenu.x}px;"
+      onkeydown={handleContextMenuKeydown}
       oncontextmenu={(e) => e.preventDefault()}
     >
       <button type="button" class="context-menu-item" role="menuitem" onclick={handleContextOpen}>

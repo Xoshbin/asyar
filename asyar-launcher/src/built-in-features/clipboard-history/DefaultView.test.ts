@@ -591,4 +591,52 @@ describe('DefaultView preview context menu', () => {
     expect(screen.queryByRole('menu')).toBeNull();
     unmount();
   });
+
+  it('focuses the first menu item on open and handles ArrowUp, ArrowDown, Home, End without propagating', async () => {
+    const { container, unmount } = render(DefaultView);
+    await select('img');
+    await finishRead('/cache/big.png');
+
+    const img = container.querySelector('img[src="blob:test/1"]')!;
+    await fireEvent.contextMenu(img);
+    await flush();
+
+    const menu = screen.getByRole('menu');
+    const items = screen.getAllByRole('menuitem');
+    expect(items.length).toBe(2);
+    expect(document.activeElement).toBe(items[0]);
+
+    const windowKeydownSpy = vi.fn();
+    window.addEventListener('keydown', windowKeydownSpy);
+
+    const dispatchKey = (key: string) => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      menu.dispatchEvent(event);
+      return event;
+    };
+
+    expect(dispatchKey('ArrowDown').defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(items[1]);
+
+    expect(dispatchKey('ArrowDown').defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(items[0]);
+
+    expect(dispatchKey('ArrowUp').defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(items[1]);
+
+    expect(dispatchKey('Home').defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(items[0]);
+
+    expect(dispatchKey('End').defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(items[1]);
+
+    expect(windowKeydownSpy).not.toHaveBeenCalled();
+
+    dispatchKey('Escape');
+    await flush();
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    window.removeEventListener('keydown', windowKeydownSpy);
+    unmount();
+  });
 });
