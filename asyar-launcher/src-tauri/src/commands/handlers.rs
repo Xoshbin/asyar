@@ -142,6 +142,7 @@ macro_rules! storage_commands {
                 $crate::storage::commands::clipboard_list_initial,
                 $crate::storage::commands::clipboard_list_older,
                 $crate::storage::commands::clipboard_search,
+                $crate::storage::commands::clipboard_list_source_apps,
                 $crate::storage::commands::clipboard_get_item,
                 $crate::storage::commands::clipboard_get_merged_text,
                 $crate::storage::commands::clipboard_export_for_sync,

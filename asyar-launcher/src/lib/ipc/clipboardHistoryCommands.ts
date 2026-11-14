@@ -70,22 +70,54 @@ export interface ClipboardClearResult {
   removedImagePaths: string[];
 }
 
-export async function clipboardListInitial(limit: number): Promise<ClipboardInitialPage> {
-  return invokeSafe<ClipboardInitialPage>('clipboard_list_initial', { limit });
+export interface ClipboardFilter {
+  itemType?: string | null;
+  sourceApp?: string | null;
+  createdAfter?: number | null;
+  createdBefore?: number | null;
+}
+
+export interface SourceAppSummary {
+  name: string;
+  bundleId?: string | null;
+  iconUrl?: string | null;
+  count: number;
+}
+
+export async function clipboardListInitial(
+  limit: number,
+  filter?: ClipboardFilter,
+): Promise<ClipboardInitialPage> {
+  return invokeSafe<ClipboardInitialPage>(
+    'clipboard_list_initial',
+    filter ? { limit, filter } : { limit },
+  );
 }
 
 export async function clipboardListOlder(
   cursor: ClipboardCursor,
   limit: number,
+  filter?: ClipboardFilter,
 ): Promise<ClipboardOlderPage> {
-  return invokeSafe<ClipboardOlderPage>('clipboard_list_older', { cursor, limit });
+  return invokeSafe<ClipboardOlderPage>(
+    'clipboard_list_older',
+    filter ? { cursor, limit, filter } : { cursor, limit },
+  );
 }
 
 export async function clipboardSearch(
   query: string,
   limit: number,
+  filter?: ClipboardFilter,
 ): Promise<ClipboardSearchResult> {
-  return invokeSafe<ClipboardSearchResult>('clipboard_search', { query, limit });
+  return invokeSafe<ClipboardSearchResult>(
+    'clipboard_search',
+    filter ? { query, limit, filter } : { query, limit },
+  );
+}
+
+export async function clipboardListSourceApps(): Promise<SourceAppSummary[]> {
+  return invokeSafe<SourceAppSummary[]>('clipboard_list_source_apps');
 }
 
 export async function clipboardGetItem(id: string): Promise<StoredClipboardItem | null> {

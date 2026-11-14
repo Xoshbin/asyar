@@ -11,6 +11,7 @@ export interface SearchBarAccessoryActiveState {
   commandId: string;
   options: SearchBarAccessoryDropdownOption[];
   value: string;
+  buttonTitle?: string;
 }
 
 export interface DeclareInput {
@@ -24,6 +25,23 @@ export interface DeclareInput {
    * value, which would otherwise override that state on every mount.
    */
   value?: string;
+  buttonTitle?: string;
+}
+
+function hasSelectableValue(options: SearchBarAccessoryDropdownOption[], value: string): boolean {
+  for (const opt of options) {
+    if (opt.children && opt.children.length > 0) {
+      if (hasSelectableValue(opt.children, value)) return true;
+    } else if (opt.value === value) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function firstSelectableValue(options: SearchBarAccessoryDropdownOption[]): string {
+  const first = options[0];
+  return first.children?.length ? firstSelectableValue(first.children) : first.value;
 }
 
 type Subscriber = {
@@ -57,15 +75,19 @@ export class SearchBarAccessoryServiceClass {
    */
   popoverOpen = $state(false);
   private subscribers = new Set<Subscriber>();
+  #seq = 0;
+  #pendingSelection: { seq: number; value: string } | undefined;
 
   async declare(input: DeclareInput): Promise<void> {
     if (input.options.length === 0) {
       throw new Error('searchBarAccessory.declare: options cannot be empty');
     }
 
-    const optionValues = new Set(input.options.map((o) => o.value));
+    const mySeq = ++this.#seq;
     const ownerValue =
-      input.value !== undefined && optionValues.has(input.value) ? input.value : null;
+      input.value !== undefined && hasSelectableValue(input.options, input.value)
+        ? input.value
+        : null;
 
     // A missing row is a successful `null`. A read failure is diagnosed by
     // the transport and deliberately falls back to the manifest default.
@@ -76,17 +98,18 @@ export class SearchBarAccessoryServiceClass {
       } catch {
         // Best-effort persistence read; declaration can still use its default.
       }
+      if (mySeq !== this.#seq) return;
     }
 
     let seed: string;
     if (ownerValue !== null) {
       seed = ownerValue;
-    } else if (persisted !== null && optionValues.has(persisted)) {
+    } else if (persisted !== null && hasSelectableValue(input.options, persisted)) {
       seed = persisted;
-    } else if (input.default !== undefined && optionValues.has(input.default)) {
+    } else if (input.default !== undefined && hasSelectableValue(input.options, input.default)) {
       seed = input.default;
     } else {
-      seed = input.options[0].value;
+      seed = firstSelectableValue(input.options);
     }
 
     this.active = {
@@ -94,8 +117,32 @@ export class SearchBarAccessoryServiceClass {
       commandId: input.commandId,
       options: input.options,
       value: seed,
+      buttonTitle: input.buttonTitle,
     };
     this.broadcast(input.extensionId, input.commandId, seed, /*toView=*/ true);
+  }
+
+  /**
+   * Synchronize reactive view state (options tree, current value, summary
+   * button title) into the active accessory without re-broadcasting or writing
+   * to persistence. Used by built-in views whose filter state lives in the
+   * search query.
+   */
+  syncViewState(input: {
+    extensionId: string;
+    commandId: string;
+    options: SearchBarAccessoryDropdownOption[];
+    value: string;
+    buttonTitle?: string;
+  }): void {
+    this.#seq++;
+    this.active = {
+      extensionId: input.extensionId,
+      commandId: input.commandId,
+      options: input.options,
+      value: input.value,
+      buttonTitle: input.buttonTitle,
+    };
   }
 
   async setSelected(extensionId: string, commandId: string, value: string): Promise<void> {
@@ -109,12 +156,20 @@ export class SearchBarAccessoryServiceClass {
       );
       return;
     }
-    if (!this.active.options.some((o) => o.value === value)) {
+    if (!hasSelectableValue(this.active.options, value)) {
       throw new Error(`searchBarAccessory.setSelected: value '${value}' not in options`);
     }
 
+    const mySeq = ++this.#seq;
+    this.#pendingSelection = { seq: mySeq, value };
     const persisted = await searchbarAccessorySet(extensionId, commandId, value);
-    if (!persisted) return;
+    if (
+      !persisted ||
+      mySeq !== this.#seq ||
+      this.active?.extensionId !== extensionId ||
+      this.active.commandId !== commandId
+    )
+      return;
     this.active = { ...this.active, value };
     this.broadcast(extensionId, commandId, value, /*toView=*/ true);
   }
@@ -129,6 +184,7 @@ export class SearchBarAccessoryServiceClass {
     opts: {
       options?: SearchBarAccessoryDropdownOption[];
       value?: string;
+      buttonTitle?: string;
     },
   ): Promise<void> {
     if (!this.active || this.active.extensionId !== extensionId) {
@@ -142,6 +198,8 @@ export class SearchBarAccessoryServiceClass {
 
     let nextOptions = this.active.options;
     let nextValue = this.active.value;
+    const nextButtonTitle =
+      opts.buttonTitle !== undefined ? opts.buttonTitle : this.active.buttonTitle;
 
     if (opts.options) {
       if (opts.options.length === 0) {
@@ -149,19 +207,24 @@ export class SearchBarAccessoryServiceClass {
       }
       nextOptions = opts.options;
       // Prefer existing value if still valid, else first option.
-      if (!nextOptions.some((o) => o.value === nextValue)) {
-        nextValue = nextOptions[0].value;
+      if (!hasSelectableValue(nextOptions, nextValue)) {
+        nextValue = firstSelectableValue(nextOptions);
       }
     }
 
     if (opts.value !== undefined) {
-      if (!nextOptions.some((o) => o.value === opts.value)) {
+      if (!hasSelectableValue(nextOptions, opts.value)) {
         throw new Error(`searchBarAccessory.set: value '${opts.value}' not in options`);
       }
       nextValue = opts.value;
     }
 
     const valueChanged = nextValue !== this.active.value;
+    const invalidatesSelection =
+      this.#pendingSelection?.seq === this.#seq &&
+      !hasSelectableValue(nextOptions, this.#pendingSelection.value);
+    const mySeq =
+      valueChanged || opts.value !== undefined || invalidatesSelection ? ++this.#seq : this.#seq;
 
     // Persist FIRST so a SQLite failure aborts before in-memory state is
     // updated. Mirrors setSelected()'s order — keeps the two paths
@@ -169,13 +232,19 @@ export class SearchBarAccessoryServiceClass {
     // silently rolling back the user's intent.
     if (valueChanged) {
       const persisted = await searchbarAccessorySet(extensionId, commandId, nextValue);
-      if (!persisted) return;
+      if (
+        !persisted ||
+        mySeq !== this.#seq ||
+        this.active?.extensionId !== extensionId ||
+        this.active.commandId !== commandId
+      )
+        return;
     }
-
     this.active = {
       ...this.active,
       options: nextOptions,
       value: nextValue,
+      buttonTitle: nextButtonTitle,
     };
 
     this.broadcast(extensionId, commandId, nextValue, /*toView=*/ valueChanged);
@@ -189,6 +258,7 @@ export class SearchBarAccessoryServiceClass {
   }
 
   clear(): void {
+    this.#seq++;
     this.active = null;
   }
 

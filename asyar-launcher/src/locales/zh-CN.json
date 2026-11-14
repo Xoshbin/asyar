@@ -1035,6 +1035,18 @@
       "time_this_week": "本周",
       "time_this_month": "本月",
       "time_older": "更早",
+      "filter_all_types": "全部类型",
+      "filter_text": "文本",
+      "filter_images": "图片",
+      "filter_files": "文件",
+      "filter_by_app": "按应用筛选",
+      "filter_by_date": "按日期筛选",
+      "filter_all_apps": "全部应用",
+      "filter_all_dates": "全部时间",
+      "filter_date_today": "今天",
+      "filter_date_yesterday": "昨天",
+      "filter_date_7d": "最近 7 天",
+      "filter_date_30d": "最近 30 天",
       "act": {
         "toggle_html": "切换 HTML 渲染/源码",
         "toggle_html_desc": "在渲染的 HTML 预览和原始源码之间切换",
@@ -2188,7 +2200,8 @@
   },
   "search_accessory": {
     "filter_placeholder": "输入以筛选…",
-    "filter_aria": "筛选选项"
+    "filter_aria": "筛选选项",
+    "back": "返回"
   },
   "shell_consent": {
     "alias": "别名：",

@@ -25,6 +25,52 @@ describe('SearchBarAccessoryDropdown', () => {
     return { view, button, onChange, onclose };
   }
 
+  it('resolves nested leaf titles and returns through the submenu path', async () => {
+    const { view, button, onChange } = await renderDropdown({
+      options: [
+        {
+          value: 'root',
+          title: 'Root',
+          children: [
+            { value: 'inner', title: 'Inner', children: [{ value: 'leaf', title: 'Leaf' }] },
+          ],
+        },
+      ],
+      value: 'leaf',
+    });
+    expect(button.textContent).toContain('Leaf');
+    await fireEvent.click(button);
+    const input = view.container.querySelector<HTMLInputElement>('.accessory-filter-input')!;
+    await fireEvent.keyDown(input, { key: 'ArrowRight' });
+    await fireEvent.keyDown(input, { key: 'ArrowRight' });
+    expect(view.container.querySelector('.accessory-submenu-back')?.textContent).toContain('Inner');
+    await fireEvent.keyDown(input, { key: 'Escape' });
+    expect(view.container.querySelector('.accessory-submenu-back')?.textContent).toContain('Root');
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('leaf');
+  });
+
+  it('can enter a new root submenu after the old parent is removed', async () => {
+    const { view, button, onChange } = await renderDropdown({
+      options: [
+        { value: 'old', title: 'Old', children: [{ value: 'old-leaf', title: 'Old leaf' }] },
+      ],
+    });
+    await fireEvent.click(button);
+    const input = view.container.querySelector<HTMLInputElement>('.accessory-filter-input')!;
+    await fireEvent.keyDown(input, { key: 'ArrowRight' });
+    await view.rerender({
+      options: [
+        { value: 'new', title: 'New', children: [{ value: 'new-leaf', title: 'New leaf' }] },
+      ],
+    });
+    await fireEvent.keyDown(input, { key: 'ArrowRight' });
+    expect(view.container.querySelector('.accessory-submenu-back')?.textContent).toContain('New');
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('new-leaf');
+  });
+
   it.each(['Enter', 'Escape', 'ArrowDown', 'ArrowUp', 'Tab'])(
     'leaves %s to the input method while composing in the filter input',
     async (key) => {
@@ -55,4 +101,78 @@ describe('SearchBarAccessoryDropdown', () => {
       expect(view.container.querySelector('.accessory-popover')).toBeNull();
     },
   );
+
+  it('supports in-place submenu navigation with Enter/ArrowRight and Escape/Backspace back', async () => {
+    const nestedOptions = [
+      { value: 'all', title: 'All Types', selected: false },
+      { value: 'images', title: 'Images', selected: true },
+      {
+        value: 'submenu:app',
+        title: 'Filter by App',
+        subtitle: 'VS Code',
+        children: [
+          { value: 'app:all', title: 'All Apps', selected: false },
+          { value: 'app:VS Code', title: 'VS Code', subtitle: '12', selected: true },
+          { value: 'app:Chrome', title: 'Chrome', subtitle: '5', selected: false },
+        ],
+      },
+    ];
+
+    const { view, button, onChange, onclose } = await renderDropdown({
+      options: nestedOptions,
+      value: 'images',
+      buttonTitle: 'Images · VS Code',
+    });
+
+    expect(button.textContent).toContain('Images · VS Code');
+
+    await fireEvent.click(button);
+    await tick();
+
+    const input = view.container.querySelector<HTMLInputElement>('.accessory-filter-input')!;
+    expect(view.container.textContent).toContain('Filter by App');
+
+    // Navigate down once from selected "Images" (index 1) to "Filter by App" (index 2) and press ArrowRight
+    await fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await fireEvent.keyDown(input, { key: 'ArrowRight' });
+    await tick();
+
+    expect(view.container.querySelector('.accessory-submenu-back')?.textContent).toContain(
+      'Filter by App',
+    );
+    expect(view.container.textContent).toContain('All Apps');
+    expect(view.container.textContent).toContain('Chrome');
+    expect(onChange).not.toHaveBeenCalled();
+
+    // Pressing Escape inside submenu returns to parent list instead of closing popover
+    await fireEvent.keyDown(input, { key: 'Escape' });
+    await tick();
+    expect(view.container.querySelector('.accessory-popover')).not.toBeNull();
+    expect(view.container.querySelector('.accessory-submenu-back')).toBeNull();
+    expect(onclose).not.toHaveBeenCalled();
+
+    // Enter opens submenu again; Backspace with empty filter goes back
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await tick();
+    expect(view.container.querySelector('.accessory-submenu-back')).not.toBeNull();
+    await fireEvent.keyDown(input, { key: 'Backspace' });
+    await tick();
+    expect(view.container.querySelector('.accessory-submenu-back')).toBeNull();
+
+    // Re-enter submenu via click and pick Chrome
+    const appRow = Array.from(
+      view.container.querySelectorAll<HTMLButtonElement>('.accessory-option'),
+    ).find((el) => el.textContent?.includes('Filter by App'))!;
+    await fireEvent.click(appRow);
+    await tick();
+
+    const chromeRow = Array.from(
+      view.container.querySelectorAll<HTMLButtonElement>('.accessory-option'),
+    ).find((el) => el.textContent?.includes('Chrome'))!;
+    await fireEvent.click(chromeRow);
+    await tick();
+
+    expect(onChange).toHaveBeenCalledWith('app:Chrome');
+    expect(view.container.querySelector('.accessory-popover')).toBeNull();
+  });
 });

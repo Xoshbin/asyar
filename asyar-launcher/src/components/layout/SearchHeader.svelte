@@ -458,6 +458,7 @@
           bind:this={accessoryRef}
           options={accessory?.options ?? []}
           value={accessory?.value ?? ''}
+          buttonTitle={accessory?.buttonTitle}
           onChange={onAccessoryChange}
         />
       {/if}

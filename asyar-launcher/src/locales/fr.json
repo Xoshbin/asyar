@@ -1035,6 +1035,18 @@
       "time_this_week": "Cette semaine",
       "time_this_month": "Ce mois-ci",
       "time_older": "Plus ancien",
+      "filter_all_types": "Tous les types",
+      "filter_text": "Texte",
+      "filter_images": "Images",
+      "filter_files": "Fichiers",
+      "filter_by_app": "Filtrer par application",
+      "filter_by_date": "Filtrer par date",
+      "filter_all_apps": "Toutes les applications",
+      "filter_all_dates": "Toute période",
+      "filter_date_today": "Aujourd’hui",
+      "filter_date_yesterday": "Hier",
+      "filter_date_7d": "7 derniers jours",
+      "filter_date_30d": "30 derniers jours",
       "act": {
         "toggle_html": "Basculer HTML rendu / source",
         "toggle_html_desc": "Basculer entre l'aperçu HTML rendu et le code source brut",
@@ -2188,7 +2200,8 @@
   },
   "search_accessory": {
     "filter_placeholder": "Tapez pour filtrer…",
-    "filter_aria": "Filtrer les options"
+    "filter_aria": "Filtrer les options",
+    "back": "Retour"
   },
   "shell_consent": {
     "alias": "Alias :",

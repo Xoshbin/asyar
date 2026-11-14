@@ -13,6 +13,7 @@ import { shiftIndex } from '../../lib/listSelection.svelte';
 import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import * as commands from '../../lib/ipc/commands';
+import { parseClipboardSearchQuery } from './queryFilterParser';
 
 export class ClipboardViewStateClass {
   searchQuery = $state('');
@@ -32,14 +33,41 @@ export class ClipboardViewStateClass {
   // for queries whose matches lived outside the loaded window the view
   // went empty for ~half a second until FTS came back. Skipping the
   // local pass keeps the previous content visible during the wait.
+  parsedQuery = $derived(parseClipboardSearchQuery(this.searchQuery));
+
   filteredItems = $derived.by(() => {
-    const base = this.items;
-    if (this.typeFilter === 'all') return base;
-    if (this.typeFilter === 'text')
-      return base.filter((i) => i.type === 'text' || i.type === 'html' || i.type === 'rtf');
-    if (this.typeFilter === 'images') return base.filter((i) => i.type === 'image');
-    if (this.typeFilter === 'files') return base.filter((i) => i.type === 'files');
-    return base;
+    const parsed = this.parsedQuery;
+    const effectiveType = parsed.typeFilter !== 'all' ? parsed.typeFilter : this.typeFilter;
+    let result = this.items;
+
+    if (effectiveType === 'text') {
+      result = result.filter((i) => i.type === 'text' || i.type === 'html' || i.type === 'rtf');
+    } else if (effectiveType === 'images') {
+      result = result.filter((i) => i.type === 'image');
+    } else if (effectiveType === 'files') {
+      result = result.filter((i) => i.type === 'files');
+    }
+
+    if (parsed.appFilter) {
+      const needle = parsed.appFilter.toLowerCase();
+      result = result.filter((i) => {
+        const name = (i.sourceApp?.name ?? '').toLowerCase();
+        const bundleId = (i.sourceApp?.bundleId ?? '').toLowerCase();
+        return name.includes(needle) || bundleId.includes(needle);
+      });
+    }
+
+    const createdAfter = parsed.sqlFilter?.createdAfter;
+    const createdBefore = parsed.sqlFilter?.createdBefore;
+    if (createdAfter != null || createdBefore != null) {
+      result = result.filter((i) => {
+        if (createdAfter != null && i.createdAt < createdAfter) return false;
+        if (createdBefore != null && i.createdAt > createdBefore) return false;
+        return true;
+      });
+    }
+
+    return result;
   });
 
   selectedIndex = $derived.by(() => {
@@ -470,7 +498,10 @@ export class ClipboardViewStateClass {
   async refreshHistory() {
     this.isLoading = true;
     try {
-      await clipboardHistoryStore.loadInitial(100);
+      const filter = this.parsedQuery.sqlFilter;
+      await (filter
+        ? clipboardHistoryStore.loadInitial(100, filter)
+        : clipboardHistoryStore.loadInitial(100));
     } catch (error) {
       this.logService?.error(`Failed to refresh clipboard history: ${error}`);
       this.loadError = true;
@@ -486,6 +517,7 @@ export const clipboardViewState = new ClipboardViewStateClass();
 /** Call when the view is opened or focused. Loads the initial window if empty. */
 export async function onViewActivated(): Promise<void> {
   try {
+    void clipboardHistoryStore.loadSourceApps?.();
     if (clipboardHistoryStore.favorites.length === 0 && clipboardHistoryStore.recent.length === 0) {
       await clipboardHistoryStore.loadInitial(100);
     }
@@ -503,12 +535,25 @@ export async function onViewActivated(): Promise<void> {
 /** Call when the search query changes. Empty string clears the search. */
 export async function onSearchChanged(query: string): Promise<void> {
   try {
-    const trimmed = query.trim();
-    if (!trimmed) {
+    const parsed = parseClipboardSearchQuery(query);
+    clipboardViewState.setTypeFilter(parsed.typeFilter);
+    const filter = parsed.sqlFilter;
+
+    if (!parsed.textQuery) {
       clipboardHistoryStore.clearSearch();
+      if (parsed.hasActiveFilter && filter) {
+        await clipboardHistoryStore.loadInitial(100, filter);
+      } else if (clipboardHistoryStore.requestedFilter || clipboardHistoryStore.activeFilter) {
+        await clipboardHistoryStore.loadInitial(100);
+      }
       return;
     }
-    await clipboardHistoryStore.search(trimmed, 200);
+
+    if (filter) {
+      await clipboardHistoryStore.search(parsed.textQuery, 200, filter);
+    } else {
+      await clipboardHistoryStore.search(parsed.textQuery, 200);
+    }
   } catch (err) {
     feedbackService.report({
       source: 'frontend',

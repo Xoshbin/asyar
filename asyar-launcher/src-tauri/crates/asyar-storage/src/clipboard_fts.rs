@@ -40,7 +40,7 @@ pub fn rebuild_from_disk(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, item_type, content, preview, content_hash \
+            "SELECT id, item_type, content, preview, content_hash, source_app \
                FROM clipboard_items ORDER BY created_at DESC, id DESC",
         )
         .map_err(|e| AppError::Database(format!("FTS rebuild prepare: {e}")))?;
@@ -51,6 +51,7 @@ pub fn rebuild_from_disk(
         raw_content: Option<String>,
         raw_preview: Option<String>,
         existing_hash: Option<Vec<u8>>,
+        raw_source_app: Option<String>,
     }
 
     let rows: Vec<Row> = stmt
@@ -61,6 +62,7 @@ pub fn rebuild_from_disk(
                 raw_content: r.get(2)?,
                 raw_preview: r.get(3)?,
                 existing_hash: r.get(4)?,
+                raw_source_app: r.get(5)?,
             })
         })
         .map_err(|e| AppError::Database(format!("FTS rebuild query: {e}")))?
@@ -84,7 +86,13 @@ pub fn rebuild_from_disk(
                 Some(v.to_string())
             }
         });
-        fts.upsert(&row.id, preview.as_deref(), content.as_deref())?;
+        let source_app_text = extract_source_app_text_from_json_str(row.raw_source_app.as_deref());
+        fts.upsert_with_source_app(
+            &row.id,
+            preview.as_deref(),
+            content.as_deref(),
+            Some(&source_app_text),
+        )?;
 
         if row.existing_hash.is_none() && row.item_type != "image" {
             if let Some(c) = content.as_deref() {
@@ -129,6 +137,33 @@ pub fn rowid_for(id: &str) -> i64 {
     hasher.finish() as i64
 }
 
+/// Extract searchable metadata text (`name`, `bundleId`, `windowTitle`) from a
+/// `source_app` JSON value so plain-text searches can match app context too.
+pub fn extract_source_app_text(source_app: Option<&serde_json::Value>) -> String {
+    let Some(val) = source_app else {
+        return String::new();
+    };
+    let mut parts = Vec::new();
+    for key in ["name", "bundleId", "windowTitle"] {
+        if let Some(s) = val.get(key).and_then(|v| v.as_str()) {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                parts.push(trimmed);
+            }
+        }
+    }
+    parts.join(" ")
+}
+
+/// Extract searchable `source_app` metadata from a raw JSON string column.
+pub fn extract_source_app_text_from_json_str(raw: Option<&str>) -> String {
+    let Some(raw_str) = raw else {
+        return String::new();
+    };
+    let parsed: Option<serde_json::Value> = serde_json::from_str(raw_str).ok();
+    extract_source_app_text(parsed.as_ref())
+}
+
 pub struct ClipboardFts {
     conn: Mutex<Connection>,
 }
@@ -140,10 +175,14 @@ impl ClipboardFts {
         conn.execute_batch(
             "CREATE VIRTUAL TABLE fts_clipboard USING fts5(
                 clip_id UNINDEXED,
-                preview, content,
+                preview, content, source_app,
                 prefix='2 3',
                 tokenize='unicode61 remove_diacritics 2'
-            );",
+            );
+            CREATE VIRTUAL TABLE query_tokens USING fts5(
+                text, tokenize='unicode61 remove_diacritics 2'
+            );
+            CREATE VIRTUAL TABLE query_vocab USING fts5vocab(query_tokens, 'instance');",
         )
         .map_err(|e| AppError::Database(format!("Failed to create FTS table: {e}")))?;
         Ok(Self {
@@ -158,12 +197,29 @@ impl ClipboardFts {
         preview: Option<&str>,
         content: Option<&str>,
     ) -> Result<(), AppError> {
+        self.upsert_with_source_app(id, preview, content, None)
+    }
+
+    /// Insert or replace the FTS row for a clipboard id, including `source_app` metadata.
+    pub fn upsert_with_source_app(
+        &self,
+        id: &str,
+        preview: Option<&str>,
+        content: Option<&str>,
+        source_app: Option<&str>,
+    ) -> Result<(), AppError> {
         let rowid = rowid_for(id);
         let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
         conn.execute(
-            "INSERT OR REPLACE INTO fts_clipboard(rowid, clip_id, preview, content) \
-             VALUES (?1, ?2, ?3, ?4)",
-            params![rowid, id, preview.unwrap_or(""), content.unwrap_or("")],
+            "INSERT OR REPLACE INTO fts_clipboard(rowid, clip_id, preview, content, source_app) \
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                rowid,
+                id,
+                preview.unwrap_or(""),
+                content.unwrap_or(""),
+                source_app.unwrap_or("")
+            ],
         )
         .map_err(|e| AppError::Database(format!("FTS upsert: {e}")))?;
         Ok(())
@@ -202,19 +258,28 @@ impl ClipboardFts {
     /// best-match first. Caller JOINs to `clipboard_items` for the row
     /// payload.
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<String>, AppError> {
-        let sanitized = sanitize_for_fts5(query);
+        self.search_page(query, limit, 0)
+    }
+
+    pub fn search_page(
+        &self,
+        query: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<String>, AppError> {
+        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
+        let sanitized = sanitize_for_fts5(&conn, query)?;
         if sanitized.is_empty() {
             return Ok(Vec::new());
         }
-        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
         let ids: Vec<String> = conn
             .prepare(
                 "SELECT clip_id FROM fts_clipboard \
                   WHERE fts_clipboard MATCH ?1 \
-                  ORDER BY bm25(fts_clipboard) LIMIT ?2",
+                  ORDER BY bm25(fts_clipboard), rowid LIMIT ?2 OFFSET ?3",
             )
             .map_err(|e| AppError::Database(format!("FTS search prepare: {e}")))?
-            .query_map(params![sanitized, limit as i64], |row| {
+            .query_map(params![sanitized, limit as i64, offset as i64], |row| {
                 row.get::<_, String>(0)
             })
             .map_err(|e| AppError::Database(format!("FTS search query: {e}")))?
@@ -234,28 +299,42 @@ impl ClipboardFts {
 /// word. Appending `*` to each token (`appl*`) enables prefix matching,
 /// so results refine smoothly as the user types.
 ///
-/// Reserved FTS5 syntax characters (`" ( ) * : '`) are also dropped so
-/// arbitrary user input cannot trigger an FTS5 syntax error or change
-/// the query's logical structure. Multi-term queries combine with the
-/// implicit AND that FTS5 already uses between bareword tokens, e.g.
-/// `"apple pie"` → `apple* pie*` → rows containing both prefixes.
-fn sanitize_for_fts5(query: &str) -> String {
-    query
-        .chars()
-        .map(|c| match c {
-            '"' | '*' | '(' | ')' | ':' | '\'' => ' ',
-            _ => c,
-        })
-        .collect::<String>()
-        .split_whitespace()
-        .map(|tok| format!("{tok}*"))
-        .collect::<Vec<_>>()
-        .join(" ")
+/// Delegate token boundaries, case folding, and accent removal to the same
+/// unicode61 tokenizer as the index, then quote each term before adding its
+/// prefix operator. The scratch table is protected by the connection mutex.
+fn sanitize_for_fts5(conn: &Connection, query: &str) -> Result<String, AppError> {
+    let tokenize = || -> rusqlite::Result<String> {
+        conn.execute("DELETE FROM query_tokens", [])?;
+        conn.execute(
+            "INSERT INTO query_tokens(rowid, text) VALUES (1, ?1)",
+            [query],
+        )?;
+        let mut stmt = conn.prepare("SELECT term FROM query_vocab ORDER BY offset")?;
+        let terms = stmt
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(terms
+            .into_iter()
+            .map(|term| format!("\"{}\"*", term.replace('"', "\"\"")))
+            .collect::<Vec<_>>()
+            .join(" "))
+    };
+    tokenize().map_err(|e| AppError::Database(format!("FTS tokenize query: {e}")))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decomposed_query_matches_composed_word() {
+        let fts = ClipboardFts::new_in_memory().unwrap();
+        fts.upsert("accent", Some("café résumé"), None).unwrap();
+        assert_eq!(
+            fts.search("cafe\u{301} re\u{301}su", 10).unwrap(),
+            vec!["accent"]
+        );
+    }
 
     #[test]
     fn rowid_is_deterministic() {
@@ -383,6 +462,63 @@ mod tests {
                 "query {raw:?} must still match the underlying token",
             );
         }
+    }
+
+    #[test]
+    fn sanitize_strips_quotes_and_punctuation() {
+        let fts = ClipboardFts::new_in_memory().unwrap();
+        let conn = fts.conn.lock().unwrap();
+        let sanitize_for_fts5 = |query: &str| super::sanitize_for_fts5(&conn, query).unwrap();
+        assert_eq!(
+            sanitize_for_fts5("hello \"world\""),
+            "\"hello\"* \"world\"*"
+        );
+        assert_eq!(
+            sanitize_for_fts5("\"token\", \"cloudflare\""),
+            "\"token\"* \"cloudflare\"*"
+        );
+        assert_eq!(sanitize_for_fts5("AND OR NOT"), "\"and\"* \"or\"* \"not\"*");
+    }
+
+    #[test]
+    fn search_handles_commas_colons_and_boolean_keywords() {
+        let fts = ClipboardFts::new_in_memory().unwrap();
+        fts.upsert(
+            "id-1",
+            Some("cloudflare config"),
+            Some("token and or not cloudflare"),
+        )
+        .unwrap();
+        fts.upsert("id-2", None, Some("only cloudflare here"))
+            .unwrap();
+
+        let hits = fts.search("\"token\", \"cloudflare\"", 10).unwrap();
+        assert_eq!(hits, vec!["id-1".to_string()]);
+
+        let hits_kw = fts.search("AND OR NOT cloudflare", 10).unwrap();
+        assert_eq!(hits_kw, vec!["id-1".to_string()]);
+    }
+
+    #[test]
+    fn search_matches_source_app_metadata() {
+        let fts = ClipboardFts::new_in_memory().unwrap();
+        fts.upsert_with_source_app(
+            "id-1",
+            Some("api key"),
+            Some("cloudflare secret token"),
+            Some("Visual Studio Code com.microsoft.VSCode"),
+        )
+        .unwrap();
+        fts.upsert_with_source_app(
+            "id-2",
+            Some("api key"),
+            Some("cloudflare secret token"),
+            Some("Google Chrome com.google.Chrome"),
+        )
+        .unwrap();
+
+        let hits = fts.search("vscode cloudflare", 10).unwrap();
+        assert_eq!(hits, vec!["id-1".to_string()]);
     }
 }
 

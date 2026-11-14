@@ -3387,6 +3387,7 @@ mod manifest_schema_tests {
                     options: vec![SearchBarAccessoryDropdownOption {
                         value: "x".into(),
                         title: "X".into(),
+                        ..Default::default()
                     }],
                 }),
             }],

@@ -4,6 +4,7 @@ import {
   clipboardListInitial,
   clipboardListOlder,
   clipboardSearch,
+  clipboardListSourceApps,
   clipboardGetItem,
   clipboardRecordCapture,
   clipboardToggleFavorite,
@@ -12,6 +13,8 @@ import {
   type StoredClipboardItem,
   type StoredClipboardListItem,
   type ClipboardCursor,
+  type ClipboardFilter,
+  type SourceAppSummary,
   type ClipboardDeleteResult,
   type ClipboardClearResult,
 } from '../../../lib/ipc/commands';
@@ -28,6 +31,9 @@ export class ClipboardHistoryStoreClass {
   searchResults = $state<ListItem[] | null>(null);
   indexState = $state<'ready' | 'indexing'>('indexing');
   nextOlderCursor = $state<ClipboardCursor | undefined>(undefined);
+  activeFilter = $state<ClipboardFilter | undefined>(undefined);
+  requestedFilter = $state<ClipboardFilter | undefined>(undefined);
+  sourceApps = $state<SourceAppSummary[]>([]);
 
   #subscribers = new Set<(event: ClipboardStoreChangeEvent) => void>();
 
@@ -48,16 +54,38 @@ export class ClipboardHistoryStoreClass {
     });
   }
 
+  #listingGeneration = 0;
+  #committedListingGeneration = 0;
+
   reset(): void {
+    this.#committedListingGeneration = ++this.#listingGeneration;
     this.favorites = [];
     this.recent = [];
     this.searchResults = null;
     this.indexState = 'indexing';
     this.nextOlderCursor = undefined;
+    this.activeFilter = undefined;
+    this.requestedFilter = undefined;
+    this.sourceApps = [];
   }
 
-  async loadInitial(limit = 100): Promise<void> {
-    const page = await clipboardListInitial(limit);
+  async loadInitial(limit = 100, filter?: ClipboardFilter): Promise<void> {
+    const generation = ++this.#listingGeneration;
+    this.requestedFilter = filter;
+    let page;
+    try {
+      page = filter ? await clipboardListInitial(limit, filter) : await clipboardListInitial(limit);
+    } catch (error) {
+      if (generation === this.#listingGeneration) {
+        // Keep the committed window, but allow it to paginate in this generation.
+        this.#committedListingGeneration = generation;
+        this.requestedFilter = this.activeFilter;
+      }
+      throw error;
+    }
+    if (generation !== this.#listingGeneration) return;
+    this.#committedListingGeneration = generation;
+    this.activeFilter = filter;
     this.favorites = page.favorites;
     this.recent = page.recent;
     this.nextOlderCursor = page.nextCursor;
@@ -67,18 +95,27 @@ export class ClipboardHistoryStoreClass {
   // fires the scroll handler dozens of times per second, each spawning its
   // own IPC + array-spread. Result: same page appended N times, recent
   // array grows unboundedly, webview eventually OOMs and the app crashes.
-  #loadingOlder = false;
+  #loadingOlder: number | null = null;
 
   async loadOlder(limit = 200): Promise<void> {
-    if (this.#loadingOlder || !this.nextOlderCursor) return;
-    this.#loadingOlder = true;
+    const generation = this.#listingGeneration;
+    if (
+      this.#committedListingGeneration !== generation ||
+      this.#loadingOlder === generation ||
+      !this.nextOlderCursor
+    )
+      return;
+    this.#loadingOlder = generation;
     try {
       const cursor = this.nextOlderCursor;
-      const page = await clipboardListOlder(cursor, limit);
+      const page = this.activeFilter
+        ? await clipboardListOlder(cursor, limit, this.activeFilter)
+        : await clipboardListOlder(cursor, limit);
+      if (generation !== this.#listingGeneration) return;
       this.recent = [...this.recent, ...page.items];
       this.nextOlderCursor = page.nextCursor;
     } finally {
-      this.#loadingOlder = false;
+      if (this.#loadingOlder === generation) this.#loadingOlder = null;
     }
   }
 
@@ -91,13 +128,27 @@ export class ClipboardHistoryStoreClass {
   // earlier in-flight responses are dropped before they touch the UI.
   #searchSeq = 0;
 
-  async search(query: string, limit = 200): Promise<void> {
+  async search(query: string, limit = 200, filter?: ClipboardFilter): Promise<void> {
     const mySeq = ++this.#searchSeq;
-    const res = await clipboardSearch(query, limit);
+    const res = filter
+      ? await clipboardSearch(query, limit, filter)
+      : await clipboardSearch(query, limit);
     // Drop response if a newer search has been issued in the meantime.
     if (mySeq !== this.#searchSeq) return;
     this.searchResults = res.items;
     this.indexState = res.indexState;
+  }
+
+  async loadSourceApps(): Promise<SourceAppSummary[]> {
+    try {
+      if (typeof clipboardListSourceApps !== 'function') return [];
+      const apps = await clipboardListSourceApps();
+      this.sourceApps = apps ?? [];
+      return this.sourceApps;
+    } catch (err) {
+      logService.debug(`loadSourceApps failed: ${err}`);
+      return this.sourceApps;
+    }
   }
 
   clearSearch(): void {

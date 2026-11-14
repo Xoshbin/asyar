@@ -155,6 +155,92 @@ pub struct SearchResult {
     pub index_state: &'static str,
 }
 
+/// Optional SQLite-level filter constraints for clipboard history queries.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipboardFilter {
+    pub item_type: Option<String>,
+    pub source_app: Option<String>,
+    pub created_after: Option<f64>,
+    pub created_before: Option<f64>,
+}
+
+impl ClipboardFilter {
+    /// Returns true when at least one filter constraint is active.
+    pub fn is_active(&self) -> bool {
+        let has_type = self
+            .item_type
+            .as_deref()
+            .is_some_and(|t| !t.trim().is_empty() && !t.eq_ignore_ascii_case("all"));
+        let has_app = self
+            .source_app
+            .as_deref()
+            .is_some_and(|a| !a.trim().is_empty() && !a.eq_ignore_ascii_case("all"));
+        has_type || has_app || self.created_after.is_some() || self.created_before.is_some()
+    }
+}
+
+/// Distinct source application summary for the Clipboard History filter menu.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceAppSummary {
+    pub name: String,
+    pub bundle_id: Option<String>,
+    pub icon_url: Option<String>,
+    pub count: u32,
+}
+
+/// Append SQLite `AND ...` filter conditions to `sql` and push bound
+/// values to `params` using `?{idx}` positional placeholders.
+fn append_filter_clauses(
+    sql: &mut String,
+    params: &mut Vec<rusqlite::types::Value>,
+    filter: Option<&ClipboardFilter>,
+) {
+    let Some(f) = filter else {
+        return;
+    };
+
+    if let Some(raw_type) = f.item_type.as_deref() {
+        let t = raw_type.trim().to_ascii_lowercase();
+        match t.as_str() {
+            "" | "all" => {}
+            "text" => sql.push_str(" AND item_type IN ('text', 'html', 'rtf')"),
+            "images" | "image" => sql.push_str(" AND item_type = 'image'"),
+            "files" | "file" => sql.push_str(" AND item_type = 'files'"),
+            other => {
+                let idx = params.len() + 1;
+                params.push(rusqlite::types::Value::Text(other.to_string()));
+                sql.push_str(&format!(" AND item_type = ?{idx}"));
+            }
+        }
+    }
+
+    if let Some(raw_app) = f.source_app.as_deref() {
+        let needle = raw_app.trim();
+        if !needle.is_empty() && !needle.eq_ignore_ascii_case("all") {
+            let idx = params.len() + 1;
+            params.push(rusqlite::types::Value::Text(needle.to_lowercase()));
+            sql.push_str(&format!(
+                " AND (INSTR(LOWER(COALESCE(json_extract(source_app, '$.name'), '')), ?{idx}) > 0 \
+                 OR INSTR(LOWER(COALESCE(json_extract(source_app, '$.bundleId'), '')), ?{idx}) > 0)"
+            ));
+        }
+    }
+
+    if let Some(after) = f.created_after {
+        let idx = params.len() + 1;
+        params.push(rusqlite::types::Value::Real(after));
+        sql.push_str(&format!(" AND created_at >= ?{idx}"));
+    }
+
+    if let Some(before) = f.created_before {
+        let idx = params.len() + 1;
+        params.push(rusqlite::types::Value::Real(before));
+        sql.push_str(&format!(" AND created_at <= ?{idx}"));
+    }
+}
+
 fn encode_redacted_kinds(kinds: &Option<Vec<String>>) -> Option<String> {
     kinds
         .as_ref()
@@ -404,33 +490,48 @@ pub fn get_recent(
 }
 
 /// First-page load: all favorites (newest-first) plus the newest `limit`
-/// non-favorites. Returns a `Cursor` pointing at the oldest non-favorite
-/// in the page when more older rows exist.
+/// non-favorites matching `filter`. Returns a `Cursor` pointing at the
+/// oldest non-favorite in the page when more older rows exist.
 pub fn list_initial(
     conn: &Connection,
     limit: usize,
     master_key: &[u8; 32],
+    filter: Option<&ClipboardFilter>,
 ) -> Result<InitialPage, AppError> {
+    let mut fav_sql = format!("{LIST_SELECT_COLS} FROM clipboard_items WHERE favorite = 1");
+    let mut fav_params: Vec<rusqlite::types::Value> = Vec::new();
+    append_filter_clauses(&mut fav_sql, &mut fav_params, filter);
+    fav_sql.push_str(" ORDER BY created_at DESC, id DESC");
+
     let favorites: Vec<ClipboardListItem> = conn
-        .prepare(&format!(
-            "{LIST_SELECT_COLS} FROM clipboard_items \
-              WHERE favorite = 1 ORDER BY created_at DESC, id DESC"
-        ))
+        .prepare(&fav_sql)
         .map_err(|e| AppError::Database(format!("Failed to prepare favorites query: {e}")))?
-        .query_map([], list_row_to_item_factory(master_key))
+        .query_map(
+            rusqlite::params_from_iter(fav_params.iter()),
+            list_row_to_item_factory(master_key),
+        )
         .map_err(|e| AppError::Database(format!("Failed to query favorites: {e}")))?
         .filter_map(|r| r.ok())
         .collect();
 
     // Fetch limit + 1 to detect whether more older rows exist.
     let probe_limit = (limit as i64).saturating_add(1);
+    let mut recent_sql = format!("{LIST_SELECT_COLS} FROM clipboard_items WHERE favorite = 0");
+    let mut recent_params: Vec<rusqlite::types::Value> = Vec::new();
+    append_filter_clauses(&mut recent_sql, &mut recent_params, filter);
+    let limit_idx = recent_params.len() + 1;
+    recent_params.push(rusqlite::types::Value::Integer(probe_limit));
+    recent_sql.push_str(&format!(
+        " ORDER BY created_at DESC, id DESC LIMIT ?{limit_idx}"
+    ));
+
     let mut probe: Vec<ClipboardListItem> = conn
-        .prepare(&format!(
-            "{LIST_SELECT_COLS} FROM clipboard_items \
-              WHERE favorite = 0 ORDER BY created_at DESC, id DESC LIMIT ?1"
-        ))
+        .prepare(&recent_sql)
         .map_err(|e| AppError::Database(format!("Failed to prepare recent query: {e}")))?
-        .query_map(params![probe_limit], list_row_to_item_factory(master_key))
+        .query_map(
+            rusqlite::params_from_iter(recent_params.iter()),
+            list_row_to_item_factory(master_key),
+        )
         .map_err(|e| AppError::Database(format!("Failed to query recent: {e}")))?
         .filter_map(|r| r.ok())
         .collect();
@@ -461,18 +562,30 @@ pub fn list_older(
     cursor: &Cursor,
     limit: usize,
     master_key: &[u8; 32],
+    filter: Option<&ClipboardFilter>,
 ) -> Result<OlderPage, AppError> {
     let probe_limit = (limit as i64).saturating_add(1);
+    let mut sql = format!(
+        "{LIST_SELECT_COLS} FROM clipboard_items \
+         WHERE favorite = 0 \
+           AND (created_at < ?1 OR (created_at = ?1 AND id < ?2))"
+    );
+    let mut query_params: Vec<rusqlite::types::Value> = vec![
+        rusqlite::types::Value::Real(cursor.created_at),
+        rusqlite::types::Value::Text(cursor.id.clone()),
+    ];
+    append_filter_clauses(&mut sql, &mut query_params, filter);
+    let limit_idx = query_params.len() + 1;
+    query_params.push(rusqlite::types::Value::Integer(probe_limit));
+    sql.push_str(&format!(
+        " ORDER BY created_at DESC, id DESC LIMIT ?{limit_idx}"
+    ));
+
     let mut probe: Vec<ClipboardListItem> = conn
-        .prepare(&format!(
-            "{LIST_SELECT_COLS} FROM clipboard_items \
-              WHERE favorite = 0 \
-                AND (created_at < ?1 OR (created_at = ?1 AND id < ?2)) \
-              ORDER BY created_at DESC, id DESC LIMIT ?3"
-        ))
+        .prepare(&sql)
         .map_err(|e| AppError::Database(format!("Failed to prepare list_older query: {e}")))?
         .query_map(
-            params![cursor.created_at, cursor.id, probe_limit],
+            rusqlite::params_from_iter(query_params.iter()),
             list_row_to_item_factory(master_key),
         )
         .map_err(|e| AppError::Database(format!("Failed to query list_older: {e}")))?
@@ -496,16 +609,55 @@ pub fn list_older(
     })
 }
 
-/// FTS5-backed search. Returns items in bm25 rank order joined to
-/// `clipboard_items` for the row payload. Capped at `limit` results
-/// (no pagination — refine the query for more).
+/// FTS5-backed search with optional SQLite-level filters. Returns items in
+/// bm25 rank order (or chronological order when `query` is empty and only
+/// `filter` is active) capped at `limit` results.
 pub fn search(
     conn: &Connection,
     fts: &ClipboardFts,
     query: &str,
     limit: usize,
     master_key: &[u8; 32],
+    filter: Option<&ClipboardFilter>,
 ) -> Result<SearchResult, AppError> {
+    let trimmed = query.trim();
+    let active_filter = filter.filter(|f| f.is_active());
+
+    if trimmed.is_empty() {
+        let Some(f) = active_filter else {
+            return Ok(SearchResult {
+                items: Vec::new(),
+                index_state: if crate::clipboard_fts::is_ready() {
+                    "ready"
+                } else {
+                    "indexing"
+                },
+            });
+        };
+        let mut sql = format!("{LIST_SELECT_COLS} FROM clipboard_items WHERE 1=1");
+        let mut query_params: Vec<rusqlite::types::Value> = Vec::new();
+        append_filter_clauses(&mut sql, &mut query_params, Some(f));
+        let limit_idx = query_params.len() + 1;
+        query_params.push(rusqlite::types::Value::Integer(limit as i64));
+        sql.push_str(&format!(
+            " ORDER BY favorite DESC, created_at DESC, id DESC LIMIT ?{limit_idx}"
+        ));
+        let items: Vec<ClipboardListItem> = conn
+            .prepare(&sql)
+            .map_err(|e| AppError::Database(format!("filtered search prepare: {e}")))?
+            .query_map(
+                rusqlite::params_from_iter(query_params.iter()),
+                list_row_to_item_factory(master_key),
+            )
+            .map_err(|e| AppError::Database(format!("filtered search query: {e}")))?
+            .filter_map(|r| r.ok())
+            .collect();
+        return Ok(SearchResult {
+            items,
+            index_state: "ready",
+        });
+    }
+
     if !crate::clipboard_fts::is_ready() {
         return Ok(SearchResult {
             items: Vec::new(),
@@ -513,24 +665,47 @@ pub fn search(
         });
     }
 
-    let ids = fts.search(query, limit)?;
-    if ids.is_empty() {
+    if limit == 0 {
         return Ok(SearchResult {
             items: Vec::new(),
             index_state: "ready",
         });
     }
+    let page_size = if active_filter.is_some() {
+        limit.max(1000)
+    } else {
+        limit
+    };
+    let mut offset = 0;
 
-    // Per-id PK lookup in ranked order; preserves the bm25 ordering FTS
-    // returned. At limit=200 this is ~0.5 ms total.
-    let mut items: Vec<ClipboardListItem> = Vec::with_capacity(ids.len());
-    let select_one = format!("{LIST_SELECT_COLS} FROM clipboard_items WHERE id = ?1");
+    // Per-id PK lookup in ranked order; SQLite evaluates any active filter
+    // constraints before decrypting `preview`.
+    let mut select_one = format!("{LIST_SELECT_COLS} FROM clipboard_items WHERE id = ?1");
+    let mut row_params: Vec<rusqlite::types::Value> = vec![rusqlite::types::Value::Null];
+    append_filter_clauses(&mut select_one, &mut row_params, active_filter);
+
+    let mut items: Vec<ClipboardListItem> = Vec::new();
     let mut stmt = conn
         .prepare(&select_one)
         .map_err(|e| AppError::Database(format!("search lookup prepare: {e}")))?;
-    for id in ids {
-        if let Ok(item) = stmt.query_row(params![id], list_row_to_item_factory(master_key)) {
-            items.push(item);
+    loop {
+        let ids = fts.search_page(trimmed, page_size, offset)?;
+        let exhausted = ids.len() < page_size;
+        offset += ids.len();
+        for id in ids {
+            row_params[0] = rusqlite::types::Value::Text(id);
+            if let Ok(item) = stmt.query_row(
+                rusqlite::params_from_iter(row_params.iter()),
+                list_row_to_item_factory(master_key),
+            ) {
+                items.push(item);
+                if items.len() >= limit {
+                    break;
+                }
+            }
+        }
+        if items.len() >= limit || exhausted || active_filter.is_none() {
+            break;
         }
     }
 
@@ -538,6 +713,42 @@ pub fn search(
         items,
         index_state: "ready",
     })
+}
+
+/// Distinct source applications present in clipboard history, ordered by item
+/// count descending (most frequently copied-from apps first).
+pub fn list_source_apps(conn: &Connection) -> Result<Vec<SourceAppSummary>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT
+                json_extract(source_app, '$.name') AS app_name,
+                MAX(json_extract(source_app, '$.bundleId')) AS bundle_id,
+                MAX(json_extract(source_app, '$.iconUrl')) AS icon_url,
+                COUNT(*) AS item_count
+             FROM clipboard_items
+             WHERE source_app IS NOT NULL
+               AND json_extract(source_app, '$.name') IS NOT NULL
+               AND TRIM(json_extract(source_app, '$.name')) != ''
+             GROUP BY app_name
+             ORDER BY item_count DESC, app_name ASC
+             LIMIT 50",
+        )
+        .map_err(|e| AppError::Database(format!("Failed to prepare list_source_apps: {e}")))?;
+
+    let apps: Vec<SourceAppSummary> = stmt
+        .query_map([], |row| {
+            Ok(SourceAppSummary {
+                name: row.get(0)?,
+                bundle_id: row.get(1)?,
+                icon_url: row.get(2)?,
+                count: row.get(3)?,
+            })
+        })
+        .map_err(|e| AppError::Database(format!("Failed to query list_source_apps: {e}")))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(apps)
 }
 
 /// Iterate every row (favorites + non-favorites) newest-first in pages.
@@ -1048,10 +1259,12 @@ pub fn record_capture_with_fts(
         fts.delete(replaced_id)?;
     }
     // New row is in the DB now — index it.
-    fts.upsert(
+    let source_app_text = crate::clipboard_fts::extract_source_app_text(item.source_app.as_ref());
+    fts.upsert_with_source_app(
         &res.inserted_id,
         item.preview.as_deref(),
         item.content.as_deref(),
+        Some(&source_app_text),
     )?;
     // Evicted ids from cleanup must come out of FTS too.
     fts.delete_many(&res.evicted_ids)?;
@@ -1093,7 +1306,14 @@ pub fn apply_synced_item_with_fts(
 ) -> Result<bool, AppError> {
     let applied = apply_synced_item(conn, item, master_key, retention_ms)?;
     if applied {
-        fts.upsert(&item.id, item.preview.as_deref(), item.content.as_deref())?;
+        let source_app_text =
+            crate::clipboard_fts::extract_source_app_text(item.source_app.as_ref());
+        fts.upsert_with_source_app(
+            &item.id,
+            item.preview.as_deref(),
+            item.content.as_deref(),
+            Some(&source_app_text),
+        )?;
     }
     Ok(applied)
 }
@@ -2177,7 +2397,7 @@ mod tests {
             add_item(&conn, &nf, &key).unwrap();
         }
 
-        let page = list_initial(&conn, 3, &key).unwrap();
+        let page = list_initial(&conn, 3, &key, None).unwrap();
         assert_eq!(page.favorites.len(), 2);
         assert_eq!(page.recent.len(), 3, "limit honoured for non-favorites");
         // Cursor points at the oldest non-favorite in the page (n2 with created_at 3002).
@@ -2188,7 +2408,7 @@ mod tests {
         assert_eq!(cursor.id, "n2");
 
         // Page fits entirely → no cursor.
-        let full = list_initial(&conn, 10, &key).unwrap();
+        let full = list_initial(&conn, 10, &key, None).unwrap();
         assert_eq!(full.recent.len(), 5);
         assert!(full.next_cursor.is_none(), "no cursor when everything fits");
     }
@@ -2204,10 +2424,10 @@ mod tests {
             add_item(&conn, &nf, &key).unwrap();
         }
 
-        let first = list_initial(&conn, 3, &key).unwrap();
+        let first = list_initial(&conn, 3, &key, None).unwrap();
         assert_eq!(first.recent.len(), 3);
         let cursor = first.next_cursor.unwrap();
-        let next = list_older(&conn, &cursor, 3, &key).unwrap();
+        let next = list_older(&conn, &cursor, 3, &key, None).unwrap();
         assert_eq!(next.items.len(), 3);
         // Combined ids of the two pages must be disjoint.
         let first_ids: std::collections::HashSet<&str> =
@@ -2231,10 +2451,10 @@ mod tests {
             add_item(&conn, &nf, &key).unwrap();
         }
         // Load 2, then ask for the 3rd via cursor.
-        let first = list_initial(&conn, 2, &key).unwrap();
+        let first = list_initial(&conn, 2, &key, None).unwrap();
         assert_eq!(first.recent.len(), 2);
         let cursor = first.next_cursor.unwrap();
-        let next = list_older(&conn, &cursor, 5, &key).unwrap();
+        let next = list_older(&conn, &cursor, 5, &key, None).unwrap();
         assert_eq!(next.items.len(), 1, "exactly one row past the cursor");
         // The remaining row must be the one with the smallest id.
         let seen: std::collections::HashSet<String> = first
@@ -2498,6 +2718,35 @@ mod tests {
         assert_eq!(MAX_HISTORY_ITEMS, 50_000);
     }
 
+    fn filtered_search_fills_limit_beyond_initial_candidates() {
+        let (conn, fts) = setup_with_fts();
+        let key = test_key();
+        for n in 0..1002 {
+            let mut item = make_item(
+                &format!("candidate-{n}"),
+                &format!("apple unique{n}"),
+                false,
+            );
+            item.created_at = n as f64;
+            record_capture_with_fts(&conn, &item, None, &key, &fts, None).unwrap();
+        }
+        let ranked = fts.search("apple", 2000).unwrap();
+        let last = ranked.last().unwrap();
+        conn.execute(
+            "UPDATE clipboard_items SET created_at = 10000 WHERE id = ?1",
+            [last],
+        )
+        .unwrap();
+        let filter = ClipboardFilter {
+            created_after: Some(10000.0),
+            ..Default::default()
+        };
+        crate::clipboard_fts::mark_ready();
+        let result = search(&conn, &fts, "apple", 1, &key, Some(&filter)).unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(&result.items[0].id, last);
+    }
+
     #[test]
     fn search_returns_list_items_for_fts_matches() {
         let (conn, fts) = setup_with_fts();
@@ -2514,10 +2763,27 @@ mod tests {
         // Ready required.
         crate::clipboard_fts::mark_ready();
 
-        let res = search(&conn, &fts, "apple", 20, &key).unwrap();
+        let res = search(&conn, &fts, "apple", 20, &key, None).unwrap();
         assert_eq!(res.items.len(), 10);
         assert!(res.items.iter().all(|i| i.id != "z"));
         assert_eq!(res.index_state, "ready");
+
+        // Filtered search returns only items matching both FTS query and SQLite filter.
+        let type_filter = ClipboardFilter {
+            item_type: Some("images".into()),
+            ..Default::default()
+        };
+        let empty_filtered = search(&conn, &fts, "apple", 20, &key, Some(&type_filter)).unwrap();
+        assert!(empty_filtered.items.is_empty());
+
+        let date_filter = ClipboardFilter {
+            created_after: Some(1008.0),
+            ..Default::default()
+        };
+        let recent_filtered = search(&conn, &fts, "apple", 20, &key, Some(&date_filter)).unwrap();
+        assert_eq!(recent_filtered.items.len(), 2);
+
+        filtered_search_fills_limit_beyond_initial_candidates();
 
         // Clean up for other tests.
         crate::clipboard_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
@@ -2528,7 +2794,7 @@ mod tests {
         let (conn, fts) = setup_with_fts();
         let key = test_key();
         crate::clipboard_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
-        let res = search(&conn, &fts, "anything", 20, &key).unwrap();
+        let res = search(&conn, &fts, "anything", 20, &key, None).unwrap();
         assert_eq!(res.index_state, "indexing");
         assert!(res.items.is_empty());
     }
@@ -2616,5 +2882,127 @@ mod tests {
 
         assert_eq!(result.text, "");
         assert_eq!(result.skipped_count, 0);
+    }
+
+    #[test]
+    fn list_initial_and_older_respect_clipboard_filter() {
+        let conn = setup();
+        let key = test_key();
+
+        let mut img_vscode = make_typed_item("img-vsc", "image", "/tmp/a.png");
+        img_vscode.created_at = 5000.0;
+        img_vscode.source_app = Some(serde_json::json!({
+            "name": "Visual Studio Code",
+            "bundleId": "com.microsoft.VSCode"
+        }));
+        add_item(&conn, &img_vscode, &key).unwrap();
+
+        let mut text_chrome = make_typed_item("txt-chrome", "text", "hello chrome");
+        text_chrome.created_at = 4000.0;
+        text_chrome.source_app = Some(serde_json::json!({
+            "name": "Google Chrome",
+            "bundleId": "com.google.Chrome"
+        }));
+        add_item(&conn, &text_chrome, &key).unwrap();
+
+        let mut html_vscode_old = make_typed_item("html-vsc-old", "html", "<b>old</b>");
+        html_vscode_old.created_at = 1000.0;
+        html_vscode_old.source_app = Some(serde_json::json!({
+            "name": "Visual Studio Code",
+            "bundleId": "com.microsoft.VSCode"
+        }));
+        add_item(&conn, &html_vscode_old, &key).unwrap();
+
+        let mut text_vscode_fav = make_typed_item("txt-vsc-fav", "text", "fav snippet");
+        text_vscode_fav.favorite = true;
+        text_vscode_fav.created_at = 3000.0;
+        text_vscode_fav.source_app = Some(serde_json::json!({
+            "name": "Visual Studio Code",
+            "bundleId": "com.microsoft.VSCode"
+        }));
+        add_item(&conn, &text_vscode_fav, &key).unwrap();
+
+        // Type filter ("text" includes text, html, rtf).
+        let text_filter = ClipboardFilter {
+            item_type: Some("text".into()),
+            ..Default::default()
+        };
+        let text_page = list_initial(&conn, 10, &key, Some(&text_filter)).unwrap();
+        assert_eq!(text_page.favorites.len(), 1);
+        assert_eq!(text_page.recent.len(), 2);
+
+        // Source app + date range filter with pagination across recent rows.
+        let vscode_filter = ClipboardFilter {
+            source_app: Some("vscode".into()),
+            created_after: Some(500.0),
+            ..Default::default()
+        };
+        let page1 = list_initial(&conn, 1, &key, Some(&vscode_filter)).unwrap();
+        assert_eq!(page1.favorites.len(), 1);
+        assert_eq!(page1.recent.len(), 1);
+        assert_eq!(page1.recent[0].id, "img-vsc");
+        let cursor = page1.next_cursor.expect("should paginate filtered items");
+        let page2 = list_older(&conn, &cursor, 10, &key, Some(&vscode_filter)).unwrap();
+        assert_eq!(page2.items.len(), 1);
+        assert_eq!(page2.items[0].id, "html-vsc-old");
+    }
+
+    #[test]
+    fn search_with_empty_query_and_active_filter_returns_matching_rows() {
+        let (conn, fts) = setup_with_fts();
+        let key = test_key();
+
+        let mut a = make_typed_item("a", "text", "alpha");
+        a.created_at = 1000.0;
+        a.source_app = Some(serde_json::json!({ "name": "Notes" }));
+        add_item(&conn, &a, &key).unwrap();
+
+        let mut b = make_typed_item("b", "image", "/tmp/b.png");
+        b.created_at = 2000.0;
+        b.source_app = Some(serde_json::json!({ "name": "Preview" }));
+        add_item(&conn, &b, &key).unwrap();
+
+        let filter = ClipboardFilter {
+            item_type: Some("images".into()),
+            source_app: Some("Preview".into()),
+            created_after: Some(1500.0),
+            created_before: None,
+        };
+        let res = search(&conn, &fts, "", 20, &key, Some(&filter)).unwrap();
+        assert_eq!(res.items.len(), 1);
+        assert_eq!(res.items[0].id, "b");
+    }
+
+    #[test]
+    fn list_source_apps_groups_and_orders_by_count() {
+        let conn = setup();
+        let key = test_key();
+
+        for i in 0..3u32 {
+            let mut item = make_item(&format!("chrome-{i}"), &format!("c {i}"), false);
+            item.source_app = Some(serde_json::json!({
+                "name": "Google Chrome",
+                "bundleId": "com.google.Chrome",
+                "iconUrl": "asset://chrome.png"
+            }));
+            add_item(&conn, &item, &key).unwrap();
+        }
+        let mut vsc = make_item("vsc-1", "code", false);
+        vsc.source_app = Some(serde_json::json!({
+            "name": "Visual Studio Code",
+            "bundleId": "com.microsoft.VSCode"
+        }));
+        add_item(&conn, &vsc, &key).unwrap();
+
+        let no_app = make_item("none-1", "unknown", false);
+        add_item(&conn, &no_app, &key).unwrap();
+
+        let apps = list_source_apps(&conn).unwrap();
+        assert_eq!(apps.len(), 2);
+        assert_eq!(apps[0].name, "Google Chrome");
+        assert_eq!(apps[0].count, 3);
+        assert_eq!(apps[0].bundle_id.as_deref(), Some("com.google.Chrome"));
+        assert_eq!(apps[1].name, "Visual Studio Code");
+        assert_eq!(apps[1].count, 1);
     }
 }

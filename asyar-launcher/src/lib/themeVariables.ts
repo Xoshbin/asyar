@@ -12,6 +12,14 @@ export const THEME_VAR_NAMES: readonly string[] = [
   '--text-tertiary',
   '--text-on-accent',
   '--border-color',
+  '--font-weight-medium',
+  '--font-weight-semibold',
+  '--border-width-thin',
+  '--accessory-title-max-width',
+  '--accessory-subtitle-max-width',
+  '--accessory-popover-min-width',
+  '--accessory-popover-max-height',
+
   '--separator',
   '--accent-primary',
   '--accent-success',
@@ -140,7 +148,16 @@ export const THEME_VAR_NAMES: readonly string[] = [
  * so extension views render with the real values; `applyTheme` filters
  * *overrides* through this narrower list.
  */
-const SYSTEM_OWNED_PREFIXES = ['--space-', '--size-', '--font-size-', '--tracking-', '--ease-'];
+const SYSTEM_OWNED_PREFIXES = [
+  '--space-',
+  '--size-',
+  '--font-size-',
+  '--tracking-',
+  '--ease-',
+  '--font-weight-',
+  '--border-width-',
+  '--accessory-',
+];
 
 export const THEMEABLE_VAR_NAMES: readonly string[] = THEME_VAR_NAMES.filter(
   (name) => !SYSTEM_OWNED_PREFIXES.some((prefix) => name.startsWith(prefix)),

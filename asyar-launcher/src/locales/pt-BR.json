@@ -1035,6 +1035,18 @@
       "time_this_week": "Esta semana",
       "time_this_month": "Este mês",
       "time_older": "Mais antigos",
+      "filter_all_types": "Todos os tipos",
+      "filter_text": "Texto",
+      "filter_images": "Imagens",
+      "filter_files": "Arquivos",
+      "filter_by_app": "Filtrar por aplicativo",
+      "filter_by_date": "Filtrar por data",
+      "filter_all_apps": "Todos os aplicativos",
+      "filter_all_dates": "Todo o período",
+      "filter_date_today": "Hoje",
+      "filter_date_yesterday": "Ontem",
+      "filter_date_7d": "Últimos 7 dias",
+      "filter_date_30d": "Últimos 30 dias",
       "act": {
         "toggle_html": "Alternar HTML renderizado/código-fonte",
         "toggle_html_desc": "Alternar entre a pré-visualização HTML renderizada e o código-fonte",
@@ -2188,7 +2200,8 @@
   },
   "search_accessory": {
     "filter_placeholder": "Digite para filtrar…",
-    "filter_aria": "Filtrar opções"
+    "filter_aria": "Filtrar opções",
+    "back": "Voltar"
   },
   "shell_consent": {
     "alias": "Alias:",

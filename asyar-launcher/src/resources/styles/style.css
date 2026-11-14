@@ -64,6 +64,15 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 :root {
+  /* Search accessory sizing and shared emphasis. */
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --border-width-thin: 1px;
+  --accessory-title-max-width: 14rem;
+  --accessory-subtitle-max-width: 8rem;
+  --accessory-popover-min-width: 220px;
+  --accessory-popover-max-height: 320px;
+
   /* Tells WebKit the page supports both modes so the WKWebView scrollbar
      follows prefers-color-scheme. Without this, NSScroller stays in light
      mode regardless of the macOS appearance. */

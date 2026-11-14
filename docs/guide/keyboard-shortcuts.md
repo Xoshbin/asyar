@@ -94,6 +94,7 @@ Built-in features declare Raycast-aligned shortcuts while their view is active. 
 
 | Shortcut                      | What it does                               |
 | ----------------------------- | ------------------------------------------ |
+| `⌘P`                          | Filter by type, source app, or date        |
 | `↵`                           | Paste selected item (or merge & paste)     |
 | `⌘↵`                          | Copy selected item to clipboard            |
 | `⌃⌘↵` (`Ctrl+Shift+↵` Win/Ln) | Paste as plain text                        |

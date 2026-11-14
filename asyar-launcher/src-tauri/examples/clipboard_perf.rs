@@ -75,7 +75,7 @@ fn main() {
 
     // list_initial.
     let t = Instant::now();
-    let page = list_initial(&conn, 100, &key).unwrap();
+    let page = list_initial(&conn, 100, &key, None).unwrap();
     eprintln!(
         "list_initial(100) of {n}: {:.2} ms ({} rows)",
         t.elapsed().as_secs_f64() * 1000.0,
@@ -85,7 +85,7 @@ fn main() {
     // list_older one page.
     if let Some(cursor) = page.next_cursor {
         let t = Instant::now();
-        let older = list_older(&conn, &cursor, 200, &key).unwrap();
+        let older = list_older(&conn, &cursor, 200, &key, None).unwrap();
         eprintln!(
             "list_older(200) of {n}: {:.2} ms ({} rows)",
             t.elapsed().as_secs_f64() * 1000.0,
@@ -97,7 +97,7 @@ fn main() {
 
     // search.
     let t = Instant::now();
-    let res = search(&conn, &fts2, "perf", 200, &key).unwrap();
+    let res = search(&conn, &fts2, "perf", 200, &key, None).unwrap();
     eprintln!(
         "search('perf') of {n}: {:.2} ms ({} hits, state={})",
         t.elapsed().as_secs_f64() * 1000.0,

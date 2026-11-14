@@ -633,6 +633,36 @@ describe('manifest validation — searchBarAccessory', () => {
     expect(errors.filter((e) => e.field.includes('searchBarAccessory'))).toHaveLength(0);
   });
 
+  it.each(['all', 'app', 'safari', 'empty', 'apps', 'browsers', 'missing'])(
+    'validates default %s across nested options',
+    (defaultValue) => {
+      const m = withAccessory({
+        type: 'dropdown',
+        default: defaultValue,
+        options: [
+          { value: 'all', title: 'All' },
+          { value: 'empty', title: 'Empty children', children: [] },
+          {
+            value: 'apps',
+            title: 'Apps',
+            children: [
+              { value: 'app', title: 'App' },
+              {
+                value: 'browsers',
+                title: 'Browsers',
+                children: [{ value: 'safari', title: 'Safari' }],
+              },
+            ],
+          },
+        ],
+      });
+      const errors = validateManifest(m, './');
+      expect(errors.filter((e) => e.field.includes('searchBarAccessory.default'))).toHaveLength(
+        ['apps', 'browsers', 'missing'].includes(defaultValue) ? 1 : 0,
+      );
+    },
+  );
+
   it('accepts a dropdown accessory without a default', () => {
     const m = withAccessory({
       type: 'dropdown',

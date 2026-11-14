@@ -63,17 +63,27 @@ Add a `searchBarAccessory` object to a view-mode command in
 
 ### Per-field reference
 
-| Field     | Type                 | Required | Description                                                                                                            |
-| --------- | -------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `type`    | `"dropdown"`         | ✅       | Discriminator. Only `"dropdown"` in v1; reserves room for future types.                                                |
-| `options` | `{ value, title }[]` | ✅       | Non-empty list. `value` is what the extension receives; `title` is what the user sees. Both must be strings.           |
-| `default` | `string`             | ❌       | Pre-selected value on first invocation. Must be one of `options[].value`. If omitted, the first option is the default. |
+| Field     | Type                                 | Required | Description                                                                                                            |
+| --------- | ------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `type`    | `"dropdown"`                         | ✅       | Discriminator. Only `"dropdown"` in v1; reserves room for future types.                                                |
+| `options` | `SearchBarAccessoryDropdownOption[]` | ✅       | Non-empty list. See fields below.                                                                                      |
+| `default` | `string`                             | ❌       | Pre-selected value on first invocation. Must match a selectable option value. If omitted, the first option is default. |
+
+Each `SearchBarAccessoryDropdownOption` entry supports:
+
+| Field      | Type                                 | Required | Description                                                                                              |
+| ---------- | ------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------- |
+| `value`    | `string`                             | ✅       | Identifier sent to `onChange` when selected (or used as the submenu key when `children` is present).     |
+| `title`    | `string`                             | ✅       | Primary label shown to the user.                                                                         |
+| `children` | `SearchBarAccessoryDropdownOption[]` | ❌       | Optional nested submenu options rendered in-place inside the popover when the user opens this row.       |
+| `selected` | `boolean`                            | ❌       | Optional explicit checkmark state (useful for multi-dimension filter menus alongside the main `value`).  |
+| `subtitle` | `string`                             | ❌       | Optional right-aligned hint shown on the row (for example, the active child filter label or item count). |
 
 ### Schema constraints
 
 - `options` must be a non-empty array.
-- Every option must have string `value` and `title` fields.
-- `default` (when present) must equal one of `options[].value`.
+- Every option must have string `value` and `title` fields. Nested `children` options follow the same rule.
+- `default` (when present) must equal a selectable option `value` (including leaf options inside `children`).
 - The accessory is only valid on commands with `mode: "view"`. Mixing it
   with `mode: "background"` is a parse error.
 - Validated by both the SDK CLI's manifest parser at build time and the
@@ -83,14 +93,17 @@ Add a `searchBarAccessory` object to a view-mode command in
 
 1. The user activates the view-mode command.
 2. The dropdown appears in the top-right of the search bar with the
-   current selection visible.
+   current selection (or custom summary `buttonTitle`) visible.
 3. **⌘P** (Cmd+P / Ctrl+P) opens the popover.
 4. A filter input at the top of the popover lets the user narrow options
    by typing — substring match on the option's `title`.
-5. **Arrow keys** navigate the (filtered) options. **Enter** selects.
+5. **Arrow keys** (`↑` / `↓`) navigate the (filtered) options. **Enter** selects.
    **Escape** closes the popover and refocuses the trigger button.
    **Tab** closes.
-6. Clicking the trigger button toggles the popover.
+
+6. **In-place submenus**: If an option defines `children`, pressing `Enter` or clicking it replaces the list in-place with that child list and shows a `←` back header at the top. `ArrowRight` opens a child list only when the filter is empty and no submenu is active; it does nothing for a filtered root list or an option in an active submenu. Pressing `Escape`, pressing `Backspace` or `ArrowLeft` when the filter input is empty, or clicking the `←` header returns to the parent list instead of closing the popover.
+
+7. Clicking the trigger button toggles the popover.
 
 ## SDK API
 
@@ -140,7 +153,7 @@ Two use cases:
    ```
 
 Both fields are optional; you can pass either, both, or call `set({})`
-as a no-op.
+as a no-op. In the launcher host (`searchBarAccessoryService.set` / `syncViewState`), an optional `buttonTitle?: string` override is also supported to show a combined summary label (such as `Images · Safari · Today`) when multiple submenu dimensions are active.
 
 ### `clear(): Promise<void>`
 

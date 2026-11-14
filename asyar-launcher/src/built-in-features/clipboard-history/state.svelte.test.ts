@@ -11,6 +11,7 @@ vi.mock('../../services/clipboard/stores/clipboardHistoryStore.svelte', () => ({
     recent: [],
     searchResults: null,
     nextOlderCursor: undefined,
+    activeFilter: undefined,
     loadInitial: vi.fn().mockResolvedValue(undefined),
     loadOlder: vi.fn().mockResolvedValue(undefined),
     search: vi.fn().mockResolvedValue(undefined),
@@ -40,7 +41,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   clipboardGetMergedText: vi.fn().mockResolvedValue({ text: '', skippedCount: 0 }),
 }));
 
-import { ClipboardViewStateClass } from './state.svelte';
+import { ClipboardViewStateClass, clipboardViewState, onSearchChanged } from './state.svelte';
 import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -918,5 +919,96 @@ describe('subscribeToHistoryChanges', () => {
 
     subscriberCallback!({ type: 'upsert', itemId: 'brand-new-item' });
     expect(state.selectedItemId).toBe('item-1');
+  });
+});
+
+describe('search token filtering and onSearchChanged', () => {
+  beforeEach(() => {
+    vi.mocked(clipboardHistoryStore.loadInitial).mockClear();
+    vi.mocked(clipboardHistoryStore.search).mockClear();
+    vi.mocked(clipboardHistoryStore.clearSearch).mockClear();
+    (clipboardHistoryStore as any).favorites = [];
+    (clipboardHistoryStore as any).recent = [];
+    (clipboardHistoryStore as any).searchResults = null;
+    (clipboardHistoryStore as any).activeFilter = undefined;
+    clipboardViewState.reset();
+  });
+
+  it('filters in-memory items by parsed type, app, and date tokens', () => {
+    const state = new ClipboardViewStateClass();
+    const now = Date.now();
+    state.setItems([
+      {
+        id: 'safari-img-today',
+        type: 'image' as any,
+        preview: 'screenshot',
+        createdAt: now,
+        favorite: false,
+        sourceApp: { name: 'Safari', bundleId: 'com.apple.Safari' },
+      },
+      {
+        id: 'chrome-img-today',
+        type: 'image' as any,
+        preview: 'other image',
+        createdAt: now,
+        favorite: false,
+        sourceApp: { name: 'Google Chrome', bundleId: 'com.google.Chrome' },
+      },
+      {
+        id: 'safari-text-today',
+        type: 'text' as any,
+        preview: 'current note',
+        createdAt: now,
+        favorite: false,
+        sourceApp: { name: 'Safari', bundleId: 'com.apple.Safari' },
+      },
+      {
+        id: 'safari-image-old',
+        type: 'image' as any,
+        preview: 'old note',
+        createdAt: now - 40 * 86_400_000,
+        favorite: false,
+        sourceApp: { name: 'Safari', bundleId: 'com.apple.Safari' },
+      },
+    ]);
+
+    state.setSearch('type:images app:Safari date:today');
+    expect(state.filteredItems.map((i) => i.id)).toEqual(['safari-img-today']);
+  });
+
+  it('uses loadInitial with SQL filter when query has only filter tokens', async () => {
+    await onSearchChanged('type:images app:Safari');
+
+    expect(clipboardViewState.typeFilter).toBe('images');
+    expect(clipboardHistoryStore.clearSearch).toHaveBeenCalledTimes(1);
+    expect(clipboardHistoryStore.loadInitial).toHaveBeenCalledWith(100, {
+      itemType: 'images',
+      sourceApp: 'Safari',
+    });
+    expect(clipboardHistoryStore.search).not.toHaveBeenCalled();
+  });
+
+  it('uses search with stripped text query and SQL filter when both are present', async () => {
+    await onSearchChanged('app:Safari hello world');
+
+    expect(clipboardHistoryStore.search).toHaveBeenCalledWith('hello world', 200, {
+      sourceApp: 'Safari',
+    });
+  });
+
+  it('reloads unfiltered while a filtered initial request is pending', async () => {
+    Object.assign(clipboardHistoryStore, { requestedFilter: { sourceApp: 'Safari' } });
+    await onSearchChanged('');
+    expect(clipboardHistoryStore.loadInitial).toHaveBeenCalledWith(100);
+    Object.assign(clipboardHistoryStore, { requestedFilter: undefined });
+  });
+
+  it('reloads unfiltered initial window when clearing an active filter', async () => {
+    (clipboardHistoryStore as any).activeFilter = { sourceApp: 'Safari' };
+
+    await onSearchChanged('');
+
+    expect(clipboardHistoryStore.clearSearch).toHaveBeenCalledTimes(1);
+    expect(clipboardHistoryStore.loadInitial).toHaveBeenCalledWith(100);
   });
 });
