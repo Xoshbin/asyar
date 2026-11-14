@@ -17,17 +17,41 @@ Asyar also records which app each item came from, so you can see the source appl
 
 1. Open Asyar and type `clip` — or select **Clipboard History** from search results.
 2. The clipboard view opens. Use `↑` / `↓` to move through the list.
-3. Type in the search bar to filter. Full-text search runs across all text entries.
-4. To narrow by content type, click the dropdown in the search bar (or press `⌘P`) and choose **All Types**, **Text**, **Images**, or **Files**.
+3. Type in the search bar to filter. Full-text search runs across all text entries as well as the **source application** (app name, bundle ID, and window title), and handles URLs, file paths, and punctuation (`/`, `-`) cleanly.
+4. To filter across your **entire stored history** by **Type**, **Source App**, or **Date**, click the dropdown in the search bar (or press `⌘P` / `Ctrl+P`). Any filter you pick also appears as a token in the search bar.
 5. Press `Enter` (`↵`) to paste the selected item into the app that was in focus before you opened Asyar, or `⌘↵` (`Ctrl+↵` on Windows/Linux) to copy it back to your clipboard without pasting.
 6. Press `⌃⌘↵` (`Ctrl+Shift+↵` on Windows/Linux) to paste as plain text, stripping any formatting.
 7. To paste several items at once, `⌘Click` (or `Ctrl+Click` on Windows/Linux) each item you want, or hold `⌘`/`Ctrl` and press `↑`/`↓` to sweep through a range — then press `Enter` to merge them into a single paste.
+
+## Filtering & search tokens
+
+![Filtering clipboard history by app and date](../../images/feature-clipboard-filters.png)
+_Figure: filtering clipboard history by source app and date range using `⌘P` and search tokens._
+
+The filter menu (`⌘P`) and the search bar work together in both directions:
+
+- **Pick in `⌘P` -> appears in the search bar**: Choosing **Images**, **Filter by App**, or **Filter by Date** in `⌘P` automatically adds or updates the matching token (like `type:images`, `app:"Antigravity IDE"`, or `date:30d`) in the search bar and returns focus to the input so you can keep typing.
+- **Type in the search bar -> updates `⌘P`**: Typing or editing filter tokens directly in the search bar updates the checkmarks and button label (such as `Antigravity IDE · Last 30 Days`) inside `⌘P` in real time.
+- **In-place submenus inside `⌘P`**: Choose **Filter by App** or **Filter by Date** (`Enter`, `→`, or click) to drill into that list in place. A `←` back header appears at the top — press `Esc`, `⌫` or `←` (when the filter box is empty), or click the `←` header to return to the main filter menu.
+
+You can type any of these tokens directly in the search bar, alone or combined with search words (for example, `app:"Antigravity IDE" date:30d StreamDispatcher`):
+
+| Token                                    | What it filters                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `type:text`, `type:images`, `type:files` | Narrow results to text/rich text, images, or copied files          |
+| `app:Safari`, `app:"Antigravity IDE"`    | Match items copied from an app by name or bundle ID (quote spaces) |
+| `date:today`, `date:yesterday`           | Items copied today or yesterday                                    |
+| `date:7d`, `date:30d`, `date:YYYY-MM-DD` | Items from the last 7 days, last 30 days, or a specific date       |
+| `after:YYYY-MM-DD`, `after:7d`           | Items copied on or after the given date or relative window         |
+
+All filters run directly against your local SQLite history database, so older entries beyond the first 100 items are always included.
 
 ## Shortcuts & actions
 
 | Action                          | How                    |
 | ------------------------------- | ---------------------- |
 | Paste                           | `↵` (`Enter`)          |
+| Filter by Type, App, or Date    | `⌘P` (`Ctrl+P`)        |
 | Copy to Clipboard               | `⌘↵` (`Ctrl+↵`)        |
 | Paste as Plain Text             | `⌃⌘↵` (`Ctrl+Shift+↵`) |
 | Pin / Unpin (Toggle Favorite)   | `⌘.` (`Ctrl+.`)        |
