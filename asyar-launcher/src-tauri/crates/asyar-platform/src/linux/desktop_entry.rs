@@ -205,6 +205,22 @@ impl DesktopEntry {
             .map(str::to_string)
     }
 
+    /// Whether `Exec=` launches a Flatpak sandbox (`flatpak ...`).
+    pub fn is_flatpak_exec(&self) -> bool {
+        let Some(ref exec) = self.exec else {
+            return false;
+        };
+        let tokens = parse_exec_tokens(exec);
+        let Some(first) = tokens.first().map(String::as_str) else {
+            return false;
+        };
+        let first_base = Path::new(first)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(first);
+        first_base == "flatpak"
+    }
+
     /// Resolves the target program token/path launched by `Exec=`, honoring quotes,
     /// backslash escapes, `env` wrappers, and `flatpak run --command=...`.
     pub fn exec_program_path(&self) -> Option<String> {
@@ -656,6 +672,7 @@ Exec=gedit --new-window
             ),
             ..Default::default()
         };
+        assert!(!discord.is_flatpak_exec());
         assert_eq!(discord.exec_basename(), Some("discord".to_string()));
 
         let runner = DesktopEntry {
@@ -673,6 +690,7 @@ Exec=gedit --new-window
             ),
             ..Default::default()
         };
+        assert!(discord.is_flatpak_exec());
         assert_eq!(discord.exec_basename(), Some("discord".to_string()));
 
         let telegram = DesktopEntry {

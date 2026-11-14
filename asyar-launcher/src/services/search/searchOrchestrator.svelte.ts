@@ -97,7 +97,7 @@ class SearchOrchestratorClass {
 
       const builtinById = new Map(builtinRows.map((row) => [row.id, row]));
 
-      const shouldDebounceExtensions = query.trim().length > 1;
+      const shouldDebounceExtensions = !options?.silent && query.trim().length > 1;
       let localResponse: Awaited<ReturnType<typeof commands.mergedSearch>> | null = null;
       if (shouldDebounceExtensions) {
         const localRows = builtinRows.map((row) => ({

@@ -1088,6 +1088,19 @@ fn resolve_linux_exe_name(
     Some(initial_lower)
 }
 
+#[cfg(any(target_os = "linux", test))]
+fn resolve_linux_desktop_entry_exe_name(
+    entry: &crate::platform::linux::DesktopEntry,
+    path_env: Option<&std::ffi::OsStr>,
+) -> Option<String> {
+    if entry.is_flatpak_exec() {
+        let basename = entry.exec_basename()?;
+        return resolve_linux_exe_name(&basename, None);
+    }
+    let prog = entry.exec_program_path()?;
+    resolve_linux_exe_name(&prog, path_env)
+}
+
 #[cfg(any(target_os = "windows", test))]
 fn split_windows_args(args: &str) -> Vec<String> {
     let mut tokens = Vec::new();
@@ -1198,9 +1211,9 @@ fn resolve_windows_exe_name(target_path: &str, args: &str) -> Option<String> {
 pub(crate) fn extract_exe_name(path: &Path) -> Option<String> {
     #[cfg(target_os = "linux")]
     {
-        crate::platform::linux::DesktopEntry::from_file(path)
-            .and_then(|entry| entry.exec_program_path())
-            .and_then(|prog| resolve_linux_exe_name(&prog, std::env::var_os("PATH").as_deref()))
+        crate::platform::linux::DesktopEntry::from_file(path).and_then(|entry| {
+            resolve_linux_desktop_entry_exe_name(&entry, std::env::var_os("PATH").as_deref())
+        })
     }
 
     #[cfg(target_os = "windows")]
@@ -2932,6 +2945,18 @@ mod tests {
         assert_eq!(
             resolve_linux_exe_name(app_link.to_str().unwrap(), None),
             Some("my-electron-app".to_string())
+        );
+
+        // Flatpak commands run inside the sandbox and must not follow host PATH symlinks.
+        let flatpak_entry = crate::platform::linux::DesktopEntry {
+            exec: Some(
+                "/usr/bin/flatpak run --command=/app/bin/bare-cmd org.example.App".to_string(),
+            ),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_linux_desktop_entry_exe_name(&flatpak_entry, Some(bin_dir.as_os_str())),
+            Some("bare-cmd".to_string())
         );
     }
 }

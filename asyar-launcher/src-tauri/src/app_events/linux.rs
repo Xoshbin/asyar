@@ -91,40 +91,18 @@ mod watcher {
     use crate::error::AppError;
     use log::{info, warn};
     use std::sync::{Arc, OnceLock, RwLock};
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
-    static RUNNING_KEYS_CACHE: OnceLock<RwLock<Option<(Instant, HashSet<String>)>>> =
-        OnceLock::new();
-    const RUNNING_KEYS_CACHE_TTL: Duration = Duration::from_secs(4);
+    static RUNNING_KEYS_CACHE: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
-    fn running_keys_cache() -> &'static RwLock<Option<(Instant, HashSet<String>)>> {
-        RUNNING_KEYS_CACHE.get_or_init(|| RwLock::new(None))
+    fn running_keys_cache() -> &'static RwLock<HashSet<String>> {
+        RUNNING_KEYS_CACHE.get_or_init(|| RwLock::new(HashSet::new()))
     }
 
     fn update_running_keys_cache(keys: HashSet<String>) {
         if let Ok(mut guard) = running_keys_cache().write() {
-            *guard = Some((Instant::now(), keys));
+            *guard = keys;
         }
-    }
-
-    fn scan_procfs_running_keys() -> HashSet<String> {
-        let Ok(iter) = procfs::process::all_processes() else {
-            return HashSet::new();
-        };
-        let mut exe_paths = Vec::new();
-        let mut comm_names = Vec::new();
-        for proc in iter.filter_map(Result::ok) {
-            if let Ok(exe) = proc.exe() {
-                exe_paths.push(exe);
-            }
-            if let Ok(status) = proc.status() {
-                comm_names.push(status.name);
-            }
-        }
-        collect_linux_running_keys(
-            exe_paths.iter().map(std::path::PathBuf::as_path),
-            comm_names.iter().map(String::as_str),
-        )
     }
 
     pub struct LinuxAppWatcher;
@@ -420,19 +398,12 @@ mod watcher {
         }
 
         fn running_keys(&self) -> HashSet<String> {
-            // Read from the background poller's snapshot to avoid scanning /proc
-            // on every search keystroke; populate lazily if called before the first
-            // poll tick or after TTL expiry.
-            if let Ok(guard) = running_keys_cache().read() {
-                if let Some((updated_at, keys)) = guard.as_ref() {
-                    if updated_at.elapsed() < RUNNING_KEYS_CACHE_TTL {
-                        return keys.clone();
-                    }
-                }
-            }
-            let keys = scan_procfs_running_keys();
-            update_running_keys_cache(keys.clone());
-            keys
+            // Read from the background poller's snapshot so search threads never
+            // traverse /proc synchronously.
+            running_keys_cache()
+                .read()
+                .map(|guard| guard.clone())
+                .unwrap_or_default()
         }
     }
 }
