@@ -378,7 +378,7 @@ pub fn list_applications<R: tauri::Runtime>(
             icon: extract_app_icon(path_str, &icon_cache_dir),
             last_used_at: None,
             bundle_id: extract_bundle_id(Path::new(path_str)),
-            exe_name: None,
+            exe_name: extract_exe_name(path),
         });
     }
 
@@ -1046,37 +1046,181 @@ pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
     }
 }
 
+#[cfg(any(target_os = "linux", test))]
+fn resolve_linux_exe_name(
+    exec_program: &str,
+    path_env: Option<&std::ffi::OsStr>,
+) -> Option<String> {
+    const LINUX_EXE_WRAPPERS: &[&str] = &[
+        "env", "sh", "bash", "dash", "zsh", "flatpak", "bwrap", "python", "python3", "node",
+        "electron", "java",
+    ];
+
+    let initial_lower = Path::new(exec_program)
+        .file_name()
+        .and_then(|s| s.to_str())?
+        .to_lowercase();
+    if initial_lower.is_empty() || LINUX_EXE_WRAPPERS.contains(&initial_lower.as_str()) {
+        return None;
+    }
+
+    let candidate = if exec_program.contains('/') {
+        Some(PathBuf::from(exec_program))
+    } else {
+        path_env.and_then(|paths| {
+            std::env::split_paths(paths)
+                .map(|dir| dir.join(exec_program))
+                .find(|p| p.exists())
+        })
+    };
+
+    if let Some(canonical) = candidate.and_then(|p| fs::canonicalize(p).ok()) {
+        if let Some(canonical_base) = canonical.file_name().and_then(|s| s.to_str()) {
+            let canonical_lower = canonical_base.to_lowercase();
+            if !canonical_lower.is_empty()
+                && !LINUX_EXE_WRAPPERS.contains(&canonical_lower.as_str())
+            {
+                return Some(canonical_lower);
+            }
+        }
+    }
+
+    Some(initial_lower)
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn split_windows_args(args: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let mut in_token = false;
+
+    for ch in args.chars() {
+        match ch {
+            '"' => {
+                in_quotes = !in_quotes;
+                in_token = true;
+            }
+            c if c.is_whitespace() && !in_quotes => {
+                if in_token {
+                    tokens.push(std::mem::take(&mut current));
+                    in_token = false;
+                }
+            }
+            c => {
+                current.push(c);
+                in_token = true;
+            }
+        }
+    }
+    if in_token {
+        tokens.push(current);
+    }
+    tokens
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn extract_squirrel_process_start(args: &str) -> Option<String> {
+    let tokens = split_windows_args(args);
+    let mut i = 0;
+    while i < tokens.len() {
+        let tok = tokens[i].trim();
+        let raw_val = if let Some(prefix) = tok.get(.."--processStart=".len()) {
+            if prefix.eq_ignore_ascii_case("--processStart=") {
+                Some(tok["--processStart=".len()..].trim_matches('"').to_string())
+            } else {
+                None
+            }
+        } else if tok.eq_ignore_ascii_case("--processStart") {
+            tokens
+                .get(i + 1)
+                .map(|v| v.trim().trim_matches('"').to_string())
+        } else {
+            None
+        };
+
+        if let Some(val) = raw_val {
+            let base = val.rsplit(['\\', '/']).next().unwrap_or(&val).trim();
+            if !base.is_empty() {
+                return Some(base.to_string());
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn resolve_windows_exe_name(target_path: &str, args: &str) -> Option<String> {
+    const WIN_WRAPPERS: &[&str] = &[
+        "cmd.exe",
+        "powershell.exe",
+        "pwsh.exe",
+        "wscript.exe",
+        "cscript.exe",
+        "mshta.exe",
+        "rundll32.exe",
+        "explorer.exe",
+        "msiexec.exe",
+        "conhost.exe",
+    ];
+
+    let file_name = target_path
+        .rsplit(['\\', '/'])
+        .next()
+        .unwrap_or(target_path)
+        .trim();
+    if file_name.is_empty() {
+        return None;
+    }
+
+    let lower = file_name.to_lowercase();
+    let candidate = if lower == "update.exe" || lower == "squirrel.exe" {
+        let started = extract_squirrel_process_start(args)?;
+        let mut started_lower = started.to_lowercase();
+        if !started_lower.ends_with(".exe") {
+            started_lower.push_str(".exe");
+        }
+        started_lower
+    } else {
+        lower
+    };
+
+    if !candidate.ends_with(".exe") || WIN_WRAPPERS.contains(&candidate.as_str()) {
+        return None;
+    }
+    Some(candidate)
+}
+
 /// Lowercased executable basename the running indicator matches against
 /// `AppPresenceQuery::running_keys`. `None` on macOS (matched by bundle id)
 /// and wherever no executable can be named, so the app simply gets no dot.
 pub(crate) fn extract_exe_name(path: &Path) -> Option<String> {
     #[cfg(target_os = "linux")]
-    let exe = crate::platform::linux::DesktopEntry::from_file(path)
-        .and_then(|entry| entry.exec_basename());
+    {
+        crate::platform::linux::DesktopEntry::from_file(path)
+            .and_then(|entry| entry.exec_program_path())
+            .and_then(|prog| resolve_linux_exe_name(&prog, std::env::var_os("PATH").as_deref()))
+    }
 
     #[cfg(target_os = "windows")]
-    let exe = {
+    {
         let is_lnk = path
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("lnk"));
-        let target = if is_lnk {
-            super::location::windows_impl::resolve_shortcut_target(path)?
+        let (target, args) = if is_lnk {
+            super::location::windows_impl::resolve_shortcut_target_and_args(path)?
         } else {
-            path.to_path_buf()
+            (path.to_path_buf(), String::new())
         };
-        target
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(str::to_string)
-    };
+        resolve_windows_exe_name(&target.to_string_lossy(), &args)
+    }
 
     #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    let exe: Option<String> = {
+    {
         let _ = path;
         None
-    };
-
-    exe.map(|name| name.to_lowercase())
+    }
 }
 
 fn get_icon_cache_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
@@ -2692,5 +2836,102 @@ mod tests {
     fn get_frontmost_application_returns_ok() {
         let result = get_frontmost_application();
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn resolve_windows_exe_name_handles_standard_squirrel_wrappers_and_unicode() {
+        assert_eq!(
+            resolve_windows_exe_name(r"C:\Program Files\Mozilla Firefox\firefox.exe", ""),
+            Some("firefox.exe".to_string())
+        );
+
+        // Squirrel Update.exe shortcuts
+        assert_eq!(
+            resolve_windows_exe_name(
+                r"C:\Users\me\AppData\Local\Discord\Update.exe",
+                "--processStart Discord.exe"
+            ),
+            Some("discord.exe".to_string())
+        );
+        assert_eq!(
+            resolve_windows_exe_name(
+                r"C:\Users\me\AppData\Local\slack\Update.exe",
+                r#"--processStart "slack.exe" --process-start-args "--startup""#
+            ),
+            Some("slack.exe".to_string())
+        );
+        assert_eq!(
+            resolve_windows_exe_name(
+                r"C:\Users\me\AppData\Local\Postman\Update.exe",
+                "--processStart=Postman.exe"
+            ),
+            Some("postman.exe".to_string())
+        );
+        assert_eq!(
+            resolve_windows_exe_name(r"C:\Users\me\AppData\Local\Discord\Update.exe", ""),
+            None
+        );
+
+        // Wrapper/host binaries and non-exe targets
+        assert_eq!(
+            resolve_windows_exe_name(r"C:\Windows\System32\cmd.exe", "/c start app"),
+            None
+        );
+        assert_eq!(
+            resolve_windows_exe_name(
+                r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+                ""
+            ),
+            None
+        );
+        assert_eq!(resolve_windows_exe_name(r"C:\Tools\launch.bat", ""), None);
+
+        // Unicode lowercasing
+        assert_eq!(
+            resolve_windows_exe_name(r"C:\Program Files\Äpp\Äpp.EXE", ""),
+            Some("äpp.exe".to_string())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_linux_exe_name_follows_symlinks_and_preserves_wrapper_link_name() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let bin_dir = tmp.path().join("bin");
+        let opt_dir = tmp.path().join("opt");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        std::fs::create_dir_all(&opt_dir).unwrap();
+
+        let real_app = opt_dir.join("real-app-bin");
+        std::fs::write(&real_app, "").unwrap();
+        let abs_link = bin_dir.join("my-link");
+        symlink(&real_app, &abs_link).unwrap();
+
+        assert_eq!(
+            resolve_linux_exe_name(abs_link.to_str().unwrap(), None),
+            Some("real-app-bin".to_string())
+        );
+
+        let real_binary = opt_dir.join("real-binary");
+        std::fs::write(&real_binary, "").unwrap();
+        let path_link = bin_dir.join("bare-cmd");
+        symlink(&real_binary, &path_link).unwrap();
+
+        assert_eq!(
+            resolve_linux_exe_name("bare-cmd", Some(bin_dir.as_os_str())),
+            Some("real-binary".to_string())
+        );
+
+        let electron_bin = opt_dir.join("electron");
+        std::fs::write(&electron_bin, "").unwrap();
+        let app_link = bin_dir.join("my-electron-app");
+        symlink(&electron_bin, &app_link).unwrap();
+
+        assert_eq!(
+            resolve_linux_exe_name(app_link.to_str().unwrap(), None),
+            Some("my-electron-app".to_string())
+        );
     }
 }

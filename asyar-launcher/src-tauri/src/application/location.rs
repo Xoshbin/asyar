@@ -109,6 +109,7 @@ pub fn run_as_administrator(path: &str) -> Result<(), AppError> {
 pub(super) mod windows_impl {
     use super::*;
     use windows::core::{Interface, HSTRING, PCWSTR};
+    use windows::Win32::Foundation::RPC_E_CHANGED_MODE;
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
         COINIT_APARTMENTTHREADED, STGM_READ,
@@ -120,23 +121,55 @@ pub(super) mod windows_impl {
     /// SE_ERR_ACCESSDENIED, which is what a dismissed UAC prompt returns.
     const SE_ERR_ACCESSDENIED: isize = 5;
 
-    /// Resolves a `.lnk` to its target path. Runs on a dedicated thread so the
-    /// COM apartment it initialises never collides with the caller's.
-    pub(in crate::application) fn resolve_shortcut_target(lnk: &Path) -> Option<PathBuf> {
+    unsafe fn read_lnk_on_current_thread(lnk: &Path) -> windows::core::Result<(PathBuf, String)> {
+        let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
+        let file: IPersistFile = link.cast()?;
+        file.Load(&HSTRING::from(lnk.as_os_str()), STGM_READ)?;
+        let mut buf = [0u16; 1024];
+        link.GetPath(&mut buf, std::ptr::null_mut(), 0)?;
+        let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        let target = PathBuf::from(String::from_utf16_lossy(&buf[..len]));
+
+        let mut arg_buf = [0u16; 1024];
+        let args = if link.GetArguments(&mut arg_buf).is_ok() {
+            let arg_len = arg_buf
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(arg_buf.len());
+            String::from_utf16_lossy(&arg_buf[..arg_len])
+        } else {
+            String::new()
+        };
+
+        Ok((target, args))
+    }
+
+    /// Resolves a `.lnk` to its `(target_path, arguments)` on the current thread,
+    /// spawning a fresh STA thread only if the caller thread already lives in an
+    /// incompatible COM apartment (`RPC_E_CHANGED_MODE`).
+    pub(in crate::application) fn resolve_shortcut_target_and_args(
+        lnk: &Path,
+    ) -> Option<(PathBuf, String)> {
+        unsafe {
+            let hr = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+            if hr.is_ok() {
+                let resolved = read_lnk_on_current_thread(lnk)
+                    .ok()
+                    .filter(|(p, _)| !p.as_os_str().is_empty());
+                CoUninitialize();
+                return resolved;
+            }
+            if hr != RPC_E_CHANGED_MODE {
+                return None;
+            }
+        }
+
         let lnk = lnk.to_path_buf();
         std::thread::spawn(move || unsafe {
             let initialised = CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_ok();
-            let resolved = (|| -> windows::core::Result<PathBuf> {
-                let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
-                let file: IPersistFile = link.cast()?;
-                file.Load(&HSTRING::from(lnk.as_os_str()), STGM_READ)?;
-                let mut buf = [0u16; 1024];
-                link.GetPath(&mut buf, std::ptr::null_mut(), 0)?;
-                let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-                Ok(PathBuf::from(String::from_utf16_lossy(&buf[..len])))
-            })()
-            .ok()
-            .filter(|p| !p.as_os_str().is_empty());
+            let resolved = read_lnk_on_current_thread(&lnk)
+                .ok()
+                .filter(|(p, _)| !p.as_os_str().is_empty());
             if initialised {
                 CoUninitialize();
             }
@@ -145,6 +178,11 @@ pub(super) mod windows_impl {
         .join()
         .ok()
         .flatten()
+    }
+
+    /// Resolves a `.lnk` to its target path.
+    pub(in crate::application) fn resolve_shortcut_target(lnk: &Path) -> Option<PathBuf> {
+        resolve_shortcut_target_and_args(lnk).map(|(target, _)| target)
     }
 
     pub(super) fn shell_execute_runas(path: &Path) -> Result<(), AppError> {

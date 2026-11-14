@@ -168,14 +168,19 @@
   }
 
   .running-dot {
+    --running-dot-size: 3px;
     position: absolute;
     left: 50%;
     bottom: calc(-1 * var(--space-2));
-    width: 3px;
-    height: 3px;
+    width: var(--running-dot-size);
+    height: var(--running-dot-size);
     border-radius: 50%;
     background-color: var(--text-tertiary);
     transform: translateX(-50%);
+  }
+
+  .selected-result .running-dot {
+    background-color: var(--text-secondary);
   }
 
   /* The hint row, shared by every hint in the launcher. The tint and the text come from the

@@ -53,6 +53,30 @@ pub fn dbus_name_looks_like_gui_app(name: &str) -> bool {
     name.contains('.')
 }
 
+/// Collects normalized (lowercased) process keys from `/proc/<pid>/exe` paths
+/// and `/proc/<pid>/status` comm names for running-app presence matching.
+pub fn collect_linux_running_keys<'a>(
+    exe_paths: impl IntoIterator<Item = &'a std::path::Path>,
+    comm_names: impl IntoIterator<Item = &'a str>,
+) -> HashSet<String> {
+    let mut keys = HashSet::new();
+    for exe in exe_paths {
+        if let Some(base) = exe.file_name().and_then(|n| n.to_str()) {
+            let lower = base.trim().to_lowercase();
+            if !lower.is_empty() {
+                keys.insert(lower);
+            }
+        }
+    }
+    for comm in comm_names {
+        let lower = comm.trim().to_lowercase();
+        if !lower.is_empty() {
+            keys.insert(lower);
+        }
+    }
+    keys
+}
+
 // ---------------------------------------------------------------------------
 // Linux-only watcher glue
 // ---------------------------------------------------------------------------
@@ -66,8 +90,42 @@ mod watcher {
     use crate::app_events::{AppEvent, AppEventsHub, AppEventsWatcher, AppPresenceQuery};
     use crate::error::AppError;
     use log::{info, warn};
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::sync::{Arc, OnceLock, RwLock};
+    use std::time::{Duration, Instant};
+
+    static RUNNING_KEYS_CACHE: OnceLock<RwLock<Option<(Instant, HashSet<String>)>>> =
+        OnceLock::new();
+    const RUNNING_KEYS_CACHE_TTL: Duration = Duration::from_secs(4);
+
+    fn running_keys_cache() -> &'static RwLock<Option<(Instant, HashSet<String>)>> {
+        RUNNING_KEYS_CACHE.get_or_init(|| RwLock::new(None))
+    }
+
+    fn update_running_keys_cache(keys: HashSet<String>) {
+        if let Ok(mut guard) = running_keys_cache().write() {
+            *guard = Some((Instant::now(), keys));
+        }
+    }
+
+    fn scan_procfs_running_keys() -> HashSet<String> {
+        let Ok(iter) = procfs::process::all_processes() else {
+            return HashSet::new();
+        };
+        let mut exe_paths = Vec::new();
+        let mut comm_names = Vec::new();
+        for proc in iter.filter_map(Result::ok) {
+            if let Ok(exe) = proc.exe() {
+                exe_paths.push(exe);
+            }
+            if let Ok(status) = proc.status() {
+                comm_names.push(status.name);
+            }
+        }
+        collect_linux_running_keys(
+            exe_paths.iter().map(std::path::PathBuf::as_path),
+            comm_names.iter().map(String::as_str),
+        )
+    }
 
     pub struct LinuxAppWatcher;
 
@@ -129,6 +187,7 @@ mod watcher {
             let mut now_pids: HashSet<u32> = HashSet::new();
             let mut now_names: std::collections::HashMap<u32, String> =
                 std::collections::HashMap::new();
+            let mut now_exe_paths: Vec<std::path::PathBuf> = Vec::new();
             for proc_res in current {
                 let proc = match proc_res {
                     Ok(p) => p,
@@ -139,7 +198,16 @@ mod watcher {
                 if let Ok(status) = proc.status() {
                     now_names.insert(pid, status.name);
                 }
+                if let Ok(exe) = proc.exe() {
+                    now_exe_paths.push(exe);
+                }
             }
+
+            let keys = collect_linux_running_keys(
+                now_exe_paths.iter().map(std::path::PathBuf::as_path),
+                now_names.values().map(String::as_str),
+            );
+            update_running_keys_cache(keys);
 
             let (launched, terminated) = diff_pids(&last_pids, &now_pids);
             for pid in launched {
@@ -351,21 +419,20 @@ mod watcher {
             false
         }
 
-        fn running_keys(&self) -> std::collections::HashSet<String> {
-            // `/proc/<pid>/exe` rather than `comm`: comm is cut at 15 chars.
-            // Other users' processes fail `exe()` and are skipped.
-            procfs::process::all_processes()
-                .map(|iter| {
-                    iter.filter_map(Result::ok)
-                        .filter_map(|p| p.exe().ok())
-                        .filter_map(|exe| {
-                            exe.file_name()
-                                .and_then(|n| n.to_str())
-                                .map(str::to_lowercase)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
+        fn running_keys(&self) -> HashSet<String> {
+            // Read from the background poller's snapshot to avoid scanning /proc
+            // on every search keystroke; populate lazily if called before the first
+            // poll tick or after TTL expiry.
+            if let Ok(guard) = running_keys_cache().read() {
+                if let Some((updated_at, keys)) = guard.as_ref() {
+                    if updated_at.elapsed() < RUNNING_KEYS_CACHE_TTL {
+                        return keys.clone();
+                    }
+                }
+            }
+            let keys = scan_procfs_running_keys();
+            update_running_keys_cache(keys.clone());
+            keys
         }
     }
 }
@@ -459,5 +526,22 @@ mod tests {
     fn dbus_name_rejects_bare_identifiers() {
         assert!(!dbus_name_looks_like_gui_app("notadotname"));
         assert!(!dbus_name_looks_like_gui_app(""));
+    }
+
+    #[test]
+    fn collect_linux_running_keys_normalizes_exe_basenames_and_comm_names() {
+        let exe_paths = [
+            std::path::Path::new("/usr/lib/firefox/Firefox"),
+            std::path::Path::new("/opt/Discord/Discord"),
+        ];
+        let comm_names = ["  slack\n", ""];
+
+        let keys = collect_linux_running_keys(exe_paths, comm_names);
+
+        assert!(keys.contains("firefox"));
+        assert!(keys.contains("discord"));
+        assert!(keys.contains("slack"));
+        assert!(!keys.contains(""));
+        assert_eq!(keys.len(), 3);
     }
 }

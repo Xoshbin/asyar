@@ -61,6 +61,10 @@ vi.mock('../../built-in-features/shortcuts/shortcutStore.svelte', () => ({
   shortcutStore: { shortcuts: [] },
 }));
 
+vi.mock('../../services/extension/preferencesPromptStore.svelte', () => ({
+  preferencesPromptStore: { active: null },
+}));
+
 // LauncherController constructor calls createSearchHandlers; stub the module
 // to avoid dragging its deps.
 vi.mock('./searchController.svelte', () => ({
@@ -98,7 +102,10 @@ vi.mock('../../services/search/commandArguments', () => ({
 
 import { LauncherController } from './launcherController.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
+import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
+import { contextModeService } from '../../services/context/contextModeService.svelte';
+import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { extensionManager } from '../../services/extension/extensionManager.svelte';
@@ -364,5 +371,69 @@ describe('LauncherController.setupEffects scroll behavior', () => {
 
     expect(resetListScroll).toHaveBeenCalledWith(listContainer);
     dispose?.();
+  });
+});
+
+describe('LauncherController.refreshOnReveal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchStores.query = '';
+    viewManager.activeView = null;
+    contextModeService.activeContext = null;
+    preferencesPromptStore.active = null;
+  });
+
+  it('refreshes root search silently for the active query including empty string', () => {
+    const controller = new LauncherController();
+    controller.state.localSearchValue = '';
+
+    controller.refreshOnReveal();
+
+    expect(searchOrchestrator.handleSearch).toHaveBeenCalledWith('', { silent: true });
+  });
+
+  it('refreshes with typed query when at root search', () => {
+    const controller = new LauncherController();
+    controller.state.localSearchValue = 'disc';
+
+    controller.refreshOnReveal();
+
+    expect(searchOrchestrator.handleSearch).toHaveBeenCalledWith('disc', { silent: true });
+  });
+
+  it('uses contextQuery or active context provider name when context mode is active', () => {
+    contextModeService.activeContext = {
+      provider: { id: 'p1', display: { name: 'Google' } },
+      query: '',
+    } as never;
+    const controller = new LauncherController();
+    controller.state.contextQuery = '';
+
+    controller.refreshOnReveal();
+
+    expect(searchOrchestrator.handleSearch).toHaveBeenCalledWith('Google', { silent: true });
+
+    controller.state.contextQuery = 'rust';
+    controller.refreshOnReveal();
+
+    expect(searchOrchestrator.handleSearch).toHaveBeenCalledWith('rust', { silent: true });
+  });
+
+  it('does nothing when an extension view or preferences prompt is active', () => {
+    viewManager.activeView = 'ext/View';
+    const viewController = new LauncherController();
+    viewController.refreshOnReveal();
+    expect(searchOrchestrator.handleSearch).not.toHaveBeenCalled();
+
+    viewManager.activeView = null;
+    preferencesPromptStore.active = {
+      extensionId: 'ext',
+      commandId: 'cmd',
+      commandObjectId: 'cmd_ext_cmd',
+      missing: [],
+    } as never;
+    const promptController = new LauncherController();
+    promptController.refreshOnReveal();
+    expect(searchOrchestrator.handleSearch).not.toHaveBeenCalled();
   });
 });

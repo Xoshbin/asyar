@@ -16,6 +16,12 @@
 //! be exercised from macOS. The Win32-using watcher glue is gated behind
 //! `#[cfg(target_os = "windows")]`.
 
+/// Normalizes a Windows executable name using Unicode case-folding so lookups
+/// match indexed shortcut targets with non-ASCII characters.
+pub fn normalize_win_exe_name(name: &str) -> String {
+    name.trim().to_lowercase()
+}
+
 /// Extract the executable basename (without `.exe`) from a full path. Used
 /// to produce a user-friendly `name` for `AppEvent::Launched` when only the
 /// `ExecutablePath` is available from WMI.
@@ -327,23 +333,26 @@ mod watcher {
                     dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
                     ..Default::default()
                 };
-                if Process32FirstW(snap, &mut entry).is_err() {
-                    return false;
-                }
-                let target = bundle_id.to_ascii_lowercase();
-                loop {
-                    let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(0);
-                    let name =
-                        String::from_utf16_lossy(&entry.szExeFile[..len]).to_ascii_lowercase();
-                    if name == target || exe_basename_without_ext(&name) == target {
-                        return true;
+                let mut found = false;
+                if Process32FirstW(snap, &mut entry).is_ok() {
+                    let target = normalize_win_exe_name(bundle_id);
+                    loop {
+                        let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(0);
+                        let name = normalize_win_exe_name(&String::from_utf16_lossy(
+                            &entry.szExeFile[..len],
+                        ));
+                        if name == target || exe_basename_without_ext(&name) == target {
+                            found = true;
+                            break;
+                        }
+                        if Process32NextW(snap, &mut entry).is_err() {
+                            break;
+                        }
                     }
-                    if Process32NextW(snap, &mut entry).is_err() {
-                        break;
-                    }
                 }
+                let _ = ::windows::Win32::Foundation::CloseHandle(snap);
+                found
             }
-            false
         }
         fn running_keys(&self) -> std::collections::HashSet<String> {
             use ::windows::Win32::System::Diagnostics::ToolHelp::{
@@ -362,9 +371,11 @@ mod watcher {
                 let mut more = Process32FirstW(snap, &mut entry).is_ok();
                 while more {
                     let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(0);
-                    keys.insert(
-                        String::from_utf16_lossy(&entry.szExeFile[..len]).to_ascii_lowercase(),
-                    );
+                    let name =
+                        normalize_win_exe_name(&String::from_utf16_lossy(&entry.szExeFile[..len]));
+                    if !name.is_empty() {
+                        keys.insert(name);
+                    }
                     more = Process32NextW(snap, &mut entry).is_ok();
                 }
                 // Runs on every search, so the snapshot handle must not leak.
@@ -435,5 +446,11 @@ mod tests {
     fn filter_is_case_insensitive() {
         assert!(!is_interesting_win_process("SvcHost.exe"));
         assert!(!is_interesting_win_process("SVCHOST.EXE"));
+    }
+
+    #[test]
+    fn normalize_win_exe_name_lowercases_unicode_and_ascii() {
+        assert_eq!(normalize_win_exe_name("Äpp.EXE"), "äpp.exe");
+        assert_eq!(normalize_win_exe_name("  Discord.exe "), "discord.exe");
     }
 }

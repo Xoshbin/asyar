@@ -317,6 +317,28 @@ describe('searchOrchestrator characterization tests', () => {
     expect(searchStores.isLoading).toBe(false);
   });
 
+  it('refreshes silently without toggling isLoading when silent option is passed', async () => {
+    const refreshed = [{ objectId: 'app_1', name: 'Discord', isRunning: true } as any];
+    let resolveSearch!: (value: any) => void;
+    vi.mocked(commands.mergedSearch).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+
+    const pending = searchOrchestrator.handleSearch('', { silent: true });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(searchStores.isLoading).toBe(false);
+
+    resolveSearch({ results: refreshed, aliasMatch: null });
+    await pending;
+
+    expect(searchStores.isLoading).toBe(false);
+    expect(searchOrchestrator.items).toEqual(refreshed);
+  });
+
   it('sets isSearchLoading to true during search and false after', async () => {
     let resolveSearch: (value: any) => void;
     const searchPromise = new Promise((resolve) => {

@@ -214,8 +214,9 @@
       .catch((e) => logService.debug(`[+page] listen pop-to-root failed: ${e}`));
 
     // When the panel becomes key (e.g. after shortcut execution or window summon),
-    // restore and select search focus if no modal is open.
+    // restore and select search focus if no modal is open, and refresh running state.
     appListen('main_panel_did_become_key', () => {
+      controller.refreshOnReveal();
       if (!isAnyModalOpen(document) && !isActionPanelOpen) {
         keyboard.restoreSearchFocus({ select: true });
       }
@@ -298,6 +299,7 @@
     const promise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
       if (focused) {
         void recordActiveDay().catch(() => {});
+        controller.refreshOnReveal();
         if (!isAnyModalOpen(document) && !isActionPanelOpen) {
           keyboard.restoreSearchFocus({ select: true });
         }

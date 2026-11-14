@@ -4,6 +4,7 @@ import { logService } from '../../services/log/logService';
 import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
 import { appInitializer } from '../../services/appInitializer';
 import { viewManager } from '../../services/extension/viewManager.svelte';
+import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
 import { LauncherState } from './launcherState.svelte';
 import { setupSearchEffects, createSearchHandlers } from './searchController.svelte';
 import { setupSelectionEffects } from './selectionEffects.svelte';
@@ -152,6 +153,14 @@ export class LauncherController {
         this.state.getSearchInput()?.focus();
       });
     });
+  }
+
+  refreshOnReveal(): void {
+    if (this.state.activeViewVal || preferencesPromptStore.active) return;
+    const query = this.state.activeContext
+      ? this.state.contextQuery || this.state.activeContext.provider.display.name
+      : this.state.localSearchValue;
+    void searchOrchestrator.handleSearch(query, { silent: true });
   }
 
   /**
