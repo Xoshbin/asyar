@@ -44,6 +44,7 @@
         shortcut={row.item.shortcut}
         typeLabel={row.item.kindLabel}
         sourceLabel={row.item.sourceLabel}
+        running={row.item.isRunning}
         {status}
       />
     {/if}

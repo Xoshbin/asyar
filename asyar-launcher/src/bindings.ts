@@ -83,6 +83,12 @@ export type Application = {
 	 *  this field over `name` when calling `isRunning`, with `name` as a fallback.
 	 */
 	bundleId?: string | null,
+	/**
+	 *  Lowercased executable basename (Windows: the `.lnk` target, Linux: the
+	 *  `Exec=` binary), matched against running processes for the running
+	 *  indicator. Unused on macOS, which matches on `bundle_id`.
+	 */
+	exeName?: string | null,
 };
 
 /**
@@ -631,6 +637,8 @@ export type SearchResult = {
 	 *  tier directly instead of re-deriving it with its own approximation.
 	 */
 	tier: number,
+	// Set by `merged_search` for application rows whose app is running.
+	isRunning?: boolean,
 };
 
 export type SearchableItem = { category: "application" } & Application | { category: "command" } & Command;

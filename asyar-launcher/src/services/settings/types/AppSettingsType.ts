@@ -34,6 +34,8 @@ export interface AppSettings {
     launchView: 'default' | 'compact';
     /** Compact mode only: hide the Show More bar below the search header. */
     hideCompactShowMore?: boolean;
+    /** Hide the dot under the icon of running apps in search results. */
+    hideRunningIndicator?: boolean;
     windowWidth: number;
     windowHeight: number;
     activeTheme?: string | null;

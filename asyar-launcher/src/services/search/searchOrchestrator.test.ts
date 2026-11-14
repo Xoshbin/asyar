@@ -317,6 +317,72 @@ describe('searchOrchestrator characterization tests', () => {
     expect(searchStores.isLoading).toBe(false);
   });
 
+  it('refreshes silently without toggling isLoading when silent option is passed', async () => {
+    const refreshed = [{ objectId: 'app_1', name: 'Discord', isRunning: true } as any];
+    let resolveSearch!: (value: any) => void;
+    vi.mocked(commands.mergedSearch).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+
+    const pending = searchOrchestrator.handleSearch('', { silent: true });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(searchStores.isLoading).toBe(false);
+
+    resolveSearch({ results: refreshed, aliasMatch: null });
+    await pending;
+
+    expect(searchStores.isLoading).toBe(false);
+    expect(searchOrchestrator.items).toEqual(refreshed);
+  });
+
+  it('does not publish intermediate local-only results during silent refresh for multi-char queries', async () => {
+    const initialItems = [
+      { objectId: 'ext_1', name: 'Ext Hit' },
+      { objectId: 'cmd_1', name: 'Cmd' },
+    ] as any[];
+    searchOrchestrator.items = initialItems;
+
+    vi.mocked(searchBuiltinProviders).mockResolvedValue([
+      { extensionId: 'calculator', id: 'cmd_1', title: 'Cmd', score: 0.8 },
+    ]);
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      { id: 'ext_1', title: 'Ext Hit', extensionId: 'ext', score: 0.9 } as any,
+    ]);
+
+    let resolveSearch!: (value: any) => void;
+    vi.mocked(commands.mergedSearch).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+
+    const pending = searchOrchestrator.handleSearch('git', { silent: true });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // During silent reveal refresh, existing rows (including extension hits) stay intact
+    // until the single full mergedSearch call resolves.
+    expect(searchOrchestrator.items).toEqual(initialItems);
+    expect(commands.mergedSearch).toHaveBeenCalledTimes(1);
+    expect(commands.mergedSearch).toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining([
+        expect.objectContaining({ objectId: 'ext_1', category: 'extension' }),
+        expect.objectContaining({ objectId: 'cmd_1', category: 'builtin' }),
+      ]),
+      10,
+      true,
+    );
+
+    resolveSearch({ results: initialItems, aliasMatch: null });
+    await pending;
+    expect(searchOrchestrator.items).toEqual(initialItems);
+  });
+
   it('sets isSearchLoading to true during search and false after', async () => {
     let resolveSearch: (value: any) => void;
     const searchPromise = new Promise((resolve) => {

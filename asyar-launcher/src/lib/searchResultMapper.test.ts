@@ -1240,6 +1240,29 @@ describe('buildMappedItems run rows surface tail output', () => {
     expect(mappedItems[1].favorite).toBe(false);
   });
 
+  it('maps result.isRunning onto mappedItem.isRunning unless the setting hides it', () => {
+    const running = makeResult({
+      objectId: 'app_safari',
+      name: 'Safari',
+      type: 'application',
+      isRunning: true,
+    });
+    const build = (showRunningIndicator: boolean) =>
+      buildMappedItems({
+        searchItems: [running],
+        activeContext: null,
+        shortcutStore: [],
+        localSearchValue: '',
+        selectedIndex: 0,
+        onError: vi.fn(),
+        query: '',
+        showRunningIndicator,
+      }).mappedItems[0].isRunning;
+
+    expect(build(true)).toBe(true);
+    expect(build(false)).toBe(false);
+  });
+
   it('empty query: sorts favorite items to the top before non-favorite commands', () => {
     const nonFav = makeResult({
       objectId: 'cmd_walkthrough',

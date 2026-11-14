@@ -30,6 +30,23 @@ pub struct Application {
     /// this field over `name` when calling `isRunning`, with `name` as a fallback.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundle_id: Option<String>,
+    /// Lowercased executable basename (Windows: the `.lnk` target, Linux: the
+    /// `Exec=` binary), matched against running processes for the running
+    /// indicator. Unused on macOS, which matches on `bundle_id`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exe_name: Option<String>,
+}
+
+impl Application {
+    /// The identity [`crate::app_events::AppPresenceQuery::running_keys`]
+    /// reports for this app while it runs.
+    pub fn presence_key(&self) -> Option<&str> {
+        if cfg!(target_os = "macos") {
+            self.bundle_id.as_deref()
+        } else {
+            self.exe_name.as_deref()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
@@ -97,6 +114,9 @@ pub struct SearchResult {
     /// by `merged_search`'s classify pass. Lets the frontend consume Rust's
     /// tier directly instead of re-deriving it with its own approximation.
     pub tier: u8,
+    /// Set by `merged_search` for application rows whose app is running.
+    #[serde(default)]
+    pub is_running: bool,
 }
 
 /// Result-level priority hint. `Top` pins the result above all tier 1–5
@@ -292,6 +312,7 @@ mod tests {
             icon: None,
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         })
     }
 
@@ -417,6 +438,7 @@ mod tests {
             icon: None,
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         });
         assert_eq!(
             item.search_names(),

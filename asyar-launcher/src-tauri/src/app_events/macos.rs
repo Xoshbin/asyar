@@ -195,4 +195,14 @@ impl AppPresenceQuery for MacPresenceQuery {
         }
         false
     }
+
+    fn running_keys(&self) -> std::collections::HashSet<String> {
+        unsafe {
+            let apps = NSWorkspace::sharedWorkspace().runningApplications();
+            (0..apps.count())
+                .filter_map(|i| apps.objectAtIndex(i).bundleIdentifier())
+                .map(|bid| nsstring_to_string(&bid))
+                .collect()
+        }
+    }
 }

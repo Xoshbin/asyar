@@ -53,6 +53,30 @@ pub fn dbus_name_looks_like_gui_app(name: &str) -> bool {
     name.contains('.')
 }
 
+/// Collects normalized (lowercased) process keys from `/proc/<pid>/exe` paths
+/// and `/proc/<pid>/status` comm names for running-app presence matching.
+pub fn collect_linux_running_keys<'a>(
+    exe_paths: impl IntoIterator<Item = &'a std::path::Path>,
+    comm_names: impl IntoIterator<Item = &'a str>,
+) -> HashSet<String> {
+    let mut keys = HashSet::new();
+    for exe in exe_paths {
+        if let Some(base) = exe.file_name().and_then(|n| n.to_str()) {
+            let lower = base.trim().to_lowercase();
+            if !lower.is_empty() {
+                keys.insert(lower);
+            }
+        }
+    }
+    for comm in comm_names {
+        let lower = comm.trim().to_lowercase();
+        if !lower.is_empty() {
+            keys.insert(lower);
+        }
+    }
+    keys
+}
+
 // ---------------------------------------------------------------------------
 // Linux-only watcher glue
 // ---------------------------------------------------------------------------
@@ -66,8 +90,20 @@ mod watcher {
     use crate::app_events::{AppEvent, AppEventsHub, AppEventsWatcher, AppPresenceQuery};
     use crate::error::AppError;
     use log::{info, warn};
-    use std::sync::Arc;
+    use std::sync::{Arc, OnceLock, RwLock};
     use std::time::Duration;
+
+    static RUNNING_KEYS_CACHE: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
+
+    fn running_keys_cache() -> &'static RwLock<HashSet<String>> {
+        RUNNING_KEYS_CACHE.get_or_init(|| RwLock::new(HashSet::new()))
+    }
+
+    fn update_running_keys_cache(keys: HashSet<String>) {
+        if let Ok(mut guard) = running_keys_cache().write() {
+            *guard = keys;
+        }
+    }
 
     pub struct LinuxAppWatcher;
 
@@ -129,6 +165,7 @@ mod watcher {
             let mut now_pids: HashSet<u32> = HashSet::new();
             let mut now_names: std::collections::HashMap<u32, String> =
                 std::collections::HashMap::new();
+            let mut now_exe_paths: Vec<std::path::PathBuf> = Vec::new();
             for proc_res in current {
                 let proc = match proc_res {
                     Ok(p) => p,
@@ -139,7 +176,16 @@ mod watcher {
                 if let Ok(status) = proc.status() {
                     now_names.insert(pid, status.name);
                 }
+                if let Ok(exe) = proc.exe() {
+                    now_exe_paths.push(exe);
+                }
             }
+
+            let keys = collect_linux_running_keys(
+                now_exe_paths.iter().map(std::path::PathBuf::as_path),
+                now_names.values().map(String::as_str),
+            );
+            update_running_keys_cache(keys);
 
             let (launched, terminated) = diff_pids(&last_pids, &now_pids);
             for pid in launched {
@@ -350,6 +396,15 @@ mod watcher {
             }
             false
         }
+
+        fn running_keys(&self) -> HashSet<String> {
+            // Read from the background poller's snapshot so search threads never
+            // traverse /proc synchronously.
+            running_keys_cache()
+                .read()
+                .map(|guard| guard.clone())
+                .unwrap_or_default()
+        }
     }
 }
 
@@ -442,5 +497,22 @@ mod tests {
     fn dbus_name_rejects_bare_identifiers() {
         assert!(!dbus_name_looks_like_gui_app("notadotname"));
         assert!(!dbus_name_looks_like_gui_app(""));
+    }
+
+    #[test]
+    fn collect_linux_running_keys_normalizes_exe_basenames_and_comm_names() {
+        let exe_paths = [
+            std::path::Path::new("/usr/lib/firefox/Firefox"),
+            std::path::Path::new("/opt/Discord/Discord"),
+        ];
+        let comm_names = ["  slack\n", ""];
+
+        let keys = collect_linux_running_keys(exe_paths, comm_names);
+
+        assert!(keys.contains("firefox"));
+        assert!(keys.contains("discord"));
+        assert!(keys.contains("slack"));
+        assert!(!keys.contains(""));
+        assert_eq!(keys.len(), 3);
     }
 }

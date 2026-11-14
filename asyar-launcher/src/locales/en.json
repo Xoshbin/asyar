@@ -13,7 +13,8 @@
     "navigate_hint": "Navigate",
     "select_hint": "Open",
     "back": "Back",
-    "scoped_tools_hint": "Tools & Commands"
+    "scoped_tools_hint": "Tools & Commands",
+    "app_running": "Running"
   },
   "actions": {
     "title": "Actions",
@@ -164,7 +165,9 @@
       "theme_aria": "Appearance theme",
       "window_mode_aria": "Window mode",
       "hide_show_more": "Hide Show More bar",
-      "hide_show_more_description": "Show only the search bar in compact mode. Press ↓ to expand."
+      "hide_show_more_description": "Show only the search bar in compact mode. Press ↓ to expand.",
+      "show_running_indicator": "Show running indicator",
+      "show_running_indicator_description": "Show a dot under the icon of apps that are open."
     },
     "advanced": {
       "section_extension_surface": "Extension surface",

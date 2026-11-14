@@ -189,25 +189,176 @@ impl DesktopEntry {
             }
         }
 
-        if let Some(ref exec) = self.exec {
-            let first_token = exec
-                .split_whitespace()
-                .next()
-                .unwrap_or("")
-                .trim_matches(|c| c == '"' || c == '\'');
-            if !first_token.is_empty() {
-                let basename = Path::new(first_token)
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or(first_token);
-                if !basename.is_empty() {
-                    return Some(basename.to_string());
+        self.exec_program()
+    }
+
+    /// Basename of the program `Exec=` launches, for matching against running
+    /// processes. `None` for wrapper launchers (`env`, shells, `flatpak`):
+    /// their basename names the wrapper, which would mark unrelated apps as
+    /// running.
+    pub fn exec_basename(&self) -> Option<String> {
+        let program_path = self.exec_program_path()?;
+        Path::new(&program_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    }
+
+    /// Whether `Exec=` launches a Flatpak sandbox (`flatpak ...`).
+    pub fn is_flatpak_exec(&self) -> bool {
+        let Some(ref exec) = self.exec else {
+            return false;
+        };
+        let tokens = parse_exec_tokens(exec);
+        let Some(first) = tokens.first().map(String::as_str) else {
+            return false;
+        };
+        let first_base = Path::new(first)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(first);
+        first_base == "flatpak"
+    }
+
+    /// Resolves the target program token/path launched by `Exec=`, honoring quotes,
+    /// backslash escapes, `env` wrappers, and `flatpak run --command=...`.
+    pub fn exec_program_path(&self) -> Option<String> {
+        const WRAPPERS: &[&str] = &["env", "sh", "bash", "dash", "zsh", "flatpak", "bwrap"];
+
+        let tokens = parse_exec_tokens(self.exec.as_ref()?);
+        let first = tokens.first()?.as_str();
+        let first_base = Path::new(first)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(first);
+
+        let candidate = if first_base == "env" {
+            let mut found = None;
+            let mut i = 1;
+            while i < tokens.len() {
+                let tok = &tokens[i];
+                if tok.starts_with('-') {
+                    if matches!(tok.as_str(), "-u" | "-C" | "-S" | "--unset" | "--chdir")
+                        && tokens.get(i + 1).is_some_and(|next| !next.contains('='))
+                    {
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                    continue;
+                }
+                if tok.contains('=') && !tok.starts_with('=') {
+                    i += 1;
+                    continue;
+                }
+                found = Some(tok.clone());
+                break;
+            }
+            found?
+        } else if first_base == "flatpak" {
+            let run_idx = tokens.iter().skip(1).position(|t| t == "run")? + 1;
+            let mut cmd = None;
+            let mut i = run_idx + 1;
+            while i < tokens.len() {
+                let tok = &tokens[i];
+                if let Some(val) = tok.strip_prefix("--command=") {
+                    if !val.is_empty() {
+                        cmd = Some(val.to_string());
+                    }
+                    break;
+                }
+                if tok == "--command" {
+                    if let Some(val) = tokens.get(i + 1).filter(|v| !v.is_empty()) {
+                        cmd = Some(val.clone());
+                    }
+                    break;
+                }
+                i += 1;
+            }
+            cmd?
+        } else {
+            first.to_string()
+        };
+
+        if candidate.is_empty() || candidate.starts_with('%') {
+            return None;
+        }
+        let basename = Path::new(&candidate).file_name().and_then(|s| s.to_str())?;
+        if basename.is_empty() || WRAPPERS.contains(&basename) {
+            return None;
+        }
+        Some(candidate)
+    }
+
+    fn exec_program(&self) -> Option<String> {
+        self.exec_basename().or_else(|| {
+            let tokens = parse_exec_tokens(self.exec.as_ref()?);
+            let first = tokens.first()?;
+            Path::new(first)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        })
+    }
+}
+
+/// Splits a `.desktop` `Exec=` value into argument tokens, honoring double/single
+/// quotes and backslash escapes.
+fn parse_exec_tokens(exec: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_token = false;
+    let mut quote: Option<char> = None;
+    let mut chars = exec.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        match quote {
+            Some('"') => {
+                if c == '"' {
+                    quote = None;
+                } else if c == '\\' {
+                    if let Some(next) = chars.next() {
+                        current.push(next);
+                    }
+                } else {
+                    current.push(c);
+                }
+            }
+            Some('\'') => {
+                if c == '\'' {
+                    quote = None;
+                } else {
+                    current.push(c);
+                }
+            }
+            _ => {
+                if c.is_whitespace() {
+                    if in_token {
+                        tokens.push(std::mem::take(&mut current));
+                        in_token = false;
+                    }
+                } else if c == '"' || c == '\'' {
+                    quote = Some(c);
+                    in_token = true;
+                } else if c == '\\' {
+                    in_token = true;
+                    if let Some(next) = chars.next() {
+                        current.push(next);
+                    }
+                } else {
+                    in_token = true;
+                    current.push(c);
                 }
             }
         }
-
-        None
     }
+
+    if in_token {
+        tokens.push(current);
+    }
+    tokens
 }
 
 /// Helper to parse truthy boolean values ("true", "1", case-insensitive).
@@ -465,5 +616,99 @@ Exec=gedit --new-window
             entry_with_exec.extract_bundle_id(),
             Some("google-chrome-stable".to_string())
         );
+    }
+
+    #[test]
+    fn exec_basename_ignores_wm_class_and_rejects_wrappers() {
+        let code = DesktopEntry {
+            startup_wm_class: Some("Code".to_string()),
+            exec: Some("/usr/share/code/code --unity-launch %F".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(code.exec_basename(), Some("code".to_string()));
+
+        for exec in [
+            "/usr/bin/flatpak run org.mozilla.firefox",
+            "env FOO=1",
+            "env GDK_BACKEND=x11 sh -c \"app --flag\"",
+            "sh -c \"app --flag\"",
+        ] {
+            let entry = DesktopEntry {
+                exec: Some(exec.to_string()),
+                ..Default::default()
+            };
+            assert_eq!(entry.exec_basename(), None, "{exec}");
+        }
+    }
+
+    #[test]
+    fn exec_basename_handles_quoted_paths_with_spaces() {
+        let entry = DesktopEntry {
+            exec: Some(r#""/opt/My App/bin/editor" --flag %F"#.to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            entry.exec_program_path(),
+            Some("/opt/My App/bin/editor".to_string())
+        );
+        assert_eq!(entry.exec_basename(), Some("editor".to_string()));
+    }
+
+    #[test]
+    fn exec_basename_unwraps_env_assignments_and_flags() {
+        let slack = DesktopEntry {
+            exec: Some("env GDK_BACKEND=x11 /usr/bin/slack %U".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            slack.exec_program_path(),
+            Some("/usr/bin/slack".to_string())
+        );
+        assert_eq!(slack.exec_basename(), Some("slack".to_string()));
+
+        let discord = DesktopEntry {
+            exec: Some(
+                "/usr/bin/env -i BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/discord_discord.desktop /snap/bin/discord".to_string(),
+            ),
+            ..Default::default()
+        };
+        assert!(!discord.is_flatpak_exec());
+        assert_eq!(discord.exec_basename(), Some("discord".to_string()));
+
+        let runner = DesktopEntry {
+            exec: Some("env -u WAYLAND_DISPLAY /opt/app/runner".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(runner.exec_basename(), Some("runner".to_string()));
+    }
+
+    #[test]
+    fn exec_basename_extracts_flatpak_command_when_present() {
+        let discord = DesktopEntry {
+            exec: Some(
+                "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=discord com.discordapp.Discord".to_string(),
+            ),
+            ..Default::default()
+        };
+        assert!(discord.is_flatpak_exec());
+        assert_eq!(discord.exec_basename(), Some("discord".to_string()));
+
+        let telegram = DesktopEntry {
+            exec: Some(
+                "flatpak run --command=/app/bin/telegram-desktop org.telegram.desktop -- %u"
+                    .to_string(),
+            ),
+            ..Default::default()
+        };
+        assert_eq!(
+            telegram.exec_basename(),
+            Some("telegram-desktop".to_string())
+        );
+
+        let shell_wrapper = DesktopEntry {
+            exec: Some("/usr/bin/flatpak run --command=sh com.example.Wrapper".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(shell_wrapper.exec_basename(), None);
     }
 }

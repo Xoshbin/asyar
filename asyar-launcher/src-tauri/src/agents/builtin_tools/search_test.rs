@@ -21,6 +21,7 @@ fn app(id: &str, name: &str) -> SearchableItem {
         icon: None,
         last_used_at: None,
         bundle_id: None,
+        exe_name: None,
     })
 }
 

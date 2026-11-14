@@ -56,3 +56,17 @@ describe('ResultsList hint row', () => {
     expect(screen.getByText('Search only in Coffee')).toBeTruthy();
   });
 });
+
+describe('LauncherListRow running dot', () => {
+  it('renders the dot under the icon only when running', () => {
+    const { container, rerender } = render(LauncherListRow, {
+      title: 'Safari',
+      icon: '🧭',
+      running: true,
+    });
+    expect(container.querySelector('.row-icon .running-dot')).toBeTruthy();
+
+    rerender({ title: 'Safari', icon: '🧭', running: false });
+    expect(container.querySelector('.running-dot')).toBeNull();
+  });
+});

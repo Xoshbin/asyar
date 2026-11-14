@@ -76,7 +76,7 @@ class SearchOrchestratorClass {
   // First-class platform primitives execute directly without temporary closure-stashing side-tables.
   #directActions = new Map<string, () => void | Promise<void>>();
 
-  async handleSearch(query: string): Promise<void> {
+  async handleSearch(query: string, options?: { silent?: boolean }): Promise<void> {
     if (!isAppInitialized() || viewManager.activeView) return;
     this.#remoteFileSearchController?.abort();
     this.#remoteFileSearchController = null;
@@ -87,7 +87,7 @@ class SearchOrchestratorClass {
     >();
     const directActions = new Map<string, () => void | Promise<void>>();
     extensionManager.cancelPendingSearchRequests?.();
-    searchStores.isLoading = true;
+    if (!options?.silent) searchStores.isLoading = true;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
       const builtinRows = await searchBuiltinProviders(query, (id) =>
@@ -97,7 +97,7 @@ class SearchOrchestratorClass {
 
       const builtinById = new Map(builtinRows.map((row) => [row.id, row]));
 
-      const shouldDebounceExtensions = query.trim().length > 1;
+      const shouldDebounceExtensions = !options?.silent && query.trim().length > 1;
       let localResponse: Awaited<ReturnType<typeof commands.mergedSearch>> | null = null;
       if (shouldDebounceExtensions) {
         const localRows = builtinRows.map((row) => ({

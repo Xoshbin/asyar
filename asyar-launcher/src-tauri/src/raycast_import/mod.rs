@@ -1148,6 +1148,7 @@ mod tests {
             icon: Some("icon-data".to_string()),
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         }
     }
 

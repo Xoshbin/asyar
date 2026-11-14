@@ -93,6 +93,7 @@ pub fn append_inline_file_results(
                 style: None,
                 alias: None,
                 tier: Tier::Files as u8,
+                is_running: false,
             }
         })
         .collect();
@@ -245,6 +246,7 @@ mod tests {
             style: None,
             alias: None,
             tier: Tier::ExactTitle as u8,
+            is_running: false,
         }
     }
 

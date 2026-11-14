@@ -516,6 +516,7 @@ fn command_result(cmd: &Command, score: f32, favorites: &HashSet<String>) -> Sea
         style: None,
         alias: None,
         tier: ranker::Tier::FrecencyOnly as u8,
+        is_running: false,
     }
 }
 
@@ -643,6 +644,7 @@ impl SearchState {
                         style: None,
                         alias: None,
                         tier: ranker::Tier::ExactTitle as u8,
+                        is_running: false,
                     });
                 }
                 return Ok(results);
@@ -731,6 +733,7 @@ impl SearchState {
                             style: None,
                             alias: None,
                             tier: ranker::Tier::ExactTitle as u8,
+                            is_running: false,
                         });
                     }
                 }
@@ -781,6 +784,7 @@ impl SearchState {
                             style: None,
                             alias: None,
                             tier: ranker::Tier::ExactTitle as u8,
+                            is_running: false,
                         });
                     }
                 }
@@ -847,6 +851,7 @@ impl SearchState {
                             style: None,
                             alias: None,
                             tier: ranker::Tier::ExactTitle as u8,
+                            is_running: false,
                         });
                     }
                 }
@@ -894,6 +899,7 @@ impl SearchState {
                     // classify pass merged_search runs. Frecency-only is the
                     // honest placeholder for "not tier-ranked".
                     tier: ranker::Tier::FrecencyOnly as u8,
+                    is_running: false,
                 });
             }
         } else {
@@ -947,6 +953,7 @@ impl SearchState {
                         alias: None,
                         // Untiered: see comment on the empty-query branch above.
                         tier: ranker::Tier::FrecencyOnly as u8,
+                        is_running: false,
                     });
                 }
             }
@@ -1346,6 +1353,7 @@ impl SearchState {
                     } else {
                         ranker::Tier::FrecencyOnly as u8
                     },
+                    is_running: false,
                 };
                 if is_pinned {
                     pinned.push(result);
@@ -1442,6 +1450,7 @@ impl SearchState {
                         style: ext.style,
                         alias: None,
                         tier: ranker::Tier::ExactTitle as u8,
+                        is_running: false,
                     });
                 }
             }
@@ -1602,6 +1611,7 @@ impl SearchState {
                 style: ext.style,
                 alias: None,
                 tier: key.tier as u8,
+                is_running: false,
             };
             combined.push((result, key));
         }
@@ -1691,6 +1701,7 @@ impl SearchState {
                 style: None,
                 alias: None,
                 tier: ranker::Tier::FrecencyOnly as u8,
+                is_running: false,
             }))
     }
 
@@ -1710,6 +1721,29 @@ impl SearchState {
             disabled_object_ids,
             &[],
         )
+    }
+
+    /// Flags application rows whose app is in `running`, a snapshot from
+    /// `AppPresenceQuery::running_keys`.
+    pub fn mark_running(
+        &self,
+        results: &mut [SearchResult],
+        running: &HashSet<String>,
+    ) -> Result<(), SearchError> {
+        let items = self.items.read().map_err(|_| SearchError::LockError)?;
+        for result in results
+            .iter_mut()
+            .filter(|r| r.result_type == "application")
+        {
+            result.is_running = items.iter().any(|item| match item {
+                SearchableItem::Application(app) => {
+                    app.id == result.object_id
+                        && app.presence_key().is_some_and(|key| running.contains(key))
+                }
+                SearchableItem::Command(_) => false,
+            });
+        }
+        Ok(())
     }
 
     pub fn merged_search_with_aliases_filtered(
@@ -1837,6 +1871,7 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         })
     }
 
@@ -1851,6 +1886,7 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         })
     }
 
@@ -1886,6 +1922,7 @@ mod service_tests {
             icon: None,
             last_used_at: Some(ts),
             bundle_id: None,
+            exe_name: None,
         })
     }
 
@@ -2458,6 +2495,7 @@ mod service_tests {
                 icon: None,
                 last_used_at: None,
                 bundle_id: None,
+                exe_name: None,
             }))
             .unwrap();
 
@@ -2488,6 +2526,7 @@ mod service_tests {
                 icon: None,
                 last_used_at: None,
                 bundle_id: None,
+                exe_name: None,
             }))
             .unwrap();
 
@@ -2847,6 +2886,7 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         });
         let search_state = fresh_search_state_with(vec![app]);
         let alias_state = AliasState::new_for_test();
@@ -2860,6 +2900,41 @@ mod service_tests {
         let alias_match = resp.alias_match.expect("expected alias match");
         assert_eq!(alias_match.item_type, "application");
         assert!(!alias_match.auto_execute);
+    }
+
+    #[test]
+    fn mark_running_flags_only_apps_in_the_snapshot() {
+        use crate::app_events::AppPresenceQuery;
+        // bundle_id and exe_name share the key so the test holds on every OS.
+        let app = |id: &str, key: &str| {
+            SearchableItem::Application(super::models::Application {
+                id: id.into(),
+                name: id.into(),
+                path: format!("/{id}.app"),
+                usage_count: 0,
+                icon: None,
+                last_used_at: None,
+                bundle_id: Some(key.into()),
+                exe_name: Some(key.into()),
+            })
+        };
+        let search_state =
+            fresh_search_state_with(vec![app("app_finder", "finder"), app("app_notes", "notes")]);
+        let mut results = search_state.search("").unwrap();
+        let running =
+            crate::app_events::fake::FakePresenceQuery::with_running(["finder"]).running_keys();
+
+        search_state.mark_running(&mut results, &running).unwrap();
+
+        let flag = |id: &str| {
+            results
+                .iter()
+                .find(|r| r.object_id == id)
+                .unwrap()
+                .is_running
+        };
+        assert!(flag("app_finder"));
+        assert!(!flag("app_notes"));
     }
 
     #[test]
@@ -2882,6 +2957,7 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         });
         let search_state = fresh_search_state_with(vec![app]);
         let alias_state = AliasState::new_for_test();
@@ -2936,6 +3012,7 @@ mod service_tests {
                 icon: None,
                 last_used_at: Some(now_ts),
                 bundle_id: None,
+                exe_name: None,
             }))
             .unwrap();
 
@@ -3004,6 +3081,7 @@ mod service_tests {
                 icon: None,
                 last_used_at: Some(now_ts),
                 bundle_id: None,
+                exe_name: None,
             }))
             .unwrap();
 
@@ -3045,6 +3123,7 @@ mod service_tests {
                 icon: None,
                 last_used_at: Some(now_ts),
                 bundle_id: None,
+                exe_name: None,
             }))
             .unwrap();
 
@@ -3480,6 +3559,7 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         });
         let clip_cmd = SearchableItem::Command(super::models::Command {
             id: "cmd_clip_history".into(),
@@ -3520,6 +3600,7 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             bundle_id: None,
+            exe_name: None,
         })
     }
 
@@ -3695,6 +3776,7 @@ mod service_tests {
             style: None,
             alias: None,
             tier: ranker::Tier::Files as u8,
+            is_running: false,
         }
     }
 
