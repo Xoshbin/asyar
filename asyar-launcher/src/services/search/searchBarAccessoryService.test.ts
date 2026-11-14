@@ -230,4 +230,44 @@ describe('searchBarAccessoryService', () => {
     searchBarAccessoryService.subscribe('other-ext', 'other-cmd', handler);
     expect(handler).not.toHaveBeenCalled();
   });
+
+  it('allows selecting nested submenu leaf options via setSelected and supports buttonTitle in syncViewState', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(null);
+    await searchBarAccessoryService.declare({
+      extensionId: EXT,
+      commandId: CMD,
+      options: [
+        { value: 'all', title: 'All Types' },
+        {
+          value: 'submenu:app',
+          title: 'Filter by App',
+          children: [
+            { value: 'app:all', title: 'All Apps' },
+            { value: 'app:Terminal', title: 'Terminal' },
+          ],
+        },
+      ],
+    });
+
+    const handler = vi.fn();
+    searchBarAccessoryService.subscribe(EXT, CMD, handler);
+    handler.mockClear();
+
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+    await searchBarAccessoryService.setSelected(EXT, CMD, 'app:Terminal');
+    expect(handler).toHaveBeenCalledWith('app:Terminal');
+
+    searchBarAccessoryService.syncViewState({
+      extensionId: EXT,
+      commandId: CMD,
+      options: [
+        { value: 'all', title: 'All Types', selected: false },
+        { value: 'images', title: 'Images', selected: true },
+      ],
+      value: 'images',
+      buttonTitle: 'Images · Terminal',
+    });
+    expect(searchBarAccessoryService.active?.buttonTitle).toBe('Images · Terminal');
+    expect(handler).toHaveBeenCalledTimes(1); // syncViewState must not re-broadcast
+  });
 });

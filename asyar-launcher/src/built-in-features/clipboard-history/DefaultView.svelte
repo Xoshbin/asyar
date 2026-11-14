@@ -27,6 +27,12 @@
     MetadataList,
   } from '../../components';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { searchStores } from '../../services/search/stores/search.svelte';
+  import {
+    applyDropdownSelectionToQuery,
+    buildClipboardAccessoryState,
+    parseClipboardSearchQuery,
+  } from './queryFilterParser';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
   import { t } from '../../services/i18n';
@@ -156,19 +162,47 @@
       });
   });
 
-  // Subscribe to the searchbar-accessory service so the user's dropdown
-  // selection (declared via the manifest's `searchBarAccessory`) flows
-  // into the existing typeFilter state. The launcher's view-mount
-  // lifecycle (ExtensionViewContainer) auto-declares the accessory from
-  // the manifest, so this consumer only needs to subscribe.
+  // Keep the searchbar accessory dropdown (options, checkmarks, and
+  // summary label) synchronized with the search query and known source
+  // apps without triggering persistence writes or broadcast feedback loops.
   $effect(() => {
+    const parsed = clipboardViewState.parsedQuery;
+    const sourceApps = clipboardHistoryStore.sourceApps ?? [];
+    const acc = buildClipboardAccessoryState(parsed, sourceApps, t);
+    searchBarAccessoryService.syncViewState?.({
+      extensionId: 'clipboard-history',
+      commandId: 'show-clipboard',
+      options: acc.options,
+      value: parsed.typeFilter,
+      buttonTitle: acc.buttonTitle,
+    });
+  });
+
+  // Subscribe to user selections in the searchbar-accessory dropdown and
+  // reflect them as structured tokens (`type:`, `app:`, `date:`) inside the
+  // main search bar so users both see and can type the same filters.
+  $effect(() => {
+    let ready = false;
     const off = searchBarAccessoryService.subscribe(
       'clipboard-history',
       'show-clipboard',
       (value) => {
-        clipboardViewState.setTypeFilter(value);
+        if (!ready) return;
+        const nextQuery = applyDropdownSelectionToQuery(clipboardViewState.searchQuery, value);
+        const parsedNext = parseClipboardSearchQuery(nextQuery);
+        clipboardViewState.setTypeFilter(parsedNext.typeFilter);
+        clipboardViewState.setSearch(nextQuery);
+        searchStores.query = nextQuery;
+        void tick().then(() => {
+          const input = document.querySelector<HTMLInputElement>('.search-input-clean');
+          if (input) {
+            input.focus();
+            input.setSelectionRange(nextQuery.length, nextQuery.length);
+          }
+        });
       },
     );
+    ready = true;
     return off;
   });
 

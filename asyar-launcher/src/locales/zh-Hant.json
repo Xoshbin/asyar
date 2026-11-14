@@ -1035,6 +1035,18 @@
       "time_this_week": "本週",
       "time_this_month": "本月",
       "time_older": "更早",
+      "filter_all_types": "全部類型",
+      "filter_text": "文字",
+      "filter_images": "圖片",
+      "filter_files": "檔案",
+      "filter_by_app": "依應用程式篩選",
+      "filter_by_date": "依日期篩選",
+      "filter_all_apps": "全部應用程式",
+      "filter_all_dates": "全部時間",
+      "filter_date_today": "今天",
+      "filter_date_yesterday": "昨天",
+      "filter_date_7d": "最近 7 天",
+      "filter_date_30d": "最近 30 天",
       "act": {
         "toggle_html": "切換 HTML 轉譯/原始碼",
         "toggle_html_desc": "在轉譯的 HTML 預覽與原始碼之間切換",
@@ -2188,7 +2200,8 @@
   },
   "search_accessory": {
     "filter_placeholder": "輸入以篩選…",
-    "filter_aria": "篩選選項"
+    "filter_aria": "篩選選項",
+    "back": "返回"
   },
   "shell_consent": {
     "alias": "別名：",

@@ -4,6 +4,7 @@ vi.mock('../../../lib/ipc/commands', () => ({
   clipboardListInitial: vi.fn(),
   clipboardListOlder: vi.fn(),
   clipboardSearch: vi.fn(),
+  clipboardListSourceApps: vi.fn(),
   clipboardGetItem: vi.fn(),
   clipboardRecordCapture: vi.fn(),
   clipboardToggleFavorite: vi.fn(),
@@ -33,6 +34,7 @@ import * as ipc from '../../../lib/ipc/commands';
 const mockListInitial = ipc.clipboardListInitial as unknown as ReturnType<typeof vi.fn>;
 const mockListOlder = ipc.clipboardListOlder as unknown as ReturnType<typeof vi.fn>;
 const mockSearch = ipc.clipboardSearch as unknown as ReturnType<typeof vi.fn>;
+const mockListSourceApps = ipc.clipboardListSourceApps as unknown as ReturnType<typeof vi.fn>;
 const mockGetItem = ipc.clipboardGetItem as unknown as ReturnType<typeof vi.fn>;
 const mockCapture = ipc.clipboardRecordCapture as unknown as ReturnType<typeof vi.fn>;
 const mockToggleFavorite = ipc.clipboardToggleFavorite as unknown as ReturnType<typeof vi.fn>;
@@ -250,5 +252,44 @@ describe('clipboardHistoryStore', () => {
     expect(clipboardHistoryStore.recent).toHaveLength(0);
     // The search result list itself is also updated.
     expect(clipboardHistoryStore.searchResults?.[0].favorite).toBe(true);
+  });
+
+  it('forwards ClipboardFilter across loadInitial, loadOlder, and search', async () => {
+    const filter = { itemType: 'images', sourceApp: 'Safari', createdAfter: 100 };
+    mockListInitial.mockResolvedValue({
+      favorites: [],
+      recent: [{ id: 'img-1', type: 'image', createdAt: 200, favorite: false }],
+      nextCursor: { createdAt: 200, id: 'img-1' },
+    });
+    mockListOlder.mockResolvedValue({
+      items: [{ id: 'img-2', type: 'image', createdAt: 150, favorite: false }],
+      nextCursor: undefined,
+    });
+    mockSearch.mockResolvedValue({
+      items: [{ id: 'img-1', type: 'image', createdAt: 200, favorite: false }],
+      indexState: 'ready',
+    });
+
+    await clipboardHistoryStore.loadInitial(50, filter);
+    expect(mockListInitial).toHaveBeenCalledWith(50, filter);
+    expect(clipboardHistoryStore.activeFilter).toEqual(filter);
+
+    await clipboardHistoryStore.loadOlder(25);
+    expect(mockListOlder).toHaveBeenCalledWith({ createdAt: 200, id: 'img-1' }, 25, filter);
+
+    await clipboardHistoryStore.search('hero', 30, filter);
+    expect(mockSearch).toHaveBeenCalledWith('hero', 30, filter);
+  });
+
+  it('loadSourceApps stores distinct source apps returned from backend', async () => {
+    mockListSourceApps.mockResolvedValue([
+      { name: 'Safari', bundleId: 'com.apple.Safari', iconUrl: null, count: 14 },
+      { name: 'Code', bundleId: 'com.microsoft.VSCode', iconUrl: null, count: 9 },
+    ]);
+
+    const result = await clipboardHistoryStore.loadSourceApps();
+    expect(mockListSourceApps).toHaveBeenCalledTimes(1);
+    expect(result).toHaveLength(2);
+    expect(clipboardHistoryStore.sourceApps[0]?.name).toBe('Safari');
   });
 });

@@ -5,8 +5,9 @@
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
   import { t } from '../../services/i18n';
+  import type { SearchBarAccessoryDropdownOption } from 'asyar-sdk/contracts';
 
-  type Option = { value: string; title: string };
+  type Option = SearchBarAccessoryDropdownOption;
 
   /**
    * Reusable dropdown popover for launcher chrome surfaces.
@@ -39,11 +40,13 @@
   let {
     options,
     value,
+    buttonTitle,
     onChange,
     onclose,
   }: {
     options: Option[];
     value: string;
+    buttonTitle?: string;
     onChange: (value: string) => void;
     onclose?: () => void;
   } = $props();
@@ -54,15 +57,26 @@
   let filterInputRef = $state<HTMLInputElement | null>(null);
   let highlightedIndex = $state(0);
   let filterQuery = $state('');
+  let activeSubmenuParentValue = $state<string | null>(null);
 
   let currentTitle = $derived(
-    options.find((o) => o.value === value)?.title ?? options[0]?.title ?? '',
+    buttonTitle || options.find((o) => o.value === value)?.title || options[0]?.title || '',
   );
+
+  let activeSubmenu = $derived(
+    activeSubmenuParentValue
+      ? (options.find((o) => o.value === activeSubmenuParentValue && o.children?.length) ?? null)
+      : null,
+  );
+
+  let activeOptions = $derived(activeSubmenu?.children ?? options);
 
   let filteredOptions = $derived(
     filterQuery.trim() === ''
-      ? options
-      : options.filter((o) => o.title.toLowerCase().includes(filterQuery.trim().toLowerCase())),
+      ? activeOptions
+      : activeOptions.filter((o) =>
+          o.title.toLowerCase().includes(filterQuery.trim().toLowerCase()),
+        ),
   );
 
   // Re-clamp highlightedIndex and reset/adjust scroll position whenever the filtered list changes
@@ -100,6 +114,7 @@
 
   export async function openPopover(): Promise<void> {
     if (open) return;
+    activeSubmenuParentValue = null;
     filterQuery = '';
     open = true;
     // Highlight the currently-selected option if it exists in the unfiltered
@@ -127,13 +142,38 @@
   }
 
   function closePopover(): void {
+    activeSubmenuParentValue = null;
     open = false;
     onclose?.();
+  }
+
+  function openSubmenu(parentOpt: Option): void {
+    if (!parentOpt.children?.length) return;
+    activeSubmenuParentValue = parentOpt.value;
+    filterQuery = '';
+    const selectedChildIdx = parentOpt.children.findIndex((c) =>
+      c.selected !== undefined ? c.selected : c.value === value,
+    );
+    highlightedIndex = Math.max(0, selectedChildIdx);
+    void tick().then(() => filterInputRef?.focus());
+  }
+
+  function goBackFromSubmenu(): void {
+    const prevParentVal = activeSubmenuParentValue;
+    activeSubmenuParentValue = null;
+    filterQuery = '';
+    const parentIdx = prevParentVal ? options.findIndex((o) => o.value === prevParentVal) : 0;
+    highlightedIndex = Math.max(0, parentIdx);
+    void tick().then(() => filterInputRef?.focus());
   }
 
   function selectIndex(idx: number): void {
     const opt = filteredOptions[idx];
     if (!opt) return;
+    if (opt.children && opt.children.length > 0) {
+      openSubmenu(opt);
+      return;
+    }
     onChange(opt.value);
     closePopover();
   }
@@ -153,8 +193,27 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
+      if (activeSubmenu) {
+        goBackFromSubmenu();
+        return;
+      }
       closePopover();
       buttonRef?.focus();
+    } else if (
+      (e.key === 'Backspace' || e.key === 'ArrowLeft') &&
+      activeSubmenu &&
+      filterQuery === ''
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      goBackFromSubmenu();
+    } else if (e.key === 'ArrowRight' && !activeSubmenu && filterQuery === '') {
+      const opt = filteredOptions[highlightedIndex];
+      if (opt?.children?.length) {
+        e.preventDefault();
+        e.stopPropagation();
+        openSubmenu(opt);
+      }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       e.stopPropagation();
@@ -256,23 +315,38 @@
           autocomplete="off"
         />
       </div>
+      {#if activeSubmenu}
+        <button
+          type="button"
+          class="accessory-submenu-back"
+          onclick={goBackFromSubmenu}
+          aria-label={t('search_accessory.back')}
+        >
+          <span class="accessory-back-arrow" aria-hidden="true">←</span>
+          <span class="accessory-submenu-title">{activeSubmenu.title}</span>
+        </button>
+      {/if}
       {#if filteredOptions.length === 0}
         <EmptyState compact message={t('search.no_matches')} />
       {:else}
         {#each filteredOptions as opt, i}
+          {@const isOptSelected =
+            opt.selected !== undefined
+              ? opt.selected
+              : !opt.children?.length && opt.value === value}
           <button
             type="button"
             class="accessory-option"
             data-index={i}
             class:highlighted={i === highlightedIndex}
-            class:selected={opt.value === value}
+            class:selected={isOptSelected}
             role="option"
-            aria-selected={opt.value === value}
+            aria-selected={isOptSelected}
             onclick={() => selectIndex(i)}
             onmouseenter={() => (highlightedIndex = i)}
           >
             <span class="accessory-check">
-              {#if opt.value === value}
+              {#if isOptSelected}
                 <svg
                   viewBox="0 0 10 8"
                   fill="none"
@@ -286,7 +360,13 @@
                 </svg>
               {/if}
             </span>
-            <span>{opt.title}</span>
+            <span class="accessory-option-label">{opt.title}</span>
+            {#if opt.subtitle}
+              <span class="accessory-option-subtitle">{opt.subtitle}</span>
+            {/if}
+            {#if opt.children && opt.children.length > 0}
+              <span class="accessory-submenu-chevron" aria-hidden="true">›</span>
+            {/if}
           </button>
         {/each}
       {/if}
@@ -330,6 +410,10 @@
   .accessory-title {
     font-weight: 500;
     color: var(--text-primary);
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .accessory-chevron {
     width: var(--size-xs);
@@ -342,7 +426,7 @@
     position: absolute;
     top: calc(100% + var(--space-2));
     right: 0;
-    min-width: 180px;
+    min-width: 220px;
     max-height: 320px;
     overflow-y: auto;
     background: var(--bg-popup);
@@ -374,6 +458,39 @@
     color: var(--text-tertiary);
   }
 
+  .accessory-submenu-back {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-1);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--separator);
+    border-radius: var(--radius-xs);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-align: left;
+    cursor: default;
+    transition: background var(--transition-fast);
+  }
+  .accessory-submenu-back:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .accessory-back-arrow {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .accessory-submenu-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .accessory-option {
     display: flex;
     align-items: center;
@@ -396,6 +513,27 @@
   }
   .accessory-option.selected {
     color: var(--accent-primary);
+  }
+  .accessory-option-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .accessory-option-subtitle {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    flex-shrink: 0;
+    max-width: 8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .accessory-submenu-chevron {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
   }
   .accessory-check {
     width: var(--size-xs);

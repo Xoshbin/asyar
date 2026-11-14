@@ -6,6 +6,12 @@
 export interface SearchBarAccessoryDropdownOption {
   value: string;
   title: string;
+  /** Optional nested submenu options for in-place drill-down filtering. */
+  children?: SearchBarAccessoryDropdownOption[];
+  /** Optional explicit checkmark state (for multi-dimension filter menus). */
+  selected?: boolean;
+  /** Optional right-aligned hint/subtitle (e.g. currently active child filter or item count). */
+  subtitle?: string;
 }
 
 /**

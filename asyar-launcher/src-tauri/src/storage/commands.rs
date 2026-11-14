@@ -11,6 +11,7 @@ use tauri::{AppHandle, Manager, State};
 #[tauri::command]
 pub fn clipboard_list_initial(
     limit: u32,
+    filter: Option<super::clipboard::ClipboardFilter>,
     store: State<'_, DataStore>,
     keystore: State<'_, KeystoreState>,
 ) -> Result<super::clipboard::InitialPage, AppError> {
@@ -19,6 +20,7 @@ pub fn clipboard_list_initial(
         &conn,
         limit as usize,
         keystore.master_key(),
+        filter.as_ref(),
     )?)
 }
 
@@ -26,6 +28,7 @@ pub fn clipboard_list_initial(
 pub fn clipboard_list_older(
     cursor: super::clipboard::Cursor,
     limit: u32,
+    filter: Option<super::clipboard::ClipboardFilter>,
     store: State<'_, DataStore>,
     keystore: State<'_, KeystoreState>,
 ) -> Result<super::clipboard::OlderPage, AppError> {
@@ -35,6 +38,7 @@ pub fn clipboard_list_older(
         &cursor,
         limit as usize,
         keystore.master_key(),
+        filter.as_ref(),
     )?)
 }
 
@@ -42,6 +46,7 @@ pub fn clipboard_list_older(
 pub fn clipboard_search(
     query: String,
     limit: u32,
+    filter: Option<super::clipboard::ClipboardFilter>,
     store: State<'_, DataStore>,
     keystore: State<'_, KeystoreState>,
     fts: State<'_, Arc<ClipboardFts>>,
@@ -53,7 +58,16 @@ pub fn clipboard_search(
         &query,
         limit as usize,
         keystore.master_key(),
+        filter.as_ref(),
     )?)
+}
+
+#[tauri::command]
+pub fn clipboard_list_source_apps(
+    store: State<'_, DataStore>,
+) -> Result<Vec<super::clipboard::SourceAppSummary>, AppError> {
+    let conn = store.conn()?;
+    Ok(super::clipboard::list_source_apps(&conn)?)
 }
 
 #[tauri::command]
