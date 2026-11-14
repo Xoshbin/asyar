@@ -1071,7 +1071,6 @@
         "open_in_preview": "在預覽程式中開啟",
         "open_image": "開啟圖片",
         "open_failed": "無法開啟 {path}",
-        "copy_image": "複製圖片",
         "preview_unavailable": "預覽無法使用",
         "source": "來源",
         "type": "類型",

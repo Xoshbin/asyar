@@ -1071,7 +1071,6 @@
         "open_in_preview": "Open in Preview",
         "open_image": "Open Image",
         "open_failed": "Could not open {path}",
-        "copy_image": "Copy Image",
         "preview_unavailable": "Preview unavailable",
         "source": "Source",
         "type": "Type",

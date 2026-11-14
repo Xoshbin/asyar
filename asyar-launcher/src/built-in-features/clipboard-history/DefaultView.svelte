@@ -11,7 +11,7 @@
   import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
   import { fetchRawHtml } from './urlFetcher';
   import { parseFilePaths, fileNameOf, loadFileThumbnails, FILE_THUMB_DIM } from './filePreview';
-  import { ClipboardItemType, stripRtf, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
+  import { stripRtf, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
   import type { StoredClipboardItem } from '../../lib/ipc/commands';
   import { readFile } from '@tauri-apps/plugin-fs';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
@@ -96,16 +96,12 @@
   let listWrapperEl = $state<HTMLElement | null>(null);
 
   const IMAGE_EXT_RE = /\.(avif|bmp|gif|heic|heif|ico|jpe?g|png|tiff?|webp)$/i;
-  // Formats `tauri-plugin-clipboard-x` (`image` crate) decodes when writing an image to the clipboard.
-  const COPYABLE_IMAGE_EXT_RE = /\.(bmp|gif|jpe?g|png|webp)$/i;
 
   interface PreviewContextMenuState {
     x: number;
     y: number;
     path: string;
     isImage: boolean;
-    canCopyAsImage: boolean;
-    item: StoredClipboardItem;
   }
 
   let previewContextMenu = $state<PreviewContextMenuState | null>(null);
@@ -667,8 +663,7 @@
       previewContextMenu = null;
       return;
     }
-    const canCopyAsImage = item.type === 'image' || COPYABLE_IMAGE_EXT_RE.test(path);
-    previewContextMenu = { x: e.clientX, y: e.clientY, path, isImage, canCopyAsImage, item };
+    previewContextMenu = { x: e.clientX, y: e.clientY, path, isImage };
     await tick();
     if (!contextMenuEl || !previewContextMenu) return;
     const rect = contextMenuEl.getBoundingClientRect();
@@ -692,21 +687,6 @@
     if (!menu) return;
     previewContextMenu = null;
     await revealFile(menu.path);
-  }
-
-  async function handleContextCopy() {
-    const menu = previewContextMenu;
-    if (!menu) return;
-    previewContextMenu = null;
-    const payload =
-      menu.item.type === 'files' && menu.canCopyAsImage
-        ? ({
-            ...$state.snapshot(menu.item),
-            type: ClipboardItemType.Image,
-            content: menu.path,
-          } as unknown as ClipboardHistoryItem)
-        : (menu.item as unknown as ClipboardHistoryItem);
-    await clipboardViewState.copyItem(payload);
   }
 
   function getWordCount(item: { type: string; content?: string }): number {
@@ -1234,26 +1214,6 @@
         >
         <span>{getRevealMenuLabel()}</span>
       </button>
-      <div class="context-menu-separator" role="separator"></div>
-      <button type="button" class="context-menu-item" role="menuitem" onclick={handleContextCopy}>
-        <svg
-          class="w-3.5 h-3.5 flex-shrink-0 context-menu-icon"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          ><path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-          /></svg
-        >
-        <span>
-          {previewContextMenu.canCopyAsImage
-            ? t('features.clipboard.ui.copy_image')
-            : t('features.clipboard.copy_action')}
-        </span>
-      </button>
     </div>
   {/if}
 </div>
@@ -1534,11 +1494,5 @@
 
   .context-menu-icon {
     color: var(--text-secondary);
-  }
-
-  .context-menu-separator {
-    height: 1px;
-    background: var(--popup-divider);
-    margin: var(--space-1) 0;
   }
 </style>

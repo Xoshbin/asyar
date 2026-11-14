@@ -1071,7 +1071,6 @@
         "open_in_preview": "Ouvrir dans Aperçu",
         "open_image": "Ouvrir l'image",
         "open_failed": "Impossible d'ouvrir {path}",
-        "copy_image": "Copier l'image",
         "preview_unavailable": "Aperçu indisponible",
         "source": "Source",
         "type": "Type",

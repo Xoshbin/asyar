@@ -1071,7 +1071,6 @@
         "open_in_preview": "在预览中打开",
         "open_image": "打开图片",
         "open_failed": "无法打开 {path}",
-        "copy_image": "复制图片",
         "preview_unavailable": "预览不可用",
         "source": "来源",
         "type": "类型",

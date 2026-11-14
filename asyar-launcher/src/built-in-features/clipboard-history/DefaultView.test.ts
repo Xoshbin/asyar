@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, screen, fireEvent } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import type { ExtensionContext, IClipboardHistoryService } from 'asyar-sdk/contracts';
 import type { StoredClipboardItem, StoredClipboardListItem } from '../../lib/ipc/commands';
 
 // Hoisted so the store mock below can list them. The text item comes first so
@@ -282,7 +281,6 @@ describe('DefaultView image preview', () => {
 describe('DefaultView preview context menu', () => {
   let urlCount = 0;
   let origScrollIntoView: PropertyDescriptor | undefined;
-  let mockWriteToClipboard: ReturnType<typeof vi.fn>;
 
   function setClipboardItems(
     recent: StoredClipboardListItem[],
@@ -310,13 +308,6 @@ describe('DefaultView preview context menu', () => {
     mockLogError.mockReset();
     appListenHandlers.clear();
     mockAppListen.mockClear();
-    mockWriteToClipboard = vi.fn().mockResolvedValue(undefined);
-    const clipboardSvc = {
-      writeToClipboard: mockWriteToClipboard,
-    } as unknown as IClipboardHistoryService;
-    clipboardViewState.initializeServices({
-      getService: (name: string) => (name === 'clipboard' ? clipboardSvc : undefined),
-    } as unknown as ExtensionContext);
     MockURL.createObjectURL.mockReset().mockImplementation(() => `blob:test/${++urlCount}`);
     MockURL.revokeObjectURL.mockReset();
     vi.stubGlobal('URL', MockURL);
@@ -336,9 +327,6 @@ describe('DefaultView preview context menu', () => {
     } else {
       delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
     }
-    clipboardViewState.initializeServices({
-      getService: () => undefined,
-    } as unknown as ExtensionContext);
     clipboardViewState.reset();
     setClipboardItems(Object.values(items) as StoredClipboardListItem[]);
     clipboardHistoryStore.favorites = [];
@@ -366,10 +354,10 @@ describe('DefaultView preview context menu', () => {
 
     const menu = screen.getByRole('menu');
     expect(menu.hasAttribute('data-no-focus-steal')).toBe(true);
+    expect(screen.getAllByRole('menuitem')).toHaveLength(2);
     const openBtn = screen.getByRole('menuitem', { name: 'Open in Preview' });
     expect(openBtn).toBeTruthy();
     expect(screen.getByRole('menuitem', { name: 'Reveal in Finder' })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: 'Copy Image' })).toBeTruthy();
 
     await fireEvent.click(openBtn);
     await flush();
@@ -399,7 +387,7 @@ describe('DefaultView preview context menu', () => {
     unmount();
   });
 
-  it('reveals the image file and copies image to clipboard through clipboardViewState.copyItem', async () => {
+  it('reveals the image file in Finder', async () => {
     const { container, unmount } = render(DefaultView);
     await select('img');
     await finishRead('/cache/big.png');
@@ -411,20 +399,10 @@ describe('DefaultView preview context menu', () => {
     await flush();
     expect(mockRevealItemInDir).toHaveBeenCalledWith('/cache/big.png');
     expect(screen.queryByRole('menu')).toBeNull();
-
-    await fireEvent.contextMenu(img);
-    await flush();
-    await fireEvent.click(screen.getByRole('menuitem', { name: 'Copy Image' }));
-    await flush();
-    expect(mockWriteToClipboard).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'img', type: 'image', content: '/cache/big.png' }),
-    );
-    expect(mockShowHUD).toHaveBeenCalledWith('Copied!');
-    expect(screen.queryByRole('menu')).toBeNull();
     unmount();
   });
 
-  it('supports preview context menu on single image file thumbnails and copies PNG as image', async () => {
+  it('supports preview context menu on single image file thumbnails', async () => {
     vi.useFakeTimers();
     mockGetFileThumbnail.mockResolvedValue('asyar-thumb://shot');
     const fileItem: StoredClipboardItem = {
@@ -447,21 +425,22 @@ describe('DefaultView preview context menu', () => {
 
     await fireEvent.contextMenu(thumb);
     await flush();
-    await fireEvent.click(screen.getByRole('menuitem', { name: 'Copy Image' }));
+    expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Open in Preview' }));
     await flush();
+    expect(mockOpenPath).toHaveBeenCalledWith(null, '/Users/test/Screenshot.png', {
+      with: 'Preview',
+    });
 
-    expect(mockWriteToClipboard).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'shot',
-        type: 'image',
-        content: '/Users/test/Screenshot.png',
-      }),
-    );
-    expect(mockShowHUD).toHaveBeenCalledWith('Copied!');
+    await fireEvent.contextMenu(thumb);
+    await flush();
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Reveal in Finder' }));
+    await flush();
+    expect(mockRevealItemInDir).toHaveBeenCalledWith('/Users/test/Screenshot.png');
     unmount();
   });
 
-  it('uses generic Open and file-copy actions on non-image solo file thumbnails', async () => {
+  it('uses generic Open action on non-image solo file thumbnails', async () => {
     vi.useFakeTimers();
     mockGetFileThumbnail.mockResolvedValue('asyar-thumb://pdf');
     const pdfItem: StoredClipboardItem = {
@@ -484,29 +463,17 @@ describe('DefaultView preview context menu', () => {
 
     await fireEvent.contextMenu(thumb);
     await flush();
+    expect(screen.getAllByRole('menuitem')).toHaveLength(2);
     expect(screen.queryByRole('menuitem', { name: 'Open in Preview' })).toBeNull();
-    expect(screen.queryByRole('menuitem', { name: 'Copy Image' })).toBeNull();
 
     const openBtn = screen.getByRole('menuitem', { name: 'Open' });
     await fireEvent.click(openBtn);
     await flush();
     expect(mockOpenPath).toHaveBeenCalledWith(null, '/Users/test/Report.pdf', undefined);
-
-    await fireEvent.contextMenu(thumb);
-    await flush();
-    await fireEvent.click(screen.getByRole('menuitem', { name: 'Copy to Clipboard' }));
-    await flush();
-    expect(mockWriteToClipboard).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'pdf',
-        type: 'files',
-        content: JSON.stringify(['/Users/test/Report.pdf']),
-      }),
-    );
     unmount();
   });
 
-  it('opens .heic thumbnails in Preview while copying them as file references', async () => {
+  it('opens .heic thumbnails in Preview', async () => {
     vi.useFakeTimers();
     mockGetFileThumbnail.mockResolvedValue('asyar-thumb://heic');
     const heicItem: StoredClipboardItem = {
@@ -528,23 +495,10 @@ describe('DefaultView preview context menu', () => {
     await fireEvent.contextMenu(thumb);
     await flush();
     expect(screen.getByRole('menuitem', { name: 'Open in Preview' })).toBeTruthy();
-    expect(screen.queryByRole('menuitem', { name: 'Copy Image' })).toBeNull();
 
     await fireEvent.click(screen.getByRole('menuitem', { name: 'Open in Preview' }));
     await flush();
     expect(mockOpenPath).toHaveBeenCalledWith(null, '/Users/test/Photo.heic', { with: 'Preview' });
-
-    await fireEvent.contextMenu(thumb);
-    await flush();
-    await fireEvent.click(screen.getByRole('menuitem', { name: 'Copy to Clipboard' }));
-    await flush();
-    expect(mockWriteToClipboard).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'heic',
-        type: 'files',
-        content: JSON.stringify(['/Users/test/Photo.heic']),
-      }),
-    );
     unmount();
   });
 
