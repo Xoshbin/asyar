@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: test-and-lint-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test-and-lint:
     runs-on: ubuntu-latest
@@ -33,15 +37,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
           version: 10.26.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'pnpm'
 
       - name: Install Rust 1.97.0
         uses: dtolnay/rust-toolchain@1.97.0
@@ -182,15 +187,16 @@ jobs:
       # `build.rs` reads node_modules/asyar-sdk/package.json to inject the SDK
       # version, so the workspace symlink must exist. `--ignore-scripts` skips
       # the native (keytar) builds the Rust tests don't need, keeping this fast.
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
           version: 10.26.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'pnpm'
 
       - name: Install workspace dependencies (for build.rs SDK-version read)
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -276,15 +282,16 @@ jobs:
       # build.rs reads node_modules/asyar-sdk/package.json to inject the
       # SDK version, so the workspace symlink must exist. --ignore-scripts
       # skips native (keytar) builds the Rust tests don't need.
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
           version: 10.26.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'pnpm'
 
       - name: Install workspace dependencies (for build.rs SDK-version read)
         run: pnpm install --frozen-lockfile --ignore-scripts
