@@ -184,6 +184,7 @@ export class ClipboardHistoryStoreClass {
       metadata: stored.metadata,
       sourceApp: stored.sourceApp,
       redactedKinds: stored.redactedKinds,
+      customTitle: (res.customTitle ?? stored.customTitle) || undefined,
     };
     const evicted = new Set(res.evictedIds);
     if (!evicted.has(newRow.id)) {

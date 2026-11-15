@@ -493,10 +493,10 @@ class ClipboardHistoryExtension implements Extension {
         if (!item) return;
         clipboardViewState.startRename();
         actionService.openPrompt({
-          title: t('features.clipboard.ui.rename_title') || 'Rename Entry...',
+          title: t('features.clipboard.ui.rename_title'),
           value: item.customTitle ?? (item.preview ? getItemTitle(item) : ''),
-          placeholder: t('features.clipboard.ui.rename_placeholder') || 'Enter custom title...',
-          contextLabel: t('features.clipboard.title') || 'Clipboard History',
+          placeholder: t('features.clipboard.ui.rename_placeholder'),
+          contextLabel: t('features.clipboard.title'),
           icon: 'clipboard',
           onsave: async (newTitle) => {
             await clipboardViewState.saveRename(newTitle);

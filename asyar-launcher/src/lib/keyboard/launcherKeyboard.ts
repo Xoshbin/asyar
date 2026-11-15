@@ -453,9 +453,11 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       (searchBarAccessoryService.popoverOpen ||
         actionService.activePrompt !== null ||
         Boolean(
+          typeof document !== 'undefined' && document.querySelector('.action-prompt-popover'),
+        ) ||
+        Boolean(
           typeof document !== 'undefined' &&
-          (document.querySelector('.action-prompt-popover') ||
-            document.querySelector('.action-popup')),
+          (document.activeElement as HTMLElement | null)?.closest?.('.action-popup'),
         )) &&
       ['Escape', 'ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key) &&
       !event.metaKey &&

@@ -151,7 +151,7 @@
 
   function handleActionPanelClose() {
     isActionPanelOpen = false;
-    actionService.activePrompt = null;
+    actionService.closePrompt();
     actionService.panelSearchQuery = '';
     if (!controller.assignShortcutTarget && !controller.assignAliasTarget) {
       keyboard.restoreSearchFocus({ select: true });

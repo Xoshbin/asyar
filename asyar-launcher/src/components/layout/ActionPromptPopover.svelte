@@ -92,6 +92,8 @@
   });
 
   function handleKeydown(event: KeyboardEvent) {
+    if (event.isComposing) return;
+
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -177,7 +179,7 @@
 
   .prompt-title {
     font-size: var(--font-size-sm);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     color: var(--text-primary);
     margin: 0;
     user-select: none;
@@ -192,7 +194,7 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--space-2) var(--space-4);
-    min-height: 32px;
+    min-height: var(--size-xl);
     background: transparent;
     border-top: 1px solid var(--popup-divider);
     user-select: none;
@@ -219,7 +221,7 @@
   }
 
   .context-text {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
   }
 
   .footer-actions {

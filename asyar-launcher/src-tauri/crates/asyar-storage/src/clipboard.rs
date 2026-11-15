@@ -149,6 +149,7 @@ pub struct CaptureResult {
     pub inserted_id: String,
     pub replaced_id: Option<String>,
     pub favorite: bool,
+    pub custom_title: Option<String>,
     pub evicted_ids: Vec<String>,
 }
 
@@ -1318,6 +1319,7 @@ pub fn record_capture(
         inserted_id: new_item.id,
         replaced_id,
         favorite: new_item.favorite,
+        custom_title: new_item.custom_title,
         evicted_ids,
     })
 }
@@ -1346,7 +1348,7 @@ pub fn record_capture_with_fts(
         item.preview.as_deref(),
         item.content.as_deref(),
         Some(&source_app_text),
-        item.custom_title.as_deref(),
+        res.custom_title.as_deref(),
     )?;
     // Evicted ids from cleanup must come out of FTS too.
     fts.delete_many(&res.evicted_ids)?;

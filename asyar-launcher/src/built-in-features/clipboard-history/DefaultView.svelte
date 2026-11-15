@@ -1170,14 +1170,16 @@
               {clipboardViewState.selectedIds.length} items selected · Enter to merge &amp; paste
             </div>
           {:else if selectedFullItem}
+            {@const customTitle =
+              clipboardViewState.selectedItem?.customTitle ?? selectedFullItem.customTitle}
             <MetadataList
               title={t('common.information')}
               items={[
-                ...(selectedFullItem.customTitle
+                ...(customTitle
                   ? [
                       {
                         label: t('features.clipboard.ui.custom_title'),
-                        value: selectedFullItem.customTitle,
+                        value: customTitle,
                       },
                     ]
                   : []),

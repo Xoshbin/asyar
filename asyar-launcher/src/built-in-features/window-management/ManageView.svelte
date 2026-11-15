@@ -63,12 +63,15 @@
       contextLabel: t('features.window_management.title'),
       icon: 'window',
       onsave: async (newName) => {
-        const trimmed = newName.trim();
-        if (trimmed) {
-          await renameLayout(id, trimmed, store ?? windowManagementState.store ?? undefined);
-          await feedbackService.showHUD(`Renamed to "${trimmed}"`);
+        try {
+          const trimmed = newName.trim();
+          if (trimmed) {
+            await renameLayout(id, trimmed, store ?? windowManagementState.store ?? undefined);
+            await feedbackService.showHUD(`Renamed to "${trimmed}"`);
+          }
+        } finally {
+          windowManagementState.clearRename();
         }
-        windowManagementState.clearRename();
       },
       oncancel: () => {
         windowManagementState.clearRename();

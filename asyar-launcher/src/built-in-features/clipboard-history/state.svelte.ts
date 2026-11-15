@@ -304,8 +304,14 @@ export class ClipboardViewStateClass {
   async saveRename(newTitle: string) {
     if (!this.renamingItemId) return;
     const id = this.renamingItemId;
-    await this.setCustomTitle(id, newTitle);
-    this.cancelRename();
+    try {
+      const ok = await this.setCustomTitle(id, newTitle);
+      if (!ok) {
+        await feedbackService.showHUD(t('common.error'));
+      }
+    } finally {
+      this.cancelRename();
+    }
   }
 
   async setCustomTitle(itemId: string, title?: string | null): Promise<boolean> {
@@ -318,6 +324,9 @@ export class ClipboardViewStateClass {
       if (ok) {
         const trimmed = title?.trim() || undefined;
         this.items = this.items.map((i) => (i.id === itemId ? { ...i, customTitle: trimmed } : i));
+        if (this.searchQuery.trim()) {
+          void onSearchChanged(this.searchQuery);
+        }
       }
       return ok;
     } catch (error) {
