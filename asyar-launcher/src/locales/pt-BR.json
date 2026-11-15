@@ -1064,7 +1064,11 @@
         "ask_ai": "Perguntar à IA sobre isto",
         "ask_ai_desc": "Abrir o chat de IA com este texto da área de transferência preenchido",
         "clear_history": "Limpar histórico da área de transferência",
-        "clear_history_desc": "Remover todos os itens não favoritos da área de transferência"
+        "clear_history_desc": "Remover todos os itens não favoritos da área de transferência",
+        "copy_text_from_image": "Copiar texto da imagem",
+        "copy_text_from_image_desc": "Extrair e copiar texto desta imagem para a área de transferência",
+        "open_preview_desc": "Abrir esta imagem ou arquivo no visualizador padrão",
+        "reveal_desc": "Mostrar este arquivo no gerenciador de arquivos do sistema"
       },
       "subtitle": "Veja e gerencie o histórico da área de transferência",
       "unsupported_item": "Ainda não suportado — itens de {type} da área de transferência ainda não podem ser usados com \"{action}\".",
@@ -1085,6 +1089,8 @@
         "reveal_title": "Mostrar no Finder",
         "open_in_preview": "Abrir no Pré-Visualização",
         "open_image": "Abrir imagem",
+        "copy_text_from_image": "Copiar texto da imagem",
+        "ocr_no_text": "Nenhum texto encontrado na imagem",
         "open_failed": "Não foi possível abrir {path}",
         "preview_unavailable": "Pré-visualização indisponível",
         "source": "Origem",

@@ -416,6 +416,8 @@ macro_rules! system_commands {
                 $crate::commands::fs_watcher::fs_watch_dispose,
                 $crate::commands::screen_pick_color,
                 $crate::commands::ocr_capture_screen_text,
+                $crate::commands::ocr_recognize_image_file,
+                $crate::commands::ocr_copy_image_text,
                 $crate::notifications::commands::send_notification,
                 $crate::notifications::commands::dismiss_notification,
                 $crate::commands::timer_schedule,

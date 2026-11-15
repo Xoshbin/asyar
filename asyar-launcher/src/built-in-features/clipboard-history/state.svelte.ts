@@ -14,6 +14,10 @@ import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboard
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { parseClipboardSearchQuery } from './queryFilterParser';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { openerService } from '../../services/opener/openerService';
+import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
+import { IMAGE_EXT_RE, parseFilePaths } from './filePreview';
 
 export class ClipboardViewStateClass {
   searchQuery = $state('');
@@ -472,6 +476,103 @@ export class ClipboardViewStateClass {
       return true;
     } catch (error) {
       this.logService?.error(`Failed to copy clipboard item: ${error}`);
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'clipboard/copy-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(error),
+      });
+      return false;
+    }
+  }
+
+  async revealFile(path: string): Promise<void> {
+    try {
+      await revealItemInDir(path);
+    } catch (error) {
+      this.logService?.error(`Failed to reveal file ${path}: ${error}`);
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: t('features.clipboard.ui.reveal_failed', { path }) },
+      });
+    }
+  }
+
+  async openPreviewFile(path: string, withPreview: boolean): Promise<void> {
+    try {
+      const options =
+        withPreview && getHostPlatform() === 'macos' ? { with: 'Preview' } : undefined;
+      await openerService.openPath(null, path, options);
+    } catch (error) {
+      this.logService?.error(`Failed to open file ${path}: ${String(error)}`);
+      void feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: t('features.clipboard.ui.open_failed', { path }) },
+      });
+    }
+  }
+
+  async getPreviewTarget(
+    item?: ClipboardHistoryItem | null,
+  ): Promise<{ path: string; isImage: boolean } | null> {
+    const targetItem = item ?? this.selectedItem;
+    if (!targetItem) return null;
+
+    if (targetItem.type === ClipboardItemType.Image || targetItem.type === 'image') {
+      const path = targetItem.content ?? (await fetchFullItemForId(targetItem.id))?.content;
+      if (!path || path.startsWith('data:')) return null;
+      return { path, isImage: true };
+    }
+
+    if (targetItem.type === ClipboardItemType.Files || targetItem.type === 'files') {
+      const content = targetItem.content ?? (await fetchFullItemForId(targetItem.id))?.content;
+      const paths = parseFilePaths(content);
+      if (paths.length === 1 && !paths[0].startsWith('data:')) {
+        return {
+          path: paths[0],
+          isImage: IMAGE_EXT_RE.test(paths[0]),
+        };
+      }
+    }
+
+    return null;
+  }
+
+  async openSelectedItem(): Promise<void> {
+    const target = await this.getPreviewTarget();
+    if (target) {
+      await this.openPreviewFile(target.path, target.isImage);
+    }
+  }
+
+  async revealSelectedItem(): Promise<void> {
+    const target = await this.getPreviewTarget();
+    if (target) {
+      await this.revealFile(target.path);
+    }
+  }
+
+  async copyTextFromImage(item: ClipboardHistoryItem): Promise<boolean> {
+    const target = await this.getPreviewTarget(item);
+    const path = target?.path ?? item.content ?? (await fetchFullItemForId(item.id))?.content;
+    if (!path) return false;
+    try {
+      const text = await commands.ocrCopyImageText(path);
+      if (text) {
+        await feedbackService.showHUD(t('ocr_copied'));
+        return true;
+      }
+      await feedbackService.showHUD(t('features.clipboard.ui.ocr_no_text'));
+      return false;
+    } catch (error) {
+      this.logService?.error(`Failed to copy text from image: ${error}`);
       feedbackService.report({
         source: 'frontend',
         kind: 'clipboard/copy-failed',

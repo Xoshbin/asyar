@@ -168,6 +168,7 @@ describe('built-in action shortcut declarations', () => {
         for (const [chord, count] of chordCounts) {
           if (count > 1) {
             if (chord === 'Mod+.' && count === 2) continue;
+            if (feature === 'clipboard-history' && chord === 'Mod+O' && count === 2) continue;
             if (
               (feature === 'scripts' || feature === 'snippets') &&
               chord === 'Enter' &&
@@ -222,6 +223,7 @@ describe('built-in action shortcut declarations', () => {
     const agents = sourceDeclarations('agents').map((d) => d.shortcut);
 
     expect(clipboard).toContain('Mod+.');
+    expect(clipboard).toContain('Mod+Shift+H');
     expect(clipboard).toContain('Control+X');
     expect(clipboard).toContain('Control+Shift+X');
     expect(notes).toContain('Mod+N');

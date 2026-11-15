@@ -2,6 +2,7 @@ pub mod calculator;
 pub mod clipboard;
 pub mod fs;
 pub mod notes;
+pub mod ocr;
 pub mod search;
 pub mod shell;
 pub mod web_fetch;
@@ -15,6 +16,8 @@ mod clipboard_test;
 mod fs_test;
 #[cfg(test)]
 mod notes_test;
+#[cfg(test)]
+mod ocr_test;
 #[cfg(test)]
 mod search_test;
 #[cfg(test)]

@@ -21,3 +21,20 @@ export async function ocrCaptureScreenText(): Promise<string | null> {
 export async function ocrCaptureScreenTextForExtension(): Promise<string | null> {
   return invokeRaw<string | null>('ocr_capture_screen_text');
 }
+
+/**
+ * Extracts and recognizes text from a local image file on disk.
+ * Applies secret redaction and returns the text, or null if no text was found.
+ * Does not modify the system clipboard or display a HUD notification.
+ */
+export async function ocrRecognizeImageFile(imagePath: string): Promise<string | null> {
+  return invokeSafe<string | null>('ocr_recognize_image_file', { imagePath });
+}
+
+/**
+ * Runs OCR on a local image file, applies secret redaction, copies the text
+ * to the system clipboard, and displays an Asyar HUD notification.
+ */
+export async function ocrCopyImageText(imagePath: string): Promise<string | null> {
+  return invokeSafe<string | null>('ocr_copy_image_text', { imagePath });
+}

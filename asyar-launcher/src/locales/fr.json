@@ -1064,7 +1064,11 @@
         "ask_ai": "Interroger l'IA à ce sujet",
         "ask_ai_desc": "Ouvrir le chat IA avec ce texte déjà rempli",
         "clear_history": "Effacer l'historique du presse-papiers",
-        "clear_history_desc": "Supprimer tous les éléments non favoris"
+        "clear_history_desc": "Supprimer tous les éléments non favoris",
+        "copy_text_from_image": "Copier le texte de l'image",
+        "copy_text_from_image_desc": "Extraire et copier le texte de cette image dans le presse-papiers",
+        "open_preview_desc": "Ouvrir cette image ou ce fichier dans le visualiseur par défaut",
+        "reveal_desc": "Afficher ce fichier dans le gestionnaire de fichiers du système"
       },
       "subtitle": "Consulter et gérer l'historique du presse-papiers",
       "unsupported_item": "Pas encore pris en charge : les éléments de type {type} ne peuvent pas encore être utilisés avec « {action} ».",
@@ -1085,6 +1089,8 @@
         "reveal_title": "Afficher dans le Finder",
         "open_in_preview": "Ouvrir dans Aperçu",
         "open_image": "Ouvrir l'image",
+        "copy_text_from_image": "Copier le texte de l'image",
+        "ocr_no_text": "Aucun texte trouvé dans l'image",
         "open_failed": "Impossible d'ouvrir {path}",
         "preview_unavailable": "Aperçu indisponible",
         "source": "Source",
