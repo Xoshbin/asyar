@@ -15,6 +15,8 @@
   import type { StoredClipboardItem } from '../../lib/ipc/commands';
   import { readFile } from '@tauri-apps/plugin-fs';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
+  import { openerService } from '../../services/opener/openerService';
+  import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
   import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
   import { renderMermaidDiagrams } from '../../utils/mermaid';
   import {
@@ -37,6 +39,7 @@
   import { logService } from '../../services/log/logService';
   import { t } from '../../services/i18n';
   import { appListen } from '../../lib/ipc/bridgeEvents';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
 
   const detailDateFormat = new Intl.DateTimeFormat(undefined, {
     month: 'long',
@@ -98,6 +101,18 @@
   let detailEl = $state<HTMLElement | null>(null);
   let listWrapperEl = $state<HTMLElement | null>(null);
 
+  const IMAGE_EXT_RE = /\.(avif|bmp|gif|heic|heif|ico|jpe?g|png|tiff?|webp)$/i;
+
+  interface PreviewContextMenuState {
+    x: number;
+    y: number;
+    path: string;
+    isImage: boolean;
+  }
+
+  let previewContextMenu = $state<PreviewContextMenuState | null>(null);
+  let contextMenuEl = $state<HTMLElement | null>(null);
+
   let showRenderedHtml = $derived(clipboardViewState.showRenderedHtml);
 
   $effect(() => clipboardViewState.subscribeToHistoryChanges());
@@ -141,6 +156,7 @@
   let selectedFullItem = $state<StoredClipboardItem | null>(null);
   $effect(() => {
     const id = clipboardViewState.selectedItemId;
+    previewContextMenu = null;
     if (!id) {
       selectedFullItem = null;
       return;
@@ -310,8 +326,60 @@
     }, 150);
   });
 
+  $effect(() => {
+    if (!previewContextMenu) return;
+
+    const unregisterEscape = viewManager.registerEscapeInterceptor(() => {
+      if (!previewContextMenu) return false;
+      previewContextMenu = null;
+      return true;
+    });
+
+    let unlistenResignKey: (() => void) | null = null;
+    let cancelled = false;
+    void appListen('main_panel_did_resign_key', () => {
+      previewContextMenu = null;
+    })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlistenResignKey = fn;
+      })
+      .catch(() => {});
+
+    const handlePointerDown = (e: Event) => {
+      if (contextMenuEl && e.target instanceof Node && !contextMenuEl.contains(e.target)) {
+        previewContextMenu = null;
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        previewContextMenu = null;
+      }
+    };
+    const dismiss = () => {
+      previewContextMenu = null;
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('blur', dismiss);
+    return () => {
+      cancelled = true;
+      unlistenResignKey?.();
+      unregisterEscape();
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('blur', dismiss);
+    };
+  });
+
   onDestroy(() => {
     clearTimeout(fileThumbTimer);
+    previewContextMenu = null;
     // Blob URLs keep their data alive until revoked. Clearing the current
     // path/url also makes any load still in flight drop its result.
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -586,6 +654,97 @@
     }
   }
 
+  async function openPreviewFile(path: string, withPreview: boolean) {
+    try {
+      const options =
+        withPreview && getHostPlatform() === 'macos' ? { with: 'Preview' } : undefined;
+      await openerService.openPath(null, path, options);
+    } catch (error) {
+      logService.error(`Failed to open file ${path}: ${String(error)}`);
+      void feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: t('features.clipboard.ui.open_failed', { path }) },
+      });
+    }
+  }
+
+  function getOpenMenuLabel(isImage: boolean): string {
+    if (!isImage) return t('actions.open');
+    return getHostPlatform() === 'macos'
+      ? t('features.clipboard.ui.open_in_preview')
+      : t('features.clipboard.ui.open_image');
+  }
+
+  function getRevealMenuLabel(): string {
+    const platform = getHostPlatform();
+    if (platform === 'macos') return t('features.clipboard.ui.reveal_title');
+    if (platform === 'windows') return t('core_actions.reveal_app_win');
+    return t('core_actions.reveal_app');
+  }
+
+  async function openPreviewContextMenu(
+    e: MouseEvent,
+    item: StoredClipboardItem | null,
+    path: string,
+    isImage: boolean,
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!item || !path || path.startsWith('data:')) {
+      previewContextMenu = null;
+      return;
+    }
+    previewContextMenu = { x: e.clientX, y: e.clientY, path, isImage };
+    await tick();
+    if (!contextMenuEl || !previewContextMenu) return;
+    const rect = contextMenuEl.getBoundingClientRect();
+    const pad = 8;
+    const clampedX = Math.max(pad, Math.min(e.clientX, window.innerWidth - rect.width - pad));
+    const clampedY = Math.max(pad, Math.min(e.clientY, window.innerHeight - rect.height - pad));
+    if (clampedX !== previewContextMenu.x || clampedY !== previewContextMenu.y) {
+      previewContextMenu = { ...previewContextMenu, x: clampedX, y: clampedY };
+    }
+    contextMenuEl.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }
+
+  async function handleContextOpen() {
+    const menu = previewContextMenu;
+    if (!menu) return;
+    previewContextMenu = null;
+    await openPreviewFile(menu.path, menu.isImage);
+  }
+
+  async function handleContextReveal() {
+    const menu = previewContextMenu;
+    if (!menu) return;
+    previewContextMenu = null;
+    await revealFile(menu.path);
+  }
+
+  function handleContextMenuKeydown(e: KeyboardEvent) {
+    if (!contextMenuEl) return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const items = Array.from(contextMenuEl.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    if (items.length === 0) return;
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    let nextIndex = 0;
+    if (e.key === 'ArrowDown') {
+      nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % items.length;
+    } else if (e.key === 'ArrowUp') {
+      nextIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+    } else if (e.key === 'End') {
+      nextIndex = items.length - 1;
+    }
+    items[nextIndex]?.focus();
+  }
+
   function getWordCount(item: { type: string; content?: string }): number {
     if (!item.content) return 0;
     let text = item.content;
@@ -791,6 +950,13 @@
                       class="max-w-full max-h-full object-contain rounded-md shadow-sm border"
                       style="border-color: var(--border-color);"
                       alt={t('features.clipboard.ui.preview_alt')}
+                      oncontextmenu={(e) =>
+                        openPreviewContextMenu(
+                          e,
+                          selectedFullItem,
+                          selectedFullItem?.content ?? '',
+                          true,
+                        )}
                     />
                   {:else}
                     <div class="text-caption opacity-50">
@@ -853,6 +1019,13 @@
                         class="max-w-full object-contain rounded-md shadow-sm border file-solo-thumb"
                         style="border-color: var(--border-color);"
                         alt="Preview of {fileNameOf(filePaths[0])}"
+                        oncontextmenu={(e) =>
+                          openPreviewContextMenu(
+                            e,
+                            selectedFullItem,
+                            filePaths[0],
+                            IMAGE_EXT_RE.test(filePaths[0]),
+                          )}
                       />
                     </div>
                   {/if}
@@ -867,6 +1040,7 @@
                           class="file-row-thumb flex-shrink-0"
                           alt=""
                           aria-hidden="true"
+                          oncontextmenu={(e) => e.preventDefault()}
                         />
                       {:else}
                         <svg
@@ -1055,6 +1229,50 @@
       {/snippet}
     </SplitListDetail>
   </div>
+  {#if previewContextMenu}
+    <div
+      bind:this={contextMenuEl}
+      class="preview-context-menu launcher-popup"
+      data-no-focus-steal
+      role="menu"
+      tabindex="-1"
+      aria-label={t('actions.title')}
+      style="top: {previewContextMenu.y}px; left: {previewContextMenu.x}px;"
+      onkeydown={handleContextMenuKeydown}
+      oncontextmenu={(e) => e.preventDefault()}
+    >
+      <button type="button" class="context-menu-item" role="menuitem" onclick={handleContextOpen}>
+        <svg
+          class="w-3.5 h-3.5 flex-shrink-0 context-menu-icon"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          ><path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+          /></svg
+        >
+        <span>{getOpenMenuLabel(previewContextMenu.isImage)}</span>
+      </button>
+      <button type="button" class="context-menu-item" role="menuitem" onclick={handleContextReveal}>
+        <svg
+          class="w-3.5 h-3.5 flex-shrink-0 context-menu-icon"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          ><path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+          /></svg
+        >
+        <span>{getRevealMenuLabel()}</span>
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -1297,5 +1515,41 @@
 
   .pin-badge {
     color: var(--accent-primary);
+  }
+
+  .preview-context-menu {
+    position: fixed;
+    min-width: 180px;
+    padding: var(--space-1);
+    z-index: var(--z-portal);
+  }
+
+  .context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-xs);
+    text-align: left;
+    cursor: default;
+    transition: var(--transition-fast);
+  }
+
+  .context-menu-item:hover {
+    background: var(--bg-hover);
+  }
+
+  .context-menu-item:focus-visible {
+    box-shadow: var(--shadow-focus);
+  }
+
+  .context-menu-icon {
+    color: var(--text-secondary);
   }
 </style>
