@@ -714,9 +714,9 @@ export async function onSearchChanged(query: string): Promise<void> {
     }
 
     if (filter) {
-      await clipboardHistoryStore.search(parsed.textQuery, 200, filter);
+      await clipboardHistoryStore.search(parsed.textQuery, 50, filter);
     } else {
-      await clipboardHistoryStore.search(parsed.textQuery, 200);
+      await clipboardHistoryStore.search(parsed.textQuery, 50);
     }
   } catch (err) {
     feedbackService.report({

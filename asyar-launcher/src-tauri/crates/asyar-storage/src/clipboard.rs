@@ -72,6 +72,9 @@ pub struct ClipboardListItem {
     /// Optional user-assigned display title that overrides the raw content preview.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_title: Option<String>,
+    /// Match-centered snippet with `\u{1}` / `\u{2}` highlight delimiters when returned from search.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<String>,
 }
 
 /// Opaque pagination cursor. Comparisons use tuple semantics
@@ -721,15 +724,21 @@ pub fn search(
         .prepare(&select_one)
         .map_err(|e| AppError::Database(format!("search lookup prepare: {e}")))?;
     loop {
-        let ids = fts.search_page(trimmed, page_size, offset)?;
-        let exhausted = ids.len() < page_size;
-        offset += ids.len();
-        for id in ids {
-            row_params[0] = rusqlite::types::Value::Text(id);
-            if let Ok(item) = stmt.query_row(
+        let hits = fts.search_page(trimmed, page_size, offset)?;
+        let exhausted = hits.len() < page_size;
+        offset += hits.len();
+        for hit in hits {
+            row_params[0] = rusqlite::types::Value::Text(hit.id);
+            if let Ok(mut item) = stmt.query_row(
                 rusqlite::params_from_iter(row_params.iter()),
                 list_row_to_item_factory(master_key),
             ) {
+                let clean_snippet = hit.snippet.split_whitespace().collect::<Vec<_>>().join(" ");
+                item.snippet = if clean_snippet.is_empty() {
+                    None
+                } else {
+                    Some(clean_snippet)
+                };
                 items.push(item);
                 if items.len() >= limit {
                     break;
@@ -1183,6 +1192,7 @@ fn list_row_to_item_factory(
             source_app: source_app_str.and_then(|s| serde_json::from_str(&s).ok()),
             redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
             custom_title: decrypt_opt(raw_custom_title, master_key),
+            snippet: None,
         })
     }
 }
@@ -2870,6 +2880,24 @@ mod tests {
         let result = search(&conn, &fts, "apple", 1, &key, Some(&filter)).unwrap();
         assert_eq!(result.items.len(), 1);
         assert_eq!(&result.items[0].id, last);
+    }
+
+    #[test]
+    fn search_populates_item_snippet_with_delimiters() {
+        let (conn, fts) = setup_with_fts();
+        let key = test_key();
+        let mut item = make_item("c1", "the quick brown apple pie", false);
+        item.preview = Some("preview apple".into());
+        record_capture_with_fts(&conn, &item, None, &key, &fts, None).unwrap();
+        crate::clipboard_fts::mark_ready();
+
+        let result = search(&conn, &fts, "apple", 10, &key, None).unwrap();
+        assert_eq!(result.items.len(), 1);
+        let snippet = result.items[0].snippet.as_deref().unwrap();
+        assert!(
+            snippet.contains("\u{1}apple\u{2}"),
+            "snippet was: {snippet}"
+        );
     }
 
     #[test]

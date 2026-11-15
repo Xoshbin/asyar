@@ -883,6 +883,15 @@ html[data-platform='macos'] .app-root {
     color: var(--text-primary);
   }
 
+  mark.search-match,
+  .search-match {
+    color: var(--accent-primary);
+    background-color: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+    font-weight: 600;
+    border-radius: var(--radius-xs);
+    padding: 0 2px;
+  }
+
   .result-subtitle {
     @apply text-xs;
     color: var(--text-secondary);

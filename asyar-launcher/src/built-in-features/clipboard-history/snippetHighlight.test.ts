@@ -1,0 +1,155 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from 'vitest';
+import {
+  extractQueryTerms,
+  getItemDisplay,
+  highlightInElement,
+  parseSnippetChunks,
+} from './snippetHighlight';
+
+describe('parseSnippetChunks', () => {
+  it('returns empty array for empty, null, or undefined input', () => {
+    expect(parseSnippetChunks('')).toEqual([]);
+    expect(parseSnippetChunks(null)).toEqual([]);
+    expect(parseSnippetChunks(undefined)).toEqual([]);
+  });
+
+  it('returns a single non-matching chunk for plain text without markers', () => {
+    expect(parseSnippetChunks('hello world')).toEqual([{ text: 'hello world', match: false }]);
+  });
+
+  it('parses a single match in the middle of text', () => {
+    expect(parseSnippetChunks('hello \x01world\x02!')).toEqual([
+      { text: 'hello ', match: false },
+      { text: 'world', match: true },
+      { text: '!', match: false },
+    ]);
+  });
+
+  it('parses matches at the start and end of text', () => {
+    expect(parseSnippetChunks('\x01apple\x02 and \x01pie\x02')).toEqual([
+      { text: 'apple', match: true },
+      { text: ' and ', match: false },
+      { text: 'pie', match: true },
+    ]);
+  });
+
+  it('handles adjacent matches without producing empty chunks', () => {
+    expect(parseSnippetChunks('\x01apple\x02\x01pie\x02')).toEqual([
+      { text: 'apple', match: true },
+      { text: 'pie', match: true },
+    ]);
+  });
+
+  it('handles unclosed start marker gracefully without crashing', () => {
+    expect(parseSnippetChunks('some \x01unclosed text')).toEqual([
+      { text: 'some ', match: false },
+      { text: 'unclosed text', match: true },
+    ]);
+  });
+});
+
+describe('getItemDisplay', () => {
+  it('returns standard getItemTitle when query is empty', () => {
+    const item = { type: 'text', preview: 'original text' };
+    expect(getItemDisplay(item, '')).toEqual({
+      title: 'original text',
+      titleChunks: undefined,
+      subtitle: undefined,
+    });
+  });
+
+  it('returns highlighted snippet as title when query matches item content', () => {
+    const item = {
+      type: 'text',
+      preview: 'the beginning of a very long text',
+      snippet: '…deep \x01apple\x02 match…',
+    };
+    const display = getItemDisplay(item, 'apple');
+    expect(display.title).toBe('…deep apple match…');
+    expect(display.titleChunks).toEqual([
+      { text: '…deep ', match: false },
+      { text: 'apple', match: true },
+      { text: ' match…', match: false },
+    ]);
+    expect(display.subtitle).toBeUndefined();
+  });
+
+  it('returns customTitle as title and content snippet as subtitle when matching renamed item body', () => {
+    const item = {
+      type: 'text',
+      preview: 'secret body text',
+      customTitle: 'My Custom Note',
+      snippet: '…secret \x01code\x02 123…',
+    };
+    const display = getItemDisplay(item, 'code');
+    expect(display.title).toBe('My Custom Note');
+    expect(display.titleChunks).toBeUndefined();
+    expect(display.subtitle).toBe('…secret code 123…');
+  });
+
+  it('highlights customTitle when match occurs inside the customTitle itself', () => {
+    const item = {
+      type: 'text',
+      preview: 'some body',
+      customTitle: 'Important Document',
+      snippet: 'Important \x01Document\x02',
+    };
+    const display = getItemDisplay(item, 'Document');
+    expect(display.title).toBe('Important Document');
+    expect(display.titleChunks).toEqual([
+      { text: 'Important ', match: false },
+      { text: 'Document', match: true },
+    ]);
+    expect(display.subtitle).toBeUndefined();
+  });
+});
+
+describe('extractQueryTerms', () => {
+  it('returns empty array for empty query', () => {
+    expect(extractQueryTerms('')).toEqual([]);
+    expect(extractQueryTerms('   ')).toEqual([]);
+  });
+
+  it('extracts plain words', () => {
+    expect(extractQueryTerms('apple pie')).toEqual(['apple', 'pie']);
+  });
+
+  it('strips filter tokens like type: and app:', () => {
+    expect(extractQueryTerms('type:text app:Safari banana')).toEqual(['banana']);
+  });
+});
+
+describe('highlightInElement', () => {
+  it('wraps matching text in <mark class="search-match"> inside DOM elements', () => {
+    const div = document.createElement('div');
+    div.innerHTML = '<p>The quick brown apple jumped.</p>';
+    highlightInElement(div, 'apple');
+
+    const marks = div.querySelectorAll('mark.search-match');
+    expect(marks).toHaveLength(1);
+    expect(marks[0].textContent).toBe('apple');
+    expect(div.textContent).toBe('The quick brown apple jumped.');
+  });
+
+  it('cleans up marks when query is empty', () => {
+    const div = document.createElement('div');
+    div.innerHTML = '<p>The quick brown apple jumped.</p>';
+    highlightInElement(div, 'apple');
+    expect(div.querySelectorAll('mark.search-match')).toHaveLength(1);
+
+    highlightInElement(div, '');
+    expect(div.querySelectorAll('mark.search-match')).toHaveLength(0);
+    expect(div.textContent).toBe('The quick brown apple jumped.');
+  });
+
+  it('does not corrupt HTML elements or attributes', () => {
+    const div = document.createElement('div');
+    div.innerHTML = '<a href="https://apple.com">apple fruit</a>';
+    highlightInElement(div, 'apple');
+
+    const a = div.querySelector('a');
+    expect(a?.getAttribute('href')).toBe('https://apple.com');
+    expect(a?.querySelector('mark.search-match')?.textContent).toBe('apple');
+  });
+});

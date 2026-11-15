@@ -281,7 +281,11 @@ impl ClipboardFts {
     /// best-match first. Caller JOINs to `clipboard_items` for the row
     /// payload.
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<String>, AppError> {
-        self.search_page(query, limit, 0)
+        Ok(self
+            .search_page(query, limit, 0)?
+            .into_iter()
+            .map(|hit| hit.id)
+            .collect())
     }
 
     pub fn search_page(
@@ -289,27 +293,39 @@ impl ClipboardFts {
         query: &str,
         limit: usize,
         offset: usize,
-    ) -> Result<Vec<String>, AppError> {
+    ) -> Result<Vec<FtsHit>, AppError> {
         let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
         let sanitized = sanitize_for_fts5(&conn, query)?;
         if sanitized.is_empty() {
             return Ok(Vec::new());
         }
-        let ids: Vec<String> = conn
+        let hits: Vec<FtsHit> = conn
             .prepare(
-                "SELECT clip_id FROM fts_clipboard \
+                "SELECT clip_id, snippet(fts_clipboard, -1, char(1), char(2), '…', 12) \
+                  FROM fts_clipboard \
                   WHERE fts_clipboard MATCH ?1 \
                   ORDER BY bm25(fts_clipboard), rowid LIMIT ?2 OFFSET ?3",
             )
             .map_err(|e| AppError::Database(format!("FTS search prepare: {e}")))?
             .query_map(params![sanitized, limit as i64, offset as i64], |row| {
-                row.get::<_, String>(0)
+                Ok(FtsHit {
+                    id: row.get(0)?,
+                    snippet: row.get(1)?,
+                })
             })
             .map_err(|e| AppError::Database(format!("FTS search query: {e}")))?
             .filter_map(|r| r.ok())
             .collect();
-        Ok(ids)
+        Ok(hits)
     }
+}
+
+/// A matched search hit from the in-memory FTS index containing the
+/// clipboard id and a tokenized match snippet with `\u{1}` / `\u{2}` markers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FtsHit {
+    pub id: String,
+    pub snippet: String,
 }
 
 /// Turn a free-form user query into an FTS5 MATCH expression that does
@@ -558,6 +574,44 @@ mod tests {
 
         let hits = fts.search("agents", 10).unwrap();
         assert_eq!(hits, vec!["cmd-1".to_string()]);
+    }
+
+    #[test]
+    fn search_page_returns_snippets_with_delimiters() {
+        let fts = ClipboardFts::new_in_memory().unwrap();
+        fts.upsert("id-1", None, Some("the quick brown apple pie is tasty"))
+            .unwrap();
+
+        let hits = fts.search_page("apple", 10, 0).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "id-1");
+        assert!(
+            hits[0].snippet.contains("\u{1}apple\u{2}"),
+            "snippet was: {}",
+            hits[0].snippet
+        );
+    }
+
+    #[test]
+    fn search_page_snippet_centers_on_deep_match() {
+        let fts = ClipboardFts::new_in_memory().unwrap();
+        let prefix = "word ".repeat(100);
+        let body = format!("{prefix}deep secret treasure and more words");
+        fts.upsert("id-1", None, Some(&body)).unwrap();
+
+        let hits = fts.search_page("treasure", 10, 0).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "id-1");
+        assert!(
+            hits[0].snippet.contains("\u{1}treasure\u{2}"),
+            "snippet was: {}",
+            hits[0].snippet
+        );
+        assert!(
+            hits[0].snippet.contains('…'),
+            "expected ellipsis in deep match: {}",
+            hits[0].snippet
+        );
     }
 }
 

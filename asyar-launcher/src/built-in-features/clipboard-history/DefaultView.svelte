@@ -41,6 +41,7 @@
     buildClipboardAccessoryState,
     parseClipboardSearchQuery,
   } from './queryFilterParser';
+  import { getItemDisplay, highlightInElement } from './snippetHighlight';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
   import { t } from '../../services/i18n';
@@ -186,10 +187,17 @@
   // Keep the searchbar accessory dropdown (options, checkmarks, and
   // summary label) synchronized with the search query and known source
   // apps without triggering persistence writes or broadcast feedback loops.
+  let lastSyncedFilter = '';
+  let lastSyncedButtonTitle: string | undefined = undefined;
   $effect(() => {
     const parsed = clipboardViewState.parsedQuery;
     const sourceApps = clipboardHistoryStore.sourceApps ?? [];
     const acc = buildClipboardAccessoryState(parsed, sourceApps, t);
+    if (acc.buttonTitle === lastSyncedButtonTitle && parsed.typeFilter === lastSyncedFilter) {
+      return;
+    }
+    lastSyncedFilter = parsed.typeFilter;
+    lastSyncedButtonTitle = acc.buttonTitle;
     searchBarAccessoryService.syncViewState?.({
       extensionId: 'clipboard-history',
       commandId: 'show-clipboard',
@@ -242,8 +250,24 @@
   });
 
   // Mirror the search query into the store's search so FTS is used.
+  // Debounced: typing quickly coalesces into a single backend search
+  // after the user pauses for 150ms, avoiding queuing multiple expensive
+  // FTS matches and decryptions across intermediate keystrokes.
+  // In-flight searches from previous keystrokes are immediately dropped
+  // via cancelPendingSearch so stale results never flash or stutter the UI.
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    void onSearchChanged(clipboardViewState.searchQuery);
+    const q = clipboardViewState.searchQuery;
+    clearTimeout(searchDebounceTimer);
+    clipboardHistoryStore.cancelPendingSearch?.();
+    if (!q.trim()) {
+      void onSearchChanged(q);
+      return;
+    }
+    searchDebounceTimer = setTimeout(() => {
+      void onSearchChanged(q);
+    }, 150);
+    return () => clearTimeout(searchDebounceTimer);
   });
 
   // Re-run the current search when the FTS index becomes ready.
@@ -280,6 +304,42 @@
     if (detailEl) {
       tick().then(() => renderMermaidDiagrams(detailEl!));
     }
+  });
+
+  // Highlight search terms in the detail body preview
+  let lastHighlightedItem: string | null = null;
+  let highlightTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const item = selectedFullItem;
+    const _rendered = showRenderedHtml;
+    const query = clipboardViewState.searchQuery;
+    const itemId = item?.id ?? null;
+
+    clearTimeout(highlightTimer);
+    if (!detailEl) return;
+
+    if (!query.trim()) {
+      highlightInElement(detailEl, '');
+      lastHighlightedItem = itemId;
+      return;
+    }
+
+    // When a newly selected clip loads, highlight its terms immediately.
+    // When only the search query is changing while viewing the same clip,
+    // debounce so rapid keystrokes don't repeatedly traverse/mutate the DOM.
+    const isNewItem = itemId !== lastHighlightedItem;
+    if (isNewItem) {
+      lastHighlightedItem = itemId;
+      tick().then(() => {
+        if (detailEl) highlightInElement(detailEl, query);
+      });
+    } else {
+      highlightTimer = setTimeout(() => {
+        if (detailEl) highlightInElement(detailEl, query);
+      }, 100);
+    }
+
+    return () => clearTimeout(highlightTimer);
   });
 
   // Load image via readFile when an image item is selected
@@ -842,16 +902,16 @@
         {#if showDayHeader && sectionLabel}
           <div class="list-section">{sectionLabel}</div>
         {/if}
+        {@const display = getItemDisplay(item)}
         <LauncherListRow
           data-index={index}
           selected={selectedIndex === index}
           multiSelected={clipboardViewState.isMultiSelected(item.id)}
           onclick={(e: MouseEvent) => handleRowClick(e, item.id)}
           ondblclick={() => pasteItemById(item.id)}
-          title={getItemTitle(item)}
-          subtitle={clipboardViewState.searchQuery && 'score' in item
-            ? `Match: ${Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%`
-            : undefined}
+          title={display.title}
+          titleChunks={display.titleChunks}
+          subtitle={display.subtitle}
         >
           {#snippet leading()}
             <div class="mr-1 flex-shrink-0 relative flex items-center justify-center opacity-60">

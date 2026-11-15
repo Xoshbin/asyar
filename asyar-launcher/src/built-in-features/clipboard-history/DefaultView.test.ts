@@ -80,6 +80,7 @@ vi.mock('../../services/clipboard/stores/clipboardHistoryStore.svelte', () => ({
     loadOlder: vi.fn().mockResolvedValue(undefined),
     search: vi.fn().mockResolvedValue(undefined),
     clearSearch: vi.fn(),
+    cancelPendingSearch: vi.fn(),
     subscribe: vi.fn(() => () => {}),
     fetchFullItem: (id: string) => mockFetchFullItem(id),
     deleteHistoryItem: vi.fn().mockResolvedValue({ imageContentPath: undefined }),
@@ -264,6 +265,46 @@ describe('DefaultView image preview', () => {
     expect(pinBadge).toBeTruthy();
     expect(pinBadge.getAttribute('aria-label')).toBeTruthy();
     unmount();
+  });
+
+  it('renders highlighted search terms in rows when searching', async () => {
+    clipboardViewState.searchQuery = 'apple';
+    clipboardHistoryStore.searchResults = [
+      {
+        id: 's1',
+        type: 'text',
+        preview: 'the quick brown apple pie',
+        snippet: 'the quick brown \x01apple\x02 pie',
+        favorite: false,
+        createdAt: 100,
+      } as any,
+    ];
+    const { container, unmount } = render(DefaultView);
+    await flush();
+
+    const matchEl = container.querySelector('.search-match');
+    expect(matchEl).not.toBeNull();
+    expect(matchEl?.textContent).toBe('apple');
+
+    unmount();
+    clipboardViewState.searchQuery = '';
+    clipboardHistoryStore.searchResults = null;
+  });
+
+  it('highlights search terms in the detail body preview', async () => {
+    clipboardViewState.searchQuery = 'hello';
+    const { container, unmount } = render(DefaultView);
+    await flush();
+    await select('text');
+    await flush();
+
+    const detailContent = container.querySelector('.clip-detail-content');
+    const marks = detailContent?.querySelectorAll('mark.search-match');
+    expect(marks?.length).toBeGreaterThan(0);
+    expect(marks?.[0].textContent).toBe('hello');
+
+    unmount();
+    clipboardViewState.searchQuery = '';
   });
 
   it('renders metadata list for selected clipboard item', async () => {

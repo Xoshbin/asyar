@@ -59,4 +59,8 @@ export interface ClipboardHistoryItem {
    * Optional user-assigned display title that overrides the raw content preview.
    */
   customTitle?: string;
+  /**
+   * Optional match-centered snippet with highlight delimiters when returned from search.
+   */
+  snippet?: string;
 }

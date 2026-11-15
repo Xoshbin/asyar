@@ -991,7 +991,7 @@ describe('search token filtering and onSearchChanged', () => {
   it('uses search with stripped text query and SQL filter when both are present', async () => {
     await onSearchChanged('app:Safari hello world');
 
-    expect(clipboardHistoryStore.search).toHaveBeenCalledWith('hello world', 200, {
+    expect(clipboardHistoryStore.search).toHaveBeenCalledWith('hello world', 50, {
       sourceApp: 'Safari',
     });
   });
