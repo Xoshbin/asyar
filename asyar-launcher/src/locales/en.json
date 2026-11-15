@@ -1067,6 +1067,8 @@
         "clear_history_desc": "Remove all non-favorite clipboard items",
         "copy_text_from_image": "Copy Text from Image",
         "copy_text_from_image_desc": "Extract and copy text from this image to clipboard",
+        "rename": "Rename Entry...",
+        "rename_desc": "Set a custom display title for this clipboard item",
         "open_preview_desc": "Open this image or file in the default viewer",
         "reveal_desc": "Show this file in the system file manager"
       },
@@ -1099,6 +1101,9 @@
         "words": "Words",
         "dimensions": "Dimensions",
         "size": "Size",
+        "rename_title": "Rename Entry...",
+        "rename_placeholder": "Enter custom title...",
+        "custom_title": "Custom Title",
         "copied": "Copied"
       }
     },

@@ -5,8 +5,12 @@
   import { windowManagementService } from '../../services/windowManagement/windowManagementService';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
-  import { viewManager } from '../../services/extension/viewManager.svelte';
-  import { applyCustomLayout, deleteLayout, syncLayoutToIndex } from './layoutLifecycle';
+  import {
+    applyCustomLayout,
+    deleteLayout,
+    renameLayout,
+    syncLayoutToIndex,
+  } from './layoutLifecycle';
   import type { IStorageService } from 'asyar-sdk/contracts';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
@@ -52,7 +56,27 @@
     const layout = layouts.find((l) => l.id === id);
     if (!layout) return;
     windowManagementState.startRename(id);
-    viewManager.navigateToView('window-management/RenameLayoutView', { searchable: false });
+    actionService.openPrompt({
+      title: t('features.window_management.rename_layout_title'),
+      value: layout.name,
+      placeholder: t('features.window_management.rename_layout_placeholder'),
+      contextLabel: t('features.window_management.title'),
+      icon: 'window',
+      onsave: async (newName) => {
+        try {
+          const trimmed = newName.trim();
+          if (trimmed) {
+            await renameLayout(id, trimmed, store ?? windowManagementState.store ?? undefined);
+            await feedbackService.showHUD(`Renamed to "${trimmed}"`);
+          }
+        } finally {
+          windowManagementState.clearRename();
+        }
+      },
+      oncancel: () => {
+        windowManagementState.clearRename();
+      },
+    });
   }
 
   async function handleDelete(id: string) {
@@ -103,8 +127,8 @@
     actionService.registerAction({
       id: 'window-management:rename-layout',
       title: t('features.window_management.ui.rename_title', { name }),
-      icon: 'icon:edit',
-      shortcut: 'Mod+R',
+      icon: 'icon:pencil',
+      shortcut: 'Mod+Shift+E',
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,
@@ -132,6 +156,7 @@
   });
 
   onDestroy(() => {
+    windowManagementState.clearRename();
     actionService.unregisterAction('window-management:save-current-window');
     actionService.unregisterAction('window-management:apply-layout');
     actionService.unregisterAction('window-management:rename-layout');

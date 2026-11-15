@@ -100,6 +100,7 @@ Built-in features declare Raycast-aligned shortcuts while their view is active. 
 | `⌃⌘↵` (`Ctrl+Shift+↵` Win/Ln) | Paste as plain text                        |
 | `⌘↑` / `⌘↓`                   | Extend selection for merged paste          |
 | `⌘.`                          | Pin / Unpin the selected item              |
+| `⇧⌘E` (`Ctrl+Shift+E` Win/Ln) | Rename selected item                       |
 | `⌘O`                          | Open URL item in browser                   |
 | `⌘S`                          | Save text item as snippet                  |
 | `⌘I`                          | Ask AI about selected text                 |
@@ -121,15 +122,15 @@ Built-in features declare Raycast-aligned shortcuts while their view is active. 
 
 **Window Management**
 
-| Shortcut | What it does                                    |
-| -------- | ----------------------------------------------- |
-| `↵`      | Switch to selected window / Apply saved layout  |
-| `⌘W`     | Close the selected window                       |
-| `⌘⇧C`    | Copy the window title                           |
-| `⌘N`     | Save the current window layout (Manage Layouts) |
-| `⌘R`     | Rename the selected layout                      |
-| `⌃X`     | Delete the selected layout (with confirmation)  |
-| `⌘K`     | Open actions for the selected window or layout  |
+| Shortcut                      | What it does                                    |
+| ----------------------------- | ----------------------------------------------- |
+| `↵`                           | Switch to selected window / Apply saved layout  |
+| `⌘W`                          | Close the selected window                       |
+| `⌘⇧C`                         | Copy the window title                           |
+| `⌘N`                          | Save the current window layout (Manage Layouts) |
+| `⇧⌘E` (`Ctrl+Shift+E` Win/Ln) | Rename the selected layout                      |
+| `⌃X`                          | Delete the selected layout (with confirmation)  |
+| `⌘K`                          | Open actions for the selected window or layout  |
 
 **File Search**
 

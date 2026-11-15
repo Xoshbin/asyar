@@ -113,6 +113,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'clipboard:toggleItemFavorite': ['itemId'],
   'clipboard:deleteItem': ['itemId'],
   'clipboard:clearNonFavorites': [],
+  'clipboard:setItemCustomTitle': ['itemId', 'title'],
   'clipboard:readCurrentText': [],
   'clipboard:stripHtml': ['html'],
   'clipboard:stripRtf': ['rtf'],

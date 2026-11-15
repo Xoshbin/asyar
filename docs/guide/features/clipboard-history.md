@@ -55,6 +55,7 @@ When browsing without search words, filters run against your local SQLite histor
 | Copy to Clipboard               | `⌘↵` (`Ctrl+↵`)        |
 | Paste as Plain Text             | `⌃⌘↵` (`Ctrl+Shift+↵`) |
 | Pin / Unpin (Toggle Favorite)   | `⌘.` (`Ctrl+.`)        |
+| Rename Entry                    | `⇧⌘E` (`Ctrl+Shift+E`) |
 | Open in Browser (URL items)     | `⌘O` (`Ctrl+O`)        |
 | Save as Snippet                 | `⌘S` (`Ctrl+S`)        |
 | Ask AI about this               | `⌘I` (`Ctrl+I`)        |
@@ -71,6 +72,7 @@ When browsing without search words, filters run against your local SQLite histor
 - **Copy to Clipboard** (`⌘↵`) — copies the selected item back to your system clipboard.
 - **Paste as Plain Text** (`⌃⌘↵` / `Ctrl+Shift+↵`) — strips formatting before pasting.
 - **Pin / Unpin** (`⌘.`) — pins or unpins the selected item. Favourites are never deleted by "Clear Clipboard History".
+- **Rename Entry** (`⇧⌘E` / `Ctrl+Shift+E`) — sets a custom display title for the selected item. Custom titles appear in the list and detail preview, are indexed for full-text search, and leave the underlying raw content intact for pasting. To reset to the original preview title, save an empty name.
 - **Toggle HTML Rendered / Source** — switches the detail pane between rendered HTML and raw source (useful for HTML or RTF items).
 - **Open in Browser** (`⌘O`) — opens a selected URL item in your default browser.
 - **Save as Snippet** (`⌘S`) — sends the selected text item directly to the Snippets editor so you can give it a keyword.

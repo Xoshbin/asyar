@@ -725,6 +725,25 @@ describe('launcherKeyboard characterization tests', () => {
         handleGlobalKeydown(e2);
         expect(accessoryRef.togglePopover).toHaveBeenCalledTimes(2);
       });
+
+      it('bails early for navigation keys when an .action-prompt-popover is present in the DOM', () => {
+        (document as any).querySelector = (selector: string) =>
+          selector === '.action-prompt-popover' ? ({} as Element) : null;
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+        try {
+          const escEvent = createKeyEvent('Escape');
+          handleGlobalKeydown(escEvent);
+          expect(escEvent.preventDefault).not.toHaveBeenCalled();
+
+          const enterEvent = createKeyEvent('Enter');
+          handleGlobalKeydown(enterEvent);
+          expect(enterEvent.preventDefault).not.toHaveBeenCalled();
+        } finally {
+          (document as any).querySelector = () => null;
+        }
+      });
     });
 
     describe('Cmd/Ctrl+, Open Settings', () => {

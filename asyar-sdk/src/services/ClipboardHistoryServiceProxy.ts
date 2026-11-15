@@ -73,6 +73,10 @@ export class ClipboardHistoryServiceProxy
     return this.broker.invoke<boolean>('clipboard:clearNonFavorites');
   }
 
+  setItemCustomTitle(itemId: string, title?: string | null): Promise<boolean> {
+    return this.broker.invoke<boolean>('clipboard:setItemCustomTitle', { itemId, title });
+  }
+
   normalizeImageData(content: string): string {
     if (content.startsWith('data:image')) return content;
     return `data:image/png;base64,${content}`;

@@ -1067,6 +1067,8 @@
         "clear_history_desc": "移除所有非收藏的剪贴板项目",
         "copy_text_from_image": "从图像复制文本",
         "copy_text_from_image_desc": "提取此图像中的文本并复制到剪贴板",
+        "rename": "重命名条目...",
+        "rename_desc": "为此剪贴板项目设置自定义显示标题",
         "open_preview_desc": "在默认查看器中打开此图像或文件",
         "reveal_desc": "在系统文件管理器中显示此文件"
       },
@@ -1099,6 +1101,9 @@
         "words": "字数",
         "dimensions": "尺寸",
         "size": "大小",
+        "rename_title": "重命名条目...",
+        "rename_placeholder": "输入自定义标题...",
+        "custom_title": "自定义标题",
         "copied": "已复制"
       }
     },

@@ -46,6 +46,9 @@ pub struct ClipboardItem {
     /// alphanumeric+underscore so no escaping is required.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub redacted_kinds: Option<Vec<String>>,
+    /// Optional user-assigned display title that overrides the raw content preview.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_title: Option<String>,
 }
 
 /// Hot-path list payload — decrypts `preview` only, never `content`.
@@ -66,6 +69,9 @@ pub struct ClipboardListItem {
     pub source_app: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub redacted_kinds: Option<Vec<String>>,
+    /// Optional user-assigned display title that overrides the raw content preview.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_title: Option<String>,
 }
 
 /// Opaque pagination cursor. Comparisons use tuple semantics
@@ -143,6 +149,7 @@ pub struct CaptureResult {
     pub inserted_id: String,
     pub replaced_id: Option<String>,
     pub favorite: bool,
+    pub custom_title: Option<String>,
     pub evicted_ids: Vec<String>,
 }
 
@@ -351,6 +358,24 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::Database(format!("Failed to create idx_clipboard_hash: {e}")))?;
 
+    // Migration: add custom_title column if it doesn't exist yet.
+    let custom_title_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('clipboard_items') WHERE name='custom_title'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !custom_title_exists {
+        conn.execute(
+            "ALTER TABLE clipboard_items ADD COLUMN custom_title TEXT",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to add custom_title column: {e}")))?;
+    }
+
     Ok(())
 }
 
@@ -367,17 +392,19 @@ pub fn add_item(
         content: Option<String>,
         preview: Option<String>,
         content_hash: Option<Vec<u8>>,
+        custom_title: Option<String>,
     }
 
     let existing: Option<ExistingRow> = conn
         .query_row(
-            "SELECT content, preview, content_hash FROM clipboard_items WHERE id = ?1",
+            "SELECT content, preview, content_hash, custom_title FROM clipboard_items WHERE id = ?1",
             params![item.id],
             |r| {
                 Ok(ExistingRow {
                     content: r.get(0)?,
                     preview: r.get(1)?,
                     content_hash: r.get(2)?,
+                    custom_title: r.get(3)?,
                 })
             },
         )
@@ -390,6 +417,10 @@ pub fn add_item(
     let encrypted_preview = match item.preview.as_deref() {
         Some(p) if !p.is_empty() => encrypt_opt(Some(p), master_key)?,
         _ => existing.as_ref().and_then(|e| e.preview.clone()),
+    };
+    let encrypted_custom_title = match item.custom_title.as_deref() {
+        Some(t) if !t.is_empty() => encrypt_opt(Some(t), master_key)?,
+        _ => existing.as_ref().and_then(|e| e.custom_title.clone()),
     };
     let content_hash = if item
         .content
@@ -404,8 +435,8 @@ pub fn add_item(
 
     conn.execute(
         "INSERT OR REPLACE INTO clipboard_items
-            (id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds, content_hash)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            (id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds, content_hash, custom_title)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             item.id,
             item.item_type,
@@ -417,6 +448,7 @@ pub fn add_item(
             item.source_app.as_ref().map(|m| serde_json::to_string(m).unwrap_or_default()),
             encode_redacted_kinds(&item.redacted_kinds),
             content_hash,
+            encrypted_custom_title,
         ],
     )
     .map_err(|e| AppError::Database(format!("Failed to add clipboard item: {e}")))?;
@@ -431,7 +463,7 @@ pub fn add_item(
 pub fn get_all(conn: &Connection, master_key: &[u8; 32]) -> Result<Vec<ClipboardItem>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds
+            "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds, custom_title
              FROM clipboard_items
              ORDER BY created_at DESC",
         )
@@ -454,7 +486,7 @@ pub fn get_recent(
     limit: usize,
     master_key: &[u8; 32],
 ) -> Result<Vec<ClipboardItem>, AppError> {
-    let select_cols = "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds";
+    let select_cols = "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds, custom_title";
 
     // Favorites — all of them, newest first.
     let mut fav_stmt = conn
@@ -762,7 +794,7 @@ pub fn export_for_sync(
 ) -> Result<ExportPage, AppError> {
     let probe_limit = (limit as i64).saturating_add(1);
     let select = "SELECT id, item_type, content, preview, created_at, favorite, \
-                         metadata, source_app, redacted_kinds FROM clipboard_items";
+                         metadata, source_app, redacted_kinds, custom_title FROM clipboard_items";
 
     let mut probe: Vec<ClipboardItem> = match cursor {
         Some(c) => conn
@@ -817,7 +849,7 @@ pub fn get_item(
 ) -> Result<Option<ClipboardItem>, AppError> {
     let result = conn.query_row(
         "SELECT id, item_type, content, preview, created_at, favorite,
-                metadata, source_app, redacted_kinds
+                metadata, source_app, redacted_kinds, custom_title
            FROM clipboard_items WHERE id = ?1",
         params![id],
         row_to_item_factory(master_key),
@@ -906,6 +938,49 @@ pub fn toggle_favorite(conn: &Connection, id: &str) -> Result<bool, AppError> {
         .map_err(|e| AppError::Database(format!("Failed to read favorite: {e}")))?;
 
     Ok(new_val)
+}
+
+/// Set a custom display title for an item, or remove it if `title` is `None` or empty.
+/// Encrypted under `master_key` at rest.
+pub fn set_custom_title(
+    conn: &Connection,
+    id: &str,
+    title: Option<&str>,
+    master_key: &[u8; 32],
+) -> Result<(), AppError> {
+    let encrypted = match title.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(t) => encrypt_opt(Some(t), master_key)?,
+        None => None,
+    };
+    conn.execute(
+        "UPDATE clipboard_items SET custom_title = ?1 WHERE id = ?2",
+        params![encrypted, id],
+    )
+    .map_err(|e| AppError::Database(format!("Failed to set custom title: {e}")))?;
+    Ok(())
+}
+
+/// FTS-aware wrapper for `set_custom_title`.
+pub fn set_custom_title_with_fts(
+    conn: &Connection,
+    id: &str,
+    title: Option<&str>,
+    master_key: &[u8; 32],
+    fts: &ClipboardFts,
+) -> Result<(), AppError> {
+    set_custom_title(conn, id, title, master_key)?;
+    if let Some(item) = get_item(conn, id, master_key)? {
+        let source_app_text =
+            crate::clipboard_fts::extract_source_app_text(item.source_app.as_ref());
+        fts.upsert_full(
+            &item.id,
+            item.preview.as_deref(),
+            item.content.as_deref(),
+            Some(&source_app_text),
+            item.custom_title.as_deref(),
+        )?;
+    }
+    Ok(())
 }
 
 /// Tombstone the item in the cloud-sync journal then hard-delete it from
@@ -1060,7 +1135,7 @@ pub fn cleanup(
 /// decrypt-and-deserialise logic lives in one place. SELECT must project
 /// columns in this exact order:
 ///   id, item_type, content, preview, created_at, favorite,
-///   metadata, source_app, redacted_kinds
+///   metadata, source_app, redacted_kinds, custom_title
 fn row_to_item_factory(
     master_key: &[u8; 32],
 ) -> impl Fn(&rusqlite::Row<'_>) -> rusqlite::Result<ClipboardItem> + '_ {
@@ -1070,6 +1145,7 @@ fn row_to_item_factory(
         let redacted_kinds_str: Option<String> = row.get(8)?;
         let raw_content: Option<String> = row.get(2)?;
         let raw_preview: Option<String> = row.get(3)?;
+        let raw_custom_title: Option<String> = row.get(9)?;
         Ok(ClipboardItem {
             id: row.get(0)?,
             item_type: row.get(1)?,
@@ -1080,13 +1156,14 @@ fn row_to_item_factory(
             metadata: metadata_str.and_then(|s| serde_json::from_str(&s).ok()),
             source_app: source_app_str.and_then(|s| serde_json::from_str(&s).ok()),
             redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
+            custom_title: decrypt_opt(raw_custom_title, master_key),
         })
     }
 }
 
 /// Row → ClipboardListItem mapper. SELECT must project columns in this exact order:
 ///   id, item_type, preview, created_at, favorite,
-///   metadata, source_app, redacted_kinds
+///   metadata, source_app, redacted_kinds, custom_title
 fn list_row_to_item_factory(
     master_key: &[u8; 32],
 ) -> impl Fn(&rusqlite::Row<'_>) -> rusqlite::Result<ClipboardListItem> + '_ {
@@ -1095,6 +1172,7 @@ fn list_row_to_item_factory(
         let source_app_str: Option<String> = row.get(6)?;
         let redacted_kinds_str: Option<String> = row.get(7)?;
         let raw_preview: Option<String> = row.get(2)?;
+        let raw_custom_title: Option<String> = row.get(8)?;
         Ok(ClipboardListItem {
             id: row.get(0)?,
             item_type: row.get(1)?,
@@ -1104,6 +1182,7 @@ fn list_row_to_item_factory(
             metadata: metadata_str.and_then(|s| serde_json::from_str(&s).ok()),
             source_app: source_app_str.and_then(|s| serde_json::from_str(&s).ok()),
             redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
+            custom_title: decrypt_opt(raw_custom_title, master_key),
         })
     }
 }
@@ -1129,7 +1208,7 @@ pub fn find_duplicate(
         // file path, not free text, and content_hash is NULL for image rows.
         let result = conn.query_row(
             "SELECT id, item_type, content, preview, created_at, favorite,
-                    metadata, source_app, redacted_kinds
+                    metadata, source_app, redacted_kinds, custom_title
                FROM clipboard_items WHERE item_type = ?1 AND id = ?2",
             params![item_type, id],
             row_to_item_factory(master_key),
@@ -1150,7 +1229,7 @@ pub fn find_duplicate(
 
     let result = conn.query_row(
         "SELECT id, item_type, content, preview, created_at, favorite,
-                metadata, source_app, redacted_kinds
+                metadata, source_app, redacted_kinds, custom_title
            FROM clipboard_items
           WHERE item_type = ?1 AND content_hash = ?2
           LIMIT 1",
@@ -1175,9 +1254,9 @@ const MAX_HISTORY_ITEMS: usize = 50_000;
 /// Shared SELECT column list for `ClipboardListItem` queries. Columns must
 /// match the index expectations of `list_row_to_item_factory` exactly:
 ///   0=id, 1=item_type, 2=preview, 3=created_at, 4=favorite,
-///   5=metadata, 6=source_app, 7=redacted_kinds
+///   5=metadata, 6=source_app, 7=redacted_kinds, 8=custom_title
 const LIST_SELECT_COLS: &str =
-    "SELECT id, item_type, preview, created_at, favorite, metadata, source_app, redacted_kinds";
+    "SELECT id, item_type, preview, created_at, favorite, metadata, source_app, redacted_kinds, custom_title";
 
 /// Atomically record a new clipboard capture:
 pub type IconResolver<'a> = &'a dyn Fn(&str, &Path) -> Option<String>;
@@ -1223,6 +1302,9 @@ pub fn record_capture(
         if dup.favorite {
             new_item.favorite = true;
         }
+        if new_item.custom_title.is_none() && dup.custom_title.is_some() {
+            new_item.custom_title = dup.custom_title;
+        }
         // We discard the returned DeleteResult here — the captured item
         // is the same one being re-inserted, so its image path (if any)
         // remains valid.
@@ -1237,6 +1319,7 @@ pub fn record_capture(
         inserted_id: new_item.id,
         replaced_id,
         favorite: new_item.favorite,
+        custom_title: new_item.custom_title,
         evicted_ids,
     })
 }
@@ -1260,11 +1343,12 @@ pub fn record_capture_with_fts(
     }
     // New row is in the DB now — index it.
     let source_app_text = crate::clipboard_fts::extract_source_app_text(item.source_app.as_ref());
-    fts.upsert_with_source_app(
+    fts.upsert_full(
         &res.inserted_id,
         item.preview.as_deref(),
         item.content.as_deref(),
         Some(&source_app_text),
+        res.custom_title.as_deref(),
     )?;
     // Evicted ids from cleanup must come out of FTS too.
     fts.delete_many(&res.evicted_ids)?;
@@ -1308,11 +1392,12 @@ pub fn apply_synced_item_with_fts(
     if applied {
         let source_app_text =
             crate::clipboard_fts::extract_source_app_text(item.source_app.as_ref());
-        fts.upsert_with_source_app(
+        fts.upsert_full(
             &item.id,
             item.preview.as_deref(),
             item.content.as_deref(),
             Some(&source_app_text),
+            item.custom_title.as_deref(),
         )?;
     }
     Ok(applied)
@@ -1463,6 +1548,7 @@ mod tests {
             metadata: None,
             source_app: None,
             redacted_kinds: None,
+            custom_title: None,
         }
     }
 
@@ -1492,6 +1578,44 @@ mod tests {
         let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1);
         assert!(items[0].redacted_kinds.is_none());
+    }
+
+    #[test]
+    fn test_set_custom_title_encrypted_and_round_trip() {
+        let conn = setup();
+        let key = test_key();
+        let item = make_item("1", "cd ~/projects && grok", false);
+        add_item(&conn, &item, &key).unwrap();
+
+        // 1. Set custom title
+        set_custom_title(&conn, "1", Some("💠 AGENTS 💠"), &key).unwrap();
+
+        // 2. Verify stored in SQLite is encrypted
+        let raw_title: String = conn
+            .query_row(
+                "SELECT custom_title FROM clipboard_items WHERE id = '1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_ne!(raw_title, "💠 AGENTS 💠");
+        assert!(cipher::is_encrypted_value(&raw_title));
+
+        // 3. Verify get_item returns decrypted custom_title
+        let fetched = get_item(&conn, "1", &key).unwrap().unwrap();
+        assert_eq!(fetched.custom_title.as_deref(), Some("💠 AGENTS 💠"));
+
+        // 4. Verify list_initial returns decrypted custom_title in ClipboardListItem
+        let initial = list_initial(&conn, 10, &key, None).unwrap();
+        assert_eq!(
+            initial.recent[0].custom_title.as_deref(),
+            Some("💠 AGENTS 💠")
+        );
+
+        // 5. Clearing title sets it back to None
+        set_custom_title(&conn, "1", Some("   "), &key).unwrap();
+        let cleared = get_item(&conn, "1", &key).unwrap().unwrap();
+        assert!(cleared.custom_title.is_none());
     }
 
     #[test]
@@ -1884,6 +2008,7 @@ mod tests {
             metadata: None,
             source_app: None,
             redacted_kinds: None,
+            custom_title: None,
         };
         add_item(&conn, &empty_item, &key).unwrap();
 
@@ -2366,7 +2491,7 @@ mod tests {
         let row: ClipboardListItem = conn
             .query_row(
                 "SELECT id, item_type, preview, created_at, favorite,
-                        metadata, source_app, redacted_kinds
+                        metadata, source_app, redacted_kinds, custom_title
                    FROM clipboard_items WHERE id = '1'",
                 [],
                 list_row_to_item_factory(&key),

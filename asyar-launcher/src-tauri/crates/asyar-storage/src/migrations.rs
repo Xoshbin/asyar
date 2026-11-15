@@ -80,6 +80,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "runs_history_quiet_success",
         up: migration_11_runs_history_quiet_success,
     },
+    Migration {
+        version: 12,
+        name: "clipboard_custom_title",
+        up: migration_12_clipboard_custom_title,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -313,6 +318,30 @@ fn migration_11_runs_history_quiet_success(conn: &Connection) -> Result<(), AppE
             [],
         )
         .map_err(|e| AppError::Database(format!("Failed to add quiet_success column: {e}")))?;
+    }
+    Ok(())
+}
+
+/// Adds `clipboard_items.custom_title` (#1009). The column was first patched into
+/// `clipboard::init_table`, which only baseline calls, so every database
+/// already stamped past v1 never received it. Guarded because fresh and v0
+/// databases get it from baseline's `CREATE TABLE`.
+fn migration_12_clipboard_custom_title(conn: &Connection) -> Result<(), AppError> {
+    let exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('clipboard_items') WHERE name='custom_title'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !exists {
+        conn.execute(
+            "ALTER TABLE clipboard_items ADD COLUMN custom_title TEXT",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to add custom_title column: {e}")))?;
     }
     Ok(())
 }
@@ -681,6 +710,28 @@ mod tests {
             )
             .unwrap();
         assert_eq!(quiet, 0, "existing runs must stay loud");
+    }
+
+    #[test]
+    fn stamped_db_without_clipboard_custom_title_gets_the_column() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..11]).unwrap();
+        assert_eq!(user_version(&conn), 11);
+        // Simulate an install stamped past baseline whose clipboard_items predates
+        // `custom_title` — baseline's `init_table` never replays for it.
+        conn.execute_batch(
+            "ALTER TABLE clipboard_items DROP COLUMN custom_title;
+             INSERT INTO clipboard_items
+                 (id, item_type, content, preview, created_at, favorite)
+                 VALUES ('c1', 'text', 'enc_content', 'enc_preview', 1000.0, 0);",
+        )
+        .unwrap();
+        assert!(!column_names(&conn, "clipboard_items").contains(&"custom_title".to_string()));
+
+        run(&conn).unwrap();
+
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
+        assert!(column_names(&conn, "clipboard_items").contains(&"custom_title".to_string()));
     }
 
     #[test]

@@ -33,6 +33,7 @@ interface IClipboardHistoryService {
 
   // Manage history (requires clipboard-history:manage)
   toggleItemFavorite(itemId: string): Promise<boolean>;
+  setItemCustomTitle(itemId: string, customTitle?: string | null): Promise<boolean>;
   deleteItem(itemId: string): Promise<boolean>;
   clearNonFavorites(): Promise<boolean>;
 
@@ -87,6 +88,7 @@ interface ClipboardHistoryItem {
   favorite: boolean;
   metadata?: ClipboardItemMetadata;
   sourceApp?: ClipboardSourceApp;
+  customTitle?: string;
 }
 ```
 

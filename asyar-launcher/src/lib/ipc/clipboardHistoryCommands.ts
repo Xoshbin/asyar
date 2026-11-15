@@ -15,6 +15,7 @@ export interface StoredClipboardItem {
   metadata?: Record<string, unknown>;
   sourceApp?: Record<string, unknown>;
   redactedKinds?: string[];
+  customTitle?: string;
 }
 
 export interface StoredClipboardListItem {
@@ -26,6 +27,7 @@ export interface StoredClipboardListItem {
   metadata?: Record<string, unknown>;
   sourceApp?: Record<string, unknown>;
   redactedKinds?: string[];
+  customTitle?: string;
 }
 
 export interface ClipboardCursor {
@@ -177,4 +179,8 @@ export async function clipboardDeleteItem(id: string): Promise<ClipboardDeleteRe
 
 export async function clipboardClearNonFavorites(): Promise<ClipboardClearResult> {
   return invokeSafe<ClipboardClearResult>('clipboard_clear_non_favorites');
+}
+
+export async function clipboardSetCustomTitle(id: string, title?: string | null): Promise<void> {
+  return invokeSafe<void>('clipboard_set_custom_title', { id, title: title ?? null });
 }

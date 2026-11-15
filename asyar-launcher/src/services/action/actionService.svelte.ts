@@ -72,6 +72,18 @@ function buildMacosConfirmMessage(appName: string, scan: UninstallScanResult): s
   return lines.join(' ');
 }
 
+export interface ActionPromptConfig {
+  title: string;
+  value?: string;
+  placeholder?: string;
+  contextLabel?: string;
+  icon?: string;
+  saveLabel?: string;
+  cancelLabel?: string;
+  onsave: (val: string) => Promise<void> | void;
+  oncancel?: () => void;
+}
+
 // This interface might need adjustment if ApplicationAction should also use the enum
 export interface ApplicationAction {
   id: string;
@@ -139,6 +151,29 @@ export class ActionService implements IActionService {
 
   // Svelte 5 reactive state
   public filteredActions = $state<ApplicationAction[]>([]);
+  public panelSearchQuery = $state('');
+  public openedFromActionPanel = $state(false);
+  public activePrompt = $state<ActionPromptConfig | null>(null);
+  private panelOpener?: () => void;
+
+  public setPanelOpener(fn?: () => void) {
+    this.panelOpener = fn;
+  }
+
+  public openActionPanel() {
+    this.panelOpener?.();
+  }
+
+  public openPrompt(config: ActionPromptConfig) {
+    this.activePrompt = config;
+    this.openActionPanel();
+  }
+
+  public closePrompt() {
+    const prompt = this.activePrompt;
+    this.activePrompt = null;
+    prompt?.oncancel?.();
+  }
 
   /**
    * Primary action for the active extension view, shown in BottomActionBar with

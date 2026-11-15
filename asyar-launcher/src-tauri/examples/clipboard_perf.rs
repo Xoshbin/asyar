@@ -41,6 +41,7 @@ fn make_text_item(i: u32, base_ms: f64) -> ClipboardItem {
         metadata: None,
         source_app: None,
         redacted_kinds: None,
+        custom_title: None,
     }
 }
 

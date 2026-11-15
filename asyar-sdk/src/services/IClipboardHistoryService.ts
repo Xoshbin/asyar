@@ -25,6 +25,8 @@ export interface IClipboardHistoryService {
   toggleItemFavorite(itemId: string): Promise<boolean>;
   deleteItem(itemId: string): Promise<boolean>;
   clearNonFavorites(): Promise<boolean>;
+  /** Set or clear a custom display title for a clipboard item. */
+  setItemCustomTitle(itemId: string, title?: string | null): Promise<boolean>;
   normalizeImageData(content: string): string;
   isValidImageData(content: string): boolean;
   readCurrentClipboard(): Promise<{ type: ClipboardItemType; content: string }>;

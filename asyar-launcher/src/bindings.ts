@@ -130,6 +130,7 @@ export type CaptureResult = {
 	insertedId: string,
 	replacedId: string | null,
 	favorite: boolean,
+	customTitle: string | null,
 	evictedIds: string[],
 };
 

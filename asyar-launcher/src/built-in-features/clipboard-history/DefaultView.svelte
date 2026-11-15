@@ -46,6 +46,7 @@
   import { t } from '../../services/i18n';
   import { appListen } from '../../lib/ipc/bridgeEvents';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
 
   const detailDateFormat = new Intl.DateTimeFormat(undefined, {
     month: 'long',
@@ -498,7 +499,10 @@
     }
   }
 
-  function getItemTitle(item: { type: string; preview?: string }) {
+  function getItemTitle(item: { type: string; preview?: string; customTitle?: string }) {
+    if (item.customTitle?.trim()) {
+      return item.customTitle.trim();
+    }
     const preview = item.preview ?? '';
     if (!preview)
       return item.type === 'image' ? 'Image' : item.type === 'files' ? 'Files' : 'Empty';
@@ -1166,9 +1170,19 @@
               {clipboardViewState.selectedIds.length} items selected · Enter to merge &amp; paste
             </div>
           {:else if selectedFullItem}
+            {@const customTitle =
+              clipboardViewState.selectedItem?.customTitle ?? selectedFullItem.customTitle}
             <MetadataList
               title={t('common.information')}
               items={[
+                ...(customTitle
+                  ? [
+                      {
+                        label: t('features.clipboard.ui.custom_title'),
+                        value: customTitle,
+                      },
+                    ]
+                  : []),
                 {
                   label: t('features.clipboard.ui.source'),
                   value: (selectedFullItem.sourceApp as any)?.name,

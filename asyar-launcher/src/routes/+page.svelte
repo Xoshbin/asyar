@@ -151,10 +151,22 @@
 
   function handleActionPanelClose() {
     isActionPanelOpen = false;
+    actionService.closePrompt();
+    actionService.panelSearchQuery = '';
     if (!controller.assignShortcutTarget && !controller.assignAliasTarget) {
       keyboard.restoreSearchFocus({ select: true });
     }
   }
+
+  $effect(() => {
+    actionService.setPanelOpener(() => {
+      actionService.refreshFiltered();
+      isActionPanelOpen = true;
+    });
+    return () => {
+      actionService.setPanelOpener(undefined);
+    };
+  });
 
   // Ensure switching from a scrolled root results list into a full-pane view
   // starts at scrollTop 0 (each view owns its own internal scroller).

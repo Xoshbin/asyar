@@ -222,6 +222,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:clipboard:toggleItemFavorite" => Some("clipboard-history:manage"),
         "asyar:api:clipboard:deleteItem" => Some("clipboard-history:manage"),
         "asyar:api:clipboard:clearNonFavorites" => Some("clipboard-history:manage"),
+        "asyar:api:clipboard:setItemCustomTitle" => Some("clipboard-history:manage"),
         // Notifications
         "asyar:api:feedback:sendBackground" => Some("notifications:send"),
         "asyar:api:feedback:dismissBackground" => Some("notifications:send"),
@@ -1243,6 +1244,10 @@ mod tests {
         );
         assert_eq!(
             get_required_permission("asyar:api:clipboard:clearNonFavorites"),
+            Some("clipboard-history:manage")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:setItemCustomTitle"),
             Some("clipboard-history:manage")
         );
     }

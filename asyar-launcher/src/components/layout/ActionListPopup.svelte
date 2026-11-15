@@ -3,16 +3,34 @@
   import Input from '../base/Input.svelte';
   import LauncherListRow from '../list/LauncherListRow.svelte';
   import EmptyState from '../feedback/EmptyState.svelte';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
+  import Icon from '../base/Icon.svelte';
   import { invokeAction } from '../../services/action/invokeAction';
-  import type { ApplicationAction } from '../../services/action/actionService.svelte';
+  import {
+    actionService,
+    type ApplicationAction,
+    type ActionPromptConfig,
+  } from '../../services/action/actionService.svelte';
   import { filterActions } from './actionFilter';
   import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { useListSelection } from '../../lib/listSelection.svelte';
   import { groupActionsForDisplay } from './actionListOrdering';
   import { toResolvedIcon } from '../../lib/icon';
   import { t } from '../../services/i18n';
+  import { tick } from 'svelte';
 
   type ActionForDisplay = ApplicationAction & { displayCategory: string };
+
+  type ActionStackEntry =
+    | {
+        type: 'actions';
+        title?: string;
+        actions?: ActionForDisplay[];
+      }
+    | {
+        type: 'prompt';
+        config: ActionPromptConfig;
+      };
 
   let {
     availableActions = [],
@@ -28,12 +46,27 @@
 
   let showHeader = $derived(!inExtensionView && !!selectedItemName);
 
-  let searchQuery = $state('');
+  let searchQuery = $state(actionService.panelSearchQuery);
+  $effect(() => {
+    actionService.panelSearchQuery = searchQuery;
+  });
 
-  let filteredForSearch = $derived(filterActions(availableActions, searchQuery));
+  let promptText = $state(actionService.activePrompt?.value ?? '');
 
+  let viewStack = $state<ActionStackEntry[]>(
+    actionService.activePrompt
+      ? [{ type: 'prompt', config: actionService.activePrompt }]
+      : [{ type: 'actions' }],
+  );
+
+  let currentView = $derived(viewStack[viewStack.length - 1]);
+
+  let activeActionList = $derived(
+    currentView?.type === 'actions' && currentView.actions ? currentView.actions : availableActions,
+  );
+
+  let filteredForSearch = $derived(filterActions(activeActionList, searchQuery));
   let groupedActions = $derived(groupActionsForDisplay(filteredForSearch));
-
   let flatActions = $derived(groupedActions.flatMap((g) => g.actions));
 
   let popupRef = $state<HTMLDivElement>();
@@ -41,8 +74,6 @@
 
   $effect(() => {
     let settleFrame: number | undefined;
-    // Force a paint of the pre-transition state before flipping to settled;
-    // cleanup also covers rapid ⌘K toggles that unmount between frames.
     const paintFrame = requestAnimationFrame(() => {
       settleFrame = requestAnimationFrame(() => (entering = false));
     });
@@ -76,14 +107,82 @@
     }
   });
 
+  // Watch for prompts opened via actionService.openPrompt(...)
+  $effect(() => {
+    const prompt = actionService.activePrompt;
+    if (prompt) {
+      const isAlreadyOnTop =
+        viewStack.length > 0 &&
+        viewStack[viewStack.length - 1].type === 'prompt' &&
+        (viewStack[viewStack.length - 1] as any).config === prompt;
+      if (!isAlreadyOnTop) {
+        promptText = prompt.value ?? '';
+        viewStack = [...viewStack, { type: 'prompt', config: prompt }];
+        void tick().then(() => {
+          const input = popupRef?.querySelector('.prompt-body input') as HTMLInputElement | null;
+          input?.focus({ preventScroll: true });
+          input?.select();
+        });
+      }
+    }
+  });
+
   function handleKeydown(event: KeyboardEvent) {
+    if (currentView?.type === 'prompt') {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (promptText.length > 0) {
+          promptText = '';
+        } else {
+          const config = currentView.config;
+          config.oncancel?.();
+          actionService.activePrompt = null;
+          viewStack = viewStack.slice(0, -1);
+          if (viewStack.length === 0) {
+            closePopup();
+          } else {
+            void tick().then(() => {
+              popupRef
+                ?.querySelector<HTMLInputElement>('.action-search input')
+                ?.focus({ preventScroll: true });
+            });
+          }
+        }
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        const config = currentView.config;
+        const valToSave = promptText;
+        actionService.activePrompt = null;
+        closePopup();
+        void config.onsave(valToSave);
+        return;
+      }
+
+      return;
+    }
+
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      // Esc clears the filter first, then closes on the next press.
+      // Esc clears the filter first, then closes or pops stack
       if (searchQuery.length > 0) {
         searchQuery = '';
+        actionService.panelSearchQuery = '';
+      } else if (viewStack.length > 1) {
+        viewStack = viewStack.slice(0, -1);
+        searchQuery = '';
+        void tick().then(() => {
+          popupRef
+            ?.querySelector<HTMLInputElement>('.action-search input')
+            ?.focus({ preventScroll: true });
+        });
       } else {
+        actionService.panelSearchQuery = '';
         closePopup();
       }
       return;
@@ -115,12 +214,28 @@
     const action = flatActions.find((a) => a.id === actionId);
     if (!action) return;
 
-    // Close the popup BEFORE awaiting the confirm dialog so the user can't
-    // pick a second action while the dialog is up. The dialog is rendered
-    // by the global DialogHost; it doesn't need this popup to stay open.
-    closePopup();
+    if ((action as any).children?.length) {
+      viewStack = [
+        ...viewStack,
+        {
+          type: 'actions',
+          title: action.label,
+          actions: (action as any).children,
+        },
+      ];
+      searchQuery = '';
+      return;
+    }
+
+    if (action.confirm && !action.confirmInExecute) {
+      closePopup();
+    }
 
     await invokeAction(action);
+
+    if (!actionService.activePrompt) {
+      closePopup();
+    }
   }
 
   function closePopup() {
@@ -128,15 +243,41 @@
     onclose?.();
   }
 
+  function onWindowMousedown(e: MouseEvent) {
+    const target = e.target as Node | null;
+    if (target && !popupRef?.contains(target)) {
+      if (currentView?.type === 'prompt') {
+        currentView.config.oncancel?.();
+        actionService.activePrompt = null;
+      }
+      closePopup();
+    }
+  }
+
+  $effect(() => {
+    window.addEventListener('mousedown', onWindowMousedown);
+    return () => window.removeEventListener('mousedown', onWindowMousedown);
+  });
+
   $effect(() => {
     const timer = setTimeout(() => {
-      popupRef?.querySelector('input')?.focus({ preventScroll: true });
+      if (currentView?.type === 'prompt') {
+        const input = popupRef?.querySelector('.prompt-body input') as HTMLInputElement | null;
+        input?.focus({ preventScroll: true });
+        input?.select();
+      } else {
+        popupRef
+          ?.querySelector<HTMLInputElement>('.action-search input')
+          ?.focus({ preventScroll: true });
+      }
     }, 50);
     popupRef?.addEventListener('keydown', handleKeydown);
     return () => {
       clearTimeout(timer);
       popupRef?.removeEventListener('keydown', handleKeydown);
-      searchQuery = '';
+      if (!actionService.activePrompt) {
+        actionService.panelSearchQuery = '';
+      }
     };
   });
 </script>
@@ -148,49 +289,87 @@
   tabindex="-1"
   role="dialog"
   aria-modal="true"
-  aria-labelledby="action-list-heading"
+  aria-labelledby={currentView?.type === 'prompt' ? 'action-prompt-heading' : 'action-list-heading'}
 >
-  <h2 id="action-list-heading" class="sr-only">{t('actions_popup.sr_heading')}</h2>
+  {#if currentView?.type === 'prompt'}
+    {@const config = currentView.config}
+    <div class="prompt-header">
+      <h2 id="action-prompt-heading" class="prompt-title">{config.title}</h2>
+    </div>
 
-  <div class="action-scroll custom-scrollbar">
-    {#if showHeader}
-      <div class="popup-header">{selectedItemName}</div>
-    {/if}
-    {#snippet iconSpacer()}<span class="icon-spacer" aria-hidden="true"></span>{/snippet}
-    {#each groupedActions as { actions: groupActions }, groupIndex}
-      {@const groupHasIcons = groupActions.some((a) => toResolvedIcon(a.icon))}
-      <div class="group-section" class:first-group={groupIndex === 0}>
-        {#each groupActions as action}
-          {@const flatIndex = flatActions.indexOf(action)}
-          <div class="action-row" class:action-destructive={action.destructive}>
-            <LauncherListRow
-              selected={flatIndex === selection.selectedIndex}
-              onclick={() => handleActionSelect(action.id)}
-              data-index={flatIndex}
-              tabindex="-1"
-              icon={action.icon}
-              extensionId={action.extensionId}
-              leading={groupHasIcons && !toResolvedIcon(action.icon) ? iconSpacer : undefined}
-              title={action.label}
-              shortcut={action.shortcut}
-              shortcutPlacement="trailing"
-            />
+    <div class="prompt-body">
+      <Input
+        textIntent="exact"
+        bind:value={promptText}
+        placeholder={config.placeholder}
+        autocomplete="off"
+      />
+    </div>
+
+    <div class="prompt-footer">
+      <div class="footer-context">
+        {#if config.icon}
+          <div class="footer-icon-box">
+            <Icon name={config.icon} size={11} />
           </div>
-        {/each}
+        {/if}
+        {#if config.contextLabel}
+          <span class="context-text">{config.contextLabel}</span>
+        {/if}
       </div>
-    {:else}
-      <EmptyState message={t('dialogs.action_list.no_matching_actions')} />
-    {/each}
-  </div>
+      <div class="footer-actions">
+        <KeyboardHint
+          keys="Esc"
+          action={promptText.length > 0
+            ? t('common.clear')
+            : (config.cancelLabel ?? t('common.cancel'))}
+        />
+        <KeyboardHint keys="↵" action={config.saveLabel ?? t('common.save')} />
+      </div>
+    </div>
+  {:else}
+    <h2 id="action-list-heading" class="sr-only">{t('actions_popup.sr_heading')}</h2>
 
-  <div class="action-search launcher-popup-search">
-    <Input
-      textIntent="exact"
-      bind:value={searchQuery}
-      placeholder={t('dialogs.action_list.search_placeholder')}
-      autocomplete="off"
-    />
-  </div>
+    <div class="action-scroll custom-scrollbar">
+      {#if showHeader}
+        <div class="popup-header">{selectedItemName}</div>
+      {/if}
+      {#snippet iconSpacer()}<span class="icon-spacer" aria-hidden="true"></span>{/snippet}
+      {#each groupedActions as { actions: groupActions }, groupIndex}
+        {@const groupHasIcons = groupActions.some((a) => toResolvedIcon(a.icon))}
+        <div class="group-section" class:first-group={groupIndex === 0}>
+          {#each groupActions as action}
+            {@const flatIndex = flatActions.indexOf(action)}
+            <div class="action-row" class:action-destructive={action.destructive}>
+              <LauncherListRow
+                selected={flatIndex === selection.selectedIndex}
+                onclick={() => handleActionSelect(action.id)}
+                data-index={flatIndex}
+                tabindex="-1"
+                icon={action.icon}
+                extensionId={action.extensionId}
+                leading={groupHasIcons && !toResolvedIcon(action.icon) ? iconSpacer : undefined}
+                title={action.label}
+                shortcut={action.shortcut}
+                shortcutPlacement="trailing"
+              />
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <EmptyState message={t('dialogs.action_list.no_matching_actions')} />
+      {/each}
+    </div>
+
+    <div class="action-search launcher-popup-search">
+      <Input
+        textIntent="exact"
+        bind:value={searchQuery}
+        placeholder={t('dialogs.action_list.search_placeholder')}
+        autocomplete="off"
+      />
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -284,5 +463,62 @@
   .action-destructive :global(.result-title),
   .action-destructive :global(.app-icon-tile) {
     color: var(--accent-danger) !important;
+  }
+
+  .prompt-header {
+    padding: var(--space-3) var(--space-4) var(--space-2);
+  }
+
+  .prompt-title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    margin: 0;
+    user-select: none;
+  }
+
+  .prompt-body {
+    padding: 0 var(--space-4) var(--space-3);
+  }
+
+  .prompt-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-4);
+    min-height: var(--size-xl);
+    background: transparent;
+    border-top: 1px solid var(--popup-divider);
+    user-select: none;
+  }
+
+  .footer-context {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .footer-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: var(--radius-sm);
+    background: var(--tile-orange);
+    color: var(--text-on-accent);
+    flex-shrink: 0;
+  }
+
+  .context-text {
+    font-weight: var(--font-weight-medium);
+  }
+
+  .footer-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
   }
 </style>
