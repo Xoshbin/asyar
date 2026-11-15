@@ -180,6 +180,24 @@ pub fn clipboard_toggle_favorite(
 }
 
 #[tauri::command]
+pub fn clipboard_set_custom_title(
+    id: String,
+    title: Option<String>,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<ClipboardFts>>,
+) -> Result<(), AppError> {
+    let conn = store.conn()?;
+    Ok(super::clipboard::set_custom_title_with_fts(
+        &conn,
+        &id,
+        title.as_deref(),
+        keystore.master_key(),
+        fts.inner(),
+    )?)
+}
+
+#[tauri::command]
 pub fn clipboard_delete_item(
     id: String,
     store: State<'_, DataStore>,

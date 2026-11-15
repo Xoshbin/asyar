@@ -1067,6 +1067,8 @@
         "clear_history_desc": "Remover todos os itens não favoritos da área de transferência",
         "copy_text_from_image": "Copiar texto da imagem",
         "copy_text_from_image_desc": "Extrair e copiar texto desta imagem para a área de transferência",
+        "rename": "Renomear entrada...",
+        "rename_desc": "Definir um título de exibição personalizado para este item da área de transferência",
         "open_preview_desc": "Abrir esta imagem ou arquivo no visualizador padrão",
         "reveal_desc": "Mostrar este arquivo no gerenciador de arquivos do sistema"
       },
@@ -1099,6 +1101,9 @@
         "words": "Palavras",
         "dimensions": "Dimensões",
         "size": "Tamanho",
+        "rename_title": "Renomear entrada...",
+        "rename_placeholder": "Digite o título personalizado...",
+        "custom_title": "Título personalizado",
         "copied": "Copiado"
       }
     },

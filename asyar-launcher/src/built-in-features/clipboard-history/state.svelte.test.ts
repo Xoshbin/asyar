@@ -1012,3 +1012,46 @@ describe('search token filtering and onSearchChanged', () => {
     expect(clipboardHistoryStore.loadInitial).toHaveBeenCalledWith(100);
   });
 });
+
+describe('rename state management', () => {
+  it('manages rename lifecycle and updates custom title', async () => {
+    const mockService = {
+      setItemCustomTitle: vi.fn().mockResolvedValue(true),
+    };
+    const mockContext = {
+      getService: vi.fn((name: string) => {
+        if (name === 'clipboard') return mockService;
+        return {};
+      }),
+    };
+
+    clipboardViewState.initializeServices(mockContext as any);
+    clipboardViewState.setItems([
+      {
+        id: 'item-1',
+        type: 'text' as any,
+        preview: 'Original text',
+        createdAt: 1000,
+        favorite: false,
+      },
+    ]);
+
+    clipboardViewState.selectedItemId = 'item-1';
+    expect(clipboardViewState.isRenaming).toBe(false);
+
+    clipboardViewState.startRename();
+    expect(clipboardViewState.isRenaming).toBe(true);
+    expect(clipboardViewState.renamingItemId).toBe('item-1');
+
+    await clipboardViewState.saveRename('My Custom Title');
+    expect(mockService.setItemCustomTitle).toHaveBeenCalledWith('item-1', 'My Custom Title');
+    expect(clipboardViewState.isRenaming).toBe(false);
+    expect(clipboardViewState.renamingItemId).toBeNull();
+    expect(clipboardViewState.items[0].customTitle).toBe('My Custom Title');
+
+    clipboardViewState.startRename(clipboardViewState.items[0]);
+    expect(clipboardViewState.isRenaming).toBe(true);
+    clipboardViewState.cancelRename();
+    expect(clipboardViewState.isRenaming).toBe(false);
+  });
+});

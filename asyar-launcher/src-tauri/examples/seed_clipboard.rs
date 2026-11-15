@@ -119,6 +119,7 @@ fn make_item(i: u32, base_time: f64) -> ClipboardItem {
             "bundleId": "dev.seed.clipboard",
         })),
         redacted_kinds: None,
+        custom_title: None,
     }
 }
 

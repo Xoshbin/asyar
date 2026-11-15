@@ -1,6 +1,6 @@
 import { t } from '../../services/i18n';
 import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
-import { clipboardViewState, fetchFullItemForId } from './state.svelte';
+import { clipboardViewState, fetchFullItemForId, getItemTitle } from './state.svelte';
 import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from '../../services/action/actionService.svelte';
 import { logService } from '../../services/log/logService';
@@ -201,9 +201,8 @@ class ClipboardHistoryExtension implements Extension {
   private async handleKeydown(event: KeyboardEvent) {
     if (!this.inView) return;
 
-    // We can't easily check filteredItems.length here without importing the state
-    // But the state is already initialized.
     const state = clipboardViewState;
+    if (state.isRenaming) return;
     if (!state.filteredItems.length) return;
 
     if (
@@ -479,6 +478,37 @@ class ClipboardHistoryExtension implements Extension {
     });
 
     actionService.registerAction({
+      id: 'clipboard-history:rename',
+      title: t('features.clipboard.act.rename'),
+      label: t('features.clipboard.act.rename'),
+      description: t('features.clipboard.act.rename_desc'),
+      icon: 'icon:pencil',
+      shortcut: 'Mod+Shift+E',
+      category: 'clipboard-action',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      visible: () => Boolean(clipboardViewState.selectedItem),
+      execute: async () => {
+        const item = clipboardViewState.selectedItem;
+        if (!item) return;
+        clipboardViewState.startRename();
+        actionService.openPrompt({
+          title: t('features.clipboard.ui.rename_title') || 'Rename Entry...',
+          value: item.customTitle ?? (item.preview ? getItemTitle(item) : ''),
+          placeholder: t('features.clipboard.ui.rename_placeholder') || 'Enter custom title...',
+          contextLabel: t('features.clipboard.title') || 'Clipboard History',
+          icon: 'clipboard',
+          onsave: async (newTitle) => {
+            await clipboardViewState.saveRename(newTitle);
+          },
+          oncancel: () => {
+            clipboardViewState.cancelRename();
+          },
+        });
+      },
+    });
+
+    actionService.registerAction({
       id: 'clipboard-history:delete',
       title: 'Delete',
       description: t('features.clipboard.act.delete_desc'),
@@ -570,6 +600,7 @@ class ClipboardHistoryExtension implements Extension {
     actionService.unregisterAction('clipboard-history:reveal');
     actionService.unregisterAction('clipboard-history:open-in-browser');
     actionService.unregisterAction('clipboard-history:save-as-snippet');
+    actionService.unregisterAction('clipboard-history:rename');
     actionService.unregisterAction('clipboard-history:delete');
     actionService.unregisterAction('clipboard-history:clear-multi-selection');
     actionService.unregisterAction('clipboard-history:ask-ai-about-this');

@@ -55,4 +55,8 @@ export interface ClipboardHistoryItem {
    * (pre-redaction) content is NOT stored.
    */
   redactedKinds?: string[];
+  /**
+   * Optional user-assigned display title that overrides the raw content preview.
+   */
+  customTitle?: string;
 }

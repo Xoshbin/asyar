@@ -1067,6 +1067,8 @@
         "clear_history_desc": "移除所有非最愛的剪貼簿項目",
         "copy_text_from_image": "從影像複製文字",
         "copy_text_from_image_desc": "擷取此影像中的文字並複製到剪貼簿",
+        "rename": "重新命名項目...",
+        "rename_desc": "為此剪貼簿項目設定自訂顯示標題",
         "open_preview_desc": "在預設檢視器中開啟此影像或檔案",
         "reveal_desc": "在系統檔案管理員中顯示此檔案"
       },
@@ -1099,6 +1101,9 @@
         "words": "字數",
         "dimensions": "尺寸",
         "size": "大小",
+        "rename_title": "重新命名項目...",
+        "rename_placeholder": "輸入自訂標題...",
+        "custom_title": "自訂標題",
         "copied": "已複製"
       }
     },

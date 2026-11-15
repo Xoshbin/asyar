@@ -1067,6 +1067,8 @@
         "clear_history_desc": "Supprimer tous les éléments non favoris",
         "copy_text_from_image": "Copier le texte de l'image",
         "copy_text_from_image_desc": "Extraire et copier le texte de cette image dans le presse-papiers",
+        "rename": "Renommer l'entrée...",
+        "rename_desc": "Définir un titre d'affichage personnalisé pour cet élément du presse-papiers",
         "open_preview_desc": "Ouvrir cette image ou ce fichier dans le visualiseur par défaut",
         "reveal_desc": "Afficher ce fichier dans le gestionnaire de fichiers du système"
       },
@@ -1099,6 +1101,9 @@
         "words": "Mots",
         "dimensions": "Dimensions",
         "size": "Taille",
+        "rename_title": "Renommer l'entrée...",
+        "rename_placeholder": "Saisir un titre personnalisé...",
+        "custom_title": "Titre personnalisé",
         "copied": "Copié"
       }
     },

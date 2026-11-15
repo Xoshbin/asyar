@@ -40,7 +40,7 @@ pub fn rebuild_from_disk(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, item_type, content, preview, content_hash, source_app \
+            "SELECT id, item_type, content, preview, content_hash, source_app, custom_title \
                FROM clipboard_items ORDER BY created_at DESC, id DESC",
         )
         .map_err(|e| AppError::Database(format!("FTS rebuild prepare: {e}")))?;
@@ -52,6 +52,7 @@ pub fn rebuild_from_disk(
         raw_preview: Option<String>,
         existing_hash: Option<Vec<u8>>,
         raw_source_app: Option<String>,
+        raw_custom_title: Option<String>,
     }
 
     let rows: Vec<Row> = stmt
@@ -63,6 +64,7 @@ pub fn rebuild_from_disk(
                 raw_preview: r.get(3)?,
                 existing_hash: r.get(4)?,
                 raw_source_app: r.get(5)?,
+                raw_custom_title: r.get(6)?,
             })
         })
         .map_err(|e| AppError::Database(format!("FTS rebuild query: {e}")))?
@@ -86,12 +88,20 @@ pub fn rebuild_from_disk(
                 Some(v.to_string())
             }
         });
+        let custom_title = row.raw_custom_title.as_deref().and_then(|v| {
+            if cipher::is_encrypted_value(v) {
+                cipher::decrypt(v, master_key).ok()
+            } else {
+                Some(v.to_string())
+            }
+        });
         let source_app_text = extract_source_app_text_from_json_str(row.raw_source_app.as_deref());
-        fts.upsert_with_source_app(
+        fts.upsert_full(
             &row.id,
             preview.as_deref(),
             content.as_deref(),
             Some(&source_app_text),
+            custom_title.as_deref(),
         )?;
 
         if row.existing_hash.is_none() && row.item_type != "image" {
@@ -175,7 +185,7 @@ impl ClipboardFts {
         conn.execute_batch(
             "CREATE VIRTUAL TABLE fts_clipboard USING fts5(
                 clip_id UNINDEXED,
-                preview, content, source_app,
+                preview, content, source_app, custom_title,
                 prefix='2 3',
                 tokenize='unicode61 remove_diacritics 2'
             );
@@ -197,7 +207,7 @@ impl ClipboardFts {
         preview: Option<&str>,
         content: Option<&str>,
     ) -> Result<(), AppError> {
-        self.upsert_with_source_app(id, preview, content, None)
+        self.upsert_full(id, preview, content, None, None)
     }
 
     /// Insert or replace the FTS row for a clipboard id, including `source_app` metadata.
@@ -208,17 +218,30 @@ impl ClipboardFts {
         content: Option<&str>,
         source_app: Option<&str>,
     ) -> Result<(), AppError> {
+        self.upsert_full(id, preview, content, source_app, None)
+    }
+
+    /// Insert or replace the FTS row for a clipboard id, including `source_app` and `custom_title` metadata.
+    pub fn upsert_full(
+        &self,
+        id: &str,
+        preview: Option<&str>,
+        content: Option<&str>,
+        source_app: Option<&str>,
+        custom_title: Option<&str>,
+    ) -> Result<(), AppError> {
         let rowid = rowid_for(id);
         let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
         conn.execute(
-            "INSERT OR REPLACE INTO fts_clipboard(rowid, clip_id, preview, content, source_app) \
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT OR REPLACE INTO fts_clipboard(rowid, clip_id, preview, content, source_app, custom_title) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 rowid,
                 id,
                 preview.unwrap_or(""),
                 content.unwrap_or(""),
-                source_app.unwrap_or("")
+                source_app.unwrap_or(""),
+                custom_title.unwrap_or(""),
             ],
         )
         .map_err(|e| AppError::Database(format!("FTS upsert: {e}")))?;
@@ -520,6 +543,22 @@ mod tests {
         let hits = fts.search("vscode cloudflare", 10).unwrap();
         assert_eq!(hits, vec!["id-1".to_string()]);
     }
+
+    #[test]
+    fn test_search_matches_custom_title() {
+        let fts = ClipboardFts::new_in_memory().unwrap();
+        fts.upsert_full(
+            "cmd-1",
+            Some("curl https://api.internal"),
+            Some("curl https://api.internal/auth -H Token"),
+            Some("Terminal"),
+            Some("💠 AGENTS 💠"),
+        )
+        .unwrap();
+
+        let hits = fts.search("agents", 10).unwrap();
+        assert_eq!(hits, vec!["cmd-1".to_string()]);
+    }
 }
 
 #[cfg(test)]
@@ -547,6 +586,7 @@ mod rebuild_tests {
             metadata: None,
             source_app: None,
             redacted_kinds: None,
+            custom_title: None,
         }
     }
 

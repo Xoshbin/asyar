@@ -13,6 +13,8 @@ vi.mock('../../services/action/actionService.svelte', () => ({
     registerAction: vi.fn(),
     unregisterAction: vi.fn(),
     setExtensionForwarder: vi.fn(),
+    openPrompt: vi.fn(),
+    closePrompt: vi.fn(),
   },
 }));
 
@@ -78,6 +80,10 @@ vi.mock('./state.svelte', () => ({
     items: [],
     filteredItems: [],
     selectedItem: null,
+    isRenaming: false,
+    startRename: vi.fn(),
+    cancelRename: vi.fn(),
+    saveRename: vi.fn(),
     moveSelection: vi.fn(),
     moveSelectionAndExtend: vi.fn(),
     handleItemAction: vi.fn(),
@@ -458,8 +464,11 @@ describe('Action registration', () => {
     expect(actionIds).toContain('clipboard-history:paste-as-plain-text');
     expect(actionIds).toContain('clipboard-history:delete');
     expect(actionIds).toContain('clipboard-history:clear-multi-selection');
+    expect(actionIds).toContain('clipboard-history:rename');
 
     const byId = (id: string) => registerCalls.find((call) => call[0].id === id)?.[0] as any;
+    expect(byId('clipboard-history:rename')?.shortcut).toBe('Mod+Shift+E');
+    expect(byId('clipboard-history:rename')?.icon).toBe('icon:pencil');
     expect(byId('clipboard-history:paste')?.shortcut).toBe('Enter');
     expect(byId('clipboard-history:copy')?.shortcut).toBe('Mod+Enter');
     expect(byId('clipboard-history:toggle-html-view')?.shortcut).toBe('Mod+Shift+H');
@@ -1348,4 +1357,22 @@ it('restores clipboard actions when returning from a child view', async () => {
   expect(actionService.registerAction).toHaveBeenCalledWith(
     expect.objectContaining({ id: 'clipboard-history:save-as-snippet' }),
   );
+});
+
+describe('Action: clipboard-history:rename', () => {
+  it('triggers startRename on clipboardViewState when executed', async () => {
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const { clipboardViewState } = await import('./state.svelte');
+
+    vi.mocked(actionService.registerAction).mockClear();
+    await extension.viewActivated('clipboard-history/DefaultView');
+
+    const renameAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:rename')?.[0];
+
+    expect(renameAction).toBeDefined();
+    await renameAction?.execute();
+    expect(clipboardViewState.startRename).toHaveBeenCalled();
+  });
 });

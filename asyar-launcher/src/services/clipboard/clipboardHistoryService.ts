@@ -748,6 +748,19 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   }
 
   /**
+   * Set custom display title of a history item
+   */
+  public async setItemCustomTitle(itemId: string, title?: string | null): Promise<boolean> {
+    try {
+      await clipboardHistoryStore.setCustomTitle(itemId, title);
+      return true;
+    } catch (error) {
+      logService.error(`Error setting item custom title: ${error}`);
+      return false;
+    }
+  }
+
+  /**
    * Delete an item from history
    */
   public async deleteItem(itemId: string): Promise<boolean> {

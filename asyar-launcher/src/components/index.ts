@@ -32,6 +32,7 @@ export { default as FeedbackMessage } from './feedback/FeedbackMessage.svelte';
 
 // Layout
 export { default as ActionListPopup } from './layout/ActionListPopup.svelte';
+export { default as ActionPromptPopover } from './layout/ActionPromptPopover.svelte';
 export { default as AppBar } from './layout/AppBar.svelte';
 export { default as BottomActionBar } from './layout/BottomActionBar.svelte';
 export { default as BottomBarButton } from './layout/BottomBarButton.svelte';

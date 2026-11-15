@@ -8,6 +8,7 @@ import {
   clipboardGetItem,
   clipboardRecordCapture,
   clipboardToggleFavorite,
+  clipboardSetCustomTitle,
   clipboardDeleteItem,
   clipboardClearNonFavorites,
   type StoredClipboardItem,
@@ -230,6 +231,21 @@ export class ClipboardHistoryStoreClass {
       this.searchResults = this.searchResults.map((i) =>
         i.id === id ? { ...i, favorite: newFavorite } : i,
       );
+    }
+    this.#notify({ type: 'upsert', itemId: id });
+  }
+
+  async setCustomTitle(id: string, title?: string | null): Promise<void> {
+    const trimmed = title?.trim() || null;
+    await clipboardSetCustomTitle(id, trimmed);
+
+    const updateItem = (item: ListItem): ListItem =>
+      item.id === id ? { ...item, customTitle: trimmed ?? undefined } : item;
+
+    this.favorites = this.favorites.map(updateItem);
+    this.recent = this.recent.map(updateItem);
+    if (this.searchResults) {
+      this.searchResults = this.searchResults.map(updateItem);
     }
     this.#notify({ type: 'upsert', itemId: id });
   }

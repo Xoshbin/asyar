@@ -236,7 +236,7 @@ class WindowManagementExtension implements Extension {
 
   private handleKeydown(event: KeyboardEvent): void {
     if (!this.inView) return;
-    if (isAnyModalOpen(document)) return;
+    if (windowManagementState.renamingLayoutId || isAnyModalOpen(document)) return;
     const layouts = windowManagementState.customLayouts;
     if (!layouts.length) return;
 

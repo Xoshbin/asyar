@@ -19,11 +19,28 @@ import { openerService } from '../../services/opener/openerService';
 import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
 import { IMAGE_EXT_RE, parseFilePaths } from './filePreview';
 
+export function getItemTitle(item: {
+  type: string;
+  preview?: string;
+  customTitle?: string;
+}): string {
+  if (item.customTitle?.trim()) {
+    return item.customTitle.trim();
+  }
+  const preview = item.preview ?? '';
+  if (!preview) {
+    return item.type === 'image' ? 'Image' : item.type === 'files' ? 'Files' : 'Empty';
+  }
+  return preview.substring(0, 200).replace(/\n/g, ' ').trim() || 'Empty';
+}
+
 export class ClipboardViewStateClass {
   searchQuery = $state('');
   lastSearch = $state(Date.now());
   items = $state<ClipboardHistoryItem[]>([]);
   selectedItemId = $state<string | null>(null);
+  isRenaming = $state(false);
+  renamingItemId = $state<string | null>(null);
   /** Ordered multi-selection (Cmd/Ctrl+Click, Cmd/Ctrl+Arrow) — append-on-add,
    *  independent of the single `selectedItemId` cursor above. Used by
    *  `pasteMergedSelection` to merge-paste in selection order. */
@@ -268,6 +285,43 @@ export class ClipboardViewStateClass {
       return await this.clipboardService.toggleItemFavorite(itemId);
     } catch (error) {
       this.logService?.error(`Error toggling favorite for ${itemId}: ${error}`);
+      return false;
+    }
+  }
+
+  startRename(item?: ClipboardHistoryItem | null) {
+    const target = item ?? this.selectedItem;
+    if (!target) return;
+    this.renamingItemId = target.id;
+    this.isRenaming = true;
+  }
+
+  cancelRename() {
+    this.isRenaming = false;
+    this.renamingItemId = null;
+  }
+
+  async saveRename(newTitle: string) {
+    if (!this.renamingItemId) return;
+    const id = this.renamingItemId;
+    await this.setCustomTitle(id, newTitle);
+    this.cancelRename();
+  }
+
+  async setCustomTitle(itemId: string, title?: string | null): Promise<boolean> {
+    if (!this.clipboardService) {
+      this.logService?.error('Clipboard service not initialized in setCustomTitle');
+      return false;
+    }
+    try {
+      const ok = await this.clipboardService.setItemCustomTitle(itemId, title);
+      if (ok) {
+        const trimmed = title?.trim() || undefined;
+        this.items = this.items.map((i) => (i.id === itemId ? { ...i, customTitle: trimmed } : i));
+      }
+      return ok;
+    } catch (error) {
+      this.logService?.error(`Error setting custom title for ${itemId}: ${error}`);
       return false;
     }
   }

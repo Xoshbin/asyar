@@ -46,6 +46,7 @@
   import { t } from '../../services/i18n';
   import { appListen } from '../../lib/ipc/bridgeEvents';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
 
   const detailDateFormat = new Intl.DateTimeFormat(undefined, {
     month: 'long',
@@ -498,7 +499,10 @@
     }
   }
 
-  function getItemTitle(item: { type: string; preview?: string }) {
+  function getItemTitle(item: { type: string; preview?: string; customTitle?: string }) {
+    if (item.customTitle?.trim()) {
+      return item.customTitle.trim();
+    }
     const preview = item.preview ?? '';
     if (!preview)
       return item.type === 'image' ? 'Image' : item.type === 'files' ? 'Files' : 'Empty';
@@ -1169,6 +1173,14 @@
             <MetadataList
               title={t('common.information')}
               items={[
+                ...(selectedFullItem.customTitle
+                  ? [
+                      {
+                        label: t('features.clipboard.ui.custom_title'),
+                        value: selectedFullItem.customTitle,
+                      },
+                    ]
+                  : []),
                 {
                   label: t('features.clipboard.ui.source'),
                   value: (selectedFullItem.sourceApp as any)?.name,
