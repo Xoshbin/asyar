@@ -16,6 +16,7 @@
     icon,
     extensionId,
     title,
+    titleChunks,
     titlePrefix,
     subtitle,
     alias,
@@ -40,6 +41,8 @@
     /** Owner of a remote (`https://`) icon; required for the host fetch. */
     extensionId?: string;
     title: string;
+    /** Optional pre-split text chunks with match flags for search term highlighting. */
+    titleChunks?: { text: string; match?: boolean }[];
     /** Dimmed text rendered inline before the title (e.g. `folder/`). */
     titlePrefix?: string;
     subtitle?: string;
@@ -96,7 +99,10 @@
 
     <div class="row-body">
       <span class="result-title truncate"
-        >{#if titlePrefix}<span class="title-prefix">{titlePrefix}</span>{/if}{title}</span
+        >{#if titlePrefix}<span class="title-prefix">{titlePrefix}</span
+          >{/if}{#if titleChunks && titleChunks.length > 0}{#each titleChunks as chunk}{#if chunk.match}<span
+                class="search-match">{chunk.text}</span
+              >{:else}{chunk.text}{/if}{/each}{:else}{title}{/if}</span
       >
       {#if status}
         <StatusDot
@@ -139,6 +145,11 @@
 <style>
   .title-prefix {
     color: var(--text-secondary);
+  }
+
+  .search-match {
+    color: var(--accent-primary);
+    font-weight: var(--font-weight-semibold);
   }
 
   .row-shell {

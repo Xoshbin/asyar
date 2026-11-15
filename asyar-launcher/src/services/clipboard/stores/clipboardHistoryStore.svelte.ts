@@ -129,7 +129,11 @@ export class ClipboardHistoryStoreClass {
   // earlier in-flight responses are dropped before they touch the UI.
   #searchSeq = 0;
 
-  async search(query: string, limit = 200, filter?: ClipboardFilter): Promise<void> {
+  cancelPendingSearch(): void {
+    this.#searchSeq++;
+  }
+
+  async search(query: string, limit = 50, filter?: ClipboardFilter): Promise<void> {
     const mySeq = ++this.#searchSeq;
     const res = filter
       ? await clipboardSearch(query, limit, filter)

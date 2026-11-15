@@ -16,6 +16,7 @@ export interface StoredClipboardItem {
   sourceApp?: Record<string, unknown>;
   redactedKinds?: string[];
   customTitle?: string;
+  snippet?: string;
 }
 
 export interface StoredClipboardListItem {
@@ -28,6 +29,7 @@ export interface StoredClipboardListItem {
   sourceApp?: Record<string, unknown>;
   redactedKinds?: string[];
   customTitle?: string;
+  snippet?: string;
 }
 
 export interface ClipboardCursor {

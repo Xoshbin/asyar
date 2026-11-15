@@ -72,6 +72,7 @@ const mockFetchFullItem = vi.hoisted(() =>
 
 vi.mock('../../services/clipboard/stores/clipboardHistoryStore.svelte', () => ({
   clipboardHistoryStore: {
+    sourceApps: [],
     favorites: [],
     recent: Object.values(items),
     searchResults: null,
@@ -80,6 +81,7 @@ vi.mock('../../services/clipboard/stores/clipboardHistoryStore.svelte', () => ({
     loadOlder: vi.fn().mockResolvedValue(undefined),
     search: vi.fn().mockResolvedValue(undefined),
     clearSearch: vi.fn(),
+    cancelPendingSearch: vi.fn(),
     subscribe: vi.fn(() => () => {}),
     fetchFullItem: (id: string) => mockFetchFullItem(id),
     deleteHistoryItem: vi.fn().mockResolvedValue({ imageContentPath: undefined }),
@@ -126,6 +128,7 @@ vi.mock('./urlFetcher', () => ({
 import DefaultView from './DefaultView.svelte';
 import { clipboardViewState } from './state.svelte';
 import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
+import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 
 // Let the selection effect fetch the item and kick off loadImage.
@@ -264,6 +267,81 @@ describe('DefaultView image preview', () => {
     expect(pinBadge).toBeTruthy();
     expect(pinBadge.getAttribute('aria-label')).toBeTruthy();
     unmount();
+  });
+
+  it('renders highlighted search terms in rows when searching', async () => {
+    clipboardViewState.searchQuery = 'apple';
+    clipboardHistoryStore.searchResults = [
+      {
+        id: 's1',
+        type: 'text',
+        preview: 'the quick brown apple pie',
+        snippet: 'the quick brown \x01apple\x02 pie',
+        favorite: false,
+        createdAt: 100,
+      } as any,
+    ];
+    const { container, unmount } = render(DefaultView);
+    await flush();
+
+    const matchEl = container.querySelector('.search-match');
+    expect(matchEl).not.toBeNull();
+    expect(matchEl?.textContent).toBe('apple');
+
+    unmount();
+    clipboardViewState.searchQuery = '';
+    clipboardHistoryStore.searchResults = null;
+  });
+
+  it('highlights search terms in the detail body preview', async () => {
+    clipboardViewState.searchQuery = 'hello';
+    const { container, unmount } = render(DefaultView);
+    await flush();
+    await select('text');
+    await flush();
+
+    const detailContent = container.querySelector('.clip-detail-content');
+    const marks = detailContent?.querySelectorAll('mark.search-match');
+    expect(marks?.length).toBeGreaterThan(0);
+    expect(marks?.[0].textContent).toBe('hello');
+
+    unmount();
+    clipboardViewState.searchQuery = '';
+  });
+
+  it('updates a highlighted source preview when selecting another text clip', async () => {
+    clipboardViewState.searchQuery = 'hello';
+    items.secondText = {
+      id: 'secondText',
+      type: 'text',
+      content: 'hello <new> & next',
+      createdAt: 0,
+    };
+    clipboardHistoryStore.recent = Object.values(items);
+    const { container } = render(DefaultView);
+    await select('text');
+    await select('secondText');
+    expect(container.querySelector('.source-preview')?.textContent).toBe('hello <new> & next');
+    expect(container.querySelector('.source-preview mark')?.textContent).toBe('hello');
+    delete items.secondText;
+    clipboardViewState.searchQuery = '';
+  });
+
+  it('syncs newly loaded source app options with an unchanged filter and label', async () => {
+    const sync = vi.spyOn(searchBarAccessoryService, 'syncViewState');
+    clipboardViewState.searchQuery = 'hello';
+    render(DefaultView);
+    await flush();
+    sync.mockClear();
+    clipboardHistoryStore.sourceApps = [{ name: 'Safari', count: 1 }] as any;
+    // The mock store is plain; a query change reruns the consuming effect.
+    clipboardViewState.searchQuery = 'hello ';
+    await flush();
+    expect(sync).toHaveBeenCalled();
+    expect(JSON.stringify(sync.mock.calls)).toContain('Safari');
+    clipboardHistoryStore.sourceApps = [];
+    clipboardViewState.searchQuery = '';
+    sync.mockRestore();
   });
 
   it('renders metadata list for selected clipboard item', async () => {

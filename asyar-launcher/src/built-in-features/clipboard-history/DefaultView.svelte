@@ -41,6 +41,7 @@
     buildClipboardAccessoryState,
     parseClipboardSearchQuery,
   } from './queryFilterParser';
+  import { getItemDisplay, highlightInElement } from './snippetHighlight';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
   import { t } from '../../services/i18n';
@@ -186,9 +187,15 @@
   // Keep the searchbar accessory dropdown (options, checkmarks, and
   // summary label) synchronized with the search query and known source
   // apps without triggering persistence writes or broadcast feedback loops.
+  let lastFilterKey = '';
   $effect(() => {
     const parsed = clipboardViewState.parsedQuery;
     const sourceApps = clipboardHistoryStore.sourceApps ?? [];
+    // Only rebuild/sync the accessory when filters or source apps actually change,
+    // not on every plain text search keystroke.
+    const filterKey = `${parsed.typeFilter}|${parsed.appFilter ?? ''}|${parsed.dateFilter ?? ''}|${sourceApps.length}`;
+    if (filterKey === lastFilterKey) return;
+    lastFilterKey = filterKey;
     const acc = buildClipboardAccessoryState(parsed, sourceApps, t);
     searchBarAccessoryService.syncViewState?.({
       extensionId: 'clipboard-history',
@@ -242,8 +249,24 @@
   });
 
   // Mirror the search query into the store's search so FTS is used.
+  // Debounced: typing quickly coalesces into a single backend search
+  // after the user pauses for 40ms, avoiding queuing multiple expensive
+  // FTS matches and decryptions across intermediate keystrokes.
+  // In-flight searches from previous keystrokes are immediately dropped
+  // via cancelPendingSearch so stale results never flash or stutter the UI.
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    void onSearchChanged(clipboardViewState.searchQuery);
+    const q = clipboardViewState.searchQuery;
+    clearTimeout(searchDebounceTimer);
+    clipboardHistoryStore.cancelPendingSearch?.();
+    if (!q.trim()) {
+      void onSearchChanged(q);
+      return;
+    }
+    searchDebounceTimer = setTimeout(() => {
+      void onSearchChanged(q);
+    }, 40);
+    return () => clearTimeout(searchDebounceTimer);
   });
 
   // Re-run the current search when the FTS index becomes ready.
@@ -280,6 +303,54 @@
     if (detailEl) {
       tick().then(() => renderMermaidDiagrams(detailEl!));
     }
+  });
+
+  function highlightPreview(query: string) {
+    for (const preview of Array.from(
+      detailEl?.querySelectorAll<HTMLElement>('.source-preview, .html-preview, .md-content') ?? [],
+    )) {
+      highlightInElement(preview, query);
+    }
+  }
+
+  // Highlight search terms in the detail body preview
+  let lastHighlightedItem: string | null = null;
+  let highlightTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const item = selectedFullItem;
+    const _rendered = showRenderedHtml;
+    const query = clipboardViewState.searchQuery;
+    const itemId = item?.id ?? null;
+
+    let cancelled = false;
+    clearTimeout(highlightTimer);
+    if (!detailEl) return;
+
+    if (!query.trim()) {
+      highlightPreview('');
+      lastHighlightedItem = itemId;
+      return;
+    }
+
+    // When a newly selected clip loads, highlight its terms immediately.
+    // When only the search query is changing while viewing the same clip,
+    // debounce so rapid keystrokes don't repeatedly traverse/mutate the DOM.
+    const isNewItem = itemId !== lastHighlightedItem;
+    if (isNewItem) {
+      lastHighlightedItem = itemId;
+      tick().then(() => {
+        if (!cancelled && detailEl) highlightPreview(query);
+      });
+    } else {
+      highlightTimer = setTimeout(() => {
+        if (!cancelled && detailEl) highlightPreview(query);
+      }, 40);
+    }
+
+    return () => {
+      cancelled = true;
+      clearTimeout(highlightTimer);
+    };
   });
 
   // Load image via readFile when an image item is selected
@@ -842,16 +913,16 @@
         {#if showDayHeader && sectionLabel}
           <div class="list-section">{sectionLabel}</div>
         {/if}
+        {@const display = getItemDisplay(item, clipboardViewState.searchQuery)}
         <LauncherListRow
           data-index={index}
           selected={selectedIndex === index}
           multiSelected={clipboardViewState.isMultiSelected(item.id)}
           onclick={(e: MouseEvent) => handleRowClick(e, item.id)}
           ondblclick={() => pasteItemById(item.id)}
-          title={getItemTitle(item)}
-          subtitle={clipboardViewState.searchQuery && 'score' in item
-            ? `Match: ${Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%`
-            : undefined}
+          title={display.title}
+          titleChunks={display.titleChunks}
+          subtitle={display.subtitle}
         >
           {#snippet leading()}
             <div class="mr-1 flex-shrink-0 relative flex items-center justify-center opacity-60">
@@ -998,7 +1069,9 @@
                     {@html sanitizeHtml(selectedFullItem.content)}
                   </div>
                 {:else}
-                  <pre class="source-preview">{getSourcePreview(selectedFullItem.content)}</pre>
+                  <pre class="source-preview">{@html getSourcePreview(
+                      selectedFullItem.content,
+                    )}</pre>
                   {#if isContentTruncated(selectedFullItem.content)}
                     <div class="truncation-notice">
                       Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedFullItem.content.length.toLocaleString()}
@@ -1008,9 +1081,13 @@
                 {/if}
               {:else if selectedFullItem.type === 'rtf'}
                 {#if showRenderedHtml}
-                  <pre class="source-preview">{stripRtf(selectedFullItem.content)}</pre>
+                  <pre class="source-preview">{@html escapeHtml(
+                      stripRtf(selectedFullItem.content),
+                    )}</pre>
                 {:else}
-                  <pre class="source-preview">{getSourcePreview(selectedFullItem.content)}</pre>
+                  <pre class="source-preview">{@html getSourcePreview(
+                      selectedFullItem.content,
+                    )}</pre>
                 {/if}
                 {#if isContentTruncated(selectedFullItem.content)}
                   <div class="truncation-notice">
@@ -1153,7 +1230,9 @@
                     </div>
                   {/if}
                 {:else}
-                  <pre class="source-preview">{getSourcePreview(selectedFullItem.content)}</pre>
+                  <pre class="source-preview">{@html getSourcePreview(
+                      selectedFullItem.content,
+                    )}</pre>
                   {#if isContentTruncated(selectedFullItem.content)}
                     <div class="truncation-notice">
                       Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedFullItem.content.length.toLocaleString()}
@@ -1532,6 +1611,13 @@
 
   :global(.html-preview a) {
     color: var(--accent-primary) !important;
+  }
+
+  :global(.html-preview mark.search-match),
+  :global(.html-preview .search-match) {
+    color: var(--accent-primary) !important;
+    background-color: color-mix(in srgb, var(--accent-primary) 18%, transparent) !important;
+    background: color-mix(in srgb, var(--accent-primary) 18%, transparent) !important;
   }
 
   :global(.html-preview img) {

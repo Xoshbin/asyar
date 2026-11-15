@@ -70,3 +70,25 @@ describe('LauncherListRow running dot', () => {
     expect(container.querySelector('.running-dot')).toBeNull();
   });
 });
+
+describe('LauncherListRow highlighted title chunks', () => {
+  it('renders highlighted spans for chunks marked as match', () => {
+    const { container } = render(LauncherListRow, {
+      title: 'apple pie',
+      titleChunks: [
+        { text: 'apple', match: true },
+        { text: ' pie', match: false },
+      ],
+    });
+    const match = container.querySelector('.search-match');
+    expect(match).not.toBeNull();
+    expect(match?.textContent).toBe('apple');
+    expect(container.querySelector('.result-title')?.textContent).toBe('apple pie');
+  });
+
+  it('falls back to plain title when titleChunks is empty or omitted', () => {
+    const { container } = render(LauncherListRow, { title: 'plain title' });
+    expect(container.querySelector('.search-match')).toBeNull();
+    expect(container.querySelector('.result-title')?.textContent).toBe('plain title');
+  });
+});
