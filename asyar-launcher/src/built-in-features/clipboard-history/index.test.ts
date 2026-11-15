@@ -1295,6 +1295,50 @@ describe('Ask AI about this action', () => {
     expect(contextModeService.pinHint).not.toHaveBeenCalled();
     expect(searchStores.query).toBe('');
   });
+
+  it('execute() discards OCR results if view was deactivated before completion', async () => {
+    const { ocrRecognizeImageFile } = await import('../../lib/ipc/commands');
+    let resolveOcr!: (val: string) => void;
+    vi.mocked(ocrRecognizeImageFile).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveOcr = resolve;
+        }),
+    );
+
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'img-1',
+      type: ClipboardItemType.Image,
+      content: '/path/to/image.png',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const askAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+
+    const executionPromise = askAction!.execute();
+
+    // User leaves clipboard view while OCR is in-flight
+    await extension.viewDeactivated('clipboard-history/DefaultView');
+
+    // OCR completes after view is already deactivated
+    resolveOcr('Late OCR text');
+    await executionPromise;
+
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+
+    expect(viewManager.goBack).not.toHaveBeenCalled();
+    expect(contextModeService.pinHint).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
+  });
 });
 
 it('restores clipboard actions when returning from a child view', async () => {

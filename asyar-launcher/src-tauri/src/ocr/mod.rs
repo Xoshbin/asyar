@@ -232,16 +232,18 @@ pub async fn copy_text_from_image_file(
     app_handle: &tauri::AppHandle,
     image_path: &std::path::Path,
 ) -> Result<Option<String>, AppError> {
-    if !image_path.is_file() {
-        return Err(AppError::NotFound(format!(
-            "image file not found: {}",
-            image_path.display()
-        )));
-    }
     let path = image_path.to_path_buf();
-    let image_bytes = tauri::async_runtime::spawn_blocking(move || std::fs::read(&path))
-        .await
-        .map_err(|e| AppError::Platform(format!("file read task failed: {e}")))??;
+    let image_bytes = tauri::async_runtime::spawn_blocking(move || {
+        if !path.is_file() {
+            return Err(AppError::NotFound(format!(
+                "image file not found: {}",
+                path.display()
+            )));
+        }
+        std::fs::read(&path).map_err(AppError::from)
+    })
+    .await
+    .map_err(|e| AppError::Platform(format!("file read task failed: {e}")))??;
 
     if image_bytes.is_empty() {
         return dispatch_ocr_result(

@@ -29,8 +29,8 @@ import { parseFilePaths } from './filePreview';
 
 function isImageOrSingleFile(item: ClipboardHistoryItem | null): boolean {
   if (!item) return false;
-  if (item.type === ClipboardItemType.Image || item.type === 'image') return true;
-  if (item.type === ClipboardItemType.Files || item.type === 'files') {
+  if (item.type === ClipboardItemType.Image) return true;
+  if (item.type === ClipboardItemType.Files) {
     if (item.content) {
       return parseFilePaths(item.content).length === 1;
     }
@@ -156,6 +156,7 @@ class ClipboardHistoryExtension implements Extension {
         // before navigating yields the event loop; the view would still land,
         // but the list would briefly show stale items from the last session.
         this.extensionManager?.navigateToView('clipboard-history/DefaultView');
+        this.inView = true;
         this.registerViewActions();
         this.refreshClipboardData().catch((e) => {
           this.logService?.error(`refreshClipboardData failed: ${e}`);
@@ -521,7 +522,7 @@ class ClipboardHistoryExtension implements Extension {
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         const text = await assertTextSendable('Ask AI about this');
-        if (!text) return;
+        if (!text || !this.inView) return;
 
         // Pop the clipboard view synchronously so its keydown listener + registered
         // actions are torn down via viewDeactivated BEFORE Svelte 5 flushes effects.

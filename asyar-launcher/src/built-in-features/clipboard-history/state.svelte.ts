@@ -491,7 +491,7 @@ export class ClipboardViewStateClass {
     try {
       await revealItemInDir(path);
     } catch (error) {
-      this.logService?.error(`Failed to reveal file ${path}: ${error}`);
+      (this.logService ?? globalLogService).error(`Failed to reveal file ${path}: ${error}`);
       feedbackService.report({
         source: 'frontend',
         kind: 'manual',
@@ -508,7 +508,7 @@ export class ClipboardViewStateClass {
         withPreview && getHostPlatform() === 'macos' ? { with: 'Preview' } : undefined;
       await openerService.openPath(null, path, options);
     } catch (error) {
-      this.logService?.error(`Failed to open file ${path}: ${String(error)}`);
+      (this.logService ?? globalLogService).error(`Failed to open file ${path}: ${String(error)}`);
       void feedbackService.report({
         source: 'frontend',
         kind: 'manual',
@@ -525,13 +525,13 @@ export class ClipboardViewStateClass {
     const targetItem = item ?? this.selectedItem;
     if (!targetItem) return null;
 
-    if (targetItem.type === ClipboardItemType.Image || targetItem.type === 'image') {
+    if (targetItem.type === ClipboardItemType.Image) {
       const path = targetItem.content ?? (await fetchFullItemForId(targetItem.id))?.content;
       if (!path || path.startsWith('data:')) return null;
       return { path, isImage: true };
     }
 
-    if (targetItem.type === ClipboardItemType.Files || targetItem.type === 'files') {
+    if (targetItem.type === ClipboardItemType.Files) {
       const content = targetItem.content ?? (await fetchFullItemForId(targetItem.id))?.content;
       const paths = parseFilePaths(content);
       if (paths.length === 1 && !paths[0].startsWith('data:')) {
