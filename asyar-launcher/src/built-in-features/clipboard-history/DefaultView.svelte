@@ -187,14 +187,16 @@
   // Keep the searchbar accessory dropdown (options, checkmarks, and
   // summary label) synchronized with the search query and known source
   // apps without triggering persistence writes or broadcast feedback loops.
-  let lastSyncedAccessory = '';
+  let lastFilterKey = '';
   $effect(() => {
     const parsed = clipboardViewState.parsedQuery;
     const sourceApps = clipboardHistoryStore.sourceApps ?? [];
+    // Only rebuild/sync the accessory when filters or source apps actually change,
+    // not on every plain text search keystroke.
+    const filterKey = `${parsed.typeFilter}|${parsed.appFilter ?? ''}|${parsed.dateFilter ?? ''}|${sourceApps.length}`;
+    if (filterKey === lastFilterKey) return;
+    lastFilterKey = filterKey;
     const acc = buildClipboardAccessoryState(parsed, sourceApps, t);
-    const accessoryKey = JSON.stringify({ ...acc, value: parsed.typeFilter });
-    if (accessoryKey === lastSyncedAccessory) return;
-    lastSyncedAccessory = accessoryKey;
     searchBarAccessoryService.syncViewState?.({
       extensionId: 'clipboard-history',
       commandId: 'show-clipboard',
@@ -248,7 +250,7 @@
 
   // Mirror the search query into the store's search so FTS is used.
   // Debounced: typing quickly coalesces into a single backend search
-  // after the user pauses for 150ms, avoiding queuing multiple expensive
+  // after the user pauses for 40ms, avoiding queuing multiple expensive
   // FTS matches and decryptions across intermediate keystrokes.
   // In-flight searches from previous keystrokes are immediately dropped
   // via cancelPendingSearch so stale results never flash or stutter the UI.
@@ -263,7 +265,7 @@
     }
     searchDebounceTimer = setTimeout(() => {
       void onSearchChanged(q);
-    }, 150);
+    }, 40);
     return () => clearTimeout(searchDebounceTimer);
   });
 
@@ -342,7 +344,7 @@
     } else {
       highlightTimer = setTimeout(() => {
         if (!cancelled && detailEl) highlightPreview(query);
-      }, 100);
+      }, 40);
     }
 
     return () => {

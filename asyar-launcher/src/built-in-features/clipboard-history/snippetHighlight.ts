@@ -16,6 +16,9 @@ export interface ItemDisplay {
 const START_MARKER = '\x01';
 const END_MARKER = '\x02';
 
+let cachedQuery: string | null = null;
+let cachedTerms: string[] = [];
+
 /**
  * Strip diacritics / accents and convert to lowercase for accent-insensitive
  * token matching (aligning with SQLite FTS5 `unicode61 remove_diacritics 2`).
@@ -30,6 +33,9 @@ export function normalizeToken(s: string): string {
  */
 export function parseSnippetChunks(rawSnippet?: string | null): HighlightChunk[] {
   if (!rawSnippet) return [];
+  if (!rawSnippet.includes(START_MARKER)) {
+    return [{ text: rawSnippet, match: false }];
+  }
 
   const chunks: HighlightChunk[] = [];
   let remaining = rawSnippet;
@@ -145,11 +151,19 @@ export function getItemDisplay(
  */
 export function extractQueryTerms(query?: string | null): string[] {
   if (!query?.trim()) return [];
+  if (query === cachedQuery) return cachedTerms;
   const parsed = parseClipboardSearchQuery(query);
   const text = parsed.textQuery.trim();
-  if (!text) return [];
+  if (!text) {
+    cachedQuery = query;
+    cachedTerms = [];
+    return [];
+  }
   // unicode61's default token categories are letters, numbers and private use.
-  return text.match(/[\p{L}\p{N}\p{Co}]+/gu) ?? [];
+  const terms = text.match(/[\p{L}\p{N}\p{Co}]+/gu) ?? [];
+  cachedQuery = query;
+  cachedTerms = terms;
+  return terms;
 }
 
 /**
@@ -167,16 +181,18 @@ export function highlightInElement(
 
   // 1. Remove any previous search highlight marks, restoring plain text
   const existingMarks = Array.from(container.querySelectorAll('mark.search-match'));
-  const parentsToNormalize = new Set<Node>();
-  for (const mark of existingMarks) {
-    const parent = mark.parentNode;
-    if (parent) {
-      parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
-      parentsToNormalize.add(parent);
+  if (existingMarks.length > 0) {
+    const parentsToNormalize = new Set<Node>();
+    for (const mark of existingMarks) {
+      const parent = mark.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
+        parentsToNormalize.add(parent);
+      }
     }
-  }
-  for (const parent of parentsToNormalize) {
-    parent.normalize();
+    for (const parent of parentsToNormalize) {
+      parent.normalize();
+    }
   }
 
   const terms = extractQueryTerms(query);
@@ -184,6 +200,9 @@ export function highlightInElement(
 
   const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const regex = new RegExp(`(?<![\\p{L}\\p{N}\\p{Co}])(${escaped.join('|')})`, 'giu');
+
+  // Fast path: if the container's entire text content has no match, avoid TreeWalker
+  if (!regex.test(container.textContent || '')) return;
 
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   const textNodes: Text[] = [];
@@ -239,6 +258,6 @@ export function highlightInElement(
   }
 
   if (firstMatch && typeof firstMatch.scrollIntoView === 'function') {
-    firstMatch.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    firstMatch.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   }
 }
