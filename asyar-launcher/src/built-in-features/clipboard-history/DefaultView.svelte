@@ -187,17 +187,14 @@
   // Keep the searchbar accessory dropdown (options, checkmarks, and
   // summary label) synchronized with the search query and known source
   // apps without triggering persistence writes or broadcast feedback loops.
-  let lastSyncedFilter = '';
-  let lastSyncedButtonTitle: string | undefined = undefined;
+  let lastSyncedAccessory = '';
   $effect(() => {
     const parsed = clipboardViewState.parsedQuery;
     const sourceApps = clipboardHistoryStore.sourceApps ?? [];
     const acc = buildClipboardAccessoryState(parsed, sourceApps, t);
-    if (acc.buttonTitle === lastSyncedButtonTitle && parsed.typeFilter === lastSyncedFilter) {
-      return;
-    }
-    lastSyncedFilter = parsed.typeFilter;
-    lastSyncedButtonTitle = acc.buttonTitle;
+    const accessoryKey = JSON.stringify({ ...acc, value: parsed.typeFilter });
+    if (accessoryKey === lastSyncedAccessory) return;
+    lastSyncedAccessory = accessoryKey;
     searchBarAccessoryService.syncViewState?.({
       extensionId: 'clipboard-history',
       commandId: 'show-clipboard',
@@ -306,6 +303,14 @@
     }
   });
 
+  function highlightPreview(query: string) {
+    for (const preview of Array.from(
+      detailEl?.querySelectorAll<HTMLElement>('.source-preview, .html-preview, .md-content') ?? [],
+    )) {
+      highlightInElement(preview, query);
+    }
+  }
+
   // Highlight search terms in the detail body preview
   let lastHighlightedItem: string | null = null;
   let highlightTimer: ReturnType<typeof setTimeout> | undefined;
@@ -315,11 +320,12 @@
     const query = clipboardViewState.searchQuery;
     const itemId = item?.id ?? null;
 
+    let cancelled = false;
     clearTimeout(highlightTimer);
     if (!detailEl) return;
 
     if (!query.trim()) {
-      highlightInElement(detailEl, '');
+      highlightPreview('');
       lastHighlightedItem = itemId;
       return;
     }
@@ -331,15 +337,18 @@
     if (isNewItem) {
       lastHighlightedItem = itemId;
       tick().then(() => {
-        if (detailEl) highlightInElement(detailEl, query);
+        if (!cancelled && detailEl) highlightPreview(query);
       });
     } else {
       highlightTimer = setTimeout(() => {
-        if (detailEl) highlightInElement(detailEl, query);
+        if (!cancelled && detailEl) highlightPreview(query);
       }, 100);
     }
 
-    return () => clearTimeout(highlightTimer);
+    return () => {
+      cancelled = true;
+      clearTimeout(highlightTimer);
+    };
   });
 
   // Load image via readFile when an image item is selected
@@ -902,7 +911,7 @@
         {#if showDayHeader && sectionLabel}
           <div class="list-section">{sectionLabel}</div>
         {/if}
-        {@const display = getItemDisplay(item)}
+        {@const display = getItemDisplay(item, clipboardViewState.searchQuery)}
         <LauncherListRow
           data-index={index}
           selected={selectedIndex === index}
@@ -1058,7 +1067,9 @@
                     {@html sanitizeHtml(selectedFullItem.content)}
                   </div>
                 {:else}
-                  <pre class="source-preview">{getSourcePreview(selectedFullItem.content)}</pre>
+                  <pre class="source-preview">{@html getSourcePreview(
+                      selectedFullItem.content,
+                    )}</pre>
                   {#if isContentTruncated(selectedFullItem.content)}
                     <div class="truncation-notice">
                       Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedFullItem.content.length.toLocaleString()}
@@ -1068,9 +1079,13 @@
                 {/if}
               {:else if selectedFullItem.type === 'rtf'}
                 {#if showRenderedHtml}
-                  <pre class="source-preview">{stripRtf(selectedFullItem.content)}</pre>
+                  <pre class="source-preview">{@html escapeHtml(
+                      stripRtf(selectedFullItem.content),
+                    )}</pre>
                 {:else}
-                  <pre class="source-preview">{getSourcePreview(selectedFullItem.content)}</pre>
+                  <pre class="source-preview">{@html getSourcePreview(
+                      selectedFullItem.content,
+                    )}</pre>
                 {/if}
                 {#if isContentTruncated(selectedFullItem.content)}
                   <div class="truncation-notice">
@@ -1213,7 +1228,9 @@
                     </div>
                   {/if}
                 {:else}
-                  <pre class="source-preview">{getSourcePreview(selectedFullItem.content)}</pre>
+                  <pre class="source-preview">{@html getSourcePreview(
+                      selectedFullItem.content,
+                    )}</pre>
                   {#if isContentTruncated(selectedFullItem.content)}
                     <div class="truncation-notice">
                       Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedFullItem.content.length.toLocaleString()}
@@ -1592,6 +1609,13 @@
 
   :global(.html-preview a) {
     color: var(--accent-primary) !important;
+  }
+
+  :global(.html-preview mark.search-match),
+  :global(.html-preview .search-match) {
+    color: var(--accent-primary) !important;
+    background-color: color-mix(in srgb, var(--accent-primary) 18%, transparent) !important;
+    background: color-mix(in srgb, var(--accent-primary) 18%, transparent) !important;
   }
 
   :global(.html-preview img) {

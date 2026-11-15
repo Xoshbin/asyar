@@ -149,7 +149,7 @@
 
   .search-match {
     color: var(--accent-primary);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
   }
 
   .row-shell {

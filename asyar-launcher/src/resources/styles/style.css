@@ -887,9 +887,9 @@ html[data-platform='macos'] .app-root {
   .search-match {
     color: var(--accent-primary);
     background-color: color-mix(in srgb, var(--accent-primary) 18%, transparent);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     border-radius: var(--radius-xs);
-    padding: 0 2px;
+    padding: 0 var(--space-0-5);
   }
 
   .result-subtitle {

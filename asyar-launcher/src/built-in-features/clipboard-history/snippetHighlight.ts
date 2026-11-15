@@ -17,6 +17,14 @@ const START_MARKER = '\x01';
 const END_MARKER = '\x02';
 
 /**
+ * Strip diacritics / accents and convert to lowercase for accent-insensitive
+ * token matching (aligning with SQLite FTS5 `unicode61 remove_diacritics 2`).
+ */
+export function normalizeToken(s: string): string {
+  return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
+/**
  * Parse a snippet string containing `\x01` (start match) and `\x02` (end match)
  * into a safe array of text chunks for rendering in the UI.
  */
@@ -73,7 +81,7 @@ export function getItemDisplay(
     customTitle?: string;
     snippet?: string;
   },
-  _query?: string,
+  query?: string,
 ): ItemDisplay {
   if (!item.snippet) {
     return {
@@ -97,8 +105,19 @@ export function getItemDisplay(
 
   if (item.customTitle?.trim()) {
     const customTitleTrimmed = item.customTitle.trim();
-    // Check if the snippet matched custom title vs body
-    if (customTitleTrimmed.includes(plainSnippet) || plainSnippet.includes(customTitleTrimmed)) {
+    // Evaluate the originating query against title tokens; snippet context can
+    // overlap a title even when only the body contains a matching token.
+    const terms = extractQueryTerms(query);
+    const titleTokens = (customTitleTrimmed.match(/[\p{L}\p{N}\p{Co}]+/gu) ?? []).map(
+      normalizeToken,
+    );
+    if (
+      terms.length > 0 &&
+      terms.every((term) => {
+        const normTerm = normalizeToken(term);
+        return normTerm.length > 0 && titleTokens.some((token) => token.startsWith(normTerm));
+      })
+    ) {
       return {
         title: customTitleTrimmed,
         titleChunks: chunks,
@@ -108,7 +127,7 @@ export function getItemDisplay(
 
     return {
       title: customTitleTrimmed,
-      titleChunks: undefined,
+      titleChunks: [{ text: customTitleTrimmed, match: false }],
       subtitle: plainSnippet || undefined,
     };
   }
@@ -129,10 +148,8 @@ export function extractQueryTerms(query?: string | null): string[] {
   const parsed = parseClipboardSearchQuery(query);
   const text = parsed.textQuery.trim();
   if (!text) return [];
-  return text
-    .split(/\s+/)
-    .map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
-    .filter((w) => w.length > 0);
+  // unicode61's default token categories are letters, numbers and private use.
+  return text.match(/[\p{L}\p{N}\p{Co}]+/gu) ?? [];
 }
 
 /**
@@ -166,7 +183,7 @@ export function highlightInElement(
   if (terms.length === 0) return;
 
   const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const regex = new RegExp(`(${escaped.join('|')})`, 'gi');
+  const regex = new RegExp(`(?<![\\p{L}\\p{N}\\p{Co}])(${escaped.join('|')})`, 'giu');
 
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   const textNodes: Text[] = [];

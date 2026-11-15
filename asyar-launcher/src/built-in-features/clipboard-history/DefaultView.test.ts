@@ -72,6 +72,7 @@ const mockFetchFullItem = vi.hoisted(() =>
 
 vi.mock('../../services/clipboard/stores/clipboardHistoryStore.svelte', () => ({
   clipboardHistoryStore: {
+    sourceApps: [],
     favorites: [],
     recent: Object.values(items),
     searchResults: null,
@@ -127,6 +128,7 @@ vi.mock('./urlFetcher', () => ({
 import DefaultView from './DefaultView.svelte';
 import { clipboardViewState } from './state.svelte';
 import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
+import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 
 // Let the selection effect fetch the item and kick off loadImage.
@@ -305,6 +307,41 @@ describe('DefaultView image preview', () => {
 
     unmount();
     clipboardViewState.searchQuery = '';
+  });
+
+  it('updates a highlighted source preview when selecting another text clip', async () => {
+    clipboardViewState.searchQuery = 'hello';
+    items.secondText = {
+      id: 'secondText',
+      type: 'text',
+      content: 'hello <new> & next',
+      createdAt: 0,
+    };
+    clipboardHistoryStore.recent = Object.values(items);
+    const { container } = render(DefaultView);
+    await select('text');
+    await select('secondText');
+    expect(container.querySelector('.source-preview')?.textContent).toBe('hello <new> & next');
+    expect(container.querySelector('.source-preview mark')?.textContent).toBe('hello');
+    delete items.secondText;
+    clipboardViewState.searchQuery = '';
+  });
+
+  it('syncs newly loaded source app options with an unchanged filter and label', async () => {
+    const sync = vi.spyOn(searchBarAccessoryService, 'syncViewState');
+    clipboardViewState.searchQuery = 'hello';
+    render(DefaultView);
+    await flush();
+    sync.mockClear();
+    clipboardHistoryStore.sourceApps = [{ name: 'Safari', count: 1 }] as any;
+    // The mock store is plain; a query change reruns the consuming effect.
+    clipboardViewState.searchQuery = 'hello ';
+    await flush();
+    expect(sync).toHaveBeenCalled();
+    expect(JSON.stringify(sync.mock.calls)).toContain('Safari');
+    clipboardHistoryStore.sourceApps = [];
+    clipboardViewState.searchQuery = '';
+    sync.mockRestore();
   });
 
   it('renders metadata list for selected clipboard item', async () => {

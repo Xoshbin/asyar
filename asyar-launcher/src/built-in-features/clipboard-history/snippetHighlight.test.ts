@@ -4,6 +4,7 @@ import {
   extractQueryTerms,
   getItemDisplay,
   highlightInElement,
+  normalizeToken,
   parseSnippetChunks,
 } from './snippetHighlight';
 
@@ -84,7 +85,7 @@ describe('getItemDisplay', () => {
     };
     const display = getItemDisplay(item, 'code');
     expect(display.title).toBe('My Custom Note');
-    expect(display.titleChunks).toBeUndefined();
+    expect(display.titleChunks).toEqual([{ text: 'My Custom Note', match: false }]);
     expect(display.subtitle).toBe('…secret code 123…');
   });
 
@@ -152,4 +153,64 @@ describe('highlightInElement', () => {
     expect(a?.getAttribute('href')).toBe('https://apple.com');
     expect(a?.querySelector('mark.search-match')?.textContent).toBe('apple');
   });
+});
+
+it('keeps a contained body snippet below the custom title', () => {
+  const display = getItemDisplay(
+    { type: 'text', customTitle: 'pineapple notes', snippet: '\x01apple\x02' },
+    'apple',
+  );
+  expect(display.titleChunks).toEqual([{ text: 'pineapple notes', match: false }]);
+  expect(display.subtitle).toBe('apple');
+});
+it('splits punctuation as unicode61 separators', () => {
+  expect(extractQueryTerms('foo_bar/baz-qux')).toEqual(['foo', 'bar', 'baz', 'qux']);
+});
+it('highlights token prefixes but skips interior substrings', () => {
+  const div = document.createElement('div');
+  div.textContent = 'pineapple APPlication foo_apple';
+  highlightInElement(div, 'app');
+  expect(Array.from(div.querySelectorAll('mark')).map((m) => m.textContent)).toEqual([
+    'APP',
+    'app',
+  ]);
+});
+
+describe('normalizeToken', () => {
+  it('strips accents and converts to lowercase', () => {
+    expect(normalizeToken('Café')).toBe('cafe');
+    expect(normalizeToken('Cafe\u0301')).toBe('cafe');
+    expect(normalizeToken('NAÏVE')).toBe('naive');
+    expect(normalizeToken('Über')).toBe('uber');
+  });
+});
+
+it('matches accented customTitle tokens when query is unaccented', () => {
+  const item = {
+    type: 'text',
+    customTitle: 'Café Menu',
+    snippet: '\x01Café\x02 Menu',
+  };
+  const display = getItemDisplay(item, 'cafe');
+  expect(display.title).toBe('Café Menu');
+  expect(display.titleChunks).toEqual([
+    { text: 'Café', match: true },
+    { text: ' Menu', match: false },
+  ]);
+  expect(display.subtitle).toBeUndefined();
+});
+
+it('matches unaccented customTitle tokens when query is accented', () => {
+  const item = {
+    type: 'text',
+    customTitle: 'Cafe Menu',
+    snippet: '\x01Cafe\x02 Menu',
+  };
+  const display = getItemDisplay(item, 'café');
+  expect(display.title).toBe('Cafe Menu');
+  expect(display.titleChunks).toEqual([
+    { text: 'Cafe', match: true },
+    { text: ' Menu', match: false },
+  ]);
+  expect(display.subtitle).toBeUndefined();
 });
