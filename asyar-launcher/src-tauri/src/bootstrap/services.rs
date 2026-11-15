@@ -21,6 +21,7 @@ pub fn register_builtin_tools(
         calculator::CalculatorTool,
         clipboard::{ClipboardProvider, ClipboardReadTool, ClipboardWriteTool, SystemClipboard},
         fs::{FsReadTool, FsWriteTool},
+        ocr::OcrImageTool,
         search::SearchTool,
         shell::ShellExecTool,
         web_fetch::WebFetchTool,
@@ -48,6 +49,9 @@ pub fn register_builtin_tools(
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
         .register_builtin(Arc::new(FsWriteTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(OcrImageTool::new()))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
         .register_builtin(Arc::new(ShellExecTool::new()))

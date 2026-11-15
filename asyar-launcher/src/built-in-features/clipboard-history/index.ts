@@ -1,6 +1,6 @@
 import { t } from '../../services/i18n';
 import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
-import { clipboardViewState } from './state.svelte';
+import { clipboardViewState, fetchFullItemForId } from './state.svelte';
 import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from '../../services/action/actionService.svelte';
 import { logService } from '../../services/log/logService';
@@ -8,6 +8,7 @@ import { contextModeService } from '../../services/context/contextModeService.sv
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
+import { ocrRecognizeImageFile } from '../../lib/ipc/commands';
 
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
@@ -24,6 +25,19 @@ import {
 import type { ExtensionAction, IActionService } from 'asyar-sdk/contracts';
 import { snippetUiState } from '../snippets/snippetUiState.svelte';
 import { snippetViewState } from '../snippets/snippetViewState.svelte';
+import { parseFilePaths } from './filePreview';
+
+function isImageOrSingleFile(item: ClipboardHistoryItem | null): boolean {
+  if (!item) return false;
+  if (item.type === ClipboardItemType.Image) return true;
+  if (item.type === ClipboardItemType.Files) {
+    if (item.content) {
+      return parseFilePaths(item.content).length === 1;
+    }
+    return item.preview?.startsWith('1 file') ?? false;
+  }
+  return false;
+}
 
 // Define static results for clipboard extension
 const clipboardResults = [
@@ -53,18 +67,33 @@ async function assertTextSendable(actionTitle: string): Promise<string | null> {
   const item = clipboardViewState.selectedItem;
   if (!item) return null;
 
-  if (item.type === ClipboardItemType.Image || item.type === ClipboardItemType.Files) {
-    const typeName = item.type === ClipboardItemType.Image ? 'Image' : 'File';
+  if (item.type === ClipboardItemType.Files) {
     await feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'error',
       retryable: false,
       context: {
-        message: t('features.clipboard.unsupported_item', { type: typeName, action: actionTitle }),
+        message: t('features.clipboard.unsupported_item', { type: 'File', action: actionTitle }),
       },
     });
     return null;
+  }
+
+  if (item.type === ClipboardItemType.Image) {
+    const path = item.content ?? (await fetchFullItemForId(item.id))?.content;
+    if (!path) return null;
+    try {
+      const extracted = await ocrRecognizeImageFile(path);
+      if (!extracted || !extracted.trim()) {
+        await feedbackService.showHUD(t('features.clipboard.ui.ocr_no_text'));
+        return null;
+      }
+      return extracted.trim();
+    } catch (error) {
+      logService.warn(`OCR failed for image item: ${error}`);
+      return null;
+    }
   }
 
   const text = await clipboardViewState.getPlainText(item);
@@ -127,6 +156,7 @@ class ClipboardHistoryExtension implements Extension {
         // before navigating yields the event loop; the view would still land,
         // but the list would briefly show stale items from the last session.
         this.extensionManager?.navigateToView('clipboard-history/DefaultView');
+        this.inView = true;
         this.registerViewActions();
         this.refreshClipboardData().catch((e) => {
           this.logService?.error(`refreshClipboardData failed: ${e}`);
@@ -266,7 +296,9 @@ class ClipboardHistoryExtension implements Extension {
       title: t('features.clipboard.act.toggle_html'),
       description: t('features.clipboard.act.toggle_html_desc'),
       icon: 'icon:eye',
+      shortcut: 'Mod+Shift+H',
       extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
       category: 'clipboard-action',
       execute: () => {
         clipboardViewState.toggleHtmlView();
@@ -310,6 +342,76 @@ class ClipboardHistoryExtension implements Extension {
       visible: () => Boolean(clipboardViewState.selectedItem),
       execute: async () => {
         await clipboardViewState.pasteAsPlainText();
+      },
+    });
+
+    actionService.registerAction({
+      id: 'clipboard-history:copy-text-from-image',
+      title: t('features.clipboard.act.copy_text_from_image'),
+      label: t('features.clipboard.act.copy_text_from_image'),
+      description: t('features.clipboard.act.copy_text_from_image_desc'),
+      icon: 'icon:camera',
+      shortcut: 'Mod+Shift+C',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      category: 'clipboard-action',
+      visible: () => {
+        const item = clipboardViewState.selectedItem;
+        return Boolean(item && item.type === ClipboardItemType.Image);
+      },
+      execute: async () => {
+        const selected = clipboardViewState.selectedItem;
+        if (selected) {
+          await clipboardViewState.copyTextFromImage(selected);
+        }
+      },
+    });
+
+    actionService.registerAction({
+      id: 'clipboard-history:open-preview',
+      title:
+        getHostPlatform() === 'macos'
+          ? t('features.clipboard.ui.open_in_preview')
+          : t('features.clipboard.ui.open_image'),
+      label:
+        getHostPlatform() === 'macos'
+          ? t('features.clipboard.ui.open_in_preview')
+          : t('features.clipboard.ui.open_image'),
+      description: t('features.clipboard.act.open_preview_desc'),
+      icon: 'icon:image',
+      shortcut: 'Mod+O',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      category: 'clipboard-action',
+      visible: () => isImageOrSingleFile(clipboardViewState.selectedItem),
+      execute: async () => {
+        await clipboardViewState.openSelectedItem();
+      },
+    });
+
+    actionService.registerAction({
+      id: 'clipboard-history:reveal',
+      title:
+        getHostPlatform() === 'macos'
+          ? t('features.clipboard.ui.reveal_title')
+          : getHostPlatform() === 'windows'
+            ? t('core_actions.reveal_app_win')
+            : t('core_actions.reveal_app'),
+      label:
+        getHostPlatform() === 'macos'
+          ? t('features.clipboard.ui.reveal_title')
+          : getHostPlatform() === 'windows'
+            ? t('core_actions.reveal_app_win')
+            : t('core_actions.reveal_app'),
+      description: t('features.clipboard.act.reveal_desc'),
+      icon: 'icon:folder',
+      shortcut: 'Mod+R',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      category: 'clipboard-action',
+      visible: () => isImageOrSingleFile(clipboardViewState.selectedItem),
+      execute: async () => {
+        await clipboardViewState.revealSelectedItem();
       },
     });
 
@@ -420,7 +522,7 @@ class ClipboardHistoryExtension implements Extension {
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         const text = await assertTextSendable('Ask AI about this');
-        if (!text) return;
+        if (!text || !this.inView) return;
 
         // Pop the clipboard view synchronously so its keydown listener + registered
         // actions are torn down via viewDeactivated BEFORE Svelte 5 flushes effects.
@@ -463,6 +565,9 @@ class ClipboardHistoryExtension implements Extension {
     actionService.unregisterAction('clipboard-history:pin');
     actionService.unregisterAction('clipboard-history:unpin');
     actionService.unregisterAction('clipboard-history:paste-as-plain-text');
+    actionService.unregisterAction('clipboard-history:copy-text-from-image');
+    actionService.unregisterAction('clipboard-history:open-preview');
+    actionService.unregisterAction('clipboard-history:reveal');
     actionService.unregisterAction('clipboard-history:open-in-browser');
     actionService.unregisterAction('clipboard-history:save-as-snippet');
     actionService.unregisterAction('clipboard-history:delete');

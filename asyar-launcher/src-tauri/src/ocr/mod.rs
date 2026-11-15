@@ -151,12 +151,23 @@ pub async fn capture_screen_text(
         .map_err(|e| AppError::Platform(format!("OCR task failed: {e}")))??;
 
     // 5. Evaluate text, secret redaction, clipboard write, and HUD
-    match evaluate_ocr_text(&raw_text) {
+    dispatch_ocr_result(app_handle, evaluate_ocr_text(&raw_text), None)
+}
+
+/// Dispatches an evaluated OCR result: records secret telemetry, writes text to
+/// the system clipboard, and presents a native Asyar HUD notification.
+pub fn dispatch_ocr_result(
+    app_handle: &tauri::AppHandle,
+    evaluation: OcrEvaluation,
+    empty_fallback_hud: Option<&str>,
+) -> Result<Option<String>, AppError> {
+    match evaluation {
         OcrEvaluation::Empty { hud_message } => {
+            let msg = empty_fallback_hud.unwrap_or(&hud_message).to_string();
             let app_clone = app_handle.clone();
             let _ = app_handle.run_on_main_thread(move || {
                 let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let _ = crate::hud_window::service::show(&app_clone, hud_message, 2000, false);
+                    let _ = crate::hud_window::service::show(&app_clone, msg, 2000, false);
                 }));
             });
             Ok(None)
@@ -191,6 +202,68 @@ pub async fn capture_screen_text(
             Ok(Some(redacted_text))
         }
     }
+}
+
+/// Extracts and recognizes text from a local image file.
+///
+/// Reads image bytes, executes on-device OCR, and applies Layer 2 secret redaction.
+/// Returns the redacted text on success, or an empty string if no text was found.
+pub fn extract_text_from_image_file(image_path: &std::path::Path) -> Result<String, AppError> {
+    if !image_path.is_file() {
+        return Err(AppError::NotFound(format!(
+            "image file not found: {}",
+            image_path.display()
+        )));
+    }
+    let image_bytes = std::fs::read(image_path)?;
+    if image_bytes.is_empty() {
+        return Ok(String::new());
+    }
+    let raw_text = recognize_text(&image_bytes)?;
+    match evaluate_ocr_text(&raw_text) {
+        OcrEvaluation::Empty { .. } => Ok(String::new()),
+        OcrEvaluation::Success { redacted_text, .. } => Ok(redacted_text),
+    }
+}
+
+/// Runs OCR on a local image file, applies secret redaction, writes the text to
+/// the system clipboard, and triggers an Asyar HUD notification.
+pub async fn copy_text_from_image_file(
+    app_handle: &tauri::AppHandle,
+    image_path: &std::path::Path,
+) -> Result<Option<String>, AppError> {
+    let path = image_path.to_path_buf();
+    let image_bytes = tauri::async_runtime::spawn_blocking(move || {
+        if !path.is_file() {
+            return Err(AppError::NotFound(format!(
+                "image file not found: {}",
+                path.display()
+            )));
+        }
+        std::fs::read(&path).map_err(AppError::from)
+    })
+    .await
+    .map_err(|e| AppError::Platform(format!("file read task failed: {e}")))??;
+
+    if image_bytes.is_empty() {
+        return dispatch_ocr_result(
+            app_handle,
+            OcrEvaluation::Empty {
+                hud_message: "No text found in image".to_string(),
+            },
+            None,
+        );
+    }
+
+    let raw_text = tauri::async_runtime::spawn_blocking(move || recognize_text(&image_bytes))
+        .await
+        .map_err(|e| AppError::Platform(format!("OCR task failed: {e}")))??;
+
+    dispatch_ocr_result(
+        app_handle,
+        evaluate_ocr_text(&raw_text),
+        Some("No text found in image"),
+    )
 }
 
 #[cfg(test)]
@@ -253,5 +326,22 @@ mod tests {
             }
             _ => panic!("expected Success"),
         }
+    }
+
+    #[test]
+    fn test_extract_text_from_image_file_not_found() {
+        let non_existent =
+            std::env::temp_dir().join(format!("non_existent_{}.png", uuid::Uuid::new_v4()));
+        let result = extract_text_from_image_file(&non_existent);
+        assert!(matches!(result, Err(AppError::NotFound(_))));
+    }
+
+    #[test]
+    fn test_extract_text_from_image_file_empty_file() {
+        let empty_path = std::env::temp_dir().join(format!("empty_{}.png", uuid::Uuid::new_v4()));
+        std::fs::write(&empty_path, b"").unwrap();
+        let result = extract_text_from_image_file(&empty_path);
+        let _ = std::fs::remove_file(&empty_path);
+        assert_eq!(result.unwrap(), "");
     }
 }

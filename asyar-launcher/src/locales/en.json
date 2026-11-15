@@ -1064,7 +1064,11 @@
         "ask_ai": "Ask AI about this",
         "ask_ai_desc": "Open AI Chat with this clipboard text pre-filled",
         "clear_history": "Clear Clipboard History",
-        "clear_history_desc": "Remove all non-favorite clipboard items"
+        "clear_history_desc": "Remove all non-favorite clipboard items",
+        "copy_text_from_image": "Copy Text from Image",
+        "copy_text_from_image_desc": "Extract and copy text from this image to clipboard",
+        "open_preview_desc": "Open this image or file in the default viewer",
+        "reveal_desc": "Show this file in the system file manager"
       },
       "subtitle": "View and manage your clipboard history",
       "unsupported_item": "Not supported yet — {type} clipboard items can't be used with \"{action}\" yet.",
@@ -1085,6 +1089,8 @@
         "reveal_title": "Reveal in Finder",
         "open_in_preview": "Open in Preview",
         "open_image": "Open Image",
+        "copy_text_from_image": "Copy Text from Image",
+        "ocr_no_text": "No text found in image",
         "open_failed": "Could not open {path}",
         "preview_unavailable": "Preview unavailable",
         "source": "Source",

@@ -354,10 +354,11 @@ describe('DefaultView preview context menu', () => {
 
     const menu = screen.getByRole('menu');
     expect(menu.hasAttribute('data-no-focus-steal')).toBe(true);
-    expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+    expect(screen.getAllByRole('menuitem')).toHaveLength(3);
     const openBtn = screen.getByRole('menuitem', { name: 'Open in Preview' });
     expect(openBtn).toBeTruthy();
     expect(screen.getByRole('menuitem', { name: 'Reveal in Finder' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Copy Text from Image' })).toBeTruthy();
 
     await fireEvent.click(openBtn);
     await flush();
@@ -402,6 +403,27 @@ describe('DefaultView preview context menu', () => {
     unmount();
   });
 
+  it('copies text from the image via context menu', async () => {
+    const copySpy = vi.spyOn(clipboardViewState, 'copyTextFromImage').mockResolvedValue(true);
+    const { container, unmount } = render(DefaultView);
+    await select('img');
+    await finishRead('/cache/big.png');
+
+    const img = container.querySelector('img[src="blob:test/1"]')!;
+    await fireEvent.contextMenu(img);
+    await flush();
+
+    const copyBtn = screen.getByRole('menuitem', { name: 'Copy Text from Image' });
+    expect(copyBtn).toBeTruthy();
+    await fireEvent.click(copyBtn);
+    await flush();
+
+    expect(copySpy).toHaveBeenCalledWith(expect.objectContaining({ content: '/cache/big.png' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+    copySpy.mockRestore();
+    unmount();
+  });
+
   it('supports preview context menu on single image file thumbnails', async () => {
     vi.useFakeTimers();
     mockGetFileThumbnail.mockResolvedValue('asyar-thumb://shot');
@@ -425,7 +447,7 @@ describe('DefaultView preview context menu', () => {
 
     await fireEvent.contextMenu(thumb);
     await flush();
-    expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+    expect(screen.getAllByRole('menuitem')).toHaveLength(3);
     await fireEvent.click(screen.getByRole('menuitem', { name: 'Open in Preview' }));
     await flush();
     expect(mockOpenPath).toHaveBeenCalledWith(null, '/Users/test/Screenshot.png', {
@@ -603,7 +625,7 @@ describe('DefaultView preview context menu', () => {
 
     const menu = screen.getByRole('menu');
     const items = screen.getAllByRole('menuitem');
-    expect(items.length).toBe(2);
+    expect(items.length).toBe(3);
     expect(document.activeElement).toBe(items[0]);
 
     const windowKeydownSpy = vi.fn();
@@ -619,16 +641,19 @@ describe('DefaultView preview context menu', () => {
     expect(document.activeElement).toBe(items[1]);
 
     expect(dispatchKey('ArrowDown').defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(items[2]);
+
+    expect(dispatchKey('ArrowDown').defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(items[0]);
 
     expect(dispatchKey('ArrowUp').defaultPrevented).toBe(true);
-    expect(document.activeElement).toBe(items[1]);
+    expect(document.activeElement).toBe(items[2]);
 
     expect(dispatchKey('Home').defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(items[0]);
 
     expect(dispatchKey('End').defaultPrevented).toBe(true);
-    expect(document.activeElement).toBe(items[1]);
+    expect(document.activeElement).toBe(items[2]);
 
     expect(windowKeydownSpy).not.toHaveBeenCalled();
 

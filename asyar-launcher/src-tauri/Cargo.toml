@@ -220,6 +220,9 @@ windows = { version = "0.62", features = [
     "Win32_Security",
     "Win32_System_LibraryLoader",
     "Win32_System_Diagnostics_ToolHelp",
+    "Media_Ocr",
+    "Graphics_Imaging",
+    "Storage_Streams",
 ] }
 wmi = "0.14"
 # Registry access for the uninstall-application flow (scanning

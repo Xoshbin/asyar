@@ -7,6 +7,7 @@ use crate::agents::builtin_tools::{
     calculator::CalculatorTool,
     clipboard::{ClipboardProvider, ClipboardReadTool, ClipboardWriteTool, SystemClipboard},
     fs::{FsReadTool, FsWriteTool},
+    ocr::OcrImageTool,
     shell::ShellExecTool,
     web_fetch::WebFetchTool,
     web_search::WebSearchTool,
@@ -118,6 +119,9 @@ where
             }
             "fs-write" => {
                 let _ = registry.register_builtin(Arc::new(FsWriteTool::new()));
+            }
+            "ocr-image" => {
+                let _ = registry.register_builtin(Arc::new(OcrImageTool::new()));
             }
             "shell-exec" => {
                 let _ = registry.register_builtin(Arc::new(ShellExecTool::new()));

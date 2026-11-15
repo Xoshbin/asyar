@@ -1064,7 +1064,11 @@
         "ask_ai": "就此询问 AI",
         "ask_ai_desc": "打开 AI 聊天并预填此剪贴板文本",
         "clear_history": "清除剪贴板历史",
-        "clear_history_desc": "移除所有非收藏的剪贴板项目"
+        "clear_history_desc": "移除所有非收藏的剪贴板项目",
+        "copy_text_from_image": "从图像复制文本",
+        "copy_text_from_image_desc": "提取此图像中的文本并复制到剪贴板",
+        "open_preview_desc": "在默认查看器中打开此图像或文件",
+        "reveal_desc": "在系统文件管理器中显示此文件"
       },
       "subtitle": "查看和管理剪贴板历史",
       "unsupported_item": "暂不支持——{type} 类型的剪贴板项目尚无法用于“{action}”。",
@@ -1085,6 +1089,8 @@
         "reveal_title": "在访达中显示",
         "open_in_preview": "在预览中打开",
         "open_image": "打开图片",
+        "copy_text_from_image": "从图像复制文本",
+        "ocr_no_text": "图像中未找到文本",
         "open_failed": "无法打开 {path}",
         "preview_unavailable": "预览不可用",
         "source": "来源",

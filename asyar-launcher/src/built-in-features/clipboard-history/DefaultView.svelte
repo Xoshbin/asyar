@@ -10,7 +10,13 @@
   } from './state.svelte';
   import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
   import { fetchRawHtml } from './urlFetcher';
-  import { parseFilePaths, fileNameOf, loadFileThumbnails, FILE_THUMB_DIM } from './filePreview';
+  import {
+    parseFilePaths,
+    fileNameOf,
+    loadFileThumbnails,
+    FILE_THUMB_DIM,
+    IMAGE_EXT_RE,
+  } from './filePreview';
   import { stripRtf, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
   import type { StoredClipboardItem } from '../../lib/ipc/commands';
   import { readFile } from '@tauri-apps/plugin-fs';
@@ -100,8 +106,6 @@
 
   let detailEl = $state<HTMLElement | null>(null);
   let listWrapperEl = $state<HTMLElement | null>(null);
-
-  const IMAGE_EXT_RE = /\.(avif|bmp|gif|heic|heif|ico|jpe?g|png|tiff?|webp)$/i;
 
   interface PreviewContextMenuState {
     x: number;
@@ -714,14 +718,21 @@
     const menu = previewContextMenu;
     if (!menu) return;
     previewContextMenu = null;
-    await openPreviewFile(menu.path, menu.isImage);
+    await clipboardViewState.openPreviewFile(menu.path, menu.isImage);
   }
 
   async function handleContextReveal() {
     const menu = previewContextMenu;
     if (!menu) return;
     previewContextMenu = null;
-    await revealFile(menu.path);
+    await clipboardViewState.revealFile(menu.path);
+  }
+
+  async function handleContextCopyText() {
+    const menu = previewContextMenu;
+    if (!menu) return;
+    previewContextMenu = null;
+    await clipboardViewState.copyTextFromImage({ content: menu.path } as any);
   }
 
   function handleContextMenuKeydown(e: KeyboardEvent) {
@@ -1271,6 +1282,33 @@
         >
         <span>{getRevealMenuLabel()}</span>
       </button>
+      {#if previewContextMenu.isImage}
+        <button
+          type="button"
+          class="context-menu-item"
+          role="menuitem"
+          onclick={handleContextCopyText}
+        >
+          <svg
+            class="w-3.5 h-3.5 flex-shrink-0 context-menu-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            ><path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+            /><path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+            /></svg
+          >
+          <span>{t('features.clipboard.ui.copy_text_from_image')}</span>
+        </button>
+      {/if}
     </div>
   {/if}
 </div>

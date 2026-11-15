@@ -1,5 +1,7 @@
 import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
 
+export const IMAGE_EXT_RE = /\.(avif|bmp|gif|heic|heif|ico|jpe?g|png|tiff?|webp)$/i;
+
 /**
  * Upper bound on thumbnails requested for one `files` clipboard entry.
  * On macOS every non-image type is thumbnailed through a `qlmanage`
