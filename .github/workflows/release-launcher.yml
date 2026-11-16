@@ -459,6 +459,7 @@ jobs:
           echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
+        id: create_release
         uses: softprops/action-gh-release@v2.6.1
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
@@ -705,7 +706,7 @@ jobs:
           release-tag: ${{ github.event.inputs.tag || github.ref_name }}
 
       - name: Announce Release to Discord
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.create_release.outcome == 'success' }}
         env:
           DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
           REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
@@ -723,4 +724,4 @@ jobs:
 
           JSON_PAYLOAD=$(jq -n --arg content "$CONTENT" '{content: $content}')
 
-          curl -s -X POST -H "Content-Type: application/json" -d "$JSON_PAYLOAD" "$DISCORD_RELEASE_WEBHOOK" || echo "Warning: Failed to post to Discord webhook"
+          curl -s --fail-with-body --show-error -X POST -H "Content-Type: application/json" -d "$JSON_PAYLOAD" "$DISCORD_RELEASE_WEBHOOK" || echo "Warning: Failed to post to Discord webhook"
