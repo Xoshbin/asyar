@@ -487,6 +487,7 @@ jobs:
           APP_URL: 'https://asyar.org'
           REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
           REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${REF_NAME#v}"
 
@@ -549,14 +550,43 @@ jobs:
           TAG="$REF_NAME"
           BASE_URL="https://github.com/$REPO/releases/download/$TAG"
 
-          PAYLOAD=$(printf '{"version":"%s","type":"%s","notes":"Automated multi-platform release %s","platforms":{"darwin-aarch64":{"url":"%s/%s","download_url":"%s/%s","signature":"%s"},"darwin-x86_64":{"url":"%s/%s","download_url":"%s/%s","signature":"%s"},"windows-x86_64":{"url":"%s/%s","signature":"%s"},"windows-aarch64":{"url":"%s/%s","signature":"%s"},"linux-x86_64":{"url":"%s/%s","signature":"%s"},"linux-aarch64":{"url":"%s/%s","signature":"%s"}}}' \
-            "$VERSION" "$TYPE" "$VERSION" \
-            "$BASE_URL" "$MAC_AARCH64_FILE" "$BASE_URL" "$MAC_AARCH64_DMG" "$MAC_AARCH64_SIG" \
-            "$BASE_URL" "$MAC_X64_FILE" "$BASE_URL" "$MAC_X64_DMG" "$MAC_X64_SIG" \
-            "$BASE_URL" "$WIN_X64_FILE" "$WIN_X64_SIG" \
-            "$BASE_URL" "$WIN_ARM64_FILE" "$WIN_ARM64_SIG" \
-            "$BASE_URL" "$LINUX_FILE" "$LINUX_SIG" \
-            "$BASE_URL" "$LINUX_ARM64_FILE" "$LINUX_ARM64_SIG")
+          # Pull generated release notes from the GitHub Release
+          GH_RELEASE_NOTES=$(gh release view "$TAG" --repo "$REPO" --json body -q .body 2>/dev/null || true)
+          if [[ -z "$GH_RELEASE_NOTES" ]]; then
+            GH_RELEASE_NOTES="Automated multi-platform release $VERSION"
+          fi
+
+          PAYLOAD=$(jq -n \
+            --arg version "$VERSION" \
+            --arg type "$TYPE" \
+            --arg notes "$GH_RELEASE_NOTES" \
+            --arg mac_arm_url "$BASE_URL/$MAC_AARCH64_FILE" \
+            --arg mac_arm_dmg "$BASE_URL/$MAC_AARCH64_DMG" \
+            --arg mac_arm_sig "$MAC_AARCH64_SIG" \
+            --arg mac_x64_url "$BASE_URL/$MAC_X64_FILE" \
+            --arg mac_x64_dmg "$BASE_URL/$MAC_X64_DMG" \
+            --arg mac_x64_sig "$MAC_X64_SIG" \
+            --arg win_x64_url "$BASE_URL/$WIN_X64_FILE" \
+            --arg win_x64_sig "$WIN_X64_SIG" \
+            --arg win_arm_url "$BASE_URL/$WIN_ARM64_FILE" \
+            --arg win_arm_sig "$WIN_ARM64_SIG" \
+            --arg lin_x64_url "$BASE_URL/$LINUX_FILE" \
+            --arg lin_x64_sig "$LINUX_SIG" \
+            --arg lin_arm_url "$BASE_URL/$LINUX_ARM64_FILE" \
+            --arg lin_arm_sig "$LINUX_ARM64_SIG" \
+            '{
+              version: $version,
+              type: $type,
+              notes: $notes,
+              platforms: {
+                "darwin-aarch64": { url: $mac_arm_url, download_url: $mac_arm_dmg, signature: $mac_arm_sig },
+                "darwin-x86_64": { url: $mac_x64_url, download_url: $mac_x64_dmg, signature: $mac_x64_sig },
+                "windows-x86_64": { url: $win_x64_url, signature: $win_x64_sig },
+                "windows-aarch64": { url: $win_arm_url, signature: $win_arm_sig },
+                "linux-x86_64": { url: $lin_x64_url, signature: $lin_x64_sig },
+                "linux-aarch64": { url: $lin_arm_url, signature: $lin_arm_sig }
+              }
+            }')
 
           # --fail-with-body: non-2xx → non-zero exit (no more silent failures).
           # Retries cover transient asyar.org/network blips; the endpoint upserts
@@ -673,3 +703,24 @@ jobs:
           identifier: Xoshbin.Asyar
           token: ${{ secrets.WINGET_TOKEN }}
           release-tag: ${{ github.event.inputs.tag || github.ref_name }}
+
+      - name: Announce Release to Discord
+        if: ${{ !cancelled() }}
+        env:
+          DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [[ -z "$DISCORD_RELEASE_WEBHOOK" ]]; then
+            echo "DISCORD_RELEASE_WEBHOOK not set — skipping Discord announcement."
+            exit 0
+          fi
+
+          VERSION="${REF_NAME#v}"
+          TAG="$REF_NAME"
+
+          CONTENT=$(printf "🚀 **Asyar v%s is out!**\n\nRead what's new & changelog: https://asyar.org/release-notes/%s\nDirect downloads: https://asyar.org/download\nGitHub Release: https://github.com/%s/releases/tag/%s" "$VERSION" "$VERSION" "$REPO" "$TAG")
+
+          JSON_PAYLOAD=$(jq -n --arg content "$CONTENT" '{content: $content}')
+
+          curl -s -X POST -H "Content-Type: application/json" -d "$JSON_PAYLOAD" "$DISCORD_RELEASE_WEBHOOK" || echo "Warning: Failed to post to Discord webhook"

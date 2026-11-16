@@ -1,0 +1,31 @@
+changelog:
+  categories:
+    - title: 'New'
+      labels:
+        - 'enhancement'
+        - 'feature'
+        - 'feat'
+        - 'new'
+    - title: 'Fixed'
+      labels:
+        - 'bug'
+        - 'fix'
+        - 'bugfix'
+    - title: 'Faster & Leaner'
+      labels:
+        - 'performance'
+        - 'perf'
+        - 'speed'
+        - 'optimization'
+    - title: 'Improvements'
+      labels:
+        - '*'
+  exclude:
+    labels:
+      - 'chore'
+      - 'ci'
+      - 'dependencies'
+      - 'build'
+      - 'internal'
+      - 'skip-changelog'
+      - 'ignore'
