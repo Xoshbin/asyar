@@ -98,10 +98,6 @@ pub fn sync_shortcode_triggers(app: &tauri::AppHandle) -> Result<(), AppError> {
         }
     }
 
-    if triggers.is_empty() {
-        triggers.push(":".to_string());
-    }
-
     let state = app.state::<AppState>();
     if let Ok(mut guard) = state.shortcode_triggers.lock() {
         *guard = triggers;

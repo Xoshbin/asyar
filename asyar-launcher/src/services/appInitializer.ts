@@ -1,3 +1,4 @@
+import { resolveShortcodeMissAgent } from '../built-in-features/agents/shortcodeMiss';
 import { logService } from './log/logService';
 import { initProviders } from './ai/initProviders';
 import { authService } from './auth/authService.svelte';
@@ -365,24 +366,14 @@ export const appInitializer = {
 
       appListen<{ shortcode: string }>('shortcode-miss', async (event) => {
         const { agentService } = await import('../built-in-features/agents/agentService.svelte');
-        const agent = agentService.agents.find((a) => a.inputSource === 'shortcodeMiss');
-        if (agent) {
+        const resolved = resolveShortcodeMissAgent(agentService.agents, event.payload.shortcode);
+        if (resolved) {
           const { dispatchSilentAgentCommand } =
             await import('../built-in-features/agents/silentDispatch');
-          const rawShortcode = event.payload.shortcode.trim();
-          const trigger = agent.shortcodeTrigger || ':';
-          let userText = rawShortcode;
-          if (userText.startsWith(trigger) && userText.endsWith(trigger)) {
-            userText = userText.slice(trigger.length, -trigger.length);
-          } else {
-            // Fallback for edge cases
-            userText = userText.replaceAll(trigger, '');
-          }
-
           void dispatchSilentAgentCommand({
-            agentId: agent.id,
-            userText,
-            rawInputLength: rawShortcode.length,
+            agentId: resolved.agent.id,
+            userText: resolved.userText,
+            rawInputLength: event.payload.shortcode.trim().length,
           });
         }
       });

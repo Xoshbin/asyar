@@ -171,10 +171,14 @@ async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> 
       ? { id: resolvedAgent.id, name: resolvedAgent.name }
       : { id: input.agentId, name: 'AI command' };
     if (spinner) {
-      await spinner.replace(`⚠️ ${errorTarget.name} failed`, {
-        spinning: false,
-        severity: 'error',
-      });
+      if (resolvedAgent?.inputSource === 'shortcodeMiss') {
+        await spinner.dismiss();
+      } else {
+        await spinner.replace(`⚠️ ${errorTarget.name} failed`, {
+          spinning: false,
+          severity: 'error',
+        });
+      }
       spinner = null;
     }
     await reportFailure(errorTarget, detail);

@@ -101,6 +101,16 @@ pub fn evaluate_snippet_buffer(
     }
     for trigger in triggers {
         if trigger.ends_with(c) {
+            // Only report a miss if there is at least one active shortcode
+            // registered with this trigger. If merged_snippets contains no
+            // keys starting with this trigger, the shortcode catalog for it
+            // is not active (e.g. disabled by the user or extension uninstalled).
+            let catalog_has_trigger = merged_snippets
+                .keys()
+                .any(|k| k.starts_with(trigger.as_str()));
+            if !catalog_has_trigger {
+                continue;
+            }
             if let Some(candidate) = detect_completed_shortcode_at_end(&current, trigger) {
                 if !merged_snippets.contains_key(&candidate) {
                     buffer.clear();
@@ -413,7 +423,8 @@ mod tests {
         use std::collections::HashMap;
 
         let mut buffer = Vec::new();
-        let snippets = HashMap::new();
+        let mut snippets = HashMap::new();
+        snippets.insert(":known:".to_string(), "known".to_string());
         let triggers = vec![":".to_string()];
 
         for ch in ":unknown".chars() {
@@ -427,6 +438,22 @@ mod tests {
             }
         );
         assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn evaluate_snippet_buffer_ignores_miss_when_no_catalog_for_trigger() {
+        use super::{evaluate_snippet_buffer, SnippetMatchAction};
+        use std::collections::HashMap;
+
+        let mut buffer = Vec::new();
+        let snippets = HashMap::new();
+        let triggers = vec![":".to_string()];
+
+        for ch in ":unknown".chars() {
+            evaluate_snippet_buffer(&mut buffer, ch, &snippets, &triggers);
+        }
+        let action = evaluate_snippet_buffer(&mut buffer, ':', &snippets, &triggers);
+        assert_eq!(action, SnippetMatchAction::None);
     }
 
     #[test]
