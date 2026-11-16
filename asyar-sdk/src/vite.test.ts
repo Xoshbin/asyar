@@ -142,3 +142,46 @@ it('resolves Raycast aliases through the same build policy', () => {
   expect(config.esbuild).toMatchObject({ jsx: 'automatic' });
   expect(config.build?.modulePreload).toBe(false);
 });
+
+it('builds an extension from script entrypoints without worker.html or view.html', async () => {
+  const root = realpathSync(mkdtempSync(resolve(tmpdir(), 'asyar-script-entries-')));
+  roots.push(root);
+  mkdirSync(resolve(root, 'src'), { recursive: true });
+  writeFileSync(
+    resolve(root, 'src/worker.js'),
+    `import { value } from './shared.js'; globalThis.workerValue = value;`,
+  );
+  writeFileSync(
+    resolve(root, 'src/view.js'),
+    `import { value } from './shared.js'; globalThis.viewValue = value;`,
+  );
+  writeFileSync(resolve(root, 'src/shared.js'), 'export const value = 42;');
+
+  const config = defineExtensionConfig({ root });
+  expect(config.build?.rollupOptions?.input).toEqual({
+    worker: resolve(root, 'src/worker.js'),
+    view: resolve(root, 'src/view.js'),
+  });
+
+  const result = await build({
+    ...config,
+    configFile: false,
+    logLevel: 'silent',
+    build: { ...config.build, write: false },
+  });
+  if (Array.isArray(result) || !('output' in result)) throw new Error('Expected one Rollup output');
+
+  const chunkNames = result.output.filter((o) => o.type === 'chunk').map((c) => c.fileName);
+  expect(chunkNames).toContain('worker.js');
+  expect(chunkNames).toContain('view.js');
+
+  const htmlAsset = result.output.find((o) => o.type === 'asset' && o.fileName === 'view.html');
+  expect(htmlAsset).toBeDefined();
+  expect(String((htmlAsset as any).source)).toContain(
+    '<script type="module" src="./view.js"></script>',
+  );
+  expect(String((htmlAsset as any).source)).toContain('<div id="app"></div>');
+
+  const visited = await evaluateWorkerGraph(result.output.filter((o) => o.type === 'chunk') as any);
+  expect(visited.has('worker.js')).toBe(true);
+});

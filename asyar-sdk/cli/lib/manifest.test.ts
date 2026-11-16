@@ -1,11 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { validateManifest, type AsyarManifest } from './manifest';
 import { GATED_PERMISSIONS } from './gatedPermissions';
+import * as fs from 'node:fs';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
   readFileSync: vi.fn(),
 }));
+
+beforeEach(() => {
+  vi.mocked(fs.existsSync).mockReset();
+  vi.mocked(fs.existsSync).mockReturnValue(true);
+});
 
 /**
  * Manifest corpus mirroring the real in-tree shapes (coffee, pomodoro,
@@ -160,6 +166,69 @@ describe('manifest validation', () => {
     };
     const errors = validateManifest(manifest, './');
     expect(errors.some((e) => e.field === 'background.main')).toBe(true);
+  });
+
+  it('accepts background.main with src/worker.ts even if worker.html is missing', async () => {
+    const fs = await import('node:fs');
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const pathStr = String(p);
+      if (pathStr.endsWith('worker.html')) return false;
+      if (pathStr.endsWith('src/worker.ts')) return true;
+      if (pathStr.endsWith('vite.config.ts')) return true;
+      return true;
+    });
+    const errors = validateManifest(backgroundOnly, './');
+    expect(errors.filter((e) => e.field === 'worker.html')).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  it('accepts view command with src/view.ts even if view.html is missing', async () => {
+    const fs = await import('node:fs');
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const pathStr = String(p);
+      if (pathStr.endsWith('view.html')) return false;
+      if (pathStr.endsWith('src/view.ts')) return true;
+      if (pathStr.endsWith('vite.config.ts')) return true;
+      return true;
+    });
+    const errors = validateManifest(viewOnly, './');
+    expect(errors.filter((e) => e.field === 'view.html' || e.field === 'view')).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects background.main when neither worker.html nor worker source exists', async () => {
+    const fs = await import('node:fs');
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const pathStr = String(p);
+      if (
+        pathStr.endsWith('worker.html') ||
+        pathStr.includes('worker') ||
+        pathStr.endsWith('dist/worker.js')
+      ) {
+        return false;
+      }
+      return true;
+    });
+    const errors = validateManifest(backgroundOnly, './');
+    expect(errors.some((e) => e.field === 'background.main')).toBe(true);
+  });
+
+  it('rejects view command when neither view.html nor view source exists', async () => {
+    const fs = await import('node:fs');
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const pathStr = String(p);
+      if (
+        pathStr.endsWith('view.html') ||
+        pathStr.includes('view') ||
+        pathStr.includes('App.svelte') ||
+        pathStr.includes('src/index')
+      ) {
+        return false;
+      }
+      return true;
+    });
+    const errors = validateManifest(viewOnly, './');
+    expect(errors.some((e) => e.field === 'view')).toBe(true);
   });
 
   it('rejects the legacy resultType field', () => {

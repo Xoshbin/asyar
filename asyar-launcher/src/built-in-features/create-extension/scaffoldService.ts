@@ -61,8 +61,6 @@ import viteConfigTmpl from './template/vite.config.ts.tmpl?raw';
 import viteConfigLegacyTmpl from './template/vite.config.legacy.ts.tmpl?raw';
 import tsconfigTmpl from './template/tsconfig.json.tmpl?raw';
 import readmeTmpl from './template/README.md.tmpl?raw';
-import viewHtmlTmpl from './template/view.html.tmpl?raw';
-import workerHtmlTmpl from './template/worker.html.tmpl?raw';
 
 // ── View type (mode=view only) ──────────────────────────────────────────────
 import manifestViewTmpl from './template/manifest.json.tmpl?raw';
@@ -160,23 +158,19 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   // ── Type-specific files ───────────────────────────────────────────────────
   if (extensionType === 'view') {
-    // view-only: view.html + src/view.ts + DefaultView.svelte
+    // view-only: src/view.ts + DefaultView.svelte (view.html is synthesized by SDK)
     await writeTextFile(`${location}/manifest.json`, populate(manifestViewTmpl));
-    await writeTextFile(`${location}/view.html`, populate(viewHtmlTmpl));
     await writeTextFile(`${location}/src/view.ts`, populate(viewTsTmpl));
     await writeTextFile(`${location}/src/DefaultView.svelte`, populate(defaultViewTmpl));
   } else if (extensionType === 'result') {
     // result: dual-entry — worker owns search(), view mounts DetailView
     await writeTextFile(`${location}/manifest.json`, populate(manifestResultTmpl));
-    await writeTextFile(`${location}/view.html`, populate(viewHtmlTmpl));
-    await writeTextFile(`${location}/worker.html`, populate(workerHtmlTmpl));
     await writeTextFile(`${location}/src/view.ts`, populate(viewTsResultTmpl));
     await writeTextFile(`${location}/src/worker.ts`, populate(workerTsResultTmpl));
     await writeTextFile(`${location}/src/DetailView.svelte`, populate(detailViewTmpl));
   } else if (extensionType === 'logic') {
     // logic: worker-only (no view). Background command + optional search().
     await writeTextFile(`${location}/manifest.json`, populate(manifestLogicTmpl));
-    await writeTextFile(`${location}/worker.html`, populate(workerHtmlTmpl));
     await writeTextFile(`${location}/src/worker.ts`, populate(workerTsLogicTmpl));
   }
 

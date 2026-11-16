@@ -121,6 +121,14 @@ describe('scaffolded vite.config.ts', () => {
     expect((await scaffold('theme', '/virtual/ext')).has('vite.config.ts')).toBe(false);
   });
 
+  it('does not emit worker.html or view.html in scaffolded files', async () => {
+    for (const type of ['logic', 'view', 'result'] as const) {
+      const files = await scaffold(type, '/virtual/ext');
+      expect(files.has('worker.html')).toBe(false);
+      expect(files.has('view.html')).toBe(false);
+    }
+  });
+
   // The invariant from asyar-sdk/src/vite.test.ts, applied to what users actually get:
   // a worker entry must not pull in Vite's DOM-dependent modulepreload polyfill.
   it.each([['logic'], ['result']] as const)(

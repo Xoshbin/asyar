@@ -43,8 +43,7 @@ export interface AsyarManifest {
    * Tier 2 extensions that need an always-on headless worker (any command
    * with `mode: "background"`, or a searchable extension whose `search()`
    * runs headlessly) declare it via `background.main`. Points at the built
-   * worker bundle, typically `dist/worker.js`. Presence gates the CLI's
-   * build-output validator to additionally require `dist/worker.html`.
+   * worker bundle, typically `dist/worker.js`.
    */
   background?: {
     main: string;
@@ -651,19 +650,40 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
     }
 
     if (hasViewCommand) {
-      if (!fs.existsSync(path.join(cwd, 'view.html'))) {
+      const hasViewHtml = fs.existsSync(path.join(cwd, 'view.html'));
+      const hasViewSrc = [
+        'src/view.ts',
+        'src/view.tsx',
+        'src/view.js',
+        'src/view.jsx',
+        'src/App.svelte',
+        'src/index.ts',
+        'src/index.tsx',
+      ].some((f) => fs.existsSync(path.join(cwd, f)));
+      if (!hasViewHtml && !hasViewSrc) {
         errors.push({
-          field: 'view.html',
-          message: 'not found in project root (required for commands with mode="view")',
+          field: 'view',
+          message:
+            'no view entrypoint found in project root (expected view.html or src/view.{ts,tsx,js,jsx,svelte})',
         });
       }
     }
 
     if (declaresBackground) {
-      if (!fs.existsSync(path.join(cwd, 'worker.html'))) {
+      const hasWorkerHtml = fs.existsSync(path.join(cwd, 'worker.html'));
+      const hasWorkerSrc = [
+        'src/worker.ts',
+        'src/worker.js',
+        'src/index.worker.ts',
+        'src/main.worker.ts',
+      ].some((f) => fs.existsSync(path.join(cwd, f)));
+      const hasWorkerBundle = manifest.background?.main
+        ? fs.existsSync(path.join(cwd, manifest.background.main))
+        : false;
+      if (!hasWorkerHtml && !hasWorkerSrc && !hasWorkerBundle) {
         errors.push({
-          field: 'worker.html',
-          message: 'not found in project root (required when background.main is declared)',
+          field: 'background.main',
+          message: `worker entrypoint not found (expected ${manifest.background?.main ?? 'entry'}, src/worker.{ts,js}, or worker.html)`,
         });
       }
     }

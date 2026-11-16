@@ -1,8 +1,85 @@
 /** Node-only build helper. Import from asyar-sdk/vite, never from a runtime entry. */
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, resolve } from 'node:path';
-import { mergeConfig, type UserConfig } from 'vite';
+import { dirname, resolve, posix } from 'node:path';
+import { mergeConfig, type Plugin, type UserConfig } from 'vite';
+
+const WORKER_CANDIDATES = [
+  'worker.html',
+  'src/worker.ts',
+  'src/worker.js',
+  'src/index.worker.ts',
+  'src/main.worker.ts',
+] as const;
+
+const VIEW_CANDIDATES = [
+  'view.html',
+  'src/view.ts',
+  'src/view.tsx',
+  'src/view.js',
+  'src/view.jsx',
+  'src/App.svelte',
+  'src/index.ts',
+  'src/index.tsx',
+] as const;
+
+function asyarVirtualHtmlPlugin(root: string, viewScriptPath: string): Plugin {
+  return {
+    name: 'asyar:virtual-html',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url?.split('?')[0];
+        if (url === '/' || url === '/view.html') {
+          const relPath =
+            '/' + posix.relative(root.replace(/\\/g, '/'), viewScriptPath.replace(/\\/g, '/'));
+          res.setHeader('Content-Type', 'text/html');
+          res.end(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asyar Extension View</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="${relPath}"></script>
+  </body>
+</html>\n`);
+          return;
+        }
+        next();
+      });
+    },
+    generateBundle(_opts, bundle) {
+      if (bundle['view.html']) return;
+
+      const cssAssets = Object.keys(bundle).filter((file) => file.endsWith('.css'));
+      const headLines = [
+        '    <meta charset="UTF-8" />',
+        '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+        '    <title>Asyar Extension View</title>',
+        ...cssAssets.map((css) => `    <link rel="stylesheet" href="./${css}">`),
+      ];
+
+      const html = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+${headLines.join('\n')}
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./view.js"></script>
+  </body>
+</html>\n`;
+
+      this.emitFile({
+        type: 'asset',
+        fileName: 'view.html',
+        source: html,
+      });
+    },
+  };
+}
 
 export interface ExtensionConfigOptions {
   /** Extension directory; pass fileURLToPath(new URL('.', import.meta.url)). */
@@ -20,13 +97,42 @@ export interface ExtensionConfigOptions {
 export function defineExtensionConfig(options: ExtensionConfigOptions = {}): UserConfig {
   const root = resolve(options.root ?? process.cwd());
   const input: Record<string, string> = {};
-  for (const role of ['worker', 'view'] as const) {
-    const entry = options[role] ?? `${role}.html`;
-    if (entry !== false && existsSync(resolve(root, entry))) input[role] = resolve(root, entry);
-    else if (typeof options[role] === 'string') throw new Error(`Missing ${role} entry: ${entry}`);
+  let needsVirtualHtml = false;
+  let resolvedViewPath: string | undefined;
+
+  if (options.worker !== false) {
+    if (typeof options.worker === 'string') {
+      const p = resolve(root, options.worker);
+      if (existsSync(p)) input.worker = p;
+      else throw new Error(`Missing worker entry: ${options.worker}`);
+    } else {
+      const candidate = WORKER_CANDIDATES.find((c) => existsSync(resolve(root, c)));
+      if (candidate) input.worker = resolve(root, candidate);
+    }
   }
+
+  if (options.view !== false) {
+    if (typeof options.view === 'string') {
+      const p = resolve(root, options.view);
+      if (existsSync(p)) {
+        input.view = p;
+        resolvedViewPath = p;
+        if (!options.view.endsWith('.html')) needsVirtualHtml = true;
+      } else {
+        throw new Error(`Missing view entry: ${options.view}`);
+      }
+    } else {
+      const candidate = VIEW_CANDIDATES.find((c) => existsSync(resolve(root, c)));
+      if (candidate) {
+        input.view = resolve(root, candidate);
+        resolvedViewPath = input.view;
+        if (!candidate.endsWith('.html')) needsVirtualHtml = true;
+      }
+    }
+  }
+
   if (!Object.keys(input).length)
-    throw new Error('Extension needs a worker.html or view.html entry');
+    throw new Error('Extension needs a worker or view entry (e.g. src/worker.ts or src/view.ts)');
 
   const alias: Record<string, string> = {};
   const sdkSource = options.sdkSource ?? resolve(root, '../../asyar-sdk/src');
@@ -70,6 +176,10 @@ export function defineExtensionConfig(options: ExtensionConfigOptions = {}): Use
   const config = mergeConfig(
     {
       root,
+      plugins:
+        needsVirtualHtml && resolvedViewPath
+          ? [asyarVirtualHtmlPlugin(root, resolvedViewPath)]
+          : [],
       resolve: { alias },
       ...(options.raycastCompat ? { esbuild: { jsx: 'automatic' } } : {}),
     },
