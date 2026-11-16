@@ -27,5 +27,5 @@ class EnvService {
   }
 }
 
-export const SUPPORTED_SDK_VERSION = '4.19.0';
+export const SUPPORTED_SDK_VERSION = '4.20.0';
 export const envService = new EnvService();
