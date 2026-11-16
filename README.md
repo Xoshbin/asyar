@@ -9,9 +9,9 @@
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-AGPL_v3-blue.svg"></a>
   </p>
   <p>
-    <a href="https://github.com/Xoshbin/asyar/releases/latest"><strong>Download for macOS</strong></a>
+    <a href="https://asyar.org/download"><strong>Download</strong></a>
     ·
-    <a href="https://www.reddit.com/r/asyarapp/">Reddit (r/asyarapp)</a>
+    <a href="https://asyar.org/release-notes">Release Notes</a>
     ·
     <a href="https://discord.gg/vvYRXrs7Xa">Community</a>
     ·
