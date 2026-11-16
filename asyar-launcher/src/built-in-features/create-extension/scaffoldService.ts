@@ -135,7 +135,8 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   onProgress('Resolving latest SDK version...');
   const sdkVersion = await getLatestSdkVersion();
-  const viteConfig = (await sdkExposesViteHelper()) ? viteConfigTmpl : viteConfigLegacyTmpl;
+  const useViteHelper = await sdkExposesViteHelper();
+  const viteConfig = useViteHelper ? viteConfigTmpl : viteConfigLegacyTmpl;
 
   const populate = (tmpl: string) =>
     tmpl
@@ -160,23 +161,29 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   // ── Type-specific files ───────────────────────────────────────────────────
   if (extensionType === 'view') {
-    // view-only: view.html + src/view.ts + DefaultView.svelte
+    // view-only: src/view.ts + DefaultView.svelte (view.html is synthesized by modern SDK)
     await writeTextFile(`${location}/manifest.json`, populate(manifestViewTmpl));
-    await writeTextFile(`${location}/view.html`, populate(viewHtmlTmpl));
+    if (!useViteHelper) {
+      await writeTextFile(`${location}/view.html`, populate(viewHtmlTmpl));
+    }
     await writeTextFile(`${location}/src/view.ts`, populate(viewTsTmpl));
     await writeTextFile(`${location}/src/DefaultView.svelte`, populate(defaultViewTmpl));
   } else if (extensionType === 'result') {
     // result: dual-entry — worker owns search(), view mounts DetailView
     await writeTextFile(`${location}/manifest.json`, populate(manifestResultTmpl));
-    await writeTextFile(`${location}/view.html`, populate(viewHtmlTmpl));
-    await writeTextFile(`${location}/worker.html`, populate(workerHtmlTmpl));
+    if (!useViteHelper) {
+      await writeTextFile(`${location}/view.html`, populate(viewHtmlTmpl));
+      await writeTextFile(`${location}/worker.html`, populate(workerHtmlTmpl));
+    }
     await writeTextFile(`${location}/src/view.ts`, populate(viewTsResultTmpl));
     await writeTextFile(`${location}/src/worker.ts`, populate(workerTsResultTmpl));
     await writeTextFile(`${location}/src/DetailView.svelte`, populate(detailViewTmpl));
   } else if (extensionType === 'logic') {
     // logic: worker-only (no view). Background command + optional search().
     await writeTextFile(`${location}/manifest.json`, populate(manifestLogicTmpl));
-    await writeTextFile(`${location}/worker.html`, populate(workerHtmlTmpl));
+    if (!useViteHelper) {
+      await writeTextFile(`${location}/worker.html`, populate(workerHtmlTmpl));
+    }
     await writeTextFile(`${location}/src/worker.ts`, populate(workerTsLogicTmpl));
   }
 

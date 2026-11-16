@@ -29,16 +29,20 @@ const sdkAliases = useLocalSdk
     )
   : {};
 
-// Inputs are chosen by which entry-point HTML files exist in the project
-// root. Single-view extensions declare only `view.html`; background-only
-// extensions declare only `worker.html`; dual-entry extensions declare
-// both.
+// Inputs are chosen by which entry-point files exist in the project
+// root or src/. Single-view extensions declare `view.html` or `src/view.ts`;
+// background-only extensions declare `worker.html` or `src/worker.ts`;
+// dual-entry extensions declare both.
 const inputs: Record<string, string> = {};
 if (existsSync(resolve(__dirname, 'view.html'))) {
   inputs.view = resolve(__dirname, 'view.html');
+} else if (existsSync(resolve(__dirname, 'src/view.ts'))) {
+  inputs.view = resolve(__dirname, 'src/view.ts');
 }
 if (existsSync(resolve(__dirname, 'worker.html'))) {
   inputs.worker = resolve(__dirname, 'worker.html');
+} else if (existsSync(resolve(__dirname, 'src/worker.ts'))) {
+  inputs.worker = resolve(__dirname, 'src/worker.ts');
 }
 
 export default defineConfig(() => {
