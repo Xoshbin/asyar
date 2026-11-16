@@ -656,7 +656,6 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
         'src/view.tsx',
         'src/view.js',
         'src/view.jsx',
-        'src/App.svelte',
         'src/index.ts',
         'src/index.tsx',
       ].some((f) => fs.existsSync(path.join(cwd, f)));
@@ -664,7 +663,7 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
         errors.push({
           field: 'view',
           message:
-            'no view entrypoint found in project root (expected view.html or src/view.{ts,tsx,js,jsx,svelte})',
+            'no view entrypoint found in project root (expected view.html or src/view.{ts,tsx,js,jsx})',
         });
       }
     }

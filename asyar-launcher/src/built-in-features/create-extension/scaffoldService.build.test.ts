@@ -121,12 +121,27 @@ describe('scaffolded vite.config.ts', () => {
     expect((await scaffold('theme', '/virtual/ext')).has('vite.config.ts')).toBe(false);
   });
 
-  it('does not emit worker.html or view.html in scaffolded files', async () => {
+  it('does not emit worker.html or view.html in scaffolded files when SDK exposes vite', async () => {
     for (const type of ['logic', 'view', 'result'] as const) {
       const files = await scaffold(type, '/virtual/ext');
       expect(files.has('worker.html')).toBe(false);
       expect(files.has('view.html')).toBe(false);
     }
+  });
+
+  it('emits worker.html and view.html when falling back to legacy SDK', async () => {
+    sdkExposesVite = false;
+    const viewFiles = await scaffold('view', '/virtual/ext');
+    expect(viewFiles.has('view.html')).toBe(true);
+    expect(viewFiles.has('worker.html')).toBe(false);
+
+    const logicFiles = await scaffold('logic', '/virtual/ext');
+    expect(logicFiles.has('worker.html')).toBe(true);
+    expect(logicFiles.has('view.html')).toBe(false);
+
+    const resultFiles = await scaffold('result', '/virtual/ext');
+    expect(resultFiles.has('view.html')).toBe(true);
+    expect(resultFiles.has('worker.html')).toBe(true);
   });
 
   // The invariant from asyar-sdk/src/vite.test.ts, applied to what users actually get:

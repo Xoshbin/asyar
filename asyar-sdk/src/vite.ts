@@ -18,7 +18,6 @@ const VIEW_CANDIDATES = [
   'src/view.tsx',
   'src/view.js',
   'src/view.jsx',
-  'src/App.svelte',
   'src/index.ts',
   'src/index.tsx',
 ] as const;
@@ -27,13 +26,12 @@ function asyarVirtualHtmlPlugin(root: string, viewScriptPath: string): Plugin {
   return {
     name: 'asyar:virtual-html',
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
+      server.middlewares.use(async (req, res, next) => {
         const url = req.url?.split('?')[0];
         if (url === '/' || url === '/view.html') {
           const relPath =
             '/' + posix.relative(root.replace(/\\/g, '/'), viewScriptPath.replace(/\\/g, '/'));
-          res.setHeader('Content-Type', 'text/html');
-          res.end(`<!DOCTYPE html>
+          const rawHtml = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -44,24 +42,33 @@ function asyarVirtualHtmlPlugin(root: string, viewScriptPath: string): Plugin {
     <div id="app"></div>
     <script type="module" src="${relPath}"></script>
   </body>
-</html>\n`);
+</html>\n`;
+          try {
+            const html = await server.transformIndexHtml(req.url ?? '/', rawHtml);
+            res.setHeader('Content-Type', 'text/html');
+            res.end(html);
+          } catch (err) {
+            next(err);
+          }
           return;
         }
         next();
       });
     },
-    generateBundle(_opts, bundle) {
-      if (bundle['view.html']) return;
+    generateBundle: {
+      order: 'post',
+      handler(_opts, bundle) {
+        if (bundle['view.html']) return;
 
-      const cssAssets = Object.keys(bundle).filter((file) => file.endsWith('.css'));
-      const headLines = [
-        '    <meta charset="UTF-8" />',
-        '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
-        '    <title>Asyar Extension View</title>',
-        ...cssAssets.map((css) => `    <link rel="stylesheet" href="./${css}">`),
-      ];
+        const cssAssets = Object.keys(bundle).filter((file) => file.endsWith('.css'));
+        const headLines = [
+          '    <meta charset="UTF-8" />',
+          '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+          '    <title>Asyar Extension View</title>',
+          ...cssAssets.map((css) => `    <link rel="stylesheet" href="./${css}">`),
+        ];
 
-      const html = `<!DOCTYPE html>
+        const html = `<!DOCTYPE html>
 <html lang="en">
   <head>
 ${headLines.join('\n')}
@@ -72,11 +79,12 @@ ${headLines.join('\n')}
   </body>
 </html>\n`;
 
-      this.emitFile({
-        type: 'asset',
-        fileName: 'view.html',
-        source: html,
-      });
+        this.emitFile({
+          type: 'asset',
+          fileName: 'view.html',
+          source: html,
+        });
+      },
     },
   };
 }
