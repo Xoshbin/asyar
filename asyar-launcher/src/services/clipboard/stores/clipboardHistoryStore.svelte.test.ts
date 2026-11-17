@@ -20,6 +20,10 @@ vi.mock('../../settings/settingsService.svelte', () => ({
   },
 }));
 
+vi.mock('../../../lib/ipc/clipboardCacheCommands', () => ({
+  clipboardForgetImage: vi.fn(),
+}));
+
 vi.mock('../../feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn() },
 }));
@@ -30,6 +34,8 @@ vi.mock('../../log/logService', () => ({
 
 import { clipboardHistoryStore } from './clipboardHistoryStore.svelte';
 import * as ipc from '../../../lib/ipc/commands';
+import { clipboardForgetImage } from '../../../lib/ipc/clipboardCacheCommands';
+import { logService } from '../../log/logService';
 
 const mockListInitial = ipc.clipboardListInitial as unknown as ReturnType<typeof vi.fn>;
 const mockListOlder = ipc.clipboardListOlder as unknown as ReturnType<typeof vi.fn>;
@@ -261,6 +267,7 @@ describe('clipboardHistoryStore', () => {
     mockCapture.mockResolvedValue({
       insertedId: 'new',
       replacedId: null,
+      replacedImagePath: null,
       favorite: false,
       evictedIds: [],
     });
@@ -283,8 +290,60 @@ describe('clipboardHistoryStore', () => {
     expect(clipboardHistoryStore.recent[0].id).toBe('new');
     expect(events).toEqual([{ type: 'upsert', id: 'new' }]);
     expect(mockCapture).toHaveBeenCalledWith(expect.anything(), 90 * 24 * 60 * 60 * 1000);
+    expect(clipboardForgetImage).not.toHaveBeenCalled();
     unsub();
   });
+
+  it.each([false, true])(
+    'forgets only the replaced image even if cleanup fails (%s)',
+    async (fails) => {
+      mockCapture.mockResolvedValue({
+        insertedId: 'new',
+        replacedId: 'old',
+        replacedImagePath: '/clipboard_cache/old.png',
+        favorite: false,
+        evictedIds: [],
+      });
+      if (fails) vi.mocked(clipboardForgetImage).mockRejectedValueOnce(new Error('cleanup failed'));
+      else vi.mocked(clipboardForgetImage).mockResolvedValueOnce(true);
+
+      await clipboardHistoryStore.addHistoryItem({
+        id: 'new',
+        type: 'image',
+        content: '/clipboard_cache/new.png',
+        createdAt: 100,
+        favorite: false,
+      } as any);
+
+      expect(clipboardForgetImage).toHaveBeenCalledExactlyOnceWith('/clipboard_cache/old.png');
+      expect(clipboardHistoryStore.recent.map((item) => item.id)).toEqual(['new']);
+      if (fails) {
+        expect(logService.warn).toHaveBeenCalledWith(
+          expect.stringContaining('/clipboard_cache/old.png'),
+        );
+        expect(logService.warn).toHaveBeenCalledWith(expect.stringContaining('cleanup failed'));
+        mockCapture.mockResolvedValue({
+          insertedId: 'newer',
+          replacedId: null,
+          replacedImagePath: null,
+          favorite: false,
+          evictedIds: [],
+        });
+        await clipboardHistoryStore.addHistoryItem({
+          id: 'newer',
+          type: 'text',
+          content: 'again',
+          preview: 'again',
+          createdAt: 200,
+          favorite: false,
+        } as any);
+        expect(clipboardForgetImage).toHaveBeenNthCalledWith(2, '/clipboard_cache/old.png');
+        expect(clipboardHistoryStore.recent.map((item) => item.id)).toContain('new');
+      } else {
+        expect(logService.warn).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it.each([
     { searching: false, favorite: false },

@@ -129,6 +129,8 @@ export type CalcResult = {
 export type CaptureResult = {
 	insertedId: string,
 	replacedId: string | null,
+	// Replaced image's cache path, only when the new row owns a different file.
+	replacedImagePath: string | null,
 	favorite: boolean,
 	customTitle: string | null,
 	evictedIds: string[],
