@@ -1,9 +1,11 @@
 {
   "id": "portals",
   "name": "Portals",
-  "icon": "icon:globe",
+  "icon": "assets/icon.png",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "description": "Save URLs as named, searchable shortcuts",
   "author": "Core",
   "searchable": true,
@@ -12,7 +14,6 @@
     {
       "id": "open-portals",
       "name": "Portals",
-      "icon": "icon:globe",
       "description": "Manage your saved portals",
       "mode": "view",
       "component": "DefaultView"

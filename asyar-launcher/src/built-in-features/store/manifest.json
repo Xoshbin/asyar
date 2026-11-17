@@ -3,9 +3,11 @@
   "name": "Store",
   "description": "Browse and install Asyar extensions.",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "author": "Asyar",
-  "icon": "icon:store",
+  "icon": "assets/icon.png",
   "type": "extension",
   "searchable": true,
   "permissions": ["notifications:send"],
@@ -15,7 +17,6 @@
       "name": "Browse Extension Store",
       "trigger": "store",
       "description": "Find and install new extensions",
-      "icon": "icon:store",
       "mode": "view",
       "component": "DefaultView"
     }

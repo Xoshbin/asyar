@@ -8,7 +8,7 @@
   "description": "Resize and reposition the frontmost window using layout presets",
   "type": "extension",
   "searchable": true,
-  "icon": "icon:store",
+  "icon": "assets/icon.png",
   "permissions": ["window:manage", "storage:read", "storage:write"],
   "commands": [
     {

@@ -1,9 +1,11 @@
 {
   "id": "raycast-import",
   "name": "Raycast Import",
-  "icon": "icon:download",
+  "icon": "assets/icon.png",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "description": "Bring your Raycast snippets, quicklinks, and app hotkeys into Asyar",
   "type": "extension",
   "searchable": false,
@@ -13,7 +15,6 @@
       "name": "Import from Raycast",
       "description": "Import snippets, portals, and shortcuts from a Raycast export file",
       "trigger": "import raycast migrate rayconfig",
-      "icon": "icon:download",
       "mode": "view",
       "component": "DefaultView"
     }

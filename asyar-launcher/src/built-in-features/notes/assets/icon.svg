@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="32 32 448 448">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F43F5E"/>
+      <stop offset="45%" stop-color="#E11D48"/>
+      <stop offset="100%" stop-color="#881337"/>
+    </linearGradient>
+    <radialGradient id="topSheen" cx="50%" cy="12%" r="65%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="specularRim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.45"/>
+      <stop offset="40%" stop-color="#FFFFFF" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.03"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#4C0519" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bg)"/>
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#topSheen)"/>
+  <rect x="33" y="33" width="446" height="446" rx="103" fill="none" stroke="url(#specularRim)" stroke-width="2"/>
+  <g transform="translate(-107.520 -107.520) scale(1.42)">
+<g filter="url(#shadow)">
+    <!-- Open Journal Page (White) -->
+    <rect x="146" y="136" width="220" height="260" rx="24" fill="#FFFFFF"/>
+    <!-- Top Binding Header (Rose Pink) -->
+    <path d="M 146, 160 C 146, 147 157, 136 170, 136 L 342, 136 C 355, 136 366, 147 366, 160 L 366, 185 L 146, 185 Z" fill="#FFE4E6"/>
+
+    <!-- Ruled Note Lines -->
+    <line x1="180" y1="225" x2="332" y2="225" stroke="#FDA4AF" stroke-width="4.5" stroke-linecap="round"/>
+    <line x1="180" y1="265" x2="332" y2="265" stroke="#FECDD3" stroke-width="4.5" stroke-linecap="round"/>
+    <line x1="180" y1="305" x2="332" y2="305" stroke="#FECDD3" stroke-width="4.5" stroke-linecap="round"/>
+    <line x1="180" y1="345" x2="270" y2="345" stroke="#FECDD3" stroke-width="4.5" stroke-linecap="round"/>
+
+    <!-- Golden Pen Nib Resting on Page -->
+    <g transform="translate(300, 310) rotate(-35)">
+      <polygon points="0,0 20,-40 20,-110 -20,-110 -20,-40" fill="#FBBF24"/>
+      <polygon points="0,0 12,-35 -12,-35" fill="#F59E0B"/>
+      <line x1="0" y1="0" x2="0" y2="-45" stroke="#78350F" stroke-width="2.5"/>
+      <circle cx="0" cy="-45" r="3" fill="#78350F"/>
+    </g>
+  </g>
+  </g>
+</svg>

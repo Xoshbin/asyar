@@ -1,7 +1,7 @@
 {
   "id": "snippets",
   "name": "Snippets",
-  "icon": "icon:snippets",
+  "icon": "assets/icon.png",
   "description": "Text expansion — type a keyword, get the full text",
   "version": "1.0.0",
   "lifecycle": {
@@ -14,7 +14,6 @@
     {
       "id": "open-snippets",
       "name": "Snippets",
-      "icon": "icon:snippets",
       "trigger": "snippets",
       "description": "Manage text expansion snippets",
       "mode": "view",
