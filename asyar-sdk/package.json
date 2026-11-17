@@ -20,6 +20,7 @@
       "default": "./dist/view.js"
     },
     "./tokens.css": "./src/styles/tokens.css",
+    "./src/styles/tokens.css": "./src/styles/tokens.css",
     "./vite": {
       "types": "./dist/vite.d.ts",
       "default": "./dist/vite.js"
