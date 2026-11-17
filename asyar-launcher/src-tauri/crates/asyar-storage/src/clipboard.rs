@@ -1,7 +1,7 @@
 use crate::clipboard_fts::ClipboardFts;
 use crate::crypto::cipher;
 use crate::error::AppError;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -1402,6 +1402,23 @@ pub fn record_capture(
             .filter(|path| Some(path.as_str()) != new_item.content.as_deref());
     }
 
+    // A same-id row the hash lookup missed (e.g. a legacy image whose
+    // content_hash is still NULL) is about to be replaced in place; keep
+    // its favorite flag like the duplicate path does.
+    if !new_item.favorite {
+        let existing_favorite: Option<i32> = conn
+            .query_row(
+                "SELECT favorite FROM clipboard_items WHERE id = ?1",
+                params![new_item.id],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| AppError::Database(format!("Failed to read existing item: {e}")))?;
+        if existing_favorite.unwrap_or(0) != 0 {
+            new_item.favorite = true;
+        }
+    }
+
     add_item_with_hash(conn, &new_item, hash, master_key)?;
     let age_ms = retention_ms.unwrap_or(MAX_HISTORY_AGE_MS);
     let evicted_ids = cleanup(conn, age_ms, MAX_HISTORY_ITEMS)?;
@@ -2022,6 +2039,29 @@ mod tests {
         let result = record_capture(&conn, &new_item, None, &key, None).unwrap();
         assert!(result.replaced_id.is_none());
         assert_eq!(get_all(&conn, &key).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn record_capture_keeps_favorite_of_same_id_row_missed_by_hash_lookup() {
+        let conn = setup();
+        let key = test_key();
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("clipboard_cache");
+        std::fs::create_dir(&cache).unwrap();
+        let path = cache.join("legacy.png");
+        std::fs::write(&path, b"\x89PNG\r\n\x1a\nlegacy").unwrap();
+        let mut legacy = make_item("legacy", path.to_str().unwrap(), true);
+        legacy.item_type = "image".to_string();
+        add_item_with_hash(&conn, &legacy, None, &key).unwrap();
+
+        let mut again = legacy.clone();
+        again.favorite = false;
+        let result = record_capture(&conn, &again, None, &key, None).unwrap();
+        assert!(result.replaced_id.is_none());
+        assert!(result.favorite);
+        let items = get_all(&conn, &key).unwrap();
+        assert_eq!(items.len(), 1);
+        assert!(items[0].favorite);
     }
 
     #[test]
