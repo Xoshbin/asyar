@@ -123,7 +123,10 @@ pub fn rebuild_from_disk(
             .map_err(|e| AppError::Database(format!("FTS rebuild hash tx: {e}")))?;
         {
             let mut stmt = tx
-                .prepare("UPDATE clipboard_items SET content_hash = ?1 WHERE id = ?2")
+                .prepare(
+                    "UPDATE clipboard_items SET content_hash = ?1 \
+                     WHERE id = ?2 AND content_hash IS NULL",
+                )
                 .map_err(|e| AppError::Database(format!("FTS rebuild hash prepare: {e}")))?;
             for (id, hash) in &hash_writes {
                 stmt.execute(params![&hash[..], id])

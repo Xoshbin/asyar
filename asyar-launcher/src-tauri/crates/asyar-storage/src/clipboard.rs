@@ -442,6 +442,23 @@ pub fn add_item(
     item: &ClipboardItem,
     master_key: &[u8; 32],
 ) -> Result<(), AppError> {
+    let hash = compute_content_hash(
+        &item.item_type,
+        item.content.as_deref(),
+        &item.id,
+        master_key,
+    );
+    add_item_with_hash(conn, item, hash, master_key)
+}
+
+/// `add_item` with the content hash already computed by the caller, so a
+/// capture reads and hashes an image file once instead of twice.
+fn add_item_with_hash(
+    conn: &Connection,
+    item: &ClipboardItem,
+    hash: Option<Vec<u8>>,
+    master_key: &[u8; 32],
+) -> Result<(), AppError> {
     // If an existing row exists, and incoming content/preview is None or empty,
     struct ExistingRow {
         content: Option<String>,
@@ -483,12 +500,7 @@ pub fn add_item(
         .map(|c| !c.is_empty())
         .unwrap_or(false)
     {
-        compute_content_hash(
-            &item.item_type,
-            item.content.as_deref(),
-            &item.id,
-            master_key,
-        )
+        hash
     } else {
         existing.and_then(|e| e.content_hash)
     };
@@ -1270,6 +1282,16 @@ pub fn find_duplicate(
     master_key: &[u8; 32],
 ) -> Result<Option<ClipboardItem>, AppError> {
     let hash = compute_content_hash(item_type, content, id, master_key);
+    find_duplicate_with_hash(conn, item_type, hash.as_deref(), id, master_key)
+}
+
+fn find_duplicate_with_hash(
+    conn: &Connection,
+    item_type: &str,
+    hash: Option<&[u8]>,
+    id: &str,
+    master_key: &[u8; 32],
+) -> Result<Option<ClipboardItem>, AppError> {
     if item_type == "image" && hash.is_none() {
         let result = conn.query_row(
             "SELECT id, item_type, content, preview, created_at, favorite,
@@ -1296,7 +1318,7 @@ pub fn find_duplicate(
            FROM clipboard_items
           WHERE item_type = ?1 AND content_hash = ?2
           LIMIT 1",
-        params![item_type, &hash[..]],
+        params![item_type, hash],
         row_to_item_factory(master_key),
     );
     match result {
@@ -1353,10 +1375,16 @@ pub fn record_capture(
         }
     }
 
-    let duplicate = find_duplicate(
-        conn,
+    let hash = compute_content_hash(
         &new_item.item_type,
         new_item.content.as_deref(),
+        &new_item.id,
+        master_key,
+    );
+    let duplicate = find_duplicate_with_hash(
+        conn,
+        &new_item.item_type,
+        hash.as_deref(),
         &new_item.id,
         master_key,
     )?;
@@ -1374,7 +1402,7 @@ pub fn record_capture(
             .filter(|path| Some(path.as_str()) != new_item.content.as_deref());
     }
 
-    add_item(conn, &new_item, master_key)?;
+    add_item_with_hash(conn, &new_item, hash, master_key)?;
     let age_ms = retention_ms.unwrap_or(MAX_HISTORY_AGE_MS);
     let evicted_ids = cleanup(conn, age_ms, MAX_HISTORY_ITEMS)?;
 
