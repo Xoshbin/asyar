@@ -29,7 +29,12 @@ vi.mock('../../services/action/viewShortcutSync.svelte', () => ({
   forgetAnnouncedShortcuts: vi.fn(),
 }));
 
+vi.mock('../../lib/ipc/commands', () => ({
+  showSettingsWindow: vi.fn(),
+}));
+
 import ExtensionIframe from './ExtensionIframe.svelte';
+import { showSettingsWindow } from '../../lib/ipc/commands';
 
 describe('ExtensionIframe', () => {
   beforeEach(() => {
@@ -217,5 +222,28 @@ describe('ExtensionIframe', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('opens extension settings window on asyar:navigate-settings-tab message', async () => {
+    const { container } = render(ExtensionIframe, {
+      extensionId: 'org.asyar.google-translate',
+      view: 'org.asyar.google-translate/TranslateView',
+      manifest: null,
+    });
+
+    const iframe = container.querySelector('iframe') as HTMLIFrameElement;
+    await fireEvent.load(iframe);
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: iframe.contentWindow,
+        data: {
+          type: 'asyar:navigate-settings-tab',
+          payload: { tab: 'extensions' },
+        },
+      }),
+    );
+
+    expect(showSettingsWindow).toHaveBeenCalledWith('extensions', 'org.asyar.google-translate');
   });
 });

@@ -77,7 +77,9 @@ fn resolve_group_icon(group: &AppGroup, cache_dir: &std::path::Path) -> Option<S
         }
     }
 
-    // 3. Fallback: inspect child executable path directly (Windows .exe or Linux binaries).
+    // 3. Only Windows supports direct executable icon extraction. Linux needs a
+    // matching .desktop entry; without one, leave the icon unset.
+    #[cfg(target_os = "windows")]
     for child in &group.children {
         if !child.path.is_empty() && std::path::Path::new(&child.path).exists() {
             if let Some(icon) =
