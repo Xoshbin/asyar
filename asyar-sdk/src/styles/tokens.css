@@ -100,6 +100,13 @@
   /* The moving part of a switch. */
   --control-knob: #ffffff;
 
+  /* Shell metrics. Mirrored from the launcher's style.css: an extension view
+     renders into the launcher's content area and must share the row rhythm of
+     the root results list (38px rows, touching, nine visible plus a peek).
+     The host does not inject these — they are layout, not theme — so the
+     fallback here is the value every surface uses. */
+  --shell-row-h: 38px;
+
   /* Border Radius */
   --radius-xs: 4px;
   --radius-sm: 6px;
