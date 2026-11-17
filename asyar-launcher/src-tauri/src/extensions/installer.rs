@@ -338,7 +338,9 @@ pub(crate) fn verify_checksum(file_path: &Path, expected_checksum: &str) -> Resu
         hasher.update(&buffer[..count]);
     }
     let calculated = format!("sha256:{:x}", hasher.finalize());
-    if calculated != expected_checksum {
+    if !expected_checksum.starts_with("sha256:")
+        || !calculated.eq_ignore_ascii_case(expected_checksum)
+    {
         return Err(AppError::Validation(format!(
             "Checksum mismatch! Expected: {}, Calculated: {}",
             expected_checksum, calculated
@@ -695,6 +697,23 @@ mod tests {
                 assert!(msg.contains(url));
             }
             e => panic!("Expected Validation error, got {:?}", e),
+        }
+    }
+
+    #[test]
+    fn checksum_verification_accepts_hex_case_but_rejects_wrong_digests() {
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"abc").unwrap();
+        let hash = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        for hash in [hash.to_owned(), hash.to_uppercase()] {
+            verify_checksum(file.path(), &format!("sha256:{hash}")).unwrap();
+        }
+        for invalid in [
+            format!("sha256:{}", "0".repeat(64)),
+            format!("sha256:{}", &hash[..63]),
+            format!("sha512:{hash}"),
+        ] {
+            assert!(verify_checksum(file.path(), &invalid).is_err());
         }
     }
 

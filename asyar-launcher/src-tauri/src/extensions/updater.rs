@@ -9,7 +9,33 @@ use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
+
+/// Shared by all update entry points through the managed extension registry.
+/// Weak entries keep finished/uninstalled IDs from accumulating indefinitely.
+#[derive(Default)]
+pub(crate) struct UpdateLocks {
+    by_id: std::sync::Mutex<
+        std::collections::HashMap<String, std::sync::Weak<tokio::sync::Mutex<()>>>,
+    >,
+}
+
+impl UpdateLocks {
+    async fn lock(&self, id: &str) -> Result<tokio::sync::OwnedMutexGuard<()>, AppError> {
+        let lock = {
+            let mut by_id = self.by_id.lock().map_err(|_| AppError::Lock)?;
+            by_id.retain(|_, lock| lock.strong_count() > 0);
+            if let Some(lock) = by_id.get(id).and_then(std::sync::Weak::upgrade) {
+                lock
+            } else {
+                let lock = std::sync::Arc::new(tokio::sync::Mutex::new(()));
+                by_id.insert(id.to_owned(), std::sync::Arc::downgrade(&lock));
+                lock
+            }
+        };
+        Ok(lock.lock_owned().await)
+    }
+}
 
 /// Progress events emitted to the frontend via Tauri events.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,6 +220,17 @@ fn validate_update_target(base_dir: &Path, update: &AvailableUpdate) -> Result<P
     Ok(live)
 }
 
+async fn prepare_update(
+    registry: &ExtensionRegistryState,
+    base_dir: &Path,
+    update: &AvailableUpdate,
+) -> Result<(tokio::sync::OwnedMutexGuard<()>, PathBuf), AppError> {
+    installer::validate_extension_id(&update.extension_id)?;
+    let guard = registry.update_locks.lock(&update.extension_id).await?;
+    let live = validate_update_target(base_dir, update)?;
+    Ok((guard, live))
+}
+
 fn validate_update_package(
     staging_dir: &Path,
     update: &AvailableUpdate,
@@ -227,7 +264,10 @@ pub async fn update_extension(
     update: &AvailableUpdate,
 ) -> Result<(), AppError> {
     let base_dir = get_app_data_dir(app_handle)?.join("extensions");
-    let live_dir = validate_update_target(&base_dir, update)?;
+    let registry = app_handle.state::<ExtensionRegistryState>();
+    // Keep the guard through download, revalidation, swap and rollback. A
+    // queued offer must validate against the version its predecessor leaves.
+    let (_update_guard, live_dir) = prepare_update(&registry, &base_dir, update).await?;
     // Never remove predictable sibling names: an ID ending in `_old` or
     // `_updating` may belong to a different, legitimately installed extension.
     let workspace = tempfile::Builder::new()
@@ -487,6 +527,64 @@ mod tests {
             fs::read_to_string(tmp.path().join(&update.extension_id).join("index.js")).unwrap(),
             "console.log('hello')"
         );
+    }
+
+    #[tokio::test]
+    async fn concurrent_updates_recheck_the_version_after_the_previous_swap() {
+        let root = TempDir::new().unwrap();
+        let registry = ExtensionRegistryState::new();
+        let mut first_offer = offered_update();
+        first_offer.latest_version = "3.0.0".into();
+        create_fake_extension(root.path(), &first_offer.extension_id, "1.0.0");
+        let (first, _) = prepare_update(&registry, root.path(), &first_offer)
+            .await
+            .unwrap();
+        let second_offer = offered_update();
+        let second = prepare_update(&registry, root.path(), &second_offer);
+        tokio::pin!(second);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(30), &mut second)
+                .await
+                .is_err(),
+            "another update must wait until the first finishes"
+        );
+
+        // The first transaction has promoted v3. The queued v1 -> v2 offer
+        // must read that new manifest under the same lock, not downgrade it.
+        create_fake_extension(root.path(), &first_offer.extension_id, "3.0.0");
+        drop(first);
+        assert!(matches!(second.await, Err(AppError::Validation(_))));
+        assert_eq!(
+            read_manifest(
+                &root
+                    .path()
+                    .join(&first_offer.extension_id)
+                    .join("manifest.json")
+            )
+            .unwrap()
+            .version,
+            "3.0.0"
+        );
+    }
+
+    #[tokio::test]
+    async fn different_extension_updates_do_not_block_each_other() {
+        let root = TempDir::new().unwrap();
+        let registry = ExtensionRegistryState::new();
+        let first_offer = offered_update();
+        create_fake_extension(root.path(), &first_offer.extension_id, "1.0.0");
+        let (_first, _) = prepare_update(&registry, root.path(), &first_offer)
+            .await
+            .unwrap();
+        let mut other = offered_update();
+        other.extension_id = "org.example.other".into();
+        create_fake_extension(root.path(), &other.extension_id, "1.0.0");
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            prepare_update(&registry, root.path(), &other),
+        )
+        .await;
+        assert!(result.unwrap().is_ok());
     }
 
     #[test]

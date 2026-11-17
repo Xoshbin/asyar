@@ -644,12 +644,14 @@ pub struct ExtensionRecord {
 /// Central registry holding all discovered extensions
 pub struct ExtensionRegistryState {
     pub extensions: Mutex<HashMap<String, ExtensionRecord>>,
+    pub(crate) update_locks: updater::UpdateLocks,
 }
 
 impl ExtensionRegistryState {
     pub fn new() -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
+            update_locks: updater::UpdateLocks::default(),
         }
     }
 }
