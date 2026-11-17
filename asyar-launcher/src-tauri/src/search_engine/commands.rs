@@ -423,7 +423,7 @@ pub fn sync_command_index_internal_with_aliases(
     let removed = to_remove.len() as u32;
 
     // 4. Update SearchState
-    if !to_add.is_empty() || !to_remove.is_empty() {
+    {
         let mut items = search_state
             .items
             .write()
@@ -433,6 +433,24 @@ pub fn sync_command_index_internal_with_aliases(
         if !to_remove.is_empty() {
             let remove_set: HashSet<String> = to_remove.into_iter().collect();
             items.retain(|item| !remove_set.contains(item.id()));
+        }
+
+        // Update existing commands whose metadata changed (icon, name, trigger, type)
+        for item in items.iter_mut() {
+            if let SearchableItem::Command(cmd) = item {
+                if let Some(cmd_input) = current_commands.get(&cmd.id) {
+                    if cmd.name != cmd_input.name
+                        || cmd.trigger != cmd_input.trigger
+                        || cmd.command_type != cmd_input.command_type
+                        || cmd.icon != cmd_input.icon
+                    {
+                        cmd.name = cmd_input.name.clone();
+                        cmd.trigger = cmd_input.trigger.clone();
+                        cmd.command_type = cmd_input.command_type.clone();
+                        cmd.icon = cmd_input.icon.clone();
+                    }
+                }
+            }
         }
 
         // Add new commands (preserve usage_count=0, last_used_at=None for new entries)
@@ -569,6 +587,59 @@ mod tests {
 
         assert_eq!(result.removed, 2);
         assert_eq!(result.total, 0);
+    }
+
+    #[tokio::test]
+    async fn test_sync_command_index_updates_existing_command_icon() {
+        let state = make_test_state();
+
+        let input_v1 = vec![CommandSyncInput {
+            id: "cmd_org.asyar.pomo_open".to_string(),
+            name: "Pomodoro Timer".to_string(),
+            extension: "org.asyar.pomo".to_string(),
+            extension_name: Some("Pomodoro".to_string()),
+            trigger: "pomodoro".to_string(),
+            command_type: "command".to_string(),
+            icon: Some(crate::icons::ManifestIcon::Short("🍅".to_string())),
+        }];
+
+        sync_command_index_internal(input_v1, &state).unwrap();
+        let items = state.items.read().unwrap();
+        assert_eq!(
+            items[0].resolved_icon(),
+            Some(crate::icons::ResolvedIcon::Emoji {
+                value: "🍅".to_string()
+            })
+        );
+        drop(items);
+
+        let input_v2 = vec![CommandSyncInput {
+            id: "cmd_org.asyar.pomo_open".to_string(),
+            name: "Pomodoro Timer".to_string(),
+            extension: "org.asyar.pomo".to_string(),
+            extension_name: Some("Pomodoro".to_string()),
+            trigger: "pomodoro".to_string(),
+            command_type: "command".to_string(),
+            icon: Some(crate::icons::ManifestIcon::Short(
+                "assets/icon.png".to_string(),
+            )),
+        }];
+
+        sync_command_index_internal(input_v2, &state).unwrap();
+        let items = state.items.read().unwrap();
+        let expected_src = if cfg!(windows) {
+            "http://asyar-extension.localhost/org.asyar.pomo/assets/icon.png?icon"
+        } else {
+            "asyar-extension://org.asyar.pomo/assets/icon.png?icon"
+        };
+        assert_eq!(
+            items[0].resolved_icon(),
+            Some(crate::icons::ResolvedIcon::Image {
+                src: expected_src.to_string(),
+                dark: None,
+                tint: None,
+            })
+        );
     }
 
     #[tokio::test]
