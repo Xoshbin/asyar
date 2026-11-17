@@ -67,6 +67,16 @@ pub(crate) async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), 
         let normalized_filename = entry_filename_str.replace("\\", "/");
         let safe_filename = normalized_filename.trim_start_matches('/');
 
+        // Reject Windows drive prefixes and NTFS alternate data streams on
+        // every host. A drive-qualified name can replace dest_dir in join(),
+        // including after stripping a leading slash (e.g. /C:/outside).
+        if safe_filename.contains(':') {
+            return Err(AppError::Validation(format!(
+                "Zip entry '{}' contains a drive prefix or alternate data stream and was rejected",
+                entry_filename_str
+            )));
+        }
+
         // [SECURITY] Zip-slip guard: reject any entry whose path components include `..`.
         // Without this check, a malicious zip could write files outside `dest_dir` by
         // including entries like `../../other-extension/evil.js`.
@@ -685,6 +695,37 @@ mod tests {
             .unwrap();
         // After normalisation the file lives at dist/bundle.js
         assert!(dest.path().join("dist/bundle.js").exists());
+    }
+
+    #[tokio::test]
+    async fn zip_rejects_windows_drive_and_stream_paths() {
+        // All potential writes stay in temporary directories, even on the
+        // vulnerable implementation. The absolute entry targets a sibling.
+        let outside = TempDir::new().unwrap();
+        let target = outside.path().join("outside.txt");
+        #[cfg(windows)]
+        {
+            let name = target.to_string_lossy();
+            for name in [
+                name.to_string(),
+                name.replace('\\', "/"),
+                format!("/{name}"),
+            ] {
+                let result = make_zip_and_extract(&[(&name, b"outside")]).await;
+                assert!(!target.exists(), "archive wrote outside its destination");
+                assert!(matches!(result, Err(AppError::Validation(_))));
+            }
+        }
+        #[cfg(not(windows))]
+        let _ = target;
+
+        for name in ["C:relative.txt", "nested/C:relative.txt", "file.txt:stream"] {
+            let result = make_zip_and_extract(&[(name, b"payload")]).await;
+            assert!(
+                matches!(result, Err(AppError::Validation(_))),
+                "must reject Windows path syntax on every host: {name}"
+            );
+        }
     }
 
     #[test]
