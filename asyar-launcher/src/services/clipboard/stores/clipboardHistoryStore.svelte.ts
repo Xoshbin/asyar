@@ -20,6 +20,7 @@ import {
   type ClipboardClearResult,
 } from '../../../lib/ipc/commands';
 import { settingsService } from '../../settings/settingsService.svelte';
+import { clipboardForgetImage } from '../../../lib/ipc/clipboardCacheCommands';
 
 export type ClipboardStoreChangeEvent =
   { type: 'upsert'; itemId: string; replacedItemId?: string } | { type: 'delete'; itemId: string };
@@ -37,6 +38,9 @@ export class ClipboardHistoryStoreClass {
   sourceApps = $state<SourceAppSummary[]>([]);
 
   #subscribers = new Set<(event: ClipboardStoreChangeEvent) => void>();
+  // Replaced cache files whose row is already gone. Kept until unlink succeeds
+  // so a failed forget does not drop the only remaining path.
+  #orphanedImagePaths = new Set<string>();
 
   subscribe(callback: (event: ClipboardStoreChangeEvent) => void): () => void {
     this.#subscribers.add(callback);
@@ -210,6 +214,23 @@ export class ClipboardHistoryStoreClass {
       itemId: newRow.id,
       ...(res.replacedId ? { replacedItemId: res.replacedId } : {}),
     });
+    if (res.replacedImagePath) {
+      // The row is already gone. Hold the path until unlink succeeds.
+      this.#orphanedImagePaths.add(res.replacedImagePath);
+    }
+    await this.#releaseOrphanedImages();
+  }
+
+  async #releaseOrphanedImages(): Promise<void> {
+    for (const path of [...this.#orphanedImagePaths]) {
+      try {
+        await clipboardForgetImage(path);
+        this.#orphanedImagePaths.delete(path);
+      } catch (err) {
+        // Capture stays committed. The path remains owned for a later retry.
+        logService.warn(`Failed to forget replaced clipboard image ${path}: ${err}`);
+      }
+    }
   }
 
   async toggleFavorite(id: string): Promise<void> {

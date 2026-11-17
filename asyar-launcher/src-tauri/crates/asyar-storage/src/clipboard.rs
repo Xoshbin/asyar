@@ -151,6 +151,8 @@ pub struct ClearResult {
 pub struct CaptureResult {
     pub inserted_id: String,
     pub replaced_id: Option<String>,
+    /// Replaced image's cache path, only when the new row owns a different file.
+    pub replaced_image_path: Option<String>,
     pub favorite: bool,
     pub custom_title: Option<String>,
     pub evicted_ids: Vec<String>,
@@ -263,20 +265,70 @@ fn decode_redacted_kinds(raw: Option<String>) -> Option<Vec<String>> {
         .map(|s| s.split(',').map(|p| p.to_string()).collect())
 }
 
-/// Deterministic dedup hash for a (type, content) pair under the
-/// master key. Returns `None` for image rows or rows with no content —
-/// these never participate in the text-dedup index.
-fn compute_content_hash(
-    item_type: &str,
-    content: Option<&str>,
-    master_key: &[u8; 32],
-) -> Option<Vec<u8>> {
-    if item_type == "image" {
+/// Largest owned PNG whose bytes are hashed for dedup. Screenshots fit;
+/// anything larger stays unhashed so capture and FTS backfill cannot
+/// allocate the whole file.
+const MAX_IMAGE_HASH_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Read a regular file of at most `max_bytes`. Symlinks and special files
+/// (fifo, device, directory) are refused before open so hashing cannot block
+/// on them. A file that grows past the cap between stat and read is refused
+/// rather than hashed as a prefix.
+fn read_regular_file_bounded(path: &Path, max_bytes: u64) -> Option<Vec<u8>> {
+    use std::io::Read;
+
+    let meta = std::fs::symlink_metadata(path).ok()?;
+    // `symlink_metadata` does not follow links, so a symlink, fifo, or device
+    // is not a regular file and is never opened.
+    if !meta.file_type().is_file() || meta.len() > max_bytes {
         return None;
     }
-    let needle = content?;
-    let message = format!("{item_type}\n{needle}");
-    Some(crate::crypto::hmac::hmac_sha256(master_key, message.as_bytes()).to_vec())
+    let file = std::fs::File::open(path).ok()?;
+    let opened = file.metadata().ok()?;
+    let opened_len = opened.len();
+    if !opened.is_file() || opened_len > max_bytes {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(usize::try_from(opened_len).ok()?)
+        .ok()?;
+    // One past the cap distinguishes "exactly max_bytes" from a file that
+    // grew while it was being read. `take` keeps that read bounded.
+    let n = file
+        .take(max_bytes.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .ok()?;
+    if n as u64 != opened_len || n as u64 > max_bytes {
+        return None;
+    }
+    Some(bytes)
+}
+
+/// Deterministic dedup hash for a (type, content) pair under the
+/// master key. Images hash their owned PNG bytes, never the cache path.
+/// Missing, legacy, non-regular, or oversized image paths, and rows
+/// without content, remain unhashed.
+pub(crate) fn compute_content_hash(
+    item_type: &str,
+    content: Option<&str>,
+    id: &str,
+    master_key: &[u8; 32],
+) -> Option<Vec<u8>> {
+    let content = content?;
+    let mut message = format!("{item_type}\n").into_bytes();
+    if item_type == "image" {
+        let path = Path::new(content);
+        if path.parent()?.file_name()?.to_str()? != "clipboard_cache"
+            || path.file_name()?.to_str()? != format!("{id}.png")
+        {
+            return None;
+        }
+        message.extend_from_slice(&read_regular_file_bounded(path, MAX_IMAGE_HASH_BYTES)?);
+    } else {
+        message.extend_from_slice(content.as_bytes());
+    }
+    Some(crate::crypto::hmac::hmac_sha256(master_key, &message).to_vec())
 }
 
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
@@ -431,7 +483,12 @@ pub fn add_item(
         .map(|c| !c.is_empty())
         .unwrap_or(false)
     {
-        compute_content_hash(&item.item_type, item.content.as_deref(), master_key)
+        compute_content_hash(
+            &item.item_type,
+            item.content.as_deref(),
+            &item.id,
+            master_key,
+        )
     } else {
         existing.and_then(|e| e.content_hash)
     };
@@ -1197,15 +1254,14 @@ fn list_row_to_item_factory(
     }
 }
 
-/// Find duplicate by content+type or by id+type(image).
+/// Find duplicate by content+type, falling back to id+type for unhashed images.
 ///
-/// For text-like types a single indexed equality on `content_hash` replaces
+/// A single indexed equality on `content_hash` replaces
 /// the former O(N) decrypt-scan. Rows with a NULL `content_hash` (legacy rows
 /// inserted before the hash column existed) are not matched — the backfill
 /// task will populate them on next startup.
 ///
-/// For images, `content` is the cache file path (not free text); the
-/// duplicate match is still by `id`, unchanged.
+/// Images with missing or legacy cache paths retain the id-only lookup.
 pub fn find_duplicate(
     conn: &Connection,
     item_type: &str,
@@ -1213,9 +1269,8 @@ pub fn find_duplicate(
     id: &str,
     master_key: &[u8; 32],
 ) -> Result<Option<ClipboardItem>, AppError> {
-    if item_type == "image" {
-        // Image dedup is still by id; content for an image row is the cache
-        // file path, not free text, and content_hash is NULL for image rows.
+    let hash = compute_content_hash(item_type, content, id, master_key);
+    if item_type == "image" && hash.is_none() {
         let result = conn.query_row(
             "SELECT id, item_type, content, preview, created_at, favorite,
                     metadata, source_app, redacted_kinds, custom_title
@@ -1230,12 +1285,10 @@ pub fn find_duplicate(
         };
     }
 
-    let needle = match content {
-        Some(c) => c,
+    let hash = match hash {
+        Some(hash) => hash,
         None => return Ok(None),
     };
-    let hash =
-        crate::crypto::hmac::hmac_sha256(master_key, format!("{item_type}\n{needle}").as_bytes());
 
     let result = conn.query_row(
         "SELECT id, item_type, content, preview, created_at, favorite,
@@ -1271,7 +1324,7 @@ const LIST_SELECT_COLS: &str =
 /// Atomically record a new clipboard capture:
 pub type IconResolver<'a> = &'a dyn Fn(&str, &Path) -> Option<String>;
 
-/// 1. Find any duplicate (same content+type; same id for images).
+/// 1. Find any duplicate (same content+type; same id for unhashed images).
 /// 2. If found: inherit its favorite status, then delete it.
 /// 3. Insert the new item.
 /// 4. Enforce age and count limits.
@@ -1308,6 +1361,7 @@ pub fn record_capture(
         master_key,
     )?;
     let replaced_id = duplicate.as_ref().map(|dup| dup.id.clone());
+    let mut replaced_image_path = None;
     if let Some(dup) = duplicate {
         if dup.favorite {
             new_item.favorite = true;
@@ -1315,10 +1369,9 @@ pub fn record_capture(
         if new_item.custom_title.is_none() && dup.custom_title.is_some() {
             new_item.custom_title = dup.custom_title;
         }
-        // We discard the returned DeleteResult here — the captured item
-        // is the same one being re-inserted, so its image path (if any)
-        // remains valid.
-        let _ = delete_item(conn, &dup.id, master_key)?;
+        replaced_image_path = delete_item(conn, &dup.id, master_key)?
+            .image_content_path
+            .filter(|path| Some(path.as_str()) != new_item.content.as_deref());
     }
 
     add_item(conn, &new_item, master_key)?;
@@ -1328,6 +1381,7 @@ pub fn record_capture(
     Ok(CaptureResult {
         inserted_id: new_item.id,
         replaced_id,
+        replaced_image_path,
         favorite: new_item.favorite,
         custom_title: new_item.custom_title,
         evicted_ids,
@@ -1901,6 +1955,98 @@ mod tests {
     }
 
     #[test]
+    fn record_capture_replaces_duplicate_image_and_reports_its_cache_path() {
+        let conn = setup();
+        let key = test_key();
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("clipboard_cache");
+        std::fs::create_dir(&cache).unwrap();
+        let old_path = cache.join("old.png");
+        let new_path = cache.join("new.png");
+        let png = b"\x89PNG\r\n\x1a\nidentical payload";
+        std::fs::write(&old_path, png).unwrap();
+        std::fs::write(&new_path, png).unwrap();
+        let mut original = make_item("old", old_path.to_str().unwrap(), true);
+        original.item_type = "image".to_string();
+        original.custom_title = Some("Screenshot".to_string());
+        add_item(&conn, &original, &key).unwrap();
+        let mut new_item = make_item("new", new_path.to_str().unwrap(), false);
+        new_item.item_type = "image".to_string();
+        new_item.created_at = js_sys_now();
+
+        let result = record_capture(&conn, &new_item, None, &key, None).unwrap();
+        let items = get_all(&conn, &key).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, "new");
+        assert!(items[0].favorite);
+        assert_eq!(items[0].custom_title.as_deref(), Some("Screenshot"));
+        let response = serde_json::to_value(&result).unwrap();
+        assert_eq!(response["replacedId"], "old");
+        assert_eq!(response["replacedImagePath"], old_path.to_str().unwrap());
+
+        let result = record_capture(&conn, &new_item, None, &key, None).unwrap();
+        assert!(serde_json::to_value(result).unwrap()["replacedImagePath"].is_null());
+
+        let different_path = cache.join("different.png");
+        std::fs::write(&different_path, b"different payload").unwrap();
+        new_item.id = "different".to_string();
+        new_item.content = Some(different_path.to_str().unwrap().to_string());
+        let result = record_capture(&conn, &new_item, None, &key, None).unwrap();
+        assert!(result.replaced_id.is_none());
+        assert_eq!(get_all(&conn, &key).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn read_regular_file_bounded_caps_size_and_rejects_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("ok.png");
+        std::fs::write(&file, b"abcd").unwrap();
+        assert_eq!(
+            read_regular_file_bounded(&file, 4).as_deref(),
+            Some(&b"abcd"[..])
+        );
+        assert!(read_regular_file_bounded(&file, 3).is_none());
+        assert!(read_regular_file_bounded(dir.path(), 4).is_none());
+    }
+
+    #[test]
+    fn compute_content_hash_skips_oversized_cache_image() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("clipboard_cache");
+        std::fs::create_dir(&cache).unwrap();
+        let path = cache.join("big.png");
+        let file = std::fs::File::create(&path).unwrap();
+        // Sparse: the logical size is past the cap, but the bytes are not
+        // allocated or read.
+        file.set_len(MAX_IMAGE_HASH_BYTES + 1).unwrap();
+        assert!(
+            compute_content_hash("image", path.to_str(), "big", &test_key()).is_none(),
+            "oversized cache images stay unhashed"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn compute_content_hash_skips_non_regular_cache_image() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("clipboard_cache");
+        std::fs::create_dir(&cache).unwrap();
+        let real = dir.path().join("real.png");
+        std::fs::write(&real, b"pixels").unwrap();
+        let link = cache.join("link.png");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        assert!(compute_content_hash("image", link.to_str(), "link", &test_key()).is_none());
+
+        let fifo = cache.join("fifo.png");
+        assert!(std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .expect("mkfifo")
+            .success());
+        assert!(compute_content_hash("image", fifo.to_str(), "fifo", &test_key()).is_none());
+    }
+
+    #[test]
     fn test_record_capture_replaces_duplicate() {
         let conn = setup();
         let key = test_key();
@@ -1919,6 +2065,7 @@ mod tests {
         let response = serde_json::to_value(&result).unwrap();
         assert_eq!(response["replacedId"], "1");
         assert_eq!(response["favorite"], false);
+        assert!(response["replacedImagePath"].is_null());
         // Only one item — the duplicate was removed and the new one inserted
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, "2");
@@ -2054,6 +2201,13 @@ mod tests {
         let found = find_duplicate(&conn, "image", None, "img-id", &key).unwrap();
         assert!(found.is_some());
         assert_eq!(found.unwrap().id, "img-id");
+        assert!(
+            find_duplicate(&conn, "image", img.content.as_deref(), "other-id", &key)
+                .unwrap()
+                .is_none()
+        );
+        let result = record_capture(&conn, &img, None, &key, None).unwrap();
+        assert!(serde_json::to_value(result).unwrap()["replacedImagePath"].is_null());
     }
 
     // ── Tombstone regression tests ──────────────────────────────────────────

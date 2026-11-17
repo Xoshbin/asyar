@@ -104,13 +104,14 @@ pub fn rebuild_from_disk(
             custom_title.as_deref(),
         )?;
 
-        if row.existing_hash.is_none() && row.item_type != "image" {
-            if let Some(c) = content.as_deref() {
-                let hash = crate::crypto::hmac::hmac_sha256(
-                    master_key,
-                    format!("{}\n{}", row.item_type, c).as_bytes(),
-                );
-                hash_writes.push((row.id.clone(), hash.to_vec()));
+        if row.existing_hash.is_none() {
+            if let Some(hash) = crate::clipboard::compute_content_hash(
+                &row.item_type,
+                content.as_deref(),
+                &row.id,
+                master_key,
+            ) {
+                hash_writes.push((row.id.clone(), hash));
             }
         }
     }
@@ -681,6 +682,26 @@ mod rebuild_tests {
         )
         .unwrap();
 
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("clipboard_cache");
+        std::fs::create_dir(&cache).unwrap();
+        let png = b"\x89PNG\r\n\x1a\nimage payload";
+        for (id, path) in [
+            ("owned", cache.join("owned.png")),
+            ("plugin", cache.join("hash.png")),
+            ("external", dir.path().join("external.png")),
+        ] {
+            std::fs::write(&path, png).unwrap();
+            let encrypted = crate::crypto::cipher::encrypt(path.to_str().unwrap(), &key).unwrap();
+            conn.execute(
+                "INSERT INTO clipboard_items
+                    (id, item_type, content, created_at, favorite, content_hash)
+                 VALUES (?1, 'image', ?2, 1.0, 0, NULL)",
+                rusqlite::params![id, encrypted],
+            )
+            .unwrap();
+        }
+
         let fts = ClipboardFts::new_in_memory().unwrap();
         rebuild_from_disk(&conn, &fts, &key).unwrap();
 
@@ -695,7 +716,30 @@ mod rebuild_tests {
             hash.is_some(),
             "rebuild backfilled content_hash for legacy row"
         );
-        assert_eq!(hash.unwrap().len(), 32);
+        assert_eq!(
+            hash.unwrap(),
+            crate::crypto::hmac::hmac_sha256(&key, b"text\nlegacy body").to_vec()
+        );
+        for (id, expected) in [
+            (
+                "owned",
+                Some(
+                    crate::crypto::hmac::hmac_sha256(&key, &[b"image\n", &png[..]].concat())
+                        .to_vec(),
+                ),
+            ),
+            ("plugin", None),
+            ("external", None),
+        ] {
+            let hash: Option<Vec<u8>> = conn
+                .query_row(
+                    "SELECT content_hash FROM clipboard_items WHERE id = ?1",
+                    [id],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(hash, expected);
+        }
     }
 
     #[test]
