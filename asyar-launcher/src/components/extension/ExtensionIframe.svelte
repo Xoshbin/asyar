@@ -7,6 +7,7 @@
   import { collectThemeVariables } from '../../lib/themeVariables';
   import { buildFontFaceCSS } from '../../lib/themeFonts';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { showSettingsWindow } from '../../lib/ipc/commands';
   import {
     announceActiveViewShortcuts,
     forgetAnnouncedShortcuts,
@@ -121,6 +122,12 @@
         cancelable: true,
       });
       window.dispatchEvent(syntheticEvent);
+      return;
+    }
+    if (type === 'asyar:navigate-settings-tab') {
+      // An extension may deep-link only to its own settings entry: the target
+      // extensionId comes from this iframe, never from the payload.
+      if (payload?.tab === 'extensions') void showSettingsWindow('extensions', extensionId);
       return;
     }
     logger.debug(`Received message from iframe (${extensionId}): ${type}`);
