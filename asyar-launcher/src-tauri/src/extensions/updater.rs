@@ -8,6 +8,7 @@ use crate::extensions::{get_app_data_dir, ExtensionRegistryState};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
 /// Progress events emitted to the frontend via Tauri events.
@@ -118,22 +119,103 @@ pub async fn check_for_updates(
 
     let parsed: CheckUpdatesResponse = response.json().await.map_err(AppError::Network)?;
 
-    // 3. Defense-in-depth: local semver post-filter
-    let updates = parsed
-        .updates
-        .into_iter()
-        .filter(|u| {
-            match (
-                semver::Version::parse(&u.current_version),
-                semver::Version::parse(&u.latest_version),
-            ) {
-                (Ok(current), Ok(latest)) => latest > current,
-                _ => true, // Trust server if local parsing fails
-            }
-        })
-        .collect();
+    // Bind every offer to the inventory we actually sent. The server cannot
+    // nominate another path or invent a current version to permit a downgrade.
+    for update in &parsed.updates {
+        let local = body
+            .extensions
+            .iter()
+            .find(|local| local.id == update.extension_id)
+            .ok_or_else(|| {
+                AppError::Validation(format!(
+                    "Update offered for unrequested extension '{}'",
+                    update.extension_id
+                ))
+            })?;
+        validate_update_offer(update, &local.version)?;
+    }
+    Ok(parsed.updates)
+}
 
-    Ok(updates)
+fn validate_update_offer(
+    update: &AvailableUpdate,
+    installed_version: &str,
+) -> Result<(), AppError> {
+    installer::validate_extension_id(&update.extension_id)?;
+    let current = semver::Version::parse(installed_version)
+        .map_err(|e| AppError::Validation(format!("Invalid installed version: {e}")))?;
+    let latest = semver::Version::parse(&update.latest_version)
+        .map_err(|e| AppError::Validation(format!("Invalid update version: {e}")))?;
+    if update.current_version != installed_version || latest <= current {
+        return Err(AppError::Validation(
+            "Update must upgrade the installed version".into(),
+        ));
+    }
+    installer::validate_download_url(&update.download_url)?;
+    let valid_checksum = update
+        .checksum
+        .strip_prefix("sha256:")
+        .is_some_and(|hash| hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit()));
+    if !valid_checksum {
+        return Err(AppError::Validation(
+            "Update requires a SHA-256 checksum".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Resolve a real installed directory before downloading or mutating anything.
+/// Reparse points/junctions must not redirect the updater outside its root.
+fn validate_update_target(base_dir: &Path, update: &AvailableUpdate) -> Result<PathBuf, AppError> {
+    installer::validate_extension_id(&update.extension_id)?;
+    let root = dunce::canonicalize(base_dir)?;
+    let live = root.join(&update.extension_id);
+    let metadata = fs::symlink_metadata(&live)?;
+    #[cfg(windows)]
+    let is_link = {
+        use std::os::windows::fs::MetadataExt;
+        metadata.file_attributes() & 0x400 != 0 // FILE_ATTRIBUTE_REPARSE_POINT
+    };
+    #[cfg(not(windows))]
+    let is_link = metadata.file_type().is_symlink();
+    if is_link || !metadata.is_dir() || dunce::canonicalize(&live)?.parent() != Some(root.as_path())
+    {
+        return Err(AppError::Validation(
+            "Update target must be a directory inside the extension root".into(),
+        ));
+    }
+    let installed = read_manifest(&live.join("manifest.json"))?;
+    if installed.id != update.extension_id {
+        return Err(AppError::Validation(
+            "Installed manifest does not match the update ID".into(),
+        ));
+    }
+    validate_update_offer(update, &installed.version)?;
+    Ok(live)
+}
+
+fn validate_update_package(
+    staging_dir: &Path,
+    update: &AvailableUpdate,
+) -> Result<crate::extensions::ExtensionManifest, AppError> {
+    let manifest = read_manifest(&staging_dir.join("manifest.json"))?;
+    if manifest.id != update.extension_id || manifest.version != update.latest_version {
+        return Err(AppError::Validation(
+            "Update package ID/version does not match the requested update".into(),
+        ));
+    }
+    installer::validate_package_structure(staging_dir, &manifest)?;
+    if let CompatibilityStatus::PlatformNotSupported {
+        platform,
+        supported,
+    } = validate_compatibility(&manifest)
+    {
+        return Err(AppError::Validation(format!(
+            "Updated extension does not support {platform} (supported: {})",
+            supported.join(", ")
+        )));
+    }
+    Ok(manifest)
 }
 
 /// Update a single extension atomically.
@@ -145,25 +227,14 @@ pub async fn update_extension(
     update: &AvailableUpdate,
 ) -> Result<(), AppError> {
     let base_dir = get_app_data_dir(app_handle)?.join("extensions");
-    let live_dir = base_dir.join(&update.extension_id);
-    let staging_dir = base_dir.join(format!("{}_updating", update.extension_id));
-    let backup_dir = base_dir.join(format!("{}_old", update.extension_id));
-
-    // Clean up any leftover dirs from a previous failed update
-    if staging_dir.exists() {
-        let _ = fs::remove_dir_all(&staging_dir);
-    }
-    if backup_dir.exists() {
-        let _ = fs::remove_dir_all(&backup_dir);
-    }
-
-    // Verify live directory exists (can't update what's not installed)
-    if !live_dir.exists() {
-        return Err(AppError::NotFound(format!(
-            "Extension '{}' is not installed — cannot update",
-            update.extension_id
-        )));
-    }
+    let live_dir = validate_update_target(&base_dir, update)?;
+    // Never remove predictable sibling names: an ID ending in `_old` or
+    // `_updating` may belong to a different, legitimately installed extension.
+    let workspace = tempfile::Builder::new()
+        .prefix(".update-")
+        .tempdir_in(&base_dir)?;
+    let staging_dir = workspace.path().join("package");
+    let backup_dir = workspace.path().join("backup");
 
     // --- Download ---
     emit_progress(
@@ -197,43 +268,11 @@ pub async fn update_extension(
             extension_id: update.extension_id.clone(),
         },
     );
-    if let Err(e) = installer::extract_zip(temp_file.path(), &staging_dir).await {
-        let _ = fs::remove_dir_all(&staging_dir);
-        return Err(e);
-    }
-
-    // --- Validate compatibility on new manifest ---
-    let manifest_path = staging_dir.join("manifest.json");
-    if manifest_path.exists() {
-        match read_manifest(&manifest_path) {
-            Ok(manifest) => {
-                if let CompatibilityStatus::PlatformNotSupported {
-                    platform,
-                    supported,
-                } = validate_compatibility(&manifest)
-                {
-                    let _ = fs::remove_dir_all(&staging_dir);
-                    return Err(AppError::Validation(format!(
-                        "Updated extension '{}' does not support {} (supported: {})",
-                        update.name,
-                        platform,
-                        if supported.is_empty() {
-                            "none".to_string()
-                        } else {
-                            supported.join(", ")
-                        }
-                    )));
-                }
-                manifest.write_icon_copies(&staging_dir);
-            }
-            Err(e) => {
-                warn!(
-                    "Could not read manifest for compatibility check during update: {}",
-                    e
-                );
-            }
-        }
-    }
+    installer::extract_zip(temp_file.path(), &staging_dir).await?;
+    let manifest = validate_update_package(&staging_dir, update)?;
+    manifest.write_icon_copies(&staging_dir);
+    // The installed version may have changed while the download was running.
+    validate_update_target(&base_dir, update)?;
 
     // --- Atomic swap ---
     emit_progress(
@@ -257,7 +296,15 @@ pub async fn update_extension(
         // Rollback: restore backup → live
         error!("Failed to promote staging dir, rolling back: {}", e);
         if let Err(rb_err) = fs::rename(&backup_dir, &live_dir) {
-            error!("CRITICAL: Rollback also failed: {}. Extension '{}' may be in an inconsistent state.", rb_err, update.extension_id);
+            let recovery_dir = workspace.keep();
+            error!(
+                "Rollback failed: {}. Preserved extension backup at {:?}",
+                rb_err, recovery_dir
+            );
+            return Err(AppError::Platform(format!(
+                "Failed to promote update: {e}; rollback failed: {rb_err}. Backup preserved at {}",
+                recovery_dir.display()
+            )));
         }
         let _ = fs::remove_dir_all(&staging_dir);
         return Err(AppError::Platform(format!(
@@ -322,8 +369,173 @@ fn emit_progress(app_handle: &AppHandle, progress: UpdateProgress) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
     use tempfile::TempDir;
+
+    fn offered_update() -> AvailableUpdate {
+        AvailableUpdate {
+            extension_id: "org.example.test".into(),
+            name: "Test".into(),
+            slug: "test".into(),
+            current_version: "1.0.0".into(),
+            latest_version: "2.0.0".into(),
+            download_url: "https://example.com/update.zip".into(),
+            checksum: format!("sha256:{}", "a".repeat(64)),
+        }
+    }
+
+    async fn check_offer(update: AvailableUpdate) -> Result<Vec<AvailableUpdate>, AppError> {
+        let registry = ExtensionRegistryState::new();
+        let record = serde_json::from_value(serde_json::json!({
+            "manifest": {"id": "org.example.test", "name": "Test", "version": "1.0.0"},
+            "enabled": true,
+            "isBuiltIn": false,
+            "path": "unused-by-update-check"
+        }))
+        .unwrap();
+        registry
+            .extensions
+            .lock()
+            .unwrap()
+            .insert("org.example.test".into(), record);
+        let mut server = mockito::Server::new_async().await;
+        let request = server
+            .mock("POST", "/api/extensions/check-updates")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(serde_json::json!({"updates": [update]}).to_string())
+            .create_async()
+            .await;
+        let result = check_for_updates(&registry, &server.url()).await;
+        request.assert_async().await;
+        result
+    }
+
+    #[tokio::test]
+    async fn update_check_rejects_unrequested_ids_and_untrusted_versions() {
+        for id in ["../outside", "C:/outside", "org.example.not-installed"] {
+            let mut offer = offered_update();
+            offer.extension_id = id.into();
+            assert!(
+                matches!(check_offer(offer).await, Err(AppError::Validation(_))),
+                "{id}"
+            );
+        }
+        for (current, latest) in [("0.1.0", "0.2.0"), ("1.0.0", "invalid"), ("1.0.0", "0.9.0")] {
+            let mut offer = offered_update();
+            offer.current_version = current.into();
+            offer.latest_version = latest.into();
+            assert!(
+                matches!(check_offer(offer).await, Err(AppError::Validation(_))),
+                "{current} -> {latest}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn update_check_accepts_requested_extension_upgrade() {
+        assert_eq!(check_offer(offered_update()).await.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn update_target_rejects_paths_before_touching_disk() {
+        let tmp = TempDir::new().unwrap();
+        let sentinel = tmp.path().join("sentinel");
+        fs::write(&sentinel, "keep").unwrap();
+        for id in [
+            "",
+            ".",
+            "..",
+            "../sentinel",
+            "a/b",
+            "a\\b",
+            "C:relative",
+            "C:/outside",
+            "\\\\server\\share",
+            "id.",
+            "id ",
+        ] {
+            let mut update = offered_update();
+            update.extension_id = id.into();
+            assert!(
+                matches!(
+                    validate_update_target(tmp.path(), &update),
+                    Err(AppError::Validation(_))
+                ),
+                "{id}"
+            );
+        }
+        assert_eq!(fs::read_to_string(sentinel).unwrap(), "keep");
+    }
+
+    #[test]
+    fn update_target_is_bound_to_installed_manifest() {
+        let tmp = TempDir::new().unwrap();
+        let mut update = offered_update();
+        create_fake_extension(tmp.path(), &update.extension_id, "1.0.0");
+        assert!(validate_update_target(tmp.path(), &update).is_ok());
+        update.current_version = "0.1.0".into();
+        assert!(validate_update_target(tmp.path(), &update).is_err());
+        update = offered_update();
+        let manifest = tmp.path().join(&update.extension_id).join("manifest.json");
+        fs::write(
+            &manifest,
+            r#"{"id":"org.example.other","name":"Other","version":"1.0.0","searchable":true}"#,
+        )
+        .unwrap();
+        assert!(validate_update_target(tmp.path(), &update).is_err());
+        assert_eq!(
+            fs::read_to_string(tmp.path().join(&update.extension_id).join("index.js")).unwrap(),
+            "console.log('hello')"
+        );
+    }
+
+    #[test]
+    fn update_package_requires_matching_valid_manifest() {
+        let tmp = TempDir::new().unwrap();
+        let update = offered_update();
+        create_fake_extension(tmp.path(), &update.extension_id, &update.latest_version);
+        let package = tmp.path().join(&update.extension_id);
+        assert!(validate_update_package(&package, &update).is_ok());
+        for contents in [
+            "not json",
+            r#"{"id":"org.example.other","name":"Other","version":"2.0.0","searchable":true}"#,
+            r#"{"id":"org.example.test","name":"Test","version":"3.0.0","searchable":true}"#,
+            r#"{"id":"org.example.test","name":"Test","version":"2.0.0","background":{"main":"missing.js"}}"#,
+        ] {
+            fs::write(package.join("manifest.json"), contents).unwrap();
+            assert!(
+                validate_update_package(&package, &update).is_err(),
+                "{contents}"
+            );
+        }
+        fs::remove_file(package.join("manifest.json")).unwrap();
+        assert!(validate_update_package(&package, &update).is_err());
+    }
+
+    #[test]
+    fn update_offer_requires_secure_url_and_checksum() {
+        let mut update = offered_update();
+        update.download_url = "http://example.com/update.zip".into();
+        assert!(validate_update_offer(&update, "1.0.0").is_err());
+        update = offered_update();
+        update.checksum = "sha256:short".into();
+        assert!(validate_update_offer(&update, "1.0.0").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn update_target_rejects_symlinked_installation() {
+        let base = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let update = offered_update();
+        create_fake_extension(outside.path(), &update.extension_id, "1.0.0");
+        std::os::unix::fs::symlink(
+            outside.path().join(&update.extension_id),
+            base.path().join(&update.extension_id),
+        )
+        .unwrap();
+        assert!(validate_update_target(base.path(), &update).is_err());
+    }
 
     /// Helper: create a fake extension directory with a manifest.json
     fn create_fake_extension(dir: &Path, id: &str, version: &str) {
@@ -334,6 +546,7 @@ mod tests {
             "name": format!("Test {}", id),
             "version": version,
             "description": "test extension",
+            "searchable": true,
             "commands": []
         });
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();

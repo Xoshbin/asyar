@@ -205,6 +205,23 @@ pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> 
     Ok(())
 }
 
+/// IDs become directory names at installation and update boundaries.
+pub(crate) fn validate_extension_id(id: &str) -> Result<(), AppError> {
+    if id.is_empty()
+        || id.ends_with('.')
+        || id.contains("..")
+        || !id
+            .chars()
+            .all(|c| c.is_alphanumeric() || matches!(c, '-' | '.' | '_'))
+    {
+        return Err(AppError::Validation(format!(
+            "Extension ID '{}' is not a safe directory name (path traversal is forbidden)",
+            id
+        )));
+    }
+    Ok(())
+}
+
 /// Validates the structural correctness of an extracted extension package.
 pub(crate) fn validate_package_structure(
     extracted_dir: &Path,
@@ -226,23 +243,7 @@ pub(crate) fn validate_package_structure(
         ));
     }
 
-    // ID format: alphanumeric, hyphens, dots, underscores. No ".."
-    if manifest.id.contains("..") {
-        return Err(AppError::Validation(format!(
-            "Extension ID '{}' contains '..' path traversal",
-            manifest.id
-        )));
-    }
-    if !manifest
-        .id
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '-' || c == '.' || c == '_')
-    {
-        return Err(AppError::Validation(format!(
-            "Extension ID '{}' contains invalid characters",
-            manifest.id
-        )));
-    }
+    validate_extension_id(&manifest.id)?;
 
     // `type` defaults to `"extension"` when absent. The new schema rejects
     // legacy `"view"` and `"result"` values at manifest parse time via
@@ -494,11 +495,7 @@ pub(crate) async fn install_from_url(
             "Download URL is required and cannot be empty".to_string(),
         ));
     }
-    if extension_id.trim().is_empty() {
-        return Err(AppError::Validation(
-            "Extension ID is required and cannot be empty".to_string(),
-        ));
-    }
+    validate_extension_id(extension_id)?;
 
     // Validate URL format
     validate_download_url(download_url)?;
