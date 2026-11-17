@@ -17,6 +17,7 @@ const KILL_PERMISSION: &str = "process:kill";
 
 #[tauri::command]
 pub async fn process_list(
+    app: tauri::AppHandle,
     permissions: State<'_, ExtensionPermissionRegistry>,
     extension_id: Option<String>,
     query: Option<String>,
@@ -26,7 +27,84 @@ pub async fn process_list(
     // mutex lock, so no need to push it to the blocking pool.
     ensure_can_list(&permissions, &extension_id)?;
     let query = query.unwrap_or_default();
-    spawn_blocking_result(move || crate::process_manager::list(&query, sort_by)).await
+    let cache_dir = crate::icons::remote::icon_cache_dir(&app);
+    spawn_blocking_result(move || {
+        let mut groups = crate::process_manager::list(&query, sort_by);
+        for group in &mut groups {
+            group.icon = resolve_group_icon(group, &cache_dir);
+        }
+        groups
+    })
+    .await
+}
+
+/// Best-effort icon resolver for an app group.
+///
+/// On macOS, GUI apps run inside `.app` bundles whose icons are extracted
+/// via `extract_app_icon`. CLI binaries, daemon processes, and headless tools
+/// leave `icon: None` so the UI renders the familiar `exec` squircle badge.
+fn resolve_group_icon(group: &AppGroup, cache_dir: &std::path::Path) -> Option<String> {
+    // 1. Scan children to see if any executable resides within an application bundle.
+    for child in &group.children {
+        if let Some(bundle_path) = find_bundle_path(&child.path) {
+            if let Some(icon) =
+                crate::application::service::extract_app_icon(&bundle_path, cache_dir)
+            {
+                return Some(icon);
+            }
+        }
+    }
+
+    // 2. On macOS, search standard system and user application paths matching app_name.
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let candidates = [
+            format!("/Applications/{}.app", group.app_name),
+            format!("/System/Applications/{}.app", group.app_name),
+            format!("/System/Applications/Utilities/{}.app", group.app_name),
+            format!("/System/Library/CoreServices/{}.app", group.app_name),
+            format!("{home}/Applications/{}.app", group.app_name),
+        ];
+        for candidate in candidates {
+            if std::path::Path::new(&candidate).exists() {
+                if let Some(icon) =
+                    crate::application::service::extract_app_icon(&candidate, cache_dir)
+                {
+                    return Some(icon);
+                }
+            }
+        }
+    }
+
+    // 3. Fallback: inspect child executable path directly (Windows .exe or Linux binaries).
+    for child in &group.children {
+        if !child.path.is_empty() && std::path::Path::new(&child.path).exists() {
+            if let Some(icon) =
+                crate::application::service::extract_app_icon(&child.path, cache_dir)
+            {
+                return Some(icon);
+            }
+        }
+    }
+
+    None
+}
+
+/// Extract the `.app` bundle path from an executable path (e.g.
+/// `/Applications/Raycast.app/Contents/MacOS/Raycast` -> `/Applications/Raycast.app`).
+fn find_bundle_path(exe_path: &str) -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(idx) = exe_path.find(".app/") {
+            return Some(exe_path[..idx + 4].to_string());
+        }
+        if exe_path.ends_with(".app") {
+            return Some(exe_path.to_string());
+        }
+    }
+    let _ = exe_path;
+    None
 }
 
 #[tauri::command]
@@ -126,5 +204,27 @@ mod tests {
         let perms = ExtensionPermissionRegistry::new();
         assert!(ensure_can_list(&perms, &None).is_ok());
         assert!(ensure_can_kill(&perms, &None).is_ok());
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn find_bundle_path_extracts_dot_app_bundle() {
+        assert_eq!(
+            find_bundle_path("/Applications/Raycast.app/Contents/MacOS/Raycast"),
+            Some("/Applications/Raycast.app".to_string())
+        );
+        assert_eq!(
+            find_bundle_path("/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal"),
+            Some("/System/Applications/Utilities/Terminal.app".to_string())
+        );
+        assert_eq!(
+            find_bundle_path("/Applications/Slack.app"),
+            Some("/Applications/Slack.app".to_string())
+        );
+        assert_eq!(find_bundle_path("/usr/local/bin/node"), None);
+        assert_eq!(
+            find_bundle_path("/System/Library/Frameworks/CoreGraphics.framework/WindowServer"),
+            None
+        );
     }
 }
