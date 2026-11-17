@@ -1,3 +1,6 @@
+import { existsSync, statSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { hasIcon } from 'asyar-sdk/contracts';
 
@@ -50,6 +53,12 @@ describe('built-in feature manifests — icon resolution contract', () => {
       for (const ref of assetRefs) {
         it(`${ref.where} declares bundled asset icon ${ref.name}`, () => {
           expect(ref.name).toMatch(/^assets\/.*\.(png|svg)$/);
+          const assetPath = resolve(
+            dirname(fileURLToPath(import.meta.url)),
+            dirname(file),
+            ref.name,
+          );
+          expect(existsSync(assetPath) && statSync(assetPath).isFile()).toBe(true);
         });
       }
     });
