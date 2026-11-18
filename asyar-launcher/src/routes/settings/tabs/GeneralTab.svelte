@@ -30,6 +30,7 @@
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { applyTheme, removeTheme } from '../../../services/theme/themeService';
   import ListDensitySettings from '../../../components/settings/ListDensitySettings.svelte';
+  import ThemePicker from '../../../components/settings/ThemePicker.svelte';
   import { getWaylandBindingGuide } from '../../onboarding/steps/summonSearchSetup';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import type { PopToRootDelay } from '../../../services/settings/types/AppSettingsType';
@@ -227,6 +228,10 @@
     }
   }
 
+  function getMoreThemes() {
+    void emit('asyar:run-command', { commandId: 'cmd_store_browse', args: { filter: 'themes' } });
+  }
+
   async function selectTheme(themeId: string | null) {
     try {
       if (themeId) {
@@ -320,7 +325,7 @@
 <SettingsCard>
   <div id="general-appearance">
     <SettingsRow
-      label={t('settings.appearance.theme')}
+      label={t('settings.appearance.mode')}
       description={t('settings.general.theme_description')}
     >
       <AppearanceThemeSelector
@@ -328,6 +333,19 @@
         onchange={(v) => handler.updateThemeSetting(v)}
         wellBackground="secondary"
       />
+    </SettingsRow>
+    <SettingsRow
+      label={t('settings.appearance.theme')}
+      description={t('settings.appearance.theme_picker_description')}
+    >
+      {#snippet below()}
+        <ThemePicker
+          themes={themeExtensions}
+          activeId={activeThemeId}
+          onselect={selectTheme}
+          ongetmore={getMoreThemes}
+        />
+      {/snippet}
     </SettingsRow>
     <SettingsRow
       label={t('settings.appearance.window_mode')}
@@ -496,97 +514,7 @@
   </div>
 </SettingsCard>
 
-{#if themeExtensions.length > 0}
-  <div class="section-header">{t('settings.general.custom_themes')}</div>
-  <SettingsCard>
-    <div class="themes-list">
-      <label class="theme-item" class:theme-active={activeThemeId === null}>
-        <input
-          type="radio"
-          name="custom-theme"
-          checked={activeThemeId === null}
-          onchange={() => selectTheme(null)}
-          class="sr-only"
-        />
-        <div class="theme-item-body">
-          <div class="theme-item-name">{t('settings.general.default_theme')}</div>
-          <div class="theme-item-meta">{t('settings.general.default_theme_meta')}</div>
-        </div>
-      </label>
-
-      {#each themeExtensions as theme}
-        <label class="theme-item" class:theme-active={activeThemeId === theme.id}>
-          <input
-            type="radio"
-            name="custom-theme"
-            checked={activeThemeId === theme.id}
-            onchange={() => selectTheme(theme.id)}
-            class="sr-only"
-          />
-          <div class="theme-item-body">
-            <div class="theme-item-name">{theme.name}</div>
-            <div class="theme-item-meta">
-              {#if theme.author}{theme.author} &middot;
-              {/if}v{theme.version}
-            </div>
-          </div>
-        </label>
-      {/each}
-    </div>
-  </SettingsCard>
-{/if}
-
 <style>
-  .themes-list {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .theme-item {
-    position: relative;
-    display: flex;
-    align-items: center;
-    padding: var(--space-5) var(--space-6);
-    cursor: default;
-    transition: background var(--transition-fast);
-  }
-
-  .theme-item:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    left: var(--space-6);
-    right: 0;
-    bottom: 0;
-    height: 1px;
-    background: var(--border-color);
-  }
-
-  .theme-item:hover {
-    background: var(--bg-hover);
-  }
-
-  .theme-item.theme-active .theme-item-name {
-    color: var(--accent-primary);
-  }
-
-  .theme-item-body {
-    flex: 1;
-  }
-
-  .theme-item-name {
-    font-weight: 500;
-    font-size: var(--font-size-md);
-    color: var(--text-primary);
-    font-family: var(--font-ui);
-  }
-
-  .theme-item-meta {
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    font-family: var(--font-ui);
-    margin-top: var(--space-1);
-  }
-
   .wayland-hotkey-hint {
     display: flex;
     flex-direction: column;
