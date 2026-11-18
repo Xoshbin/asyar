@@ -129,7 +129,6 @@
       "onboarding": "新手引导",
       "onboarding_description": "重新体验一遍欢迎流程。",
       "rerun_onboarding": "重新运行新手引导",
-      "custom_themes": "自定义主题",
       "default_theme": "默认",
       "default_theme_meta": "Asyar 内置主题",
       "error_load_themes": "无法加载主题扩展列表",
@@ -185,7 +184,11 @@
       "list_density_preview_snippet": "咖啡订单",
       "list_density_preview_snippet_sub": "片段",
       "list_density_preview_folder": "文稿",
-      "list_density_preview_folder_sub": "文件夹"
+      "list_density_preview_folder_sub": "文件夹",
+      "mode": "模式",
+      "theme_picker_description": "启动器和设置的配色主题。",
+      "theme_picker_aria": "配色主题",
+      "get_more_themes": "获取更多主题"
     },
     "advanced": {
       "section_extension_surface": "扩展展示范围",

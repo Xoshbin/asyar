@@ -129,7 +129,6 @@
       "onboarding": "Tour Inicial",
       "onboarding_description": "Repetir o fluxo de boas-vindas novamente.",
       "rerun_onboarding": "Reiniciar tour inicial",
-      "custom_themes": "Temas Personalizados",
       "default_theme": "Padrão",
       "default_theme_meta": "Tema integrado do Asyar",
       "error_load_themes": "Não foi possível carregar a lista de extensões de tema",
@@ -185,7 +184,11 @@
       "list_density_preview_snippet": "Pedido de café",
       "list_density_preview_snippet_sub": "Snippet",
       "list_density_preview_folder": "Documentos",
-      "list_density_preview_folder_sub": "Pasta"
+      "list_density_preview_folder_sub": "Pasta",
+      "mode": "Modo",
+      "theme_picker_description": "Tema de cores do launcher e das configurações.",
+      "theme_picker_aria": "Tema de cores",
+      "get_more_themes": "Mais temas"
     },
     "advanced": {
       "section_extension_surface": "Superfície de extensões",

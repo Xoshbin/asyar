@@ -129,7 +129,6 @@
       "onboarding": "Onboarding",
       "onboarding_description": "Walk through the welcome flow again.",
       "rerun_onboarding": "Re-run onboarding",
-      "custom_themes": "Custom Themes",
       "default_theme": "Default",
       "default_theme_meta": "Built-in Asyar theme",
       "error_load_themes": "Could not load theme extensions list",
@@ -185,7 +184,11 @@
       "list_density_preview_snippet": "Coffee order",
       "list_density_preview_snippet_sub": "Snippet",
       "list_density_preview_folder": "Documents",
-      "list_density_preview_folder_sub": "Folder"
+      "list_density_preview_folder_sub": "Folder",
+      "mode": "Mode",
+      "theme_picker_description": "Color theme for the launcher and settings.",
+      "theme_picker_aria": "Color theme",
+      "get_more_themes": "Get more themes"
     },
     "advanced": {
       "section_extension_surface": "Extension surface",

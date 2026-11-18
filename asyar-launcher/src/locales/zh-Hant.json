@@ -129,7 +129,6 @@
       "onboarding": "新手引導",
       "onboarding_description": "重新體驗一遍歡迎流程。",
       "rerun_onboarding": "重新執行新手引導",
-      "custom_themes": "自訂主題",
       "default_theme": "預設",
       "default_theme_meta": "Asyar 內建主題",
       "error_load_themes": "無法載入主題擴充套件列表",
@@ -185,7 +184,11 @@
       "list_density_preview_snippet": "咖啡訂單",
       "list_density_preview_snippet_sub": "片段",
       "list_density_preview_folder": "文件",
-      "list_density_preview_folder_sub": "資料夾"
+      "list_density_preview_folder_sub": "資料夾",
+      "mode": "模式",
+      "theme_picker_description": "啟動器與設定的配色主題。",
+      "theme_picker_aria": "配色主題",
+      "get_more_themes": "取得更多主題"
     },
     "advanced": {
       "section_extension_surface": "擴充套件展示範圍",

@@ -129,7 +129,6 @@
       "onboarding": "Accueil",
       "onboarding_description": "Revoir le parcours de bienvenue.",
       "rerun_onboarding": "Relancer l'accueil",
-      "custom_themes": "Thèmes personnalisés",
       "default_theme": "Par défaut",
       "default_theme_meta": "Thème Asyar intégré",
       "error_load_themes": "Impossible de charger la liste des extensions de thème",
@@ -185,7 +184,11 @@
       "list_density_preview_snippet": "Commande de café",
       "list_density_preview_snippet_sub": "Extrait",
       "list_density_preview_folder": "Documents",
-      "list_density_preview_folder_sub": "Dossier"
+      "list_density_preview_folder_sub": "Dossier",
+      "mode": "Mode",
+      "theme_picker_description": "Thème de couleurs du lanceur et des réglages.",
+      "theme_picker_aria": "Thème de couleurs",
+      "get_more_themes": "Plus de thèmes"
     },
     "advanced": {
       "section_extension_surface": "Surface des extensions",
