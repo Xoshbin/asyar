@@ -11,25 +11,32 @@
   }: {
     name: string;
     icon?: IconSource;
-    size?: 'sm' | 'md' | 'lg' | 'xl';
+    /** A named size, or a box in px (initials scale with it). */
+    size?: 'sm' | 'md' | 'lg' | 'xl' | number;
   } = $props();
 
   const PX = { sm: 36, md: 48, lg: 64, xl: 88 };
   let gradient = $derived(nameToGradient(name));
   let initials = $derived(nameToInitials(name));
   let bg = $derived(`linear-gradient(135deg, ${gradient.from}, ${gradient.to})`);
-  const sizeClass = $derived(`size-${size}`);
+  const px = $derived(typeof size === 'number' ? size : PX[size]);
+  const sizeClass = $derived(typeof size === 'number' ? 'size-px' : `size-${size}`);
+  const pxStyle = $derived(
+    typeof size === 'number'
+      ? `width: ${size}px; height: ${size}px; font-size: ${Math.round(size * 0.4)}px;`
+      : '',
+  );
 </script>
 
 {#snippet initialsAvatar()}
-  <div class="ext-avatar {sizeClass}" style="background: {bg};">
+  <div class="ext-avatar {sizeClass}" style="background: {bg}; {pxStyle}">
     {initials}
   </div>
 {/snippet}
 
 {#if toResolvedIcon(icon)}
-  <div class="ext-avatar {sizeClass} image-container">
-    <AppIcon {icon} size={PX[size]} glyphSize={Math.round(PX[size] * 0.6)} alt={name}>
+  <div class="ext-avatar {sizeClass} image-container" style={pxStyle}>
+    <AppIcon {icon} size={px} glyphSize={Math.round(px * 0.6)} alt={name}>
       {#snippet fallback()}
         {@render initialsAvatar()}
       {/snippet}
@@ -58,6 +65,9 @@
     overflow: hidden;
   }
 
+  .size-px {
+    border-radius: var(--radius-sm);
+  }
   .size-sm {
     width: 36px;
     height: 36px;
