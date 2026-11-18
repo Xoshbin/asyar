@@ -29,6 +29,7 @@
   import { logService } from '../../../services/log/logService';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { applyTheme, removeTheme } from '../../../services/theme/themeService';
+  import ListDensitySettings from '../../../components/settings/ListDensitySettings.svelte';
   import { getWaylandBindingGuide } from '../../onboarding/steps/summonSearchSetup';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import type { PopToRootDelay } from '../../../services/settings/types/AppSettingsType';
@@ -351,6 +352,7 @@
         onchange={(value) => selectUiScale(Number(value))}
       />
     </SettingsRow>
+    <ListDensitySettings />
     {#if handler.selectedLaunchView === 'compact'}
       <SettingsRow
         label={t('settings.appearance.hide_show_more')}
