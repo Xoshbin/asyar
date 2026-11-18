@@ -61,5 +61,8 @@ export function resolveListDensity(appearance: {
 }): ListDensity {
   const preset = appearance.listDensity ?? DEFAULT_LIST_DENSITY;
   if (preset === 'custom') return clampListDensity(appearance.customListDensity);
-  return LIST_DENSITY_PRESETS[preset] ?? LIST_DENSITY_PRESETS[DEFAULT_LIST_DENSITY];
+  return (
+    LIST_DENSITY_PRESETS[preset as keyof typeof LIST_DENSITY_PRESETS] ??
+    LIST_DENSITY_PRESETS.balanced
+  );
 }
