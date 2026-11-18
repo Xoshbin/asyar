@@ -403,16 +403,19 @@ export const appInitializer = {
       // of its own) that deep-link into a Tier 1 view — e.g. Backup tab's
       // "Import from Raycast" button. `commandId` is the full
       // `cmd_<extensionId>_<commandId>` object id.
-      appListen<{ commandId: string }>('asyar:run-command', async ({ payload }) => {
-        await commands.showWindow();
-        try {
-          await commandService.executeCommand(payload.commandId);
-        } catch (e) {
-          logService.error(
-            `[AppInitializer] asyar:run-command failed for ${payload.commandId}: ${e}`,
-          );
-        }
-      });
+      appListen<{ commandId: string; args?: Record<string, unknown> }>(
+        'asyar:run-command',
+        async ({ payload }) => {
+          await commands.showWindow();
+          try {
+            await commandService.executeCommand(payload.commandId, payload.args);
+          } catch (e) {
+            logService.error(
+              `[AppInitializer] asyar:run-command failed for ${payload.commandId}: ${e}`,
+            );
+          }
+        },
+      );
 
       // Per-extension onboarding completion: when the extension calls
       // `context.proxies.onboarding.complete()`, Rust marks it onboarded
