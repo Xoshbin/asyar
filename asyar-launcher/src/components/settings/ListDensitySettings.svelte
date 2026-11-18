@@ -75,6 +75,24 @@
     }))}
     onchange={selectPreset}
   />
+  {#snippet below()}
+    <div
+      class="density-preview"
+      role="group"
+      aria-label={t('settings.appearance.list_density_preview')}
+    >
+      {#each preview as row, i}
+        <LauncherListRow
+          {density}
+          selected={i === 0}
+          icon={row.icon}
+          title={row.title}
+          subtitle={row.subtitle}
+          tabindex="-1"
+        />
+      {/each}
+    </div>
+  {/snippet}
 </SettingsRow>
 {#if preset === 'custom'}
   {#each SLIDERS as slider}
@@ -91,29 +109,12 @@
     <Toggle checked={density.twoLine} onchange={() => setCustom({ twoLine: !density.twoLine })} />
   </SettingsRow>
 {/if}
-<div
-  class="density-preview"
-  role="group"
-  aria-label={t('settings.appearance.list_density_preview')}
->
-  {#each preview as row, i}
-    <LauncherListRow
-      {density}
-      selected={i === 0}
-      icon={row.icon}
-      title={row.title}
-      subtitle={row.subtitle}
-      tabindex="-1"
-    />
-  {/each}
-</div>
 
 <style>
   .density-preview {
     display: flex;
     flex-direction: column;
     padding: var(--space-3);
-    margin: 0 var(--space-6) var(--space-5);
     border-radius: var(--radius-lg);
     background: var(--bg-secondary);
     pointer-events: none;
