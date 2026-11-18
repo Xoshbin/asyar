@@ -9,6 +9,14 @@
   "type": "extension",
   "searchable": true,
   "icon": "assets/icon.png",
+  "preferences": [
+    {
+      "name": "customApp",
+      "type": "appPicker",
+      "title": "Custom app",
+      "description": "App that \"Open with Custom App\" opens files with, e.g. Visual Studio Code."
+    }
+  ],
   "commands": [
     {
       "id": "show-files",

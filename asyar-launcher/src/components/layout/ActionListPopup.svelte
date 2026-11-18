@@ -214,13 +214,14 @@
     const action = flatActions.find((a) => a.id === actionId);
     if (!action) return;
 
-    if ((action as any).children?.length) {
+    const children = action.children?.();
+    if (children?.length) {
       viewStack = [
         ...viewStack,
         {
           type: 'actions',
           title: action.label,
-          actions: (action as any).children,
+          actions: children.map((c) => ({ ...c, displayCategory: action.label })),
         },
       ];
       searchQuery = '';
@@ -231,7 +232,8 @@
       closePopup();
     }
 
-    await invokeAction(action);
+    const nested = currentView?.type === 'actions' && !!currentView.actions;
+    await invokeAction(action, { direct: nested });
 
     if (!actionService.activePrompt) {
       closePopup();

@@ -476,7 +476,7 @@
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    overflow: hidden;
+    /* No overflow clipping: preference dropdowns pop out past the card's edge. */
   }
 
   .panel-icon {

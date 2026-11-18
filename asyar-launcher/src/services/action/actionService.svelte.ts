@@ -105,6 +105,8 @@ export interface ApplicationAction {
   execute: () => Promise<void> | void;
   shortcut?: string;
   visible?: () => boolean;
+  /** Rows of a nested list the ⌘K panel drills into; read when the row is picked. */
+  children?: () => ApplicationAction[];
 }
 
 function sameActionMetadata(a: ApplicationAction, b: ApplicationAction): boolean {
@@ -294,12 +296,14 @@ export class ActionService implements IActionService {
       execute: action.execute,
       disabled: 'disabled' in action ? action.disabled : undefined,
       visible: 'visible' in action ? (action as any).visible : undefined,
+      children: 'children' in action ? (action as ApplicationAction).children : undefined,
     };
 
     const prev = this.allActions.get(appAction.id);
     if (prev && sameActionMetadata(prev, appAction)) {
       prev.execute = appAction.execute;
       prev.visible = appAction.visible;
+      prev.children = appAction.children;
       return;
     }
 

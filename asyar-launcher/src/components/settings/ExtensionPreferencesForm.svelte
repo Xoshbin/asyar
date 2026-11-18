@@ -1,4 +1,9 @@
 <script lang="ts">
+  import {
+    applicationsCache,
+    preloadApplications,
+  } from '../../services/application/applicationsCache.svelte';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
   import { t } from '../../services/i18n';
   import Input from '../base/Input.svelte';
   import Toggle from '../base/Toggle.svelte';
@@ -36,6 +41,30 @@
   function handleNumber(pref: PreferenceDeclaration, e: Event) {
     const raw = (e.target as HTMLInputElement).value;
     handleValueChange(pref.name, raw === '' ? undefined : Number(raw));
+  }
+
+  // appPicker fields read the shared app list Settings preloads at startup, so
+  // they paint with names right away; the dropdown filters it locally.
+  $effect(() => {
+    if (!preferences.some((p) => p.type === 'appPicker')) return;
+    preloadApplications(settingsService.currentSettings.search?.additionalScanPaths ?? []);
+  });
+  const appOptions = $derived(
+    applicationsCache.apps
+      .map((a) => ({ value: a.path, label: a.name }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+  );
+
+  /** Keeps a saved app visible even when it is outside the indexed list. */
+  function appOptionsFor(value: unknown) {
+    if (typeof value !== 'string' || !value || appOptions.some((o) => o.value === value)) {
+      return appOptions;
+    }
+    const label = value
+      .split(/[/\\]/)
+      .pop()!
+      .replace(/\.(app|exe)$/i, '');
+    return [{ value, label }, ...appOptions];
   }
 
   function dropdownValue(pref: PreferenceDeclaration): string {
@@ -98,16 +127,20 @@
           {:else}
             <div class="error-inline">{t('settings.extensions.invalid_dropdown')}</div>
           {/if}
-        {:else if pref.type === 'appPicker' || pref.type === 'file' || pref.type === 'directory'}
+        {:else if pref.type === 'appPicker'}
+          <SearchableSelect
+            value={values[pref.name] ?? ''}
+            options={appOptionsFor(values[pref.name])}
+            placeholder={t('settings.extensions.choose_app')}
+            {disabled}
+            onchange={(v) => handleValueChange(pref.name, v)}
+          />
+        {:else if pref.type === 'file' || pref.type === 'directory'}
           <Input
             textIntent="exact"
             type="text"
             value={values[pref.name] ?? ''}
-            placeholder={pref.type === 'appPicker'
-              ? 'Application path'
-              : pref.type === 'directory'
-                ? 'Directory path'
-                : 'File path'}
+            placeholder={pref.type === 'directory' ? 'Directory path' : 'File path'}
             {disabled}
             oninput={(e: Event) => handleText(pref, e)}
           />
