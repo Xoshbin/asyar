@@ -238,6 +238,14 @@
      density. Change this and you change how much of Asyar is visible. */
   --shell-row-h: 38px;
 
+  /* List rows: the Balanced density. LauncherListRow and ListItem set these
+     per row from the user's list density setting (lib/launcher/listDensity.ts). */
+  --row-h: 40px;
+  --row-icon: 24px;
+  --row-icon-optical: 20px;
+  --row-gap: 12px;
+  --row-title: 14px;
+
   /* Stacking scale. Every z-index in the app comes from this list — never
      write a bare number. The values are the ones the app already used, so
      the names describe the layering that exists rather than imposing a new
