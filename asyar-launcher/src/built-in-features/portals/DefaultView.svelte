@@ -184,16 +184,9 @@
         selected={selectedIndex === index}
         title={portal.name}
         subtitle={portal.url}
+        icon={portal.icon}
         onclick={() => (portalsUiState.selectedIndex = index)}
-      >
-        {#snippet leading()}
-          <IconBox size="md">
-            {#snippet content()}
-              {portal.icon}
-            {/snippet}
-          </IconBox>
-        {/snippet}
-      </LauncherListRow>
+      />
     {/snippet}
 
     {#snippet detail()}
