@@ -797,15 +797,20 @@ Other rules:
 
 ---
 
-## 11. Third-party extensions (Tier 2, iframe sandbox)
+## 11. Third-party extensions (Tier 2, sandbox & design alignment)
 
-Extensions run in two sandboxed iframes — a hidden worker and an on-demand
-view. Design rules apply to the **view**.
+Tier 2 extensions execute in two isolated environments — a long-lived headless
+Web Worker (`role: 'worker'`) for background compute, and an on-demand sandboxed
+`<iframe>` (`role: 'view'`) for visual presentation. Design rules apply to the **view**.
 
 - Every CSS token above is injected automatically, along with the real Satoshi
   and JetBrains Mono files. `var(--bg-primary)`, `var(--font-ui)` etc. just
   work. **The same "never hardcode a colour" rule applies**, and so does the
   voice/fill split.
+- **Shell Row Rhythm:** Custom extension views rendering list rows or menu items
+  must use `var(--shell-row-h)` (38px). The launcher content area is sized for
+  9 touching 38px rows plus a peek of the 10th row. Never hardcode row heights to
+  random values.
 - Icons come from the `<asyar-icon>` web component: call `registerIconElement()`
   once in the view entry, then `<asyar-icon name="calculator" size="20">`.
   Icons inherit `currentColor`.
@@ -820,6 +825,23 @@ view. Design rules apply to the **view**.
   `asyar-sdk/worker`, or `asyar-sdk/contracts`. The icon helpers are
   DOM-dependent and ship on `/view` only.
 - For IDE autocomplete outside the running app, import `asyar-sdk/tokens.css`.
+
+### Extension Icon Standard (Bespoke 512×512 Continuous Squircles)
+
+Never ship an extension with a raw emoji or flat glyph as its primary identity icon.
+All built-in features and official Asyar Store extensions use bespoke continuous
+squircles designed on a $512 \times 512$ canvas:
+
+1. **Geometry:** Continuous squircle `<svg viewBox="32 32 448 448" width="512" height="512">`
+   with base `<rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bgGrad)"/>`.
+2. **Glass & Rim Lighting:**
+   - Top ambient sheen: `<radialGradient id="sheen" cx="50%" cy="0%" r="75%">` with white (35% → 0% opacity).
+   - Specular rim bevel: 1.5px stroke `<rect x="32.5" y="32.5" width="447" height="447" rx="103.5" stroke="url(#rim)" stroke-width="1.5" fill="none"/>`.
+3. **Depth:** Symbol carries a two-stage soft drop shadow `<filter id="drop">` (dy=12 / dy=4).
+4. **Manifest Inheritance:** Put the icon at `assets/icon.png` (and `assets/icon.svg`).
+   In `manifest.json`, declare `"icon": "assets/icon.png"`. Omit `icon` on the primary command
+   so it inherits the squircle. Secondary actions (e.g. `Clear Recents`, `New Item`) may use
+   `cmd.icon: "icon:<glyph>"`.
 
 A **theme** extension may override colour, shadow, radius, font family and
 duration tokens. It may **not** override `--space-*`, `--font-size-*`,

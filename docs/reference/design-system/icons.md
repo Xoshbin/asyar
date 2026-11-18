@@ -14,11 +14,11 @@ Reference for all built-in icons available in the Asyar SDK.
    ```json
    { "icon": "🧪" }
    ```
-3. **Custom image assets** as relative paths within your extension package (e.g. `"icon.png"`, `"assets/logo.svg"`):
+3. **Custom image assets** as relative paths within your extension package (e.g. `"assets/icon.png"`, `"assets/icon.svg"`):
    ```json
-   { "icon": "icon.png" }
+   { "icon": "assets/icon.png" }
    ```
-   _Note: Relative paths are resolved and securely loaded via the `asyar-extension://` protocol. Provide transparent PNGs or SVGs to ensure crisp contrast across both Dark and Light themes._
+   _Note: Relative paths are resolved and securely loaded via the `asyar-extension://` protocol. All built-in features and official Asyar Store extensions use bespoke 512×512 continuous squircle icons. See [Bespoke Extension Icons](#bespoke-extension-icons-512512-continuous-squircles) below._
 4. **An object** for richer manifest icons (extension, commands and manifest actions). Use one form only; mixing their fields is an error. Needs `"asyarSdk": "^4.17.0"` or newer.
    - A bundled image with an optional dark-theme variant, or `tint: true` to draw a one-colour image (e.g. a monochrome SVG) in the theme's text colour:
      ```json
@@ -52,6 +52,82 @@ registerIconElement();
 import { renderIcon } from 'asyar-sdk';
 element.innerHTML = renderIcon('calculator', { size: 20 });
 ```
+
+## Bespoke Extension Icons (512×512 Continuous Squircles)
+
+All built-in features and official extensions in Asyar use continuous squircle icons designed on a $512 \times 512$ canvas. In the launcher search results and settings panels, these render with high-definition glass lighting, depth gradients, and crisp contrast.
+
+### Anatomy of an Asyar Icon SVG
+
+When crafting custom icons for your extension (`assets/icon.svg` and `assets/icon.png`), follow the standard layered template:
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="32 32 448 448" width="512" height="512">
+  <defs>
+    <!-- 1. Background Gradient: Deep rich tones (top to bottom) -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2D3748"/>
+      <stop offset="100%" stop-color="#1A202C"/>
+    </linearGradient>
+
+    <!-- 2. Specular Rim Gradient: 1.5px inner bevel highlighting the top edge -->
+    <linearGradient id="rim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E2E8F0" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#718096" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#718096" stop-opacity="0.05"/>
+    </linearGradient>
+
+    <!-- 3. Top Ambient Sheen: Subtle top radial glow giving glass curvature -->
+    <radialGradient id="sheen" cx="50%" cy="0%" r="75%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.35"/>
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- 4. Hero Drop Shadow: Dual-stage soft drop shadow for the symbol -->
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.45"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Continuous Squircle Body (rx="104" at 448x448) -->
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bgGrad)"/>
+
+  <!-- Top Ambient Sheen Layer -->
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#sheen)"/>
+
+  <!-- Specular 1.5px Inner Rim Bevel -->
+  <rect x="32.5" y="32.5" width="447" height="447" rx="103.5" stroke="url(#rim)" stroke-width="1.5" fill="none"/>
+
+  <!-- Centered Hero Symbol / Glyph -->
+  <g transform="translate(128, 128) scale(10.66)" filter="url(#drop)">
+    <!-- Your SVG symbol paths here (e.g. 24x24 path scaled up) -->
+  </g>
+</svg>
+```
+
+### Manifest Icon Inheritance Rule
+
+Declare your rich squircle at the root of `manifest.json`:
+
+```json
+{
+  "id": "com.yourname.myextension",
+  "name": "My Extension",
+  "icon": "assets/icon.png",
+  "commands": [
+    {
+      "id": "main",
+      "name": "Open My Extension",
+      "mode": "view"
+    }
+  ]
+}
+```
+
+- **Primary commands:** Do **not** declare `"icon"` in the primary command object. It will automatically inherit `"assets/icon.png"` from the manifest root, rendering the bespoke squircle in the launcher's search list.
+- **Secondary commands:** Use `cmd.icon: "icon:<glyph>"` (e.g. `"icon:plus"`, `"icon:refresh"`, `"icon:trash"`) only for auxiliary actions (e.g. `Clear Cache`, `New Note`, `Preferences`) that should visually appear as line actions rather than full application entries.
 
 ## Remote icons
 

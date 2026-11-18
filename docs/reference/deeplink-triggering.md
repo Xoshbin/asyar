@@ -237,6 +237,27 @@ The URL is parsed entirely in Rust (`src-tauri/src/deeplink.rs`). The TS `Deepli
 
 ---
 
+## In-View Settings Deep-Linking
+
+An extension view iframe can deep-link directly into the launcher's **Settings → Extensions** panel to show its own preferences or configuration without asking the user to manually open Settings and find the extension.
+
+Post an `asyar:navigate-settings-tab` message to `window.parent`:
+
+```typescript
+// Inside your view component or action handler
+window.parent.postMessage(
+  {
+    type: 'asyar:navigate-settings-tab',
+    payload: { tab: 'extensions' },
+  },
+  '*',
+);
+```
+
+**Security enforcement:** The launcher host (`ExtensionIframe.svelte`) automatically attaches the calling iframe's authenticated `extensionId` and ignores any third-party ID passed in `payload`. An extension can only deep-link to its own settings panel.
+
+---
+
 ## Interaction with the compatibility system
 
 Deeplinks only execute for extensions whose compatibility status is `Compatible`. If an extension is incompatible (wrong SDK version, wrong app version, wrong platform), its commands cannot be triggered via deeplink.

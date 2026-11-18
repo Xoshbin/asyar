@@ -1,12 +1,14 @@
 # SDK Reference
 
-A Tier 2 extension runs in **two iframes** — a worker (`worker.html`) and
-a view (`view.html`). Each iframe imports from a different SDK entry and
-owns its own `ExtensionContext`. Services are accessed through
-`ExtensionContext.getService<T>(serviceName)`.
+A Tier 2 extension runs in **two isolated execution contexts**:
+
+1. A **background Web Worker** (`src/worker.ts` → `dist/worker.js`) for headless compute, background polling, push subscriptions, and tray writes.
+2. An on-demand **sandboxed view `<iframe>`** (`src/view.ts` → `dist/view.html`) for UI presentation and interaction.
+
+Each context imports from a different SDK entrypoint and owns its own `ExtensionContext`. Services are accessed through `ExtensionContext.getService<T>(serviceName)`.
 
 ```typescript
-// Worker iframe — src/main.worker.ts
+// Background Web Worker — src/worker.ts
 import { ExtensionContext } from 'asyar-sdk/worker';
 import type { IFeedbackService } from 'asyar-sdk/contracts';
 
@@ -17,7 +19,8 @@ const feedback = context.getService<IFeedbackService>('feedback');
 ```
 
 ```typescript
-// View iframe — src/main.view.ts
+// View context — src/view.ts
+import 'asyar-sdk/tokens.css';
 import { ExtensionContext } from 'asyar-sdk/view';
 import type { IFeedbackService } from 'asyar-sdk/contracts';
 
@@ -27,13 +30,13 @@ context.setExtensionId(extensionId);
 const feedback = context.getService<IFeedbackService>('feedback');
 ```
 
-The role assertion (`window.__ASYAR_ROLE__`) is checked at module load —
+The role assertion (`globalThis.__ASYAR_ROLE__`) is checked at module load —
 importing `asyar-sdk/view` from a worker bundle (or vice-versa) fails
 fast with a clear error.
 
-> ⚠️ **Create exactly one `ExtensionContext` per iframe.** The constructor attaches `focusin`/`focusout` listeners for input-focus tracking. Creating a second context (e.g. inside a Svelte component's `onMount`) attaches duplicate listeners, causes double IPC calls, and can break the ⌘K shortcut detection. Worker and view each get their own — that's expected — but each role should only ever instantiate one.
+> ⚠️ **Create exactly one `ExtensionContext` per execution context.** The constructor attaches `focusin`/`focusout` listeners for input-focus tracking. Creating a second context (e.g. inside a Svelte component's `onMount`) attaches duplicate listeners, causes double IPC calls, and can break ⌘K shortcut detection. Worker and view each get their own — that's expected — but each role should only ever instantiate one.
 
-> ⚠️ **Never call `getService()` inside Svelte components.** Resolve services in `main.view.ts` and pass them as `$props()` to your components. This is the canonical pattern used by all scaffolded templates.
+> ⚠️ **Never call `getService()` inside Svelte components.** Resolve services in `src/view.ts` and pass them as `$props()` to your components. This is the canonical pattern used by all scaffolded templates.
 
 ---
 

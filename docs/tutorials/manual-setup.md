@@ -4,22 +4,18 @@ order: 3
 
 ### Method B: Manual scaffold
 
-If you prefer full control, here is the minimum project structure:
+If you prefer full control, here is the minimum project structure (clean source files only — no root HTML files required):
 
 ```
 com.yourname.hello-world/
 ├── manifest.json
-├── index.html
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
 └── src/
-    ├── main.ts
-    ├── index.ts
+    ├── view.ts
     └── DefaultView.svelte
 ```
-
-> ⚠️ **`index.html` must be in the project root, not inside `src/`. The validator and Vite both require it there.**
 
 #### `manifest.json`
 
@@ -32,7 +28,7 @@ com.yourname.hello-world/
   "author": "Your Name",
   "icon": "👋",
   "type": "extension",
-  "asyarSdk": "^2.7.0",
+  "asyarSdk": "^4.20.0",
   "commands": [
     {
       "id": "open",
@@ -45,58 +41,30 @@ com.yourname.hello-world/
 }
 ```
 
-#### `src/main.ts`
+#### `src/view.ts`
 
 ```typescript
+import 'asyar-sdk/tokens.css';
 import { mount } from 'svelte';
+import { ExtensionContext, registerIconElement, type ILogService } from 'asyar-sdk/view';
 import DefaultView from './DefaultView.svelte';
-import { ExtensionContext, type ILogService } from 'asyar-sdk';
 
-// The hostname of the asyar-extension:// URL is always your extension ID.
+registerIconElement();
+
 const extensionId = window.location.hostname || 'com.yourname.hello-world';
-
-// 1. Create ONE context for the entire iframe lifetime.
-//    Do NOT create a second one inside a component.
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 
-// 2. Signal readiness to the host. Without this, the host will not
-//    route actions or service calls to this iframe.
+// Signal readiness to the host
 window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
 
-// 3. Forward ⌘K to the host so the Action Drawer opens from inside the iframe.
-window.addEventListener('keydown', (event) => {
-  const isCommandK = (event.metaKey || event.ctrlKey) && event.key === 'k';
-  if (isCommandK) {
-    event.preventDefault();
-    window.parent.postMessage(
-      {
-        type: 'asyar:extension:keydown',
-        payload: {
-          key: event.key,
-          metaKey: event.metaKey,
-          ctrlKey: event.ctrlKey,
-          shiftKey: event.shiftKey,
-          altKey: event.altKey,
-        },
-      },
-      '*',
-    );
-  }
+// Mount the Svelte component into document body
+mount(DefaultView, {
+  target: document.body,
+  props: {
+    logger: context.getService<ILogService>('log'),
+  },
 });
-
-// 4. Resolve the view from the URL query param.
-const viewName = new URLSearchParams(window.location.search).get('view') || 'DefaultView';
-
-// 5. Mount the Svelte component, passing services as props.
-if (viewName === 'DefaultView') {
-  mount(DefaultView, {
-    target: document.getElementById('app')!,
-    props: {
-      logger: context.getService<ILogService>('log'),
-    },
-  });
-}
 ```
 
 #### `src/DefaultView.svelte`
@@ -161,78 +129,19 @@ if (viewName === 'DefaultView') {
 </style>
 ```
 
-#### `src/index.ts`
-
-```typescript
-import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
-import DefaultView from './DefaultView.svelte';
-
-class HelloWorldExtension implements Extension {
-  private extensionManager?: IExtensionManager;
-
-  async initialize(context: ExtensionContext): Promise<void> {
-    this.extensionManager = context.getService<IExtensionManager>('extensions');
-  }
-
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
-  async viewActivated(viewId: string): Promise<void> {}
-  async viewDeactivated(viewId: string): Promise<void> {}
-
-  async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
-    if (commandId === 'open') {
-      this.extensionManager?.navigateToView('com.yourname.hello-world/DefaultView');
-      return { type: 'view', viewPath: 'com.yourname.hello-world/DefaultView' };
-    }
-  }
-
-  onUnload = () => {};
-}
-
-export default new HelloWorldExtension();
-export { DefaultView };
-```
-
-#### `index.html`
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hello World</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
-</html>
-```
-
 #### `vite.config.ts`
 
 ```typescript
-import { defineConfig } from 'vite';
+import { defineExtensionConfig } from 'asyar-sdk/vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { fileURLToPath, URL } from 'url';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
+import { fileURLToPath } from 'node:url';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const localSdkEntry = resolve(__dirname, '../../asyar-sdk/src/index.ts');
-
-export default defineConfig(({ mode }) => ({
-  plugins: [svelte()],
-  resolve: {
-    // In development, resolve the SDK from source for a faster feedback loop.
-    // In production, this alias is absent and the installed npm package is used.
-    alias:
-      mode === 'development' && existsSync(localSdkEntry)
-        ? { 'asyar-sdk': localSdkEntry }
-        : undefined,
+export default defineExtensionConfig({
+  root: fileURLToPath(new URL('.', import.meta.url)),
+  config: {
+    plugins: [svelte()],
   },
-}));
+});
 ```
 
 #### `package.json`

@@ -117,6 +117,14 @@ await proc.kill({ pids: [criticalPid], force: true, confirmedProtected: true });
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | macOS / Linux / Windows | `sysinfo` full process scan with a short CPU-delta sample, run on a blocking thread pool so the UI never freezes. | Processes are coalesced into `AppGroup`s by application; group totals sum each child's CPU and memory. |
 
+**Application Icons (`icon`):**
+
+The host automatically resolves visual icons for GUI application groups:
+
+- **macOS:** Inspects child executable paths for enclosing `.app` bundles (e.g. `/Applications/Slack.app`) and scans standard application locations (`/Applications`, `/System/Applications`, `/System/Library/CoreServices`, `~/Applications`), extracting native ICNS icons via macOS launch services into the host icon cache.
+- **Windows:** Extracts icon resources directly from child `.exe` binaries.
+- **Headless / CLI:** For command-line tools, background scripts, and system daemons without a GUI application bundle, `icon` is `null` so extension views can render a terminal or executable badge fallback.
+
 **How the `protected` classifier works** (`process_manager::protected`):
 
 | Platform | What's flagged protected                                                                                                                                                     |

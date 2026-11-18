@@ -15,20 +15,23 @@ export default defineExtensionConfig({
 });
 ```
 
-The helper discovers `worker.html` and `view.html`, emits deterministic
-`worker.js`/`view.js` entries into `dist`, uses relative asset URLs, and disables
-`build.modulePreload`. Preload hints offer little benefit in on-demand view
-iframes, while HTML's default modulepreload polyfill crashes headless workers.
-The separate Vite dynamic-import preload helper may retain guarded DOM references;
-those are safe during module evaluation and are not the crashing polyfill.
+The helper automatically discovers your source entrypoints (`src/worker.ts` and
+`src/view.ts`, `src/view.svelte`, or `src/view.tsx`) without requiring any physical
+`worker.html` or `view.html` boilerplate at the project root. For view extensions,
+it synthesizes `dist/view.html` on the fly at build time (and handles dev-server virtual
+HTML serving). It emits deterministic `worker.js`/`view.js` entries into `dist`,
+uses relative asset URLs, and disables `build.modulePreload`. Preload hints offer little
+benefit in on-demand view iframes, while HTML's default modulepreload polyfill crashes
+headless workers. The separate Vite dynamic-import preload helper may retain guarded
+DOM references; those are safe during module evaluation and are not the crashing polyfill.
 
-Set `worker: false` or `view: false` to exclude an entry, or provide an alternative
-HTML filename. Use `raycastCompat: true` for the local Raycast adapter, or pass its
-directory as a string. The adapter's source and React dependencies must be
-available. Extension-specific settings go in `config`; shared output naming,
-entry selection, relative base, and preload policy stay owned by the helper.
-Workspace SDK sources are detected at `../../asyar-sdk/src`; `sdkSource` can
-specify another location.
+Set `worker: false` or `view: false` to exclude an entry. Existing extensions that provide
+physical `worker.html` or `view.html` files continue to work with 100% backward compatibility.
+Use `raycastCompat: true` for the local Raycast adapter, or pass its directory as a string.
+The adapter's source and React dependencies must be available. Extension-specific settings
+go in `config`; shared output naming, entry selection, relative base, and preload policy
+stay owned by the helper. Workspace SDK sources are detected at `../../asyar-sdk/src`;
+`sdkSource` can specify another location.
 
 ## Temporary compatibility and privacy
 

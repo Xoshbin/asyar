@@ -312,6 +312,27 @@ not "a tile".
 }
 ```
 
+### Shell Metrics
+
+Layout dimensions that define the launcher's row rhythm and window chrome. Mirrored from the launcher's `style.css` into `asyar-sdk/src/styles/tokens.css` so custom extension views share the row rhythm of the root search list.
+
+| Token              | Value  | Use for                                                                                        |
+| :----------------- | :----- | :--------------------------------------------------------------------------------------------- |
+| `--shell-header-h` | `56px` | Launcher top search header height                                                              |
+| `--shell-footer-h` | `40px` | Launcher bottom action bar height                                                              |
+| `--shell-row-h`    | `38px` | Standard result row height (touching rows; 9 visible rows + peek of 10th row in 384px content) |
+
+Custom extension views presenting lists, menus, or tabular items should use `min-height: var(--shell-row-h)` or `height: var(--shell-row-h)` to maintain visual consistency with native launcher search results.
+
+```css
+.extension-list-row {
+  height: var(--shell-row-h);
+  padding: 0 var(--space-3);
+  display: flex;
+  align-items: center;
+}
+```
+
 ### Font Sizes
 
 | Token                 | Value     | Use for                                                                                      |

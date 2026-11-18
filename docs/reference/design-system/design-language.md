@@ -469,29 +469,22 @@ Everything in the launcher is a subdivision of this:
 | Footer (`--shell-footer-h`)  | 40px      | One row of chips                                                                                        |
 | **Content**                  | **384px** | 480 − 56 − 40. The entire product                                                                       |
 | List inset                   | 8px       | `--space-3`, top and bottom                                                                             |
-| Result row (`--shell-row-h`) | 40px      | The row box                                                                                             |
-| Row separation               | 1px       | A hairline, deliberately not `--space-0-5`                                                              |
+| Result row (`--shell-row-h`) | 38px      | The row box                                                                                             |
+| Row separation               | 0px       | Touching rows; visual rhythm matched to reference launcher density                                      |
 
-Those numbers produce an exact fit, and it is worth doing the arithmetic in full
-because nothing else in the system is this tight:
+Those numbers produce the intentional row rhythm:
 
 ```
 384 content − 16 inset = 368 usable
-368 = 9 × 40 + 8 × 1
+9 × 38 = 342px occupied by 9 full rows
+368 − 342 = 26px peek of the 10th row
 ```
 
-**The content area holds exactly nine rows, with zero pixels left over.**
+**The content area displays nine full rows, with a 26px peek of the tenth row below as an affordance that the list scrolls.**
 
-Until this specification that was true _by accident_ — the row was a bare
-`min-height: 40px` inside `.result-item`, the separation a bare `1px`, and
-nothing recorded that the two were load-bearing. `--shell-row-h` exists so the
-next person to adjust a result row finds out first.
+`--shell-row-h` is mirrored into `asyar-sdk/src/styles/tokens.css` so that custom extension views rendering list rows can match the launcher's row rhythm with exact precision.
 
-The corollary governs the whole scale: **row separation is 1px, not
-`--space-0-5`.** Two pixels is the smallest step on the spacing grid and it
-looks like the obvious token to use here — but 9 × 40 + 8 × 2 = 376, which
-overflows 368 and costs a whole row. This is the one place in Asyar where a raw
-pixel beats a token, and the comment in `style.css` says so.
+The corollary governs the whole scale: **row separation is 0px (touching rows)** with hairline borders or states contained within each row's box. Changing `--shell-row-h` changes how much of Asyar is visible.
 
 ### Space is not size
 

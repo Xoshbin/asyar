@@ -38,12 +38,12 @@ The manifest schema is closed (`#[serde(deny_unknown_fields)]`). The
 following legacy fields are no longer accepted; they will cause the
 extension to fail discovery with an unknown-field error:
 
-| Field                    | Replacement                                                                                                            |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| Top-level `defaultView`  | Each `mode: "view"` command declares its own `component`.                                                              |
-| Top-level `main`         | Worker entry is declared via `background.main`; the view iframe loads `view.html` from the package root by convention. |
-| Per-command `resultType` | Per-command `mode` (`"view"` ↔ `"view"`; `"no-view"` ↔ `"background"`).                                                |
-| Per-command `view`       | Per-command `component` (required iff `mode: "view"`).                                                                 |
+| Field                    | Replacement                                                                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Top-level `defaultView`  | Each `mode: "view"` command declares its own `component`.                                                                                            |
+| Top-level `main`         | Worker entry is declared via `background.main`; the view iframe loads `dist/view.html` by convention (synthesized at build time from `src/view.ts`). |
+| Per-command `resultType` | Per-command `mode` (`"view"` ↔ `"view"`; `"no-view"` ↔ `"background"`).                                                                              |
+| Per-command `view`       | Per-command `component` (required iff `mode: "view"`).                                                                                               |
 
 ### ID naming rules
 

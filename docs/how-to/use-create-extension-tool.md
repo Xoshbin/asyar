@@ -32,20 +32,20 @@ After generation, your extension is **immediately active** in Asyar. Open the la
 
 ### Template file reference
 
-Every scaffolded project includes these files:
+Every scaffolded project includes these files (clean source files only — no root `view.html` or `worker.html` boilerplate needed):
 
-| File                     | Purpose                                                                            |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| `manifest.json`          | Extension manifest (type-specific template)                                        |
-| `package.json`           | npm/pnpm project with build scripts                                                |
-| `vite.config.ts`         | Vite build config with SDK alias for dev mode                                      |
-| `tsconfig.json`          | TypeScript config                                                                  |
-| `index.html`             | Vite entry point HTML                                                              |
-| `.gitignore`             | Ignores `node_modules/`, `dist/`, `.env`, `*.zip`                                  |
-| `src/main.ts`            | iframe bootstrap — creates `ExtensionContext`, signals readiness, mounts component |
-| `src/index.ts`           | Extension class (view and result types)                                            |
-| `src/DefaultView.svelte` | View component (view type)                                                         |
-| `src/DetailView.svelte`  | Detail view component (result type)                                                |
+| File                     | Purpose                                                                             |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| `manifest.json`          | Extension manifest (type-specific template)                                         |
+| `package.json`           | npm/pnpm project with build scripts                                                 |
+| `vite.config.ts`         | Vite build config using `defineExtensionConfig` from `asyar-sdk/vite`               |
+| `tsconfig.json`          | TypeScript config                                                                   |
+| `.gitignore`             | Ignores `node_modules/`, `dist/`, `.env`, `*.zip`                                   |
+| `README.md`              | Project documentation and quick start commands                                      |
+| `src/view.ts`            | View bootstrap — creates `ExtensionContext`, mounts component (view & result types) |
+| `src/DefaultView.svelte` | View component (view type)                                                          |
+| `src/worker.ts`          | Background worker class implementation (logic & result types)                       |
+| `src/DetailView.svelte`  | Detail view component (result type)                                                 |
 
 ### Build an extension with AI
 
