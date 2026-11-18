@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { toResolvedIcon, type IconSource } from '../../lib/icon';
+  import { iconUrlExtensionId, toResolvedIcon, type IconSource } from '../../lib/icon';
   import {
     OPTICAL_ICON_RATIO,
     resolveListDensity,
     type ListDensity,
   } from '../../lib/launcher/listDensity';
   import { settingsService } from '../../services/settings/settingsService.svelte';
+  import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
   import { toDisplayKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
   import AppIcon from '../base/AppIcon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
@@ -85,11 +86,16 @@
   } = $props();
 
   const d = $derived(density ?? resolveListDensity(settingsService.currentSettings.appearance));
-  const iconKind = $derived(toResolvedIcon(icon)?.kind);
+  const resolvedIcon = $derived(toResolvedIcon(icon));
   const opticalSize = $derived(Math.round(d.iconSize * OPTICAL_ICON_RATIO));
-  const iconSize = $derived(
-    iconKind === 'glyph' || iconKind === 'emoji' ? opticalSize : d.iconSize,
+  // Built-in feature icons are full-bleed squircles, unlike padded macOS app icons.
+  const fullBleed = $derived(
+    resolvedIcon?.kind === 'glyph' ||
+      resolvedIcon?.kind === 'emoji' ||
+      (resolvedIcon?.kind === 'image' &&
+        isBuiltInFeature(iconUrlExtensionId(resolvedIcon.src) ?? '')),
   );
+  const iconSize = $derived(fullBleed ? opticalSize : d.iconSize);
 </script>
 
 <button

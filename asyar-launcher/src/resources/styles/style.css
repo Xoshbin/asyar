@@ -242,7 +242,7 @@
      per row from the user's list density setting (lib/launcher/listDensity.ts). */
   --row-h: 40px;
   --row-icon: 24px;
-  --row-icon-optical: 20px;
+  --row-icon-optical: 19px;
   --row-gap: 12px;
   --row-title: 14px;
 

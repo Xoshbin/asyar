@@ -32,8 +32,8 @@ export const LIST_DENSITY_RANGES: Record<DensityKey, { min: number; max: number;
   titleSize: { min: 12, max: 16, step: 1 },
 };
 
-/** Glyph tiles and emoji sit at this share of the box to match the visible size of macOS app icons. */
-export const OPTICAL_ICON_RATIO = 0.84;
+/** macOS app icons fill 80% of their canvas; full-bleed icons shrink to match. */
+export const OPTICAL_ICON_RATIO = 0.8;
 
 function clampTo(key: DensityKey, value: unknown): number {
   const { min, max, step } = LIST_DENSITY_RANGES[key];
