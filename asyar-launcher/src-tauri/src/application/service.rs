@@ -1396,14 +1396,19 @@ fn stamp_cache_file(path: &Path, source_mtime: Option<std::time::SystemTime>) {
 /// Windows prepends a version prefix (`w3_`) so caches written by the
 /// placeholder-soft-cache scheme are orphaned instead of purged (old `.lnk`
 /// entries, including ones shortened by `truncate_cache_key`, simply stop
-/// matching).
+/// matching). Other platforms prepend `i2_` so blurry 32px `.icns` icons
+/// cached by older builds are re-extracted.
 fn app_icon_cache_base_name_for_platform(app_path: &str, is_windows: bool) -> String {
     let raw = app_path
         .replace(['/', '\\', ':', ' '], "_")
         .replace(".app", "")
         .replace(".desktop", "")
         .replace(".exe", "");
-    let cache_key = if is_windows { format!("w3_{raw}") } else { raw };
+    let cache_key = if is_windows {
+        format!("w3_{raw}")
+    } else {
+        format!("i2_{raw}")
+    };
     truncate_cache_key(&cache_key, 200).into_owned()
 }
 
@@ -2526,7 +2531,7 @@ mod tests {
         let windows_key = app_icon_cache_base_name_for_platform("C:\\Apps\\Demo.exe", true);
         let unix_key = app_icon_cache_base_name_for_platform("/Applications/Demo.app", false);
         assert!(windows_key.starts_with("w3_"));
-        assert!(!unix_key.starts_with("w3_"));
+        assert!(unix_key.starts_with("i2_"));
     }
 
     #[test]
