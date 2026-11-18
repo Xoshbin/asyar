@@ -109,24 +109,26 @@
   {...rest}
 >
   <div class="row-shell">
-    <div class="row-icon">
-      {#if leading}
-        {@render leading()}
-      {:else}
-        <AppIcon
-          {icon}
-          {extensionId}
-          size={iconSize}
-          glyphSize={Math.round(iconSize * 0.64)}
-          emojiSize={iconSize}
-          tile
-          alt={title}
-        />
-      {/if}
-      {#if running}
-        <span class="running-dot" role="img" aria-label={t('search.app_running')}></span>
-      {/if}
-    </div>
+    {#if leading || icon}
+      <div class="row-icon">
+        {#if leading}
+          {@render leading()}
+        {:else}
+          <AppIcon
+            {icon}
+            {extensionId}
+            size={iconSize}
+            glyphSize={Math.round(iconSize * 0.64)}
+            emojiSize={iconSize}
+            tile
+            alt={title}
+          />
+        {/if}
+        {#if running}
+          <span class="running-dot" role="img" aria-label={t('search.app_running')}></span>
+        {/if}
+      </div>
+    {/if}
 
     <div class="row-body">
       <span class="result-title truncate"
@@ -219,6 +221,13 @@
     flex-shrink: 0;
     width: var(--row-icon);
     height: var(--row-icon);
+  }
+
+  /* A bare glyph from `leading` gets the optical size, muted like emoji. */
+  .row-icon > :global(svg) {
+    width: var(--row-icon-optical);
+    height: var(--row-icon-optical);
+    color: var(--text-secondary);
   }
 
   .two-line .row-body {
