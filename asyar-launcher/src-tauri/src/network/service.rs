@@ -464,7 +464,8 @@ fn authorize_fetch_target(
     caller_extension_id: Option<&str>,
 ) -> Result<(), AppError> {
     let result = authorize_resolved_target(host, port, addresses, lan_policy);
-    let legacy_hostname = lan_policy.is_none()
+    let legacy_hostname = caller_extension_id != Some("store")
+        && lan_policy.is_none()
         && host.parse::<IpAddr>().is_err()
         && !addresses
             .iter()
@@ -721,6 +722,47 @@ mod tests {
         assert!(authorize_resolved_target("speaker.local", 1400, &mixed, Some(&policy)).is_err());
         let public = ["8.8.8.8:443".parse().unwrap()];
         assert!(authorize_resolved_target("example.com", 443, &public, Some(&policy)).is_ok());
+    }
+
+    #[test]
+    fn store_restricted_targets_require_explicit_lan_grants() {
+        for address in ["192.168.1.20:443", "100.101.102.103:443"] {
+            let addresses = [address.parse().unwrap()];
+            assert!(
+                authorize_fetch_target("icons.example", 443, &addresses, None, Some("store"))
+                    .is_err()
+            );
+            let empty = crate::network::lan_policy::LanPolicy::from_manifest(None).unwrap();
+            assert!(authorize_fetch_target(
+                "icons.example",
+                443,
+                &addresses,
+                Some(&empty),
+                Some("store")
+            )
+            .is_err());
+            let granted =
+                crate::network::lan_policy::LanPolicy::from_manifest(Some(&serde_json::json!([
+                    "icons.example:443"
+                ])))
+                .unwrap();
+            assert!(authorize_fetch_target(
+                "icons.example",
+                443,
+                &addresses,
+                Some(&granted),
+                Some("store")
+            )
+            .is_ok());
+        }
+        assert!(authorize_fetch_target(
+            "icons.example",
+            443,
+            &["8.8.8.8:443".parse().unwrap()],
+            None,
+            Some("store")
+        )
+        .is_ok());
     }
 
     #[test]
