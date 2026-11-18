@@ -5,23 +5,33 @@
     label,
     description = '',
     children,
+    below,
   }: {
     label: string;
     description?: string;
-    children: Snippet;
+    children?: Snippet;
+    /** Full-width content under the label, inside the row's divider. */
+    below?: Snippet;
   } = $props();
 </script>
 
-<div class="settings-row">
+<div class="settings-row" class:has-below={below}>
   <div class="settings-row-text">
     <div class="settings-row-label">{label}</div>
     {#if description}
       <div class="settings-row-description">{description}</div>
     {/if}
   </div>
-  <div class="settings-row-control">
-    {@render children()}
-  </div>
+  {#if children}
+    <div class="settings-row-control">
+      {@render children()}
+    </div>
+  {/if}
+  {#if below}
+    <div class="settings-row-below">
+      {@render below()}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -43,6 +53,16 @@
     bottom: 0;
     height: 1px;
     background: var(--separator);
+  }
+
+  .settings-row.has-below {
+    flex-wrap: wrap;
+    row-gap: var(--space-4);
+  }
+
+  .settings-row-below {
+    flex-basis: 100%;
+    min-width: 0;
   }
 
   .settings-row-text {
