@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { OPTICAL_ICON_RATIO, resolveListDensity } from '../../lib/launcher/listDensity';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
 
   let {
     selected = false,
@@ -20,6 +22,10 @@
     trailing?: Snippet;
     [key: string]: any;
   } = $props();
+
+  const iconSize = $derived(
+    resolveListDensity(settingsService.currentSettings.appearance).iconSize,
+  );
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -29,6 +35,8 @@
   class:selected
   role="option"
   aria-selected={selected}
+  style:--row-icon="{iconSize}px"
+  style:--row-icon-optical="{Math.round(iconSize * OPTICAL_ICON_RATIO)}px"
   {onclick}
   {ondblclick}
   {...restProps}
@@ -88,6 +96,14 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    width: var(--row-icon);
+    height: var(--row-icon);
+  }
+
+  .list-item-leading > :global(svg) {
+    width: var(--row-icon-optical);
+    height: var(--row-icon-optical);
+    color: var(--text-secondary);
   }
 
   .list-item-content {
