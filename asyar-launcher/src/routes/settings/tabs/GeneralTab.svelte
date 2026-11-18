@@ -5,6 +5,8 @@
   import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
   import {
     AppearanceThemeSelector,
+    ListDensitySettings,
+    ThemePicker,
     Button,
     SegmentedControl,
     Select,
@@ -29,8 +31,6 @@
   import { logService } from '../../../services/log/logService';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { applyTheme, removeTheme } from '../../../services/theme/themeService';
-  import ListDensitySettings from '../../../components/settings/ListDensitySettings.svelte';
-  import ThemePicker from '../../../components/settings/ThemePicker.svelte';
   import { getWaylandBindingGuide } from '../../onboarding/steps/summonSearchSetup';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import type { PopToRootDelay } from '../../../services/settings/types/AppSettingsType';
