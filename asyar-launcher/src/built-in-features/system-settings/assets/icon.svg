@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="32 32 448 448" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#242D3D"/>
+      <stop offset="100%" stop-color="#0E131C"/>
+    </linearGradient>
+
+    <!-- Specular Rim Gradient -->
+    <linearGradient id="rim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#60A5FA" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#1E293B" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#1E293B" stop-opacity="0.05"/>
+    </linearGradient>
+
+    <!-- Top Ambient Sheen -->
+    <radialGradient id="sheen" cx="50%" cy="0%" r="75%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.35"/>
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Hero Drop Shadow -->
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.45"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+
+    
+  </defs>
+
+  <!-- Continuous Squircle Body -->
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bgGrad)"/>
+
+  <!-- Top Sheen Layer -->
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#sheen)"/>
+
+  <!-- Specular 1px Inner Bevel -->
+  <rect x="32.5" y="32.5" width="447" height="447" rx="103.5" stroke="url(#rim)" stroke-width="1.5" fill="none"/>
+  <g transform="translate(-107.520 -107.520) scale(1.42)">
+<!-- Hero Illustration -->
+  
+      <!-- Sliders Control Center -->
+      <g filter="url(#drop)">
+        <!-- Track 1 (Top) -->
+        <line x1="146" y1="180" x2="366" y2="180" stroke="#334155" stroke-width="8" stroke-linecap="round"/>
+        <line x1="146" y1="180" x2="246" y2="180" stroke="#3B82F6" stroke-width="8" stroke-linecap="round"/>
+        <circle cx="246" cy="180" r="18" fill="#FFFFFF" stroke="#3B82F6" stroke-width="4"/>
+
+        <!-- Track 2 (Middle) -->
+        <line x1="146" y1="256" x2="366" y2="256" stroke="#334155" stroke-width="8" stroke-linecap="round"/>
+        <line x1="146" y1="256" x2="316" y2="256" stroke="#60A5FA" stroke-width="8" stroke-linecap="round"/>
+        <circle cx="316" cy="256" r="18" fill="#FFFFFF" stroke="#60A5FA" stroke-width="4"/>
+
+        <!-- Track 3 (Bottom) -->
+        <line x1="146" y1="332" x2="366" y2="332" stroke="#334155" stroke-width="8" stroke-linecap="round"/>
+        <line x1="146" y1="332" x2="206" y2="332" stroke="#3B82F6" stroke-width="8" stroke-linecap="round"/>
+        <circle cx="206" cy="332" r="18" fill="#FFFFFF" stroke="#3B82F6" stroke-width="4"/>
+      </g>
+  </g>
+</svg>

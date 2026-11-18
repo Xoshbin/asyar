@@ -1,9 +1,11 @@
 {
   "id": "scripts",
   "name": "Scripts",
-  "icon": "icon:terminal",
+  "icon": "assets/icon.png",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "description": "Run and manage scripts from watched directories",
   "author": "Core",
   "searchable": false,
@@ -13,7 +15,6 @@
     {
       "id": "script-library",
       "name": "Script Library",
-      "icon": "icon:terminal",
       "description": "Inspect, run, and troubleshoot scripts",
       "mode": "view",
       "component": "ScriptLibraryView"

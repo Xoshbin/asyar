@@ -1,7 +1,7 @@
 {
   "id": "mcp",
   "name": "MCP Servers",
-  "icon": "icon:server",
+  "icon": "assets/icon.png",
   "version": "1.0.0",
   "lifecycle": {
     "disableable": true
@@ -14,7 +14,6 @@
     {
       "id": "manage",
       "name": "Manage MCP Servers",
-      "icon": "icon:server",
       "description": "Open the MCP server manager",
       "mode": "view",
       "component": "ManageServersView"

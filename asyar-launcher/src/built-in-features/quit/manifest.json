@@ -1,7 +1,7 @@
 {
   "id": "quit",
   "name": "Asyar",
-  "icon": "icon:power",
+  "icon": "assets/icon.png",
   "version": "1.0.0",
   "lifecycle": {
     "disableable": true
@@ -13,7 +13,6 @@
     {
       "id": "quit-asyar",
       "name": "Quit Asyar",
-      "icon": "icon:power",
       "description": "Quit the Asyar application",
       "mode": "background"
     }
