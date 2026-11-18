@@ -12,7 +12,7 @@ type DensityKey = Exclude<keyof ListDensity, 'twoLine'>;
 
 export const LIST_DENSITY_PRESETS: Record<Exclude<ListDensityPreset, 'custom'>, ListDensity> = {
   dense: { rowHeight: 36, iconSize: 20, gap: 10, titleSize: 13, twoLine: false },
-  balanced: { rowHeight: 40, iconSize: 24, gap: 12, titleSize: 14, twoLine: false },
+  balanced: { rowHeight: 40, iconSize: 28, gap: 12, titleSize: 14, twoLine: false },
   comfortable: { rowHeight: 48, iconSize: 32, gap: 12, titleSize: 14, twoLine: true },
 };
 
