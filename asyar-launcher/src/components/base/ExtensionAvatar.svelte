@@ -60,11 +60,8 @@
     overflow: hidden;
   }
 
-  .avatar-img {
-    width: 100%;
-    height: 100%;
+  .image-container :global(img.app-icon) {
     object-fit: cover;
-    display: block;
   }
 
   .size-sm {

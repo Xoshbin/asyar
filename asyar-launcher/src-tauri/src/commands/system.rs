@@ -209,7 +209,7 @@ fn build_lan_policy(
         return Ok(None);
     };
     if id == "store" {
-        return Ok(None);
+        return crate::network::lan_policy::LanPolicy::from_manifest(None).map(Some);
     }
     let Some(mut policy) = registry.lan_policy_manifest(id)? else {
         return Ok(None);
@@ -395,6 +395,18 @@ mod lan_policy_tests {
             std::collections::HashMap::new(),
         );
         r
+    }
+
+    #[test]
+    fn store_has_a_deny_by_default_lan_policy() {
+        let registry = ExtensionPermissionRegistry::new();
+        let store = DataStore::in_memory().unwrap();
+        let policy = build_lan_policy(&registry, &store, Some("store"))
+            .unwrap()
+            .expect("Store must not use legacy compatibility");
+        assert!(policy
+            .authorize("icons.example", 443, &["192.168.1.20".parse().unwrap()])
+            .is_err());
     }
 
     #[test]
