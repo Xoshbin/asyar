@@ -208,6 +208,9 @@ fn build_lan_policy(
     let Some(id) = extension_id else {
         return Ok(None);
     };
+    if id == "store" {
+        return Ok(None);
+    }
     let Some(mut policy) = registry.lan_policy_manifest(id)? else {
         return Ok(None);
     };
@@ -258,6 +261,9 @@ pub(crate) fn check_remote_icon_caller(
     registry: &crate::permissions::ExtensionPermissionRegistry,
     extension_id: &str,
 ) -> Result<(), AppError> {
+    if extension_id == "store" {
+        return Ok(());
+    }
     crate::icons::remote::validate_owner(extension_id)?;
     registry.check(&Some(extension_id.to_string()), "network")
 }
@@ -372,6 +378,7 @@ mod remote_icon_tests {
             HashMap::new(),
         );
         assert!(check_remote_icon_caller(&registry, "org.x").is_ok());
+        assert!(check_remote_icon_caller(&registry, "store").is_ok());
     }
 }
 
