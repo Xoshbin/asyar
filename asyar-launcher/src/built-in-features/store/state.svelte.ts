@@ -74,6 +74,10 @@ export interface ApiExtension {
   };
 }
 
+export function isStoreTheme(item: ApiExtension): boolean {
+  return item.manifest?.type === 'theme' || item.category?.toLowerCase() === 'theme';
+}
+
 export function getInstallCount(item: Partial<ApiExtension> | null | undefined): number {
   if (!item) return 0;
   return item.installCount ?? item.install_count ?? 0;
@@ -83,6 +87,7 @@ export function getInstallCount(item: Partial<ApiExtension> | null | undefined):
 
 export class StoreViewStateClass {
   searchQuery = $state('');
+  themesOnly = $state(false);
   // Ids of the current search results, best-match first, as ranked by Rust.
   // `null` means no active search (show every fetched item).
   private rankedIds = $state<string[] | null>(null);
@@ -100,8 +105,9 @@ export class StoreViewStateClass {
 
   filteredItems = $derived.by(() => {
     const q = this.searchQuery?.trim() ?? '';
-    if (!q || this.rankedIds === null) return this.allItems;
-    const byId = new Map(this.allItems.map((it) => [String(it.id), it]));
+    const items = this.themesOnly ? this.allItems.filter(isStoreTheme) : this.allItems;
+    if (!q || this.rankedIds === null) return items;
+    const byId = new Map(items.map((it) => [String(it.id), it]));
     return this.rankedIds
       .map((id) => byId.get(id))
       .filter((it): it is ApiExtension => it !== undefined);
