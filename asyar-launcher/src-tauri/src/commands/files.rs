@@ -540,13 +540,30 @@ fn validate_scoped_canonical(
 }
 
 /// Canonicalize a missing path by resolving its nearest existing ancestor and
-/// re-attaching the remaining non-existent tail components. Prevents symlinked
-/// parent directories from hiding out-of-scope or denied targets.
+/// re-attaching the remaining non-existent tail components. If an intermediate
+/// component is a dangling symlink, its link target is resolved (up to a bounded
+/// depth) so symlinked parent directories cannot hide out-of-scope or denied
+/// targets even when the target itself does not exist.
 fn resolve_missing_path_with_canonical_ancestor(normalized: &Path) -> Result<PathBuf, AppError> {
+    resolve_missing_path_with_canonical_ancestor_depth(normalized, 0)
+}
+
+const MAX_DANGLING_SYMLINK_DEPTH: u8 = 16;
+
+fn resolve_missing_path_with_canonical_ancestor_depth(
+    normalized: &Path,
+    depth: u8,
+) -> Result<PathBuf, AppError> {
+    if depth > MAX_DANGLING_SYMLINK_DEPTH {
+        return Err(AppError::Validation(format!(
+            "files:read path '{}' exceeded symlink resolution depth",
+            normalized.display()
+        )));
+    }
     let mut suffix: Vec<std::ffi::OsString> = Vec::new();
-    let mut cursor = normalized;
+    let mut cursor = normalized.to_path_buf();
     loop {
-        match dunce::canonicalize(cursor) {
+        match dunce::canonicalize(&cursor) {
             Ok(mut base) => {
                 for part in suffix.into_iter().rev() {
                     base.push(part);
@@ -554,13 +571,40 @@ fn resolve_missing_path_with_canonical_ancestor(normalized: &Path) -> Result<Pat
                 return Ok(base);
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                let Some(name) = cursor.file_name() else {
+                if let Ok(meta) = fs::symlink_metadata(&cursor) {
+                    if meta.file_type().is_symlink() {
+                        let target = fs::read_link(&cursor).map_err(|err| {
+                            AppError::Validation(format!(
+                                "files:read path '{}' is not accessible: {}",
+                                normalized.display(),
+                                err
+                            ))
+                        })?;
+                        let joined = if target.is_absolute() {
+                            target
+                        } else {
+                            cursor
+                                .parent()
+                                .unwrap_or_else(|| Path::new("/"))
+                                .join(target)
+                        };
+                        let resolved_target = normalize_path(&joined);
+                        let mut base = resolve_missing_path_with_canonical_ancestor_depth(
+                            &resolved_target,
+                            depth + 1,
+                        )?;
+                        for part in suffix.into_iter().rev() {
+                            base.push(part);
+                        }
+                        return Ok(base);
+                    }
+                }
+                let Some(name) = cursor.file_name().map(|n| n.to_os_string()) else {
                     return Ok(normalized.to_path_buf());
                 };
-                suffix.push(name.to_os_string());
-                match cursor.parent() {
-                    Some(parent) => cursor = parent,
-                    None => return Ok(normalized.to_path_buf()),
+                suffix.push(name);
+                if !cursor.pop() {
+                    return Ok(normalized.to_path_buf());
                 }
             }
             Err(e) => {
@@ -646,12 +690,18 @@ pub async fn files_exists<R: tauri::Runtime>(
     extension_id: Option<String>,
     path_str: String,
 ) -> Result<bool, AppError> {
-    let Some(ext) = extension_id else {
-        validate_path_allowed(&path_str, &app_handle)?;
-        return Ok(Path::new(&path_str).exists());
-    };
-    let (home, extra_deny) = extension_scope_env(&app_handle)?;
-    files_exists_inner(&permissions, &ext, &path_str, &home, &extra_deny)
+    // State is owned by the AppHandle; reacquire it inside the 'static job.
+    let _ = permissions;
+    tokio::task::spawn_blocking(move || {
+        let Some(ext) = extension_id else {
+            validate_path_allowed(&path_str, &app_handle)?;
+            return Ok(Path::new(&path_str).exists());
+        };
+        let (home, extra_deny) = extension_scope_env(&app_handle)?;
+        files_exists_inner(&app_handle.state(), &ext, &path_str, &home, &extra_deny)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("File exists task failed: {e}")))?
 }
 
 pub(crate) fn files_exists_inner(
@@ -2657,6 +2707,31 @@ mod tests {
         )
         .unwrap_err();
         assert!(format!("{err}").contains("not covered"), "got: {err}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_exists_inner_rejects_dangling_symlink_to_protected_target() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, home) = files_read_setup(&tmp);
+        let docs = home.join("docs");
+        std::fs::create_dir_all(&docs).unwrap();
+        let dangling = docs.join("link");
+        let protected_missing = home.join(".ssh").join("missing-dir");
+        std::os::unix::fs::symlink(&protected_missing, &dangling).unwrap();
+
+        let err = files_exists_inner(
+            &perms,
+            "ext.a",
+            dangling.join("secret").to_str().unwrap(),
+            &home,
+            &[],
+        )
+        .unwrap_err();
+        assert!(
+            format!("{err}").contains("protected location"),
+            "got: {err}"
+        );
     }
 
     #[test]

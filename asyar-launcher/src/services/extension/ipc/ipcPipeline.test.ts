@@ -721,6 +721,35 @@ describe('IPC pipeline — denial and error envelopes', () => {
     );
   });
 
+  it('does not suppress structured validation_failure even if path contains not-found text', async () => {
+    const read = vi.fn(async () => {
+      throw {
+        source: 'rust',
+        kind: 'validation_failure',
+        severity: 'error',
+        retryable: false,
+        context: {},
+        developerDetail:
+          "Validation error: files:read: path '/home/.ssh/does not exist' is inside the protected location '/home/.ssh'",
+      };
+    });
+
+    await makeRouter({ files: { read } }).handleMessage(
+      frameEvent({
+        type: 'asyar:api:files:read',
+        payload: { path: '/home/.ssh/does not exist' },
+        messageId: 'm-crafted-path',
+      }),
+    );
+
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'extension_proxy_error',
+        extensionId: 'org.asyar.demo',
+      }),
+    );
+  });
+
   it('forwards a thrown error code as the response errorCode', async () => {
     const get = vi.fn(async () => {
       throw Object.assign(new Error('LAUNCHER_FOCUSED'), { code: 'LAUNCHER_FOCUSED' });

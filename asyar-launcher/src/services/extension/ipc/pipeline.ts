@@ -172,8 +172,9 @@ const replyEnvelope: IpcStage = {
       // reject back to the calling extension without popping up a global banner.
       const isExpectedFileNotFound =
         (ctx.type === 'asyar:api:files:read' || ctx.type === 'asyar:api:files:readRange') &&
-        ((isFeedbackShape(error) && error.kind === 'not_found') ||
-          /\bnot found\b|no such file or directory|does not exist/i.test(catchError));
+        (isFeedbackShape(error)
+          ? error.kind === 'not_found'
+          : /\bnot found\b|no such file or directory|does not exist/i.test(catchError));
       if (
         !(error instanceof HandledDispatchError) &&
         !(error instanceof IpcError) &&

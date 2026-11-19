@@ -3,7 +3,7 @@
 **Runs in:** both worker and view.
 
 **Permission required:** `files:search` for `search`/`status`;
-`files:read` for `read`/`readRange`/`glob`/`globEntries`/`thumbnail`.
+`files:read` for `read`/`readRange`/`exists`/`glob`/`globEntries`/`thumbnail`.
 
 The same bounded, cached file index that backs the host's own "Search
 Files" view — your extension gets the identical search capability, not a
@@ -124,6 +124,11 @@ interface IFilesService {
    * denial reason when the path is out of scope or protected. */
   read(path: string, opts?: FileReadOptions): Promise<string>;
   readRange(path: string, opts?: FileReadRangeOptions): Promise<FileChunk>;
+  /** Check whether a file or directory exists at an absolute path covered by
+   * the extension's declared `permissionArgs["files:read"]` globs. Resolves
+   * `true` when in scope and present, `false` when in scope and missing, and
+   * rejects when out of scope or protected. */
+  exists(path: string): Promise<boolean>;
   /** Enumerate existing in-scope files matching a glob. The pattern must
    * begin with an absolute literal prefix to walk from
    * (`C:/Steam/appcache/**` works; a leading `**` doesn't). Returns
@@ -275,7 +280,7 @@ cap or narrower patterns/time ranges when every tied file matters; no
 lossless pagination guarantee is made for same-ms ties or concurrent changes.
 
 Note the surface is deliberately read-shaped: `search`/`status`/`read`/`readRange`/
-`glob`/`globEntries`/`thumbnail` only. There is no write/delete here — for file
+`exists`/`glob`/`globEntries`/`thumbnail` only. There is no write/delete here — for file
 _operations_ (reveal in file manager, trash) see
 [`FileManagerService`](./file-manager-service.md).
 
