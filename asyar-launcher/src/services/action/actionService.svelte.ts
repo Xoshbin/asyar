@@ -272,7 +272,9 @@ export class ActionService implements IActionService {
   /**
    * Register an action from an extension or core
    */
-  registerAction(action: ExtensionAction | ApplicationAction): void {
+  registerAction(
+    action: Parameters<IActionService['registerAction']>[0] | ApplicationAction,
+  ): void {
     action = this.admitShortcut(action);
 
     // Ensure it conforms to ApplicationAction structure internally
@@ -320,7 +322,9 @@ export class ActionService implements IActionService {
    * the old display-only formats (`⌘N`), and losing the whole action over a
    * hint would break a published extension.
    */
-  private admitShortcut<T extends ExtensionAction | ApplicationAction>(action: T): T {
+  private admitShortcut<
+    T extends Parameters<IActionService['registerAction']>[0] | ApplicationAction,
+  >(action: T): T {
     const extensionId = 'extensionId' in action ? action.extensionId : undefined;
     if (!extensionId || isBuiltInFeature(extensionId)) {
       this.assertShortcutRegistrable(action);
@@ -349,7 +353,9 @@ export class ActionService implements IActionService {
    *    so the second registration is refused. Actions that gate on `visible()`
    *    may share a chord; `getShortcutCandidates()` orders any residual tie.
    */
-  private assertShortcutRegistrable(action: ExtensionAction | ApplicationAction): void {
+  private assertShortcutRegistrable(
+    action: Parameters<IActionService['registerAction']>[0] | ApplicationAction,
+  ): void {
     const shortcut = 'shortcut' in action ? action.shortcut : undefined;
     if (shortcut === undefined) return;
     assertActionShortcut(shortcut, action.id);
