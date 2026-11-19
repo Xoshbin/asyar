@@ -120,8 +120,10 @@ interface IFilesService {
   /** Current index lifecycle state — useful for showing a "still indexing" hint. */
   status(): Promise<IndexStatus>;
   /** Bounded text read of an absolute path covered by the extension's
-   * declared `permissionArgs["files:read"]` globs. Rejects with the
-   * denial reason when the path is out of scope or protected. */
+   * declared `permissionArgs["files:read"]` globs. Rejects cleanly to the
+   * extension without triggering a launcher error banner when an in-scope
+   * file is missing (`NotFound`), and rejects with the denial reason when
+   * out of scope or protected. */
   read(path: string, opts?: FileReadOptions): Promise<string>;
   readRange(path: string, opts?: FileReadRangeOptions): Promise<FileChunk>;
   /** Check whether a file or directory exists at an absolute path covered by

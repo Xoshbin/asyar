@@ -102,11 +102,11 @@ Refer to the [Create an Extension Tutorial](../docs/tutorials/create-an-extensio
 
 ### Subpath exports
 
-| Subpath               | Asserts                                             | Surface                                                                                                                                                                                                                                                                                                          | Use from                                                                                                                                               |
-| --------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `asyar-sdk/worker`    | `window.__ASYAR_ROLE__ === "worker"` at module load | `ExtensionContext` bound to the **worker proxy bag** (no DOM-dependent helpers) — `log`, `notifications`, `storage`, `cache`, `search`, `network`, `shell`, `ai`, `oauth`, `fs`, `application`, `power`, `media`, `calendar`, `shortcuts`, `systemEvents`, `timers`, `statusBar`, `state`, `commands`, `actions` | A Tier 2 extension's `worker.html` (the always-on hidden iframe).                                                                                      |
-| `asyar-sdk/view`      | `window.__ASYAR_ROLE__ === "view"` at module load   | Re-exports the full SDK surface plus DOM helpers (`registerIconElement`, theme injector). `ExtensionContext` is bound to the **full proxy bag** including view-only services: `clipboard`, `selection`, `interop`, `feedback`, plus the worker-shared services above.                                            | A Tier 2 extension's `view.html` (the on-demand UI iframe).                                                                                            |
-| `asyar-sdk/contracts` | Nothing — neutral, launcher-safe                    | Types, namespace constants, `MessageBroker`, `ExtensionBridge`, `ExtensionContextCore`. **No role assertion**, no top-level DOM requirement.                                                                                                                                                                     | Launcher code (Tier 1 host, built-in features), SDK-internal modules, anything that needs types + IPC primitives without committing to an iframe role. |
+| Subpath               | Asserts                                           | Surface                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Use from                                                                                                                                                               |
+| --------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `asyar-sdk/worker`    | `self.__ASYAR_ROLE__ === "worker"` at module load | `ExtensionContext` bound to the **worker proxy bag** (no DOM-dependent helpers) — `log`, `storage`, `notes`, `cache`, `search`, `network`, `shell`, `oauth`, `fs`, `application`, `power`, `media`, `calendar`, `shortcuts`, `screen`, `calculator`, `process`, `systemEvents`, `timers`, `fsWatcher`, `statusBar`, `commands`, `state`, `feedback`, `onboarding`, `runs`, `tools`, `snippets`, `browser`, `files`, `opener`, `environment`, `ai`, `mcp`, `actions`, plus `environment`. | A Tier 2 extension's headless Web Worker (`background.main` / `src/worker.ts`; `worker.html` is only a legacy fallback).                                               |
+| `asyar-sdk/view`      | `window.__ASYAR_ROLE__ === "view"` at module load | Re-exports the full SDK surface plus DOM helpers (`registerIconElement`, theme injector, `onSearch`, `onKey`, `searchBarAccessory`). `ExtensionContext` is bound to the **full proxy bag** including view-only services (`clipboard`, `selection`, `interop`, `window`, `extensions`, `settings`, `entitlements`) plus the worker-shared services above (`feedback`, `environment`, `files`, etc.).                                                                                      | A Tier 2 extension's on-demand UI iframe (`src/view.ts` or `view.html`; `defineExtensionConfig` generates `view.html` automatically when building from `src/view.ts`). |
+| `asyar-sdk/contracts` | Nothing — neutral, launcher-safe                  | Types, namespace constants, `MessageBroker`, `ExtensionBridge`, `ExtensionContextCore`, `environment`. **No role assertion**, no top-level DOM requirement.                                                                                                                                                                                                                                                                                                                              | Launcher code (Tier 1 host, built-in features), SDK-internal modules, anything that needs types + IPC primitives without committing to a worker/view role.             |
 
 The role assertion fires at module load. If a worker bundle imports
 `asyar-sdk/view` (or vice-versa), execution stops with a clear error
@@ -116,24 +116,26 @@ impossible to ship to users.
 ### Choosing the right entry — decision tree
 
 ```
-Is the code running inside a Tier 2 extension iframe?
+Is the code running inside a Tier 2 extension (Web Worker or view iframe)?
 ├─ no  → asyar-sdk/contracts
 │        (launcher host code, Tier 1 built-in features, neutral types)
 │
-└─ yes → Is it the always-on worker (worker.html)?
+└─ yes → Is it the always-on headless worker (background.main / src/worker.ts)?
          ├─ yes → asyar-sdk/worker
          │        (registerActionHandler, push subscriptions,
          │         schedules, timers, tray writes, RPC handlers,
          │         search() for searchable extensions)
          │
-         └─ no, it's the view (view.html)
+         └─ no, it's the view (src/view.ts / view.html)
                   → asyar-sdk/view
-                    (Svelte components, DOM helpers, view-search,
+                    (Svelte components, DOM helpers, onSearch/onKey,
                      RPC callers via context.request)
 ```
 
-If the extension has both a worker and a view, you ship two bundles —
-one entry per HTML file.
+If the extension has both a worker and a view, `defineExtensionConfig`
+auto-detects `src/worker.ts` (compiled to `dist/worker.js` for
+`background.main`) and `src/view.ts` (generating `view.html` automatically
+during build). Both `worker.html` and `view.html` are optional.
 
 ### Manifest version policy — `asyarSdk`
 
@@ -159,13 +161,14 @@ not need (or want) a role assertion.
 ### Example — worker entry
 
 ```typescript
-// src/main.worker.ts — loaded by worker.html
+// src/worker.ts — bundled to dist/worker.js (declared in manifest.json "background.main")
 import { ExtensionContext, extensionBridge } from 'asyar-sdk/worker';
 import type { ILogService } from 'asyar-sdk/contracts';
+import manifest from '../manifest.json';
 
-const extensionId = window.location.hostname;
 const context = new ExtensionContext();
-context.setExtensionId(extensionId);
+context.setExtensionId(manifest.id);
+extensionBridge.registerManifest(manifest);
 
 const log = context.getService<ILogService>('log');
 log?.info('Worker bootstrapped');
@@ -174,27 +177,23 @@ log?.info('Worker bootstrapped');
 context.onRequest<{}, { rounds: number }>('getStats', async () => {
   return { rounds: await readRounds() };
 });
-
-window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId, role: 'worker' }, '*');
 ```
 
 ### Example — view entry
 
 ```typescript
-// src/main.view.ts — loaded by view.html
+// src/view.ts — view.html is generated automatically by defineExtensionConfig
 import { ExtensionContext, registerIconElement } from 'asyar-sdk/view';
 import MyView from './MyView.svelte';
 import { mount } from 'svelte';
+import manifest from '../manifest.json';
 
 registerIconElement();
 
-const extensionId = window.location.hostname;
 const context = new ExtensionContext();
-context.setExtensionId(extensionId);
+context.setExtensionId(manifest.id);
 
 mount(MyView, { target: document.getElementById('app')!, props: { context } });
-
-window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId, role: 'view' }, '*');
 ```
 
 ### Extension Icons
@@ -215,8 +214,8 @@ Add an `icon` field to your manifest to show a branded icon next to your command
 Use the `<asyar-icon>` custom element to render built-in icons inside your extension views. Icons are rendered as SVGs with `viewBox="0 0 24 24"`, `fill="none"`, and `stroke="currentColor"`.
 
 ```html
-<!-- Register the element (usually in your main.ts) -->
-<!-- import { registerIconElement } from 'asyar-sdk'; -->
+<!-- Register the element (usually in your src/view.ts) -->
+<!-- import { registerIconElement } from 'asyar-sdk/view'; -->
 <!-- registerIconElement(); -->
 
 <!-- Use in your HTML/Svelte/React templates -->
@@ -372,17 +371,19 @@ Actions are registered either via `manifest.json` (for root-search actions when 
 ```typescript
 import { ActionContext, ActionCategory } from 'asyar-sdk/view';
 
-actionService.registerAction({
-  id: 'my-extension:do-thing',
-  title: 'Do Something',
-  description: 'A helpful description shown in the panel',
+// `extensionId` is optional here — context.registerAction() fills it from context.extensionId.
+context.registerAction({
+  id: 'my-extension:open-item',
+  title: 'Open Item',
+  description: 'Open the currently selected item',
   icon: '✨',
   category: ActionCategory.PRIMARY,
-  shortcut: 'Mod+Shift+D', // optional: shown in ⌘K and bound (⌘ on macOS, Ctrl elsewhere)
-  extensionId: context.extensionId,
+  primary: true, // promotes to the bottom-right primary button
+  shortcut: 'Enter', // launcher intercepts Enter and runs execute() directly
   context: ActionContext.EXTENSION_VIEW,
   execute: async () => {
-    // your action logic
+    // Acts on your view's currently selected item — unifying Enter,
+    // bottom-bar clicks, and the ⌘K Action Panel in one handler.
   },
 });
 ```

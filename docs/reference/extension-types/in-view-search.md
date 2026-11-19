@@ -6,10 +6,11 @@ order: 5
 
 When your extension's panel is open and `searchable: true`, the Asyar search bar becomes your extension's input field. Two messages are dispatched:
 
-| Message             | When fired         | Payload             |
-| ------------------- | ------------------ | ------------------- |
-| `asyar:view:search` | On every keystroke | `{ query: string }` |
-| `asyar:view:submit` | On Enter key       | `{ query: string }` |
+| Message              | When fired                           | Payload                                                                |
+| -------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| `asyar:view:search`  | On every keystroke                   | `{ query: string }`                                                    |
+| `asyar:view:keydown` | On forwarded navigation/control keys | `{ key: string, shiftKey, ctrlKey, metaKey, altKey }` (`ViewKeyEvent`) |
+| `asyar:view:submit`  | On Enter key (when not intercepted)  | `{ query: string }`                                                    |
 
 **Typed SDK helpers (`asyar-sdk/view`):**
 

@@ -11,6 +11,7 @@ The most commonly used service. Controls panel navigation and view-level metadat
 interface IExtensionManager {
   navigateToView(viewPath: string): void;
   goBack(): void;
+  /** @deprecated Register an action with `primary: true` instead. Removed in 0.2.0. */
   setActiveViewActionLabel(label: string | null): void;
   setActiveViewSubtitle(subtitle: string | null): void;
   reloadExtensions(): Promise<void>;
@@ -36,7 +37,7 @@ manager.navigateToView('com.yourname.myext/DetailView?id=42&title=My+Item');
 // Go back to the previous view (or to the search results if at root)
 manager.goBack();
 
-// Update the label shown in the bottom-right action bar
+// Deprecated (removed in 0.2.0) — prefer context.registerAction({ primary: true, ... })
 manager.setActiveViewActionLabel('Save Note');
 manager.setActiveViewActionLabel(null); // clear
 
