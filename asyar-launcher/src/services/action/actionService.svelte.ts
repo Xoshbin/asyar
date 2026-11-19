@@ -272,7 +272,9 @@ export class ActionService implements IActionService {
   /**
    * Register an action from an extension or core
    */
-  registerAction(action: ExtensionAction | ApplicationAction): void {
+  registerAction(
+    action: Parameters<IActionService['registerAction']>[0] | ApplicationAction,
+  ): void {
     action = this.admitShortcut(action);
 
     // Ensure it conforms to ApplicationAction structure internally
