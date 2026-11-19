@@ -239,10 +239,11 @@ or VS Code without shelling out to `sqlite3`):
   built-in functions. `ATTACH`, `PRAGMA`, writes (`INSERT`/`UPDATE`/`DELETE`),
   DDL (`CREATE`/`DROP`/`ALTER`), `load_extension`, and multi-statement SQL
   are rejected.
-- **Limits & parameters:** Queries are aborted after **2 seconds** and capped
-  at **2,000 rows**. Bind positional `?` / `?1` parameters via `params`
-  (`null`, `boolean`, `number`, `string`; arrays and objects are rejected).
-  `BLOB` columns are returned as base64-encoded strings.
+- **Limits & parameters:** Queries have a **2-second SQLite progress budget**
+  and are capped at **2,000 rows** and **8 MiB** total response size. Bind
+  positional `?` / `?1` parameters via `params` (`null`, `boolean`, `number`,
+  `string`; arrays and objects are rejected). `BLOB` columns are returned as
+  base64-encoded strings.
 
 ```typescript
 const rows = await files.query<{ path: string; timestamp: number }>(
