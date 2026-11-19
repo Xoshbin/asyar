@@ -123,6 +123,7 @@ if (viewName === 'BookmarksView') {
   import { onMount, onDestroy } from 'svelte';
   import { ActionContext, ActionCategory } from 'asyar-sdk';
   import type { IActionService, IFeedbackService } from 'asyar-sdk';
+  import { onSearch } from 'asyar-sdk/view';
 
   interface Props {
     actionService: IActionService;

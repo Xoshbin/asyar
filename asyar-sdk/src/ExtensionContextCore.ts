@@ -1,5 +1,5 @@
 import type { ExtensionSyncProvider } from './types/SyncType';
-import type { ExtensionAction } from './types/ActionType';
+import type { ExtensionAction, ExtensionActionInput } from './types/ActionType';
 import type { CommandHandler } from './types/CommandType';
 import type { Namespace } from './ipc/namespaces';
 import type { BaseServiceProxy } from './services/BaseServiceProxy';
@@ -150,7 +150,7 @@ export class ExtensionContextCore {
     return this.role;
   }
 
-  registerAction(action: ExtensionAction): void {
+  registerAction(action: ExtensionActionInput): void {
     if (!this.extensionId) {
       console.error('Cannot register action: Extension ID not set');
       return;

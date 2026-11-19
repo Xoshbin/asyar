@@ -126,10 +126,11 @@ helpers (icon custom element, theme injector).
 import { ExtensionContext, extensionBridge, registerIconElement } from 'asyar-sdk/view';
 import PomodoroView from './PomodoroView.svelte';
 import { mount } from 'svelte';
+import manifest from '../manifest.json';
 
 registerIconElement();
 
-const extensionId = window.location.hostname || 'com.yourname.pomodoro';
+const extensionId = manifest.id;
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 // `context.extensionId` returns the bound ID; `registerManifest` accepts JSON imports directly.

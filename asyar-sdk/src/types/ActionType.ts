@@ -38,11 +38,7 @@ export interface ExtensionAction {
   title: string;
   description?: string;
   icon?: string;
-  /**
-   * Extension identifier. Optional when calling `context.registerAction(...)`
-   * — auto-filled from `context.extensionId` if omitted.
-   */
-  extensionId?: string;
+  extensionId: string;
   category?: string;
   context?: ActionContext; // Add the context property with the enum type
   execute: (payload?: unknown) => Promise<void> | void;
@@ -66,8 +62,17 @@ export interface ExtensionAction {
   destructive?: boolean;
 }
 
+/**
+ * Input shape accepted by `registerAction(...)`. `extensionId` is optional —
+ * `ExtensionContext.registerAction` and `ActionServiceProxy.registerAction`
+ * auto-fill it from the bound context when omitted.
+ */
+export type ExtensionActionInput = Omit<ExtensionAction, 'extensionId'> & {
+  extensionId?: string;
+};
+
 export interface IActionService {
-  registerAction(action: ExtensionAction): void;
+  registerAction(action: ExtensionActionInput): void;
   unregisterAction(actionId: string): void;
   getActions(context?: ActionContext): ExtensionAction[]; // Add context parameter
   executeAction(actionId: string): Promise<void>;

@@ -1,7 +1,7 @@
 import type { ExtensionContextCore } from './ExtensionContextCore';
 import type { ExtensionContext } from './ExtensionContext';
 import type { Extension, ExtensionManifest, ExtensionResult } from './types/ExtensionType';
-import type { ExtensionAction } from './types/ActionType';
+import type { ExtensionAction, ExtensionActionInput } from './types/ActionType';
 import type { CommandHandler } from './types/CommandType';
 import { MessageBroker, messageBroker } from './ipc/MessageBroker';
 import type { IPCMessage, IPCResponse } from './ipc/MessageBroker';
@@ -331,7 +331,7 @@ export class ExtensionBridge {
   // Extensions should bundle their own components.
 
   // Register an action from an extension
-  registerAction(extensionId: string, action: ExtensionAction): void {
+  registerAction(extensionId: string, action: ExtensionActionInput): void {
     const actionId = action.id;
     this.actionRegistry.set(actionId, {
       ...action,

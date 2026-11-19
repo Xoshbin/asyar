@@ -547,8 +547,14 @@ describe('ExtensionBridge DX: JSON manifest & optional worker lifecycle', () => 
       executeCommand,
     });
 
-    await expect(bridge.initializeExtensions()).resolves.toBeUndefined();
-    await expect(bridge.activateExtensions()).resolves.toBeUndefined();
-    await expect(bridge.deactivateExtensions()).resolves.toEqual([]);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(bridge.initializeExtensions()).resolves.toBeUndefined();
+      await expect(bridge.activateExtensions()).resolves.toBeUndefined();
+      await expect(bridge.deactivateExtensions()).resolves.toEqual([]);
+      expect(errorSpy).not.toHaveBeenCalled();
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
