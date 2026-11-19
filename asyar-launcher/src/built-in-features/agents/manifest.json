@@ -1,7 +1,7 @@
 {
   "id": "agents",
   "name": "Agents",
-  "icon": "assets/icon.png",
+  "icon": "icon:sparkles",
   "version": "1.0.0",
   "lifecycle": {
     "disableable": true
@@ -15,6 +15,7 @@
     {
       "id": "manage-agents",
       "name": "Manage Agents",
+      "icon": "icon:sparkles",
       "description": "Open the Agents manager",
       "mode": "view",
       "component": "AgentListView"

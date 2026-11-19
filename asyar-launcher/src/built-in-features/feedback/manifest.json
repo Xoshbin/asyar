@@ -1,11 +1,9 @@
 {
   "id": "feedback",
   "name": "Feedback",
-  "icon": "assets/icon.png",
+  "icon": "icon:info",
   "version": "1.0.0",
-  "lifecycle": {
-    "disableable": true
-  },
+  "lifecycle": { "disableable": true },
   "description": "Send feedback, feature ideas, or report a problem to the Asyar team",
   "type": "extension",
   "searchable": false,
@@ -15,6 +13,7 @@
       "name": "Send Feedback",
       "description": "Share an idea, praise, or a bug report",
       "trigger": "feedback idea bug report contact",
+      "icon": "icon:info",
       "mode": "view",
       "component": "DefaultView"
     }

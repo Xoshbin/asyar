@@ -1,11 +1,9 @@
 {
   "id": "walkthrough",
   "name": "Walkthrough",
-  "icon": "assets/icon.png",
+  "icon": "icon:star",
   "version": "1.0.0",
-  "lifecycle": {
-    "disableable": true
-  },
+  "lifecycle": { "disableable": true },
   "description": "Short tasks that turn Asyar's features into habits, ticked off as you actually use them",
   "author": "Core",
   "type": "extension",
@@ -16,6 +14,7 @@
       "name": "Walkthrough",
       "description": "Learn Asyar one task at a time",
       "trigger": "walkthrough learn tips tour basics getting started expert",
+      "icon": "icon:star",
       "mode": "view",
       "component": "DefaultView"
     }

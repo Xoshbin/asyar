@@ -1,7 +1,7 @@
 {
   "id": "system",
   "name": "System",
-  "icon": "assets/icon.png",
+  "icon": "icon:power",
   "version": "1.0.0",
   "lifecycle": {
     "disableable": false
