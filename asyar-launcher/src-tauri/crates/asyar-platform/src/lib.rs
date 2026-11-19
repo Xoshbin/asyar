@@ -52,6 +52,8 @@ pub use linux::extract_icon;
 pub use macos::extract_icon;
 #[cfg(target_os = "windows")]
 pub use windows::extract_icon;
+#[cfg(target_os = "windows")]
+pub use windows::resolve_shortcut_icon_source_path as windows_shortcut_icon_source;
 
 /// Extracts an icon while distinguishing real icons from generic shell placeholders.
 #[cfg(target_os = "windows")]

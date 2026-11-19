@@ -164,6 +164,13 @@ fn resolve_shortcut_icon_source(lnk: &Path) -> Option<(PathBuf, i32)> {
     }
 }
 
+/// Resolves the secondary icon source path (explicit `GetIconLocation` or
+/// target executable) for a Windows `.lnk` shortcut, if any.
+pub fn resolve_shortcut_icon_source_path(lnk: &Path) -> Option<PathBuf> {
+    let _com = ComGuard::new();
+    resolve_shortcut_icon_source(lnk).map(|(path, _)| path)
+}
+
 /// Extracts the icon resource at `index` straight from an exe/dll/ico. Unlike
 /// `SHGetFileInfoW`, a failure yields no icon rather than the shell's generic
 /// placeholder, and no shortcut-arrow overlay is applied.

@@ -1160,16 +1160,35 @@ pub async fn files_icon<R: tauri::Runtime>(
     extension_id: Option<String>,
     path_str: String,
 ) -> Result<Option<String>, AppError> {
-    let source = match extension_id {
-        Some(ext) => {
-            let (home, extra_deny) = extension_scope_env(&app_handle)?;
-            validate_scoped_entry(&permissions, &ext, &path_str, &home, &extra_deny)?
+    // State is owned by the AppHandle; reacquire it inside the 'static blocking job.
+    let _ = permissions;
+    let validate_handle = app_handle.clone();
+    let source = tokio::task::spawn_blocking(move || -> Result<PathBuf, AppError> {
+        let Some(ext) = extension_id else {
+            validate_path_allowed(&path_str, &validate_handle)?;
+            return Ok(PathBuf::from(&path_str));
+        };
+        let (home, extra_deny) = extension_scope_env(&validate_handle)?;
+        let perms: tauri::State<'_, ExtensionPermissionRegistry> = validate_handle.state();
+        let canonical = validate_scoped_entry(&perms, &ext, &path_str, &home, &extra_deny)?;
+        #[cfg(target_os = "windows")]
+        if canonical
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("lnk"))
+        {
+            if let Some(icon_target) = asyar_platform::windows_shortcut_icon_source(&canonical) {
+                let target_str = icon_target.to_str().ok_or_else(|| {
+                    AppError::Validation(
+                        "files:read shortcut icon source path is not valid UTF-8".to_string(),
+                    )
+                })?;
+                validate_scoped_entry(&perms, &ext, target_str, &home, &extra_deny)?;
+            }
         }
-        None => {
-            validate_path_allowed(&path_str, &app_handle)?;
-            PathBuf::from(&path_str)
-        }
-    };
+        Ok(canonical)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("File icon validation task failed: {e}")))??;
     let cache_dir = crate::thumbnail::cache::get_thumbnail_cache_dir(&app_handle);
     let Some(cached) = crate::thumbnail::get_or_extract_icon(&cache_dir, &source).await else {
         return Ok(None);
