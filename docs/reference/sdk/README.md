@@ -1,7 +1,7 @@
 # SDK Reference
 
 A Tier 2 extension runs in **two execution contexts** — a headless Web Worker
-(`background.main` / `src/worker.ts`; `worker.html` is only a legacy fallback)
+(`background.main` / `src/worker.ts`; `defineExtensionConfig` checks `worker.html` before `src/worker.ts` and selects it when both exist)
 and an on-demand view iframe (`src/view.ts` or `view.html`;
 `defineExtensionConfig` generates `view.html` automatically when building from
 `src/view.ts`). Each context imports from a different SDK entry and owns its

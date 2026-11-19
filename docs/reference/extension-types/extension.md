@@ -21,8 +21,8 @@ other type is [`theme`](./theme.md).
 When the extension is enabled, Asyar materialises **two execution contexts** for it:
 
 - A **headless Web Worker** — always-on while the extension is enabled,
-  running `background.main` (compiled from `src/worker.ts`; `worker.html` is
-  only a legacy fallback). Hosts long-lived work: push subscriptions, scheduled
+  running `background.main` (`defineExtensionConfig` checks `worker.html`
+  before `src/worker.ts` and selects it when both exist). Hosts long-lived work: push subscriptions, scheduled
   ticks, registered timers, tray-icon state writes, notification-action
   callbacks, and worker-side RPC handlers.
 - A **view iframe** — on-demand, mounted when the user opens a `mode: "view"`
@@ -82,8 +82,9 @@ For the full schema, see [`manifest.md`](../manifest.md).
 
 ## Worker entry — `src/worker.ts`
 
-The worker bundle runs in a headless Web Worker (`background.main`; `worker.html`
-is optional and only used as a legacy fallback). It must import from
+The worker bundle runs in a headless Web Worker (`background.main`).
+For entry detection, `defineExtensionConfig` checks `worker.html` before
+`src/worker.ts` and selects `worker.html` when both exist; `worker.html` is optional. It must import from
 `asyar-sdk/worker`, never from `asyar-sdk/view` — the `/worker` entry asserts
 `self.__ASYAR_ROLE__ === "worker"` at load time and exposes the worker-safe
 proxy bag (no DOM-dependent helpers).

@@ -117,7 +117,7 @@ Following Raycast conventions, forms and primary view actions belong in the bott
 
 - **Forms**: Register the submit action with `shortcut: 'Mod+Enter'` and `primary: true` so the bottom bar renders **`Save ⌘ ↵`** (or **`Continue ⌘ ↵`**) even while inputs are focused. `Esc` navigates back or cancels.
 - **Lists & empty states**: Register the default row/CTA action with `shortcut: 'Enter'` and `primary: true`:
-  - When a primary action uses `shortcut: 'Enter'`, the launcher intercepts `Enter` and runs the action's `execute` handler directly (instead of forwarding raw `Enter` via `asyar:view:keydown` / `onKey`).
+  - When a primary action uses `shortcut: 'Enter'`, the launcher intercepts `Enter` and runs the action's `execute` handler only when the extension view does not have input focus. When the view has input focus, `Enter` is forwarded through `asyar:view:keydown` / `onKey` and the action does not run.
   - Because `context.registerAction(...)` is called inside `src/view.ts` or your view component where the selected item state lives, the `execute` handler can act directly on the currently selected item — unifying `Enter`, mouse clicks on the bottom-right primary button, and the `⌘K` Action Panel in one handler.
 - **Structured pickers & view inputs**: Use host-rendered declarative surfaces (`preferences` in `manifest.json`, command `arguments`, or `searchBarAccessory` in `asyar-sdk/view`) when you want the launcher's built-in searchable dropdowns. Inside custom `role: 'view'` panels, use standard HTML/framework elements styled with `asyar-sdk/tokens.css` rather than expecting UI widget components from `asyar-sdk`.
 

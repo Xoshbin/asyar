@@ -15,11 +15,16 @@ export default defineExtensionConfig({
 });
 ```
 
-The helper auto-detects `src/worker.ts` (or `worker.html` as a legacy fallback)
-and `src/view.ts` (or `view.html`), emits deterministic `worker.js`/`view.js`
-entries into `dist`, generates `view.html` automatically when building from a
-script entry (so both `worker.html` and `view.html` are optional), uses relative
-asset URLs, and disables `build.modulePreload`. Preload hints offer little
+The helper checks `worker.html` before `src/worker.ts` and selects `worker.html`
+when both exist. It also checks `view.html` before `src/view.ts`; when both exist,
+it uses `view.html` and does not build `src/view.ts` as the view entry. Remove
+`view.html` or set `view: 'src/view.ts'` in `defineExtensionConfig` to select the
+script entry.
+
+The helper emits deterministic `worker.js`/`view.js` entries into `dist`,
+generates `view.html` automatically when building from a script entry (so both
+HTML entry files are optional), uses relative asset URLs, and disables
+`build.modulePreload`. Preload hints offer little
 benefit in on-demand view iframes, while HTML's default modulepreload polyfill
 crashes headless workers.
 The separate Vite dynamic-import preload helper may retain guarded DOM references;
