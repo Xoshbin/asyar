@@ -49,7 +49,12 @@ import { browserService } from '../browser/browserService';
 import { filesService } from '../files/filesService';
 import { extensionStateService } from '../extensionState/extensionStateService';
 import { runService } from '../run/runService.svelte';
-import { agentsToolsRegisterTier2, agentsToolsList, getSystemLocale } from '../../lib/ipc/commands';
+import {
+  agentsToolsRegisterTier2,
+  agentsToolsList,
+  environmentGetPaths,
+  getSystemLocale,
+} from '../../lib/ipc/commands';
 import { calculatorEvaluateForExtension } from '../../lib/ipc/calculatorCommands';
 import { completeExtensionOnboarding } from '../../lib/ipc/extensionLifecycleCommands';
 import { aiService } from '../ai/aiService';
@@ -257,6 +262,7 @@ export function buildServiceRegistry(deps: {
           extensionId: extensionId ?? '',
         };
       },
+      getPaths: async (extensionId?: string) => environmentGetPaths(extensionId ?? null),
     },
     calculator: {
       evaluate: async (query: string) => calculatorEvaluateForExtension(query),

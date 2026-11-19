@@ -365,6 +365,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:files:glob" => Some("files:read"),
         "asyar:api:files:globEntries" => Some("files:read"),
         "asyar:api:files:thumbnail" => Some("files:read"),
+        // OS user directory paths — gated behind files:read so unprivileged
+        // extensions cannot fingerprint the user's OS username or layout.
+        "asyar:api:environment:getPaths" => Some("files:read"),
         // Notes SDK service — third-party extensions can search/read/create/
         // append to the user's Notes (never update-in-place or delete an
         // arbitrary note by id, so a buggy or malicious extension cannot
@@ -836,6 +839,11 @@ mod tests {
             get_required_permission("asyar:api:files:exists"),
             Some("files:read")
         );
+        assert_eq!(
+            get_required_permission("asyar:api:environment:getPaths"),
+            Some("files:read")
+        );
+        assert!(!is_public_call("asyar:api:environment:getPaths"));
     }
 
     #[test]
@@ -1148,6 +1156,7 @@ mod tests {
             "asyar:api:files:readRange",
             "asyar:api:files:exists",
             "asyar:api:files:glob",
+            "asyar:api:environment:getPaths",
         ] {
             assert_eq!(gate_decision(call), GateDecision::Require("files:read"));
         }

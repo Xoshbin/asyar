@@ -151,6 +151,7 @@ describe('asyar-sdk/view — entry surface', () => {
     expect(mod.environment).toBeDefined();
     expect(mod.environment.getEnvironment).toBeTypeOf('function');
     expect(mod.environment.getLocale).toBeTypeOf('function');
+    expect(mod.environment.getPaths).toBeTypeOf('function');
   });
 });
 

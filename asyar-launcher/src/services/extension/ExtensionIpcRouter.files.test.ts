@@ -13,6 +13,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { filesService } from '../files/filesService';
 import {
   ALWAYS_INJECTS_CALLER_ID,
+  INJECTS_EXTENSION_ID,
   METHOD_PARAM_SCHEMAS,
   ExtensionIpcRouter,
 } from './ExtensionIpcRouter';
@@ -63,5 +64,30 @@ describe('files IPC contracts', () => {
       extensionId: 'ext.a',
       pathStr: '/tmp/repo/.git/HEAD',
     });
+  });
+});
+
+describe('environment:getPaths IPC contract', () => {
+  it('declares an empty param schema and injects extensionId', async () => {
+    expect(METHOD_PARAM_SCHEMAS['environment:getPaths']).toEqual([]);
+    expect(INJECTS_EXTENSION_ID.has('environment')).toBe(true);
+
+    const getPaths = vi.fn(async (extensionId: string) => ({
+      home: '/Users/alice',
+      appData: '/Users/alice/Library/Application Support',
+      localAppData: '/Users/alice/Library/Application Support',
+      config: '/Users/alice/Library/Application Support',
+      _caller: extensionId,
+    }));
+    const router = new ExtensionIpcRouter({ environment: { getPaths } }, vi.fn(), vi.fn(), vi.fn());
+    const result = await (router as any).dispatchApiCall(
+      'asyar:api:environment:getPaths',
+      undefined,
+      'ext.files',
+      false,
+    );
+
+    expect(getPaths).toHaveBeenCalledWith('ext.files');
+    expect(result.home).toBe('/Users/alice');
   });
 });

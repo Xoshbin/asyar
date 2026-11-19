@@ -54,6 +54,42 @@ export interface EnvironmentSnapshot {
 }
 
 /**
+ * Cross-platform OS user directory paths.
+ *
+ * Requires the `files:read` manifest permission.
+ */
+export interface EnvironmentPaths {
+  /**
+   * User home directory (e.g. `/Users/alice`, `C:\Users\alice`, `/home/alice`).
+   */
+  readonly home: string;
+
+  /**
+   * OS user application data directory:
+   * - macOS: `~/Library/Application Support`
+   * - Windows: `%APPDATA%` (Roaming)
+   * - Linux: `$XDG_DATA_HOME` or `~/.local/share`
+   */
+  readonly appData: string;
+
+  /**
+   * OS user local application data directory:
+   * - macOS: `~/Library/Application Support`
+   * - Windows: `%LOCALAPPDATA%` (Local)
+   * - Linux: `$XDG_DATA_HOME` or `~/.local/share`
+   */
+  readonly localAppData: string;
+
+  /**
+   * OS user configuration directory:
+   * - macOS: `~/Library/Application Support`
+   * - Windows: `%APPDATA%` (Roaming)
+   * - Linux: `$XDG_CONFIG_HOME` or `~/.config`
+   */
+  readonly config: string;
+}
+
+/**
  * Service interface for querying host environment metadata.
  */
 export interface IEnvironmentService {
@@ -61,4 +97,11 @@ export interface IEnvironmentService {
    * Retrieves a snapshot of the current host environment metadata.
    */
   getEnvironment(): Promise<EnvironmentSnapshot>;
+
+  /**
+   * Resolves cross-platform OS user directory paths.
+   *
+   * Requires the `files:read` manifest permission.
+   */
+  getPaths(): Promise<EnvironmentPaths>;
 }

@@ -48,6 +48,7 @@ macro_rules! app_commands {
                 $crate::commands::factory_reset,
                 $crate::commands::get_system_locale,
                 $crate::commands::get_locale_candidates,
+                $crate::commands::environment_get_paths,
                 $crate::commands::get_pending_crash,
                 $crate::commands::send_pending_crash,
                 $crate::commands::dismiss_pending_crash,
