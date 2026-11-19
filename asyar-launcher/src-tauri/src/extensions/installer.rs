@@ -520,7 +520,19 @@ pub(crate) async fn install_from_url(
     // Validate URL format
     validate_download_url(download_url)?;
 
-    // --- 1. Determine Installation Directory ---
+    // --- 1. Download the Extension ---
+    info!("Downloading extension from: {}", download_url);
+    let temp_file = download_to_temp_file(download_url).await?;
+    info!(
+        "Extension downloaded successfully to temporary file: {:?}",
+        temp_file.path()
+    );
+
+    if let Some(expected_checksum) = checksum {
+        verify_checksum(temp_file.path(), expected_checksum)?;
+    }
+
+    // --- 2. Determine Installation Directory ---
     let base_extensions_dir = get_app_data_dir(app_handle)?.join("extensions");
 
     // Create the base extensions directory if it doesn't exist
@@ -539,7 +551,7 @@ pub(crate) async fn install_from_url(
 
     let install_dir = base_extensions_dir.join(extension_id);
 
-    // Clean up existing directory if it exists
+    // Clean up existing directory if it exists (only after download and checksum verification succeed)
     if install_dir.exists() {
         warn!(
             "Existing installation directory found for {}. Removing it first: {:?}",
@@ -551,18 +563,6 @@ pub(crate) async fn install_from_url(
                 install_dir, e
             ))
         })?;
-    }
-
-    // --- 2. Download the Extension ---
-    info!("Downloading extension from: {}", download_url);
-    let temp_file = download_to_temp_file(download_url).await?;
-    info!(
-        "Extension downloaded successfully to temporary file: {:?}",
-        temp_file.path()
-    );
-
-    if let Some(expected_checksum) = checksum {
-        verify_checksum(temp_file.path(), expected_checksum)?;
     }
 
     // --- 3. Extract the Extension ---
