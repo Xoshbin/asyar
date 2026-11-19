@@ -172,4 +172,20 @@ describe('filesService', () => {
     const result = await filesService.thumbnail('ext.a', 'C:/Steam/notes.txt');
     expect(result).toBeNull();
   });
+
+  it('icon forwards the caller identity and path to files_icon', async () => {
+    invokeMock.mockResolvedValue('asyar-thumb://localhost/icon.png');
+    const result = await filesService.icon('ext.a', '/Applications/Safari.app');
+    expect(invokeMock).toHaveBeenCalledWith('files_icon', {
+      extensionId: 'ext.a',
+      pathStr: '/Applications/Safari.app',
+    });
+    expect(result).toBe('asyar-thumb://localhost/icon.png');
+  });
+
+  it('icon passes through null when platform has no icon source', async () => {
+    invokeMock.mockResolvedValue(null);
+    const result = await filesService.icon('ext.a', '/tmp/file.txt');
+    expect(result).toBeNull();
+  });
 });

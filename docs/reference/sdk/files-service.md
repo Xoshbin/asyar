@@ -206,7 +206,17 @@ if (hits.length > 0) {
   const icon = await files.thumbnail(hits[0], { maxDim: 64 });
   // → 'asyar-thumb://localhost/<key>.png', ready for dynamic command registration
 }
+
+// Native OS file, folder, or .app icon (macOS / Windows; returns null on Linux):
+const folderIcon = await files.icon('/Applications/Safari.app');
+// → 'asyar-thumb://localhost/<key>.png' (or 'http://asyar-thumb.localhost/<key>.png' on Windows),
+//   usable in extension view <img> tags or dynamic command icons
 ```
+
+`files.icon(path)` enforces the same `files:read` permission, declared-glob
+scope, deny-list, and symlink checks as `files.read()`, while permitting
+directories and `.app` bundles. It resolves to `null` when the platform has no
+icon source (e.g. Linux), and rejects on scope denials or missing paths.
 
 ### Range reads and incremental tails
 

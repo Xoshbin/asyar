@@ -367,6 +367,7 @@ macro_rules! system_commands {
                 $crate::commands::files_glob,
                 $crate::commands::files_glob_entries,
                 $crate::commands::files_thumbnail,
+                $crate::commands::files_icon,
                 $crate::commands::mkdir_absolute,
                 $crate::commands::show_in_file_manager,
                 $crate::commands::trash_path,

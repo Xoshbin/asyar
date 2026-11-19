@@ -59,6 +59,10 @@ export class FilesServiceProxy extends BaseServiceProxy implements IFilesService
     return this.broker.invoke<string | null>('files:thumbnail', { path, opts: opts ?? {} });
   }
 
+  async icon(path: string): Promise<string | null> {
+    return this.broker.invoke<string | null>('files:icon', { path });
+  }
+
   registerFileSearchProvider(provider: FileSearchProviderRegistration): () => void {
     if (
       !provider ||

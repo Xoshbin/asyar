@@ -132,6 +132,15 @@ export interface IFilesService {
    */
   thumbnail(path: string, opts?: FileThumbnailOptions): Promise<string | null>;
   /**
+   * Native OS file, folder, or app icon for an absolute path as an
+   * `asyar-thumb://` URL (usable in extension view `<img>` tags and dynamic
+   * command icons), or `null` when the platform has no icon source.
+   * Requires the `files:read` permission and enforces the same declared-glob
+   * scope, deny-list, and symlink checks as `read`, while permitting
+   * directories and `.app` bundles. Rejects on scope denials or missing paths.
+   */
+  icon(path: string): Promise<string | null>;
+  /**
    * Register a remote or cloud file search provider matching a manifest contribution.
    * Returns a cleanup function that unregisters the provider.
    */
