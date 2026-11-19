@@ -492,17 +492,15 @@ fn read_range_bounded(path: &Path, opts: &FileReadRangeOptions) -> Result<FileCh
     })
 }
 
-/// The full `files:read` scope check shared by every extension-facing
-/// command that touches file contents (`files:read`, `files:thumbnail`) —
-/// permission, absolute-path, declared-glob coverage, deny-list, and the
-/// canonical re-check. Returns the canonical path to operate on.
-pub(crate) fn validate_scoped_path(
+/// Pre-canonicalization `files:read` checks: permission, absolute path,
+/// normalized form, declared-glob coverage, and deny-list.
+fn validate_scoped_precheck(
     permissions: &ExtensionPermissionRegistry,
     extension_id: &str,
     path_str: &str,
     home: &Path,
     extra_deny: &[PathBuf],
-) -> Result<PathBuf, AppError> {
+) -> Result<(PathBuf, Vec<String>), AppError> {
     permissions.check(&Some(extension_id.to_string()), FILES_READ_PERMISSION)?;
     let path = Path::new(path_str);
     if !path.is_absolute() {
@@ -518,6 +516,77 @@ pub(crate) fn validate_scoped_path(
     // reasoning as fs:watch's coverage check.
     files_scope::path_covered_by_patterns(&patterns, &normalized, home)?;
     files_scope::check_path_denied(&normalized, home, extra_deny)?;
+    Ok((normalized, patterns))
+}
+
+/// Re-run deny-list and declared-glob coverage against a canonicalized path
+/// and canonicalized comparison anchors.
+fn validate_scoped_canonical(
+    resolved: &Path,
+    patterns: &[String],
+    home: &Path,
+    extra_deny: &[PathBuf],
+) -> Result<(), AppError> {
+    let canonical_home = dunce::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
+    let canonical_extra_deny: Vec<PathBuf> = extra_deny
+        .iter()
+        .map(|p| dunce::canonicalize(p).unwrap_or_else(|_| p.clone()))
+        .collect();
+    // Deny first so laundering into a protected root reports the specific
+    // "protected location" error rather than the generic coverage miss.
+    files_scope::check_path_denied(resolved, &canonical_home, &canonical_extra_deny)?;
+    files_scope::path_covered_by_patterns(patterns, resolved, &canonical_home)?;
+    Ok(())
+}
+
+/// Canonicalize a missing path by resolving its nearest existing ancestor and
+/// re-attaching the remaining non-existent tail components. Prevents symlinked
+/// parent directories from hiding out-of-scope or denied targets.
+fn resolve_missing_path_with_canonical_ancestor(normalized: &Path) -> Result<PathBuf, AppError> {
+    let mut suffix: Vec<std::ffi::OsString> = Vec::new();
+    let mut cursor = normalized;
+    loop {
+        match dunce::canonicalize(cursor) {
+            Ok(mut base) => {
+                for part in suffix.into_iter().rev() {
+                    base.push(part);
+                }
+                return Ok(base);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let Some(name) = cursor.file_name() else {
+                    return Ok(normalized.to_path_buf());
+                };
+                suffix.push(name.to_os_string());
+                match cursor.parent() {
+                    Some(parent) => cursor = parent,
+                    None => return Ok(normalized.to_path_buf()),
+                }
+            }
+            Err(e) => {
+                return Err(AppError::Validation(format!(
+                    "files:read path '{}' is not accessible: {}",
+                    normalized.display(),
+                    e
+                )));
+            }
+        }
+    }
+}
+
+/// The full `files:read` scope check shared by every extension-facing
+/// command that touches file contents (`files:read`, `files:readRange`,
+/// `files:thumbnail`) — permission, absolute-path, declared-glob coverage,
+/// deny-list, and the canonical re-check. Returns the canonical path to operate on.
+pub(crate) fn validate_scoped_path(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    path_str: &str,
+    home: &Path,
+    extra_deny: &[PathBuf],
+) -> Result<PathBuf, AppError> {
+    let (normalized, patterns) =
+        validate_scoped_precheck(permissions, extension_id, path_str, home, extra_deny)?;
     // Canonicalize to resolve symlinks, then re-run BOTH checks against the
     // real location: a covered path must not launder a read out of scope —
     // neither into a protected root nor into an arbitrary uncovered file —
@@ -529,21 +598,21 @@ pub(crate) fn validate_scoped_path(
     // home or app-data dir can't skew the re-check; entries that don't
     // exist keep their literal form.
     let canonical = dunce::canonicalize(&normalized).map_err(|e| {
-        AppError::Validation(format!(
-            "files:read path '{}' does not exist or is not accessible: {}",
-            normalized.display(),
-            e
-        ))
+        if e.kind() == std::io::ErrorKind::NotFound {
+            AppError::NotFound(format!(
+                "files:read path '{}' does not exist: {}",
+                normalized.display(),
+                e
+            ))
+        } else {
+            AppError::Validation(format!(
+                "files:read path '{}' is not accessible: {}",
+                normalized.display(),
+                e
+            ))
+        }
     })?;
-    let canonical_home = dunce::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
-    let canonical_extra_deny: Vec<PathBuf> = extra_deny
-        .iter()
-        .map(|p| dunce::canonicalize(p).unwrap_or_else(|_| p.clone()))
-        .collect();
-    // Deny first so laundering into a protected root reports the specific
-    // "protected location" error rather than the generic coverage miss.
-    files_scope::check_path_denied(&canonical, &canonical_home, &canonical_extra_deny)?;
-    files_scope::path_covered_by_patterns(&patterns, &canonical, &canonical_home)?;
+    validate_scoped_canonical(&canonical, &patterns, home, extra_deny)?;
     // Regular files only: on Unix a covered FIFO would pass every scope
     // check and then block `File::open` (or an image decode plus one of
     // the thumbnail semaphore's three permits) indefinitely — an
@@ -563,6 +632,53 @@ pub(crate) fn validate_scoped_path(
         )));
     }
     Ok(canonical)
+}
+
+/// Extension-scoped file/entry existence check (`asyar:api:files:exists`).
+/// Enforces the exact same `files:read` permission, declared-glob scope,
+/// deny-list, and symlink/canonicalization checks as `files:read`, returning
+/// `Ok(false)` for missing in-scope paths, `Ok(true)` for existing in-scope
+/// entries, and `Err(...)` for out-of-scope or denied paths.
+#[tauri::command]
+pub async fn files_exists<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    path_str: String,
+) -> Result<bool, AppError> {
+    let Some(ext) = extension_id else {
+        validate_path_allowed(&path_str, &app_handle)?;
+        return Ok(Path::new(&path_str).exists());
+    };
+    let (home, extra_deny) = extension_scope_env(&app_handle)?;
+    files_exists_inner(&permissions, &ext, &path_str, &home, &extra_deny)
+}
+
+pub(crate) fn files_exists_inner(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    path_str: &str,
+    home: &Path,
+    extra_deny: &[PathBuf],
+) -> Result<bool, AppError> {
+    let (normalized, patterns) =
+        validate_scoped_precheck(permissions, extension_id, path_str, home, extra_deny)?;
+    match dunce::canonicalize(&normalized) {
+        Ok(canonical) => {
+            validate_scoped_canonical(&canonical, &patterns, home, extra_deny)?;
+            Ok(true)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            let resolved = resolve_missing_path_with_canonical_ancestor(&normalized)?;
+            validate_scoped_canonical(&resolved, &patterns, home, extra_deny)?;
+            Ok(false)
+        }
+        Err(e) => Err(AppError::Validation(format!(
+            "files:read path '{}' is not accessible: {}",
+            normalized.display(),
+            e
+        ))),
+    }
 }
 
 /// Results cap for `files:glob` — plenty for any per-directory artwork
@@ -2415,5 +2531,141 @@ mod tests {
         .await
         .unwrap_err();
         assert!(format!("{err}").contains("not covered"), "got: {err}");
+    }
+
+    // ---- files_exists (extension-scoped existence check) ----
+
+    #[test]
+    fn files_exists_inner_returns_true_for_existing_file_and_dir() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let dir = root.join(".git");
+        std::fs::create_dir_all(&dir).unwrap();
+        let head = dir.join("HEAD");
+        std::fs::write(&head, "ref: refs/heads/main\n").unwrap();
+
+        assert!(files_exists_inner(&perms, "ext.a", head.to_str().unwrap(), &root, &[]).unwrap());
+        assert!(files_exists_inner(&perms, "ext.a", dir.to_str().unwrap(), &root, &[]).unwrap());
+    }
+
+    #[test]
+    fn files_exists_inner_returns_false_for_missing_file_and_missing_nested_path() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let missing_file = root.join("missing.txt");
+        let missing_nested = root.join("non-git-dir").join(".git").join("HEAD");
+
+        assert!(
+            !files_exists_inner(&perms, "ext.a", missing_file.to_str().unwrap(), &root, &[])
+                .unwrap()
+        );
+        assert!(!files_exists_inner(
+            &perms,
+            "ext.a",
+            missing_nested.to_str().unwrap(),
+            &root,
+            &[]
+        )
+        .unwrap());
+    }
+
+    #[test]
+    fn files_exists_inner_rejects_relative_and_uncovered_paths() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let err = files_exists_inner(&perms, "ext.a", "relative/HEAD", &root, &[]).unwrap_err();
+        assert!(format!("{err}").contains("absolute"), "got: {err}");
+
+        let outside = TempDir::new().unwrap();
+        let outside_file = outside.path().join("secret.txt");
+        std::fs::write(&outside_file, "x").unwrap();
+        let err = files_exists_inner(&perms, "ext.a", outside_file.to_str().unwrap(), &root, &[])
+            .unwrap_err();
+        assert!(format!("{err}").contains("not covered"), "got: {err}");
+
+        let outside_missing = outside.path().join("nope.txt");
+        let err = files_exists_inner(
+            &perms,
+            "ext.a",
+            outside_missing.to_str().unwrap(),
+            &root,
+            &[],
+        )
+        .unwrap_err();
+        assert!(format!("{err}").contains("not covered"), "got: {err}");
+    }
+
+    #[test]
+    fn files_exists_inner_rejects_protected_deny_list_even_when_missing() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, home) = files_read_setup(&tmp);
+        let ssh_missing = home.join(".ssh").join("id_rsa");
+        let err = files_exists_inner(&perms, "ext.a", ssh_missing.to_str().unwrap(), &home, &[])
+            .unwrap_err();
+        assert!(
+            format!("{err}").contains("protected location"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn files_exists_inner_rejects_without_files_read_permission() {
+        let tmp = TempDir::new().unwrap();
+        let perms = ExtensionPermissionRegistry::new();
+        perms.register("ext.none", HashSet::new(), HashMap::new());
+        let target = tmp.path().join("a.txt");
+        let err = files_exists_inner(
+            &perms,
+            "ext.none",
+            target.to_str().unwrap(),
+            tmp.path(),
+            &[],
+        )
+        .unwrap_err();
+        assert!(format!("{err}").contains("files:read"), "got: {err}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_exists_inner_rejects_symlink_escape_for_existing_and_missing_leaf() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let outside = TempDir::new().unwrap();
+        let outside_real = dunce::canonicalize(outside.path()).unwrap();
+        let secret = outside_real.join("secret.txt");
+        std::fs::write(&secret, "secret").unwrap();
+
+        let dir_link = root.join("escape_dir");
+        std::os::unix::fs::symlink(&outside_real, &dir_link).unwrap();
+
+        let err = files_exists_inner(
+            &perms,
+            "ext.a",
+            dir_link.join("secret.txt").to_str().unwrap(),
+            &root,
+            &[],
+        )
+        .unwrap_err();
+        assert!(format!("{err}").contains("not covered"), "got: {err}");
+
+        let err = files_exists_inner(
+            &perms,
+            "ext.a",
+            dir_link.join("nonexistent.txt").to_str().unwrap(),
+            &root,
+            &[],
+        )
+        .unwrap_err();
+        assert!(format!("{err}").contains("not covered"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_scoped_path_returns_not_found_variant_on_missing_file() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let missing = root.join("nope.txt");
+        let err = validate_scoped_path(&perms, "ext.a", missing.to_str().unwrap(), &root, &[])
+            .unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
     }
 }

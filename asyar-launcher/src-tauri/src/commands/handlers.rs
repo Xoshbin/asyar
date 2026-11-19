@@ -362,6 +362,7 @@ macro_rules! system_commands {
                 $crate::commands::read_text_preview,
                 $crate::commands::files_read_text,
                 $crate::commands::files_read_range,
+                $crate::commands::files_exists,
                 $crate::commands::files_glob,
                 $crate::commands::files_glob_entries,
                 $crate::commands::files_thumbnail,

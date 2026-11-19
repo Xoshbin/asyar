@@ -357,6 +357,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // scope is in permissionArgs.files:read (glob patterns).
         "asyar:api:files:read" => Some("files:read"),
         "asyar:api:files:readRange" => Some("files:read"),
+        "asyar:api:files:exists" => Some("files:read"),
         // Scoped enumeration and thumbnails ride the same permission and
         // the same declared globs: listing in-scope names and rendering an
         // in-scope file as an icon are both strictly less information than
@@ -831,6 +832,10 @@ mod tests {
             get_required_permission("asyar:api:files:thumbnail"),
             Some("files:read")
         );
+        assert_eq!(
+            get_required_permission("asyar:api:files:exists"),
+            Some("files:read")
+        );
     }
 
     #[test]
@@ -1141,6 +1146,7 @@ mod tests {
         for call in [
             "asyar:api:files:read",
             "asyar:api:files:readRange",
+            "asyar:api:files:exists",
             "asyar:api:files:glob",
         ] {
             assert_eq!(gate_decision(call), GateDecision::Require("files:read"));

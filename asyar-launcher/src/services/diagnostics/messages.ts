@@ -55,7 +55,8 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   unhandled_rejection: ({ message }) => message ?? 'Unexpected error',
   render_error: () => 'A view failed to render',
   invoke_unknown: ({ command }) => `Command failed${command ? `: ${command}` : ''}`,
-  extension_proxy_error: ({ method }) => `Extension call failed${method ? ` (${method})` : ''}`,
+  extension_proxy_error: ({ extensionId, method }) =>
+    `${extensionId ?? 'Extension'} call failed${method ? ` (${method})` : ''}`,
   extension_crash: ({ extensionId, role }) =>
     `${extensionId ?? 'Extension'} (${role ?? '?'}) stopped responding`,
   iframe_uncaught: ({ extensionId }) => `${extensionId ?? 'Extension'} hit an unexpected error`,

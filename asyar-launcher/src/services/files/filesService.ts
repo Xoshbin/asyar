@@ -1,6 +1,7 @@
 import {
   fileSearch,
   fileIndexStatus,
+  filesExists,
   filesReadText,
   filesReadRange,
   filesGlob,
@@ -60,6 +61,10 @@ export class FilesService {
     opts?: { maxBytes?: number } | null,
   ): Promise<string> {
     return filesReadText(callerExtensionId, path, opts?.maxBytes);
+  }
+
+  async exists(callerExtensionId: string | null, path: string): Promise<boolean> {
+    return filesExists(callerExtensionId, path);
   }
 
   async glob(

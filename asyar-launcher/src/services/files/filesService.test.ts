@@ -84,6 +84,23 @@ describe('filesService', () => {
     await expect(filesService.read('ext.a', '/etc/shadow')).rejects.toThrow('not covered');
   });
 
+  it('exists forwards the caller identity and path to files_exists', async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    expect(await filesService.exists('ext.a', '/tmp/repo/.git/HEAD')).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith('files_exists', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/repo/.git/HEAD',
+    });
+
+    invokeMock.mockResolvedValueOnce(false);
+    expect(await filesService.exists('ext.a', '/tmp/repo/.git/MISSING')).toBe(false);
+  });
+
+  it('exists propagates scope denials as errors', async () => {
+    invokeMock.mockRejectedValueOnce(new Error('files:read path is not covered'));
+    await expect(filesService.exists('ext.a', '/etc/shadow')).rejects.toThrow('not covered');
+  });
+
   it('readRange forwards caller id and opts', async () => {
     const chunk = { text: 'line\n', start: 10, end: 15, size: 15, mtimeMs: 100, eof: true };
     invokeMock.mockResolvedValueOnce(chunk);

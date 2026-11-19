@@ -40,4 +40,19 @@ describe('DIAGNOSTIC_MESSAGES', () => {
 
     expect(DIAGNOSTIC_MESSAGES.sync_quota_exceeded({})).toBe('Cloud sync storage quota exceeded');
   });
+
+  it('renders extension_proxy_error with extensionId and method when available', () => {
+    expect(
+      DIAGNOSTIC_MESSAGES.extension_proxy_error({
+        extensionId: 'org.asyar.git',
+        method: 'asyar:api:files:read',
+      }),
+    ).toBe('org.asyar.git call failed (asyar:api:files:read)');
+
+    expect(DIAGNOSTIC_MESSAGES.extension_proxy_error({ method: 'asyar:api:files:read' })).toBe(
+      'Extension call failed (asyar:api:files:read)',
+    );
+
+    expect(DIAGNOSTIC_MESSAGES.extension_proxy_error({})).toBe('Extension call failed');
+  });
 });

@@ -81,6 +81,22 @@ describe('FilesServiceProxy', () => {
     await expect(proxy.read('/etc/shadow')).rejects.toThrow('not covered');
   });
 
+  it('exists() invokes files:exists and returns boolean', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(true);
+    expect(await proxy.exists('/tmp/repo/.git/HEAD')).toBe(true);
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:exists', {
+      path: '/tmp/repo/.git/HEAD',
+    });
+
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(false);
+    expect(await proxy.exists('/tmp/repo/.git/MISSING')).toBe(false);
+  });
+
+  it('exists() propagates broker rejections', async () => {
+    vi.mocked(mockBroker.invoke).mockRejectedValueOnce(new Error('not covered'));
+    await expect(proxy.exists('/etc/shadow')).rejects.toThrow('not covered');
+  });
+
   it('readRange invokes files:readRange', async () => {
     const chunk = { text: 'line\n', start: 10, end: 15, size: 15, mtimeMs: 100, eof: true };
     mockBroker.invoke.mockResolvedValueOnce(chunk);

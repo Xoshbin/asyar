@@ -98,6 +98,14 @@ export interface IFilesService {
    * denial reason) rather than resolving empty when access is refused.
    */
   read(path: string, opts?: FileReadOptions): Promise<string>;
+  /**
+   * Check whether a file or directory exists at `path`. Enforces the exact
+   * same `files:read` permission, declared-glob scope, deny-list, and
+   * symlink/canonicalization checks as `read`: resolves `false` when the
+   * target is missing but in scope, `true` when it exists and is in scope,
+   * and rejects when out of scope or denied.
+   */
+  exists(path: string): Promise<boolean>;
   /** Bounded range/tail read, line-aligned by default. Requires files:read. */
   readRange(path: string, opts?: FileReadRangeOptions): Promise<FileChunk>;
   /**

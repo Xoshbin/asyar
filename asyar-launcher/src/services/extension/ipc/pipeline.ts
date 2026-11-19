@@ -5,7 +5,7 @@ import { handleFileSearchResponse } from '../extensionFileSearchDispatch';
 import { handleAiProviderResponse } from '../extensionAiProviderDispatch';
 import { logService } from '../../log/logService';
 import * as commands from '../../../lib/ipc/commands';
-import { IpcError } from '../../../lib/ipc/invokeSafe';
+import { IpcError, isFeedbackShape } from '../../../lib/ipc/invokeSafe';
 import { feedbackService } from '../../feedback/feedbackService.svelte';
 import { extensionIframeManager } from '../extensionIframeManager.svelte';
 import { isExternallyConsumedExtensionResponse } from '../../../lib/ipc/extensionMessageProtocol';
@@ -90,7 +90,7 @@ const identify: IpcStage = {
         kind: classifyProxyError(ctx.type, unknownError),
         severity: 'warning',
         retryable: false,
-        context: { method: ctx.type, error: unknownError },
+        context: { extensionId: ctx.extensionId, method: ctx.type, error: unknownError },
         extensionId: ctx.extensionId,
       });
       return;
@@ -146,7 +146,11 @@ const permissionGate: IpcStage = {
       kind: classifyProxyError(ctx.type, permError),
       severity: 'warning',
       retryable: false,
-      context: { method: ctx.type, error: permError },
+      context: {
+        ...(ctx.extensionId ? { extensionId: ctx.extensionId } : {}),
+        method: ctx.type,
+        error: permError,
+      },
       extensionId: ctx.extensionId,
     });
   },
@@ -164,13 +168,27 @@ const replyEnvelope: IpcStage = {
       const thrownCode = (error as { code?: unknown } | null)?.code;
       ctx.replyError(catchError, typeof thrownCode === 'string' ? thrownCode : undefined);
       // invokeSafe wrappers already reported their own diagnostic.
-      if (!(error instanceof HandledDispatchError) && !(error instanceof IpcError)) {
+      // Missing-file checks via files:read / files:readRange are expected to
+      // reject back to the calling extension without popping up a global banner.
+      const isExpectedFileNotFound =
+        (ctx.type === 'asyar:api:files:read' || ctx.type === 'asyar:api:files:readRange') &&
+        ((isFeedbackShape(error) && error.kind === 'not_found') ||
+          /\bnot found\b|no such file or directory|does not exist/i.test(catchError));
+      if (
+        !(error instanceof HandledDispatchError) &&
+        !(error instanceof IpcError) &&
+        !isExpectedFileNotFound
+      ) {
         void feedbackService.report({
           source: 'extension',
           kind: classifyProxyError(ctx.type, catchError),
           severity: 'warning',
           retryable: false,
-          context: { method: ctx.type, error: catchError },
+          context: {
+            extensionId: ctx.extensionId ?? 'unknown',
+            method: ctx.type,
+            error: catchError,
+          },
           extensionId: ctx.extensionId ?? 'unknown',
         });
       }
