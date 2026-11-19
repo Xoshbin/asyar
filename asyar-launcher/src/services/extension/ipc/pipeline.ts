@@ -168,10 +168,12 @@ const replyEnvelope: IpcStage = {
       const thrownCode = (error as { code?: unknown } | null)?.code;
       ctx.replyError(catchError, typeof thrownCode === 'string' ? thrownCode : undefined);
       // invokeSafe wrappers already reported their own diagnostic.
-      // Missing-file checks via files:read / files:readRange are expected to
-      // reject back to the calling extension without popping up a global banner.
+      // Missing-file checks via files:read / files:readRange / files:query are
+      // expected to reject back to the calling extension without popping up a global banner.
       const isExpectedFileNotFound =
-        (ctx.type === 'asyar:api:files:read' || ctx.type === 'asyar:api:files:readRange') &&
+        (ctx.type === 'asyar:api:files:read' ||
+          ctx.type === 'asyar:api:files:readRange' ||
+          ctx.type === 'asyar:api:files:query') &&
         (isFeedbackShape(error)
           ? error.kind === 'not_found'
           : /\bnot found\b|no such file or directory|does not exist/i.test(catchError));

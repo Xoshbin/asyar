@@ -375,6 +375,343 @@ pub(crate) fn files_read_range_inner(
     read_range_bounded(&path, opts)
 }
 
+const FILES_QUERY_MAX_ROWS: usize = 2_000;
+const FILES_QUERY_MAX_VALUE_BYTES: i32 = 1_048_576; // 1 MiB per SQLite value
+const FILES_QUERY_MAX_BYTES: usize = 8 * 1024 * 1024; // 8 MiB total response budget
+const FILES_QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+fn resolve_host_query_path<R: tauri::Runtime>(
+    path_str: &str,
+    app_handle: &tauri::AppHandle<R>,
+) -> Result<PathBuf, AppError> {
+    let path = Path::new(path_str);
+    if !path.is_absolute() {
+        return Err(AppError::Other(format!(
+            "Path must be absolute, got: '{path_str}'"
+        )));
+    }
+
+    let canonical = dunce::canonicalize(path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            AppError::NotFound(format!(
+                "files:query path '{}' does not exist",
+                path.display()
+            ))
+        } else {
+            AppError::Validation(format!(
+                "files:query path '{}' is not accessible: {e}",
+                path.display()
+            ))
+        }
+    })?;
+
+    let meta = fs::metadata(&canonical).map_err(|e| {
+        AppError::Validation(format!(
+            "files:query path '{}' is not accessible: {e}",
+            canonical.display()
+        ))
+    })?;
+    if !meta.is_file() {
+        return Err(AppError::Validation(format!(
+            "files:query path '{}' is not a regular file",
+            canonical.display()
+        )));
+    }
+
+    let app_data = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(format!("Cannot resolve app data dir: {e}")))?;
+    let temp_dir = std::env::temp_dir();
+    let home_dir = app_handle
+        .path()
+        .home_dir()
+        .map_err(|e| AppError::Other(format!("Cannot resolve home dir: {e}")))?;
+
+    let allowed_roots: Vec<PathBuf> = [app_data, temp_dir, home_dir]
+        .into_iter()
+        .map(|root| dunce::canonicalize(&root).unwrap_or_else(|_| normalize_path(&root)))
+        .collect();
+
+    if !allowed_roots
+        .iter()
+        .any(|root| crate::files_scope::starts_with_case_aware(&canonical, root))
+    {
+        return Err(AppError::Other(format!(
+            "Access denied: '{}' is outside the allowed directories (home, app data, or temp)",
+            path_str
+        )));
+    }
+
+    Ok(canonical)
+}
+
+/// Read-only parameterized SQLite query (`asyar:api:files:query`).
+/// Enforces `files:read` scope, opens the database read-only with a strict
+/// SQLite authorizer (SELECT-only), bounds runaway SQL via a SQLite progress
+/// budget, and caps returned rows and response bytes.
+#[tauri::command]
+pub async fn files_query<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    path_str: String,
+    sql: String,
+    params: Option<Vec<serde_json::Value>>,
+) -> Result<Vec<serde_json::Map<String, serde_json::Value>>, AppError> {
+    // State is owned by the AppHandle; reacquire it inside the 'static job.
+    let _ = permissions;
+    tokio::task::spawn_blocking(move || {
+        if let Some(ext) = extension_id {
+            let (home, deny) = extension_scope_env(&app_handle)?;
+            files_query_inner(
+                &app_handle.state(),
+                &ext,
+                &path_str,
+                &sql,
+                params,
+                &home,
+                &deny,
+            )
+        } else {
+            let canonical = resolve_host_query_path(&path_str, &app_handle)?;
+            execute_readonly_sqlite_query(
+                &canonical,
+                &sql,
+                params,
+                FILES_QUERY_MAX_ROWS,
+                FILES_QUERY_MAX_BYTES,
+                FILES_QUERY_TIMEOUT,
+            )
+        }
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("File query task failed: {e}")))?
+}
+
+pub(crate) fn files_query_inner(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    path_str: &str,
+    sql: &str,
+    params: Option<Vec<serde_json::Value>>,
+    home: &Path,
+    extra_deny: &[PathBuf],
+) -> Result<Vec<serde_json::Map<String, serde_json::Value>>, AppError> {
+    files_query_inner_with_limits(
+        permissions,
+        extension_id,
+        path_str,
+        sql,
+        params,
+        home,
+        extra_deny,
+        FILES_QUERY_MAX_ROWS,
+        FILES_QUERY_MAX_BYTES,
+        FILES_QUERY_TIMEOUT,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn files_query_inner_with_limits(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    path_str: &str,
+    sql: &str,
+    params: Option<Vec<serde_json::Value>>,
+    home: &Path,
+    extra_deny: &[PathBuf],
+    max_rows: usize,
+    max_bytes: usize,
+    timeout: std::time::Duration,
+) -> Result<Vec<serde_json::Map<String, serde_json::Value>>, AppError> {
+    let canonical = validate_scoped_path(permissions, extension_id, path_str, home, extra_deny)?;
+    execute_readonly_sqlite_query(&canonical, sql, params, max_rows, max_bytes, timeout)
+}
+
+fn json_to_sqlite_value(val: serde_json::Value) -> Result<rusqlite::types::Value, AppError> {
+    match val {
+        serde_json::Value::Null => Ok(rusqlite::types::Value::Null),
+        serde_json::Value::Bool(b) => Ok(rusqlite::types::Value::Integer(i64::from(b))),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(rusqlite::types::Value::Integer(i))
+            } else if let Some(f) = n.as_f64() {
+                Ok(rusqlite::types::Value::Real(f))
+            } else {
+                Err(AppError::Validation(
+                    "Unsupported numeric query parameter (out of i64/f64 range)".into(),
+                ))
+            }
+        }
+        serde_json::Value::String(s) => Ok(rusqlite::types::Value::Text(s)),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => Err(AppError::Validation(
+            "Unsupported query parameter type: arrays and objects are not allowed".into(),
+        )),
+    }
+}
+
+fn sqlite_value_ref_to_json(
+    val: rusqlite::types::ValueRef<'_>,
+    total_bytes: &mut usize,
+    max_bytes: usize,
+) -> Result<serde_json::Value, AppError> {
+    use base64::Engine as _;
+    let added = match val {
+        rusqlite::types::ValueRef::Null => 4,
+        rusqlite::types::ValueRef::Integer(_) | rusqlite::types::ValueRef::Real(_) => 8,
+        rusqlite::types::ValueRef::Text(bytes) => bytes.len(),
+        rusqlite::types::ValueRef::Blob(bytes) => bytes.len().div_ceil(3).saturating_mul(4),
+    };
+    *total_bytes = total_bytes.saturating_add(added);
+    if *total_bytes > max_bytes {
+        return Err(AppError::Validation(format!(
+            "Query exceeded maximum response size of {max_bytes} bytes"
+        )));
+    }
+
+    let json_val = match val {
+        rusqlite::types::ValueRef::Null => serde_json::Value::Null,
+        rusqlite::types::ValueRef::Integer(i) => serde_json::Value::Number(i.into()),
+        rusqlite::types::ValueRef::Real(f) => serde_json::Number::from_f64(f)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        rusqlite::types::ValueRef::Text(bytes) => {
+            serde_json::Value::String(String::from_utf8_lossy(bytes).into_owned())
+        }
+        rusqlite::types::ValueRef::Blob(bytes) => {
+            serde_json::Value::String(base64::engine::general_purpose::STANDARD.encode(bytes))
+        }
+    };
+    Ok(json_val)
+}
+
+fn map_sqlite_err(err: rusqlite::Error) -> AppError {
+    if let rusqlite::Error::SqliteFailure(ref ffi_err, _) = err {
+        if ffi_err.code == rusqlite::ErrorCode::OperationInterrupted {
+            return AppError::Validation("SQLite query exceeded progress budget".into());
+        }
+    }
+    AppError::Validation(format!("SQLite query error: {err}"))
+}
+
+fn execute_readonly_sqlite_query(
+    path: &Path,
+    sql: &str,
+    params: Option<Vec<serde_json::Value>>,
+    max_rows: usize,
+    max_bytes: usize,
+    timeout: std::time::Duration,
+) -> Result<Vec<serde_json::Map<String, serde_json::Value>>, AppError> {
+    let bound_params = params
+        .unwrap_or_default()
+        .into_iter()
+        .map(json_to_sqlite_value)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let conn = rusqlite::Connection::open_with_flags(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(map_sqlite_err)?;
+
+    conn.busy_timeout(std::time::Duration::from_millis(500))
+        .map_err(map_sqlite_err)?;
+    conn.set_limit(
+        rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH,
+        FILES_QUERY_MAX_VALUE_BYTES,
+    );
+
+    conn.authorizer(Some(|ctx: rusqlite::hooks::AuthContext<'_>| {
+        use rusqlite::hooks::{AuthAction, Authorization};
+        match ctx.action {
+            AuthAction::Select | AuthAction::Read { .. } | AuthAction::Recursive => {
+                Authorization::Allow
+            }
+            AuthAction::Function { function_name } => {
+                if function_name.eq_ignore_ascii_case("load_extension")
+                    || function_name.eq_ignore_ascii_case("fts3_tokenizer")
+                {
+                    Authorization::Deny
+                } else {
+                    Authorization::Allow
+                }
+            }
+            _ => Authorization::Deny,
+        }
+    }));
+
+    // SQLite progress budget: aborts runaway SQL execution at instruction intervals.
+    let start = std::time::Instant::now();
+    conn.progress_handler(1_000, Some(move || start.elapsed() > timeout));
+
+    {
+        let mut batch = rusqlite::Batch::new(&conn, sql);
+        let first = batch.next().map_err(map_sqlite_err)?;
+        if first.is_none() {
+            return Err(AppError::Validation("SQL query cannot be empty".into()));
+        }
+        drop(first);
+        if batch.next().map_err(map_sqlite_err)?.is_some() {
+            return Err(AppError::Validation(
+                "Multi-statement SQL queries are not allowed".into(),
+            ));
+        }
+    }
+
+    let mut stmt = conn.prepare(sql).map_err(map_sqlite_err)?;
+    let mut rows = stmt
+        .query(rusqlite::params_from_iter(bound_params))
+        .map_err(map_sqlite_err)?;
+
+    let mut col_names: Vec<String> = Vec::new();
+    let mut results = Vec::new();
+    let mut total_bytes: usize = 0;
+
+    while let Some(row) = rows.next().map_err(map_sqlite_err)? {
+        if results.len() >= max_rows {
+            return Err(AppError::Validation(format!(
+                "Query exceeded maximum row limit of {max_rows}"
+            )));
+        }
+        if col_names.is_empty() {
+            let names: Vec<String> = row
+                .as_ref()
+                .column_names()
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect();
+            let mut seen = std::collections::HashSet::with_capacity(names.len());
+            for name in &names {
+                if !seen.insert(name.as_str()) {
+                    return Err(AppError::Validation(format!(
+                        "Duplicate column name '{name}' in query result; use distinct column aliases"
+                    )));
+                }
+            }
+            col_names = names;
+        }
+
+        let mut obj = serde_json::Map::with_capacity(col_names.len());
+        for (idx, name) in col_names.iter().enumerate() {
+            total_bytes = total_bytes.saturating_add(name.len());
+            if total_bytes > max_bytes {
+                return Err(AppError::Validation(format!(
+                    "Query exceeded maximum response size of {max_bytes} bytes"
+                )));
+            }
+            let val_ref = row.get_ref(idx).map_err(map_sqlite_err)?;
+            obj.insert(
+                name.clone(),
+                sqlite_value_ref_to_json(val_ref, &mut total_bytes, max_bytes)?,
+            );
+        }
+        results.push(obj);
+    }
+
+    Ok(results)
+}
+
 fn resolve_window(
     size: u64,
     offset: Option<u64>,
@@ -2920,13 +3257,271 @@ mod tests {
         );
     }
 
+    fn create_test_sqlite_db(path: &Path) {
+        let conn = rusqlite::Connection::open(path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, score REAL, raw BLOB, active INTEGER);
+             INSERT INTO items (id, name, score, raw, active) VALUES (1, 'alpha', 1.5, X'CAFE', 1);
+             INSERT INTO items (id, name, score, raw, active) VALUES (2, 'beta', NULL, NULL, 0);",
+        )
+        .unwrap();
+    }
+
     #[test]
-    fn validate_scoped_path_returns_not_found_variant_on_missing_file() {
+    fn files_query_happy_path_with_params() {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = files_read_setup(&tmp);
-        let missing = root.join("nope.txt");
-        let err = validate_scoped_path(&perms, "ext.a", missing.to_str().unwrap(), &root, &[])
-            .unwrap_err();
+        let db_path = root.join("docs/test.db");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        create_test_sqlite_db(&db_path);
+
+        let rows = files_query_inner(
+            &perms,
+            "ext.a",
+            db_path.to_str().unwrap(),
+            "SELECT id, name, score, raw, active FROM items WHERE name = ?1",
+            Some(vec![serde_json::json!("alpha")]),
+            &root,
+            &[],
+        )
+        .unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["id"], serde_json::json!(1));
+        assert_eq!(rows[0]["name"], serde_json::json!("alpha"));
+        assert_eq!(rows[0]["score"], serde_json::json!(1.5));
+        // Blob is base64-encoded ("yv4=" for 0xCAFE)
+        assert_eq!(rows[0]["raw"], serde_json::json!("yv4="));
+        assert_eq!(rows[0]["active"], serde_json::json!(1));
+    }
+
+    #[test]
+    fn files_query_rejects_out_of_scope_and_protected_paths() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let outside_tmp = TempDir::new().unwrap();
+        let outside = dunce::canonicalize(outside_tmp.path())
+            .unwrap()
+            .join("outside.db");
+        create_test_sqlite_db(&outside);
+        let err = files_query_inner(
+            &perms,
+            "ext.a",
+            outside.to_str().unwrap(),
+            "SELECT 1",
+            None,
+            &root,
+            &[],
+        )
+        .unwrap_err();
+        assert!(
+            format!("{err}").contains("not covered"),
+            "expected not-covered error, got: {err}"
+        );
+
+        let protected = root.join(".ssh/secret.db");
+        std::fs::create_dir_all(protected.parent().unwrap()).unwrap();
+        create_test_sqlite_db(&protected);
+        let err = files_query_inner(
+            &perms,
+            "ext.a",
+            protected.to_str().unwrap(),
+            "SELECT 1",
+            None,
+            &root,
+            &[],
+        )
+        .unwrap_err();
+        assert!(
+            format!("{err}").contains("protected location"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn files_query_missing_db_returns_not_found() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let missing = root.join("docs/missing.db");
+        let err = files_query_inner(
+            &perms,
+            "ext.a",
+            missing.to_str().unwrap(),
+            "SELECT 1",
+            None,
+            &root,
+            &[],
+        )
+        .unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn files_query_blocks_write_pragma_attach_extension_and_multi_statement() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let db_path = root.join("docs/test.db");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        create_test_sqlite_db(&db_path);
+
+        let blocked_queries = [
+            "ATTACH DATABASE ':memory:' AS extra",
+            "PRAGMA table_info(items)",
+            "INSERT INTO items (id, name) VALUES (3, 'gamma')",
+            "UPDATE items SET name = 'hacked' WHERE id = 1",
+            "DELETE FROM items WHERE id = 1",
+            "DROP TABLE items",
+            "SELECT load_extension('evil')",
+            "SELECT 1; SELECT 2",
+        ];
+
+        for sql in blocked_queries {
+            let res = files_query_inner(
+                &perms,
+                "ext.a",
+                db_path.to_str().unwrap(),
+                sql,
+                None,
+                &root,
+                &[],
+            );
+            assert!(res.is_err(), "expected query to be blocked: {sql}");
+        }
+    }
+
+    #[test]
+    fn files_query_rejects_unsupported_param_types() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let db_path = root.join("docs/test.db");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        create_test_sqlite_db(&db_path);
+
+        let err = files_query_inner(
+            &perms,
+            "ext.a",
+            db_path.to_str().unwrap(),
+            "SELECT ?1",
+            Some(vec![serde_json::json!([1, 2, 3])]),
+            &root,
+            &[],
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+
+        let err = files_query_inner(
+            &perms,
+            "ext.a",
+            db_path.to_str().unwrap(),
+            "SELECT ?1",
+            Some(vec![serde_json::json!({"a": 1})]),
+            &root,
+            &[],
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn files_query_aborts_runaway_recursive_query_by_timeout() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let db_path = root.join("docs/test.db");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        create_test_sqlite_db(&db_path);
+
+        let err = files_query_inner_with_limits(
+            &perms,
+            "ext.a",
+            db_path.to_str().unwrap(),
+            "SELECT COUNT(*) FROM (WITH RECURSIVE cnt(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM cnt) SELECT x FROM cnt)",
+            None,
+            &root,
+            &[],
+            2_000,
+            FILES_QUERY_MAX_BYTES,
+            std::time::Duration::from_millis(50),
+        )
+        .unwrap_err();
+        assert!(
+            format!("{err}").to_lowercase().contains("progress budget")
+                || format!("{err}").to_lowercase().contains("interrupt"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn files_query_enforces_row_cap() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let db_path = root.join("docs/test.db");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        create_test_sqlite_db(&db_path);
+
+        let err = files_query_inner_with_limits(
+            &perms,
+            "ext.a",
+            db_path.to_str().unwrap(),
+            "WITH RECURSIVE cnt(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM cnt WHERE x < 10) SELECT x FROM cnt",
+            None,
+            &root,
+            &[],
+            5,
+            FILES_QUERY_MAX_BYTES,
+            std::time::Duration::from_secs(2),
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+        assert!(format!("{err}").contains("5"), "got: {err}");
+    }
+
+    #[test]
+    fn files_query_enforces_response_size_cap() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let db_path = root.join("docs/test.db");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        create_test_sqlite_db(&db_path);
+
+        let err = files_query_inner_with_limits(
+            &perms,
+            "ext.a",
+            db_path.to_str().unwrap(),
+            "SELECT name, raw FROM items",
+            None,
+            &root,
+            &[],
+            2_000,
+            10,
+            std::time::Duration::from_secs(2),
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+        assert!(format!("{err}").contains("10 bytes"), "got: {err}");
+    }
+
+    #[test]
+    fn files_query_rejects_duplicate_column_names() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let db_path = root.join("docs/test.db");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        create_test_sqlite_db(&db_path);
+
+        let err = files_query_inner(
+            &perms,
+            "ext.a",
+            db_path.to_str().unwrap(),
+            "SELECT a.id, b.id FROM items a JOIN items b ON a.id = b.id",
+            None,
+            &root,
+            &[],
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+        assert!(
+            format!("{err}").contains("Duplicate column name 'id'"),
+            "got: {err}"
+        );
     }
 }

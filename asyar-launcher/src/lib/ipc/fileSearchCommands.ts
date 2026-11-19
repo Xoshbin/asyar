@@ -166,3 +166,15 @@ export async function filesIcon(
 ): Promise<string | null> {
   return invoke<string | null>('files_icon', { extensionId, pathStr });
 }
+
+/** Extension-scoped read-only SQLite query (`asyar:api:files:query` →
+ * `files_query`). Enforces `files:read` scope, SELECT-only authorizer,
+ * timeout, and row cap. */
+export async function filesQuery(
+  extensionId: string | null,
+  pathStr: string,
+  sql: string,
+  params?: unknown[],
+): Promise<Record<string, unknown>[]> {
+  return invoke<Record<string, unknown>[]>('files_query', { extensionId, pathStr, sql, params });
+}

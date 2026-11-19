@@ -105,6 +105,27 @@ describe('FilesServiceProxy', () => {
     expect(mockBroker.invoke).toHaveBeenCalledWith('files:readRange', { path: '/tmp/log', opts });
   });
 
+  it('query invokes files:query with path, sql, and optional params', async () => {
+    const rows = [{ id: 1, title: 'hello' }];
+    mockBroker.invoke.mockResolvedValueOnce(rows);
+    expect(
+      await proxy.query('/tmp/db.sqlite', 'SELECT id, title FROM items WHERE id = ?1', [1]),
+    ).toEqual(rows);
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:query', {
+      path: '/tmp/db.sqlite',
+      sql: 'SELECT id, title FROM items WHERE id = ?1',
+      params: [1],
+    });
+
+    mockBroker.invoke.mockResolvedValueOnce([]);
+    await proxy.query('/tmp/db.sqlite', 'SELECT 1');
+    expect(mockBroker.invoke).toHaveBeenLastCalledWith('files:query', {
+      path: '/tmp/db.sqlite',
+      sql: 'SELECT 1',
+      params: undefined,
+    });
+  });
+
   it('glob invokes files:glob and returns string paths', async () => {
     const paths = ['/Steam/appcache/librarycache/123/' + 'a'.repeat(40) + '.jpg'];
     mockBroker.invoke.mockResolvedValueOnce(paths);

@@ -188,4 +188,33 @@ describe('filesService', () => {
     const result = await filesService.icon('ext.a', '/tmp/file.txt');
     expect(result).toBeNull();
   });
+
+  it('query forwards caller id, path, sql, and params to files_query', async () => {
+    const rows = [{ id: 1, name: 'alpha' }];
+    invokeMock.mockResolvedValueOnce(rows);
+    const result = await filesService.query(
+      'ext.a',
+      '/tmp/test.db',
+      'SELECT * FROM items WHERE id = ?1',
+      [1],
+    );
+    expect(invokeMock).toHaveBeenCalledWith('files_query', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/test.db',
+      sql: 'SELECT * FROM items WHERE id = ?1',
+      params: [1],
+    });
+    expect(result).toEqual(rows);
+  });
+
+  it('query omits params when not provided', async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    await filesService.query('ext.a', '/tmp/test.db', 'SELECT 1');
+    expect(invokeMock).toHaveBeenCalledWith('files_query', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/test.db',
+      sql: 'SELECT 1',
+      params: undefined,
+    });
+  });
 });
