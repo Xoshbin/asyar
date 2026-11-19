@@ -59,5 +59,24 @@ describe('SelectionService', () => {
         code: 'OPERATION_FAILED',
       });
     });
+
+    it('should extract developerDetail from serialized Rust Diagnostic AppError', async () => {
+      const diagnostic = {
+        source: 'rust',
+        kind: 'platform_failure',
+        severity: 'error',
+        retryable: false,
+        context: null,
+        developerDetail:
+          'Platform error: OPERATION_FAILED: Not authorized to send Apple events to Finder. (-1743)',
+      };
+      vi.mocked(invoke).mockRejectedValue(diagnostic);
+
+      await expect(service.getSelectedFinderItems()).rejects.toMatchObject({
+        code: 'OPERATION_FAILED',
+        message:
+          'Platform error: OPERATION_FAILED: Not authorized to send Apple events to Finder. (-1743)',
+      });
+    });
   });
 });
