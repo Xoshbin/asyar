@@ -1,7 +1,7 @@
 {
   "id": "notes",
   "name": "Notes",
-  "icon": "assets/icon.png",
+  "icon": "icon:type",
   "description": "Write and organize Markdown notes without leaving your keyboard",
   "version": "1.0.0",
   "lifecycle": {
@@ -14,6 +14,7 @@
     {
       "id": "open-notes",
       "name": "Notes",
+      "icon": "icon:type",
       "trigger": "notes",
       "description": "Browse, search, and write notes",
       "mode": "view",

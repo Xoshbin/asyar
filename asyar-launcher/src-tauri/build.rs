@@ -1,7 +1,3 @@
-mod build_support {
-    pub mod builtin_features;
-}
-
 use std::path::PathBuf;
 
 fn main() {
@@ -29,7 +25,38 @@ fn main() {
 
     println!("cargo:rerun-if-changed=../src/built-in-features");
 
-    build_support::builtin_features::stage_builtin_features(&features_source_dir, &staging_dir);
+    // Clean previous staging area
+    if staging_dir.exists() {
+        let _ = std::fs::remove_dir_all(&staging_dir);
+    }
+    std::fs::create_dir_all(&staging_dir).expect("Failed to create staging directory");
+
+    // Copy only manifest.json from each feature
+    if let Ok(entries) = std::fs::read_dir(&features_source_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            let feature_name = path.file_name().unwrap().to_str().unwrap();
+            let manifest_src = path.join("manifest.json");
+
+            if manifest_src.exists() {
+                let target_dir = staging_dir.join(feature_name);
+                std::fs::create_dir_all(&target_dir).unwrap_or_else(|_| {
+                    panic!("Failed to create staging dir for {}", feature_name)
+                });
+
+                let manifest_dest = target_dir.join("manifest.json");
+                std::fs::copy(&manifest_src, &manifest_dest).unwrap_or_else(|_| {
+                    panic!("Failed to copy manifest.json for {}", feature_name)
+                });
+
+                println!("Staged manifest.json for: {}", feature_name);
+            }
+        }
+    }
 
     // Stage the AI extension-builder sidecar JS into the bundled resource location.
     // The sidecar is a pre-bundled bun JS file; the launcher runs it via the

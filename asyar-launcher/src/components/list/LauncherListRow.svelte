@@ -90,7 +90,7 @@
       {@render leading()}
     {:else}
       <div class="row-icon">
-        <AppIcon {icon} {extensionId} size={28} glyphSize={18} emojiSize={16} tile alt={title} />
+        <AppIcon {icon} {extensionId} size={22} glyphSize={14} emojiSize={12} tile alt={title} />
         {#if running}
           <span class="running-dot" role="img" aria-label={t('search.app_running')}></span>
         {/if}

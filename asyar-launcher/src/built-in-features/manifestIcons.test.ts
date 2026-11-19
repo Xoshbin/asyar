@@ -1,6 +1,3 @@
-import { existsSync, statSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { hasIcon } from 'asyar-sdk/contracts';
 
@@ -36,29 +33,13 @@ describe('built-in feature manifests — icon resolution contract', () => {
 
   for (const [file, manifest] of Object.entries(manifestModules)) {
     const refs = collectIconRefs(manifest, file);
-    const iconRefs = refs.filter((r) => r.name.startsWith('icon:'));
-    const assetRefs = refs.filter(
-      (r) => !r.name.startsWith('icon:') && (r.name.includes('/') || r.name.includes('.')),
-    );
-
-    if (iconRefs.length === 0 && assetRefs.length === 0) continue;
 
     describe(manifest.id ?? file, () => {
-      for (const ref of iconRefs) {
+      for (const ref of refs) {
+        if (!ref.name.startsWith('icon:')) continue;
         const iconName = ref.name.slice('icon:'.length);
         it(`${ref.where} resolves icon:${iconName}`, () => {
           expect(hasIcon(iconName)).toBe(true);
-        });
-      }
-      for (const ref of assetRefs) {
-        it(`${ref.where} declares bundled asset icon ${ref.name}`, () => {
-          expect(ref.name).toMatch(/^assets\/.*\.(png|svg)$/);
-          const assetPath = resolve(
-            dirname(fileURLToPath(import.meta.url)),
-            dirname(file),
-            ref.name,
-          );
-          expect(existsSync(assetPath) && statSync(assetPath).isFile()).toBe(true);
         });
       }
     });
