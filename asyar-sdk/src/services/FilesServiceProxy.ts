@@ -63,6 +63,14 @@ export class FilesServiceProxy extends BaseServiceProxy implements IFilesService
     return this.broker.invoke<string | null>('files:icon', { path });
   }
 
+  async query<T = Record<string, unknown>>(
+    path: string,
+    sql: string,
+    params?: unknown[],
+  ): Promise<T[]> {
+    return this.broker.invoke<T[]>('files:query', { path, sql, params });
+  }
+
   registerFileSearchProvider(provider: FileSearchProviderRegistration): () => void {
     if (
       !provider ||

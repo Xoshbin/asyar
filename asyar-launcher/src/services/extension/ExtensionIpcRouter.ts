@@ -264,6 +264,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'files:globEntries': ['pattern', 'opts'],
   'files:thumbnail': ['path', 'opts'],
   'files:icon': ['path'],
+  'files:query': ['path', 'sql', 'params'],
 
   // opener
   'opener:open': ['url'],

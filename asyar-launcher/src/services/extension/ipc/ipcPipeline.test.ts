@@ -649,19 +649,29 @@ describe('IPC pipeline — denial and error envelopes', () => {
     const readRange = vi.fn(async () => {
       throw new Error('ENOENT: no such file or directory');
     });
+    const query = vi.fn(async () => {
+      throw notFoundFeedback;
+    });
 
-    await makeRouter({ files: { read, readRange } }).handleMessage(
+    await makeRouter({ files: { read, readRange, query } }).handleMessage(
       frameEvent({
         type: 'asyar:api:files:read',
         payload: { path: '/tmp/repo/.git/HEAD' },
         messageId: 'm-missing-read',
       }),
     );
-    await makeRouter({ files: { read, readRange } }).handleMessage(
+    await makeRouter({ files: { read, readRange, query } }).handleMessage(
       frameEvent({
         type: 'asyar:api:files:readRange',
         payload: { path: '/tmp/repo/.git/HEAD' },
         messageId: 'm-missing-range',
+      }),
+    );
+    await makeRouter({ files: { read, readRange, query } }).handleMessage(
+      frameEvent({
+        type: 'asyar:api:files:query',
+        payload: { path: '/tmp/repo/missing.db', sql: 'SELECT 1' },
+        messageId: 'm-missing-query',
       }),
     );
 
@@ -675,6 +685,11 @@ describe('IPC pipeline — denial and error envelopes', () => {
         type: 'asyar:response',
         messageId: 'm-missing-range',
         error: 'ENOENT: no such file or directory',
+      },
+      {
+        type: 'asyar:response',
+        messageId: 'm-missing-query',
+        error: notFoundFeedback.developerDetail,
       },
     ]);
     expect(feedbackService.report).not.toHaveBeenCalled();

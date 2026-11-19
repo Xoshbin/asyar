@@ -8,6 +8,7 @@ import {
   filesGlobEntries,
   filesThumbnail,
   filesIcon,
+  filesQuery,
 } from '../../lib/ipc/fileSearchCommands';
 import type {
   FileHit,
@@ -102,6 +103,15 @@ export class FilesService {
 
   async icon(callerExtensionId: string | null, path: string): Promise<string | null> {
     return filesIcon(callerExtensionId, path);
+  }
+
+  async query(
+    callerExtensionId: string | null,
+    path: string,
+    sql: string,
+    params?: unknown[],
+  ): Promise<Record<string, unknown>[]> {
+    return filesQuery(callerExtensionId, path, sql, params);
   }
 }
 

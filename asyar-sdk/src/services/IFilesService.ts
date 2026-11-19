@@ -141,6 +141,11 @@ export interface IFilesService {
    */
   icon(path: string): Promise<string | null>;
   /**
+   * Read-only, single-statement parameterized SQLite query under `files:read`.
+   * SELECT-only authorizer, 2s timeout, 2,000-row cap; `BLOB`s return as base64.
+   */
+  query<T = Record<string, unknown>>(path: string, sql: string, params?: unknown[]): Promise<T[]>;
+  /**
    * Register a remote or cloud file search provider matching a manifest contribution.
    * Returns a cleanup function that unregisters the provider.
    */

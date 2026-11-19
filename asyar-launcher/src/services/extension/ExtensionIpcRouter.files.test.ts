@@ -82,6 +82,26 @@ describe('files IPC contracts', () => {
       pathStr: '/Applications/Safari.app',
     });
   });
+
+  it('query has an explicit path/sql/params schema and forwards to files_query', async () => {
+    expect(METHOD_PARAM_SCHEMAS['files:query']).toEqual(['path', 'sql', 'params']);
+    const router = new ExtensionIpcRouter({ files: filesService }, vi.fn(), vi.fn(), vi.fn());
+    const rows = [{ id: 1 }];
+    vi.mocked(invoke).mockResolvedValueOnce(rows);
+    const result = await (router as any).dispatchApiCall(
+      'asyar:api:files:query',
+      { path: '/tmp/test.db', sql: 'SELECT ?1 AS id', params: [1] },
+      'ext.a',
+      false,
+    );
+    expect(result).toEqual(rows);
+    expect(invoke).toHaveBeenLastCalledWith('files_query', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/test.db',
+      sql: 'SELECT ?1 AS id',
+      params: [1],
+    });
+  });
 });
 
 describe('environment:getPaths IPC contract', () => {
