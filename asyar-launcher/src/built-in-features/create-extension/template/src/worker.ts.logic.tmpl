@@ -39,9 +39,6 @@ class WorkerExtension implements Extension {
     this.feedback = ctx.getService<IFeedbackService>('feedback');
   }
 
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
-
   async search(query: string): Promise<ExtensionResult[]> {
     const q = query.toLowerCase();
     return SAMPLE_ACTIONS
@@ -57,7 +54,7 @@ class WorkerExtension implements Extension {
   async executeCommand(commandId: string): Promise<unknown> {
     if (commandId === 'run') {
       this.logger?.info('{{EXTENSION_NAME}}: run command triggered');
-      const shouldNotify = Boolean(this.context?.preferences.notifyOnComplete);
+      const shouldNotify = Boolean(this.context?.preferences.values.notifyOnComplete);
       if (shouldNotify) {
         await this.feedback?.sendBackground({
           title: '{{EXTENSION_NAME}}',
@@ -67,8 +64,6 @@ class WorkerExtension implements Extension {
     }
     return undefined;
   }
-
-  onUnload = (): void => {};
 }
 
 const extensionId = manifest.id;
@@ -77,6 +72,6 @@ const workerContext = new WorkerExtensionContext();
 workerContext.setExtensionId(extensionId);
 
 const impl = new WorkerExtension();
-extensionBridge.registerManifest(manifest as never);
+extensionBridge.registerManifest(manifest);
 extensionBridge.registerExtensionImplementation(extensionId, impl);
 extensionBridge.initializeExtensions();
