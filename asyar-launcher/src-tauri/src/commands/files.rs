@@ -618,11 +618,12 @@ fn resolve_missing_path_with_canonical_ancestor_depth(
     }
 }
 
-/// The full `files:read` scope check shared by every extension-facing
-/// command that touches file contents (`files:read`, `files:readRange`,
-/// `files:thumbnail`) — permission, absolute-path, declared-glob coverage,
-/// deny-list, and the canonical re-check. Returns the canonical path to operate on.
-pub(crate) fn validate_scoped_path(
+/// The full `files:read` scope check shared by extension-facing commands that
+/// operate on an existing file or directory (`files:icon`) — permission,
+/// absolute-path, declared-glob coverage, deny-list, canonical re-check, and
+/// regular-file-or-directory check (rejects FIFOs/sockets/devices). Returns the
+/// canonical path to operate on.
+pub(crate) fn validate_scoped_entry(
     permissions: &ExtensionPermissionRegistry,
     extension_id: &str,
     path_str: &str,
@@ -657,6 +658,37 @@ pub(crate) fn validate_scoped_path(
         }
     })?;
     validate_scoped_canonical(&canonical, &patterns, home, extra_deny)?;
+    // Reject special files (e.g. Unix FIFOs/sockets) so an extension-triggered
+    // metadata/open path cannot hang or probe non-filesystem entries.
+    let meta = fs::metadata(&canonical).map_err(|e| {
+        AppError::Validation(format!(
+            "files:read path '{}' is not accessible: {}",
+            canonical.display(),
+            e
+        ))
+    })?;
+    if !meta.is_file() && !meta.is_dir() {
+        return Err(AppError::Validation(format!(
+            "files:read path '{}' is not a regular file or directory",
+            canonical.display()
+        )));
+    }
+    Ok(canonical)
+}
+
+/// The full `files:read` scope check shared by every extension-facing
+/// command that touches file contents (`files:read`, `files:readRange`,
+/// `files:thumbnail`) — permission, absolute-path, declared-glob coverage,
+/// deny-list, canonical re-check, and regular-file-only check. Returns the
+/// canonical path to operate on.
+pub(crate) fn validate_scoped_path(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    path_str: &str,
+    home: &Path,
+    extra_deny: &[PathBuf],
+) -> Result<PathBuf, AppError> {
+    let canonical = validate_scoped_entry(permissions, extension_id, path_str, home, extra_deny)?;
     // Regular files only: on Unix a covered FIFO would pass every scope
     // check and then block `File::open` (or an image decode plus one of
     // the thumbnail semaphore's three permits) indefinitely — an
@@ -1109,6 +1141,56 @@ pub async fn files_thumbnail<R: tauri::Runtime>(
     let Some(cached) =
         crate::thumbnail::get_or_generate(&thumb_state, &cache_dir, &source, max_dim, false).await
     else {
+        return Ok(None);
+    };
+    crate::thumbnail::thumb_url(&cached)
+        .map(Some)
+        .map_err(AppError::Other)
+}
+
+/// Permission-gated native OS icon extraction for extensions (`asyar:api:files:icon`).
+/// Same declared-glob scope, deny-list, and symlink checks as `files:read`, but
+/// permits directories (e.g. folders and `.app` bundles) in addition to regular
+/// files. Returns an `asyar-thumb://` URL (or `http://asyar-thumb.localhost/` on
+/// Windows), or `None` when the platform has no icon source.
+#[tauri::command]
+pub async fn files_icon<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    path_str: String,
+) -> Result<Option<String>, AppError> {
+    // State is owned by the AppHandle; reacquire it inside the 'static blocking job.
+    let _ = permissions;
+    let validate_handle = app_handle.clone();
+    let source = tokio::task::spawn_blocking(move || -> Result<PathBuf, AppError> {
+        let Some(ext) = extension_id else {
+            validate_path_allowed(&path_str, &validate_handle)?;
+            return Ok(PathBuf::from(&path_str));
+        };
+        let (home, extra_deny) = extension_scope_env(&validate_handle)?;
+        let perms: tauri::State<'_, ExtensionPermissionRegistry> = validate_handle.state();
+        let canonical = validate_scoped_entry(&perms, &ext, &path_str, &home, &extra_deny)?;
+        #[cfg(target_os = "windows")]
+        if canonical
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("lnk"))
+        {
+            if let Some(icon_target) = asyar_platform::windows_shortcut_icon_source(&canonical) {
+                let target_str = icon_target.to_str().ok_or_else(|| {
+                    AppError::Validation(
+                        "files:read shortcut icon source path is not valid UTF-8".to_string(),
+                    )
+                })?;
+                validate_scoped_entry(&perms, &ext, target_str, &home, &extra_deny)?;
+            }
+        }
+        Ok(canonical)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("File icon validation task failed: {e}")))??;
+    let cache_dir = crate::thumbnail::cache::get_thumbnail_cache_dir(&app_handle);
+    let Some(cached) = crate::thumbnail::get_or_extract_icon(&cache_dir, &source).await else {
         return Ok(None);
     };
     crate::thumbnail::thumb_url(&cached)
@@ -2581,6 +2663,110 @@ mod tests {
         .await
         .unwrap_err();
         assert!(format!("{err}").contains("not covered"), "got: {err}");
+    }
+
+    // ---- files_icon (extension-scoped) ----
+
+    #[tokio::test]
+    async fn files_icon_extension_in_scope_file_and_folder() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let app = mock_app_with_thumb_state();
+        app.manage(perms);
+
+        let file = root.join("notes.txt");
+        std::fs::write(&file, "hello").unwrap();
+        let dir = root.join("MyFolder");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let file_url = files_icon(
+            app.handle().clone(),
+            app.state(),
+            Some("ext.a".to_string()),
+            file.to_string_lossy().into_owned(),
+        )
+        .await
+        .unwrap();
+
+        let dir_url = files_icon(
+            app.handle().clone(),
+            app.state(),
+            Some("ext.a".to_string()),
+            dir.to_string_lossy().into_owned(),
+        )
+        .await
+        .unwrap();
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            assert!(
+                file_url.as_deref().is_some_and(|u| u.ends_with(".png")),
+                "expected .png icon URL for file, got: {file_url:?}"
+            );
+            assert!(
+                dir_url.as_deref().is_some_and(|u| u.ends_with(".png")),
+                "expected .png icon URL for folder, got: {dir_url:?}"
+            );
+        }
+        #[cfg(target_os = "linux")]
+        {
+            assert!(file_url.is_none());
+            assert!(dir_url.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn files_icon_extension_out_of_scope_is_rejected() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, _root) = files_read_setup(&tmp);
+        let app = mock_app_with_thumb_state();
+        app.manage(perms);
+        let outside = TempDir::new().unwrap();
+        let dir = dunce::canonicalize(outside.path()).unwrap().join("folder");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let err = files_icon(
+            app.handle().clone(),
+            app.state(),
+            Some("ext.a".to_string()),
+            dir.to_string_lossy().into_owned(),
+        )
+        .await
+        .unwrap_err();
+        assert!(format!("{err}").contains("not covered"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_scoped_entry_allows_directory_and_rejects_denied_and_missing() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+
+        let dir = root.join("App.app");
+        std::fs::create_dir_all(&dir).unwrap();
+        let resolved = validate_scoped_entry(&perms, "ext.a", dir.to_str().unwrap(), &root, &[])
+            .expect("directory/app should be allowed");
+        assert_eq!(resolved, dir);
+
+        let ssh_dir = root.join(".ssh");
+        std::fs::create_dir_all(&ssh_dir).unwrap();
+        let key_file = ssh_dir.join("id_rsa");
+        std::fs::write(&key_file, "secret").unwrap();
+        let denied_err =
+            validate_scoped_entry(&perms, "ext.a", key_file.to_str().unwrap(), &root, &[])
+                .unwrap_err();
+        assert!(
+            format!("{denied_err}").contains("protected location"),
+            "got: {denied_err}"
+        );
+
+        let missing = root.join("does-not-exist");
+        let missing_err =
+            validate_scoped_entry(&perms, "ext.a", missing.to_str().unwrap(), &root, &[])
+                .unwrap_err();
+        assert!(
+            matches!(missing_err, AppError::NotFound(_)),
+            "expected NotFound, got: {missing_err:?}"
+        );
     }
 
     // ---- files_exists (extension-scoped existence check) ----

@@ -263,6 +263,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'files:glob': ['pattern', 'opts'],
   'files:globEntries': ['pattern', 'opts'],
   'files:thumbnail': ['path', 'opts'],
+  'files:icon': ['path'],
 
   // opener
   'opener:open': ['url'],

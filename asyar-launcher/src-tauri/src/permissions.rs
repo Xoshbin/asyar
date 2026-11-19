@@ -365,6 +365,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:files:glob" => Some("files:read"),
         "asyar:api:files:globEntries" => Some("files:read"),
         "asyar:api:files:thumbnail" => Some("files:read"),
+        "asyar:api:files:icon" => Some("files:read"),
         // OS user directory paths — gated behind files:read so unprivileged
         // extensions cannot fingerprint the user's OS username or layout.
         "asyar:api:environment:getPaths" => Some("files:read"),
@@ -833,6 +834,10 @@ mod tests {
         );
         assert_eq!(
             get_required_permission("asyar:api:files:thumbnail"),
+            Some("files:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:files:icon"),
             Some("files:read")
         );
         assert_eq!(

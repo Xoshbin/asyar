@@ -156,3 +156,13 @@ export async function filesThumbnail(
 ): Promise<string | null> {
   return invoke<string | null>('files_thumbnail', { extensionId, pathStr, maxDim });
 }
+
+/** Extension-scoped native OS icon extraction (`asyar:api:files:icon` →
+ * `files_icon`). Resolves to the `asyar-thumb://` URL, or `null` when
+ * the platform has no icon source; scope denials reject. */
+export async function filesIcon(
+  extensionId: string | null,
+  pathStr: string,
+): Promise<string | null> {
+  return invoke<string | null>('files_icon', { extensionId, pathStr });
+}

@@ -65,6 +65,23 @@ describe('files IPC contracts', () => {
       pathStr: '/tmp/repo/.git/HEAD',
     });
   });
+
+  it('icon has an explicit path schema and forwards to files_icon', async () => {
+    expect(METHOD_PARAM_SCHEMAS['files:icon']).toEqual(['path']);
+    const router = new ExtensionIpcRouter({ files: filesService }, vi.fn(), vi.fn(), vi.fn());
+    vi.mocked(invoke).mockResolvedValueOnce('asyar-thumb://localhost/icon.png');
+    const iconUrl = await (router as any).dispatchApiCall(
+      'asyar:api:files:icon',
+      { path: '/Applications/Safari.app' },
+      'ext.a',
+      false,
+    );
+    expect(iconUrl).toBe('asyar-thumb://localhost/icon.png');
+    expect(invoke).toHaveBeenLastCalledWith('files_icon', {
+      extensionId: 'ext.a',
+      pathStr: '/Applications/Safari.app',
+    });
+  });
 });
 
 describe('environment:getPaths IPC contract', () => {

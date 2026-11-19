@@ -7,6 +7,7 @@ import {
   filesGlob,
   filesGlobEntries,
   filesThumbnail,
+  filesIcon,
 } from '../../lib/ipc/fileSearchCommands';
 import type {
   FileHit,
@@ -97,6 +98,10 @@ export class FilesService {
     opts?: { maxDim?: number } | null,
   ): Promise<string | null> {
     return filesThumbnail(callerExtensionId, path, opts?.maxDim);
+  }
+
+  async icon(callerExtensionId: string | null, path: string): Promise<string | null> {
+    return filesIcon(callerExtensionId, path);
   }
 }
 

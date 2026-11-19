@@ -160,6 +160,21 @@ describe('FilesServiceProxy', () => {
     expect(result).toBeNull();
   });
 
+  it('icon() calls broker.invoke with path', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce('asyar-thumb://localhost/icon.png');
+    const result = await proxy.icon('/Applications/Safari.app');
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:icon', {
+      path: '/Applications/Safari.app',
+    });
+    expect(result).toBe('asyar-thumb://localhost/icon.png');
+  });
+
+  it('icon() passes through null when platform has no icon source', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(null);
+    const result = await proxy.icon('/home/user/file.txt');
+    expect(result).toBeNull();
+  });
+
   describe('file search provider registration', () => {
     it('registers a valid file search provider and invokes handler', async () => {
       const searchFn = vi
