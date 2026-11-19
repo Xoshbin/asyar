@@ -1,8 +1,33 @@
 /** Node-only build helper. Import from asyar-sdk/vite, never from a runtime entry. */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve, posix } from 'node:path';
 import { mergeConfig, type Plugin, type UserConfig } from 'vite';
+
+const DEFAULT_VIEW_TITLE = 'Asyar Extension View';
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function resolveExtensionTitle(root: string): string {
+  const manifestPath = resolve(root, 'manifest.json');
+  if (!existsSync(manifestPath)) return DEFAULT_VIEW_TITLE;
+  try {
+    const parsed = JSON.parse(readFileSync(manifestPath, 'utf8')) as { name?: unknown };
+    if (typeof parsed?.name === 'string' && parsed.name.trim().length > 0) {
+      return escapeHtml(parsed.name.trim());
+    }
+  } catch {
+    // Fall back to default title if manifest.json is unreadable or invalid JSON.
+  }
+  return DEFAULT_VIEW_TITLE;
+}
 
 const WORKER_CANDIDATES = [
   'worker.html',
@@ -23,6 +48,7 @@ const VIEW_CANDIDATES = [
 ] as const;
 
 function asyarVirtualHtmlPlugin(root: string, viewScriptPath: string): Plugin {
+  const title = resolveExtensionTitle(root);
   return {
     name: 'asyar:virtual-html',
     configureServer(server) {
@@ -36,7 +62,7 @@ function asyarVirtualHtmlPlugin(root: string, viewScriptPath: string): Plugin {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Asyar Extension View</title>
+    <title>${title}</title>
   </head>
   <body>
     <div id="app"></div>
@@ -64,7 +90,7 @@ function asyarVirtualHtmlPlugin(root: string, viewScriptPath: string): Plugin {
         const headLines = [
           '    <meta charset="UTF-8" />',
           '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
-          '    <title>Asyar Extension View</title>',
+          `    <title>${title}</title>`,
           ...cssAssets.map((css) => `    <link rel="stylesheet" href="./${css}">`),
         ];
 

@@ -421,10 +421,15 @@ export class ExtensionBridge {
   }
 
   // Register an extension manifest
-  registerManifest(manifest: ExtensionManifest): void {
-    this.extensionManifests.set(manifest.id, manifest);
+  registerManifest(manifest: ExtensionManifest | Record<string, unknown>): void {
+    const id = typeof manifest.id === 'string' ? manifest.id : '';
+    if (!id) {
+      throw new Error('[asyar-sdk] Cannot register manifest: missing or invalid "id"');
+    }
+    const normalized = manifest as ExtensionManifest;
+    this.extensionManifests.set(id, normalized);
     console.debug(
-      `[asyar-sdk] Registered extension manifest: ${manifest.id} (${manifest.name} v${manifest.version})`,
+      `[asyar-sdk] Registered extension manifest: ${id} (${normalized.name ?? ''} v${normalized.version ?? ''})`,
     );
   }
 
@@ -466,7 +471,7 @@ export class ExtensionBridge {
       // or call `setPreferences` directly here — it already happened.
       context.setExtensionId(manifest.id);
       try {
-        await extension.initialize(context as unknown as ExtensionContext);
+        await extension.initialize?.(context as unknown as ExtensionContext);
       } catch (error) {
         console.error(`[asyar-sdk] Failed to initialize extension ${manifest.id}: ${error}`);
       }
@@ -481,7 +486,7 @@ export class ExtensionBridge {
 
       console.debug(`[asyar-sdk] Activating extension: ${manifest.id}`);
       try {
-        await extension.activate();
+        await extension.activate?.();
       } catch (error) {
         console.error(`[asyar-sdk] Failed to activate extension ${manifest.id}: ${error}`);
       }
@@ -502,7 +507,7 @@ export class ExtensionBridge {
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         await Promise.race([
-          Promise.resolve(extension.deactivate()),
+          Promise.resolve(extension.deactivate?.()),
           new Promise((_, reject) => {
             timer = setTimeout(
               () => reject(new Error('deactivate() timed out after 5000ms')),

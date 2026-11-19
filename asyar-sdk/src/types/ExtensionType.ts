@@ -293,9 +293,9 @@ export interface ExtensionWithState {
 
 // Extension interface only contains functionality methods, no metadata
 export interface Extension {
-  initialize(context: ExtensionContext): Promise<void>;
-  activate(): Promise<void>;
-  deactivate(): Promise<void>;
+  initialize?(context: ExtensionContext): Promise<void> | void;
+  activate?(): Promise<void> | void;
+  deactivate?(): Promise<void> | void;
   onUnload?: () => void | Promise<void>;
   viewActivated?(viewId: string): Promise<void>;
   viewDeactivated?(viewId: string): Promise<void>;

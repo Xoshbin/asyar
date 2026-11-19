@@ -10,6 +10,7 @@ vi.mock('./ipc/MessageBroker', () => {
     messageBroker: {
       on: (type: string, handler: Function) => handlers.set(type, handler),
       send: vi.fn(),
+      invoke: vi.fn(),
     },
     // Expose for test assertions
     __handlers: handlers,
@@ -484,5 +485,70 @@ describe('ExtensionBridge bookkeeping logs use identity-agnostic console.debug',
     bridge.registerCommand('log-test-ext.do-thing', { execute: vi.fn() }, 'log-test-ext');
 
     expect(consoleDebugSpy).toHaveBeenCalledWith(expect.stringContaining('log-test-ext.do-thing'));
+  });
+});
+
+describe('ExtensionBridge DX: JSON manifest & optional worker lifecycle', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.spyOn(window, 'addEventListener').mockImplementation(() => {});
+    Object.defineProperty(window, 'parent', {
+      value: { postMessage: vi.fn() },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('registerManifest accepts JSON-inferred manifest with string type/mode without casts', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    // Simulates `import manifest from '../manifest.json'` where string literals widen to `string`
+    const jsonManifest: {
+      id: string;
+      name: string;
+      version: string;
+      description: string;
+      type: string;
+      commands: Array<{ id: string; name: string; description: string; mode: string }>;
+    } = {
+      id: 'com.example.json-manifest',
+      name: 'JSON Manifest',
+      version: '1.0.0',
+      description: 'Test',
+      type: 'extension',
+      commands: [{ id: 'run', name: 'Run', description: 'Run', mode: 'view' }],
+    };
+
+    bridge.registerManifest(jsonManifest);
+    expect(bridge.getManifest('com.example.json-manifest')).toEqual(jsonManifest);
+  });
+
+  it('registerManifest throws when manifest id is missing or empty', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    expect(() => bridge.registerManifest({ name: 'No ID' })).toThrow(/missing or invalid "id"/i);
+    expect(() => bridge.registerManifest({ id: '' })).toThrow(/missing or invalid "id"/i);
+  });
+
+  it('runs lifecycle for minimal extension omitting initialize/activate/deactivate/onUnload/search', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    bridge.registerManifest({
+      id: 'com.example.minimal',
+      name: 'Minimal',
+      version: '1.0.0',
+      description: 'Minimal worker',
+      commands: [],
+    });
+
+    const executeCommand = vi.fn().mockResolvedValue('ok');
+    bridge.registerExtensionImplementation('com.example.minimal', {
+      executeCommand,
+    });
+
+    await expect(bridge.initializeExtensions()).resolves.toBeUndefined();
+    await expect(bridge.activateExtensions()).resolves.toBeUndefined();
+    await expect(bridge.deactivateExtensions()).resolves.toEqual([]);
   });
 });

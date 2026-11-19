@@ -132,8 +132,14 @@ registerIconElement();
 const extensionId = window.location.hostname || 'com.yourname.pomodoro';
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
+// `context.extensionId` returns the bound ID; `registerManifest` accepts JSON imports directly.
 extensionBridge.registerManifest(manifest);
-extensionBridge.registerExtensionImplementation(extensionId, {/* … */});
+// Lifecycle methods (`initialize`, `activate`, `deactivate`, `onUnload`, `search`) are optional.
+extensionBridge.registerExtensionImplementation(extensionId, {
+  executeCommand: async (commandId, args) => {
+    /* … */
+  },
+});
 
 mount(PomodoroView, {
   target: document.getElementById('app')!,

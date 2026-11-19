@@ -38,7 +38,11 @@ export interface ExtensionAction {
   title: string;
   description?: string;
   icon?: string;
-  extensionId: string;
+  /**
+   * Extension identifier. Optional when calling `context.registerAction(...)`
+   * — auto-filled from `context.extensionId` if omitted.
+   */
+  extensionId?: string;
   category?: string;
   context?: ActionContext; // Add the context property with the enum type
   execute: (payload?: unknown) => Promise<void> | void;

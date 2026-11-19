@@ -11,7 +11,40 @@ When your extension's panel is open and `searchable: true`, the Asyar search bar
 | `asyar:view:search` | On every keystroke | `{ query: string }` |
 | `asyar:view:submit` | On Enter key       | `{ query: string }` |
 
-**Svelte 5 implementation:**
+**Typed SDK helpers (`asyar-sdk/view`):**
+
+Use `onSearch` and `onKey` from `asyar-sdk/view` to subscribe to search queries and forwarded keydown events without manually parsing `window` `message` events. Both return an unsubscribe function and leave raw `window.addEventListener('message', ...)` listeners untouched:
+
+```svelte
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import { onSearch, onKey, type ViewKeyEvent } from 'asyar-sdk/view';
+
+  let query = $state('');
+  let results = $state<string[]>([]);
+  let unsubs: Array<() => void> = [];
+
+  onMount(() => {
+    unsubs = [
+      onSearch((q) => {
+        query = q;
+        results = myData.filter((item) => item.includes(q));
+      }),
+      onKey((event: ViewKeyEvent) => {
+        if (event.key === 'ArrowDown') {
+          // Move selection
+        }
+      }),
+    ];
+  });
+
+  onDestroy(() => {
+    for (const unsub of unsubs) unsub();
+  });
+</script>
+```
+
+**Raw `message` listener (also supported for `asyar:view:submit`):**
 
 ```svelte
 <script lang="ts">

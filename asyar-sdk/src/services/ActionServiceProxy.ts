@@ -7,8 +7,11 @@ export class ActionServiceProxy extends BaseServiceProxy implements IActionServi
   private currentContext: ActionContext = ActionContext.GLOBAL;
 
   registerAction(action: ExtensionAction): void {
-    extensionBridge.registerAction(action.extensionId, action);
-    const { execute, ...actionData } = action;
+    const extensionId = action.extensionId ?? this.extensionId;
+    const normalizedAction =
+      extensionId && !action.extensionId ? { ...action, extensionId } : action;
+    extensionBridge.registerAction(extensionId, normalizedAction);
+    const { execute, ...actionData } = normalizedAction;
     this.broker
       .invoke('actions:registerAction', { action: actionData })
       .catch((err) => console.warn('[ActionServiceProxy] registerAction failed:', err));

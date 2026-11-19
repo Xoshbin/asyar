@@ -31,4 +31,57 @@ import { SearchBarAccessoryServiceProxy } from './services/SearchBarAccessorySer
  */
 export const searchBarAccessory = new SearchBarAccessoryServiceProxy();
 
+/**
+ * Keyboard event payload forwarded from the launcher search bar to the
+ * active view iframe via `asyar:view:keydown`.
+ */
+export interface ViewKeyEvent {
+  key: string;
+  shiftKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+}
+
+/**
+ * Subscribe to search query updates forwarded from the launcher search bar
+ * (`asyar:view:search`). Returns an unsubscribe function.
+ */
+export function onSearch(cb: (query: string) => void): () => void {
+  const listener = (event: MessageEvent) => {
+    if (event.source && event.source !== window.parent) return;
+    const data = event.data as { type?: unknown; payload?: { query?: unknown } } | null;
+    if (!data || data.type !== 'asyar:view:search') return;
+    if (typeof data.payload?.query === 'string') {
+      cb(data.payload.query);
+    }
+  };
+  window.addEventListener('message', listener);
+  return () => window.removeEventListener('message', listener);
+}
+
+/**
+ * Subscribe to keydown events forwarded from the launcher search bar
+ * (`asyar:view:keydown`). Returns an unsubscribe function.
+ */
+export function onKey(cb: (event: ViewKeyEvent) => void): () => void {
+  const listener = (event: MessageEvent) => {
+    if (event.source && event.source !== window.parent) return;
+    const data = event.data as { type?: unknown; payload?: Partial<ViewKeyEvent> } | null;
+    if (!data || data.type !== 'asyar:view:keydown') return;
+    const payload = data.payload;
+    if (payload && typeof payload.key === 'string') {
+      cb({
+        key: payload.key,
+        shiftKey: Boolean(payload.shiftKey),
+        ctrlKey: Boolean(payload.ctrlKey),
+        metaKey: Boolean(payload.metaKey),
+        altKey: Boolean(payload.altKey),
+      });
+    }
+  };
+  window.addEventListener('message', listener);
+  return () => window.removeEventListener('message', listener);
+}
+
 export * from './contracts';
