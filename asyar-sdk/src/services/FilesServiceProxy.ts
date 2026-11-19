@@ -39,6 +39,10 @@ export class FilesServiceProxy extends BaseServiceProxy implements IFilesService
     return this.broker.invoke<string>('files:read', { path, opts: opts ?? {} });
   }
 
+  async exists(path: string): Promise<boolean> {
+    return this.broker.invoke<boolean>('files:exists', { path });
+  }
+
   async readRange(path: string, opts?: FileReadRangeOptions): Promise<FileChunk> {
     return this.broker.invoke<FileChunk>('files:readRange', { path, opts: opts ?? {} });
   }

@@ -258,6 +258,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'files:status': [],
   'files:read': ['path', 'opts'],
   'files:readRange': ['path', 'opts'],
+  'files:exists': ['path'],
   'files:glob': ['pattern', 'opts'],
   'files:globEntries': ['pattern', 'opts'],
   'files:thumbnail': ['path', 'opts'],

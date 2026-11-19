@@ -109,6 +109,13 @@ export async function filesReadText(
   return invoke<string>('files_read_text', { extensionId, pathStr, maxBytes });
 }
 
+/** Extension-scoped existence check (`asyar:api:files:exists` →
+ * `files_exists`). Raw `invoke` so out-of-scope or denied paths reject
+ * rather than returning false. */
+export async function filesExists(extensionId: string | null, pathStr: string): Promise<boolean> {
+  return invoke<boolean>('files_exists', { extensionId, pathStr });
+}
+
 /** Extension-scoped filename enumeration (`asyar:api:files:glob` →
  * `files_glob`). Raw `invoke` for the same reason as `filesReadText`: a
  * scope denial must surface as an error, not as an empty result — an empty

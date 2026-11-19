@@ -47,4 +47,21 @@ describe('files IPC contracts', () => {
     expect(METHOD_PARAM_SCHEMAS['files:readRange']).toEqual(['path', 'opts']);
     expect(ALWAYS_INJECTS_CALLER_ID.has('files')).toBe(true);
   });
+
+  it('exists has an explicit path schema and forwards to files_exists', async () => {
+    expect(METHOD_PARAM_SCHEMAS['files:exists']).toEqual(['path']);
+    const router = new ExtensionIpcRouter({ files: filesService }, vi.fn(), vi.fn(), vi.fn());
+    vi.mocked(invoke).mockResolvedValueOnce(false);
+    const exists = await (router as any).dispatchApiCall(
+      'asyar:api:files:exists',
+      { path: '/tmp/repo/.git/HEAD' },
+      'ext.a',
+      false,
+    );
+    expect(exists).toBe(false);
+    expect(invoke).toHaveBeenLastCalledWith('files_exists', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/repo/.git/HEAD',
+    });
+  });
 });
