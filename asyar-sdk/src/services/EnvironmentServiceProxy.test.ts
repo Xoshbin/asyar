@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EnvironmentServiceProxy } from './EnvironmentServiceProxy';
 import { messageBroker } from '../ipc/MessageBroker';
-import type { EnvironmentSnapshot } from '../types/EnvironmentType';
+import type { EnvironmentPaths, EnvironmentSnapshot } from '../types/EnvironmentType';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
@@ -48,5 +48,22 @@ describe('EnvironmentServiceProxy', () => {
     const call = mockInvoke.mock.calls.find((c) => c[0] === 'environment:getEnvironment');
     expect(call).toBeDefined();
     expect(result).toEqual(mockSnapshot);
+  });
+
+  it('getPaths invokes "environment:getPaths"', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    const mockPaths: EnvironmentPaths = {
+      home: '/Users/alice',
+      appData: '/Users/alice/Library/Application Support',
+      localAppData: '/Users/alice/Library/Application Support',
+      config: '/Users/alice/Library/Application Support',
+    };
+    mockInvoke.mockResolvedValue(mockPaths);
+
+    const result = await proxy.getPaths();
+
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'environment:getPaths');
+    expect(call).toBeDefined();
+    expect(result).toEqual(mockPaths);
   });
 });

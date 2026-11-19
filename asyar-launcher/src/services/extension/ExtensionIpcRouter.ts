@@ -242,6 +242,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
 
   // environment
   'environment:getEnvironment': [],
+  'environment:getPaths': [],
 
   // network
   'network:fetch': ['url', 'options'],

@@ -72,4 +72,43 @@ const env = await envService.getEnvironment();
 
 ## Permissions
 
-**None.** Host environment and locale metadata are public and permission-free.
+- **`environment.getEnvironment()` / `environment.getLocale()` / synchronous properties:** **None.** Host environment and locale metadata are public and permission-free.
+- **`environment.getPaths()`:** Requires **`files:read`** in `manifest.json` (with `permissionArgs["files:read"]`). OS user directory paths are gated so unprivileged extensions cannot fingerprint the user's OS username or filesystem layout.
+
+---
+
+## OS User Directory Paths (`getPaths`)
+
+Extensions with `files:read` can resolve cross-platform OS user directories without spawning shell scripts or reading environment variables:
+
+```typescript
+import { environment } from 'asyar-sdk/view'; // or 'asyar-sdk/worker'
+
+const paths = await environment.getPaths();
+console.log(paths.home);
+console.log(paths.appData);
+console.log(paths.localAppData);
+console.log(paths.config);
+```
+
+### `EnvironmentPaths` Interface
+
+```typescript
+export interface EnvironmentPaths {
+  readonly home: string;
+  readonly appData: string;
+  readonly localAppData: string;
+  readonly config: string;
+}
+```
+
+### Platform Mapping
+
+These are the OS user directories (not Asyar's own internal app data directory):
+
+| Field          | macOS                           | Windows                  | Linux                                |
+| -------------- | ------------------------------- | ------------------------ | ------------------------------------ |
+| `home`         | `/Users/<user>`                 | `C:\Users\<user>`        | `/home/<user>`                       |
+| `appData`      | `~/Library/Application Support` | `%APPDATA%` (Roaming)    | `$XDG_DATA_HOME` or `~/.local/share` |
+| `localAppData` | `~/Library/Application Support` | `%LOCALAPPDATA%` (Local) | `$XDG_DATA_HOME` or `~/.local/share` |
+| `config`       | `~/Library/Application Support` | `%APPDATA%` (Roaming)    | `$XDG_CONFIG_HOME` or `~/.config`    |

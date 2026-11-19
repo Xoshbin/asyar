@@ -1,5 +1,5 @@
 import { EnvironmentServiceProxy } from './services/EnvironmentServiceProxy';
-import type { EnvironmentSnapshot } from './types/EnvironmentType';
+import type { EnvironmentPaths, EnvironmentSnapshot } from './types/EnvironmentType';
 
 declare global {
   interface Window {
@@ -130,5 +130,14 @@ export const environment = {
   async getLocale(): Promise<string> {
     const env = await this.getEnvironment();
     return env.locale;
+  },
+
+  /**
+   * Asynchronously resolves cross-platform OS user directory paths.
+   *
+   * Requires the `files:read` manifest permission.
+   */
+  async getPaths(): Promise<EnvironmentPaths> {
+    return proxy.getPaths();
   },
 };
