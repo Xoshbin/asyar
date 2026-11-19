@@ -21,7 +21,10 @@ pub(crate) struct UpdateLocks {
 }
 
 impl UpdateLocks {
-    async fn lock(&self, id: &str) -> Result<tokio::sync::OwnedMutexGuard<()>, AppError> {
+    pub(crate) async fn lock(
+        &self,
+        id: &str,
+    ) -> Result<tokio::sync::OwnedMutexGuard<()>, AppError> {
         let lock = {
             let mut by_id = self.by_id.lock().map_err(|_| AppError::Lock)?;
             by_id.retain(|_, lock| lock.strong_count() > 0);
@@ -147,20 +150,31 @@ pub async fn check_for_updates(
 
     // Bind every offer to the inventory we actually sent. The server cannot
     // nominate another path or invent a current version to permit a downgrade.
-    for update in &parsed.updates {
-        let local = body
+    // Invalid or unrequested offers are ignored with a warning so one broken
+    // offer does not block updates for the user's other extensions.
+    let mut valid_updates = Vec::new();
+    for update in parsed.updates {
+        let Some(local) = body
             .extensions
             .iter()
             .find(|local| local.id == update.extension_id)
-            .ok_or_else(|| {
-                AppError::Validation(format!(
-                    "Update offered for unrequested extension '{}'",
-                    update.extension_id
-                ))
-            })?;
-        validate_update_offer(update, &local.version)?;
+        else {
+            warn!(
+                "Update offered for unrequested extension '{}' — ignoring",
+                update.extension_id
+            );
+            continue;
+        };
+        if let Err(e) = validate_update_offer(&update, &local.version) {
+            warn!(
+                "Invalid update offer for '{}': {} — ignoring",
+                update.extension_id, e
+            );
+            continue;
+        }
+        valid_updates.push(update);
     }
-    Ok(parsed.updates)
+    Ok(valid_updates)
 }
 
 fn validate_update_offer(
@@ -255,6 +269,51 @@ fn validate_update_package(
     Ok(manifest)
 }
 
+fn promote_update(
+    live_dir: &Path,
+    staging_dir: &Path,
+    backup_dir: &Path,
+    workspace: tempfile::TempDir,
+) -> Result<(), AppError> {
+    // Step 1: Move live → backup
+    if let Err(e) = fs::rename(live_dir, backup_dir) {
+        let _ = fs::remove_dir_all(staging_dir);
+        return Err(AppError::Platform(format!(
+            "Failed to move current extension to backup: {}",
+            e
+        )));
+    }
+
+    // Step 2: Move staging → live
+    if let Err(e) = fs::rename(staging_dir, live_dir) {
+        // Rollback: restore backup → live
+        error!("Failed to promote staging dir, rolling back: {}", e);
+        if let Err(rb_err) = fs::rename(backup_dir, live_dir) {
+            let recovery_dir = workspace.keep();
+            error!(
+                "Rollback failed: {}. Preserved extension backup at {:?}",
+                rb_err, recovery_dir
+            );
+            return Err(AppError::Platform(format!(
+                "Failed to promote update: {e}; rollback failed: {rb_err}. Backup preserved at {}",
+                recovery_dir.display()
+            )));
+        }
+        let _ = fs::remove_dir_all(staging_dir);
+        return Err(AppError::Platform(format!(
+            "Failed to promote updated extension: {}",
+            e
+        )));
+    }
+
+    // Step 3: Clean up backup (non-critical)
+    if let Err(e) = fs::remove_dir_all(backup_dir) {
+        warn!("Failed to remove backup directory: {}", e);
+    }
+
+    Ok(())
+}
+
 /// Update a single extension atomically.
 ///
 /// Downloads the new version, verifies checksum, extracts to a staging directory,
@@ -322,44 +381,7 @@ pub async fn update_extension(
         },
     );
 
-    // Step 1: Move live → backup
-    if let Err(e) = fs::rename(&live_dir, &backup_dir) {
-        let _ = fs::remove_dir_all(&staging_dir);
-        return Err(AppError::Platform(format!(
-            "Failed to move current extension to backup: {}",
-            e
-        )));
-    }
-
-    // Step 2: Move staging → live
-    if let Err(e) = fs::rename(&staging_dir, &live_dir) {
-        // Rollback: restore backup → live
-        error!("Failed to promote staging dir, rolling back: {}", e);
-        if let Err(rb_err) = fs::rename(&backup_dir, &live_dir) {
-            let recovery_dir = workspace.keep();
-            error!(
-                "Rollback failed: {}. Preserved extension backup at {:?}",
-                rb_err, recovery_dir
-            );
-            return Err(AppError::Platform(format!(
-                "Failed to promote update: {e}; rollback failed: {rb_err}. Backup preserved at {}",
-                recovery_dir.display()
-            )));
-        }
-        let _ = fs::remove_dir_all(&staging_dir);
-        return Err(AppError::Platform(format!(
-            "Failed to promote updated extension: {}",
-            e
-        )));
-    }
-
-    // Step 3: Clean up backup (non-critical)
-    if let Err(e) = fs::remove_dir_all(&backup_dir) {
-        warn!(
-            "Failed to remove backup directory for '{}': {}",
-            update.extension_id, e
-        );
-    }
+    promote_update(&live_dir, &staging_dir, &backup_dir, workspace)?;
 
     // --- Done ---
     emit_progress(
@@ -455,17 +477,42 @@ mod tests {
         for id in ["../outside", "C:/outside", "org.example.not-installed"] {
             let mut offer = offered_update();
             offer.extension_id = id.into();
+            let result = check_offer(offer).await.unwrap();
             assert!(
-                matches!(check_offer(offer).await, Err(AppError::Validation(_))),
-                "{id}"
+                result.is_empty(),
+                "expected {id} to be ignored, got {result:?}"
             );
         }
         for (current, latest) in [("0.1.0", "0.2.0"), ("1.0.0", "invalid"), ("1.0.0", "0.9.0")] {
             let mut offer = offered_update();
             offer.current_version = current.into();
             offer.latest_version = latest.into();
+            let result = check_offer(offer).await.unwrap();
             assert!(
-                matches!(check_offer(offer).await, Err(AppError::Validation(_))),
+                result.is_empty(),
+                "expected {current} -> {latest} to be ignored, got {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_update_offer_rejects_invalid_inputs() {
+        for id in ["", ".", "..", "../outside", "id.", "id/slash"] {
+            let mut offer = offered_update();
+            offer.extension_id = id.into();
+            assert!(validate_update_offer(&offer, "1.0.0").is_err(), "{id}");
+        }
+        for (current, latest) in [
+            ("0.1.0", "0.2.0"),
+            ("1.0.0", "invalid"),
+            ("1.0.0", "0.9.0"),
+            ("1.0.0", "1.0.0"),
+        ] {
+            let mut offer = offered_update();
+            offer.current_version = current.into();
+            offer.latest_version = latest.into();
+            assert!(
+                validate_update_offer(&offer, "1.0.0").is_err(),
                 "{current} -> {latest}"
             );
         }
@@ -652,69 +699,47 @@ mod tests {
     }
 
     #[test]
-    fn atomic_swap_success() {
+    fn promote_update_promotes_staging_and_cleans_workspace() {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
-
-        // Create "live" directory (old version)
         create_fake_extension(base, "test-ext", "1.0.0");
-
-        // Create "staging" directory (new version)
-        let staging = base.join("test-ext_updating");
-        fs::create_dir_all(&staging).unwrap();
-        let new_manifest = serde_json::json!({
-            "id": "test-ext",
-            "name": "Test test-ext",
-            "version": "2.0.0",
-            "description": "updated",
-            "commands": []
-        });
-        fs::write(staging.join("manifest.json"), new_manifest.to_string()).unwrap();
-        fs::write(staging.join("index.js"), "console.log('v2')").unwrap();
-
         let live = base.join("test-ext");
-        let backup = base.join("test-ext_old");
 
-        // Execute the atomic swap
-        fs::rename(&live, &backup).unwrap();
-        fs::rename(&staging, &live).unwrap();
-        fs::remove_dir_all(&backup).unwrap();
+        let workspace = tempfile::Builder::new()
+            .prefix(".update-")
+            .tempdir_in(base)
+            .unwrap();
+        let staging = workspace.path().join("package");
+        create_fake_extension(workspace.path(), "package", "2.0.0");
+        let backup = workspace.path().join("backup");
 
-        // Verify: live has the new version
+        assert!(promote_update(&live, &staging, &backup, workspace).is_ok());
+
         let content = fs::read_to_string(live.join("manifest.json")).unwrap();
         assert!(content.contains("2.0.0"));
-        assert!(content.contains("updated"));
-
-        // Verify: backup is gone
-        assert!(!backup.exists());
-
-        // Verify: staging is gone
-        assert!(!staging.exists());
     }
 
     #[test]
-    fn cleanup_stale_staging_dirs() {
+    fn promote_update_rolls_back_when_promotion_fails() {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
+        create_fake_extension(base, "test-ext", "1.0.0");
+        let live = base.join("test-ext");
 
-        // Create leftover dirs from a previous failed update
-        let stale_staging = base.join("test-ext_updating");
-        let stale_backup = base.join("test-ext_old");
-        fs::create_dir_all(&stale_staging).unwrap();
-        fs::write(stale_staging.join("leftover.txt"), "stale").unwrap();
-        fs::create_dir_all(&stale_backup).unwrap();
-        fs::write(stale_backup.join("leftover.txt"), "stale").unwrap();
+        let workspace = tempfile::Builder::new()
+            .prefix(".update-")
+            .tempdir_in(base)
+            .unwrap();
+        // staging does not exist, so Step 2 (staging -> live) will fail
+        let staging = workspace.path().join("missing-staging");
+        let backup = workspace.path().join("backup");
 
-        // Simulate cleanup (same as update_extension does)
-        if stale_staging.exists() {
-            fs::remove_dir_all(&stale_staging).unwrap();
-        }
-        if stale_backup.exists() {
-            fs::remove_dir_all(&stale_backup).unwrap();
-        }
+        let result = promote_update(&live, &staging, &backup, workspace);
+        assert!(result.is_err());
 
-        assert!(!stale_staging.exists());
-        assert!(!stale_backup.exists());
+        // Live must have been restored to 1.0.0
+        let content = fs::read_to_string(live.join("manifest.json")).unwrap();
+        assert!(content.contains("1.0.0"));
     }
 
     #[test]
@@ -736,22 +761,6 @@ mod tests {
         assert_eq!(json["extensions"][0]["version"], "1.0.0");
         assert_eq!(json["extensions"][1]["id"], "com.test.b");
         assert_eq!(json["extensions"][1]["version"], "2.3.1");
-    }
-
-    #[test]
-    fn local_semver_post_filter() {
-        // latest > current → keep
-        let current = semver::Version::parse("1.0.0").unwrap();
-        let latest = semver::Version::parse("2.0.0").unwrap();
-        assert!(latest > current);
-
-        // latest == current → discard
-        let same = semver::Version::parse("1.0.0").unwrap();
-        assert!(same <= current);
-
-        // latest < current → discard
-        let older = semver::Version::parse("0.9.0").unwrap();
-        assert!(older <= current);
     }
 
     #[test]

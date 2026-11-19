@@ -7,7 +7,7 @@ use futures_util::StreamExt;
 use log::{info, warn};
 use std::fs;
 use std::path::Path;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tempfile::NamedTempFile;
 use tokio::fs::File as TokioFile;
 use tokio::io::{AsyncWriteExt, BufReader};
@@ -393,7 +393,7 @@ pub(crate) fn validate_file_path(path: &Path) -> Result<(), AppError> {
 pub(crate) async fn install_from_file(
     app_handle: &AppHandle,
     file_path: &str,
-    _registry: &crate::extensions::ExtensionRegistryState,
+    registry: &crate::extensions::ExtensionRegistryState,
 ) -> Result<(), AppError> {
     let path = Path::new(file_path);
     validate_file_path(path)?;
@@ -422,6 +422,8 @@ pub(crate) async fn install_from_file(
             }
         )));
     }
+
+    let _update_guard = registry.update_locks.lock(&manifest.id).await?;
 
     let extensions_dir = crate::extensions::get_app_data_dir(app_handle)?.join("extensions");
     fs::create_dir_all(&extensions_dir)?;
@@ -498,6 +500,8 @@ pub(crate) async fn install_from_url(
         ));
     }
     validate_extension_id(extension_id)?;
+    let registry = app_handle.state::<crate::extensions::ExtensionRegistryState>();
+    let _update_guard = registry.update_locks.lock(extension_id).await?;
 
     // Validate URL format
     validate_download_url(download_url)?;
