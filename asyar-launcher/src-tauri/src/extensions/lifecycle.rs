@@ -18,16 +18,7 @@ pub(crate) async fn uninstall(
     runtime_manager: &crate::runtimes::RuntimeManager,
 ) -> Result<(), AppError> {
     // Validate
-    if extension_id.trim().is_empty() {
-        return Err(AppError::Validation(
-            "Extension ID cannot be empty".to_string(),
-        ));
-    }
-    if extension_id.contains("..") {
-        return Err(AppError::Validation(
-            "Extension ID contains invalid characters".to_string(),
-        ));
-    }
+    crate::extensions::installer::validate_extension_id(extension_id)?;
 
     // Check not built-in; snapshot declared runtimes so this extension's
     // consumer registration can be released below, after the registry entry
@@ -45,7 +36,8 @@ pub(crate) async fn uninstall(
         }
     };
 
-    // Remove directory
+    // Remove directory under the update lock so concurrent operations do not race
+    let _update_guard = registry.update_locks.lock(extension_id).await?;
     let install_dir = get_app_data_dir(app_handle)?
         .join("extensions")
         .join(extension_id);
