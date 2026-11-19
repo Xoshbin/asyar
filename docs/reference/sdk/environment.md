@@ -6,10 +6,10 @@ The `environment` export provides synchronous metadata and asynchronous getters 
 
 ## Direct Import
 
-`environment` is exported directly from the SDK (`asyar-sdk/contracts`, `asyar-sdk/view`, `asyar-sdk/worker`, or `@asyar/sdk`):
+`environment` is exported directly from `asyar-sdk/view`, `asyar-sdk/worker`, and `asyar-sdk/contracts`:
 
 ```typescript
-import { environment } from '@asyar/sdk';
+import { environment } from 'asyar-sdk/view'; // or 'asyar-sdk/worker'
 
 // Synchronous properties (with smart runtime fallbacks)
 console.log(environment.locale); // "de-DE", "en-US", "zh-Hans-CN"
@@ -30,7 +30,7 @@ console.log(environment.extensionId); // "org.asyar.sample"
 To fetch a fresh, live snapshot from the Rust host:
 
 ```typescript
-import { environment } from '@asyar/sdk';
+import { environment } from 'asyar-sdk/view'; // or 'asyar-sdk/worker'
 
 const snapshot = await environment.getEnvironment();
 console.log(snapshot);
@@ -57,10 +57,10 @@ export interface EnvironmentSnapshot {
 
 ## Service Proxy
 
-`EnvironmentServiceProxy` is also available via `ExtensionContext`:
+`EnvironmentServiceProxy` is also available via `ExtensionContext` in both `asyar-sdk/worker` and `asyar-sdk/view`:
 
 ```typescript
-import { ExtensionContext } from 'asyar-sdk/view';
+import { ExtensionContext } from 'asyar-sdk/view'; // or 'asyar-sdk/worker'
 import type { IEnvironmentService } from 'asyar-sdk/contracts';
 
 const context = new ExtensionContext();

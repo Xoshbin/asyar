@@ -1,39 +1,44 @@
 # SDK Reference
 
-A Tier 2 extension runs in **two iframes** — a worker (`worker.html`) and
-a view (`view.html`). Each iframe imports from a different SDK entry and
-owns its own `ExtensionContext`. Services are accessed through
+A Tier 2 extension runs in **two execution contexts** — a headless Web Worker
+(`background.main` / `src/worker.ts`; `defineExtensionConfig` checks `worker.html` before `src/worker.ts` and selects it when both exist)
+and an on-demand view iframe (`src/view.ts` or `view.html`;
+`defineExtensionConfig` generates `view.html` automatically when building from
+`src/view.ts`). Each context imports from a different SDK entry and owns its
+own `ExtensionContext`. Services are accessed through
 `ExtensionContext.getService<T>(serviceName)`.
 
 ```typescript
-// Worker iframe — src/main.worker.ts
+// Web Worker — src/worker.ts
 import { ExtensionContext } from 'asyar-sdk/worker';
 import type { IFeedbackService } from 'asyar-sdk/contracts';
+import manifest from '../manifest.json';
 
 const context = new ExtensionContext();
-context.setExtensionId(extensionId);
+context.setExtensionId(manifest.id);
 
 const feedback = context.getService<IFeedbackService>('feedback');
 ```
 
 ```typescript
-// View iframe — src/main.view.ts
+// View iframe — src/view.ts
 import { ExtensionContext } from 'asyar-sdk/view';
 import type { IFeedbackService } from 'asyar-sdk/contracts';
+import manifest from '../manifest.json';
 
 const context = new ExtensionContext();
-context.setExtensionId(extensionId);
+context.setExtensionId(manifest.id);
 
 const feedback = context.getService<IFeedbackService>('feedback');
 ```
 
-The role assertion (`window.__ASYAR_ROLE__`) is checked at module load —
-importing `asyar-sdk/view` from a worker bundle (or vice-versa) fails
-fast with a clear error.
+The role assertion (`self.__ASYAR_ROLE__` / `window.__ASYAR_ROLE__`) is checked
+at module load — importing `asyar-sdk/view` from a worker bundle (or
+vice-versa) fails fast with a clear error.
 
-> ⚠️ **Create exactly one `ExtensionContext` per iframe.** The constructor attaches `focusin`/`focusout` listeners for input-focus tracking. Creating a second context (e.g. inside a Svelte component's `onMount`) attaches duplicate listeners, causes double IPC calls, and can break the ⌘K shortcut detection. Worker and view each get their own — that's expected — but each role should only ever instantiate one.
+> ⚠️ **Create exactly one `ExtensionContext` per context.** The view constructor attaches `focusin`/`focusout` listeners for input-focus tracking. Creating a second context (e.g. inside a Svelte component's `onMount`) attaches duplicate listeners, causes double IPC calls, and can break the ⌘K shortcut detection. Worker and view each get their own — that's expected — but each role should only ever instantiate one.
 
-> ⚠️ **Never call `getService()` inside Svelte components.** Resolve services in `main.view.ts` and pass them as `$props()` to your components. This is the canonical pattern used by all scaffolded templates.
+> ⚠️ **Never call `getService()` inside Svelte components.** Resolve services in `src/view.ts` and pass them as `$props()` to your components. This is the canonical pattern used by all scaffolded templates.
 
 ---
 
@@ -44,48 +49,48 @@ means the proxy is in both the worker and view bags; `view` means it's
 view-only (DOM-bound, user-interaction-driven). Each linked service page
 expands the placement guidance.
 
-| Service Name               | Interface                   | Runs in                        | Permission                                                             | Primary Use                                                                                                                            |
-| -------------------------- | --------------------------- | ------------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `LogService`               | `ILogService`               | both                           | None                                                                   | Structured debug/info/warn/error logging                                                                                               |
-| `ClipboardHistoryService`  | `IClipboardHistoryService`  | view                           | `clipboard:read/write` (stripHtml/stripRtf: none)                      | Full clipboard access and history                                                                                                      |
-| `NetworkService`           | `INetworkService`           | both (device picker: view)     | `network`, `network:lan`                                               | Outbound HTTP, WebSocket streaming, and in-flow LAN device discovery                                                                   |
-| `SettingsService`          | `ISettingsService`          | view                           | None                                                                   | Persistent key-value storage (legacy — prefer `StorageService`)                                                                        |
-| `StatusBarService`         | `IStatusBarService`         | both                           | None                                                                   | Tray menu live items                                                                                                                   |
-| `CommandService`           | `ICommandService`           | both                           | None                                                                   | Runtime command registration                                                                                                           |
-| `ActionService`            | `IActionService`            | both                           | None                                                                   | ⌘K Action Drawer                                                                                                                       |
-| `ExtensionManager`         | `IExtensionManager`         | view                           | None                                                                   | Navigation, panel control                                                                                                              |
-| `EntitlementService`       | `IEntitlementService`       | view                           | `entitlements:read`                                                    | Subscription feature gating                                                                                                            |
-| `StorageService`           | `IStorageService`           | both                           | `storage:read/write`                                                   | Scoped key-value persistence                                                                                                           |
-| `NotesService`             | `INotesService`             | both                           | `notes:read/write`                                                     | Search, read, create, and append to the user's Notes — never overwrite or delete an existing note                                      |
-| `SelectionService`         | `ISelectionService`         | view                           | `selection:read`                                                       | Read selected text / selected file-manager items from the frontmost app                                                                |
-| `FeedbackService`          | `IFeedbackService`          | view                           | None                                                                   | Toast, HUD, and confirm dialog primitives                                                                                              |
-| `ToolsService`             | `IToolsService`             | worker                         | `tools:register`                                                       | Register tools your extension exports to the agent runtime                                                                             |
-| `SnippetsService`          | `ISnippetsService`          | worker                         | `snippets:contribute`                                                  | Contribute `:shortcode:` → expansion pairs to the global keystroke matcher (system-wide replacement)                                   |
-| `OAuthService`             | `IOAuthService`             | both                           | `oauth:use`                                                            | OAuth 2.0 PKCE flow — authorize with third-party providers, cache & revoke tokens                                                      |
-| `ShellService`             | `IShellService`             | both                           | `shell:spawn`                                                          | Spawn OS processes and stream stdout/stderr — wraps CLI tools like ffmpeg, git, docker                                                 |
-| `InteropService`           | `IInteropService`           | view                           | `extension:invoke`                                                     | Invoke a command in another installed extension                                                                                        |
-| `CacheService`             | `ICacheService`             | both                           | `cache:read/write`                                                     | General-purpose persistent cache with TTL support                                                                                      |
-| `SearchService`            | `ISearchService`            | both                           | None                                                                   | Rank a list against a query using the launcher's tiered fuzzy ranker                                                                   |
-| `ApplicationService`       | `IApplicationService`       | both (subscriptions: worker)   | `application:read`, `app:frontmost-watch`                              | Retrieve metadata (title, name, id) about the currently focused app                                                                    |
-| `WindowManagementService`  | `IWindowManagementService`  | view                           | `window:manage`                                                        | Read and set the bounds / fullscreen state of the frontmost OS window                                                                  |
-| `TimerService`             | `ITimerService`             | both                           | `timers:schedule`, `timers:cancel`, `timers:list`                      | Persistent one-shot timers that survive app quit (Pomodoro, reminders)                                                                 |
-| `PowerService`             | `IPowerService`             | both                           | `power:inhibit`                                                        | OS-level sleep inhibitors                                                                                                              |
-| `MediaService`             | `IMediaService`             | both                           | `media:control`                                                        | Now-playing info and transport control (Music, Spotify)                                                                                |
-| `CalendarService`          | `ICalendarService`          | both                           | `calendar:read`, `calendar:write`, `reminders:read`, `reminders:write` | Read and create calendar events and reminders (macOS EventKit)                                                                         |
-| `ShortcutsService`         | `IShortcutsService`         | both                           | `shortcuts:read`, `shortcuts:run`                                      | List and run Apple Shortcuts without `shell:spawn` (macOS)                                                                             |
-| `ProcessService`           | `IProcessService`           | both                           | `process:read`, `process:kill`                                         | List running processes grouped by app (CPU/memory) and terminate them; OS-critical processes are guard-railed                          |
-| `SystemEventsService`      | `ISystemEventsService`      | both (subscriptions: worker)   | `systemEvents:read`                                                    | OS state-change push events (sleep, wake, lid, battery)                                                                                |
-| `FileSystemWatcherService` | `IFileSystemWatcherService` | view (pending worker redesign) | `fs:watch` (+ `permissionArgs.fs:watch`)                               | Watch declared directories for changes (Apple Shortcuts, SSH config, dotfiles). Roots-up coalesced `{ type: 'change', paths }` events. |
-| `RunService`               | `IRunService`               | worker                         | `runs:track`                                                           | Track long-running work in the launcher's runs UI and compact HUD badge                                                                |
-| `FilesService`             | `IFilesService`             | both                           | `files:search`                                                         | Search the same bounded, cached local file index that backs the host's "Search Files" view                                             |
-| `ScreenService`            | `IScreenService`            | both                           | `screen:pick-color`, `screen:capture`                                  | Sample screen pixel colors with native eyedropper and extract screen text with on-device OCR                                           |
-| `CalculatorService`        | `ICalculatorService`        | both                           | `calculator:evaluate`                                                  | Evaluate math expressions, unit conversions, and currency conversions via Asyar's calculation engine                                   |
-| `BrowserService`           | `IBrowserService`           | both                           | `browser:*` (per method)                                               | Read bookmarks / history / open tabs and drive page content in paired browsers — requires the Asyar browser companion                  |
-| `OpenerService`            | `IOpenerService`            | both                           | `shell:open-url`, `shell:open-path`, `fs:read`                         | Open URLs, local paths in external applications, or reveal files/folders in the system file manager                                    |
-| `OnboardingService`        | `IOnboardingService`        | both                           | None (implicit)                                                        | Signal first-run onboarding completion and trigger automatic re-dispatch of pending commands                                           |
-| `AiService`                | `IAiService`                | both                           | `ai` (SPIs: `ai:web-search`, `ai:provider`)                            | Prompt the host's configured AI model, contribute web search engines, or contribute custom AI inference providers                      |
-| `McpService`               | `IMcpService`               | both                           | `mcp`                                                                  | Discover configured MCP servers and invoke external tools                                                                              |
-| `EnvironmentService`       | `IEnvironmentService`       | both                           | None                                                                   | Host OS runtime, platform, theme, and locale metadata                                                                                  |
+| Service Name               | Interface                   | Runs in                      | Permission                                                             | Primary Use                                                                                                                            |
+| -------------------------- | --------------------------- | ---------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `LogService`               | `ILogService`               | both                         | None                                                                   | Structured debug/info/warn/error logging                                                                                               |
+| `ClipboardHistoryService`  | `IClipboardHistoryService`  | view                         | `clipboard:read/write` (stripHtml/stripRtf: none)                      | Full clipboard access and history                                                                                                      |
+| `NetworkService`           | `INetworkService`           | both (device picker: view)   | `network`, `network:lan`                                               | Outbound HTTP, WebSocket streaming, and in-flow LAN device discovery                                                                   |
+| `SettingsService`          | `ISettingsService`          | view                         | None                                                                   | Persistent key-value storage (legacy — prefer `StorageService`)                                                                        |
+| `StatusBarService`         | `IStatusBarService`         | both                         | None                                                                   | Tray menu live items                                                                                                                   |
+| `CommandService`           | `ICommandService`           | both                         | None                                                                   | Runtime command registration                                                                                                           |
+| `ActionService`            | `IActionService`            | both                         | None                                                                   | ⌘K Action Drawer                                                                                                                       |
+| `ExtensionManager`         | `IExtensionManager`         | view                         | None                                                                   | Navigation, panel control                                                                                                              |
+| `EntitlementService`       | `IEntitlementService`       | view                         | `entitlements:read`                                                    | Subscription feature gating                                                                                                            |
+| `StorageService`           | `IStorageService`           | both                         | `storage:read/write`                                                   | Scoped key-value persistence                                                                                                           |
+| `NotesService`             | `INotesService`             | both                         | `notes:read/write`                                                     | Search, read, create, and append to the user's Notes — never overwrite or delete an existing note                                      |
+| `SelectionService`         | `ISelectionService`         | view                         | `selection:read`                                                       | Read selected text / selected file-manager items from the frontmost app                                                                |
+| `FeedbackService`          | `IFeedbackService`          | both                         | None                                                                   | Toast, HUD, and confirm dialog primitives                                                                                              |
+| `ToolsService`             | `IToolsService`             | worker                       | `tools:register`                                                       | Register tools your extension exports to the agent runtime                                                                             |
+| `SnippetsService`          | `ISnippetsService`          | worker                       | `snippets:contribute`                                                  | Contribute `:shortcode:` → expansion pairs to the global keystroke matcher (system-wide replacement)                                   |
+| `OAuthService`             | `IOAuthService`             | both                         | `oauth:use`                                                            | OAuth 2.0 PKCE flow — authorize with third-party providers, cache & revoke tokens                                                      |
+| `ShellService`             | `IShellService`             | both                         | `shell:spawn`                                                          | Spawn OS processes and stream stdout/stderr — wraps CLI tools like ffmpeg, git, docker                                                 |
+| `InteropService`           | `IInteropService`           | view                         | `extension:invoke`                                                     | Invoke a command in another installed extension                                                                                        |
+| `CacheService`             | `ICacheService`             | both                         | `cache:read/write`                                                     | General-purpose persistent cache with TTL support                                                                                      |
+| `SearchService`            | `ISearchService`            | both                         | None                                                                   | Rank a list against a query using the launcher's tiered fuzzy ranker                                                                   |
+| `ApplicationService`       | `IApplicationService`       | both (subscriptions: worker) | `application:read`, `app:frontmost-watch`                              | Retrieve metadata (title, name, id) about the currently focused app                                                                    |
+| `WindowManagementService`  | `IWindowManagementService`  | view                         | `window:manage`                                                        | Read and set the bounds / fullscreen state of the frontmost OS window                                                                  |
+| `TimerService`             | `ITimerService`             | both                         | `timers:schedule`, `timers:cancel`, `timers:list`                      | Persistent one-shot timers that survive app quit (Pomodoro, reminders)                                                                 |
+| `PowerService`             | `IPowerService`             | both                         | `power:inhibit`                                                        | OS-level sleep inhibitors                                                                                                              |
+| `MediaService`             | `IMediaService`             | both                         | `media:control`                                                        | Now-playing info and transport control (Music, Spotify)                                                                                |
+| `CalendarService`          | `ICalendarService`          | both                         | `calendar:read`, `calendar:write`, `reminders:read`, `reminders:write` | Read and create calendar events and reminders (macOS EventKit)                                                                         |
+| `ShortcutsService`         | `IShortcutsService`         | both                         | `shortcuts:read`, `shortcuts:run`                                      | List and run Apple Shortcuts without `shell:spawn` (macOS)                                                                             |
+| `ProcessService`           | `IProcessService`           | both                         | `process:read`, `process:kill`                                         | List running processes grouped by app (CPU/memory) and terminate them; OS-critical processes are guard-railed                          |
+| `SystemEventsService`      | `ISystemEventsService`      | both (subscriptions: worker) | `systemEvents:read`                                                    | OS state-change push events (sleep, wake, lid, battery)                                                                                |
+| `FileSystemWatcherService` | `IFileSystemWatcherService` | worker                       | `fs:watch` (+ `permissionArgs.fs:watch`)                               | Watch declared directories for changes (Apple Shortcuts, SSH config, dotfiles). Roots-up coalesced `{ type: 'change', paths }` events. |
+| `RunService`               | `IRunService`               | worker                       | `runs:track`                                                           | Track long-running work in the launcher's runs UI and compact HUD badge                                                                |
+| `FilesService`             | `IFilesService`             | both                         | `files:search`, `files:read`                                           | Search the local file index, check existence (`exists`), read scoped files, and generate thumbnails                                    |
+| `ScreenService`            | `IScreenService`            | both                         | `screen:pick-color`, `screen:capture`                                  | Sample screen pixel colors with native eyedropper and extract screen text with on-device OCR                                           |
+| `CalculatorService`        | `ICalculatorService`        | both                         | `calculator:evaluate`                                                  | Evaluate math expressions, unit conversions, and currency conversions via Asyar's calculation engine                                   |
+| `BrowserService`           | `IBrowserService`           | both                         | `browser:*` (per method)                                               | Read bookmarks / history / open tabs and drive page content in paired browsers — requires the Asyar browser companion                  |
+| `OpenerService`            | `IOpenerService`            | both                         | `shell:open-url`, `shell:open-path`, `fs:read`                         | Open URLs, local paths in external applications, or reveal files/folders in the system file manager                                    |
+| `OnboardingService`        | `IOnboardingService`        | both                         | None (implicit)                                                        | Signal first-run onboarding completion and trigger automatic re-dispatch of pending commands                                           |
+| `AiService`                | `IAiService`                | both                         | `ai` (SPIs: `ai:web-search`, `ai:provider`)                            | Prompt the host's configured AI model, contribute web search engines, or contribute custom AI inference providers                      |
+| `McpService`               | `IMcpService`               | both                         | `mcp`                                                                  | Discover configured MCP servers and invoke external tools                                                                              |
+| `EnvironmentService`       | `IEnvironmentService`       | both                         | None                                                                   | Host OS runtime, platform, theme, and locale metadata                                                                                  |
 
 **Utilities & Metadata (direct import, no `getService()`):**
 

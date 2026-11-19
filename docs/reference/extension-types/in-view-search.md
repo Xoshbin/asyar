@@ -6,10 +6,16 @@ order: 5
 
 When your extension's panel is open and `searchable: true`, the Asyar search bar becomes your extension's input field. Two messages are dispatched:
 
-| Message             | When fired         | Payload             |
-| ------------------- | ------------------ | ------------------- |
-| `asyar:view:search` | On every keystroke | `{ query: string }` |
-| `asyar:view:submit` | On Enter key       | `{ query: string }` |
+| Message              | When fired                                                                                | Payload                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `asyar:view:search`  | On every keystroke                                                                        | `{ query: string }`                                                    |
+| `asyar:view:keydown` | On forwarded navigation/control keys                                                      | `{ key: string, shiftKey, ctrlKey, metaKey, altKey }` (`ViewKeyEvent`) |
+| `asyar:view:submit`  | On Enter when not intercepted, the view is searchable, and the trimmed query is non-empty | `{ query: string }`                                                    |
+
+Otherwise, Enter passes through without submitting. When the resolved extension
+instance defines `onViewSubmit`, `viewManager.handleViewSubmit` invokes that
+handler and the iframe does not receive `asyar:view:submit`. Submissions not
+handled by `onViewSubmit` are forwarded to the iframe as `asyar:view:submit`.
 
 **Typed SDK helpers (`asyar-sdk/view`):**
 
