@@ -8,7 +8,7 @@
   "description": "Extract and copy text from any region of your screen",
   "type": "extension",
   "searchable": true,
-  "icon": "assets/icon.png",
+  "icon": "icon:camera",
   "permissions": ["clipboard:write"],
   "commands": [
     {
@@ -16,6 +16,7 @@
       "name": "Capture Text from Screen",
       "description": "Select a screen area to recognize and copy text",
       "trigger": "ocr screen capture text recognize copy snip",
+      "icon": "icon:camera",
       "mode": "background"
     }
   ]

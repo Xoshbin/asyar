@@ -443,7 +443,7 @@
 
   /* Keeps titles aligned when only some actions in a section have an icon. */
   .icon-spacer {
-    width: 28px; /* design-ok: the LauncherListRow icon box */
+    width: 22px; /* design-ok: the LauncherListRow icon box */
     flex-shrink: 0;
   }
 

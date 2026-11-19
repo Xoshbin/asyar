@@ -8,7 +8,7 @@
   "description": "Search files across your home folder",
   "type": "extension",
   "searchable": true,
-  "icon": "assets/icon.png",
+  "icon": "icon:folder-search",
   "preferences": [
     {
       "name": "customApp",
@@ -23,6 +23,7 @@
       "name": "Search Files",
       "description": "Search files by name",
       "trigger": "files",
+      "icon": "icon:folder-search",
       "mode": "view",
       "component": "DefaultView",
       "searchBarAccessory": {

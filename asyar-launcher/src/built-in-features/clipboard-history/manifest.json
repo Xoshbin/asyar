@@ -8,13 +8,14 @@
     "disableable": true
   },
   "searchable": true,
-  "icon": "assets/icon.png",
+  "icon": "icon:clipboard",
   "commands": [
     {
       "id": "show-clipboard",
       "name": "Clipboard History",
       "description": "View and manage clipboard history",
       "trigger": "clip",
+      "icon": "icon:clipboard",
       "mode": "view",
       "component": "DefaultView",
       "searchBarAccessory": {

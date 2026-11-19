@@ -155,50 +155,29 @@ fn handle_extension_request<R: Runtime>(
 
     // Priority 1: Fallback for development (fresh build output) — debug builds only
     #[cfg(debug_assertions)]
-    if final_path.is_none() {
-        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let candidate_dirs = [
-            manifest_dir
-                .parent()
-                .map(|p| p.join("src/built-in-features").join(extension_id)),
-            Some(manifest_dir.join("built-in-features").join(extension_id)),
-            std::env::current_dir()
-                .ok()
-                .map(|cwd| cwd.join("../src/built-in-features").join(extension_id)),
-            std::env::current_dir()
-                .ok()
-                .map(|cwd| cwd.join("src/built-in-features").join(extension_id)),
-            std::env::current_dir()
-                .ok()
-                .map(|cwd| cwd.join("built-in-features").join(extension_id)),
-        ];
+    {
+        let dev_base = std::env::current_dir()
+            .unwrap_or_default()
+            .join("src/built-in-features")
+            .join(extension_id)
+            .join("dist");
 
-        for dir in candidate_dirs.into_iter().flatten() {
-            let mut dev_path = dir.join("dist").join(file_path);
-            if !dev_path.exists() {
-                let direct = dir.join(file_path);
-                if direct.exists() && direct.is_file() {
-                    dev_path = direct;
-                }
-            }
+        let mut dev_path = dev_base.join(file_path);
 
-            // If index.css is requested but doesn't exist, try any .css file in the dist dir
-            let dev_base = dir.join("dist");
-            if file_path == "index.css" && !dev_path.exists() {
-                if let Ok(entries) = std::fs::read_dir(&dev_base) {
-                    for entry in entries.flatten() {
-                        if entry.path().extension().and_then(|s| s.to_str()) == Some("css") {
-                            dev_path = entry.path();
-                            break;
-                        }
+        // If index.css is requested but doesn't exist, try any .css file in the dist dir
+        if file_path == "index.css" && !dev_path.exists() {
+            if let Ok(entries) = std::fs::read_dir(&dev_base) {
+                for entry in entries.flatten() {
+                    if entry.path().extension().and_then(|s| s.to_str()) == Some("css") {
+                        dev_path = entry.path();
+                        break;
                     }
                 }
             }
+        }
 
-            if dev_path.exists() && dev_path.is_file() {
-                final_path = Some(dev_path);
-                break;
-            }
+        if dev_path.exists() && dev_path.is_file() {
+            final_path = Some(dev_path);
         }
     }
 
@@ -500,27 +479,6 @@ fn is_path_allowed<R: Runtime>(path: &std::path::Path, app: &tauri::AppHandle<R>
         .map(|p| canonical_dir(p.join("extensions")))
     {
         if path.starts_with(&extensions_dir) {
-            return true;
-        }
-    }
-
-    // Allow 1b: Path is inside the app's resource directory (bundled built-in features)
-    if let Ok(resource_dir) = app.path().resource_dir().map(canonical_dir) {
-        if path.starts_with(&resource_dir) {
-            return true;
-        }
-    }
-
-    // Allow 1c: In debug builds, path is inside the launcher crate or workspace source tree
-    #[cfg(debug_assertions)]
-    {
-        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        if let Some(parent) = manifest_dir.parent() {
-            if path.starts_with(canonical_dir(parent.to_path_buf())) {
-                return true;
-            }
-        }
-        if path.starts_with(canonical_dir(manifest_dir.to_path_buf())) {
             return true;
         }
     }

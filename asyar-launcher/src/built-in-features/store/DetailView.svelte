@@ -651,7 +651,7 @@
                   <h3 class="text-section">{t('features.store.ui.docs')}</h3>
                 </div>
                 <div
-                  class="prose max-w-none text-body bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--separator)] overflow-x-auto markdown-body"
+                  class="prose max-w-none text-body bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--separator)] overflow-x-auto markdown-body md-content"
                   onclick={handleMarkdownCopyClick}
                 >
                   {@html readmeHtml}

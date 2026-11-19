@@ -1,7 +1,7 @@
 {
   "id": "system-settings",
   "name": "System Settings",
-  "icon": "assets/icon.png",
+  "icon": "icon:settings",
   "version": "1.0.0",
   "lifecycle": {
     "disableable": true

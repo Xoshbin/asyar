@@ -513,9 +513,9 @@
     letter-spacing: var(--tracking-tight);
   }
   .leading-slot {
-    /* design-ok: matches the 28px row icon so the query aligns with row titles */
-    width: 28px;
-    height: 28px;
+    /* design-ok: matches the 22px row icon so the query aligns with row titles */
+    width: 22px;
+    height: 22px;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
