@@ -13,14 +13,31 @@ use tokio::fs::File as TokioFile;
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
+const EXTENSION_DOWNLOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const EXTENSION_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 pub(crate) async fn download_to_temp_file(url: &str) -> Result<NamedTempFile, AppError> {
-    // Create a temporary file (still uses std::fs internally, but that's okay for creation)
+    download_to_temp_file_with_timeout(url, EXTENSION_CONNECT_TIMEOUT, EXTENSION_DOWNLOAD_TIMEOUT)
+        .await
+}
+
+pub(crate) async fn download_to_temp_file_with_timeout(
+    url: &str,
+    connect_timeout: std::time::Duration,
+    download_timeout: std::time::Duration,
+) -> Result<NamedTempFile, AppError> {
     let temp_file = NamedTempFile::new().map_err(AppError::Io)?;
-    // Open the temp file using Tokio for async writing
-    let mut dest = TokioFile::create(temp_file.path()).await?;
+    let std_file = temp_file.as_file().try_clone().map_err(AppError::Io)?;
+    let mut dest = TokioFile::from_std(std_file);
+
+    let client = reqwest::Client::builder()
+        .connect_timeout(connect_timeout)
+        .timeout(download_timeout)
+        .build()
+        .map_err(AppError::Network)?;
 
     // Make the HTTP request
-    let response = reqwest::get(url).await?;
+    let response = client.get(url).send().await?;
 
     if !response.status().is_success() {
         return Err(AppError::Network(response.error_for_status().unwrap_err()));
@@ -30,10 +47,7 @@ pub(crate) async fn download_to_temp_file(url: &str) -> Result<NamedTempFile, Ap
     let mut stream = response.bytes_stream();
     while let Some(chunk_result) = stream.next().await {
         let chunk = chunk_result?;
-        // Use async write_all
-        dest.write_all(&chunk)
-            .await // Use await for async write
-            .map_err(AppError::Io)?;
+        dest.write_all(&chunk).await.map_err(AppError::Io)?;
     }
 
     Ok(temp_file)
@@ -719,6 +733,28 @@ mod tests {
         ] {
             assert!(verify_checksum(file.path(), &invalid).is_err());
         }
+    }
+
+    #[tokio::test]
+    async fn download_to_temp_file_respects_timeout() {
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server
+            .mock("GET", "/slow.zip")
+            .with_chunked_body(|_| {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                Ok(())
+            })
+            .create_async()
+            .await;
+
+        let result = download_to_temp_file_with_timeout(
+            &format!("{}/slow.zip", server.url()),
+            std::time::Duration::from_millis(20),
+            std::time::Duration::from_millis(20),
+        )
+        .await;
+
+        assert!(matches!(result, Err(AppError::Network(_))));
     }
 
     #[test]
