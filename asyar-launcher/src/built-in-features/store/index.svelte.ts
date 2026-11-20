@@ -23,6 +23,7 @@ import { extensionStateManager } from '../../services/extension/extensionStateMa
 import { downloadDeclaredRuntimes } from '../../services/extension/runtimeDownloads';
 import { getRuntimeDownloadSizes } from '../../lib/ipc/runtimeCommands';
 import { fetchAllStoreItems } from './storeFetch';
+import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 
 const EXTENSION_ID = 'store';
 const ACTION_ID_INSTALL_DETAIL = 'app.asyar.store:install-detail'; // Action ID for detail view
@@ -461,7 +462,12 @@ class StoreExtension implements Extension {
     // without this check Enter/arrows here would fire instead of reaching it.
     // The ⌘K action panel is the same case: while it is mounted, arrows and
     // Enter belong to the panel, not to the extension list behind it.
-    if (document.querySelector('.action-popup') || isAnyModalOpen(document)) return;
+    if (
+      document.querySelector('.action-popup') ||
+      isAnyModalOpen(document) ||
+      searchBarAccessoryService.popoverOpen
+    )
+      return;
 
     // Detail view specific keyboard handlers
     if (this.currentView === `${EXTENSION_ID}/DetailView`) {

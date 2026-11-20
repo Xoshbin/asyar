@@ -117,6 +117,19 @@ export interface LifecycleSpec {
   background?: boolean;
 }
 
+export type ExtensionCategory =
+  | 'ai'
+  | 'developer-tools'
+  | 'design-tools'
+  | 'productivity'
+  | 'communication'
+  | 'finance'
+  | 'media'
+  | 'utilities'
+  | 'system'
+  | 'theme'
+  | 'other';
+
 export interface ExtensionManifest {
   name: string;
   id: string;
@@ -130,6 +143,10 @@ export interface ExtensionManifest {
    * view/background distinction.
    */
   type?: 'extension' | 'theme';
+  /**
+   * Store/catalog category slug (e.g. `"ai"`, `"developer-tools"`, `"utilities"`).
+   */
+  category?: ExtensionCategory;
   lifecycle?: LifecycleSpec;
   /**
    * Worker bundle declaration. Present iff the extension declares at least

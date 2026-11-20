@@ -36,6 +36,7 @@ mod lifecycle_tools_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".to_string()),
+            category: None,
             lifecycle: None,
             background: Some(BackgroundSpec {
                 main: "dist/worker.js".to_string(),

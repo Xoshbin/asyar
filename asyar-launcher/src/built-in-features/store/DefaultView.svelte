@@ -10,6 +10,16 @@
   } from '../../components';
   import { nameToGradient, storeIconSrc } from '../../lib/extensionAvatar';
   import { t } from '../../services/i18n';
+  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import {
+    buildStoreAccessoryOptions,
+    getCapabilityLabel,
+    getCategoryLabel,
+    getExtensionCapabilities,
+  } from './categories';
+
+  const ACCESSORY_EXTENSION_ID = 'store';
+  const ACCESSORY_COMMAND_ID = 'browse';
 
   let isLoading = $derived(store.isLoading);
   let error = $derived(store.loadError ? store.errorMessage : null);
@@ -20,6 +30,38 @@
   let selectedGradient = $derived(
     selectedItem ? nameToGradient(selectedItem.name) : { from: 'transparent', to: 'transparent' },
   );
+  let selectedCapabilities = $derived(selectedItem ? getExtensionCapabilities(selectedItem) : []);
+
+  let lastFilterKey = '';
+  $effect(() => {
+    const items = store.allItems;
+    const currentValue = store.categoryFilter;
+    const acc = buildStoreAccessoryOptions(items, currentValue, t);
+    const filterKey = `${acc.buttonTitle}|${JSON.stringify(acc.options)}`;
+    if (filterKey === lastFilterKey) return;
+    lastFilterKey = filterKey;
+    searchBarAccessoryService.syncViewState?.({
+      extensionId: ACCESSORY_EXTENSION_ID,
+      commandId: ACCESSORY_COMMAND_ID,
+      options: acc.options,
+      value: currentValue,
+      buttonTitle: acc.buttonTitle,
+    });
+  });
+
+  $effect(() => {
+    let ready = false;
+    const off = searchBarAccessoryService.subscribe(
+      ACCESSORY_EXTENSION_ID,
+      ACCESSORY_COMMAND_ID,
+      (value) => {
+        if (!ready) return;
+        store.setCategoryFilter(value);
+      },
+    );
+    ready = true;
+    return off;
+  });
 
   function selectItem(index: number) {
     store.setSelectedItemByIndex(index);
@@ -67,7 +109,7 @@
         {:else if item.status === 'INSTALLED'}
           <Badge text={t('common.installed')} variant="success" mono />
         {:else}
-          <Badge text={item.category} variant="default" mono />
+          <Badge text={getCategoryLabel(item.category, t)} variant="default" mono />
         {/if}
       {/snippet}
     </ListItem>
@@ -141,7 +183,14 @@
           },
           {
             label: t('features.store.ui.category'),
-            value: selectedItem.category,
+            value: getCategoryLabel(selectedItem.category, t),
+          },
+          {
+            label: t('features.store.ui.capabilities'),
+            value:
+              selectedCapabilities.length > 0
+                ? selectedCapabilities.map((c) => getCapabilityLabel(c, t)).join(', ')
+                : null,
           },
           {
             label: t('features.store.ui.version'),
