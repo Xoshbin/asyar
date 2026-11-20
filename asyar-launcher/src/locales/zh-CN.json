@@ -1453,7 +1453,34 @@
         "installs": "安装次数",
         "not_installed": "未安装",
         "commands": "命令",
-        "lazy_failed": "加载视图失败"
+        "lazy_failed": "加载视图失败",
+        "capabilities": "功能"
+      },
+      "filter": {
+        "button_title": "筛选",
+        "all": "全部扩展",
+        "installed": "已安装",
+        "categories_group": "分类",
+        "capabilities_group": "功能"
+      },
+      "categories": {
+        "ai": "AI 与搜索",
+        "developer_tools": "开发者工具",
+        "design_tools": "设计工具",
+        "productivity": "效率",
+        "communication": "沟通",
+        "finance": "金融",
+        "media": "媒体",
+        "utilities": "实用工具",
+        "system": "系统",
+        "theme": "主题",
+        "other": "其他"
+      },
+      "capabilities": {
+        "web_search": "网页搜索",
+        "ai_provider": "AI 提供商",
+        "web_reader": "网页阅读器",
+        "file_search": "文件搜索"
       }
     },
     "agents": {

@@ -502,7 +502,7 @@
               </span>
               <span class="w-1.5 h-1.5 rounded-full bg-[var(--separator)]"></span>
               <Badge text={getCategoryLabel(extensionDetail.category, t)} variant="default" mono />
-              {#each getExtensionCapabilities(extensionDetail) as cap (cap)}
+              {#each getExtensionCapabilities({ manifest }) as cap (cap)}
                 <Badge text={getCapabilityLabel(cap, t)} variant="default" mono />
               {/each}
               <span class="w-1.5 h-1.5 rounded-full bg-[var(--separator)]"></span>

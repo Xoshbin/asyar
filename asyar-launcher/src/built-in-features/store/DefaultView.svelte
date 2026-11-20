@@ -36,13 +36,10 @@
   $effect(() => {
     const items = store.allItems;
     const currentValue = store.categoryFilter;
-    const installedCount = items.filter(
-      (it) => it.status === 'INSTALLED' || it.status === 'UPDATE_AVAILABLE',
-    ).length;
-    const filterKey = `${currentValue}|${items.length}|${installedCount}`;
+    const acc = buildStoreAccessoryOptions(items, currentValue, t);
+    const filterKey = `${acc.buttonTitle}|${JSON.stringify(acc.options)}`;
     if (filterKey === lastFilterKey) return;
     lastFilterKey = filterKey;
-    const acc = buildStoreAccessoryOptions(items, currentValue, t);
     searchBarAccessoryService.syncViewState?.({
       extensionId: ACCESSORY_EXTENSION_ID,
       commandId: ACCESSORY_COMMAND_ID,
