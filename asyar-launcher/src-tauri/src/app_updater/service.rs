@@ -20,12 +20,40 @@ pub async fn check_and_maybe_download(
     // 1. Emit checking
     crate::event_bridge::bridge_emit(app, "asyar:app-update:checking", ());
 
-    // 2. Build updater with channel header
+    // 2. Build updater with channel and stateless daily-check headers
+    let today = crate::app_updater::daily_check::today_local_date();
+    let check_flags = crate::app_updater::daily_check::flags_for_today(app, &today);
+    let os_version = tauri_plugin_os::version().to_string();
+
     let channel_owned = channel.to_string();
-    let updater = app
+    let mut builder = app
         .updater_builder()
         .header(CHANNEL_HEADER, channel)
         .map_err(|e| e.to_string())?
+        .header(
+            crate::app_updater::daily_check::OS_VERSION_HEADER,
+            &os_version,
+        )
+        .map_err(|e| e.to_string())?;
+
+    if check_flags.first_check_today {
+        builder = builder
+            .header(
+                crate::app_updater::daily_check::FIRST_CHECK_TODAY_HEADER,
+                "1",
+            )
+            .map_err(|e| e.to_string())?;
+    }
+    if check_flags.first_install_check {
+        builder = builder
+            .header(
+                crate::app_updater::daily_check::FIRST_INSTALL_CHECK_HEADER,
+                "1",
+            )
+            .map_err(|e| e.to_string())?;
+    }
+
+    let updater = builder
         .version_comparator(move |current, release| {
             // Standard semver: update if remote is newer
             if release.version > current {
@@ -47,6 +75,12 @@ pub async fn check_and_maybe_download(
 
     // 3. Check for an update
     let update = updater.check().await.map_err(|e| e.to_string())?;
+
+    if check_flags.first_check_today {
+        if let Err(e) = crate::app_updater::daily_check::mark_checked_today(app, &today) {
+            error!("app_updater: failed to persist daily check date: {}", e);
+        }
+    }
 
     match update {
         None => {
