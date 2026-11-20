@@ -65,13 +65,31 @@ describe('RaycastImportState', () => {
     expect(state.passwordError).toBe(true);
   });
 
-  it('returns to pick when parsing fails outright', async () => {
+  it('returns to pick and records parseError when parsing fails outright', async () => {
     vi.mocked(raycastImportParse).mockRejectedValue(new Error('parse failed'));
 
     await state.chooseFile('/tmp/garbage.bin');
 
     expect(state.phase).toBe('pick');
     expect(state.bundle).toBeNull();
+    expect(state.parseError).toBe('parse failed');
+  });
+
+  it('clears parseError when choosing a new file or resetting', async () => {
+    vi.mocked(raycastImportParse).mockRejectedValueOnce(new Error('parse failed'));
+    await state.chooseFile('/tmp/garbage.bin');
+    expect(state.parseError).toBe('parse failed');
+
+    vi.mocked(raycastImportParse).mockResolvedValueOnce({ status: 'ok', bundle: BUNDLE });
+    await state.chooseFile('/tmp/export.rayconfig');
+    expect(state.parseError).toBeNull();
+
+    vi.mocked(raycastImportParse).mockRejectedValueOnce(new Error('parse failed again'));
+    await state.chooseFile('/tmp/garbage2.bin');
+    expect(state.parseError).toBe('parse failed again');
+
+    state.reset();
+    expect(state.parseError).toBeNull();
   });
 
   it('imports the selected categories and reports a summary', async () => {

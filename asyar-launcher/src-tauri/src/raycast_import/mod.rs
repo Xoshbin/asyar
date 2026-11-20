@@ -665,6 +665,17 @@ fn parse_classic(value: &serde_json::Value) -> Result<ImportBundle, AppError> {
 // ---------------------------------------------------------------------------
 
 fn parse_plain_json(items: &[serde_json::Value]) -> Result<ImportBundle, AppError> {
+    if items.is_empty() {
+        return Ok(ImportBundle {
+            source: SourceFormat::SnippetsJson,
+            snippets: Vec::new(),
+            portals: Vec::new(),
+            shortcuts: Vec::new(),
+            aliases: Vec::new(),
+            skipped: SkippedCounts::default(),
+        });
+    }
+
     let looks_like_snippets = items
         .iter()
         .all(|i| i.get("text").is_some() && i.get("name").is_some());
@@ -672,7 +683,7 @@ fn parse_plain_json(items: &[serde_json::Value]) -> Result<ImportBundle, AppErro
         .iter()
         .all(|i| i.get("link").is_some() && i.get("name").is_some());
 
-    if !items.is_empty() && looks_like_snippets {
+    if looks_like_snippets {
         let snippets = items
             .iter()
             .filter_map(|s| {
@@ -700,7 +711,7 @@ fn parse_plain_json(items: &[serde_json::Value]) -> Result<ImportBundle, AppErro
         });
     }
 
-    if !items.is_empty() && looks_like_quicklinks {
+    if looks_like_quicklinks {
         let portals = items
             .iter()
             .filter_map(|q| {
@@ -1127,6 +1138,16 @@ mod tests {
         assert_eq!(b.portals[0].url, "https://duckduckgo.com/?q={query}");
         assert_eq!(b.portals[1].url, "~/Downloads");
         assert!(b.snippets.is_empty());
+    }
+
+    #[test]
+    fn empty_plain_json_array_is_accepted_as_empty_bundle() {
+        let b = bundle(parse_export(b"[]", None).unwrap());
+        assert_eq!(b.source, SourceFormat::SnippetsJson);
+        assert!(b.snippets.is_empty());
+        assert!(b.portals.is_empty());
+        assert!(b.shortcuts.is_empty());
+        assert!(b.aliases.is_empty());
     }
 
     // ---- Errors ----
