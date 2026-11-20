@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../lib/rankItems', () => ({ rankItems: vi.fn() }));
 
 import { StoreViewStateClass, getInstallCount, type ApiExtension } from './state.svelte';
+import { buildStoreAccessoryOptions, getExtensionCapabilities } from './categories';
 import { rankItems } from '../../lib/rankItems';
 
 function ext(
@@ -111,5 +112,76 @@ describe('getInstallCount', () => {
   it('returns 0 if neither is present or item is null', () => {
     expect(getInstallCount(null)).toBe(0);
     expect(getInstallCount({} as ApiExtension)).toBe(0);
+  });
+});
+
+describe('StoreViewStateClass category & capability filtering', () => {
+  const parallelExt: ApiExtension = {
+    ...ext(10, 'Parallel Search', 'Web search provider', 'Parallel', 'ai'),
+    status: 'INSTALLED',
+    manifest: {
+      type: 'extension',
+      webSearchEngines: [{ id: 'parallel', name: 'Parallel' }],
+    },
+  };
+  const catppuccinExt: ApiExtension = {
+    ...ext(11, 'Catppuccin', 'Theme', 'Catppuccin', 'others'),
+    status: 'AVAILABLE',
+    manifest: { type: 'theme' },
+  };
+  const devExt: ApiExtension = {
+    ...ext(12, 'Tauri Docs', 'Docs', 'Asyar', 'development'),
+    status: 'UPDATE_AVAILABLE',
+    manifest: { type: 'extension' },
+  };
+
+  let state: StoreViewStateClass;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    state = new StoreViewStateClass();
+    state.setItems([parallelExt, catppuccinExt, devExt]);
+  });
+
+  it('filters by canonical category and normalizes legacy aliases / theme type', () => {
+    state.setCategoryFilter('ai');
+    expect(state.filteredItems.map((i) => i.id)).toEqual([10]);
+
+    state.setCategoryFilter('theme');
+    expect(state.filteredItems.map((i) => i.id)).toEqual([11]);
+
+    state.setCategoryFilter('developer-tools');
+    expect(state.filteredItems.map((i) => i.id)).toEqual([12]);
+  });
+
+  it('filters by capability and installed status', () => {
+    state.setCategoryFilter('cap:web-search');
+    expect(state.filteredItems.map((i) => i.id)).toEqual([10]);
+
+    state.setCategoryFilter('installed');
+    expect(state.filteredItems.map((i) => i.id)).toEqual([10, 12]);
+  });
+
+  it('combines search ranking with active category filter', async () => {
+    vi.mocked(rankItems).mockResolvedValueOnce([parallelExt, devExt]);
+    state.setCategoryFilter('ai');
+    await state.setSearch('search');
+    expect(state.filteredItems.map((i) => i.id)).toEqual([10]);
+  });
+
+  it('extracts capabilities and builds grouped accessory options with selection state', () => {
+    expect(getExtensionCapabilities(parallelExt)).toEqual(['web-search']);
+    const acc = buildStoreAccessoryOptions([parallelExt, catppuccinExt, devExt], 'ai', (k) => k);
+    expect(acc.options.map((o) => o.value)).toEqual([
+      'all',
+      'installed',
+      '__group_categories__',
+      '__group_capabilities__',
+    ]);
+    expect(acc.buttonTitle).toBe('AI & Search');
+    const catGroup = acc.options.find((o) => o.value === '__group_categories__');
+    expect(catGroup?.selected).toBe(true);
+    expect(catGroup?.children?.find((c) => c.value === 'ai')?.selected).toBe(true);
+    expect(catGroup?.children?.find((c) => c.value === 'ai')?.subtitle).toBe('1');
   });
 });

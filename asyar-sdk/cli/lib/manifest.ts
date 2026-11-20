@@ -37,6 +37,7 @@ export interface AsyarManifest {
   asyarSdk?: string;
   platforms?: string[];
   type?: 'theme' | 'extension';
+  category?: string;
   searchable?: boolean;
   preferences?: PreferenceDeclaration[];
   /**
@@ -350,6 +351,20 @@ export const VALID_PERMISSIONS = [
 ] as const;
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const;
+
+export const VALID_CATEGORIES = [
+  'ai',
+  'developer-tools',
+  'design-tools',
+  'productivity',
+  'communication',
+  'finance',
+  'media',
+  'utilities',
+  'system',
+  'theme',
+  'other',
+] as const;
 
 /**
  * Generated from asyar-launcher's runtimes/catalog.fallback.json — see
@@ -733,6 +748,18 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
     }
   }
 
+  if (manifest.category !== undefined) {
+    if (
+      typeof manifest.category !== 'string' ||
+      !VALID_CATEGORIES.includes(manifest.category as (typeof VALID_CATEGORIES)[number])
+    ) {
+      errors.push({
+        field: 'category',
+        message: `"${String(manifest.category)}" is not a valid category. Valid values: ${VALID_CATEGORIES.join(', ')}`,
+      });
+    }
+  }
+
   errors.push(...validateIcons(manifest));
   errors.push(...validatePreferences(manifest.preferences, 'preferences'));
   errors.push(...validateWebSearchEngines(manifest.webSearchEngines, 'webSearchEngines', manifest));
@@ -824,6 +851,14 @@ export function lintManifest(manifest: AsyarManifest, cwd: string): LintResult {
       field: 'asyarSdk',
       message:
         'Consider adding "asyarSdk" to your manifest.json to declare SDK compatibility (e.g., "^1.2.0")',
+    });
+  }
+
+  // Check category declaration
+  if (!manifest.category && manifest.type !== 'theme') {
+    warnings.push({
+      field: 'category',
+      message: `Consider adding "category" to your manifest.json for Store discovery (e.g., ${VALID_CATEGORIES.slice(0, 4).join(', ')}).`,
     });
   }
 

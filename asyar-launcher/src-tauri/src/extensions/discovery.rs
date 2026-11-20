@@ -949,6 +949,7 @@ mod background_entry_resolution_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".into()),
+            category: None,
             lifecycle: None,
             background: Some(BackgroundSpec { main: main.into() }),
             searchable: None,
@@ -1124,6 +1125,7 @@ mod first_view_component_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".into()),
+            category: None,
             lifecycle: None,
             background: None,
             searchable: None,
@@ -1286,6 +1288,7 @@ mod onboarding_validation_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".into()),
+            category: None,
             lifecycle: None,
             background: None,
             searchable: None,
@@ -1448,6 +1451,7 @@ mod compatibility_tests {
             description: "Test extension".to_string(),
             author: None,
             extension_type: None,
+            category: None,
             lifecycle: None,
             background: None,
             searchable: None,
@@ -2207,6 +2211,21 @@ mod manifest_schema_tests {
         }"#;
         parse(json)
             .expect("background.main without background commands should be legal (warning only)");
+    }
+
+    #[test]
+    fn category_field_parses_under_deny_unknown_fields() {
+        let json = r#"{
+            "id": "org.test.categorized",
+            "name": "Categorized",
+            "version": "1.0.0",
+            "category": "ai",
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "component": "MainView" }
+            ]
+        }"#;
+        let m = parse(json).expect("manifest with category must parse");
+        assert_eq!(m.category.as_deref(), Some("ai"));
     }
 
     // ── Rejects legacy fields (deny_unknown_fields) ─────────────────────
@@ -3361,6 +3380,7 @@ mod manifest_schema_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".into()),
+            category: None,
             lifecycle: None,
             background: Some(BackgroundSpec {
                 main: "dist/worker.js".into(),

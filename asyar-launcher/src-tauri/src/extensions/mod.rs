@@ -466,6 +466,11 @@ pub struct ExtensionManifest {
     /// the view/background distinction.
     #[serde(rename = "type", default)]
     pub extension_type: Option<String>,
+    /// Optional store/catalog category slug (e.g. `"ai"`, `"developer-tools"`).
+    /// Accepted by the launcher parser without failing discovery on unknown
+    /// future slugs; validated at authoring (`asyar-sdk`) and store submission.
+    #[serde(default)]
+    pub category: Option<String>,
     /// Worker bundle declaration. Present iff the extension declares at
     /// least one `mode: "background"` command (or reserves a push-event
     /// subscription for a future phase).
@@ -1507,6 +1512,7 @@ mod tests {
                     description: String::new(),
                     author: None,
                     extension_type: None,
+                    category: None,
                     lifecycle: None,
                     background: None,
                     searchable: None,

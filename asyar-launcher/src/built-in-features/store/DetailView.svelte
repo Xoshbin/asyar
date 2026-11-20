@@ -25,6 +25,7 @@
   import type { ManifestCommand, ManifestPreference } from './state.svelte';
   import { t } from '../../services/i18n';
   import { isSdkCompatible } from './sdkCompatibility';
+  import { getCapabilityLabel, getCategoryLabel, getExtensionCapabilities } from './categories';
 
   // Define structure for detailed API response
   interface ExtensionDetail {
@@ -56,6 +57,10 @@
       runtimes?: string[];
       commands?: ManifestCommand[];
       preferences?: ManifestPreference[];
+      webSearchEngines?: unknown[];
+      webReaders?: unknown[];
+      aiProviders?: unknown[];
+      fileSearchProviders?: unknown[];
       readme?: string;
     };
   }
@@ -496,7 +501,10 @@
                 {extensionDetail?.author?.name || 'Unknown'}
               </span>
               <span class="w-1.5 h-1.5 rounded-full bg-[var(--separator)]"></span>
-              <Badge text={extensionDetail.category} variant="default" mono />
+              <Badge text={getCategoryLabel(extensionDetail.category, t)} variant="default" mono />
+              {#each getExtensionCapabilities(extensionDetail) as cap (cap)}
+                <Badge text={getCapabilityLabel(cap, t)} variant="default" mono />
+              {/each}
               <span class="w-1.5 h-1.5 rounded-full bg-[var(--separator)]"></span>
               <span class="flex items-center gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"

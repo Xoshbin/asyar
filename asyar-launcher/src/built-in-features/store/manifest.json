@@ -17,7 +17,12 @@
       "description": "Find and install new extensions",
       "icon": "icon:store",
       "mode": "view",
-      "component": "DefaultView"
+      "component": "DefaultView",
+      "searchBarAccessory": {
+        "type": "dropdown",
+        "default": "all",
+        "options": [{ "title": "All Extensions", "value": "all" }]
+      }
     }
   ],
   "walkthrough": [

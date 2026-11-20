@@ -1747,6 +1747,7 @@ mod tests {
                 description: String::new(),
                 author: None,
                 extension_type: None,
+                category: None,
                 lifecycle: None,
                 background: None,
                 searchable: None,
