@@ -10,7 +10,9 @@ const STATE_FILE_NAME: &str = "update_check_state.json";
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct DailyCheckState {
-    pub last_check_date: String,
+    pub last_check_date: Option<String>,
+    #[serde(default)]
+    pub first_install_pending: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,10 +29,36 @@ pub fn state_path_for_dir(dir: &Path) -> PathBuf {
     dir.join(STATE_FILE_NAME)
 }
 
+/// Snapshot whether this is a brand-new install BEFORE startup creates `usage.db`
+/// or `settings.dat`. Preserves `first_install_pending` until the first check succeeds.
+pub fn snapshot_install_origin_in_dir(dir: &Path) {
+    let path = state_path_for_dir(dir);
+    if path.exists() {
+        return;
+    }
+
+    let is_existing_install = dir.join("settings.dat").exists() || dir.join("usage.db").exists();
+    let state = DailyCheckState {
+        last_check_date: None,
+        first_install_pending: !is_existing_install,
+    };
+
+    if let Ok(content) = serde_json::to_string(&state) {
+        if std::fs::create_dir_all(dir).is_ok() {
+            let _ = std::fs::write(path, content);
+        }
+    }
+}
+
+pub fn snapshot_install_origin(app: &AppHandle) {
+    if let Ok(dir) = app.path().app_data_dir() {
+        snapshot_install_origin_in_dir(&dir);
+    }
+}
+
 /// Inspect the local update-check state without mutating it.
-/// No persistent ID is ever stored or read — only the last local date string.
-/// If `update_check_state.json` is missing but `settings.dat` or `usage.db` already
-/// exists, this is an upgraded installation rather than a brand-new install.
+/// No persistent ID is ever stored or read — only the last local date string
+/// and a one-shot `first_install_pending` boolean.
 pub fn flags_for_dir(dir: &Path, today: &str) -> CheckFlags {
     let path = state_path_for_dir(dir);
     if !path.exists() {
@@ -50,8 +78,8 @@ pub fn flags_for_dir(dir: &Path, today: &str) -> CheckFlags {
 
     match serde_json::from_str::<DailyCheckState>(&content) {
         Ok(state) => CheckFlags {
-            first_check_today: state.last_check_date != today,
-            first_install_check: false,
+            first_check_today: state.last_check_date.as_deref() != Some(today),
+            first_install_check: state.first_install_pending,
         },
         Err(_) => CheckFlags {
             first_check_today: true,
@@ -63,7 +91,8 @@ pub fn flags_for_dir(dir: &Path, today: &str) -> CheckFlags {
 pub fn mark_checked_in_dir(dir: &Path, today: &str) -> Result<(), String> {
     let path = state_path_for_dir(dir);
     let state = DailyCheckState {
-        last_check_date: today.to_string(),
+        last_check_date: Some(today.to_string()),
+        first_install_pending: false,
     };
     let content =
         serde_json::to_string(&state).map_err(|e| format!("serialize daily_check: {e}"))?;
@@ -103,6 +132,52 @@ mod tests {
             CheckFlags {
                 first_check_today: true,
                 first_install_check: true,
+            }
+        );
+    }
+
+    #[test]
+    fn snapshot_before_startup_preserves_new_install_even_after_db_created() {
+        let tmp = TempDir::new().unwrap();
+        snapshot_install_origin_in_dir(tmp.path());
+
+        // Simulate startup creating usage.db and settings.dat before the first update check runs.
+        std::fs::write(tmp.path().join("usage.db"), "").unwrap();
+        std::fs::write(tmp.path().join("settings.dat"), "{}").unwrap();
+
+        // Restarting before the first check succeeds must also preserve first_install_pending.
+        snapshot_install_origin_in_dir(tmp.path());
+
+        assert_eq!(
+            flags_for_dir(tmp.path(), "2026-11-20"),
+            CheckFlags {
+                first_check_today: true,
+                first_install_check: true,
+            }
+        );
+
+        mark_checked_in_dir(tmp.path(), "2026-11-20").unwrap();
+        assert_eq!(
+            flags_for_dir(tmp.path(), "2026-11-20"),
+            CheckFlags {
+                first_check_today: false,
+                first_install_check: false,
+            }
+        );
+    }
+
+    #[test]
+    fn snapshot_on_upgraded_install_clears_first_install() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("settings.dat"), "{}").unwrap();
+
+        snapshot_install_origin_in_dir(tmp.path());
+
+        assert_eq!(
+            flags_for_dir(tmp.path(), "2026-11-20"),
+            CheckFlags {
+                first_check_today: true,
+                first_install_check: false,
             }
         );
     }
