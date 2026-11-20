@@ -8,11 +8,13 @@
     name,
     icon = undefined,
     size = 'md',
+    extensionId = 'store',
   }: {
     name: string;
     icon?: IconSource;
     /** A named size, or a box in px (initials scale with it). */
     size?: 'sm' | 'md' | 'lg' | 'xl' | number;
+    extensionId?: string;
   } = $props();
 
   const PX = { sm: 36, md: 48, lg: 64, xl: 88 };
@@ -36,7 +38,7 @@
 
 {#if toResolvedIcon(icon)}
   <div class="ext-avatar {sizeClass} image-container" style={pxStyle}>
-    <AppIcon {icon} size={px} glyphSize={Math.round(px * 0.6)} alt={name}>
+    <AppIcon {icon} {extensionId} size={px} glyphSize={Math.round(px * 0.6)} alt={name}>
       {#snippet fallback()}
         {@render initialsAvatar()}
       {/snippet}
@@ -67,6 +69,10 @@
 
   .size-px {
     border-radius: var(--radius-sm);
+  }
+
+  .image-container :global(img.app-icon) {
+    object-fit: cover;
   }
   .size-sm {
     width: 36px;

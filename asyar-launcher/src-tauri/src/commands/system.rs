@@ -208,6 +208,9 @@ fn build_lan_policy(
     let Some(id) = extension_id else {
         return Ok(None);
     };
+    if id == "store" {
+        return crate::network::lan_policy::LanPolicy::from_manifest(None).map(Some);
+    }
     let Some(mut policy) = registry.lan_policy_manifest(id)? else {
         return Ok(None);
     };
@@ -258,6 +261,9 @@ pub(crate) fn check_remote_icon_caller(
     registry: &crate::permissions::ExtensionPermissionRegistry,
     extension_id: &str,
 ) -> Result<(), AppError> {
+    if extension_id == "store" {
+        return Ok(());
+    }
     crate::icons::remote::validate_owner(extension_id)?;
     registry.check(&Some(extension_id.to_string()), "network")
 }
@@ -372,6 +378,7 @@ mod remote_icon_tests {
             HashMap::new(),
         );
         assert!(check_remote_icon_caller(&registry, "org.x").is_ok());
+        assert!(check_remote_icon_caller(&registry, "store").is_ok());
     }
 }
 
@@ -388,6 +395,18 @@ mod lan_policy_tests {
             std::collections::HashMap::new(),
         );
         r
+    }
+
+    #[test]
+    fn store_has_a_deny_by_default_lan_policy() {
+        let registry = ExtensionPermissionRegistry::new();
+        let store = DataStore::in_memory().unwrap();
+        let policy = build_lan_policy(&registry, &store, Some("store"))
+            .unwrap()
+            .expect("Store must not use legacy compatibility");
+        assert!(policy
+            .authorize("icons.example", 443, &["192.168.1.20".parse().unwrap()])
+            .is_err());
     }
 
     #[test]

@@ -15,8 +15,8 @@
 
 {#if activeViewManifest}
   <div class="info-chip">
-    <span class="info-chip-badge">
-      <AppIcon {icon} size={14} />
+    <span class="info-chip-icon">
+      <AppIcon {icon} extensionId={activeViewManifest.id} size={18} />
     </span>
     <span class="info-chip-label">{name}</span>
     {#if viewManager.activeViewSubtitle}
@@ -36,16 +36,13 @@
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
   }
-  .info-chip-badge {
+  .info-chip-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: var(--size-md);
     height: var(--size-md);
     flex-shrink: 0;
-    border-radius: var(--radius-sm);
-    background-color: var(--accent-primary-fill);
-    color: var(--text-on-accent);
   }
   .info-chip-label {
     font-weight: 600;
