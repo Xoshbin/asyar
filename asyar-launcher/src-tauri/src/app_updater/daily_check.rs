@@ -29,12 +29,15 @@ pub fn state_path_for_dir(dir: &Path) -> PathBuf {
 
 /// Inspect the local update-check state without mutating it.
 /// No persistent ID is ever stored or read — only the last local date string.
+/// If `update_check_state.json` is missing but `settings.dat` or `usage.db` already
+/// exists, this is an upgraded installation rather than a brand-new install.
 pub fn flags_for_dir(dir: &Path, today: &str) -> CheckFlags {
     let path = state_path_for_dir(dir);
     if !path.exists() {
+        let is_upgraded = dir.join("settings.dat").exists() || dir.join("usage.db").exists();
         return CheckFlags {
             first_check_today: true,
-            first_install_check: true,
+            first_install_check: !is_upgraded,
         };
     }
 
@@ -138,6 +141,21 @@ mod tests {
     fn corrupt_state_file_recovers_as_first_today_only() {
         let tmp = TempDir::new().unwrap();
         std::fs::write(state_path_for_dir(tmp.path()), "{not-json").unwrap();
+
+        let flags = flags_for_dir(tmp.path(), "2026-11-20");
+        assert_eq!(
+            flags,
+            CheckFlags {
+                first_check_today: true,
+                first_install_check: false,
+            }
+        );
+    }
+
+    #[test]
+    fn upgraded_install_with_existing_settings_is_not_first_install() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("settings.dat"), "{}").unwrap();
 
         let flags = flags_for_dir(tmp.path(), "2026-11-20");
         assert_eq!(

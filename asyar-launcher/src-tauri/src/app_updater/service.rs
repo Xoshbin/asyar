@@ -88,7 +88,7 @@ pub async fn check_and_maybe_download(
             crate::event_bridge::bridge_emit(app, "asyar:app-update:idle", ());
             Ok(None)
         }
-        Some(u) => {
+        Some(mut u) => {
             // `version` is the announced/new version; `current_version` is the running one.
             let version = u.version.clone();
             info!("app_updater: update found: {}", version);
@@ -112,6 +112,12 @@ pub async fn check_and_maybe_download(
             // Write sentinel BEFORE downloading so that even if the download fails,
             // the next startup will re-check.
             crate::app_updater::sentinel::write_sentinel(app, &version).ok();
+
+            // Strip one-shot daily-check flags before downloading the package (often from a CDN/GitHub host).
+            u.headers
+                .remove(crate::app_updater::daily_check::FIRST_CHECK_TODAY_HEADER);
+            u.headers
+                .remove(crate::app_updater::daily_check::FIRST_INSTALL_CHECK_HEADER);
 
             // Download and install (passive — relies on sentinel for apply-on-next-launch flow).
             let install_result = u.download_and_install(|_chunk, _total| {}, || {}).await;
