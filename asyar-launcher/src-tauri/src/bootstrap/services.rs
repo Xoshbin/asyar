@@ -107,6 +107,7 @@ pub fn sync_shortcode_triggers(app: &tauri::AppHandle) -> Result<(), AppError> {
 
 /// Initializes local-first usage recording early so it is managed before windows mount.
 pub fn init_usage(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    crate::app_updater::daily_check::snapshot_install_origin(app.handle());
     if app.try_state::<Arc<crate::usage::UsageState>>().is_none() {
         let usage_state = crate::usage::initialize_usage_state(app.handle())?;
         app.manage(Arc::new(usage_state));
