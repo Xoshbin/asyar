@@ -2785,10 +2785,7 @@ mod tests {
             std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
         set_test_mtime(&app_file, new_time);
 
-        let cache_key = app_file
-            .to_string_lossy()
-            .replace(['/', '\\', ':', ' '], "_");
-        let base_name = truncate_cache_key(&cache_key, 200);
+        let base_name = app_icon_cache_base_name(app_file.to_str().unwrap());
         let cached = cache_dir.join(format!("{base_name}.png"));
         std::fs::write(&cached, b"preserved-fallback").unwrap();
         set_test_mtime(&cached, old_time);
@@ -2851,7 +2848,10 @@ mod tests {
         let cache_dir = tmp.path().join("icon_cache");
         std::fs::create_dir_all(&cache_dir).unwrap();
 
-        let marker = cache_dir.join("_nonexistent_path_app.missing");
+        let marker = cache_dir.join(format!(
+            "{}.missing",
+            app_icon_cache_base_name("/nonexistent/path/app.desktop")
+        ));
         let source_mtime = std::time::SystemTime::now();
         write_missing_marker(&marker, Some(source_mtime));
 
