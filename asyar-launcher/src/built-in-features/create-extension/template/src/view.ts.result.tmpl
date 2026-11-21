@@ -27,9 +27,6 @@ class ViewExtension implements Extension {
     this.extensionManager = ctx.getService<IExtensionManager>('extensions');
   }
 
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
-
   async executeCommand(commandId: string): Promise<unknown> {
     if (commandId === 'search') {
       this.extensionManager?.navigateToView('{{EXTENSION_ID}}/DetailView');
@@ -37,25 +34,17 @@ class ViewExtension implements Extension {
     }
     return undefined;
   }
-
-  onUnload = (): void => {};
 }
 
-const extensionId =
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === 'asyar-extension.localhost'
-    ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
-    : window.location.hostname || '{{EXTENSION_ID}}';
+const extensionId = manifest.id;
 
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 registerIconElement();
 
 const impl = new ViewExtension();
-extensionBridge.registerManifest(manifest as never);
+extensionBridge.registerManifest(manifest);
 extensionBridge.registerExtensionImplementation(extensionId, impl);
-
-window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
 
 const app = mount(DetailView, {
   target: document.getElementById('app')!,

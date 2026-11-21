@@ -255,7 +255,11 @@ export type { PreferencesSnapshot } from './PreferencesFacade';
 
 export { environment } from './environment';
 export { EnvironmentServiceProxy } from './services';
-export type { IEnvironmentService, EnvironmentSnapshot } from './types/EnvironmentType';
+export type {
+  IEnvironmentService,
+  EnvironmentSnapshot,
+  EnvironmentPaths,
+} from './types/EnvironmentType';
 
 export { injectThemeVariables, injectFontFaceCSS } from './lib/themeInjector';
 

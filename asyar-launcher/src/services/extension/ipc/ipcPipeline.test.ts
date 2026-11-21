@@ -622,7 +622,146 @@ describe('IPC pipeline — denial and error envelopes', () => {
       { type: 'asyar:response', messageId: 'm-boom', error: 'boom' },
     ]);
     expect(feedbackService.report).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'extension_proxy_error' }),
+      expect.objectContaining({
+        kind: 'extension_proxy_error',
+        extensionId: 'org.asyar.demo',
+        context: expect.objectContaining({
+          extensionId: 'org.asyar.demo',
+          method: 'asyar:api:storage:get',
+        }),
+      }),
+    );
+  });
+
+  it('suppresses feedback banner for expected NotFound errors on files:read and files:readRange', async () => {
+    const notFoundFeedback = {
+      source: 'rust',
+      kind: 'not_found',
+      severity: 'error',
+      retryable: false,
+      context: {},
+      developerDetail:
+        "Not found: files:read path '/tmp/repo/.git/HEAD' does not exist: No such file or directory (os error 2)",
+    };
+    const read = vi.fn(async () => {
+      throw notFoundFeedback;
+    });
+    const readRange = vi.fn(async () => {
+      throw new Error('ENOENT: no such file or directory');
+    });
+    const query = vi.fn(async () => {
+      throw notFoundFeedback;
+    });
+
+    await makeRouter({ files: { read, readRange, query } }).handleMessage(
+      frameEvent({
+        type: 'asyar:api:files:read',
+        payload: { path: '/tmp/repo/.git/HEAD' },
+        messageId: 'm-missing-read',
+      }),
+    );
+    await makeRouter({ files: { read, readRange, query } }).handleMessage(
+      frameEvent({
+        type: 'asyar:api:files:readRange',
+        payload: { path: '/tmp/repo/.git/HEAD' },
+        messageId: 'm-missing-range',
+      }),
+    );
+    await makeRouter({ files: { read, readRange, query } }).handleMessage(
+      frameEvent({
+        type: 'asyar:api:files:query',
+        payload: { path: '/tmp/repo/missing.db', sql: 'SELECT 1' },
+        messageId: 'm-missing-query',
+      }),
+    );
+
+    expect(responsesTo(viewPost)).toEqual([
+      {
+        type: 'asyar:response',
+        messageId: 'm-missing-read',
+        error: notFoundFeedback.developerDetail,
+      },
+      {
+        type: 'asyar:response',
+        messageId: 'm-missing-range',
+        error: 'ENOENT: no such file or directory',
+      },
+      {
+        type: 'asyar:response',
+        messageId: 'm-missing-query',
+        error: notFoundFeedback.developerDetail,
+      },
+    ]);
+    expect(feedbackService.report).not.toHaveBeenCalled();
+  });
+
+  it('still reports real errors on files:read (e.g. protected location or permission denied)', async () => {
+    const read = vi.fn(async () => {
+      throw {
+        source: 'rust',
+        kind: 'validation_failure',
+        severity: 'error',
+        retryable: false,
+        context: {},
+        developerDetail:
+          "Validation error: files:read: path '/home/.ssh/id_rsa' is inside the protected location '/home/.ssh'",
+      };
+    });
+
+    await makeRouter({ files: { read } }).handleMessage(
+      frameEvent({
+        type: 'asyar:api:files:read',
+        payload: { path: '/home/.ssh/id_rsa' },
+        messageId: 'm-denied-read',
+      }),
+    );
+
+    expect(responsesTo(viewPost)).toEqual([
+      {
+        type: 'asyar:response',
+        messageId: 'm-denied-read',
+        error:
+          "Validation error: files:read: path '/home/.ssh/id_rsa' is inside the protected location '/home/.ssh'",
+      },
+    ]);
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'extension_proxy_error',
+        extensionId: 'org.asyar.demo',
+        context: expect.objectContaining({
+          extensionId: 'org.asyar.demo',
+          method: 'asyar:api:files:read',
+        }),
+      }),
+    );
+  });
+
+  it('does not suppress structured validation_failure even if path contains not-found text', async () => {
+    const read = vi.fn(async () => {
+      throw {
+        source: 'rust',
+        kind: 'validation_failure',
+        severity: 'error',
+        retryable: false,
+        context: {},
+        developerDetail:
+          "Validation error: files:read: path '/home/.ssh/does not exist' is inside the protected location '/home/.ssh'",
+      };
+    });
+
+    await makeRouter({ files: { read } }).handleMessage(
+      frameEvent({
+        type: 'asyar:api:files:read',
+        payload: { path: '/home/.ssh/does not exist' },
+        messageId: 'm-crafted-path',
+      }),
+    );
+
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'extension_proxy_error',
+        extensionId: 'org.asyar.demo',
+      }),
     );
   });
 

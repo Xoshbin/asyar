@@ -1,0 +1,68 @@
+name: PR Labeler
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened]
+
+permissions:
+  pull-requests: write
+
+concurrency:
+  group: pr-labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: Label PR from title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Sync conventional-commit label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              return;
+            }
+
+            // Maps Conventional Commit prefixes to labels consumed by `.github/release.yml`.
+            const TYPE_TO_LABEL = {
+              feat: 'enhancement',
+              fix: 'bug',
+              perf: 'perf',
+              chore: 'chore',
+              ci: 'ci',
+              build: 'build',
+              test: 'internal',
+              style: 'internal',
+              docs: 'documentation',
+            };
+
+            const MANAGED_LABELS = new Set(Object.values(TYPE_TO_LABEL));
+
+            const match = pr.title.match(/^([a-zA-Z]+)(?:\([^)]+\))?!?:\s/);
+            const commitType = match ? match[1].toLowerCase() : null;
+            const targetLabel = commitType ? (TYPE_TO_LABEL[commitType] ?? null) : null;
+
+            const currentLabels = new Set((pr.labels || []).map((l) => l.name));
+
+            for (const label of currentLabels) {
+              if (MANAGED_LABELS.has(label) && label !== targetLabel) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  name: label,
+                });
+              }
+            }
+
+            if (targetLabel && !currentLabels.has(targetLabel)) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: [targetLabel],
+              });
+            }

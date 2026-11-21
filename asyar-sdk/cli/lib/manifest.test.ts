@@ -1603,5 +1603,30 @@ describe('manifest validation — runtimes', () => {
         ).toBe(true);
       });
     });
+
+    describe('category', () => {
+      it('accepts valid canonical categories', () => {
+        for (const category of [
+          'ai',
+          'developer-tools',
+          'design-tools',
+          'productivity',
+          'communication',
+          'finance',
+          'media',
+          'utilities',
+          'system',
+          'theme',
+          'other',
+        ]) {
+          expect(validateManifest({ ...viewOnly, category }, './')).toEqual([]);
+        }
+      });
+
+      it('rejects unknown category slugs', () => {
+        const errors = validateManifest({ ...viewOnly, category: 'unknown-cat' }, './');
+        expect(errors.some((e) => e.field === 'category')).toBe(true);
+      });
+    });
   });
 });

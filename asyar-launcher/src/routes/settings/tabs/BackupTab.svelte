@@ -23,10 +23,11 @@
   });
 
   // Settings is a separate webview with no extensionManager of its own, so
-  // opening a Tier 1 view lives in the main launcher window — signal it via
-  // a Tauri event that App.svelte listens for.
-  function openRaycastImport() {
-    emit('open-raycast-import');
+  // opening a Tier 1 view lives in the main launcher window — deep-link into
+  // it via the generic asyar:run-command signal appInitializer.ts listens for
+  // (same pattern as Onboarding's Welcome.svelte).
+  async function openRaycastImport() {
+    await emit('asyar:run-command', { commandId: 'cmd_raycast-import_import-raycast' });
   }
 </script>
 

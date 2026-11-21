@@ -1,5 +1,6 @@
 import type { ISelectionService, SelectionError, SelectionErrorCode } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
+import { extractErrorMessage } from '../../lib/errors';
 import { getSelectedTextRaw, getSelectedFinderItemsRaw } from '../../lib/ipc/selectionCommands';
 
 export class SelectionService implements ISelectionService {
@@ -34,7 +35,7 @@ export class SelectionService implements ISelectionService {
   }
 
   private throwSelectionError(error: any): never {
-    const errorString = String(error);
+    const errorString = extractErrorMessage(error);
     let code: SelectionErrorCode = 'OPERATION_FAILED';
 
     if (errorString.includes('ACCESSIBILITY_PERMISSION_REQUIRED')) {

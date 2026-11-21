@@ -5,7 +5,7 @@ ExtensionContext (`asyar-sdk/worker`); the view ExtensionContext does not
 expose it. Importing `IFileSystemWatcherService` from `asyar-sdk/contracts`
 in view code is allowed for type positions, but `context.getService('fsWatcher')`
 in a view-side `ExtensionContext` throws — the watch handle and its push
-callback must live in the always-on worker iframe so events keep arriving
+callback must live in the always-on headless worker (Web Worker) so events keep arriving
 after the launcher panel is dismissed.
 
 **Permission required:** `fs:watch`, plus a matching `permissionArgs["fs:watch"]` array of glob patterns in the manifest. The pattern list is the **scope** of what an extension is allowed to watch; calls to `watch(paths)` that escape every declared pattern are rejected at the host boundary with a permission error.

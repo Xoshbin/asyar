@@ -165,12 +165,14 @@
     previewContextMenu = null;
     if (!id) {
       selectedFullItem = null;
+      clipboardViewState.selectedFullItem = null;
       return;
     }
     void fetchFullItemForId(id)
       .then((full) => {
         if (clipboardViewState.selectedItemId === id) {
           selectedFullItem = full;
+          clipboardViewState.selectedFullItem = full;
         }
       })
       .catch((err) => {

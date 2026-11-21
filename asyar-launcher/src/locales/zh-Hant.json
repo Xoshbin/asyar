@@ -1477,7 +1477,34 @@
         "installs": "安裝次數",
         "not_installed": "未安裝",
         "commands": "命令",
-        "lazy_failed": "載入檢視失敗"
+        "lazy_failed": "載入檢視失敗",
+        "capabilities": "功能"
+      },
+      "filter": {
+        "button_title": "篩選",
+        "all": "全部擴充功能",
+        "installed": "已安裝",
+        "categories_group": "分類",
+        "capabilities_group": "功能"
+      },
+      "categories": {
+        "ai": "AI 與搜尋",
+        "developer_tools": "開發者工具",
+        "design_tools": "設計工具",
+        "productivity": "生產力",
+        "communication": "通訊",
+        "finance": "金融",
+        "media": "媒體",
+        "utilities": "實用工具",
+        "system": "系統",
+        "theme": "主題",
+        "other": "其他"
+      },
+      "capabilities": {
+        "web_search": "網頁搜尋",
+        "ai_provider": "AI 提供者",
+        "web_reader": "網頁閱讀器",
+        "file_search": "檔案搜尋"
       }
     },
     "agents": {

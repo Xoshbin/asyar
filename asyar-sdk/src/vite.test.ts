@@ -184,4 +184,31 @@ it('builds an extension from script entrypoints without worker.html or view.html
 
   const visited = await evaluateWorkerGraph(result.output.filter((o) => o.type === 'chunk') as any);
   expect(visited.has('worker.js')).toBe(true);
+  expect(String((htmlAsset as any).source)).toContain('<title>Asyar Extension View</title>');
+});
+
+it('uses escaped manifest.json name as <title> in generated view.html', async () => {
+  const root = realpathSync(mkdtempSync(resolve(tmpdir(), 'asyar-manifest-title-')));
+  roots.push(root);
+  mkdirSync(resolve(root, 'src'), { recursive: true });
+  writeFileSync(
+    resolve(root, 'manifest.json'),
+    JSON.stringify({ id: 'com.example.title', name: 'Tom & Jerry <View>', version: '1.0.0' }),
+  );
+  writeFileSync(resolve(root, 'src/view.js'), 'export {};');
+
+  const config = defineExtensionConfig({ root, worker: false });
+  const result = await build({
+    ...config,
+    configFile: false,
+    logLevel: 'silent',
+    build: { ...config.build, write: false },
+  });
+  if (Array.isArray(result) || !('output' in result)) throw new Error('Expected one Rollup output');
+
+  const htmlAsset = result.output.find((o) => o.type === 'asset' && o.fileName === 'view.html');
+  expect(htmlAsset).toBeDefined();
+  expect(String((htmlAsset as any).source)).toContain(
+    '<title>Tom &amp; Jerry &lt;View&gt;</title>',
+  );
 });

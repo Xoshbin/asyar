@@ -145,4 +145,129 @@ describe('asyar-sdk/view — entry surface', () => {
       '*',
     );
   });
+
+  it('re-exports environment from asyar-sdk/view', async () => {
+    const mod = await import('./view');
+    expect(mod.environment).toBeDefined();
+    expect(mod.environment.getEnvironment).toBeTypeOf('function');
+    expect(mod.environment.getLocale).toBeTypeOf('function');
+    expect(mod.environment.getPaths).toBeTypeOf('function');
+  });
+});
+
+describe('asyar-sdk/view — onSearch and onKey helpers', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    setRole('view');
+  });
+
+  afterEach(() => {
+    setRole(undefined);
+  });
+
+  it('onSearch delivers query on asyar:view:search, unsubscribes, and does not block raw message listeners', async () => {
+    const { onSearch } = await import('./view');
+    const received: string[] = [];
+    const rawReceived: unknown[] = [];
+
+    const rawListener = (e: MessageEvent) => rawReceived.push(e.data);
+    window.addEventListener('message', rawListener);
+
+    const unsubscribe = onSearch((q) => received.push(q));
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'asyar:view:search', payload: { query: 'hello' } },
+      }),
+    );
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'asyar:view:other', payload: { query: 'ignored' } },
+      }),
+    );
+
+    expect(received).toEqual(['hello']);
+    expect(rawReceived).toHaveLength(2);
+
+    unsubscribe();
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'asyar:view:search', payload: { query: 'after-unsub' } },
+      }),
+    );
+
+    expect(received).toEqual(['hello']);
+    expect(rawReceived).toHaveLength(3);
+
+    window.removeEventListener('message', rawListener);
+  });
+
+  it('onKey delivers ViewKeyEvent on asyar:view:keydown, unsubscribes, and does not block raw message listeners', async () => {
+    const { onKey } = await import('./view');
+    const received: Array<{
+      key: string;
+      shiftKey: boolean;
+      ctrlKey: boolean;
+      metaKey: boolean;
+      altKey: boolean;
+    }> = [];
+    const rawReceived: unknown[] = [];
+
+    const rawListener = (e: MessageEvent) => rawReceived.push(e.data);
+    window.addEventListener('message', rawListener);
+
+    const unsubscribe = onKey((ev) => received.push(ev));
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:view:keydown',
+          payload: {
+            key: 'Enter',
+            shiftKey: true,
+            ctrlKey: false,
+            metaKey: true,
+            altKey: false,
+          },
+        },
+      }),
+    );
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'asyar:view:search', payload: { query: 'not-a-key' } },
+      }),
+    );
+
+    expect(received).toEqual([
+      {
+        key: 'Enter',
+        shiftKey: true,
+        ctrlKey: false,
+        metaKey: true,
+        altKey: false,
+      },
+    ]);
+    expect(rawReceived).toHaveLength(2);
+
+    unsubscribe();
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:view:keydown',
+          payload: {
+            key: 'Escape',
+            shiftKey: false,
+            ctrlKey: false,
+            metaKey: false,
+            altKey: false,
+          },
+        },
+      }),
+    );
+
+    expect(received).toHaveLength(1);
+    expect(rawReceived).toHaveLength(3);
+
+    window.removeEventListener('message', rawListener);
+  });
 });

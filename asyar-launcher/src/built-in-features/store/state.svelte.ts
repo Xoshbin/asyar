@@ -2,6 +2,7 @@ import { type ILogService, type IExtensionManager } from 'asyar-sdk/contracts';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 import { useListSelection } from '../../lib/listSelection.svelte';
 import { rankItems } from '../../lib/rankItems';
+import { matchesStoreFilter } from './categories';
 
 // Re-define ApiExtension here or import if possible (avoiding circular deps)
 export interface ExtensionAuthor {
@@ -71,6 +72,10 @@ export interface ApiExtension {
     runtimes?: string[];
     commands?: ManifestCommand[];
     preferences?: ManifestPreference[];
+    webSearchEngines?: unknown[];
+    webReaders?: unknown[];
+    aiProviders?: unknown[];
+    fileSearchProviders?: unknown[];
   };
 }
 
@@ -87,7 +92,15 @@ export function getInstallCount(item: Partial<ApiExtension> | null | undefined):
 
 export class StoreViewStateClass {
   searchQuery = $state('');
-  themesOnly = $state(false);
+  categoryFilter = $state<string>('all');
+
+  get themesOnly(): boolean {
+    return this.categoryFilter === 'theme';
+  }
+
+  set themesOnly(val: boolean) {
+    this.categoryFilter = val ? 'theme' : 'all';
+  }
   // Ids of the current search results, best-match first, as ranked by Rust.
   // `null` means no active search (show every fetched item).
   private rankedIds = $state<string[] | null>(null);
@@ -101,16 +114,21 @@ export class StoreViewStateClass {
   installingExtensionSlug = $state<string | null>(null);
   uninstallingExtensionSlug = $state<string | null>(null);
 
-  filtered = $derived(this.searchQuery.length > 0);
+  filtered = $derived(this.searchQuery.length > 0 || this.categoryFilter !== 'all');
 
   filteredItems = $derived.by(() => {
     const q = this.searchQuery?.trim() ?? '';
-    const items = this.themesOnly ? this.allItems.filter(isStoreTheme) : this.allItems;
-    if (!q || this.rankedIds === null) return items;
-    const byId = new Map(items.map((it) => [String(it.id), it]));
-    return this.rankedIds
-      .map((id) => byId.get(id))
-      .filter((it): it is ApiExtension => it !== undefined);
+    let base: ApiExtension[];
+    if (!q || this.rankedIds === null) {
+      base = this.allItems;
+    } else {
+      const byId = new Map(this.allItems.map((it) => [String(it.id), it]));
+      base = this.rankedIds
+        .map((id) => byId.get(id))
+        .filter((it): it is ApiExtension => it !== undefined);
+    }
+    if (this.categoryFilter === 'all') return base;
+    return base.filter((it) => matchesStoreFilter(it, this.categoryFilter));
   });
 
   private selection = useListSelection({ items: () => this.filteredItems });
@@ -139,6 +157,13 @@ export class StoreViewStateClass {
     this.isLoading = false;
     this.loadError = false;
     this.errorMessage = '';
+  }
+
+  setCategoryFilter(filter: string) {
+    const next = filter || 'all';
+    if (this.categoryFilter === next) return;
+    this.categoryFilter = next;
+    this.selection.setIndex(0);
   }
 
   async setSearch(query: string) {

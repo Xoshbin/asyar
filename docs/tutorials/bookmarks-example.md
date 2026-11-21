@@ -123,6 +123,7 @@ if (viewName === 'BookmarksView') {
   import { onMount, onDestroy } from 'svelte';
   import { ActionContext, ActionCategory } from 'asyar-sdk';
   import type { IActionService, IFeedbackService } from 'asyar-sdk';
+  import { onSearch } from 'asyar-sdk/view';
 
   interface Props {
     actionService: IActionService;
@@ -142,21 +143,18 @@ if (viewName === 'BookmarksView') {
   const ACTION_ID = 'com.yourname.bookmarks:clear-all';
 
   // --- In-view search listener ---
-  function handleMessage(event: MessageEvent) {
-    if (event.source !== window.parent) return;
-    if (event.data?.type === 'asyar:view:search') {
-      query = event.data.payload?.query ?? '';
-    }
-  }
+  let unsubSearch: (() => void) | undefined;
 
   onMount(() => {
     // Load from localStorage
     bookmarks = JSON.parse(localStorage.getItem('bookmarks') ?? '[]');
 
-    // Register in-view search listener
-    window.addEventListener('message', handleMessage);
+    // Register in-view search listener via typed helper from 'asyar-sdk/view'
+    unsubSearch = onSearch((q) => {
+      query = q;
+    });
 
-    // Register ⌘K action
+    // Register ⌘K action (`extensionId` is optional when using `context.registerAction`)
     actionService.registerAction({
       id: ACTION_ID,
       title: 'Clear Non-Favorites',
@@ -170,7 +168,7 @@ if (viewName === 'BookmarksView') {
   });
 
   onDestroy(() => {
-    window.removeEventListener('message', handleMessage);
+    unsubSearch?.();
     actionService.unregisterAction(ACTION_ID); // Critical cleanup
   });
 

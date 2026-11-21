@@ -582,7 +582,11 @@ export { extensionBridge, ExtensionBridge } from './ExtensionBridge';
 export { PreferencesFacade } from './PreferencesFacade';
 export type { PreferencesSnapshot } from './PreferencesFacade';
 export { environment } from './environment';
-export type { EnvironmentSnapshot, IEnvironmentService } from './types/EnvironmentType';
+export type {
+  EnvironmentPaths,
+  EnvironmentSnapshot,
+  IEnvironmentService,
+} from './types/EnvironmentType';
 export { McpServiceProxy } from './services/McpServiceProxy';
 export type { IMcpService, McpServerInfo, McpToolDescriptor } from './contracts/IMcpService';
 export type {

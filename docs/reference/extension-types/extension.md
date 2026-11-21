@@ -18,17 +18,19 @@ other type is [`theme`](./theme.md).
 
 ## How it works
 
-When the extension is enabled, Asyar materialises **two iframes** for it:
+When the extension is enabled, Asyar materialises **two execution contexts** for it:
 
-- A **worker iframe** — hidden, always-on while the extension is enabled,
-  loads `worker.html`. Hosts long-lived work: push subscriptions, scheduled
+- A **headless Web Worker** — always-on while the extension is enabled,
+  running `background.main` (`defineExtensionConfig` checks `worker.html`
+  before `src/worker.ts` and selects it when both exist). Hosts long-lived work: push subscriptions, scheduled
   ticks, registered timers, tray-icon state writes, notification-action
   callbacks, and worker-side RPC handlers.
 - A **view iframe** — on-demand, mounted when the user opens a `mode: "view"`
-  command, evicted ~120 s after the last user interaction. Loads `view.html`.
-  Hosts UI rendering only.
+  command, evicted ~120 s after the last user interaction. Loads `view.html`
+  (automatically generated from `src/view.ts` by `defineExtensionConfig`, or
+  provided manually). Hosts UI rendering only.
 
-Both iframes are sandboxed at `asyar-extension://<id>/` (macOS/Linux) or
+Both contexts are sandboxed at `asyar-extension://<id>/` (macOS/Linux) or
 `http://asyar-extension.localhost/<id>/` (Windows). They communicate with
 each other through a launcher-brokered state mailbox and an RPC primitive.
 
@@ -71,26 +73,29 @@ Per-command rules:
 - `mode: "view"` requires a non-empty `component` string. The value is the
   Svelte component your `view.ts` exports under that name.
 - `mode: "background"` forbids `component`. The host dispatches the command
-  to the worker iframe via the SDK's `commands.onCommand(id, handler)` hook.
+  to the worker via the SDK's `commands.onCommand(id, handler)` hook.
 - At least one `mode: "background"` command (or a non-empty `searchable`
   contribution) requires `background.main` — the path to your compiled
   worker bundle relative to the package root.
 
 For the full schema, see [`manifest.md`](../manifest.md).
 
-## Worker entry — `src/main.worker.ts`
+## Worker entry — `src/worker.ts`
 
-The worker bundle runs as a hidden iframe. It must import from
+The worker bundle runs in a headless Web Worker (`background.main`).
+For entry detection, `defineExtensionConfig` checks `worker.html` before
+`src/worker.ts` and selects `worker.html` when both exist; `worker.html` is optional. It must import from
 `asyar-sdk/worker`, never from `asyar-sdk/view` — the `/worker` entry asserts
-`window.__ASYAR_ROLE__ === "worker"` at load time and exposes the
-worker-safe proxy bag (no DOM-dependent helpers).
+`self.__ASYAR_ROLE__ === "worker"` at load time and exposes the worker-safe
+proxy bag (no DOM-dependent helpers).
 
 ```typescript
 import { ExtensionContext, extensionBridge } from 'asyar-sdk/worker';
+import manifest from '../manifest.json';
 
-const extensionId = window.location.hostname || 'com.yourname.pomodoro';
 const context = new ExtensionContext();
-context.setExtensionId(extensionId);
+context.setExtensionId(manifest.id);
+extensionBridge.registerManifest(manifest);
 
 // Dispatcher entry — fired for every `mode: "background"` command.
 context.commands.onCommand('start', async () => {
@@ -112,35 +117,40 @@ context.commands.onCommand('tick', async () => {
 context.onRequest<{}, { rounds: number }>('getStats', async () => {
   return { rounds: (await context.state.get<number>('rounds')) ?? 0 };
 });
-
-window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId, role: 'worker' }, '*');
 ```
 
-## View entry — `src/main.view.ts`
+## View entry — `src/view.ts`
 
 The view bundle imports from `asyar-sdk/view`, which asserts
 `window.__ASYAR_ROLE__ === "view"` and exposes the full proxy bag plus DOM
-helpers (icon custom element, theme injector).
+helpers (icon custom element, theme injector, `onSearch`, `onKey`). Both
+`view.html` and `worker.html` are optional — `defineExtensionConfig`
+auto-detects `src/view.ts` and generates `view.html` automatically.
 
 ```typescript
 import { ExtensionContext, extensionBridge, registerIconElement } from 'asyar-sdk/view';
 import PomodoroView from './PomodoroView.svelte';
 import { mount } from 'svelte';
+import manifest from '../manifest.json';
 
 registerIconElement();
 
-const extensionId = window.location.hostname || 'com.yourname.pomodoro';
+const extensionId = manifest.id;
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
+// `context.extensionId` returns the bound ID; `registerManifest` accepts JSON imports directly.
 extensionBridge.registerManifest(manifest);
-extensionBridge.registerExtensionImplementation(extensionId, {/* … */});
+// Lifecycle methods (`initialize`, `activate`, `deactivate`, `onUnload`, `search`) are optional.
+extensionBridge.registerExtensionImplementation(extensionId, {
+  executeCommand: async (commandId, args) => {
+    /* … */
+  },
+});
 
 mount(PomodoroView, {
   target: document.getElementById('app')!,
   props: { context },
 });
-
-window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId, role: 'view' }, '*');
 ```
 
 Inside the view component, call worker handlers with `context.request`:
@@ -185,7 +195,7 @@ calling it outside a view iframe is a no-op.
 `searchable: true` at the root makes the launcher forward global search
 queries to your extension. With the worker/view split, the recommended home
 for `search()` is the **worker** — it stays mounted while the user types, so
-results are instant. Register the search handler in `main.worker.ts`:
+results are instant. Register the search handler in `src/worker.ts`:
 
 ```typescript
 import { ExtensionContext, extensionBridge } from 'asyar-sdk/worker';

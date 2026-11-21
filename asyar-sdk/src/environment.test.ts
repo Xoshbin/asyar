@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { environment } from './environment';
 import { messageBroker } from './ipc/MessageBroker';
-import type { EnvironmentSnapshot } from './types/EnvironmentType';
+import type { EnvironmentPaths, EnvironmentSnapshot } from './types/EnvironmentType';
 
 vi.mock('./ipc/MessageBroker', () => ({
   messageBroker: {
@@ -73,5 +73,20 @@ describe('environment facade', () => {
 
     const locale = await environment.getLocale();
     expect(locale).toBe('fr-FR');
+  });
+
+  it('getPaths delegates to environment:getPaths', async () => {
+    const mockPaths: EnvironmentPaths = {
+      home: '/home/alice',
+      appData: '/home/alice/.local/share',
+      localAppData: '/home/alice/.local/share',
+      config: '/home/alice/.config',
+    };
+    (messageBroker.invoke as any).mockResolvedValue(mockPaths);
+
+    const result = await environment.getPaths();
+
+    expect(messageBroker.invoke).toHaveBeenCalledWith('environment:getPaths');
+    expect(result).toEqual(mockPaths);
   });
 });

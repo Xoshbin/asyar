@@ -3,12 +3,27 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject};
 use objc2::{msg_send, msg_send_id};
 use objc2_foundation::{NSPoint, NSRect, NSSize};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
+
+/// Darwin `O_NONBLOCK` flag so opening a FIFO fails/returns immediately instead
+/// of blocking a Tokio `spawn_blocking` worker waiting for a writer.
+const MACOS_O_NONBLOCK: i32 = 0x0004;
+
+fn open_regular_file_nonblocking(path: &Path) -> Option<std::fs::File> {
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(MACOS_O_NONBLOCK)
+        .open(path)
+        .ok()?;
+    let meta = file.metadata().ok()?;
+    meta.is_file().then_some(file)
+}
 
 fn get_app_icon_name(path: &Path) -> String {
     let plist_path = path.join("Contents/Info.plist");
-    plist::from_file::<_, plist::Value>(&plist_path)
-        .ok()
+    open_regular_file_nonblocking(&plist_path)
+        .and_then(|file| plist::from_reader::<_, plist::Value>(file).ok())
         .and_then(|v| v.into_dictionary())
         .and_then(|d| d.get("CFBundleIconFile").cloned())
         .and_then(|v| v.into_string())
@@ -33,18 +48,20 @@ fn extract_icon_from_icns(path: &Path) -> Option<Vec<u8>> {
     } else {
         format!("{}.icns", icon_name)
     };
-    let icns_path = path.join("Contents/Resources").join(&icon_filename);
-    let icns_path = if icns_path.exists() {
-        icns_path
+    let resources_dir = path.join("Contents/Resources");
+    let icns_path = resources_dir.join(&icon_filename);
+    let file = if let Some(file) = open_regular_file_nonblocking(&icns_path) {
+        file
+    } else if icns_path.exists() {
+        // Explicit CFBundleIconFile exists but is not a regular file (e.g. FIFO/dir).
+        return None;
     } else {
-        let resources_dir = path.join("Contents/Resources");
         std::fs::read_dir(&resources_dir)
             .ok()?
             .filter_map(|e| e.ok())
-            .find(|e| e.path().extension().map(|x| x == "icns").unwrap_or(false))?
-            .path()
+            .filter(|e| e.path().extension().map(|x| x == "icns").unwrap_or(false))
+            .find_map(|e| open_regular_file_nonblocking(&e.path()))?
     };
-    let file = std::fs::File::open(&icns_path).ok()?;
     let icon_family = icns::IconFamily::read(file).ok()?;
     let preferred = [
         icns::IconType::RGBA32_128x128,
@@ -223,5 +240,40 @@ mod tests {
             &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
             "fallback output must be a real PNG (got non-PNG header bytes)",
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn extract_icon_from_icns_rejects_fifo_without_blocking() {
+        use std::fs;
+        use std::process::Command;
+
+        let tmp =
+            std::env::temp_dir().join(format!("asyar_test_fifo_icns_{}.app", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        let resources = tmp.join("Contents/Resources");
+        fs::create_dir_all(&resources).expect("create Resources dir");
+
+        let fifo_path = resources.join("pipe.icns");
+        let status = Command::new("mkfifo")
+            .arg(&fifo_path)
+            .status()
+            .expect("run mkfifo");
+        assert!(status.success(), "mkfifo failed");
+
+        // 1) read_dir fallback skips the FIFO .icns without blocking.
+        assert!(extract_icon_from_icns(&tmp).is_none());
+
+        // 2) Explicit CFBundleIconFile pointing to the FIFO also returns None without blocking.
+        fs::write(
+            tmp.join("Contents/Info.plist"),
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleIconFile</key><string>pipe.icns</string></dict></plist>"#,
+        )
+        .expect("write Info.plist");
+        assert!(extract_icon_from_icns(&tmp).is_none());
+
+        let _ = fs::remove_dir_all(&tmp);
     }
 }

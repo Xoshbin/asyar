@@ -11,6 +11,7 @@ Understanding-oriented background. These pages describe how Asyar works and why 
 ### Extension architecture (for extension authors)
 
 - **[Two-tier model](./two-tier-model.md)** — Built-in features vs installed extensions. Why the two-tier split exists.
+- **[Extension UI philosophy](./extension-ui-philosophy.md)** — Why `mode: "view"` uses open webviews (VS Code model) instead of a bundled widget kit or declarative JSON UI.
 - **[IPC bridge](./ipc-bridge.md)** — How service calls travel from an iframe to the host and back.
 - **[asyar-extension:// protocol](./asyar-extension-protocol.md)** — How iframe URLs resolve to files on disk.
 - **[Permission system](./permission-system.md)** — Iframe sandbox, CSP, and the two-layer permission check.

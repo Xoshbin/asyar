@@ -176,4 +176,56 @@ describe('scaffolded vite.config.ts', () => {
     },
     60_000,
   );
+
+  it('builds a view extension with the list-view DefaultView template', async () => {
+    const root = mkdtempSync(resolve(launcherRoot, '.scaffold-build-'));
+    dirs.push(root);
+    const files = await scaffold('view', root);
+
+    const viewTs = files.get('src/view.ts')!;
+    expect(viewTs).not.toContain('as never');
+    expect(viewTs).not.toContain('window.location.hostname');
+    expect(viewTs).toContain('extensionBridge.registerManifest(manifest)');
+
+    const defaultView = files.get('src/DefaultView.svelte')!;
+    expect(defaultView).toContain('onSearch');
+    expect(defaultView).toContain('onKey');
+    expect(defaultView).toContain('context.registerAction');
+    expect(defaultView).toContain('context.extensionId');
+
+    for (const [rel, content] of files) {
+      mkdirSync(dirname(resolve(root, rel)), { recursive: true });
+      writeFileSync(resolve(root, rel), content);
+    }
+
+    const result = await build({
+      root,
+      configFile: resolve(root, 'vite.config.ts'),
+      logLevel: 'silent',
+      build: { write: false },
+    });
+    if (Array.isArray(result) || !('output' in result)) throw new Error('Expected one output');
+    const outputs = new Set(result.output.map((o) => o.fileName));
+    expect(outputs.has('view.js')).toBe(true);
+    expect(outputs.has('view.html')).toBe(true);
+  }, 60_000);
+
+  it('omits old SDK workarounds from generated worker and result view templates', async () => {
+    const logicFiles = await scaffold('logic', '/virtual/ext');
+    const logicWorker = logicFiles.get('src/worker.ts')!;
+    expect(logicWorker).not.toContain('as never');
+    expect(logicWorker).not.toContain('async activate()');
+    expect(logicWorker).not.toContain('async deactivate()');
+    expect(logicWorker).not.toContain('onUnload');
+
+    const resultFiles = await scaffold('result', '/virtual/ext');
+    const resultView = resultFiles.get('src/view.ts')!;
+    expect(resultView).not.toContain('as never');
+    expect(resultView).not.toContain('window.location.hostname');
+    const resultWorker = resultFiles.get('src/worker.ts')!;
+    expect(resultWorker).not.toContain('as never');
+    expect(resultWorker).not.toContain('async activate()');
+    expect(resultWorker).not.toContain('async deactivate()');
+    expect(resultWorker).not.toContain('onUnload');
+  });
 });

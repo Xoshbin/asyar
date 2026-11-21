@@ -59,7 +59,14 @@ jobs:
         id: prev_tag
         run: |
           CURRENT_TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          PREV_TAG=$(git tag -l 'sdk-v*' --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | head -n 1)
+          VERSION_PART="${CURRENT_TAG#sdk-v}"
+          if [[ "$VERSION_PART" == *-* ]]; then
+            # Beta/pre-release: diff against the most recent SDK tag (beta or stable).
+            PREV_TAG=$(git tag -l 'sdk-v*' --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | head -n 1)
+          else
+            # Stable release: diff against the previous stable SDK tag (strip `sdk-v` prefix when checking for `-`).
+            PREV_TAG=$((git tag -l 'sdk-v*' --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | grep -Ev '^sdk-v[^-]+-' || true) | head -n 1)
+          fi
           echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
 
       # SDK releases are stable by default, but beta builds (e.g. 2.7.0-1)

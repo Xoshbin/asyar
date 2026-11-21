@@ -98,6 +98,14 @@ export interface IFilesService {
    * denial reason) rather than resolving empty when access is refused.
    */
   read(path: string, opts?: FileReadOptions): Promise<string>;
+  /**
+   * Check whether a file or directory exists at `path`. Enforces the exact
+   * same `files:read` permission, declared-glob scope, deny-list, and
+   * symlink/canonicalization checks as `read`: resolves `false` when the
+   * target is missing but in scope, `true` when it exists and is in scope,
+   * and rejects when out of scope or denied.
+   */
+  exists(path: string): Promise<boolean>;
   /** Bounded range/tail read, line-aligned by default. Requires files:read. */
   readRange(path: string, opts?: FileReadRangeOptions): Promise<FileChunk>;
   /**
@@ -123,6 +131,20 @@ export interface IFilesService {
    * signal), never a platform-dependent result. Rejects on scope denials.
    */
   thumbnail(path: string, opts?: FileThumbnailOptions): Promise<string | null>;
+  /**
+   * Native OS file, folder, or app icon for an absolute path as an
+   * `asyar-thumb://` URL (usable in extension view `<img>` tags and dynamic
+   * command icons), or `null` when the platform has no icon source.
+   * Requires the `files:read` permission and enforces the same declared-glob
+   * scope, deny-list, and symlink checks as `read`, while permitting
+   * directories and `.app` bundles. Rejects on scope denials or missing paths.
+   */
+  icon(path: string): Promise<string | null>;
+  /**
+   * Read-only, single-statement parameterized SQLite query under `files:read`.
+   * SELECT-only authorizer, 2s timeout, 2,000-row cap; `BLOB`s return as base64.
+   */
+  query<T = Record<string, unknown>>(path: string, sql: string, params?: unknown[]): Promise<T[]>;
   /**
    * Register a remote or cloud file search provider matching a manifest contribution.
    * Returns a cleanup function that unregisters the provider.

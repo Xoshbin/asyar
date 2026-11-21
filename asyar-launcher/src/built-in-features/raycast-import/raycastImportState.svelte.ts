@@ -1,4 +1,5 @@
 import { raycastImportParse } from '../../lib/ipc/commands';
+import { extractErrorMessage } from '../../lib/errors';
 import { applyBundle } from './importApplier';
 import type { ImportBundle, ImportSelection, ImportSummary } from './types';
 
@@ -26,6 +27,7 @@ export class RaycastImportState {
     aliases: true,
   });
   summary = $state<ImportSummary | null>(null);
+  parseError = $state<string | null>(null);
   errorMessage = $state<string | null>(null);
 
   reset(): void {
@@ -37,6 +39,7 @@ export class RaycastImportState {
     this.bundle = null;
     this.selection = { snippets: true, portals: true, shortcuts: true, aliases: true };
     this.summary = null;
+    this.parseError = null;
     this.errorMessage = null;
   }
 
@@ -44,6 +47,7 @@ export class RaycastImportState {
     this.filePath = path;
     this.password = '';
     this.passwordError = false;
+    this.parseError = null;
     await this.#parse(undefined);
   }
 
@@ -55,6 +59,7 @@ export class RaycastImportState {
   async #parse(password: string | undefined): Promise<void> {
     if (!this.filePath) return;
     this.parsing = true;
+    this.parseError = null;
     try {
       const outcome = await raycastImportParse(this.filePath, password);
       switch (outcome.status) {
@@ -71,10 +76,12 @@ export class RaycastImportState {
           this.passwordError = true;
           break;
       }
-    } catch {
-      // The transport already reported the diagnostic; keep the wizard usable.
+    } catch (e) {
+      // The transport already reported the diagnostic; keep the wizard usable
+      // and surface the reason inline so the user knows why the file failed.
       this.phase = 'pick';
       this.bundle = null;
+      this.parseError = extractErrorMessage(e);
     } finally {
       this.parsing = false;
     }

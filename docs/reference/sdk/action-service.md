@@ -9,6 +9,8 @@ worker; register UI-bound handlers from the view.
 
 See the [actions reference](../actions.md) for the complete guide.
 
+When calling `context.registerAction(action)` (or `actionService.registerAction(action)` via the SDK proxy), `extensionId` is optional — it is automatically filled from `context.extensionId` if omitted.
+
 ```typescript
 interface IActionService {
   registerAction(action: ExtensionAction): void;

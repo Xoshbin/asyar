@@ -13,6 +13,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { filesService } from '../files/filesService';
 import {
   ALWAYS_INJECTS_CALLER_ID,
+  INJECTS_EXTENSION_ID,
   METHOD_PARAM_SCHEMAS,
   ExtensionIpcRouter,
 } from './ExtensionIpcRouter';
@@ -46,5 +47,84 @@ describe('files IPC contracts', () => {
   it('readRange has an explicit path/options schema and caller injection', () => {
     expect(METHOD_PARAM_SCHEMAS['files:readRange']).toEqual(['path', 'opts']);
     expect(ALWAYS_INJECTS_CALLER_ID.has('files')).toBe(true);
+  });
+
+  it('exists has an explicit path schema and forwards to files_exists', async () => {
+    expect(METHOD_PARAM_SCHEMAS['files:exists']).toEqual(['path']);
+    const router = new ExtensionIpcRouter({ files: filesService }, vi.fn(), vi.fn(), vi.fn());
+    vi.mocked(invoke).mockResolvedValueOnce(false);
+    const exists = await (router as any).dispatchApiCall(
+      'asyar:api:files:exists',
+      { path: '/tmp/repo/.git/HEAD' },
+      'ext.a',
+      false,
+    );
+    expect(exists).toBe(false);
+    expect(invoke).toHaveBeenLastCalledWith('files_exists', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/repo/.git/HEAD',
+    });
+  });
+
+  it('icon has an explicit path schema and forwards to files_icon', async () => {
+    expect(METHOD_PARAM_SCHEMAS['files:icon']).toEqual(['path']);
+    const router = new ExtensionIpcRouter({ files: filesService }, vi.fn(), vi.fn(), vi.fn());
+    vi.mocked(invoke).mockResolvedValueOnce('asyar-thumb://localhost/icon.png');
+    const iconUrl = await (router as any).dispatchApiCall(
+      'asyar:api:files:icon',
+      { path: '/Applications/Safari.app' },
+      'ext.a',
+      false,
+    );
+    expect(iconUrl).toBe('asyar-thumb://localhost/icon.png');
+    expect(invoke).toHaveBeenLastCalledWith('files_icon', {
+      extensionId: 'ext.a',
+      pathStr: '/Applications/Safari.app',
+    });
+  });
+
+  it('query has an explicit path/sql/params schema and forwards to files_query', async () => {
+    expect(METHOD_PARAM_SCHEMAS['files:query']).toEqual(['path', 'sql', 'params']);
+    const router = new ExtensionIpcRouter({ files: filesService }, vi.fn(), vi.fn(), vi.fn());
+    const rows = [{ id: 1 }];
+    vi.mocked(invoke).mockResolvedValueOnce(rows);
+    const result = await (router as any).dispatchApiCall(
+      'asyar:api:files:query',
+      { path: '/tmp/test.db', sql: 'SELECT ?1 AS id', params: [1] },
+      'ext.a',
+      false,
+    );
+    expect(result).toEqual(rows);
+    expect(invoke).toHaveBeenLastCalledWith('files_query', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/test.db',
+      sql: 'SELECT ?1 AS id',
+      params: [1],
+    });
+  });
+});
+
+describe('environment:getPaths IPC contract', () => {
+  it('declares an empty param schema and injects extensionId', async () => {
+    expect(METHOD_PARAM_SCHEMAS['environment:getPaths']).toEqual([]);
+    expect(INJECTS_EXTENSION_ID.has('environment')).toBe(true);
+
+    const getPaths = vi.fn(async (extensionId: string) => ({
+      home: '/Users/alice',
+      appData: '/Users/alice/Library/Application Support',
+      localAppData: '/Users/alice/Library/Application Support',
+      config: '/Users/alice/Library/Application Support',
+      _caller: extensionId,
+    }));
+    const router = new ExtensionIpcRouter({ environment: { getPaths } }, vi.fn(), vi.fn(), vi.fn());
+    const result = await (router as any).dispatchApiCall(
+      'asyar:api:environment:getPaths',
+      undefined,
+      'ext.files',
+      false,
+    );
+
+    expect(getPaths).toHaveBeenCalledWith('ext.files');
+    expect(result.home).toBe('/Users/alice');
   });
 });
