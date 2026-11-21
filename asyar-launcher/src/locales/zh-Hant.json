@@ -892,8 +892,8 @@
     "skip": "略過",
     "skip_for_now": "暫時略過",
     "start_tour": "開始導覽",
-    "welcome_headline_pre": "認識 Asyar——鍵盤優先的",
-    "welcome_headline_hl": "指揮中心",
+    "welcome_headline_pre": "認識",
+    "welcome_headline_hl": "Asyar",
     "summon_lede_pre": "在任何位置按",
     "summon_lede_mid": "即可開啟 Asyar。試試搜尋應用程式，或快速計算——輸入",
     "summon_lede_post": "然後按 Enter。",
@@ -929,7 +929,8 @@
     "privacy_auto": "自動",
     "privacy_note": "預設關閉。隨時可在設定中變更。",
     "emoji_install_btn": "安裝 Emoji 擴充功能",
-    "emoji_installed": "✓ 已安裝 Emoji"
+    "emoji_installed": "✓ 已安裝 Emoji",
+    "welcome_tagline": "Raycast 的強大，Alfred 的速度，隱私優先的設計。"
   },
   "dev": {
     "no_enabled_extensions": "沒有已啟用的擴充套件",

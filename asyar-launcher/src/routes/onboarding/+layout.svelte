@@ -108,16 +108,22 @@
     inset: 0;
     display: flex;
     flex-direction: column;
-    /* Fully opaque surface — content does NOT show the desktop through it.
-       A faint brand wash at the top and a fine grey grain give it some depth. */
-    background-color: var(--bg-popup);
+    /* Fully opaque surface — content does NOT show the desktop through it. */
+    /* Grainy dusk: lavender light from the top right washing over violet into
+       deep indigo shadow. Fixed brand-moment colours, so they live here rather
+       than in the theme. */
+    --onb-shadow: #1d1a36;
+    --onb-indigo: #5b46c9;
+    --onb-violet: #8466e6;
+    --onb-lavender: #e4a2e4;
+    background-color: var(--onb-shadow);
     background-image:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E"),
-      radial-gradient(
-        ellipse 80% 50% at 50% 0%,
-        color-mix(in srgb, var(--asyar-brand) 9%, transparent),
-        transparent
-      );
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"),
+      radial-gradient(ellipse 75% 65% at 80% -5%, var(--onb-lavender), transparent 70%),
+      radial-gradient(ellipse 90% 55% at 60% 40%, var(--onb-violet), transparent 70%),
+      radial-gradient(ellipse 30% 55% at 18% 35%, var(--onb-indigo), transparent 75%),
+      radial-gradient(ellipse 25% 30% at 0% 75%, var(--onb-indigo), transparent 75%);
+    background-blend-mode: overlay, normal, normal, normal, normal;
     color: var(--text-primary);
     border-radius: var(--radius-xl);
     overflow: hidden;

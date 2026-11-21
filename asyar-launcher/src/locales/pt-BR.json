@@ -892,8 +892,8 @@
     "skip": "Pular",
     "skip_for_now": "Pular por enquanto",
     "start_tour": "Iniciar o tour",
-    "welcome_headline_pre": "Conheça o Asyar — seu centro de comando",
-    "welcome_headline_hl": "focado no teclado",
+    "welcome_headline_pre": "Conheça o",
+    "welcome_headline_hl": "Asyar",
     "summon_lede_pre": "Pressione",
     "summon_lede_mid": "em qualquer lugar para abrir o Asyar. Tente buscar um app ou fazer uma conta rápida — digite",
     "summon_lede_post": "e pressione Enter.",
@@ -929,7 +929,8 @@
     "privacy_auto": "Automático",
     "privacy_note": "Desativado por padrão. Altere quando quiser nas Configurações.",
     "emoji_install_btn": "Instalar extensão Emoji",
-    "emoji_installed": "✓ Emoji instalado"
+    "emoji_installed": "✓ Emoji instalado",
+    "welcome_tagline": "O poder do Raycast. A velocidade do Alfred. Privacidade por design."
   },
   "dev": {
     "no_enabled_extensions": "Nenhuma extensão habilitada",

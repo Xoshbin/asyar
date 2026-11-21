@@ -892,8 +892,8 @@
     "skip": "Skip",
     "skip_for_now": "Skip for now",
     "start_tour": "Start the tour",
-    "welcome_headline_pre": "Meet Asyar — your keyboard-first",
-    "welcome_headline_hl": "command center",
+    "welcome_headline_pre": "Meet",
+    "welcome_headline_hl": "Asyar",
     "summon_lede_pre": "Press",
     "summon_lede_mid": "from anywhere to open Asyar. Try searching an app, or do quick math — type",
     "summon_lede_post": "and press Enter.",
@@ -929,7 +929,8 @@
     "privacy_auto": "Auto",
     "privacy_note": "Off by default. Change it anytime in Settings.",
     "emoji_install_btn": "Install Emoji extension",
-    "emoji_installed": "✓ Emoji installed"
+    "emoji_installed": "✓ Emoji installed",
+    "welcome_tagline": "The power of Raycast. The speed of Alfred. Privacy by design."
   },
   "dev": {
     "no_enabled_extensions": "No enabled extensions",

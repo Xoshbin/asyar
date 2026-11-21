@@ -892,8 +892,8 @@
     "skip": "Passer",
     "skip_for_now": "Passer pour l'instant",
     "start_tour": "Commencer la visite",
-    "welcome_headline_pre": "Découvrez Asyar, votre centre de commande",
-    "welcome_headline_hl": "au clavier",
+    "welcome_headline_pre": "Découvrez",
+    "welcome_headline_hl": "Asyar",
     "summon_lede_pre": "Appuyez sur",
     "summon_lede_mid": "n'importe où pour ouvrir Asyar. Essayez de chercher une application, ou faites un calcul rapide : tapez",
     "summon_lede_post": "et appuyez sur Entrée.",
@@ -929,7 +929,8 @@
     "privacy_auto": "Auto",
     "privacy_note": "Désactivé par défaut. Modifiable à tout moment dans les Réglages.",
     "emoji_install_btn": "Installer l'extension Emoji",
-    "emoji_installed": "✓ Emoji installée"
+    "emoji_installed": "✓ Emoji installée",
+    "welcome_tagline": "La puissance de Raycast. La rapidité d’Alfred. La confidentialité par conception."
   },
   "dev": {
     "no_enabled_extensions": "Aucune extension activée",

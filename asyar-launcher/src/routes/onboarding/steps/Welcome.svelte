@@ -31,10 +31,11 @@
       >{t('onboarding.welcome_headline_hl')}</span
     >
   </h1>
+  <p class="welcome__tagline" style:--i={words.length + 1}>{t('onboarding.welcome_tagline')}</p>
   <button
     type="button"
     class="welcome__link"
-    style:--i={words.length + 1}
+    style:--i={words.length + 3}
     onclick={openRaycastImport}
   >
     {t('onboarding.tour_raycast')}
@@ -58,12 +59,18 @@
     color: var(--text-primary);
   }
   .welcome__word,
+  .welcome__tagline,
   .welcome__link {
     animation: word-in var(--dur-emerge) var(--ease-emerge) both;
     animation-delay: calc(200ms + var(--i) * 70ms);
   }
   .welcome__word {
     display: inline-block;
+  }
+  .welcome__tagline {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xl);
   }
   .welcome__link {
     background: none;
