@@ -112,10 +112,16 @@
     /* Grainy dusk: lavender light from the top right washing over violet into
        deep indigo shadow. Fixed brand-moment colours, so they live here rather
        than in the theme. */
+    /* Lila dusk:
     --onb-shadow: #1d1a36;
     --onb-indigo: #5b46c9;
     --onb-violet: #8466e6;
-    --onb-lavender: #e4a2e4;
+    --onb-lavender: #e4a2e4; */
+    /* Graphite: */
+    --onb-shadow: #111113;
+    --onb-indigo: #1c1c20;
+    --onb-violet: #26262b;
+    --onb-lavender: #45454d;
     background-color: var(--onb-shadow);
     background-image:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"),
