@@ -35,6 +35,11 @@ export const LIST_DENSITY_RANGES: Record<DensityKey, { min: number; max: number;
 /** macOS app icons fill 80% of their canvas; full-bleed icons shrink to match. */
 export const OPTICAL_ICON_RATIO = 0.8;
 
+/** A row is never shorter than its icon plus a little breathing room. */
+export function minRowHeight(iconSize: number): number {
+  return Math.max(LIST_DENSITY_RANGES.rowHeight.min, iconSize + 8);
+}
+
 function clampTo(key: DensityKey, value: unknown): number {
   const { min, max, step } = LIST_DENSITY_RANGES[key];
   const fallback = LIST_DENSITY_PRESETS.balanced[key];
@@ -47,7 +52,7 @@ export function clampListDensity(value: Partial<ListDensity> | null | undefined)
   const v = value ?? {};
   const iconSize = clampTo('iconSize', v.iconSize);
   return {
-    rowHeight: Math.max(clampTo('rowHeight', v.rowHeight), iconSize + 8),
+    rowHeight: Math.max(clampTo('rowHeight', v.rowHeight), minRowHeight(iconSize)),
     iconSize,
     gap: clampTo('gap', v.gap),
     titleSize: clampTo('titleSize', v.titleSize),

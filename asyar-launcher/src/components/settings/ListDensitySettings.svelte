@@ -9,6 +9,7 @@
     DEFAULT_LIST_DENSITY,
     LIST_DENSITY_OPTIONS,
     LIST_DENSITY_RANGES,
+    minRowHeight,
     resolveListDensity,
     type ListDensity,
     type ListDensityPreset,
@@ -99,7 +100,11 @@
     <SettingsRow label={t(slider.labelKey)}>
       <SettingsRangeSlider
         {...LIST_DENSITY_RANGES[slider.key]}
+        min={slider.key === 'rowHeight'
+          ? minRowHeight(density.iconSize)
+          : LIST_DENSITY_RANGES[slider.key].min}
         value={density[slider.key]}
+        label={t(slider.labelKey)}
         suffix="px"
         onchange={(v) => setCustom({ [slider.key]: v })}
       />

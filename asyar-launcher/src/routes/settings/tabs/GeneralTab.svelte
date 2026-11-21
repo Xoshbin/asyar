@@ -246,6 +246,7 @@
           max={100}
           value={placement.biasPercent}
           suffix="%"
+          label={t('settings.general.distance_from_top')}
           onchange={(v) => updatePlacement(() => placement.setBias(v), 'position')}
         />
       </SettingsRow>

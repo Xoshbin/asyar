@@ -41,4 +41,12 @@ describe('ListDensitySettings', () => {
     render(ListDensitySettings);
     expect(screen.getAllByRole('slider')).toHaveLength(4);
   });
+
+  it('raises the row height minimum with the icon size', () => {
+    settings.appearance = { listDensity: 'custom', customListDensity: { iconSize: 40 } };
+    render(ListDensitySettings);
+
+    const rowHeight = screen.getByRole('slider', { name: 'Row height' }) as HTMLInputElement;
+    expect(rowHeight.min).toBe('48');
+  });
 });

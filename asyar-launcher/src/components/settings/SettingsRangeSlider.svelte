@@ -5,6 +5,7 @@
     step = 1,
     value = $bindable(),
     suffix = '',
+    label,
     onchange,
   }: {
     min: number;
@@ -12,6 +13,8 @@
     step?: number;
     value: number;
     suffix?: string;
+    /** Accessible name; the visible label usually sits in the parent row. */
+    label?: string;
     onchange?: (value: number) => void;
   } = $props();
 
@@ -25,7 +28,7 @@
 </script>
 
 <div class="settings-range-slider">
-  <input type="range" {min} {max} {step} {value} oninput={handleInput} />
+  <input type="range" {min} {max} {step} {value} aria-label={label} oninput={handleInput} />
   <span class="value-display">
     {value}{suffix}
   </span>
