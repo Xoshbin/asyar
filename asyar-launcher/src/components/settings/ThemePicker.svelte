@@ -73,6 +73,7 @@
     >
       <div
         class="mini"
+        class:builtin={!card.id}
         style:--m-bg={vars['--bg-primary']}
         style:--m-sel={vars['--bg-selected']}
         style:--m-text={vars['--text-primary']}
@@ -139,6 +140,23 @@
     background: var(--m-bg);
     margin-bottom: var(--space-1);
     transition: box-shadow var(--transition-fast);
+  }
+
+  /* The built-in palette, so the Default card stays accurate while a custom
+     theme overrides the live tokens. Mirrors the settings-page surfaces in style.css. */
+  .mini.builtin {
+    --m-bg: rgb(245, 245, 247);
+    --m-sel: rgba(60, 60, 67, 0.09);
+    --m-text: rgba(15, 23, 42, 0.9);
+    --m-sub: rgba(60, 60, 67, 0.7);
+    --m-accent: #007aff;
+  }
+
+  :global(:root[data-theme='dark']) .mini.builtin {
+    --m-bg: rgb(30, 30, 32);
+    --m-sel: rgb(61, 61, 66);
+    --m-text: rgba(255, 255, 255, 0.95);
+    --m-sub: rgba(235, 235, 245, 0.65);
   }
 
   .theme-card.active .mini {

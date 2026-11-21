@@ -25,6 +25,15 @@ describe('ThemePicker', () => {
     expect(onselect).toHaveBeenCalledWith(null);
   });
 
+  it('previews the Default card in the built-in palette, not the active theme', () => {
+    render(ThemePicker, {
+      props: { themes, activeId: 'nord', onselect: vi.fn(), ongetmore: vi.fn() },
+    });
+
+    const minis = screen.getAllByRole('radio').map((r) => r.querySelector('.mini'));
+    expect(minis.map((m) => m?.classList.contains('builtin'))).toEqual([true, false]);
+  });
+
   it('offers more themes even when none are installed', async () => {
     const ongetmore = vi.fn();
     render(ThemePicker, { props: { themes: [], activeId: null, onselect: vi.fn(), ongetmore } });
