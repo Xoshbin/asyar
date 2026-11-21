@@ -2,13 +2,11 @@
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { getHudState, hudMarkShown, type HudContent } from '../../lib/ipc/commands';
-  import { WINDOW_OPACITY_EVENT } from '../../lib/launcher/windowOpacity';
   import '../../resources/styles/style.css';
 
   let title = $state<string | null>(null);
   let spinning = $state<boolean>(false);
   let unlisten: UnlistenFn | null = null;
-  let unlistenOpacity: UnlistenFn | null = null;
 
   /**
    * Completes the flash-free reveal: `show_hud` orders this window in at
@@ -47,19 +45,6 @@
       }
     }
 
-    // The HUD has no settings access; the launcher broadcasts Window opacity.
-    // shortcut: a value sent before this listener attaches is missed until the next change; have Rust hold it if that shows up.
-    try {
-      unlistenOpacity = await listen<{ opacity: number }>(WINDOW_OPACITY_EVENT, (event) => {
-        document.documentElement.style.setProperty(
-          '--surface-alpha',
-          String(event.payload.opacity / 100),
-        );
-      });
-    } catch (err) {
-      console.error('[hud] listen asyar:window-opacity failed:', err);
-    }
-
     // Belt: recover the most recently set state from Rust in case the
     // `hud:show` event was emitted before this listener attached. (The
     // HUD window is eagerly initialized at app startup; on the very
@@ -84,7 +69,6 @@
   });
 
   onDestroy(() => {
-    unlistenOpacity?.();
     if (unlisten) {
       unlisten();
       unlisten = null;
@@ -148,8 +132,7 @@
   */
   .hud-pill {
     padding: 16px 32px;
-    /* 0.62 at the default Window opacity (0.65). */
-    background: rgba(68, 56, 58, calc(var(--surface-alpha) - 0.03));
+    background: rgba(68, 56, 58, 0.62);
     backdrop-filter: blur(60px) saturate(200%);
     -webkit-backdrop-filter: blur(60px) saturate(200%);
     border-radius: 9999px;

@@ -1,8 +1,5 @@
 import type { HostPlatform } from '../keyboard/hostPlatform';
 
-/** Launcher → HUD broadcast; the HUD has no settings access. */
-export const WINDOW_OPACITY_EVENT = 'asyar:window-opacity';
-
 /** Surface opacity in percent; 100 is solid and turns the native blur off. */
 export const WINDOW_OPACITY_RANGE = { min: 0, max: 100, step: 5 } as const;
 
