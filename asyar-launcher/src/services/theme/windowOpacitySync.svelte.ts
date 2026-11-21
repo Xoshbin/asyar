@@ -22,9 +22,10 @@ export function initWindowOpacitySync(): () => void {
   unsubscribe = settingsService.subscribe((settings) => {
     const opacity = resolveWindowOpacity(settings.appearance, getHostPlatform());
     if (opacity === lastOpacity) return;
+    // The blur is on from window setup, so only a change of solid-ness needs native work.
     const wasSolid = lastOpacity === WINDOW_OPACITY_RANGE.max;
     const isSolid = opacity === WINDOW_OPACITY_RANGE.max;
-    if (lastOpacity === null || wasSolid !== isSolid) {
+    if (wasSolid !== isSolid) {
       setWindowGlass(!isSolid).catch((e) => logService.warn(`set_window_glass failed: ${e}`));
     }
     lastOpacity = opacity;

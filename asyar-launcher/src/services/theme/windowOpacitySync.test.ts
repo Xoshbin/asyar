@@ -28,14 +28,14 @@ describe('initWindowOpacitySync', () => {
   it('switches the native blur only when crossing solid, and broadcasts every change', () => {
     initWindowOpacitySync();
     push();
-    expect(setWindowGlass).toHaveBeenLastCalledWith(true);
+    expect(setWindowGlass).not.toHaveBeenCalled();
 
     push(50);
     push(100);
     push(100);
     push(95);
 
-    expect(setWindowGlass.mock.calls).toEqual([[true], [false], [true]]);
+    expect(setWindowGlass.mock.calls).toEqual([[false], [true]]);
     expect(emit.mock.calls.map(([, p]) => p.opacity)).toEqual([65, 50, 100, 95]);
   });
 });
