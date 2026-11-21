@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="rim-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.40" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15" />
+    </linearGradient>
+    <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.32" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.20" />
+    </filter>
+    <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+    <filter id="star-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur1" />
+      <feGaussianBlur stdDeviation="5" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    
+  </defs>
+
+  <!-- Squircle Base with Solid Color -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="#0284C7" />
+
+  <!-- Content Glyph -->
+  <!-- Back Window (Target) -->
+  <g opacity="0.75">
+    <rect x="120" y="140" width="200" height="150" rx="16" fill="#0369A1"
+          stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="3" />
+    <rect x="120" y="140" width="200" height="28" rx="16" fill="#075985" />
+    <circle cx="138" cy="154" r="4" fill="#FFFFFF" opacity="0.6" />
+    <circle cx="150" cy="154" r="4" fill="#FFFFFF" opacity="0.6" />
+  </g>
+
+  <!-- Front Window (Active Focus) -->
+  <g filter="url(#card-shadow)">
+    <rect x="180" y="200" width="216" height="166" rx="18" fill="#FFFFFF" />
+    <rect x="180" y="200" width="216" height="32" rx="18" fill="#F1F5F9" />
+    <!-- Traffic lights -->
+    <circle cx="200" cy="216" r="5" fill="#EF4444" />
+    <circle cx="214" cy="216" r="5" fill="#F59E0B" />
+    <circle cx="228" cy="216" r="5" fill="#10B981" />
+
+    <!-- Window content lines -->
+    <rect x="204" y="250" width="90" height="10" rx="5" fill="#0F172A" />
+    <rect x="204" y="272" width="140" height="7" rx="3.5" fill="#94A3B8" />
+    <rect x="204" y="288" width="120" height="7" rx="3.5" fill="#CBD5E1" />
+    <rect x="204" y="304" width="130" height="7" rx="3.5" fill="#CBD5E1" />
+  </g>
+
+  <!-- Dynamic Switch Cycle Arrow Pill -->
+  <g filter="url(#badge-shadow)">
+    <rect x="286" y="148" width="100" height="48" rx="24" fill="#0F172A" stroke="#FFFFFF" stroke-width="3" />
+    <!-- Arrow Right -->
+    <path d="M 312 165 L 342 165 M 336 159 L 344 165 L 336 171"
+          stroke="#38BDF8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Arrow Left -->
+    <path d="M 360 179 L 330 179 M 336 173 L 328 179 L 336 185"
+          stroke="#F8FAFC" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- 2px Specular Rim -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="none" stroke="url(#rim-gradient)" stroke-width="2" />
+</svg>

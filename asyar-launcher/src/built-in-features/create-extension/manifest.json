@@ -22,7 +22,7 @@
     {
       "id": "build-with-ai",
       "name": "Build Extension with AI",
-      "icon": "icon:sparkles",
+      "icon": "assets/build-ai.png",
       "description": "Describe an extension in words and let AI build it",
       "mode": "view",
       "component": "BuildProgressView"

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="rim-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.40" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15" />
+    </linearGradient>
+    <filter id="hero-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.35" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.22" />
+    </filter>
+    <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.30" />
+    </filter>
+    <linearGradient id="meter-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="70%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#38BDF8" />
+    </linearGradient>
+    
+  </defs>
+
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="#7C3AED" />
+  
+  <!-- Floating Progress Card -->
+  <g filter="url(#hero-shadow)">
+    <rect x="132" y="128" width="248" height="268" rx="20" fill="#FFFFFF" />
+
+    <!-- Card Header with MeterBar -->
+    <rect x="132" y="128" width="248" height="48" rx="20" fill="#F8FAFC" />
+    <!-- Meter track -->
+    <rect x="156" y="150" width="200" height="10" rx="5" fill="#E2E8F0" />
+    <!-- Active progress meter (75% completed) -->
+    <rect x="156" y="150" width="145" height="10" rx="5" fill="url(#meter-gradient)" />
+
+    <!-- Item 1: Completed Task -->
+    <circle cx="172" cy="208" r="14" fill="#10B981" />
+    <path d="M 166 208 L 170 212 L 178 204" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="198" y="202" width="130" height="12" rx="6" fill="#0F172A" />
+
+    <!-- Item 2: Completed Task -->
+    <circle cx="172" cy="254" r="14" fill="#10B981" />
+    <path d="M 166 254 L 170 258 L 178 250" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="198" y="248" width="150" height="10" rx="5" fill="#475569" />
+
+    <!-- Item 3: In-Progress / Next Task -->
+    <circle cx="172" cy="300" r="14" fill="#E0F2FE" stroke="#0284C7" stroke-width="2.5" />
+    <circle cx="172" cy="300" r="5" fill="#0284C7" />
+    <rect x="198" y="294" width="110" height="10" rx="5" fill="#94A3B8" />
+
+    <!-- Item 4: Upcoming Task -->
+    <circle cx="172" cy="346" r="14" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="2" />
+    <rect x="198" y="340" width="135" height="10" rx="5" fill="#CBD5E1" />
+  </g>
+
+  <!-- Golden Milestone Star Floating Badge -->
+  <g filter="url(#badge-shadow)">
+    <circle cx="348" cy="144" r="26" fill="#0F172A" stroke="#FFFFFF" stroke-width="3.5" />
+    <!-- 5-point Star -->
+    <polygon points="348,126 353,138 366,138 356,146 360,158 348,150 336,158 340,146 330,138 343,138"
+             fill="#FDE047" stroke="#F59E0B" stroke-width="1.5" />
+  </g>
+
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="none" stroke="url(#rim-gradient)" stroke-width="2" />
+</svg>

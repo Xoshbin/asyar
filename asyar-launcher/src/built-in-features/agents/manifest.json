@@ -22,7 +22,7 @@
     {
       "id": "ask",
       "name": "Ask AI",
-      "icon": "icon:ai-chat",
+      "icon": "assets/ask-ai.png",
       "description": "Ask an AI agent a question",
       "mode": "view",
       "component": "AgentChatView"

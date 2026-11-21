@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="rim-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.40" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15" />
+    </linearGradient>
+    <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.32" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.20" />
+    </filter>
+    <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+    <filter id="star-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur1" />
+      <feGaussianBlur stdDeviation="5" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    
+  </defs>
+
+  <!-- Squircle Base with Solid Color -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="#D97706" />
+
+  <!-- Content Glyph -->
+  <!-- Journal / Calendar Day Card -->
+  <g filter="url(#card-shadow)">
+    <rect x="136" y="136" width="240" height="250" rx="18" fill="#FFFFFF" />
+    <!-- Top calendar header -->
+    <path d="M 136 154 A 18 18 0 0 1 154 136 L 358 136 A 18 18 0 0 1 376 154 L 376 196 L 136 196 Z" fill="#B45309" />
+    <!-- Twin binder loops -->
+    <rect x="180" y="122" width="12" height="28" rx="6" fill="#F8FAFC" stroke="#0F172A" stroke-width="2.5" />
+    <rect x="320" y="122" width="12" height="28" rx="6" fill="#F8FAFC" stroke="#0F172A" stroke-width="2.5" />
+
+    <!-- TODAY date badge -->
+    <text x="256" y="174" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif"
+          font-size="20" font-weight="800" text-anchor="middle" letter-spacing="2">TODAY</text>
+
+    <!-- Card body: Entry bullet checklist -->
+    <circle cx="168" cy="234" r="7" fill="#10B981" />
+    <rect x="188" y="230" width="100" height="8" rx="4" fill="#0F172A" />
+
+    <circle cx="168" cy="268" r="7" fill="#F59E0B" />
+    <rect x="188" y="264" width="130" height="8" rx="4" fill="#94A3B8" />
+
+    <circle cx="168" cy="302" r="7" fill="#E2E8F0" />
+    <rect x="188" y="298" width="90" height="8" rx="4" fill="#CBD5E1" />
+  </g>
+
+  <!-- Angled Stylus / Writing Pen writing into the card -->
+  <g filter="url(#badge-shadow)" transform="rotate(-35 340 330)">
+    <!-- Pen barrel -->
+    <rect x="330" y="240" width="20" height="120" rx="6" fill="#0F172A" stroke="#FFFFFF" stroke-width="3" />
+    <!-- Brass trim band -->
+    <rect x="330" y="320" width="20" height="8" fill="#F59E0B" />
+    <!-- Pen tip nib -->
+    <polygon points="330,360 350,360 340,386" fill="#F59E0B" stroke="#B45309" stroke-width="2" />
+    <!-- Writing point -->
+    <circle cx="340" cy="386" r="2.5" fill="#0F172A" />
+  </g>
+
+  <!-- 2px Specular Rim -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="none" stroke="url(#rim-gradient)" stroke-width="2" />
+</svg>

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="rim-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.40" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15" />
+    </linearGradient>
+    <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.32" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.20" />
+    </filter>
+    <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+    <filter id="star-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur1" />
+      <feGaussianBlur stdDeviation="5" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    
+  </defs>
+
+  <!-- Squircle Base with Solid Color -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="#059669" />
+
+  <!-- Content Glyph -->
+  <!-- Interlocking Extension Block / Puzzle Piece -->
+  <g filter="url(#card-shadow)">
+    <path d="M 160 180
+             L 216 180
+             C 216 160 230 148 246 148
+             C 262 148 276 160 276 180
+             L 332 180
+             A 20 20 0 0 1 352 200
+             L 352 256
+             C 372 256 384 270 384 286
+             C 384 302 372 316 352 316
+             L 352 372
+             A 20 20 0 0 1 332 392
+             L 276 392
+             C 276 372 262 360 246 360
+             C 230 360 216 372 216 392
+             L 160 392
+             A 20 20 0 0 1 140 372
+             L 140 200
+             A 20 20 0 0 1 160 180 Z"
+          fill="#FFFFFF" />
+
+    <!-- Code glyph lines on puzzle block -->
+    <path d="M 194 270 L 178 286 L 194 302" fill="none" stroke="#059669" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 230 270 L 246 286 L 230 302" fill="none" stroke="#059669" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="216" y1="266" x2="208" y2="306" stroke="#94A3B8" stroke-width="4.5" stroke-linecap="round" />
+  </g>
+
+  <!-- Floating Radiant AI Sparks -->
+  <g filter="url(#star-glow)">
+    <!-- Primary Top-Right AI Sparkle -->
+    <path d="M 364 126
+             C 364 150 348 166 324 166
+             C 348 166 364 182 364 206
+             C 364 182 380 166 404 166
+             C 380 166 364 150 364 126 Z"
+          fill="#FDE047" />
+    <circle cx="364" cy="166" r="4" fill="#FFFFFF" />
+  </g>
+
+  <!-- 2px Specular Rim -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="none" stroke="url(#rim-gradient)" stroke-width="2" />
+</svg>
