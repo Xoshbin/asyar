@@ -399,9 +399,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
             Some("mcp")
         }
         // AI Model Prompting — Tier 2 extensions prompting configured AI providers / spending tokens.
-        "asyar:api:ai:streamChat" | "asyar:api:ai:complete" | "asyar:api:ai:listModels" => {
-            Some("ai")
-        }
+        "asyar:api:ai:streamChat" | "asyar:api:ai:complete" => Some("ai"),
+        "asyar:api:ai:listModels" => Some("ai"),
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
         // permission-free (discovery, low blast radius).
         // search:rank is intentionally permission-free: the caller supplies its
