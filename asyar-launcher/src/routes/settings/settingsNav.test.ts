@@ -52,7 +52,7 @@ describe('resolveNavigation', () => {
     });
   });
 
-  it.each(['general', 'privacy', 'backup', 'account', 'advanced', 'about'])(
+  it.each(['general', 'appearance', 'privacy', 'backup', 'account', 'advanced', 'about'])(
     'passes %s through',
     (tab) => {
       expect(resolveNavigation({ tab }, false)).toEqual({ tab, extensionId: null });
@@ -74,6 +74,7 @@ describe('SIDEBAR_GROUPS', () => {
     expect(SIDEBAR_GROUPS.flatMap((g) => g.tabs)).toEqual([
       'account',
       'general',
+      'appearance',
       'applications',
       'built-in-features',
       'extensions',

@@ -63,7 +63,7 @@ class WalkthroughExtension implements Extension {
         title: t('features.walkthrough.act.beyond'),
         subtitle: t('features.walkthrough.progress_subtitle', { completed, total }),
         id: 'walkthrough_progress',
-        icon: 'icon:star',
+        icon: 'asyar-extension://walkthrough/assets/beyond.png',
         priority: 'top',
       },
     ];

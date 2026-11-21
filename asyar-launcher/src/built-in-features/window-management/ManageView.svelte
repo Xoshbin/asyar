@@ -217,8 +217,8 @@
   }
 
   .layout-icon {
-    width: var(--size-xl);
-    height: var(--size-xl);
+    width: 100%;
+    height: 100%;
     border-radius: var(--radius-md);
     background: var(--bg-tertiary);
     color: var(--text-secondary);

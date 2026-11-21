@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="32 32 448 448">
+  <defs>
+    <linearGradient id="specularRim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15"/>
+    </linearGradient>
+
+    <!-- Dual Punchy Drop Shadow for Depth -->
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#1E1B4B" flood-opacity="0.75"/>
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#1E1B4B" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Solid Flat Electric Indigo Squircle -->
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="#4F46E5"/>
+  <rect x="33" y="33" width="446" height="446" rx="103" fill="none" stroke="url(#specularRim)" stroke-width="2"/>
+
+  <!-- Bold Canonical Command (⌘) Symbol (Mathematically Continuous Ribbon) -->
+  <path d="M 212 212
+L 212 168
+A 44.0 44.0 0 1 0 168 212
+L 344 212
+A 44.0 44.0 0 1 0 300 168
+L 300 344
+A 44.0 44.0 0 1 0 344 300
+L 168 300
+A 44.0 44.0 0 1 0 212 344
+Z"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="32"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        filter="url(#shadow)"/>
+</svg>

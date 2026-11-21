@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { OPTICAL_ICON_RATIO, resolveListDensity } from '../../lib/launcher/listDensity';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
 
   let {
     selected = false,
@@ -20,6 +22,8 @@
     trailing?: Snippet;
     [key: string]: any;
   } = $props();
+
+  const d = $derived(resolveListDensity(settingsService.currentSettings.appearance));
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -27,8 +31,14 @@
 <div
   class="list-row"
   class:selected
+  class:two-line={d.twoLine}
   role="option"
   aria-selected={selected}
+  style:--row-h="{d.rowHeight}px"
+  style:--row-icon="{d.iconSize}px"
+  style:--row-icon-optical="{Math.round(d.iconSize * OPTICAL_ICON_RATIO)}px"
+  style:--row-gap="{d.gap}px"
+  style:--row-title="{d.titleSize}px"
   {onclick}
   {ondblclick}
   {...restProps}
@@ -40,7 +50,7 @@
   {/if}
 
   <div class="list-item-content">
-    <div class="truncate text-title">{title}</div>
+    <div class="list-item-title truncate text-title">{title}</div>
     {#if typeof subtitle === 'function'}
       <div class="truncate text-caption">
         {@render subtitle()}
@@ -61,8 +71,9 @@
   .list-row {
     display: flex;
     align-items: center;
-    gap: var(--space-5);
-    padding: var(--space-5) var(--space-6);
+    gap: var(--row-gap);
+    min-height: var(--row-h);
+    padding: var(--space-1) var(--space-6);
     border-radius: var(--radius-md);
     margin-bottom: var(--space-0-5);
     transition: none;
@@ -88,14 +99,35 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    width: var(--row-icon);
+    height: var(--row-icon);
   }
 
+  .list-item-leading > :global(svg) {
+    width: var(--row-icon-optical);
+    height: var(--row-icon-optical);
+    color: var(--text-secondary);
+  }
+
+  /* One line: the subtitle follows the title, as in LauncherListRow. */
   .list-item-content {
     flex: 1;
     min-width: 0;
     display: flex;
+    align-items: baseline;
+    gap: var(--space-5);
+  }
+
+  .two-line .list-item-content {
     flex-direction: column;
-    justify-content: center;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .list-item-title {
+    font-size: var(--row-title);
+    flex-shrink: 0;
+    max-width: 100%;
   }
 
   .list-item-trailing {

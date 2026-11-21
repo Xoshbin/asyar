@@ -1,9 +1,11 @@
 {
   "id": "create-extension",
   "name": "Developer Tools",
-  "icon": "icon:dev-tools",
+  "icon": "assets/icon.png",
   "version": "1.0.0",
-  "lifecycle": { "disableable": true },
+  "lifecycle": {
+    "disableable": true
+  },
   "description": "Scaffold new Asyar extensions",
   "author": "Core",
   "searchable": true,
@@ -13,7 +15,6 @@
     {
       "id": "open",
       "name": "Create Extension",
-      "icon": "icon:dev-tools",
       "description": "Scaffold a new Asyar extension for development",
       "mode": "view",
       "component": "DefaultView"
@@ -21,7 +22,7 @@
     {
       "id": "build-with-ai",
       "name": "Build Extension with AI",
-      "icon": "icon:sparkles",
+      "icon": "assets/build-ai.png",
       "description": "Describe an extension in words and let AI build it",
       "mode": "view",
       "component": "BuildProgressView"
@@ -29,7 +30,6 @@
     {
       "id": "my-extensions",
       "name": "My Extensions",
-      "icon": "icon:dev-tools",
       "description": "Browse the extensions you've built and publish them",
       "mode": "view",
       "component": "CreatedExtensionsView"

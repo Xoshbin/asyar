@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="32 32 448 448">
+  <defs>
+    <linearGradient id="specularRim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15"/>
+    </linearGradient>
+
+    <!-- Precision Metallic Gradients -->
+    <linearGradient id="metalBevel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="30%" stop-color="#E2E8F0"/>
+      <stop offset="70%" stop-color="#94A3B8"/>
+      <stop offset="100%" stop-color="#64748B"/>
+    </linearGradient>
+
+    <linearGradient id="metalDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+
+    <!-- Dual Punchy Drop Shadow for Realistic Mechanical Depth -->
+    <filter id="drop" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.65"/>
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#0F172A" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Solid Flat Technical Slate Squircle -->
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="#334155"/>
+  <rect x="33" y="33" width="446" height="446" rx="103" fill="none" stroke="url(#specularRim)" stroke-width="2"/>
+
+  <!-- Mathematically Centered Precision Gear -->
+  <g filter="url(#drop)">
+    <!-- Outer Precision Machined Gear Body (100% Symmetrical) -->
+    <path d="M 240.34 137.03 L 271.66 137.03 L 276.54 170.43 L 301.98 180.97 L 329.05 160.8 L 351.2 182.95 L 331.03 210.02 L 341.57 235.46 L 374.97 240.34 L 374.97 271.66 L 341.57 276.54 L 331.03 301.98 L 351.2 329.05 L 329.05 351.2 L 301.98 331.03 L 276.54 341.57 L 271.66 374.97 L 240.34 374.97 L 235.46 341.57 L 210.02 331.03 L 182.95 351.2 L 160.8 329.05 L 180.97 301.98 L 170.43 276.54 L 137.03 271.66 L 137.03 240.34 L 170.43 235.46 L 180.97 210.02 L 160.8 182.95 L 182.95 160.8 L 210.02 180.97 L 235.46 170.43 Z"
+          fill="url(#metalBevel)"
+          stroke="#FFFFFF"
+          stroke-width="4"
+          stroke-linejoin="round"
+          stroke-opacity="0.4"/>
+
+    <!-- Beveled Inner Concentric Ring -->
+    <circle cx="256" cy="256" r="62" fill="url(#metalDark)" stroke="#94A3B8" stroke-width="2"/>
+
+    <!-- Deep Center Axle Bore -->
+    <circle cx="256" cy="256" r="34" fill="#0F172A" stroke="#475569" stroke-width="3"/>
+
+    <!-- Precision Axle Hub Gem -->
+    <circle cx="256" cy="256" r="15" fill="url(#metalBevel)"/>
+    <circle cx="256" cy="256" r="7" fill="#FFFFFF" opacity="0.7"/>
+  </g>
+</svg>

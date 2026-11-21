@@ -14,6 +14,8 @@
   import { logService } from '../../services/log/logService';
   import { settingsService } from '../../services/settings/settingsService.svelte';
   import { applyThemePreference } from '../../services/theme/themeMode';
+  import { resolveWindowOpacity } from '../../lib/launcher/windowOpacity';
+  import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
   import DialogHost from '../feedback/DialogHost.svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -35,6 +37,15 @@
   $effect(() => {
     if (!settingsService.initialized) return;
     applyThemePreference(settingsService.currentSettings.appearance.theme);
+  });
+
+  $effect(() => {
+    if (!settingsService.initialized) return;
+    const opacity = resolveWindowOpacity(
+      settingsService.currentSettings.appearance,
+      getHostPlatform(),
+    );
+    document.documentElement.style.setProperty('--surface-alpha', String(opacity / 100));
   });
 
   onMount(() => {

@@ -13,6 +13,26 @@ pub fn apply_panel_appearance<R: Runtime>(window: &WebviewWindow<R>, pref: crate
     }
 }
 
+/// Adds or removes the launcher's NSVisualEffectView. Clearing first keeps a
+/// repeated enable from stacking a second view.
+pub fn set_panel_vibrancy<R: Runtime>(
+    window: &WebviewWindow<R>,
+    enabled: bool,
+    pref: crate::ThemePreference,
+) {
+    let _ = window_vibrancy::clear_vibrancy(window);
+    if enabled {
+        let resolved = asyar_platform::macos::resolve_theme_preference(pref);
+        let material = asyar_platform::macos::material_for_resolved_theme(resolved);
+        let _ = window_vibrancy::apply_vibrancy(window, material, None, None);
+        // apply_vibrancy sizes the view to the cropped window; the launcher pins it at full height.
+        if let Ok(ptr) = window.ns_window() {
+            // SAFETY: ns_window() returns a valid NSWindow pointer on success.
+            unsafe { asyar_platform::macos::match_vibrancy_to_webview(ptr as *mut _) };
+        }
+    }
+}
+
 /// Registers an observer for `AppleInterfaceThemeChangedNotification`.
 /// When the OS appearance changes, re-applies the appearance if the preference is `System`.
 pub fn install_appearance_observer<R: Runtime + 'static>(app: &AppHandle<R>) {

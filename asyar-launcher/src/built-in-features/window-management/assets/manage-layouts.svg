@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="rim-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.40" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15" />
+    </linearGradient>
+    <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.32" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.20" />
+    </filter>
+    <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+    <filter id="star-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur1" />
+      <feGaussianBlur stdDeviation="5" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    
+  </defs>
+
+  <!-- Squircle Base with Solid Color -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="#0284C7" />
+
+  <!-- Content Glyph -->
+  <!-- Desktop Window Canvas Container -->
+  <g filter="url(#card-shadow)">
+    <!-- Base Canvas Frame -->
+    <rect x="116" y="132" width="280" height="220" rx="20" fill="#0F172A" fill-opacity="0.35"
+          stroke="#FFFFFF" stroke-opacity="0.30" stroke-width="3" />
+
+    <!-- Left Tiled Pane (Master Column) -->
+    <rect x="130" y="146" width="118" height="192" rx="12" fill="#FFFFFF" />
+    <!-- Window Header / dots -->
+    <rect x="130" y="146" width="118" height="26" rx="12" fill="#F1F5F9" />
+    <circle cx="146" cy="159" r="4" fill="#EF4444" />
+    <circle cx="158" cy="159" r="4" fill="#F59E0B" />
+    <circle cx="170" cy="159" r="4" fill="#10B981" />
+    <!-- Content mock lines -->
+    <rect x="146" y="186" width="60" height="8" rx="4" fill="#94A3B8" />
+    <rect x="146" y="204" width="86" height="6" rx="3" fill="#CBD5E1" />
+    <rect x="146" y="218" width="76" height="6" rx="3" fill="#CBD5E1" />
+    <rect x="146" y="232" width="82" height="6" rx="3" fill="#CBD5E1" />
+
+    <!-- Top-Right Tiled Pane -->
+    <rect x="258" y="146" width="124" height="90" rx="12" fill="#FFFFFF" />
+    <rect x="258" y="146" width="124" height="24" rx="12" fill="#F1F5F9" />
+    <circle cx="274" cy="158" r="4" fill="#94A3B8" />
+    <rect x="274" y="182" width="70" height="7" rx="3.5" fill="#0284C7" />
+    <rect x="274" y="197" width="90" height="5" rx="2.5" fill="#CBD5E1" />
+
+    <!-- Bottom-Right Tiled Pane -->
+    <rect x="258" y="248" width="124" height="90" rx="12" fill="#FFFFFF" />
+    <rect x="258" y="248" width="124" height="24" rx="12" fill="#F1F5F9" />
+    <circle cx="274" cy="260" r="4" fill="#94A3B8" />
+    <rect x="274" y="284" width="56" height="7" rx="3.5" fill="#059669" />
+    <rect x="274" y="299" width="84" height="5" rx="2.5" fill="#CBD5E1" />
+  </g>
+
+  <!-- Floating Settings / Management Badge -->
+  <g filter="url(#badge-shadow)">
+    <circle cx="366" cy="336" r="32" fill="#0F172A" stroke="#FFFFFF" stroke-width="4" />
+    <!-- Gear icon inside badge -->
+    <path d="M 366 318 L 369 323 L 375 322 L 377 327 L 383 328 L 382 334 L 386 338 L 383 343 L 385 349 L 379 351 L 377 356 L 371 355 L 366 360 L 361 355 L 355 356 L 353 351 L 347 349 L 349 343 L 346 338 L 350 334 L 349 328 L 355 327 L 357 322 L 363 323 Z"
+          fill="#38BDF8" />
+    <circle cx="366" cy="339" r="6" fill="#0F172A" />
+  </g>
+
+  <!-- 2px Specular Rim -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="none" stroke="url(#rim-gradient)" stroke-width="2" />
+</svg>

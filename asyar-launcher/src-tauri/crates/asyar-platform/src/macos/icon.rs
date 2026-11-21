@@ -64,10 +64,12 @@ fn extract_icon_from_icns(path: &Path) -> Option<Vec<u8>> {
     };
     let icon_family = icns::IconFamily::read(file).ok()?;
     let preferred = [
+        icns::IconType::RGBA32_128x128,
+        icns::IconType::RGBA32_64x64,
+        icns::IconType::RGBA32_32x32_2x,
+        icns::IconType::RGBA32_256x256,
         icns::IconType::RGB24_32x32,
         icns::IconType::RGBA32_32x32,
-        icns::IconType::RGBA32_64x64,
-        icns::IconType::RGBA32_128x128,
         icns::IconType::RGB24_16x16,
     ];
     for icon_type in &preferred {

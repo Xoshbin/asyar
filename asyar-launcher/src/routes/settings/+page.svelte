@@ -8,6 +8,7 @@
   import { resolveNavigation, SETTINGS_TAB_KEYWORDS, type SettingsTabId } from './settingsNav';
   import { SettingsHandler } from './settingsHandlers.svelte';
   import GeneralTab from './tabs/GeneralTab.svelte';
+  import AppearanceTab from './tabs/AppearanceTab.svelte';
   import ExtensionsTab from './tabs/ExtensionsTab.svelte';
   import BuiltInFeaturesTab from './tabs/BuiltInFeaturesTab.svelte';
   import AboutTab from './tabs/AboutTab.svelte';
@@ -62,6 +63,12 @@
       [
         { id: 'account', label: t('settings.tabs.account'), icon: 'user', group: 'top' },
         { id: 'general', label: t('settings.tabs.general'), icon: 'settings', group: 'app' },
+        {
+          id: 'appearance',
+          label: t('settings.tabs.appearance'),
+          icon: 'palette',
+          group: 'app',
+        },
         {
           id: 'applications',
           label: t('settings.tabs.applications'),
@@ -219,6 +226,8 @@
           {/if}
           {#if handler.activeTab === 'general'}
             <GeneralTab {handler} />
+          {:else if handler.activeTab === 'appearance'}
+            <AppearanceTab {handler} />
           {:else if handler.activeTab === 'applications'}
             <ApplicationsTab />
           {:else if handler.activeTab === 'built-in-features'}

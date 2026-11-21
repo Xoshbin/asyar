@@ -79,6 +79,10 @@ export interface ApiExtension {
   };
 }
 
+export function isStoreTheme(item: ApiExtension): boolean {
+  return item.manifest?.type === 'theme' || item.category?.toLowerCase() === 'theme';
+}
+
 export function getInstallCount(item: Partial<ApiExtension> | null | undefined): number {
   if (!item) return 0;
   return item.installCount ?? item.install_count ?? 0;
@@ -89,6 +93,14 @@ export function getInstallCount(item: Partial<ApiExtension> | null | undefined):
 export class StoreViewStateClass {
   searchQuery = $state('');
   categoryFilter = $state<string>('all');
+
+  get themesOnly(): boolean {
+    return this.categoryFilter === 'theme';
+  }
+
+  set themesOnly(val: boolean) {
+    this.categoryFilter = val ? 'theme' : 'all';
+  }
   // Ids of the current search results, best-match first, as ranked by Rust.
   // `null` means no active search (show every fetched item).
   private rankedIds = $state<string[] | null>(null);

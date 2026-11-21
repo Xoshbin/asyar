@@ -1,7 +1,7 @@
 {
   "id": "notes",
   "name": "Notes",
-  "icon": "icon:type",
+  "icon": "assets/icon.png",
   "description": "Write and organize Markdown notes without leaving your keyboard",
   "version": "1.0.0",
   "lifecycle": {
@@ -14,7 +14,6 @@
     {
       "id": "open-notes",
       "name": "Notes",
-      "icon": "icon:type",
       "trigger": "notes",
       "description": "Browse, search, and write notes",
       "mode": "view",
@@ -23,7 +22,7 @@
     {
       "id": "quick-note",
       "name": "Quick Note",
-      "icon": "icon:plus",
+      "icon": "assets/quick-note.png",
       "trigger": "note",
       "description": "Capture a note instantly without opening the editor",
       "mode": "background",
@@ -40,7 +39,7 @@
     {
       "id": "new-sticky",
       "name": "New Sticky Note",
-      "icon": "icon:pin",
+      "icon": "assets/sticky-note.png",
       "trigger": "sticky",
       "description": "Create a blank note pinned to your desktop",
       "mode": "background"
@@ -48,7 +47,7 @@
     {
       "id": "append-today",
       "name": "Add to Today",
-      "icon": "icon:pencil",
+      "icon": "assets/append-today.png",
       "trigger": "today",
       "description": "Append a line to today's daily note (creates it if needed)",
       "mode": "background",

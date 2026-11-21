@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="32 32 448 448">
+  <defs>
+    <linearGradient id="specularRim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15"/>
+    </linearGradient>
+
+    <!-- Punchy Element Drop Shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#2E1065" flood-opacity="0.8"/>
+    </filter>
+
+    <!-- Radiant AI Core Glow -->
+    <filter id="coreGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16" result="blur1"/>
+      <feGaussianBlur stdDeviation="8" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Solid Flat Purple Squircle -->
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="#7C3AED"/>
+  <rect x="33" y="33" width="446" height="446" rx="103" fill="none" stroke="url(#specularRim)" stroke-width="2"/>
+
+  <g transform="translate(-38.4 -38.4) scale(1.15)">
+    <!-- Orbital Synapse Rings -->
+    <g filter="url(#shadow)">
+      <ellipse cx="256" cy="256" rx="140" ry="50" fill="none" stroke="#F472B6" stroke-width="5" stroke-opacity="0.55" transform="rotate(-30 256 256)"/>
+      <ellipse cx="256" cy="256" rx="140" ry="50" fill="none" stroke="#A78BFA" stroke-width="5" stroke-opacity="0.55" transform="rotate(30 256 256)"/>
+    </g>
+
+    <!-- Radiant AI Glow Aura Behind Spark -->
+    <path d="M 256, 170 Q 256, 256 342, 256 Q 256, 256 256, 342 Q 256, 256 170, 256 Q 256, 256 256, 170 Z"
+          fill="#F472B6" opacity="0.9" filter="url(#coreGlow)"/>
+
+    <!-- Central AI Master Spark (✦) -->
+    <path d="M 256, 170 Q 256, 256 342, 256 Q 256, 256 256, 342 Q 256, 256 170, 256 Q 256, 256 256, 170 Z"
+          fill="#FFFFFF" filter="url(#shadow)"/>
+
+    <!-- Orbiting Subagent Nodes -->
+    <g filter="url(#shadow)">
+      <circle cx="360" cy="195" r="14" fill="#38BDF8"/>
+      <circle cx="152" cy="317" r="14" fill="#F472B6"/>
+      <circle cx="256" cy="256" r="10" fill="#FDE047"/>
+    </g>
+  </g>
+</svg>

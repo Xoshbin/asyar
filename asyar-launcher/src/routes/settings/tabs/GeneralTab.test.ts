@@ -168,54 +168,7 @@ describe('GeneralTab startup toggles', () => {
   });
 });
 
-describe('GeneralTab interface size', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    currentSettingsMock.appearance.uiScale = 1.2;
-  });
-
-  it('shows the persisted scale and applies a selected scale to settings and the native window', async () => {
-    render(GeneralTab, { props: { handler: createHandler() } });
-
-    expect(screen.getByText('Interface Size')).toBeTruthy();
-
-    const select = comboboxWithOption('1.2');
-    expect(select.value).toBe('1.2');
-    expect((screen.getByRole('option', { name: 'Large' }) as HTMLOptionElement).value).toBe('1.1');
-
-    await fireEvent.change(select, { target: { value: '1.1' } });
-
-    await waitFor(() => {
-      expect(updateSettingsMock).toHaveBeenCalledWith('appearance', { uiScale: 1.1 });
-      expect(setUiScaleMock).toHaveBeenCalledWith(1.1);
-    });
-  });
-
-  it('does not resize the native window when persisting the scale fails', async () => {
-    updateSettingsMock.mockImplementationOnce(async (_section, values) => {
-      Object.assign(currentSettingsMock.appearance, values);
-      return false;
-    });
-    render(GeneralTab, { props: { handler: createHandler() } });
-
-    const select = comboboxWithOption('1.2');
-    await fireEvent.change(select, { target: { value: '1.1' } });
-
-    await waitFor(() => {
-      expect(updateSettingsMock).toHaveBeenCalledWith('appearance', { uiScale: 1.1 });
-    });
-    expect(setUiScaleMock).not.toHaveBeenCalled();
-    expect(currentSettingsMock.appearance.uiScale).toBe(1.2);
-    expect((select as HTMLSelectElement).value).toBe('1.2');
-    expect(logErrorMock).toHaveBeenCalledWith('Failed to update interface size');
-    expect(feedbackReportMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        severity: 'error',
-        context: { message: 'Could not save the interface size' },
-      }),
-    );
-  });
-
+describe('GeneralTab hotkey', () => {
   it('renders Wayland compositor hotkey instructions when running on Omarchy Hyprland', async () => {
     getShortcutBackendInfoMock.mockResolvedValueOnce({
       isWayland: true,

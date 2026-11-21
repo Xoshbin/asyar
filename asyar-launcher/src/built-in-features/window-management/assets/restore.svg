@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="rim-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.40" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15" />
+    </linearGradient>
+    <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.32" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.20" />
+    </filter>
+    <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+    <filter id="star-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur1" />
+      <feGaussianBlur stdDeviation="5" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    
+  </defs>
+
+  <!-- Squircle Base with Solid Color -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="#0284C7" />
+
+  <!-- Content Glyph -->
+  <!-- Ghost previous bounds (dashed) -->
+  <rect x="130" y="136" width="252" height="190" rx="18" fill="none"
+        stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="4" stroke-dasharray="12 8" />
+
+  <!-- Solid current window frame -->
+  <g filter="url(#card-shadow)">
+    <rect x="156" y="162" width="200" height="150" rx="16" fill="#FFFFFF" />
+    <rect x="156" y="162" width="200" height="30" rx="16" fill="#F1F5F9" />
+    <circle cx="176" cy="177" r="4.5" fill="#EF4444" />
+    <circle cx="190" cy="177" r="4.5" fill="#F59E0B" />
+    <circle cx="204" cy="177" r="4.5" fill="#10B981" />
+  </g>
+
+  <!-- Prominent Counter-Clockwise Restore Arrow Badge -->
+  <g filter="url(#badge-shadow)">
+    <circle cx="256" cy="272" r="54" fill="#0F172A" stroke="#FFFFFF" stroke-width="4.5" />
+    <!-- Curved revert arrow path -->
+    <path d="M 230 252 A 28 28 0 1 1 230 288"
+          fill="none" stroke="#38BDF8" stroke-width="7" stroke-linecap="round" />
+    <!-- Arrowhead pointing back -->
+    <polygon points="214,250 238,240 234,264" fill="#38BDF8" />
+  </g>
+
+  <!-- 2px Specular Rim -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="none" stroke="url(#rim-gradient)" stroke-width="2" />
+</svg>

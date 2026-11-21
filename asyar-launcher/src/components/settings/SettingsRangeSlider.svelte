@@ -5,14 +5,22 @@
     step = 1,
     value = $bindable(),
     suffix = '',
+    label,
+    disabled = false,
     onchange,
+    oncommit,
   }: {
     min: number;
     max: number;
     step?: number;
     value: number;
     suffix?: string;
+    /** Accessible name; the visible label usually sits in the parent row. */
+    label?: string;
+    disabled?: boolean;
     onchange?: (value: number) => void;
+    /** Fires when the user finishes dragging or commits the value. */
+    oncommit?: (value: number) => void;
   } = $props();
 
   function handleInput(e: Event & { currentTarget: HTMLInputElement }) {
@@ -22,10 +30,26 @@
       onchange(newValue);
     }
   }
+
+  function handleChange(e: Event & { currentTarget: HTMLInputElement }) {
+    const newValue = parseInt(e.currentTarget.value);
+    value = newValue;
+    oncommit?.(newValue);
+  }
 </script>
 
 <div class="settings-range-slider">
-  <input type="range" {min} {max} {step} {value} oninput={handleInput} />
+  <input
+    type="range"
+    {min}
+    {max}
+    {step}
+    {value}
+    aria-label={label}
+    {disabled}
+    oninput={handleInput}
+    onchange={handleChange}
+  />
   <span class="value-display">
     {value}{suffix}
   </span>
@@ -48,6 +72,10 @@
        this control sits inside a SettingsCard (also --bg-tertiary). */
     background: var(--bg-secondary);
     accent-color: var(--accent-primary);
+  }
+
+  input[type='range']:disabled {
+    opacity: 0.5;
   }
 
   .value-display {

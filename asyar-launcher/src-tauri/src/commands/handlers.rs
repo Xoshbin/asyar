@@ -42,6 +42,7 @@ macro_rules! app_commands {
                 $crate::commands::confirm_launcher_paint,
                 $crate::commands::cancel_launcher_resize,
                 $crate::commands::set_panel_appearance,
+                $crate::commands::set_window_glass,
                 $crate::commands::set_dock_icon_visible,
                 $crate::commands::set_tray_icon_visible,
                 $crate::commands::quit_app,

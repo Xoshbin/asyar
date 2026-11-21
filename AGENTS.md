@@ -74,6 +74,7 @@ Or manually run the steps:
 - **Tauri 2 APIs**: Use modular `@tauri-apps/api/*` and Tauri 2 plugins.
 
 - **One Hint Look**: Every launcher hint (an offer, not a result) uses `variant: HINT_VARIANT` + `HINT_ICON` from `services/search/hintLook.ts`. The look lives only in `LauncherListRow`; never restyle or re-icon a hint. See `.agents/rules/06-tech-stack.md` §3.
+- **Built-in Feature & Extension Icon Squircles**: Flat solid backgrounds (no muddy multi-stop gradients or milky radial sheens), ~19% optical padding (~62%–65% glyph coverage), single-container glyphs (no nested boxes/keycaps), dark slate lines on white cards, and full-fidelity headless browser rasterization for PNG filters (`<feDropShadow>`, glows). See `.agents/rules/06-tech-stack.md` §4 and `.agents/skills/design-language/SKILL.md`.
 
 ## 5. Keyboard Shortcuts & Input Safety
 
