@@ -1,11 +1,17 @@
 <script lang="ts">
-  import { Icon, Toggle } from '../../../components';
+  import { Button, Icon } from '../../../components';
   import { advanceStep } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
   import { t } from '../../../services/i18n';
   import AccessibilityGate from './AccessibilityGate.svelte';
-  import { seedSamplePortal } from './portalsSetup';
-  import { seedSampleSnippet, enableExpansion } from './snippetsSetup';
+  import { SAMPLE_PORTAL_NAME, hasSamplePortal, seedSamplePortal } from './portalsSetup';
+  import {
+    SAMPLE_EXPANSION,
+    SAMPLE_KEYWORD,
+    hasSampleSnippet,
+    seedSampleSnippet,
+    enableExpansion,
+  } from './snippetsSetup';
 
   type CardId = 'clipboard' | 'portals' | 'snippets';
 
@@ -21,55 +27,62 @@
       icon: 'globe',
       title: t('onboarding.portals_heading'),
       desc: t('onboarding.features_portals_desc'),
+      sample: {
+        preview: `📺 ${SAMPLE_PORTAL_NAME}`,
+        tryWhere: t('onboarding.features_portals_try'),
+        tryText: SAMPLE_PORTAL_NAME,
+      },
     },
     {
       id: 'snippets' as CardId,
       icon: 'snippets',
       title: t('onboarding.snippets_heading'),
       desc: t('onboarding.features_snippets_desc'),
+      sample: {
+        preview: `${SAMPLE_KEYWORD} → ${SAMPLE_EXPANSION}`,
+        tryWhere: t('onboarding.features_snippets_try'),
+        tryText: SAMPLE_KEYWORD,
+      },
     },
   ]);
 
-  // Everything is opt-in: nothing is set up until the user switches it on and continues.
-  let enabled = $state<Record<CardId, boolean>>({
+  // Samples are opt-in and applied on click; Continue never depends on them.
+  const added = $derived<Record<CardId, boolean>>({
     clipboard: true,
-    portals: false,
-    snippets: false,
+    portals: hasSamplePortal(),
+    snippets: hasSampleSnippet(),
   });
+  let snippetsPending = $state(false);
   let axGranted = $state(false);
   let working = $state(false);
   let error = $state('');
 
-  const needsAx = $derived(enabled.snippets);
-
-  async function apply() {
+  async function addSnippets() {
     working = true;
     error = '';
     try {
-      if (enabled.portals) seedSamplePortal();
-      if (enabled.snippets) {
-        seedSampleSnippet();
-        if (!(await enableExpansion())) {
-          error = t('onboarding.snippets_expansion_error');
-          return;
-        }
-      }
-      await advanceStep();
+      seedSampleSnippet();
+      if (!(await enableExpansion())) error = t('onboarding.snippets_expansion_error');
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
+      snippetsPending = false;
       working = false;
     }
   }
 
+  function addSample(id: CardId) {
+    if (id === 'portals') seedSamplePortal();
+    // Expansion needs Accessibility; the gate below finishes the job once it's granted.
+    if (id === 'snippets') snippetsPending = true;
+  }
+
   $effect(() => {
-    onboardingNav.set({
-      showSkip: true,
-      onSkip: advanceStep,
-      primaryLabel: working ? t('onboarding.setting_up') : t('onboarding.continue'),
-      primaryDisabled: working || (needsAx && !axGranted),
-      onPrimary: apply,
-    });
+    if (snippetsPending && axGranted && !working) void addSnippets();
+  });
+
+  $effect(() => {
+    onboardingNav.set({ onPrimary: advanceStep });
   });
 </script>
 
@@ -80,22 +93,41 @@
 
   <div class="features__grid">
     {#each cards as card, i (card.id)}
-      <div class="feature" class:feature--on={enabled[card.id]} style:--i={i}>
+      <div class="feature" class:feature--on={card.sample && added[card.id]} style:--i={i}>
         <div class="feature__top">
           <span class="feature__icon"><Icon name={card.icon} size={18} /></span>
           {#if card.id === 'clipboard'}
             <span class="feature__always">{t('onboarding.features_always_on')}</span>
-          {:else}
-            <Toggle bind:checked={enabled[card.id]} disabled={working} title={card.title} />
           {/if}
         </div>
         <span class="feature__title">{card.title}</span>
         <span class="feature__desc">{card.desc}</span>
+        {#if card.sample}
+          <div class="feature__sample" aria-live="polite">
+            {#if added[card.id]}
+              <span class="feature__sample-done">✓ {t('onboarding.features_sample_added')}</span>
+              <span class="feature__sample-try">
+                {card.sample.tryWhere}
+                <kbd class="feature__sample-preview">{card.sample.tryText}</kbd>
+              </span>
+            {:else}
+              <span class="feature__sample-label">{t('onboarding.features_sample_label')}</span>
+              <code class="feature__sample-preview">{card.sample.preview}</code>
+              <Button
+                class="btn-secondary"
+                disabled={working || (card.id === 'snippets' && snippetsPending)}
+                onclick={() => addSample(card.id)}
+              >
+                {t('onboarding.features_add_sample')}
+              </Button>
+            {/if}
+          </div>
+        {/if}
       </div>
     {/each}
   </div>
 
-  {#if needsAx}
+  {#if snippetsPending}
     <AccessibilityGate bind:granted={axGranted} />
   {/if}
   {#if error}<p class="features__error">{error}</p>{/if}
@@ -165,6 +197,46 @@
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     line-height: 1.5;
+    margin-bottom: var(--space-3);
+  }
+  /* Pinned to the card bottom so samples line up across cards. */
+  .feature__sample {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+  .feature__sample-label {
+    font-size: var(--font-size-2xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+  }
+  .feature__sample-preview {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--text-primary);
+  }
+  .feature__sample-done {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--asyar-brand);
+  }
+  .feature__sample-try {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+  }
+  kbd.feature__sample-preview {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
   }
   .feature__always {
     font-size: var(--font-size-2xs);

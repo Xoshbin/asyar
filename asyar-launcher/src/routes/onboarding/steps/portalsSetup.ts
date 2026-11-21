@@ -1,14 +1,19 @@
 import { portalStore } from '../../../built-in-features/portals/portalStore.svelte';
 
-const SAMPLE_NAME = 'Search GitHub';
+// Must not be one of portalStore's DEFAULT_PORTALS, or the sample counts as added before it is.
+export const SAMPLE_PORTAL_NAME = 'Search YouTube';
+
+export function hasSamplePortal(): boolean {
+  return portalStore.portals.some((p) => p.name === SAMPLE_PORTAL_NAME);
+}
 
 export function seedSamplePortal(): void {
-  if (portalStore.portals.some((p) => p.name === SAMPLE_NAME)) return;
+  if (hasSamplePortal()) return;
   portalStore.add({
     id: crypto.randomUUID(),
-    name: SAMPLE_NAME,
-    url: 'https://github.com/search?q={query}',
-    icon: '🌐',
+    name: SAMPLE_PORTAL_NAME,
+    url: 'https://www.youtube.com/results?search_query={query}',
+    icon: '📺',
     createdAt: Date.now(),
   });
 }

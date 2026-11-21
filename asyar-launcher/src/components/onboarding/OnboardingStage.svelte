@@ -20,7 +20,6 @@
     width: 56px;
     height: 56px;
     margin: 0 auto;
-    animation: stage-in var(--dur-emerge) var(--ease-emerge) both;
   }
   .stage--hero {
     width: 96px;
@@ -39,12 +38,5 @@
   .stage__logo {
     width: 100%;
     height: 100%;
-  }
-
-  @keyframes stage-in {
-    from {
-      opacity: 0;
-      transform: scale(0.92);
-    }
   }
 </style>

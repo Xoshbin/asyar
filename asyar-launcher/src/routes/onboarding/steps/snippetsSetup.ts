@@ -1,14 +1,19 @@
 import { snippetStore } from '../../../built-in-features/snippets/snippetStore.svelte';
 import { snippetService } from '../../../built-in-features/snippets/snippetService';
 
-const SAMPLE_KEYWORD = ';email';
+export const SAMPLE_KEYWORD = ';email';
+export const SAMPLE_EXPANSION = 'you@example.com';
+
+export function hasSampleSnippet(): boolean {
+  return snippetStore.snippets.some((s) => s.keyword === SAMPLE_KEYWORD);
+}
 
 export function seedSampleSnippet(): void {
-  if (snippetStore.snippets.some((s) => s.keyword === SAMPLE_KEYWORD)) return;
+  if (hasSampleSnippet()) return;
   snippetStore.add({
     id: crypto.randomUUID(),
     keyword: SAMPLE_KEYWORD,
-    expansion: 'you@example.com',
+    expansion: SAMPLE_EXPANSION,
     name: 'My email',
     createdAt: Date.now(),
   });

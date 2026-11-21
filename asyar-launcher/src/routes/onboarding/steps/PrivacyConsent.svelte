@@ -27,7 +27,10 @@
   <h1 class="privacy__title">{t('onboarding.privacy_heading')}</h1>
   <div class="privacy__rows">
     <div class="privacy__row">
-      <span class="privacy__label">{t('settings.privacy.crash_reports')}</span>
+      <div class="privacy__text">
+        <span class="privacy__label">{t('settings.privacy.crash_reports')}</span>
+        <span class="privacy__desc">{t(`settings.privacy.crash_${crashMode}_desc`)}</span>
+      </div>
       <SegmentedControl
         {options}
         bind:value={crashMode}
@@ -36,7 +39,10 @@
       />
     </div>
     <div class="privacy__row">
-      <span class="privacy__label">{t('settings.privacy.usage_share')}</span>
+      <div class="privacy__text">
+        <span class="privacy__label">{t('settings.privacy.usage_share')}</span>
+        <span class="privacy__desc">{t(`settings.privacy.usage_${usageMode}_desc`)}</span>
+      </div>
       <SegmentedControl
         {options}
         bind:value={usageMode}
@@ -81,6 +87,16 @@
   }
   .privacy__row:last-child {
     border-bottom: none;
+  }
+  .privacy__text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .privacy__desc {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
   }
   .privacy__label {
     font-size: var(--font-size-md);

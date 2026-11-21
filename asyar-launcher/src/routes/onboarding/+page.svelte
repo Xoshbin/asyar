@@ -2,7 +2,7 @@
   import { t } from '../../services/i18n';
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
-  import { cubicOut, quintOut } from 'svelte/easing';
+  import { cubicIn, cubicOut } from 'svelte/easing';
   import { onboardingService } from '../../services/onboarding/onboardingService.svelte';
   import StepProgress from '../../components/onboarding/StepProgress.svelte';
   import Welcome from './steps/Welcome.svelte';
@@ -48,8 +48,8 @@
       {#key state.current}
         <div
           class="onboarding-stage__step custom-scrollbar"
-          in:fly={{ x: 48 * direction, duration: 380, delay: 60, easing: quintOut }}
-          out:fly={{ x: -48 * direction, duration: 180, easing: cubicOut }}
+          in:fly={{ x: 32 * direction, duration: 360, delay: 140, easing: cubicOut }}
+          out:fly={{ x: -32 * direction, duration: 160, easing: cubicIn }}
         >
           <OnboardingStage glyph={STEP_GLYPHS[state.current]} />
           <div class="onboarding-stage__body">
