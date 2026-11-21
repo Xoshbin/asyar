@@ -461,6 +461,12 @@ fn decrypt_x_aes_gcm(
 }
 
 fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBundle, AppError> {
+    if !categories.is_object() {
+        return Err(AppError::Validation(
+            "Invalid rayconfig categories: expected JSON object".to_string(),
+        ));
+    }
+
     let mut bundle = ImportBundle {
         source: SourceFormat::RayconfigX,
         snippets: Vec::new(),
@@ -1275,10 +1281,10 @@ mod tests {
             }
         });
         let inner_gz = gzip_bytes(serde_json::to_string(&categories).unwrap().as_bytes());
-        let iv = [0x11u8; 16];
-        let salt = [0x22u8; 16];
+        let iv: [u8; 16] = rand::random();
+        let salt: [u8; 16] = rand::random();
         let params = scrypt::Params::new(14, 8, 1, 32).unwrap();
-        let mut key = [0u8; 32];
+        let mut key: [u8; 32] = rand::random();
         scrypt::scrypt(b"12345678", &salt, &params, &mut key).unwrap();
 
         let cipher = AesGcm::<aes::Aes256, U16>::new_from_slice(&key).unwrap();
@@ -1315,6 +1321,15 @@ mod tests {
         bad.extend_from_slice(&999u32.to_le_bytes());
         bad.extend_from_slice(&[1, 2, 3]);
         assert!(parse_export(&bad, None).is_err());
+    }
+
+    #[test]
+    fn raycfg3_non_object_categories_is_an_error() {
+        let header = serde_json::json!({ "schemaVersion": 3 });
+        for bad_payload in [b"null".as_slice(), b"[]".as_slice(), b"42".as_slice()] {
+            let bytes = build_raycfg3_fixture(&header, &gzip_bytes(bad_payload));
+            assert!(parse_export(&bytes, None).is_err());
+        }
     }
 
     // ---- Errors ----
