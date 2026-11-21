@@ -109,27 +109,41 @@
     display: flex;
     flex-direction: column;
     /* Fully opaque surface — content does NOT show the desktop through it. */
-    /* Grainy dusk: lavender light from the top right washing over violet into
-       deep indigo shadow. Fixed brand-moment colours, so they live here rather
-       than in the theme. */
+    /* Fixed brand-moment colours, so they live here rather than in the theme. */
+    /* Palette swap: uncomment one block, comment the other. Each block sets
+       its colours and the light layers drawn under the shared grain. */
     /* Lila dusk:
     --onb-shadow: #1d1a36;
     --onb-indigo: #5b46c9;
     --onb-violet: #8466e6;
-    --onb-lavender: #e4a2e4; */
-    /* Graphite: */
-    --onb-shadow: #111113;
-    --onb-indigo: #1c1c20;
-    --onb-violet: #26262b;
-    --onb-lavender: #45454d;
-    background-color: var(--onb-shadow);
-    background-image:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"),
+    --onb-lavender: #e4a2e4;
+    --onb-light:
       radial-gradient(ellipse 75% 65% at 80% -5%, var(--onb-lavender), transparent 70%),
       radial-gradient(ellipse 90% 55% at 60% 40%, var(--onb-violet), transparent 70%),
       radial-gradient(ellipse 30% 55% at 18% 35%, var(--onb-indigo), transparent 75%),
-      radial-gradient(ellipse 25% 30% at 0% 75%, var(--onb-indigo), transparent 75%);
-    background-blend-mode: overlay, normal, normal, normal, normal;
+      radial-gradient(ellipse 25% 30% at 0% 75%, var(--onb-indigo), transparent 75%); */
+    /* Graphite spotlight, after the app icon: a beam from the top centre that
+       fades as it falls, a bright source, and a pool of light on the floor. */
+    --onb-shadow: #111113;
+    --onb-light:
+      radial-gradient(ellipse 38% 7% at 50% 86%, rgb(255 255 255 / 0.12), transparent 70%),
+      linear-gradient(to bottom, transparent 20%, rgb(17 17 19 / 0.75) 95%),
+      conic-gradient(
+        from 157deg at 50% -4%,
+        transparent,
+        rgb(255 255 255 / 0.08) 9deg,
+        rgb(255 255 255 / 0.08) 37deg,
+        transparent 46deg
+      ),
+      radial-gradient(circle at 50% 0%, rgb(255 255 255 / 0.22), transparent 22%),
+      radial-gradient(ellipse 90% 70% at 50% 0%, #26262b, transparent 75%);
+    background-color: var(--onb-shadow);
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"),
+      var(--onb-light);
+    /* Grain overlays the light; the rest blend normally. Spelled out because a
+       short list repeats across layers (enough here for 8). */
+    background-blend-mode: overlay, normal, normal, normal, normal, normal, normal, normal;
     color: var(--text-primary);
     border-radius: var(--radius-xl);
     overflow: hidden;
