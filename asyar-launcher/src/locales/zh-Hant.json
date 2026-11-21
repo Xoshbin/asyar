@@ -363,6 +363,7 @@
       "save_preference_error": "無法儲存偏好設定「{name}」",
       "invalid_dropdown": "下拉選單設定無效",
       "choose_app": "選擇應用程式…",
+      "clear_app": "無（清除選取）",
       "use_app_path": "使用 {path}",
       "review_carefully": "⚠️ 允許前請仔細審核。",
       "required_setup_title": "擴充功能需要設定",

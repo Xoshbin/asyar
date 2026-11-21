@@ -62,16 +62,18 @@
       : null;
   }
 
-  /** Keeps a saved app visible even when it is outside the indexed list. */
+  /** Keeps a saved app visible even when it is outside the indexed list, and lets users clear it. */
   function appOptionsFor(value: unknown) {
-    if (typeof value !== 'string' || !value || appOptions.some((o) => o.value === value)) {
+    if (typeof value !== 'string' || !value) {
       return appOptions;
     }
-    const label = value
-      .split(/[/\\]/)
-      .pop()!
-      .replace(/\.(app|exe)$/i, '');
-    return [{ value, label }, ...appOptions];
+    const clearOption = { value: '', label: t('settings.extensions.clear_app') };
+    if (appOptions.some((o) => o.value === value)) {
+      return [clearOption, ...appOptions];
+    }
+    const normalized = value.replace(/[/\\]+$/, '');
+    const label = (normalized.split(/[/\\]/).pop() || value).replace(/\.(app|exe)$/i, '');
+    return [clearOption, { value, label }, ...appOptions];
   }
 
   function dropdownValue(pref: PreferenceDeclaration): string {

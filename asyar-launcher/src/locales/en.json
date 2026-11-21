@@ -363,6 +363,7 @@
       "save_preference_error": "Could not save preference \"{name}\"",
       "invalid_dropdown": "Invalid dropdown configuration",
       "choose_app": "Choose an app…",
+      "clear_app": "None (Clear selection)",
       "use_app_path": "Use {path}",
       "review_carefully": "⚠️ Review carefully before allowing.",
       "required_setup_title": "Extension requires setup",
