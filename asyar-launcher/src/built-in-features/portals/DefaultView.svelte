@@ -17,6 +17,7 @@
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
+  import { toResolvedIcon } from '../../lib/icon';
 
   let portals = $derived(portalStore.portals);
   let selectedIndex = $derived(portalsUiState.selectedIndex);
@@ -179,12 +180,16 @@
     emptyMessage={t('features.portals.no_portals')}
   >
     {#snippet listItem(portal, index)}
+      {#snippet textIcon()}
+        <span class="portal-text-icon">{portal.icon}</span>
+      {/snippet}
       <LauncherListRow
         data-index={index}
         selected={selectedIndex === index}
         title={portal.name}
         subtitle={portal.url}
         icon={portal.icon}
+        leading={portal.icon && !toResolvedIcon(portal.icon) ? textIcon : undefined}
         onclick={() => (portalsUiState.selectedIndex = index)}
       />
     {/snippet}
@@ -269,6 +274,14 @@
 </div>
 
 <style>
+  /* Free-text icons the resolver doesn't understand still show, as before. */
+  .portal-text-icon {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: var(--font-size-md);
+    white-space: nowrap;
+  }
+
   .portal-detail-content {
     flex: 1;
     overflow-y: auto;
