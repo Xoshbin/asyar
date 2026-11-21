@@ -1,6 +1,11 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
 import { listenToHost, postToHost } from '../ipc/hostChannel';
-import type { IAiService, AiCompletionOptions, AiStreamOptions } from '../contracts/IAiService';
+import type {
+  IAiService,
+  AiCompletionOptions,
+  AiStreamOptions,
+  AiConfiguredModel,
+} from '../contracts/IAiService';
 import type {
   WebSearchEngineRegistration,
   WebSearchHandler,
@@ -149,6 +154,11 @@ export class AiServiceProxy extends BaseServiceProxy implements IAiService {
           settle(err);
         });
     });
+  }
+
+  async listModels(): Promise<AiConfiguredModel[]> {
+    const res = await this.broker.invoke<AiConfiguredModel[]>('ai:listModels', {});
+    return Array.isArray(res) ? res : [];
   }
 
   private webSearchEngines = new Map<string, WebSearchHandler>();

@@ -3,6 +3,7 @@
   import Input from '../base/Input.svelte';
   import Toggle from '../base/Toggle.svelte';
   import SearchableSelect from '../form/SearchableSelect.svelte';
+  import AiModelPreferencePicker from './AiModelPreferencePicker.svelte';
   import SettingsFormRow from './SettingsFormRow.svelte';
   import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
 
@@ -98,6 +99,14 @@
           {:else}
             <div class="error-inline">{t('settings.extensions.invalid_dropdown')}</div>
           {/if}
+        {:else if pref.type === 'aiModel'}
+          <AiModelPreferencePicker
+            value={values[pref.name]}
+            required={!!pref.required}
+            placeholder={pref.placeholder}
+            {disabled}
+            onchange={(v) => handleValueChange(pref.name, v)}
+          />
         {:else if pref.type === 'appPicker' || pref.type === 'file' || pref.type === 'directory'}
           <Input
             textIntent="exact"

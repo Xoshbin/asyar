@@ -2000,6 +2000,93 @@ describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR
     );
   });
 
+  it('blocks ai:listModels when extension lacks ai permission', async () => {
+    const listModels = vi.fn(async () => []);
+    const registry = { ai: { listModels } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:ai:listModels',
+          messageId: 'ai-list-denied',
+          payload: {},
+        },
+      }),
+    );
+
+    expect(listModels).not.toHaveBeenCalled();
+    const reply = getReplies().find((r) => r.messageId === 'ai-list-denied');
+    expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+    expect(reply?.error).toContain('ai');
+  });
+
+  it('allows ai:listModels when extension has ai permission', async () => {
+    declaredPermissions.add('ai');
+    const models = [
+      {
+        providerId: 'openai',
+        providerName: 'OpenAI',
+        modelId: 'gpt-4o',
+        label: 'GPT-4o',
+        isDefault: true,
+      },
+    ];
+    const listModels = vi.fn(async () => models);
+    const registry = { ai: { listModels } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:ai:listModels',
+          messageId: 'ai-list-1',
+          payload: {},
+        },
+      }),
+    );
+
+    expect(listModels).toHaveBeenCalledWith('org.example.tier2');
+    expect(getReplies().find((r) => r.messageId === 'ai-list-1')?.result).toEqual(models);
+  });
+
+  it('ignores unexpected payload fields when dispatching ai:listModels', async () => {
+    declaredPermissions.add('ai');
+    const listModels = vi.fn(async () => []);
+    const registry = { ai: { listModels } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:ai:listModels',
+          messageId: 'ai-list-extra',
+          payload: { extraArg: 'ignored' },
+        },
+      }),
+    );
+
+    expect(listModels).toHaveBeenCalledWith('org.example.tier2');
+  });
+
   it('blocks ai:streamChat when extension lacks ai permission', async () => {
     const streamChat = vi.fn(async () => 'Stream started');
     const registry = { ai: { streamChat } } as unknown as ServiceRegistry;

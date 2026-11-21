@@ -590,6 +590,13 @@ export type {
 export { McpServiceProxy } from './services/McpServiceProxy';
 export type { IMcpService, McpServerInfo, McpToolDescriptor } from './contracts/IMcpService';
 export type {
+  IAiService,
+  AiCompletionOptions,
+  AiStreamOptions,
+  AiModelRef,
+  AiConfiguredModel,
+} from './contracts/IAiService';
+export type {
   GroundingSource,
   SearchResultEntry,
   WebSearchResult,

@@ -635,6 +635,12 @@ pub async fn agents_run_thread(
     result.map(|_healed| ()).and(cleanup)
 }
 
+fn should_use_response_cache(agent: &AgentRow, config: &AgentRunConfig) -> bool {
+    agent.cache_responses
+        && config.provider_override_id.is_none()
+        && config.model_override_id.is_none()
+}
+
 #[tauri::command]
 #[allow(clippy::too_many_arguments)] // Tauri injects state alongside the typed wire arguments.
 pub async fn agents_run_silent(
@@ -654,11 +660,15 @@ pub async fn agents_run_silent(
 
     let agent = {
         let conn = store.conn()?;
-        let (agent, healed) = crate::agents::lifecycle::resolve_runnable_agent(
+        let (agent, healed) = crate::agents::lifecycle::resolve_silent_run_agent(
             &conn,
             &master_key,
             &agent_id,
             config.default_agent_id.as_deref(),
+            (
+                config.provider_override_id.as_deref(),
+                config.model_override_id.as_deref(),
+            ),
             &config.providers,
             &config.configs,
         )?;
@@ -668,14 +678,17 @@ pub async fn agents_run_silent(
         agent
     };
 
-    if agent.cache_responses {
+    // Bypass the agent's snippet response cache when an explicit per-request
+    // model override is active so overridden calls never collide with default
+    // cache hits or surface synthetic cache keys in the agent cache UI.
+    let use_response_cache = should_use_response_cache(&agent, &config);
+    if use_response_cache {
         if let Some(cache) = app.try_state::<crate::agents::cache::AgentResponseCache>() {
             if let Some(cached_output) = cache.get(&agent.id, &user_text) {
                 return Ok(cached_output);
             }
         }
     }
-
     let cache_key = user_text.clone();
     // Resolve every fallible path before `begin_run`: a `?` after it would skip `finish_run`
     // and leak the run entry.
@@ -729,7 +742,7 @@ pub async fn agents_run_silent(
     let cleanup = runner_state.finish_run(&stream_id);
 
     if let Ok(ref text) = result {
-        if agent.cache_responses {
+        if use_response_cache {
             if let Some(cache) = app.try_state::<crate::agents::cache::AgentResponseCache>() {
                 cache.set(&agent.id, &cache_key, text);
             }
@@ -831,4 +844,71 @@ pub fn agents_promote_cached(
         }),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_use_response_cache;
+    use crate::agents::runner::AgentRunConfig;
+    use crate::storage::agents::{AgentRow, SilentInputSource, SilentOutputAction};
+    use std::collections::HashMap;
+
+    fn sample_agent(cache_responses: bool) -> AgentRow {
+        AgentRow {
+            id: "agent-1".to_string(),
+            name: "Silent".to_string(),
+            description: None,
+            system_prompt: String::new(),
+            provider_id: "openai".to_string(),
+            model_id: "gpt-4o".to_string(),
+            tool_selection: vec![],
+            silent: true,
+            input_source: SilentInputSource::Argument,
+            output_action: SilentOutputAction::Paste,
+            cache_responses,
+            shortcode_trigger: ":".to_string(),
+            created_at: None,
+            updated_at: None,
+        }
+    }
+
+    fn sample_config(
+        provider_override_id: Option<&str>,
+        model_override_id: Option<&str>,
+    ) -> AgentRunConfig {
+        AgentRunConfig {
+            providers: vec![],
+            configs: HashMap::new(),
+            default_agent_id: None,
+            temperature: None,
+            max_tokens: 1024,
+            provider_override_id: provider_override_id.map(str::to_string),
+            model_override_id: model_override_id.map(str::to_string),
+            web_search: None,
+            web_reader: None,
+        }
+    }
+
+    #[test]
+    fn response_cache_is_bypassed_when_model_override_is_active() {
+        let cached_agent = sample_agent(true);
+        let uncached_agent = sample_agent(false);
+
+        assert!(should_use_response_cache(
+            &cached_agent,
+            &sample_config(None, None)
+        ));
+        assert!(!should_use_response_cache(
+            &uncached_agent,
+            &sample_config(None, None)
+        ));
+        assert!(!should_use_response_cache(
+            &cached_agent,
+            &sample_config(Some("anthropic"), Some("claude-sonnet-4-6")),
+        ));
+        assert!(!should_use_response_cache(
+            &cached_agent,
+            &sample_config(Some("anthropic"), None),
+        ));
+    }
 }

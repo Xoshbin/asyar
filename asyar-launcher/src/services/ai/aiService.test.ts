@@ -21,7 +21,21 @@ const { mockStreamHandle, getCapturedStreamOptions, setCapturedStreamOptions, mo
 
 vi.mock('../../lib/ipc/commands', () => ({
   agentsCancelRun: vi.fn().mockResolvedValue(undefined),
+  agentsGet: vi.fn().mockResolvedValue({
+    id: 'agent-123',
+    providerId: 'mock-provider',
+    modelId: 'mock-default-model',
+  }),
   agentsRunSilent: vi.fn().mockResolvedValue('Completed answer'),
+  aiGetCredentialStatus: vi.fn().mockResolvedValue({
+    providers: { 'mock-provider': 'configured', ollama: 'not_configured' },
+    webSearch: {},
+    webReader: {},
+  }),
+  aiListModels: vi.fn().mockResolvedValue([
+    { id: 'mock-default-model', label: 'Mock Default' },
+    { id: 'mock-fast', label: 'Mock Fast' },
+  ]),
   toAgentProviderDescriptors: vi.fn().mockReturnValue([{ id: 'mock-provider', name: 'Mock' }]),
 }));
 
@@ -32,7 +46,7 @@ vi.mock('../settings/settingsService.svelte', () => ({
         defaultAgentId: 'agent-123',
         maxTokens: 2048,
         providers: {
-          'mock-provider': { apiKey: 'key' },
+          'mock-provider': { enabled: true, apiKey: 'key' },
         },
       },
     }),
@@ -41,7 +55,10 @@ vi.mock('../settings/settingsService.svelte', () => ({
 
 vi.mock('./providerRegistry', () => ({
   providerRegistry: {
-    list: vi.fn().mockReturnValue([{ id: 'mock-provider' }]),
+    list: vi.fn().mockReturnValue([
+      { id: 'mock-provider', name: 'Mock Provider', requiresApiKey: true },
+      { id: 'ollama', name: 'Ollama', requiresApiKey: false },
+    ]),
   },
 }));
 
@@ -62,7 +79,14 @@ vi.mock('../../built-in-features/agents/agentStreamBridge', () => ({
 }));
 
 import { AiService } from './aiService';
-import { agentsCancelRun, agentsRunSilent } from '../../lib/ipc/commands';
+import {
+  agentsCancelRun,
+  agentsGet,
+  agentsRunSilent,
+  aiGetCredentialStatus,
+  aiListModels,
+} from '../../lib/ipc/commands';
+import { settingsService } from '../settings/settingsService.svelte';
 import { streamDispatcher } from '../extension/streamDispatcher.svelte';
 
 describe('AiService', () => {
@@ -115,6 +139,46 @@ describe('AiService', () => {
         expect.anything(),
         expect.anything(),
       );
+    });
+
+    it('forwards validated model override in AgentRunConfig', async () => {
+      await aiService.complete('ext-1', 'Summarize', {
+        model: { providerId: ' ollama ', modelId: ' llama3.2:latest ' },
+      });
+
+      expect(agentsRunSilent).toHaveBeenCalledWith(
+        'agent-123',
+        'Summarize',
+        expect.objectContaining({
+          providerOverrideId: 'ollama',
+          modelOverrideId: 'llama3.2:latest',
+        }),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('omits override fields when model is omitted or null', async () => {
+      await aiService.complete('ext-1', 'Ping', { model: null as any });
+
+      const config = vi.mocked(agentsRunSilent).mock.calls[0][2];
+      expect('providerOverrideId' in config).toBe(false);
+      expect('modelOverrideId' in config).toBe(false);
+    });
+
+    it('rejects malformed or non-object model overrides before invoking agentsRunSilent', async () => {
+      for (const bad of [
+        { providerId: '  ', modelId: 'gpt-4o' },
+        { providerId: '', modelId: 'gpt-4o' },
+        'openai:gpt-4o',
+        ['openai', 'gpt-4o'],
+        123,
+      ]) {
+        await expect(
+          aiService.complete('ext-1', 'Summarize', { model: bad as any }),
+        ).rejects.toThrow(/non-empty providerId and modelId/i);
+      }
+      expect(agentsRunSilent).not.toHaveBeenCalled();
     });
   });
 
@@ -182,6 +246,125 @@ describe('AiService', () => {
         message: 'AI generation failed',
       });
       expect(mockDispose).toHaveBeenCalled();
+    });
+
+    it('forwards validated model override in AgentRunConfig', async () => {
+      await aiService.streamChat(
+        'ext-1',
+        'Stream prompt',
+        'stream-override',
+        { model: { providerId: 'mock-provider', modelId: 'mock-fast' } },
+        'worker',
+      );
+
+      expect(agentsRunSilent).toHaveBeenCalledWith(
+        'agent-123',
+        'Stream prompt',
+        expect.objectContaining({
+          providerOverrideId: 'mock-provider',
+          modelOverrideId: 'mock-fast',
+        }),
+        'stream-override',
+        expect.anything(),
+      );
+    });
+
+    it('rejects invalid model override in streamChat before creating a stream', async () => {
+      await expect(
+        aiService.streamChat('ext-1', 'Hi', 's-bad', {
+          model: { providerId: 'mock-provider', modelId: '' },
+        }),
+      ).rejects.toThrow(/non-empty providerId and modelId/i);
+      expect(agentsRunSilent).not.toHaveBeenCalled();
+      expect(streamDispatcher.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listModels', () => {
+    it('returns configured models with isDefault on the default agent model', async () => {
+      const models = await aiService.listModels('ext-1');
+
+      expect(models).toEqual([
+        {
+          providerId: 'mock-provider',
+          providerName: 'Mock Provider',
+          modelId: 'mock-default-model',
+          label: 'Mock Default',
+          isDefault: true,
+        },
+        {
+          providerId: 'mock-provider',
+          providerName: 'Mock Provider',
+          modelId: 'mock-fast',
+          label: 'Mock Fast',
+          isDefault: false,
+        },
+      ]);
+    });
+
+    it('deduplicates duplicate model entries from a provider', async () => {
+      vi.mocked(aiListModels).mockResolvedValueOnce([
+        { id: 'mock-default-model', label: 'Mock Default' },
+        { id: 'mock-default-model', label: 'Mock Default Duplicate' },
+      ]);
+
+      const models = await aiService.listModels('ext-1');
+      expect(models).toHaveLength(1);
+      expect(models[0].label).toBe('Mock Default');
+    });
+
+    it('falls back cleanly when aiGetCredentialStatus or agentsGet rejects', async () => {
+      vi.mocked(aiGetCredentialStatus).mockRejectedValueOnce(new Error('cred error'));
+      vi.mocked(agentsGet).mockRejectedValueOnce(new Error('agent error'));
+
+      const models = await aiService.listModels('ext-1');
+      expect(models).toEqual([
+        {
+          providerId: 'mock-provider',
+          providerName: 'Mock Provider',
+          modelId: 'mock-default-model',
+          label: 'Mock Default',
+          isDefault: false,
+        },
+        {
+          providerId: 'mock-provider',
+          providerName: 'Mock Provider',
+          modelId: 'mock-fast',
+          label: 'Mock Fast',
+          isDefault: false,
+        },
+      ]);
+    });
+
+    it('tolerates one failing provider while returning models from healthy providers', async () => {
+      vi.mocked(settingsService.getSettings).mockReturnValueOnce({
+        ai: {
+          defaultAgentId: 'agent-123',
+          maxTokens: 2048,
+          providers: {
+            'mock-provider': { enabled: true, apiKey: 'key' },
+            ollama: { enabled: true },
+          },
+        },
+      } as any);
+
+      vi.mocked(aiListModels).mockImplementation(async (providerId: string) => {
+        if (providerId === 'ollama') {
+          throw new Error('Ollama daemon not running');
+        }
+        return [{ id: 'mock-default-model', label: 'Mock Default' }];
+      });
+
+      const models = await aiService.listModels('ext-1');
+      expect(models).toEqual([
+        {
+          providerId: 'mock-provider',
+          providerName: 'Mock Provider',
+          modelId: 'mock-default-model',
+          label: 'Mock Default',
+          isDefault: true,
+        },
+      ]);
     });
   });
 });

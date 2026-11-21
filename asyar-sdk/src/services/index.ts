@@ -152,7 +152,14 @@ export type {
 } from '../types/EnvironmentType';
 export { EnvironmentServiceProxy } from './EnvironmentServiceProxy';
 
-export type { IAiService, AiCompletionOptions, AiStreamOptions } from '../contracts/IAiService';
+export { isValidAiModelRef } from '../contracts/IAiService';
+export type {
+  IAiService,
+  AiCompletionOptions,
+  AiStreamOptions,
+  AiModelRef,
+  AiConfiguredModel,
+} from '../contracts/IAiService';
 export { AiServiceProxy } from './AiServiceProxy';
 
 export type { IMcpService, McpServerInfo, McpToolDescriptor } from '../contracts/IMcpService';

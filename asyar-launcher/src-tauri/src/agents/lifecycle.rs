@@ -370,6 +370,71 @@ pub fn resolve_thread_agent(
     )
 }
 
+/// Resolves the agent for a silent run (`agents_run_silent`), applying an
+/// explicit per-request `(provider_id, model_id)` override when supplied.
+///
+/// Unlike [`resolve_thread_agent`], an explicit silent-run override never falls
+/// back silently to a different provider: partial, empty, disabled, missing, or
+/// unconfigured overrides return an explicit [`AppError::Validation`] error.
+/// When `agent_id` is empty or missing while an explicit override is supplied,
+/// an in-memory silent agent is constructed so extensions can still prompt the
+/// chosen model without a configured default agent. Stored agent rows in SQLite
+/// are never mutated or healed when an override is active.
+pub fn resolve_silent_run_agent(
+    conn: &Connection,
+    master_key: &[u8; 32],
+    agent_id: &str,
+    default_agent_id: Option<&str>,
+    model_override: (Option<&str>, Option<&str>),
+    providers: &[crate::agents::editor::AgentProviderDescriptor],
+    configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
+) -> Result<(AgentRow, bool), AppError> {
+    match model_override {
+        (None, None) => resolve_runnable_agent(
+            conn,
+            master_key,
+            agent_id,
+            default_agent_id,
+            providers,
+            configs,
+        ),
+        (Some(_), None) | (None, Some(_)) => Err(AppError::Validation(
+            "Both providerId and modelId must be specified when overriding the AI model"
+                .to_string(),
+        )),
+        (Some(provider_id), Some(model_id)) => {
+            validate_provider_model(provider_id, model_id)?;
+            let provider_id = provider_id.trim();
+            let model_id = model_id.trim();
+            crate::agents::runner::resolve_provider_config(provider_id, configs, conn, master_key)?;
+            let agent = match get_agent(conn, agent_id)? {
+                Some(mut existing) => {
+                    existing.provider_id = provider_id.to_string();
+                    existing.model_id = model_id.to_string();
+                    existing
+                }
+                None => AgentRow {
+                    id: "extension-ai-override".to_string(),
+                    name: "Extension AI Override".to_string(),
+                    description: None,
+                    system_prompt: String::new(),
+                    provider_id: provider_id.to_string(),
+                    model_id: model_id.to_string(),
+                    tool_selection: vec![],
+                    silent: true,
+                    input_source: SilentInputSource::Argument,
+                    output_action: SilentOutputAction::Paste,
+                    cache_responses: false,
+                    shortcode_trigger: ":".to_string(),
+                    created_at: None,
+                    updated_at: None,
+                },
+            };
+            Ok((agent, false))
+        }
+    }
+}
+
 pub fn derive_thread_title(user_text: &str) -> String {
     let collapsed = user_text.split_whitespace().collect::<Vec<_>>().join(" ");
     if collapsed.is_empty() {
@@ -1362,6 +1427,175 @@ mod tests {
                 "{msg}"
             ),
             other => panic!("expected the re-enter error, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_silent_run_agent_applies_valid_override_without_mutating_stored_agent() {
+        let conn = conn();
+        let master_key = crate::crypto::test_master_key();
+        let agent = existing_agent("default-agent", "Default Agent");
+        insert_agent(&conn, &agent).unwrap();
+
+        let providers = vec![
+            provider("openai", true, false),
+            provider("ollama", false, true),
+        ];
+        let configs = HashMap::from([
+            ("openai".to_string(), provider_config(true, None)),
+            (
+                "ollama".to_string(),
+                provider_config(true, Some("http://localhost:11434")),
+            ),
+        ]);
+        crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-openai", &master_key)
+            .unwrap();
+
+        let (resolved, healed) = resolve_silent_run_agent(
+            &conn,
+            &master_key,
+            &agent.id,
+            Some(&agent.id),
+            (Some(" ollama "), Some(" llama3.2:latest ")),
+            &providers,
+            &configs,
+        )
+        .expect("override against usable provider must succeed");
+
+        assert!(!healed);
+        assert_eq!(resolved.id, agent.id);
+        assert_eq!(resolved.provider_id, "ollama");
+        assert_eq!(resolved.model_id, "llama3.2:latest");
+
+        // Stored default agent must remain untouched
+        let persisted = get_agent(&conn, &agent.id).unwrap().unwrap();
+        assert_eq!(persisted.provider_id, "openai");
+        assert_eq!(persisted.model_id, "gpt-old");
+
+        // Explicit override also works when defaultAgentId is empty/missing
+        let (ephemeral, ephemeral_healed) = resolve_silent_run_agent(
+            &conn,
+            &master_key,
+            "",
+            None,
+            (Some("ollama"), Some("llama3.2:latest")),
+            &providers,
+            &configs,
+        )
+        .expect("override without default agent must succeed");
+        assert!(!ephemeral_healed);
+        assert!(ephemeral.silent);
+        assert!(!ephemeral.cache_responses);
+        assert_eq!(ephemeral.provider_id, "ollama");
+        assert_eq!(ephemeral.model_id, "llama3.2:latest");
+    }
+
+    #[test]
+    fn resolve_silent_run_agent_rejects_partial_empty_and_unusable_overrides() {
+        let conn = conn();
+        let master_key = crate::crypto::test_master_key();
+        let agent = existing_agent("default-agent", "Default Agent");
+        insert_agent(&conn, &agent).unwrap();
+
+        let providers = vec![
+            provider("openai", true, false),
+            provider("anthropic", true, false),
+            provider("openrouter", true, false),
+        ];
+        let configs = HashMap::from([
+            ("openai".to_string(), provider_config(true, None)),
+            ("anthropic".to_string(), provider_config(false, None)),
+            ("openrouter".to_string(), provider_config(true, None)),
+        ]);
+        crate::storage::ai_credentials::set(&conn, "provider:openai", "sk-openai", &master_key)
+            .unwrap();
+
+        // Partial override: provider without model
+        assert!(matches!(
+            resolve_silent_run_agent(
+                &conn,
+                &master_key,
+                &agent.id,
+                Some(&agent.id),
+                (Some("openai"), None),
+                &providers,
+                &configs,
+            ),
+            Err(crate::error::AppError::Validation(_))
+        ));
+
+        // Partial override: model without provider
+        assert!(matches!(
+            resolve_silent_run_agent(
+                &conn,
+                &master_key,
+                &agent.id,
+                Some(&agent.id),
+                (None, Some("gpt-4o")),
+                &providers,
+                &configs,
+            ),
+            Err(crate::error::AppError::Validation(_))
+        ));
+
+        // Whitespace-only provider_id
+        assert!(matches!(
+            resolve_silent_run_agent(
+                &conn,
+                &master_key,
+                &agent.id,
+                Some(&agent.id),
+                (Some("   "), Some("gpt-4o")),
+                &providers,
+                &configs,
+            ),
+            Err(crate::error::AppError::Validation(_))
+        ));
+
+        // Empty model_id
+        assert!(matches!(
+            resolve_silent_run_agent(
+                &conn,
+                &master_key,
+                &agent.id,
+                Some(&agent.id),
+                (Some("openai"), Some("   ")),
+                &providers,
+                &configs,
+            ),
+            Err(crate::error::AppError::Validation(_))
+        ));
+
+        // Disabled provider reports specific disabled error rather than falling back
+        match resolve_silent_run_agent(
+            &conn,
+            &master_key,
+            &agent.id,
+            Some(&agent.id),
+            (Some("anthropic"), Some("claude-sonnet-4-6")),
+            &providers,
+            &configs,
+        ) {
+            Err(crate::error::AppError::Validation(msg)) => {
+                assert!(msg.contains("disabled"), "unexpected message: {msg}");
+            }
+            other => panic!("expected disabled validation error, got {other:?}"),
+        }
+
+        // Enabled provider missing API key reports specific credential error
+        match resolve_silent_run_agent(
+            &conn,
+            &master_key,
+            &agent.id,
+            Some(&agent.id),
+            (Some("openrouter"), Some("openai/gpt-4o-mini")),
+            &providers,
+            &configs,
+        ) {
+            Err(crate::error::AppError::Validation(msg)) => {
+                assert!(msg.contains("API key"), "unexpected message: {msg}");
+            }
+            other => panic!("expected missing API key validation error, got {other:?}"),
         }
     }
 }
