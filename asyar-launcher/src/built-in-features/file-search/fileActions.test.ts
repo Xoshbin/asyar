@@ -7,7 +7,17 @@ const {
   open: openMock,
   reveal: revealMock,
   confirmAlert,
+  showSettingsWindow,
+  applicationsCache,
 } = vi.hoisted(() => ({
+  applicationsCache: {
+    hasLoadedOnce: true,
+    apps: [
+      { name: 'Zed', path: '/Applications/Zed.app' },
+      { name: 'BBEdit', path: '/Applications/BBEdit.app' },
+    ],
+  },
+  showSettingsWindow: vi.fn(),
   quickLookPath: vi.fn(),
   openPath: vi.fn(),
   open: vi.fn(),
@@ -31,6 +41,14 @@ vi.mock('../../services/fileManager/fileManagerService', () => ({
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn(), confirmAlert },
 }));
+vi.mock('../../lib/ipc/windowCommands', () => ({ showSettingsWindow }));
+vi.mock('../../services/application/applicationsCache.svelte', () => ({
+  applicationsCache,
+  preloadApplications: vi.fn(),
+}));
+vi.mock('../../services/settings/settingsService.svelte', () => ({
+  settingsService: { currentSettings: {} },
+}));
 vi.mock('./aiChipBridge', () => ({ primeAiChipForFile: vi.fn() }));
 vi.mock('./state.svelte', () => ({
   runDeepSearch: vi.fn(),
@@ -38,7 +56,7 @@ vi.mock('./state.svelte', () => ({
   fileSearchViewState: { pinnedFiles: [] },
 }));
 
-import { buildFileActions } from './fileActions';
+import { buildFileActions, setCustomApp } from './fileActions';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 
@@ -53,7 +71,7 @@ describe('buildFileActions', () => {
       getFile: () => file,
       context: ActionContext.EXTENSION_VIEW,
     });
-    expect(core).toHaveLength(12);
+    expect(core).toHaveLength(14);
     expect(view.map((action) => action.id)).toEqual(core.map((action) => action.id));
     expect(core.every((action) => action.context === ActionContext.CORE)).toBe(true);
 
@@ -71,6 +89,64 @@ describe('buildFileActions', () => {
     expect(trash?.destructive).toBe(true);
   });
 
+  it('opens with the custom app, or sends the user to settings when none is set', async () => {
+    const customAction = () =>
+      buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+        (a) => a.id === 'file-search:open-with-custom-app',
+      );
+    const inline = buildFileActions({
+      getFile: () => ({ ...file, extensionId: 'file-search' }),
+      context: ActionContext.CORE,
+    }).find((a) => a.id === 'file-search:open-with-custom-app');
+    expect(inline?.visible?.()).toBe(true);
+
+    setCustomApp(' /Applications/Visual Studio Code.app ');
+    const action = customAction();
+    expect(action?.visible?.()).toBe(true);
+    expect(action?.title).toContain('Visual Studio Code');
+    await action?.execute();
+    expect(openPath).toHaveBeenCalledWith(null, file.path, {
+      with: '/Applications/Visual Studio Code.app',
+    });
+    expect(showSettingsWindow).not.toHaveBeenCalled();
+
+    openPath.mockClear();
+    setCustomApp(undefined);
+    await customAction()?.execute();
+    expect(openPath).not.toHaveBeenCalled();
+    expect(showSettingsWindow).toHaveBeenCalledWith('extensions', 'file-search');
+  });
+
+  it('titles the custom action with the app name from the index when known', () => {
+    setCustomApp('/Applications/Zed.app');
+    const action = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+      (a) => a.id === 'file-search:open-with-custom-app',
+    );
+    expect(action?.title).toContain('Zed');
+    expect(action?.title).not.toContain('.app');
+    setCustomApp(undefined);
+  });
+
+  it('lists installed apps under Open With and opens the file with the picked one', async () => {
+    const openWith = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+      (a) => a.id === 'file-search:open-with',
+    );
+    const apps = openWith?.children?.() ?? [];
+    expect(apps.map((a) => a.label)).toEqual(['BBEdit', 'Zed']);
+
+    await apps[1].execute();
+    expect(openPath).toHaveBeenCalledWith(null, file.path, { with: '/Applications/Zed.app' });
+  });
+
+  it('reports Open With as loading until the app list arrives', () => {
+    applicationsCache.hasLoadedOnce = false;
+    const openWith = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+      (a) => a.id === 'file-search:open-with',
+    );
+    expect(openWith?.children?.()).toBeNull();
+    applicationsCache.hasLoadedOnce = true;
+  });
+
   it('omits view-only actions unless requested and binds Quick Look to Mod+Y', () => {
     const shared = buildFileActions({ getFile: () => file, context: ActionContext.CORE });
     expect(shared.map((action) => action.id)).not.toContain('file-search:deep-search');
@@ -82,7 +158,7 @@ describe('buildFileActions', () => {
       context: ActionContext.EXTENSION_VIEW,
       include: { open: true, deepSearch: true, clearHistory: true },
     });
-    expect(view).toHaveLength(15);
+    expect(view).toHaveLength(17);
     expect(view.find((action) => action.id === 'file-search:open')?.shortcut).toBe('Enter');
   });
 

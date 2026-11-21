@@ -10,10 +10,12 @@ import { actionService } from './actionService.svelte';
  * so picking an action in the list and pressing its key behave identically.
  */
 export async function invokeAction(
-  action: { id: string; label: string; confirm?: boolean },
+  action: { id: string; label: string; confirm?: boolean; execute?: () => Promise<void> | void },
   // A pick from the ⌘K list confirms what ran; a shortcut press does not, or
   // every ⌘N would flash a toast. Failures are reported either way.
-  { reportSuccess = true }: { reportSuccess?: boolean } = {},
+  // `direct` runs the action's own `execute` — for nested-list rows, which are
+  // not in the registry.
+  { reportSuccess = true, direct = false }: { reportSuccess?: boolean; direct?: boolean } = {},
 ): Promise<void> {
   if (action.confirm) {
     const confirmed = await feedbackService.confirmAlert({
@@ -26,7 +28,8 @@ export async function invokeAction(
   }
 
   try {
-    await actionService.executeAction(action.id);
+    if (direct && action.execute) await action.execute();
+    else await actionService.executeAction(action.id);
     if (!reportSuccess) return;
     await feedbackService.report({
       source: 'frontend',

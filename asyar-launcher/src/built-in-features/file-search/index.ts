@@ -6,7 +6,7 @@ import { viewManager } from '../../services/extension/viewManager.svelte';
 import { t } from '../../services/i18n';
 import { logService } from '../../services/log/logService';
 import { openerService } from '../../services/opener/openerService';
-import { buildFileActions } from './fileActions';
+import { buildFileActions, setCustomApp } from './fileActions';
 import {
   checkDeepSearchAvailability,
   fileSearchViewState,
@@ -24,6 +24,7 @@ class FileSearchExtension implements Extension {
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('extensions');
+    setCustomApp(context.preferences?.values?.customApp);
 
     await loadPinnedFiles();
     await checkDeepSearchAvailability();

@@ -4,6 +4,7 @@ import { tick } from 'svelte';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import ActionListPopup from './ActionListPopup.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
+import { invokeAction } from '../../services/action/invokeAction';
 
 vi.mock('../../services/log/logService', () => ({ logService: { debug: vi.fn() } }));
 vi.mock('../../services/i18n', () => ({ t: (key: string) => key }));
@@ -25,6 +26,27 @@ describe('ActionListPopup navigation stack', () => {
     actionService.activePrompt = null;
     actionService.panelSearchQuery = '';
     vi.clearAllMocks();
+  });
+
+  it('drills into children and runs the picked child directly', async () => {
+    const runZed = vi.fn();
+    const openWith = {
+      ...action('open-with', 'Open With'),
+      children: () => [{ id: 'open-with:zed', label: 'Zed', execute: runZed }],
+    };
+    const { getByText, queryByText } = render(ActionListPopup, {
+      props: { availableActions: [action('copy', 'Copy'), openWith] },
+    });
+
+    await fireEvent.click(getByText('Open With'));
+    await tick();
+    expect(queryByText('Copy')).toBeNull();
+
+    await fireEvent.click(getByText('Zed'));
+    expect(invokeAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'open-with:zed' }), {
+      direct: true,
+    });
+    expect(runZed).toHaveBeenCalled();
   });
 
   it('escapes through action search clearing before closing', async () => {
