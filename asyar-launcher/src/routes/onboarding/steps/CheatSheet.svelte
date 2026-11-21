@@ -1,10 +1,8 @@
 <script lang="ts">
-  import { Card } from '../../../components';
   import { completeStep } from '../stepLogic';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
   import { t } from '../../../services/i18n';
-
   $effect(() => {
     onboardingNav.set({ primaryLabel: t('onboarding.open_asyar'), onPrimary: completeStep });
   });
@@ -17,40 +15,26 @@
     { keys: 'Tab', label: t('onboarding.shortcut_ai') },
     { keys: 'Space', label: t('onboarding.cheatsheet_quick_look') },
     { keys: '⌘K', label: t('onboarding.shortcut_action_panel') },
-    { keys: 'Enter', label: t('onboarding.shortcut_run') },
-    { keys: 'Esc / ⌫', label: t('onboarding.shortcut_back') },
   ]);
 </script>
 
-<Card>
-  <div class="done">
-    <p class="done__kicker">{t('onboarding.youre_set')}</p>
-    <h1 class="done__title">{t('onboarding.thats_asyar')}</h1>
-    <p class="done__lede">
-      {t('onboarding.cheatsheet_desc')}
-    </p>
+<div class="done">
+  <h1 class="done__title">{t('onboarding.thats_asyar')}</h1>
 
-    <ul class="done__sheet">
-      {#each rows as row}
-        <li><kbd>{row.keys}</kbd><span>{row.label}</span></li>
-      {/each}
-    </ul>
-  </div>
-</Card>
+  <ul class="done__sheet">
+    {#each rows as row, i}
+      <li style:--i={i}><kbd>{row.keys}</kbd><span>{row.label}</span></li>
+    {/each}
+  </ul>
+</div>
 
 <style>
   .done {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: var(--space-3);
-  }
-  .done__kicker {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--asyar-brand);
+    text-align: center;
   }
   .done__title {
     margin: 0;
@@ -58,12 +42,6 @@
     font-weight: 600;
     letter-spacing: -0.5px;
     color: var(--text-primary);
-  }
-  .done__lede {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: var(--font-size-xl);
-    line-height: 1.6;
   }
   .done__sheet {
     list-style: none;
@@ -74,6 +52,8 @@
     gap: var(--space-2);
   }
   .done__sheet li {
+    animation: row-in var(--dur-emerge) var(--ease-emerge) both;
+    animation-delay: calc(200ms + var(--i) * 70ms);
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -91,5 +71,12 @@
   .done__sheet span {
     color: var(--text-secondary);
     font-size: var(--font-size-md);
+  }
+
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translateX(-12px);
+    }
   }
 </style>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from '../../../services/i18n';
   import { onMount } from 'svelte';
-  import { Card, Button, ExpansionDemo } from '../../../components';
+  import { Button } from '../../../components';
   import { advanceStep } from '../stepLogic';
   import AccessibilityGate from './AccessibilityGate.svelte';
   import { installEmoji, EMOJI_ID } from './emojiSetup';
@@ -64,87 +64,72 @@
   });
 </script>
 
-<Card>
-  <div class="step">
-    <p class="step__kicker">{t('onboarding.emoji_kicker')}</p>
-    <h1 class="step__title">
-      {t('onboarding.emoji_title_pre')} <span class="onb-hl">{t('onboarding.emoji_title_hl')}</span>
-    </h1>
-    <p class="step__lede">
-      {t('onboarding.emoji_desc_pre')} <code>:party:</code>
-      {t('onboarding.emoji_desc_post')}
-    </p>
+<div class="emoji">
+  <h1 class="emoji__title">
+    {t('onboarding.emoji_title_pre')} <span class="onb-hl">{t('onboarding.emoji_title_hl')}</span>
+  </h1>
 
-    <div class="step__setup">
-      <span class="step__label"
-        >{t('onboarding.step_num', { n: 1, label: t('onboarding.install') })}</span
-      >
-      <Button onclick={doInstall} disabled={installing || installed}>
-        {installed
-          ? t('onboarding.emoji_installed')
-          : installing
-            ? t('common.installing')
-            : t('onboarding.emoji_install_btn')}
-      </Button>
-      {#if error}<p class="step__error">{error}</p>{/if}
-      <span class="step__label"
-        >{t('onboarding.step_num', { n: 2, label: t('onboarding.permission') })}</span
-      >
-      <AccessibilityGate bind:granted={axGranted} />
-    </div>
-
-    <ExpansionDemo trigger=":party:" result="🎉" note={t('onboarding.emoji_note')} />
+  <div class="emoji__demo" aria-hidden="true">
+    <code class="emoji__code">:party:</code>
+    <span class="emoji__arrow">→</span>
+    <span class="emoji__result">🎉</span>
   </div>
-</Card>
+
+  <Button onclick={doInstall} disabled={installing || installed}>
+    {installed
+      ? t('onboarding.emoji_installed')
+      : installing
+        ? t('common.installing')
+        : t('onboarding.emoji_install_btn')}
+  </Button>
+  {#if error}<p class="emoji__error">{error}</p>{/if}
+  <AccessibilityGate bind:granted={axGranted} />
+</div>
 
 <style>
-  .step {
+  .emoji {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    align-items: center;
+    gap: var(--space-5);
   }
-  .step__kicker {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--asyar-brand);
-  }
-  .step__title {
+  .emoji__title {
     margin: 0;
     font-size: var(--font-size-display);
     font-weight: 600;
     letter-spacing: -0.5px;
     color: var(--text-primary);
   }
-  .step__lede {
-    margin: 0;
-    color: var(--text-secondary);
+  .emoji__demo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
     font-size: var(--font-size-xl);
-    line-height: 1.6;
   }
-  .step__lede code {
-    background: var(--bg-tertiary);
+  .emoji__code {
+    padding: var(--space-1) var(--space-3);
+    background: var(--bg-secondary);
     border: 1px solid var(--separator);
     border-radius: var(--radius-md);
-    padding: 0 var(--space-2);
+    color: var(--text-primary);
   }
-  .step__setup {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+  .emoji__arrow {
+    color: var(--text-tertiary);
   }
-  .step__label {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-secondary);
+  .emoji__result {
+    font-size: var(--font-size-display);
+    animation: emoji-pop var(--dur-emerge) var(--ease-settle) 400ms both;
   }
-  .step__error {
-    margin: var(--space-2) 0 0;
+  .emoji__error {
+    margin: 0;
     color: var(--accent-danger);
     font-size: var(--font-size-md);
+  }
+
+  @keyframes emoji-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.4);
+    }
   }
 </style>

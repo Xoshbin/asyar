@@ -1,53 +1,50 @@
 <script lang="ts">
-  let { image, lean = 'right' }: { image: string; lean?: 'left' | 'right' } = $props();
+  import Icon from '../base/Icon.svelte';
+
+  // `glyph: null` is the Welcome hero: the app logo, larger.
+  let { glyph }: { glyph: string | null } = $props();
 </script>
 
-<div class="stage" class:stage--left={lean === 'left'}>
-  <img class="stage__bloom" src={image} alt="" aria-hidden="true" />
-  <img class="stage__hero" src={image} alt="" />
+<div class="stage" class:stage--hero={glyph === null} aria-hidden="true">
+  {#if glyph}
+    <div class="stage__tile"><Icon name={glyph} size={26} strokeWidth={1.75} /></div>
+  {:else}
+    <img class="stage__logo" src="/app-icon.png" alt="" />
+  {/if}
 </div>
 
 <style>
   .stage {
-    position: relative;
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto;
+    animation: stage-in var(--dur-emerge) var(--ease-emerge) both;
+  }
+  .stage--hero {
+    width: 96px;
+    height: 96px;
+  }
+  .stage__tile {
+    display: grid;
+    place-items: center;
+    width: 100%;
     height: 100%;
-    overflow: hidden;
+    border-radius: 28%;
+    color: var(--asyar-brand);
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
   }
-  .stage__bloom,
-  .stage__hero {
-    position: absolute;
-    top: 50%;
-    left: 52%;
-    width: 130%;
-    border-radius: var(--radius-lg);
-    transform: translate(-26%, -50%) rotate(6deg);
+  .stage__logo {
+    width: 100%;
+    height: 100%;
   }
-  .stage__bloom {
-    filter: blur(48px) saturate(1.4);
-    opacity: 0.6;
-    transform: translate(-26%, -50%) rotate(6deg) scale(1.12);
-  }
-  .stage__hero {
-    box-shadow: var(--shadow-xl);
-    border: 1px solid var(--border-color);
-  }
-  .stage--left .stage__hero {
-    left: 48%;
-    transform: translate(-74%, -50%) rotate(-6deg);
-  }
-  .stage--left .stage__bloom {
-    left: 48%;
-    transform: translate(-74%, -50%) rotate(-6deg) scale(1.12);
-  }
-  /* fade the INNER edge so the image melts into the content side */
-  .stage::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(90deg, var(--bg-popup), transparent 24%);
-  }
-  .stage--left::after {
-    background: linear-gradient(270deg, var(--bg-popup), transparent 24%);
+
+  @keyframes stage-in {
+    from {
+      opacity: 0;
+      transform: scale(0.92);
+    }
   }
 </style>

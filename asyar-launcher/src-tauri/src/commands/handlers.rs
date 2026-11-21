@@ -101,6 +101,7 @@ macro_rules! window_commands {
                 $crate::commands::hide_hud,
                 $crate::commands::get_hud_state,
                 $crate::commands::get_snap_guide_state,
+                $crate::commands::show_confetti,
                 $crate::commands::hud_mark_shown,
                 $crate::commands::simulate_paste,
                 $crate::commands::check_accessibility_permission,

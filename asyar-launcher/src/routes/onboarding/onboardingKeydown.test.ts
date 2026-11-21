@@ -135,4 +135,61 @@ describe('handleOnboardingKeydown', () => {
 
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  describe('Enter navigation', () => {
+    let onPrimary: Mock<() => void>;
+    let onSkip: Mock<() => void>;
+
+    beforeEach(() => {
+      onPrimary = vi.fn<() => void>();
+      onSkip = vi.fn<() => void>();
+    });
+
+    it('runs the primary action on Enter', () => {
+      const handled = handleOnboardingKeydown(createKeyEvent({ key: 'Enter' }), {
+        onClose,
+        onPrimary,
+        onSkip,
+      });
+      expect(handled).toBe(true);
+      expect(onPrimary).toHaveBeenCalledOnce();
+      expect(onSkip).not.toHaveBeenCalled();
+    });
+
+    it('skips on Cmd/Ctrl+Enter', () => {
+      handleOnboardingKeydown(createKeyEvent({ key: 'Enter', metaKey: true }), {
+        onClose,
+        onPrimary,
+        onSkip,
+      });
+      handleOnboardingKeydown(createKeyEvent({ key: 'Enter', ctrlKey: true }), {
+        onClose,
+        onPrimary,
+        onSkip,
+      });
+      expect(onSkip).toHaveBeenCalledTimes(2);
+      expect(onPrimary).not.toHaveBeenCalled();
+    });
+
+    it('leaves Enter to a focused input or button', () => {
+      for (const tag of ['input', 'button']) {
+        const el = document.createElement(tag);
+        document.body.appendChild(el);
+        const event = createKeyEvent({ key: 'Enter' });
+        Object.defineProperty(event, 'target', { value: el });
+        expect(handleOnboardingKeydown(event, { onClose, onPrimary, onSkip })).toBe(false);
+        el.remove();
+      }
+      expect(onPrimary).not.toHaveBeenCalled();
+    });
+
+    it('does nothing on Cmd+Enter when the step cannot be skipped', () => {
+      const handled = handleOnboardingKeydown(createKeyEvent({ key: 'Enter', metaKey: true }), {
+        onClose,
+        onPrimary,
+      });
+      expect(handled).toBe(false);
+      expect(onPrimary).not.toHaveBeenCalled();
+    });
+  });
 });

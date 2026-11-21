@@ -8,6 +8,7 @@
   import { logService } from '../../services/log/logService';
   import { initProviders } from '../../services/ai/initProviders';
   import { handleOnboardingKeydown } from './onboardingKeydown';
+  import { onboardingNav } from './onboardingNav.svelte';
   import '../../resources/styles/style.css';
 
   // The onboarding window is a separate Tauri webview and does not run the
@@ -59,9 +60,14 @@
     void onboardingService.dismiss();
   }
 
-  // Cmd/Ctrl+W closes the tour
+  // Cmd/Ctrl+W closes the tour; Enter / Cmd+Enter press the footer buttons.
   function handleKeydown(e: KeyboardEvent) {
-    handleOnboardingKeydown(e, { onClose: handleClose });
+    const nav = onboardingNav.current;
+    handleOnboardingKeydown(e, {
+      onClose: handleClose,
+      onPrimary: nav.primaryDisabled ? undefined : () => void nav.onPrimary(),
+      onSkip: nav.showSkip ? () => void nav.onSkip() : undefined,
+    });
   }
 </script>
 
@@ -103,7 +109,21 @@
     display: flex;
     flex-direction: column;
     /* Fully opaque surface — content does NOT show the desktop through it. */
-    background: var(--bg-popup);
+    /* Grainy dusk: lavender light from the top right washing over violet into
+       deep indigo shadow. Fixed brand-moment colours, so they live here rather
+       than in the theme. */
+    --onb-shadow: #1d1a36;
+    --onb-indigo: #5b46c9;
+    --onb-violet: #8466e6;
+    --onb-lavender: #e4a2e4;
+    background-color: var(--onb-shadow);
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"),
+      radial-gradient(ellipse 75% 65% at 80% -5%, var(--onb-lavender), transparent 70%),
+      radial-gradient(ellipse 90% 55% at 60% 40%, var(--onb-violet), transparent 70%),
+      radial-gradient(ellipse 30% 55% at 18% 35%, var(--onb-indigo), transparent 75%),
+      radial-gradient(ellipse 25% 30% at 0% 75%, var(--onb-indigo), transparent 75%);
+    background-blend-mode: overlay, normal, normal, normal, normal;
     color: var(--text-primary);
     border-radius: var(--radius-xl);
     overflow: hidden;
@@ -117,7 +137,7 @@
      the DWM corner radius and leave a halo at the edge. */
   :global(html[data-platform='windows']) .onboarding-frame,
   :global(html[data-platform='win32']) .onboarding-frame {
-    background: var(--win-acrylic-tint);
+    background-color: var(--win-acrylic-tint);
     border-radius: 0;
   }
 

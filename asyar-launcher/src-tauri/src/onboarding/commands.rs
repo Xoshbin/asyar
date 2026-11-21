@@ -85,9 +85,7 @@ pub fn complete_onboarding(app: AppHandle) -> Result<(), AppError> {
     // it — guarantees the launcher applies the selected launch view + theme
     // even if a JS-emit during the flow was racy.
     broadcast_onboarding_settings(&app);
-    crate::onboarding::window::close(&app)?;
-    crate::onboarding::window::show_launcher_panel(&app)?;
-    Ok(())
+    crate::onboarding::window::close_then_show_launcher(&app)
 }
 
 #[tauri::command]

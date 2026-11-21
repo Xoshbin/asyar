@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Card, ShortcutRecorder, LauncherHint } from '../../../components';
+  import { Button, Card, ShortcutRecorder } from '../../../components';
   import type { ShortcutBackendInfo } from '../../../lib/ipc/commands';
   import { advanceStep } from '../stepLogic';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
@@ -41,28 +41,12 @@
 
 <Card>
   <div class="step">
-    <p class="step__kicker">{t('onboarding.summon_title')}</p>
     <h1 class="step__title">{t('onboarding.summon_heading')}</h1>
     <p class="step__lede">
       {t('onboarding.summon_lede_pre')}
       <kbd>{waylandGuide ? waylandGuide.shortcutDisplay : `${modifier}+${key}`}</kbd>
       {t('onboarding.summon_lede_mid')} <code>1234 * 56</code>
       {t('onboarding.summon_lede_post')}
-    </p>
-
-    <LauncherHint
-      steps={[
-        waylandGuide
-          ? t('onboarding.wayland_hint_bind_and_press', { shortcut: waylandGuide.shortcutDisplay })
-          : t('onboarding.hint_press_shortcut', { shortcut: `${modifier}+${key}` }),
-        t('onboarding.summon_hint_type'),
-        t('onboarding.summon_hint_enter'),
-      ]}
-    />
-
-    <p class="step__tip">
-      💡 <strong>{t('onboarding.quick_look_label')}</strong>
-      {t('onboarding.summon_quick_look_tip')}
     </p>
 
     {#if waylandGuide}
@@ -102,14 +86,6 @@
     flex-direction: column;
     gap: var(--space-3);
   }
-  .step__kicker {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--asyar-brand);
-  }
   .step__title {
     margin: 0;
     font-size: var(--font-size-display);
@@ -122,12 +98,6 @@
     color: var(--text-secondary);
     font-size: var(--font-size-xl);
     line-height: 1.6;
-  }
-  .step__tip {
-    margin: var(--space-1) 0 0;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    line-height: 1.5;
   }
   .step__lede kbd,
   .step__lede code {
