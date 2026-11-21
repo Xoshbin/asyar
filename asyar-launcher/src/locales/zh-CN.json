@@ -363,6 +363,7 @@
       "save_preference_error": "无法保存偏好设置“{name}”",
       "invalid_dropdown": "下拉菜单配置无效",
       "choose_app": "选择应用…",
+      "use_app_path": "使用 {path}",
       "review_carefully": "⚠️ 允许前请仔细审核。",
       "required_setup_title": "扩展需要设置",
       "required_setup_pre": "请填写以下扩展的必填偏好设置：",

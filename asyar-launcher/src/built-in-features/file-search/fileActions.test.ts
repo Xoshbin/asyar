@@ -8,13 +8,15 @@ const {
   reveal: revealMock,
   confirmAlert,
   showSettingsWindow,
-  listApplications,
+  applicationsCache,
 } = vi.hoisted(() => ({
-  // Module-level app cache loads once, so the list is fixed for the whole file.
-  listApplications: vi.fn(async () => [
-    { name: 'Zed', path: '/Applications/Zed.app' },
-    { name: 'BBEdit', path: '/Applications/BBEdit.app' },
-  ]),
+  applicationsCache: {
+    hasLoadedOnce: true,
+    apps: [
+      { name: 'Zed', path: '/Applications/Zed.app' },
+      { name: 'BBEdit', path: '/Applications/BBEdit.app' },
+    ],
+  },
   showSettingsWindow: vi.fn(),
   quickLookPath: vi.fn(),
   openPath: vi.fn(),
@@ -40,10 +42,13 @@ vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn(), confirmAlert },
 }));
 vi.mock('../../lib/ipc/windowCommands', () => ({ showSettingsWindow }));
-vi.mock('../../services/application/applicationService', () => ({
-  applicationService: { listApplications },
+vi.mock('../../services/application/applicationsCache.svelte', () => ({
+  applicationsCache,
+  preloadApplications: vi.fn(),
 }));
-vi.mock('../../services/log/logService', () => ({ logService: { warn: vi.fn() } }));
+vi.mock('../../services/settings/settingsService.svelte', () => ({
+  settingsService: { currentSettings: {} },
+}));
 vi.mock('./aiChipBridge', () => ({ primeAiChipForFile: vi.fn() }));
 vi.mock('./state.svelte', () => ({
   runDeepSearch: vi.fn(),
@@ -112,8 +117,7 @@ describe('buildFileActions', () => {
     expect(showSettingsWindow).toHaveBeenCalledWith('extensions', 'file-search');
   });
 
-  it('titles the custom action with the app name from the index when known', async () => {
-    await Promise.resolve();
+  it('titles the custom action with the app name from the index when known', () => {
     setCustomApp('/Applications/Zed.app');
     const action = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
       (a) => a.id === 'file-search:open-with-custom-app',
@@ -124,7 +128,6 @@ describe('buildFileActions', () => {
   });
 
   it('lists installed apps under Open With and opens the file with the picked one', async () => {
-    await Promise.resolve();
     const openWith = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
       (a) => a.id === 'file-search:open-with',
     );
@@ -133,6 +136,15 @@ describe('buildFileActions', () => {
 
     await apps[1].execute();
     expect(openPath).toHaveBeenCalledWith(null, file.path, { with: '/Applications/Zed.app' });
+  });
+
+  it('reports Open With as loading until the app list arrives', () => {
+    applicationsCache.hasLoadedOnce = false;
+    const openWith = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+      (a) => a.id === 'file-search:open-with',
+    );
+    expect(openWith?.children?.()).toBeNull();
+    applicationsCache.hasLoadedOnce = true;
   });
 
   it('omits view-only actions unless requested and binds Quick Look to Mod+Y', () => {

@@ -9,6 +9,7 @@ import { runtimeService } from './runtime/runtimeService.svelte';
 import { clipboardPrivacyService } from './privacy/clipboardPrivacyService.svelte';
 import { secretRedactionService } from './privacy/secretRedactionService.svelte';
 import { encryptionService } from './privacy/encryptionService.svelte';
+import { resetApplicationsCache } from './application/applicationsCache.svelte';
 import { applicationService } from './application/applicationsService';
 import extensionManager from './extension/extensionManager.svelte';
 import { commandService } from './extension/commandService.svelte'; // Import commandService instance
@@ -441,6 +442,8 @@ export const appInitializer = {
         'asyar:app-scan-paths-changed',
         async ({ payload }) => {
           await applicationService.resync(payload ?? undefined);
+          // Keep the Open With… list in step with the new scan folders.
+          resetApplicationsCache();
         },
       ).catch((err) => {
         logService.warn(`Failed to register app-scan-paths-changed listener: ${err}`);

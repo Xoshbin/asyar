@@ -105,8 +105,8 @@ export interface ApplicationAction {
   execute: () => Promise<void> | void;
   shortcut?: string;
   visible?: () => boolean;
-  /** Rows of a nested list the ⌘K panel drills into; read when the row is picked. */
-  children?: () => ApplicationAction[];
+  /** Rows of a nested list the ⌘K panel drills into; null while they load. */
+  children?: () => ApplicationAction[] | null;
 }
 
 function sameActionMetadata(a: ApplicationAction, b: ApplicationAction): boolean {

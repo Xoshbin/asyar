@@ -7,12 +7,14 @@ import {
 } from '../../lib/ipc/fileSearchCommands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
-import type { Application } from '../../bindings';
 import { showSettingsWindow } from '../../lib/ipc/windowCommands';
 import type { ApplicationAction } from '../../services/action/actionService.svelte';
-import { applicationService } from '../../services/application/applicationService';
+import {
+  applicationsCache,
+  preloadApplications,
+} from '../../services/application/applicationsCache.svelte';
 import { t } from '../../services/i18n';
-import { logService } from '../../services/log/logService';
+import { settingsService } from '../../services/settings/settingsService.svelte';
 import { openerService } from '../../services/opener/openerService';
 import { primeAiChipForFile } from './aiChipBridge';
 import {
@@ -59,7 +61,7 @@ function parentDirOf(file: { isDir?: boolean; path?: string }): string {
 export type FileAction = ExtensionAction & {
   visible?: () => boolean;
   confirmInExecute?: boolean;
-  children?: () => ApplicationAction[];
+  children?: () => ApplicationAction[] | null;
 };
 
 // The "Custom app" preference. Built-ins re-initialize on preference changes,
@@ -69,27 +71,14 @@ export function setCustomApp(app: unknown): void {
   customApp = typeof app === 'string' ? app.trim() : '';
 }
 
-// Installed apps for "Open With…", fetched once on first use.
-let installedApps: Application[] = [];
-let installedAppsRequested = false;
 function loadInstalledApps(): void {
-  if (installedAppsRequested) return;
-  installedAppsRequested = true;
-  applicationService
-    .listApplications()
-    .then((apps: Application[]) => {
-      installedApps = apps.sort((a, b) => a.name.localeCompare(b.name));
-    })
-    .catch((err) => {
-      installedAppsRequested = false;
-      logService.warn(`[FileSearch] Failed to list applications: ${err}`);
-    });
+  preloadApplications(settingsService.currentSettings.search?.additionalScanPaths ?? []);
 }
 
 /** Display name for an app path: its indexed (localized) name, else the bundle's file name. */
 function appName(path: string): string {
   return (
-    installedApps.find((a) => a.path === path)?.name ??
+    applicationsCache.apps.find((a) => a.path === path)?.name ??
     path
       .split(/[/\\]/)
       .pop()!
@@ -213,16 +202,20 @@ export function buildFileActions(opts: {
       // The panel only runs `children` rows, never this.
       execute: () => {},
       children: () =>
-        installedApps.map((app) => ({
-          id: `file-search:open-with:${app.path}`,
-          label: app.name,
-          icon: app.icon ?? undefined,
-          extensionId: 'file-search',
-          execute: async () => {
-            const file = getFile();
-            if (file?.path) await openerService.openPath(null, file.path, { with: app.path });
-          },
-        })),
+        applicationsCache.hasLoadedOnce
+          ? [...applicationsCache.apps]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((app) => ({
+                id: `file-search:open-with:${app.path}`,
+                label: app.name,
+                icon: app.icon ?? undefined,
+                extensionId: 'file-search',
+                execute: async () => {
+                  const file = getFile();
+                  if (file?.path) await openerService.openPath(null, file.path, { with: app.path });
+                },
+              }))
+          : null,
     },
     {
       ...base,

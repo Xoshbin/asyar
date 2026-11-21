@@ -55,6 +55,13 @@
       .sort((a, b) => a.label.localeCompare(b.label)),
   );
 
+  /** Lets users type the path of an app outside the scanned folders. */
+  function appPathOption(query: string) {
+    return /^(\/|[A-Za-z]:[\\/])/.test(query)
+      ? { value: query, label: t('settings.extensions.use_app_path', { path: query }) }
+      : null;
+  }
+
   /** Keeps a saved app visible even when it is outside the indexed list. */
   function appOptionsFor(value: unknown) {
     if (typeof value !== 'string' || !value || appOptions.some((o) => o.value === value)) {
@@ -132,6 +139,7 @@
             value={values[pref.name] ?? ''}
             options={appOptionsFor(values[pref.name])}
             placeholder={t('settings.extensions.choose_app')}
+            customOption={appPathOption}
             {disabled}
             onchange={(v) => handleValueChange(pref.name, v)}
           />

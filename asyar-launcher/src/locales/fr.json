@@ -363,6 +363,7 @@
       "save_preference_error": "Impossible d'enregistrer la préférence « {name} »",
       "invalid_dropdown": "Configuration de liste déroulante invalide",
       "choose_app": "Choisir une app…",
+      "use_app_path": "Utiliser {path}",
       "review_carefully": "⚠️ Vérifiez attentivement avant d'autoriser.",
       "required_setup_title": "L'extension doit être configurée",
       "required_setup_pre": "Remplissez les préférences requises pour",

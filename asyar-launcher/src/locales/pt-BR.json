@@ -363,6 +363,7 @@
       "save_preference_error": "Não foi possível salvar a preferência \"{name}\"",
       "invalid_dropdown": "Configuração de lista suspensa inválida",
       "choose_app": "Escolher um app…",
+      "use_app_path": "Usar {path}",
       "review_carefully": "⚠️ Revise com atenção antes de permitir.",
       "required_setup_title": "A extensão requer configuração",
       "required_setup_pre": "Preencha as preferências obrigatórias de",
