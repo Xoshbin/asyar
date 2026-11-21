@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toResolvedIcon } from './icon';
+import { iconUrlExtensionId, toResolvedIcon } from './icon';
 
 describe('toResolvedIcon', () => {
   it('classifies host strings', () => {
@@ -77,5 +77,15 @@ describe('toResolvedIcon', () => {
       src: 'http://asyar-extension.localhost/org.x/a.png?icon',
       dark: 'http://asyar-extension.localhost/org.x/b.png?icon',
     });
+  });
+});
+
+describe('iconUrlExtensionId', () => {
+  it('reads the extension id from macOS and Windows icon URLs', () => {
+    expect(iconUrlExtensionId('asyar-extension://store/assets/icon.png?icon')).toBe('store');
+    expect(iconUrlExtensionId('http://asyar-extension.localhost/store/assets/icon.png')).toBe(
+      'store',
+    );
+    expect(iconUrlExtensionId('asyar-icon://localhost/Safari.png')).toBeNull();
   });
 });

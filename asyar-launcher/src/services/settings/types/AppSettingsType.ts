@@ -1,4 +1,5 @@
 import type { ProviderId, ProviderConfig } from '../../ai/IProviderPlugin';
+import type { ListDensity, ListDensityPreset } from '../../../lib/launcher/listDensity';
 
 // Re-export for consumers that import from here
 export type { ProviderId, ProviderConfig };
@@ -40,6 +41,10 @@ export interface AppSettings {
     windowHeight: number;
     activeTheme?: string | null;
     uiScale?: number;
+    listDensity?: ListDensityPreset;
+    customListDensity?: ListDensity;
+    /** Glass surface opacity in percent (0–100); unset keeps the platform default. */
+    windowOpacity?: number;
   };
   extensions: {
     enabled: Record<string, boolean>;

@@ -43,6 +43,16 @@ describe('Portals DefaultView', () => {
     expect(screen.getByText('Created')).toBeTruthy();
   });
 
+  it('keeps a free-text icon the resolver cannot read', () => {
+    portalStore.portals = [
+      { id: 'jira', name: 'Jira', url: 'https://jira.example.com', icon: 'J.', createdAt: 0 },
+    ];
+
+    const { container } = render(DefaultView);
+
+    expect(container.querySelector('.portal-text-icon')?.textContent).toBe('J.');
+  });
+
   it('pushes portals/PortalFormView with searchable: false when clicking empty-state CTA', async () => {
     const navSpy = vi.spyOn(viewManager, 'navigateToView').mockImplementation(() => {});
     render(DefaultView);

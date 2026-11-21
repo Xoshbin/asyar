@@ -374,6 +374,26 @@ pub unsafe fn pin_launcher_webview(ns_window: *mut AnyObject) {
     }
 }
 
+/// Gives a freshly added vibrancy view the pinned webview's frame, so it
+/// covers the full launcher whatever the window's current crop.
+///
+/// # Safety
+/// `ns_window` must be either null or a valid pointer to an `NSWindow` instance.
+pub unsafe fn match_vibrancy_to_webview(ns_window: *mut AnyObject) {
+    if ns_window.is_null() {
+        return;
+    }
+    let content_view: *mut AnyObject = msg_send![ns_window, contentView];
+    let webview = find_webview(content_view);
+    let vibrancy = find_vibrancy_view(content_view);
+    if webview.is_null() || vibrancy.is_null() {
+        return;
+    }
+    let frame: NSRect = msg_send![webview, frame];
+    let _: () = msg_send![vibrancy, setAutoresizingMask: 2u64];
+    let _: () = msg_send![vibrancy, setFrame: frame];
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ResizeMode {
     Immediate,

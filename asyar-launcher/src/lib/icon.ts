@@ -46,6 +46,14 @@ export function normalizeHostImageUrl(
   return null;
 }
 
+/** The extension that serves an `asyar-extension://` icon URL, if any. */
+export function iconUrlExtensionId(src: string): string | null {
+  return (
+    /^(?:asyar-extension:\/\/|http:\/\/asyar-extension\.localhost\/)([^/?#]+)\//.exec(src)?.[1] ??
+    null
+  );
+}
+
 /**
  * Adapter for icon strings that never pass through the Rust resolver
  * (built-in literals, runtime actions). Same rules as `resolve_icon` with no

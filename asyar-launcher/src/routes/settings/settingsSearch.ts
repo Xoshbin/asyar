@@ -38,15 +38,16 @@ export const SETTINGS_ROW_CATALOG: CatalogEntry[] = [
   },
   {
     labelKey: 'settings.appearance.theme',
-    tab: 'general',
+    tab: 'appearance',
     keywords: ['appearance', 'dark', 'light'],
   },
-  { labelKey: 'settings.appearance.window_mode', tab: 'general', keywords: ['compact'] },
+  { labelKey: 'settings.appearance.window_mode', tab: 'appearance', keywords: ['compact'] },
   {
     labelKey: 'settings.appearance.interface_size_label',
-    tab: 'general',
+    tab: 'appearance',
     keywords: ['size', 'zoom', 'larger'],
   },
+  { labelKey: 'settings.appearance.list_density', tab: 'appearance', keywords: ['rows', 'icons'] },
   { labelKey: 'settings.general.sound_effects', tab: 'general', keywords: ['audio'] },
   {
     labelKey: 'settings.general.rerun_onboarding',
@@ -143,6 +144,7 @@ export const SETTINGS_ROW_CATALOG: CatalogEntry[] = [
 const TAB_LABEL_KEYS: Record<SettingsTabId, string> = {
   account: 'settings.tabs.account',
   general: 'settings.tabs.general',
+  appearance: 'settings.tabs.appearance',
   applications: 'settings.tabs.applications',
   'built-in-features': 'settings.tabs.built_in_features',
   extensions: 'settings.tabs.extensions',

@@ -449,8 +449,8 @@
   }
 
   .row-icon-wrap {
-    width: var(--size-lg);
-    height: var(--size-lg);
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -470,8 +470,8 @@
   }
 
   .row-icon {
-    width: 20px;
-    height: 20px;
+    width: var(--row-icon-optical);
+    height: var(--row-icon-optical);
     opacity: 0.6;
     stroke-width: 1.5;
     stroke-linecap: round;

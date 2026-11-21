@@ -1,6 +1,7 @@
 export type SettingsTabId =
   | 'account'
   | 'general'
+  | 'appearance'
   | 'applications'
   | 'built-in-features'
   | 'extensions'
@@ -44,7 +45,15 @@ export const SIDEBAR_GROUPS: { id: SidebarGroupId; tabs: SettingsTabId[] }[] = [
   { id: 'top', tabs: ['account'] },
   {
     id: 'app',
-    tabs: ['general', 'applications', 'built-in-features', 'extensions', 'privacy', 'backup'],
+    tabs: [
+      'general',
+      'appearance',
+      'applications',
+      'built-in-features',
+      'extensions',
+      'privacy',
+      'backup',
+    ],
   },
   { id: 'system', tabs: ['advanced', 'developer', 'about'] },
 ];
@@ -52,6 +61,7 @@ export const SIDEBAR_GROUPS: { id: SidebarGroupId; tabs: SettingsTabId[] }[] = [
 const DIRECT_TABS: readonly string[] = [
   'account',
   'general',
+  'appearance',
   'applications',
   'privacy',
   'backup',
@@ -94,7 +104,8 @@ export function resolveNavigation(payload: NavPayload, developerEnabled: boolean
  * for a feature ("clipboard", "theme") finds the tab that contains it.
  */
 export const SETTINGS_TAB_KEYWORDS: Partial<Record<SettingsTabId, string[]>> = {
-  general: ['hotkey', 'theme', 'appearance', 'window', 'onboarding', 'escape'],
+  general: ['hotkey', 'placement', 'onboarding', 'escape'],
+  appearance: ['theme', 'dark', 'light', 'window', 'density', 'interface size'],
   applications: ['apps', 'applications', 'search scope', 'directories', 'launch'],
   'built-in-features': [
     'ai',

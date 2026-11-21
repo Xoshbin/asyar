@@ -10,12 +10,17 @@
   } from '../../components';
   import { nameToGradient, storeIconSrc } from '../../lib/extensionAvatar';
   import { t } from '../../services/i18n';
+  import { resolveListDensity } from '../../lib/launcher/listDensity';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
 
   let isLoading = $derived(store.isLoading);
   let error = $derived(store.loadError ? store.errorMessage : null);
   let filteredItems = $derived(store.filteredItems);
   let selectedIndex = $derived(store.selectedIndex);
   let selectedItem = $derived(store.selectedItem);
+  let rowIconSize = $derived(
+    resolveListDensity(settingsService.currentSettings.appearance).iconSize,
+  );
   let extensionManager = $derived(store.extensionManager);
   let selectedGradient = $derived(
     selectedItem ? nameToGradient(selectedItem.name) : { from: 'transparent', to: 'transparent' },
@@ -58,7 +63,7 @@
         <ExtensionAvatar
           name={item.name}
           icon={storeIconSrc(item.iconUrl ?? item.icon_url)}
-          size="sm"
+          size={rowIconSize}
         />
       {/snippet}
       {#snippet trailing()}

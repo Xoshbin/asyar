@@ -61,6 +61,8 @@ export { default as ExtensionViewContainer } from './extension/ExtensionViewCont
 
 // Settings
 export { default as SettingsRow } from './settings/SettingsRow.svelte';
+export { default as ListDensitySettings } from './settings/ListDensitySettings.svelte';
+export { default as ThemePicker } from './settings/ThemePicker.svelte';
 export { default as SettingsSection } from './settings/SettingsSection.svelte';
 export { default as SettingsCard } from './settings/SettingsCard.svelte';
 export { default as SettingsSidebar } from './settings/SettingsSidebar.svelte';
