@@ -7,9 +7,12 @@
   import { onboardingNav } from '../onboardingNav.svelte';
   import { aiCheckCliStatus } from '../../../lib/ipc/commands';
   import type { CliStatus } from '../../../bindings';
-  import { Button, Card, Badge } from '../../../components';
+  import { Button, Card, Badge, ShortcutRecorder } from '../../../components';
   import { t } from '../../../services/i18n';
   import { connectCliProvider } from './aiSetup';
+  import { DEFAULT_GRAMMAR_FIX_HOTKEY } from '../../../built-in-features/agents/defaultAgent';
+  import AccessibilityGate from './AccessibilityGate.svelte';
+  import { setUpHiddenCommand } from './hiddenCommandsSetup';
 
   let scanning = $state(true);
   let cliResults = $state<Record<string, CliStatus>>({});
@@ -106,6 +109,33 @@
     }
   }
 
+  let grammarModifier = $state(DEFAULT_GRAMMAR_FIX_HOTKEY.modifier);
+  let grammarKey = $state(DEFAULT_GRAMMAR_FIX_HOTKEY.key);
+  let grammarAx = $state(false);
+  let grammarReady = $state(false);
+  let grammarWorking = $state(false);
+  let grammarError = $state('');
+
+  async function recordGrammarHotkey(detail: { modifier: string; key: string }): Promise<true> {
+    grammarModifier = detail.modifier;
+    grammarKey = detail.key;
+    return true;
+  }
+
+  async function setUpGrammarFix() {
+    grammarWorking = true;
+    grammarError = '';
+    try {
+      const res = await setUpHiddenCommand(grammarModifier, grammarKey);
+      grammarReady = res.ok;
+      if (!res.ok) grammarError = res.error ?? t('onboarding.generic_error');
+    } catch (e) {
+      grammarError = e instanceof Error ? e.message : String(e);
+    } finally {
+      grammarWorking = false;
+    }
+  }
+
   async function handleAiSetupDone() {
     try {
       await onboardingService.completeAi();
@@ -134,48 +164,19 @@
     void checkAllClis();
   });
 
+  // One button: skip until a provider is connected, then continue.
   $effect(() => {
-    onboardingNav.set({
-      showSkip: true,
-      skipLabel: t('onboarding.skip_for_now'),
-      onSkip: handleAiSkip,
-      onPrimary: handleAiSetupDone,
-      primaryLabel: hasConfiguredProvider ? t('onboarding.continue') : t('onboarding.skip_for_now'),
-    });
+    onboardingNav.set(
+      hasConfiguredProvider
+        ? { primaryLabel: t('onboarding.continue'), onPrimary: handleAiSetupDone }
+        : { primaryLabel: t('onboarding.skip_for_now'), onPrimary: handleAiSkip },
+    );
   });
 </script>
 
 <div class="ai-step">
   <div class="ai-step__header">
-    <p class="ai-step__kicker">{t('onboarding.ai_step_kicker')}</p>
     <h1 class="ai-step__title">{t('onboarding.ai_step_title')}</h1>
-    <p class="ai-step__lede">
-      {t('onboarding.ai_step_lede')}
-    </p>
-  </div>
-
-  <div class="superpowers-grid">
-    <div class="superpower-card">
-      <div class="superpower-card__header">
-        <span class="superpower-icon" aria-hidden="true">⚡️</span>
-        <span class="superpower-title">{t('onboarding.ai_step_feature_zero_key')}</span>
-      </div>
-      <p class="superpower-desc">{t('onboarding.ai_step_cli_detected_sub')}</p>
-    </div>
-    <div class="superpower-card">
-      <div class="superpower-card__header">
-        <span class="superpower-icon" aria-hidden="true">🌐</span>
-        <span class="superpower-title">{t('onboarding.ai_step_feature_web_search')}</span>
-      </div>
-      <p class="superpower-desc">{t('onboarding.ai_step_feature_web_search_desc')}</p>
-    </div>
-    <div class="superpower-card">
-      <div class="superpower-card__header">
-        <span class="superpower-icon" aria-hidden="true">🔌</span>
-        <span class="superpower-title">{t('onboarding.ai_step_feature_mcp')}</span>
-      </div>
-      <p class="superpower-desc">{t('onboarding.ai_step_feature_mcp_desc')}</p>
-    </div>
   </div>
 
   {#if scanning}
@@ -262,22 +263,60 @@
       </div>
     {/if}
   </div>
+
+  {#if hasConfiguredProvider}
+    <div class="grammar">
+      <div class="grammar__text">
+        <span class="grammar__title">{t('onboarding.hidden_example_grammar')}</span>
+      </div>
+      <ShortcutRecorder
+        bind:modifier={grammarModifier}
+        bind:key={grammarKey}
+        onsave={recordGrammarHotkey}
+      />
+      <AccessibilityGate bind:granted={grammarAx} />
+      <Button onclick={setUpGrammarFix} disabled={grammarWorking || grammarReady || !grammarAx}>
+        {grammarReady
+          ? t('onboarding.hidden_ready')
+          : grammarWorking
+            ? t('onboarding.setting_up')
+            : t('onboarding.hidden_create')}
+      </Button>
+      {#if grammarError}<p class="grammar__error">{grammarError}</p>{/if}
+    </div>
+  {/if}
 </div>
 
 <style>
+  .grammar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-lg);
+  }
+  .grammar__text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+  }
+  .grammar__title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .grammar__error {
+    margin: 0;
+    color: var(--accent-danger);
+    font-size: var(--font-size-md);
+  }
+
   .ai-step {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-  }
-
-  .ai-step__kicker {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--asyar-brand);
   }
 
   .ai-step__title {
@@ -286,52 +325,6 @@
     font-weight: 600;
     letter-spacing: -0.5px;
     color: var(--text-primary);
-  }
-
-  .ai-step__lede {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: var(--font-size-xl);
-    line-height: 1.6;
-  }
-
-  .superpowers-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-3);
-  }
-
-  .superpower-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    padding: var(--space-3);
-    background: var(--bg-secondary);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-md);
-  }
-
-  .superpower-card__header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .superpower-icon {
-    font-size: var(--font-size-md);
-  }
-
-  .superpower-title {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .superpower-desc {
-    margin: 0;
-    font-size: var(--font-size-xs);
-    line-height: 1.4;
-    color: var(--text-secondary);
   }
 
   .cli-scanning {

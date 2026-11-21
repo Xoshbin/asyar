@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GuidanceStep, SettingsRadioGroup, SystemAccessSection } from '../../../components';
+  import { SegmentedControl, SystemAccessSection } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { advanceStep } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
@@ -7,85 +7,93 @@
     CrashReportMode,
     UsageShareMode,
   } from '../../../services/settings/types/AppSettingsType';
-
   import { t } from '../../../services/i18n';
 
-  let mode = $state<CrashReportMode>(settingsService.currentSettings.privacy.crashReportMode);
-
-  let options = $derived<{ value: CrashReportMode; label: string; description?: string }[]>([
-    {
-      value: 'off',
-      label: t('settings.privacy.mode_off'),
-      description: t('settings.privacy.crash_off_desc'),
-    },
-    {
-      value: 'ask',
-      label: t('settings.privacy.mode_ask'),
-      description: t('settings.privacy.crash_ask_desc'),
-    },
-    {
-      value: 'auto',
-      label: t('settings.privacy.mode_auto'),
-      description: t('settings.privacy.crash_auto_desc'),
-    },
-  ]);
-
-  function handleChange(value: string) {
-    void settingsService.updateSettings('privacy', { crashReportMode: value as CrashReportMode });
-  }
-
+  let crashMode = $state<CrashReportMode>(settingsService.currentSettings.privacy.crashReportMode);
   let usageMode = $state<UsageShareMode>(settingsService.currentSettings.privacy.usageShareMode);
 
-  let usageOptions = $derived<{ value: UsageShareMode; label: string; description?: string }[]>([
-    {
-      value: 'off',
-      label: t('settings.privacy.mode_off'),
-      description: t('settings.privacy.usage_off_desc'),
-    },
-    {
-      value: 'ask',
-      label: t('settings.privacy.mode_ask'),
-      description: t('settings.privacy.usage_ask_desc'),
-    },
-    {
-      value: 'auto',
-      label: t('settings.privacy.mode_share_anon'),
-      description: t('settings.privacy.usage_anon_desc'),
-    },
+  const options = $derived([
+    { value: 'off', label: t('settings.privacy.mode_off') },
+    { value: 'ask', label: t('onboarding.privacy_ask') },
+    { value: 'auto', label: t('onboarding.privacy_auto') },
   ]);
-
-  function handleUsageChange(value: string) {
-    void settingsService.updateSettings('privacy', { usageShareMode: value as UsageShareMode });
-  }
 
   $effect(() => {
     onboardingNav.set({ showSkip: false, onPrimary: advanceStep });
   });
 </script>
 
-<GuidanceStep kicker={t('onboarding.privacy_title')} title={t('onboarding.privacy_heading')}>
-  {#snippet body()}
-    <p>
-      {t('onboarding.privacy_desc')}
-    </p>
-    <SettingsRadioGroup
-      name="crashReportMode"
-      {options}
-      bind:value={mode}
-      onchange={handleChange}
-      noBorder={true}
-    />
-    <p class="text-section">{t('onboarding.anonymous_usage')}</p>
-    <p>
-      {t('onboarding.anonymous_usage_desc')}
-    </p>
-    <SettingsRadioGroup
-      name="usageShareMode"
-      options={usageOptions}
-      bind:value={usageMode}
-      onchange={handleUsageChange}
-      noBorder={true}
-    />
+<div class="privacy">
+  <h1 class="privacy__title">{t('onboarding.privacy_heading')}</h1>
+  <div class="privacy__rows">
+    <div class="privacy__row">
+      <span class="privacy__label">{t('settings.privacy.crash_reports')}</span>
+      <SegmentedControl
+        {options}
+        bind:value={crashMode}
+        onchange={(v) =>
+          settingsService.updateSettings('privacy', { crashReportMode: v as CrashReportMode })}
+      />
+    </div>
+    <div class="privacy__row">
+      <span class="privacy__label">{t('settings.privacy.usage_share')}</span>
+      <SegmentedControl
+        {options}
+        bind:value={usageMode}
+        onchange={(v) =>
+          settingsService.updateSettings('privacy', { usageShareMode: v as UsageShareMode })}
+      />
+    </div>
+  </div>
+  <p class="privacy__note">{t('onboarding.privacy_note')}</p>
+  <div class="privacy__access">
     <SystemAccessSection />
-  {/snippet}
-</GuidanceStep>
+  </div>
+</div>
+
+<style>
+  .privacy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-5);
+  }
+  .privacy__title {
+    margin: 0;
+    font-size: var(--font-size-display);
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+  }
+  .privacy__rows {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+  }
+  .privacy__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--separator);
+  }
+  .privacy__row:last-child {
+    border-bottom: none;
+  }
+  .privacy__label {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .privacy__access {
+    width: 100%;
+    max-width: 480px;
+  }
+  .privacy__note {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+  }
+</style>

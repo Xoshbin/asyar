@@ -1,8 +1,6 @@
 <script lang="ts">
   import { emit } from '@tauri-apps/api/event';
-  import { Card, Button, AppearanceThemeSelector, WindowModeSelector } from '../../../components';
   import { advanceStep } from '../stepLogic';
-  import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
   import { t } from '../../../services/i18n';
 
@@ -14,17 +12,7 @@
     });
   });
 
-  const currentTheme = $derived(settingsService.currentSettings.appearance.theme);
-  const currentLaunchView = $derived(settingsService.currentSettings.appearance.launchView);
-
-  async function pickTheme(theme: 'light' | 'dark' | 'system') {
-    await settingsService.updateSettings('appearance', { theme });
-  }
-
-  async function pickLaunchView(launchView: 'default' | 'compact') {
-    await settingsService.updateSettings('appearance', { launchView });
-    await emit('asyar:launch-view-changed', { launchView });
-  }
+  const words = $derived(t('onboarding.welcome_headline_pre').split(' '));
 
   // Onboarding is a separate webview from the main launcher, same as
   // Settings — deep-link into the Tier 1 view via the generic
@@ -34,69 +22,33 @@
   }
 </script>
 
-<Card>
-  <div class="welcome">
-    <p class="welcome__kicker">{t('onboarding.welcome_title')}</p>
-    <h1 class="welcome__title">
-      {t('onboarding.welcome_headline_pre')}
-      <span class="onb-hl">{t('onboarding.welcome_headline_hl')}</span>
-    </h1>
-    <p class="welcome__lede">
-      {t('onboarding.welcome_desc')}
-    </p>
-
-    <div class="welcome__highlights">
-      <span class="welcome__tag">
-        ⚡️ {t('onboarding.welcome_highlight_zero_key_ai')}
-        <span class="welcome__tag-pill">{t('common.experimental')}</span>
-      </span>
-      <span class="welcome__tag">🌐 {t('onboarding.welcome_highlight_web_search')}</span>
-      <span class="welcome__tag">👁️ {t('onboarding.welcome_highlight_quick_look')}</span>
-      <span class="welcome__tag">📦 {t('onboarding.welcome_highlight_raycast')}</span>
-    </div>
-
-    <div class="welcome__migration-card">
-      <div class="welcome__migration-content">
-        <div class="welcome__migration-header">
-          <span class="welcome__migration-badge">Raycast</span>
-          <span class="welcome__migration-title">{t('onboarding.tour_raycast')}</span>
-        </div>
-        <span class="welcome__migration-hint">{t('onboarding.tour_raycast_desc')}</span>
-      </div>
-      <Button class="btn-secondary" onclick={openRaycastImport}
-        >{t('settings.backup.import_raycast_button')}</Button
-      >
-    </div>
-    <div class="welcome__row">
-      <div class="welcome__row-label">
-        <span class="welcome__row-title">{t('onboarding.tour_appearance')}</span>
-        <span class="welcome__row-hint">{t('onboarding.tour_appearance_desc')}</span>
-      </div>
-      <AppearanceThemeSelector value={currentTheme} onchange={pickTheme} />
-    </div>
-    <div class="welcome__row">
-      <div class="welcome__row-label">
-        <span class="welcome__row-title">{t('onboarding.tour_window_mode')}</span>
-        <span class="welcome__row-hint">{t('onboarding.tour_window_mode_desc')}</span>
-      </div>
-      <WindowModeSelector value={currentLaunchView} onchange={pickLaunchView} />
-    </div>
-  </div>
-</Card>
+<div class="welcome">
+  <h1 class="welcome__title">
+    {#each words as word, i}
+      <span class="welcome__word" style:--i={i}>{word}</span>{' '}
+    {/each}
+    <span class="welcome__word onb-hl" style:--i={words.length}
+      >{t('onboarding.welcome_headline_hl')}</span
+    >
+  </h1>
+  <button
+    type="button"
+    class="welcome__link"
+    style:--i={words.length + 1}
+    onclick={openRaycastImport}
+  >
+    {t('onboarding.tour_raycast')}
+    {t('settings.backup.import_raycast_button')} →
+  </button>
+</div>
 
 <style>
   .welcome {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
-  }
-  .welcome__kicker {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--asyar-brand);
+    align-items: center;
+    gap: var(--space-4);
+    text-align: center;
   }
   .welcome__title {
     margin: 0;
@@ -105,104 +57,31 @@
     letter-spacing: -0.5px;
     color: var(--text-primary);
   }
-  .welcome__lede {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: var(--font-size-xl);
-    line-height: 1.6;
+  .welcome__word,
+  .welcome__link {
+    animation: word-in var(--dur-emerge) var(--ease-emerge) both;
+    animation-delay: calc(200ms + var(--i) * 70ms);
   }
-  .welcome__highlights {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin: var(--space-1) 0 var(--space-2);
+  .welcome__word {
+    display: inline-block;
   }
-  .welcome__tag {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-1) var(--space-3);
-    background: var(--bg-tertiary);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-full);
-    font-size: var(--font-size-xs);
-    font-weight: 500;
-    color: var(--text-secondary);
-  }
-  .welcome__tag-pill {
-    margin-left: var(--space-2);
-    padding: var(--space-0-5) var(--space-2);
-    background: color-mix(in srgb, var(--accent-warning) 14%, transparent);
-    color: var(--accent-warning);
-    border-radius: var(--radius-xs);
-    font-size: var(--font-size-2xs);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .welcome__migration-card {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-4);
-    background: var(--bg-secondary);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-md);
-    margin: var(--space-2) 0;
-  }
-  .welcome__migration-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-0-5);
-  }
-  .welcome__migration-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  .welcome__migration-badge {
-    padding: var(--space-0-5) var(--space-2);
-    background: var(--bg-tertiary);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-xs);
-    font-size: var(--font-size-2xs);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  .welcome__link {
+    background: none;
+    border: none;
+    padding: 0;
     color: var(--asyar-brand);
-  }
-  .welcome__migration-title {
     font-size: var(--font-size-md);
-    font-weight: 600;
-    color: var(--text-primary);
+    cursor: default;
   }
-  .welcome__migration-hint {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+  .welcome__link:hover {
+    color: var(--asyar-brand-hover);
   }
-  .welcome__row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-5);
-    padding: var(--space-4) 0;
-    border-bottom: 1px solid var(--separator);
-  }
-  .welcome__row:last-of-type {
-    border-bottom: none;
-  }
-  .welcome__row-label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-0-5);
-  }
-  .welcome__row-title {
-    font-size: var(--font-size-md);
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-  .welcome__row-hint {
-    font-size: var(--font-size-md);
-    color: var(--text-secondary);
+
+  @keyframes word-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+      filter: blur(6px);
+    }
   }
 </style>

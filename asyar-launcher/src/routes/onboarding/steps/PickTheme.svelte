@@ -1,7 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
-  import { Card, Button, LoadingState } from '../../../components';
+  import {
+    Card,
+    Button,
+    LoadingState,
+    AppearanceThemeSelector,
+    WindowModeSelector,
+  } from '../../../components';
   import { advanceStep, fetchTopThemes } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
   import type { ApiExtension } from '../../../built-in-features/store/state.svelte';
@@ -156,6 +162,18 @@
     }
   }
 
+  const currentMode = $derived(settingsService.currentSettings.appearance.theme);
+  const currentLaunchView = $derived(settingsService.currentSettings.appearance.launchView);
+
+  async function pickMode(theme: 'light' | 'dark' | 'system') {
+    await settingsService.updateSettings('appearance', { theme });
+  }
+
+  async function pickLaunchView(launchView: 'default' | 'compact') {
+    await settingsService.updateSettings('appearance', { launchView });
+    await emit('asyar:launch-view-changed', { launchView });
+  }
+
   $effect(() => {
     onboardingNav.set({ showSkip: true, onPrimary: advanceStep, onSkip: advanceStep });
   });
@@ -195,7 +213,19 @@
 
 <Card>
   <h1>{t('onboarding.theme_heading')}</h1>
-  <p>{t('onboarding.theme_desc')}</p>
+
+  <div class="look__row">
+    <div class="look__label">
+      <span class="look__title">{t('onboarding.tour_appearance')}</span>
+    </div>
+    <AppearanceThemeSelector value={currentMode} onchange={pickMode} />
+  </div>
+  <div class="look__row">
+    <div class="look__label">
+      <span class="look__title">{t('onboarding.tour_window_mode')}</span>
+    </div>
+    <WindowModeSelector value={currentLaunchView} onchange={pickLaunchView} />
+  </div>
 
   {#if loading}
     <LoadingState message={t('common.loading')} />
@@ -301,6 +331,25 @@
 </Card>
 
 <style>
+  .look__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--separator);
+  }
+  .look__label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+  }
+  .look__title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

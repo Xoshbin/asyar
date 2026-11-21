@@ -8,6 +8,7 @@
   import { logService } from '../../services/log/logService';
   import { initProviders } from '../../services/ai/initProviders';
   import { handleOnboardingKeydown } from './onboardingKeydown';
+  import { onboardingNav } from './onboardingNav.svelte';
   import '../../resources/styles/style.css';
 
   // The onboarding window is a separate Tauri webview and does not run the
@@ -59,9 +60,14 @@
     void onboardingService.dismiss();
   }
 
-  // Cmd/Ctrl+W closes the tour
+  // Cmd/Ctrl+W closes the tour; Enter / Cmd+Enter press the footer buttons.
   function handleKeydown(e: KeyboardEvent) {
-    handleOnboardingKeydown(e, { onClose: handleClose });
+    const nav = onboardingNav.current;
+    handleOnboardingKeydown(e, {
+      onClose: handleClose,
+      onPrimary: nav.primaryDisabled ? undefined : () => void nav.onPrimary(),
+      onSkip: nav.showSkip ? () => void nav.onSkip() : undefined,
+    });
   }
 </script>
 
@@ -102,8 +108,16 @@
     inset: 0;
     display: flex;
     flex-direction: column;
-    /* Fully opaque surface — content does NOT show the desktop through it. */
-    background: var(--bg-popup);
+    /* Fully opaque surface — content does NOT show the desktop through it.
+       A faint brand wash at the top and a fine grey grain give it some depth. */
+    background-color: var(--bg-popup);
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E"),
+      radial-gradient(
+        ellipse 80% 50% at 50% 0%,
+        color-mix(in srgb, var(--asyar-brand) 9%, transparent),
+        transparent
+      );
     color: var(--text-primary);
     border-radius: var(--radius-xl);
     overflow: hidden;
@@ -117,7 +131,7 @@
      the DWM corner radius and leave a halo at the edge. */
   :global(html[data-platform='windows']) .onboarding-frame,
   :global(html[data-platform='win32']) .onboarding-frame {
-    background: var(--win-acrylic-tint);
+    background-color: var(--win-acrylic-tint);
     border-radius: 0;
   }
 

@@ -129,9 +129,7 @@
 
 <Card>
   <div class="step">
-    <p class="step__kicker">{t('onboarding.featured_title')}</p>
     <h1 class="step__title">{t('onboarding.featured_heading')}</h1>
-    <p class="step__lede">{t('onboarding.featured_desc')}</p>
 
     {#if loading}
       <LoadingState message={t('common.loading')} />
@@ -179,26 +177,12 @@
     flex-direction: column;
     gap: var(--space-3);
   }
-  .step__kicker {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-    color: var(--asyar-brand);
-  }
   .step__title {
     margin: 0;
     font-size: var(--font-size-display);
     font-weight: 600;
     letter-spacing: var(--tracking-display);
     color: var(--text-primary);
-  }
-  .step__lede {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: var(--font-size-xl);
-    line-height: 1.6;
   }
   .list {
     list-style: none;

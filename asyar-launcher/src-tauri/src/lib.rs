@@ -185,6 +185,7 @@ pub mod clipboard_markup;
 pub mod clipboard_privacy;
 pub mod color_sampler;
 pub mod commands;
+pub mod confetti;
 pub mod crypto;
 pub mod deeplink;
 pub mod diagnostics;
