@@ -20,7 +20,7 @@
   // mount. Replace with your own preference-dependent UI.
   logger.info(
     '{{EXTENSION_NAME}} DetailView mounted with maxResults = ' +
-    String(context.preferences.maxResults ?? 10)
+    String(context.preferences.values.maxResults ?? 10)
   );
 </script>
 

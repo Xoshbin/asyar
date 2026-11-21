@@ -39,6 +39,10 @@ export class FilesServiceProxy extends BaseServiceProxy implements IFilesService
     return this.broker.invoke<string>('files:read', { path, opts: opts ?? {} });
   }
 
+  async exists(path: string): Promise<boolean> {
+    return this.broker.invoke<boolean>('files:exists', { path });
+  }
+
   async readRange(path: string, opts?: FileReadRangeOptions): Promise<FileChunk> {
     return this.broker.invoke<FileChunk>('files:readRange', { path, opts: opts ?? {} });
   }
@@ -53,6 +57,18 @@ export class FilesServiceProxy extends BaseServiceProxy implements IFilesService
 
   async thumbnail(path: string, opts?: FileThumbnailOptions): Promise<string | null> {
     return this.broker.invoke<string | null>('files:thumbnail', { path, opts: opts ?? {} });
+  }
+
+  async icon(path: string): Promise<string | null> {
+    return this.broker.invoke<string | null>('files:icon', { path });
+  }
+
+  async query<T = Record<string, unknown>>(
+    path: string,
+    sql: string,
+    params?: unknown[],
+  ): Promise<T[]> {
+    return this.broker.invoke<T[]>('files:query', { path, sql, params });
   }
 
   registerFileSearchProvider(provider: FileSearchProviderRegistration): () => void {

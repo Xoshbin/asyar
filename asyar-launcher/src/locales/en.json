@@ -1459,7 +1459,34 @@
         "installs": "Installs",
         "not_installed": "Not Installed",
         "commands": "Commands",
-        "lazy_failed": "Failed to load view"
+        "lazy_failed": "Failed to load view",
+        "capabilities": "Capabilities"
+      },
+      "filter": {
+        "button_title": "Filter",
+        "all": "All Extensions",
+        "installed": "Installed",
+        "categories_group": "Categories",
+        "capabilities_group": "Capabilities"
+      },
+      "categories": {
+        "ai": "AI & Search",
+        "developer_tools": "Developer Tools",
+        "design_tools": "Design Tools",
+        "productivity": "Productivity",
+        "communication": "Communication",
+        "finance": "Finance",
+        "media": "Media",
+        "utilities": "Utilities",
+        "system": "System",
+        "theme": "Themes",
+        "other": "Other"
+      },
+      "capabilities": {
+        "web_search": "Web Search",
+        "ai_provider": "AI Provider",
+        "web_reader": "Web Reader",
+        "file_search": "File Search"
       }
     },
     "agents": {

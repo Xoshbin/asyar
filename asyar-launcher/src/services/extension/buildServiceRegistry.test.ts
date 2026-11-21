@@ -406,3 +406,22 @@ describe('buildServiceRegistry — INJECTS_EXTENSION_ID drift guard', () => {
     ).toEqual([]);
   });
 });
+
+describe('buildServiceRegistry — environment.getPaths', () => {
+  it('forwards caller extensionId to environment_get_paths', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const paths = {
+      home: '/Users/alice',
+      appData: '/Users/alice/Library/Application Support',
+      localAppData: '/Users/alice/Library/Application Support',
+      config: '/Users/alice/Library/Application Support',
+    };
+    vi.mocked(invoke).mockResolvedValueOnce(paths);
+
+    const registry = makeRegistry();
+    const result = await (registry.environment as any).getPaths('ext.files');
+
+    expect(invoke).toHaveBeenCalledWith('environment_get_paths', { extensionId: 'ext.files' });
+    expect(result).toEqual(paths);
+  });
+});

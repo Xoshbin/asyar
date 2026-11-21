@@ -3,7 +3,7 @@
 **Runs in:** both worker and view.
 
 **Permission required:** `files:search` for `search`/`status`;
-`files:read` for `read`/`readRange`/`glob`/`globEntries`/`thumbnail`.
+`files:read` for `read`/`readRange`/`exists`/`glob`/`globEntries`/`thumbnail`/`icon`/`query`.
 
 The same bounded, cached file index that backs the host's own "Search
 Files" view — your extension gets the identical search capability, not a
@@ -120,10 +120,17 @@ interface IFilesService {
   /** Current index lifecycle state — useful for showing a "still indexing" hint. */
   status(): Promise<IndexStatus>;
   /** Bounded text read of an absolute path covered by the extension's
-   * declared `permissionArgs["files:read"]` globs. Rejects with the
-   * denial reason when the path is out of scope or protected. */
+   * declared `permissionArgs["files:read"]` globs. Rejects cleanly to the
+   * extension without triggering a launcher error banner when an in-scope
+   * file is missing (`NotFound`), and rejects with the denial reason when
+   * out of scope or protected. */
   read(path: string, opts?: FileReadOptions): Promise<string>;
   readRange(path: string, opts?: FileReadRangeOptions): Promise<FileChunk>;
+  /** Check whether a file or directory exists at an absolute path covered by
+   * the extension's declared `permissionArgs["files:read"]` globs. Resolves
+   * `true` when in scope and present, `false` when in scope and missing, and
+   * rejects when out of scope or protected. */
+  exists(path: string): Promise<boolean>;
   /** Enumerate existing in-scope files matching a glob. The pattern must
    * begin with an absolute literal prefix to walk from
    * (`C:/Steam/appcache/**` works; a leading `**` doesn't). Returns
@@ -138,6 +145,10 @@ interface IFilesService {
    * every platform: non-image types resolve `null`. Rejects on scope
    * denials. */
   thumbnail(path: string, opts?: FileThumbnailOptions): Promise<string | null>;
+  /** Strictly read-only, single-statement parameterized SQLite query against
+   * an in-scope database file. Enforces a SELECT-only authorizer, 2s timeout,
+   * and 2,000-row cap. BLOB columns are returned as base64-encoded strings. */
+  query<T = Record<string, unknown>>(path: string, sql: string, params?: unknown[]): Promise<T[]>;
 }
 ```
 
@@ -199,6 +210,47 @@ if (hits.length > 0) {
   const icon = await files.thumbnail(hits[0], { maxDim: 64 });
   // → 'asyar-thumb://localhost/<key>.png', ready for dynamic command registration
 }
+
+// Native OS file, folder, or .app icon (macOS / Windows; returns null on Linux):
+const folderIcon = await files.icon('/Applications/Safari.app');
+// → 'asyar-thumb://localhost/<key>.png' (or 'http://asyar-thumb.localhost/<key>.png' on Windows),
+//   usable in extension view <img> tags or dynamic command icons
+```
+
+`files.icon(path)` enforces the same `files:read` permission, declared-glob
+scope, deny-list, and symlink checks as `files.read()`, while permitting
+directories and `.app` bundles. It resolves to `null` when the platform has no
+icon source (e.g. Linux), and rejects on scope denials or missing paths.
+
+### Read-only SQLite queries (`query`)
+
+`files.query(path, sql, params?)` runs a strictly hardened, read-only,
+single-statement SQLite query against an in-scope `.db` / `.sqlite` file
+under `files:read` (so extensions can inspect local app databases such as Zed
+or VS Code without shelling out to `sqlite3`):
+
+- **Path scope & missing files:** Enforces the same `files:read` declared-glob
+  scope, deny-list, regular-file, and symlink/canonicalization checks as
+  `files.read()`. Missing databases reject cleanly without triggering a
+  global launcher error banner.
+- **Read-only & authorizer:** Opens the database read-only with a `500 ms`
+  busy timeout (supporting live WAL-mode databases) and installs a strict
+  SQLite authorizer that allows only `SELECT` / `READ` / `RECURSIVE` and safe
+  built-in functions. `ATTACH`, `PRAGMA`, writes (`INSERT`/`UPDATE`/`DELETE`),
+  DDL (`CREATE`/`DROP`/`ALTER`), `load_extension`, and multi-statement SQL
+  are rejected.
+- **Limits & parameters:** Queries have a **2-second SQLite progress budget**
+  and are capped at **2,000 rows** and **8 MiB** total response size. Bind
+  positional `?` / `?1` parameters via `params` (`null`, `boolean`, `number`,
+  `string`; arrays and objects are rejected). `BLOB` columns are returned as
+  base64-encoded strings.
+
+```typescript
+const rows = await files.query<{ path: string; timestamp: number }>(
+  '/Users/alice/.config/zed/db/0-global/db.sqlite',
+  'SELECT path, timestamp FROM workspaces ORDER BY timestamp DESC LIMIT ?1',
+  [20],
+);
 ```
 
 ### Range reads and incremental tails
@@ -275,7 +327,7 @@ cap or narrower patterns/time ranges when every tied file matters; no
 lossless pagination guarantee is made for same-ms ties or concurrent changes.
 
 Note the surface is deliberately read-shaped: `search`/`status`/`read`/`readRange`/
-`glob`/`globEntries`/`thumbnail` only. There is no write/delete here — for file
+`exists`/`glob`/`globEntries`/`thumbnail` only. There is no write/delete here — for file
 _operations_ (reveal in file manager, trash) see
 [`FileManagerService`](./file-manager-service.md).
 

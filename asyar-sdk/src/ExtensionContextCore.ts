@@ -1,5 +1,5 @@
 import type { ExtensionSyncProvider } from './types/SyncType';
-import type { ExtensionAction } from './types/ActionType';
+import type { ExtensionAction, ExtensionActionInput } from './types/ActionType';
 import type { CommandHandler } from './types/CommandType';
 import type { Namespace } from './ipc/namespaces';
 import type { BaseServiceProxy } from './services/BaseServiceProxy';
@@ -26,7 +26,7 @@ interface CoreInit {
  * as a type.
  */
 export class ExtensionContextCore {
-  private extensionId: string = '';
+  private _extensionId: string = '';
   public readonly role: ExtensionContextRole;
   public readonly preferences: PreferencesFacade = new PreferencesFacade();
   public readonly proxies: Partial<Record<Namespace, BaseServiceProxy>>;
@@ -36,6 +36,14 @@ export class ExtensionContextCore {
   constructor(init: CoreInit) {
     this.role = init.role;
     this.proxies = init.proxies;
+  }
+
+  /**
+   * The ID of the extension bound to this context (empty string until
+   * `setExtensionId` is called).
+   */
+  get extensionId(): string {
+    return this._extensionId;
   }
 
   public setPreferences(bundle: {
@@ -80,7 +88,7 @@ export class ExtensionContextCore {
   }
 
   setExtensionId(id: string): void {
-    this.extensionId = id;
+    this._extensionId = id;
     for (const key of Object.keys(this.proxies)) {
       const svc = this.proxies[key as Namespace];
       if (svc && typeof svc.setExtensionId === 'function') {
@@ -142,7 +150,7 @@ export class ExtensionContextCore {
     return this.role;
   }
 
-  registerAction(action: ExtensionAction): void {
+  registerAction(action: ExtensionActionInput): void {
     if (!this.extensionId) {
       console.error('Cannot register action: Extension ID not set');
       return;
@@ -155,7 +163,10 @@ export class ExtensionContextCore {
     if (!actions) {
       throw new Error('actions service not available in this context');
     }
-    actions.registerAction(action);
+    actions.registerAction({
+      ...action,
+      extensionId: action.extensionId ?? this._extensionId,
+    });
   }
 
   unregisterAction(actionId: string): void {

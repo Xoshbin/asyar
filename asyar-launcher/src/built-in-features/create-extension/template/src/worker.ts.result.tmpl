@@ -36,12 +36,9 @@ class WorkerExtension implements Extension {
     this.logger = ctx.getService<ILogService>('log');
   }
 
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
-
   async search(query: string): Promise<ExtensionResult[]> {
     const q = query.toLowerCase();
-    const max = Number(this.context?.preferences.maxResults ?? 10);
+    const max = Number(this.context?.preferences.values.maxResults ?? 10);
     return SAMPLE_ITEMS
       .filter((item) => !q || item.title.toLowerCase().includes(q))
       .slice(0, max)
@@ -52,8 +49,6 @@ class WorkerExtension implements Extension {
         type: 'result' as const,
       }));
   }
-
-  onUnload = (): void => {};
 }
 
 const extensionId = manifest.id;
@@ -62,6 +57,6 @@ const workerContext = new WorkerExtensionContext();
 workerContext.setExtensionId(extensionId);
 
 const impl = new WorkerExtension();
-extensionBridge.registerManifest(manifest as never);
+extensionBridge.registerManifest(manifest);
 extensionBridge.registerExtensionImplementation(extensionId, impl);
 extensionBridge.initializeExtensions();

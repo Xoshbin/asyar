@@ -25,7 +25,7 @@ import {
 import type { ExtensionAction, IActionService } from 'asyar-sdk/contracts';
 import { snippetUiState } from '../snippets/snippetUiState.svelte';
 import { snippetViewState } from '../snippets/snippetViewState.svelte';
-import { parseFilePaths } from './filePreview';
+import { IMAGE_EXT_RE, parseFilePaths } from './filePreview';
 
 function isImageOrSingleFile(item: ClipboardHistoryItem | null): boolean {
   if (!item) return false;
@@ -35,6 +35,23 @@ function isImageOrSingleFile(item: ClipboardHistoryItem | null): boolean {
       return parseFilePaths(item.content).length === 1;
     }
     return item.preview?.startsWith('1 file') ?? false;
+  }
+  return false;
+}
+
+function isImageItem(
+  item: ClipboardHistoryItem | null,
+  fullItem?: { id: string; content?: string } | null,
+): boolean {
+  if (!item) return false;
+  if (item.type === ClipboardItemType.Image) return true;
+  if (item.type === ClipboardItemType.Files) {
+    const content = (fullItem?.id === item.id ? fullItem.content : undefined) ?? item.content;
+    if (content) {
+      const paths = parseFilePaths(content);
+      return paths.length === 1 && IMAGE_EXT_RE.test(paths[0]);
+    }
+    return Boolean(item.preview?.startsWith('1 file') && IMAGE_EXT_RE.test(item.preview));
   }
   return false;
 }
@@ -354,10 +371,8 @@ class ClipboardHistoryExtension implements Extension {
       extensionId: 'clipboard-history',
       context: ActionContext.EXTENSION_VIEW,
       category: 'clipboard-action',
-      visible: () => {
-        const item = clipboardViewState.selectedItem;
-        return Boolean(item && item.type === ClipboardItemType.Image);
-      },
+      visible: () =>
+        isImageItem(clipboardViewState.selectedItem, clipboardViewState.selectedFullItem),
       execute: async () => {
         const selected = clipboardViewState.selectedItem;
         if (selected) {

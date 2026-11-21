@@ -38,29 +38,29 @@ asyar validate
 
 **What it checks:**
 
-| Check                                 | Rule                                                                          |
-| ------------------------------------- | ----------------------------------------------------------------------------- |
-| `id` present and format               | Required; must match `/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/`                  |
-| `name`                                | Required; 2–50 characters                                                     |
-| `version`                             | Required; valid semver                                                        |
-| `description`                         | Required; 10–200 characters                                                   |
-| `author`                              | Required                                                                      |
-| `type`                                | Optional; one of `"extension"` (default) or `"theme"`                         |
-| `commands`                            | At least one entry, OR `searchable: true`, OR a `background.main` entry       |
-| Each command `id`, `name`, `mode`     | Required                                                                      |
-| `mode` values                         | Must be `"view"` or `"background"`                                            |
-| `component` when `mode: "view"`       | Required (Svelte component name exported by `view.ts`)                        |
-| `component` when `mode: "background"` | Forbidden                                                                     |
-| `background.main`                     | Required when any command has `mode: "background"` or when `searchable: true` |
-| `permissions` values                  | Each must be a recognized permission string                                   |
-| `view.html` at project root           | Must exist for any extension with `mode: "view"` commands                     |
-| `vite.config.ts` or `.js`             | Must exist                                                                    |
+| Check                                     | Rule                                                                                                                                                                                     |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id` present and format                   | Required; must match `/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/`                                                                                                                             |
+| `name`                                    | Required; 2–50 characters                                                                                                                                                                |
+| `version`                                 | Required; valid semver                                                                                                                                                                   |
+| `description`                             | Required; 10–200 characters                                                                                                                                                              |
+| `author`                                  | Required                                                                                                                                                                                 |
+| `type`                                    | Optional; one of `"extension"` (default) or `"theme"`                                                                                                                                    |
+| `commands`                                | At least one entry, OR `searchable: true`, OR a `background.main` entry                                                                                                                  |
+| Each command `id`, `name`, `mode`         | Required                                                                                                                                                                                 |
+| `mode` values                             | Must be `"view"` or `"background"`                                                                                                                                                       |
+| `component` when `mode: "view"`           | Required (Svelte component name exported by `view.ts`)                                                                                                                                   |
+| `component` when `mode: "background"`     | Forbidden                                                                                                                                                                                |
+| `background.main`                         | Required when any command has `mode: "background"` or when `searchable: true`                                                                                                            |
+| `permissions` values                      | Each must be a recognized permission string                                                                                                                                              |
+| View entry (`src/view.ts` or `view.html`) | Must exist (`src/view.{ts,tsx,js,jsx}`, `src/index.{ts,tsx}`, or `view.html`) for any extension with `mode: "view"` commands; `view.html` is optional when using `defineExtensionConfig` |
+| `vite.config.ts` or `.js`                 | Must exist                                                                                                                                                                               |
 
 ---
 
 ### `asyar build`
 
-Validates the manifest, runs `vite build`, and verifies `dist/index.html` was produced.
+Validates the manifest, runs `vite build`, and verifies `dist/view.html` (for view commands) and/or `background.main` (for workers) were produced.
 
 ```bash
 asyar build

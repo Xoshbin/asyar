@@ -109,6 +109,13 @@ export async function filesReadText(
   return invoke<string>('files_read_text', { extensionId, pathStr, maxBytes });
 }
 
+/** Extension-scoped existence check (`asyar:api:files:exists` →
+ * `files_exists`). Raw `invoke` so out-of-scope or denied paths reject
+ * rather than returning false. */
+export async function filesExists(extensionId: string | null, pathStr: string): Promise<boolean> {
+  return invoke<boolean>('files_exists', { extensionId, pathStr });
+}
+
 /** Extension-scoped filename enumeration (`asyar:api:files:glob` →
  * `files_glob`). Raw `invoke` for the same reason as `filesReadText`: a
  * scope denial must surface as an error, not as an empty result — an empty
@@ -148,4 +155,26 @@ export async function filesThumbnail(
   maxDim?: number,
 ): Promise<string | null> {
   return invoke<string | null>('files_thumbnail', { extensionId, pathStr, maxDim });
+}
+
+/** Extension-scoped native OS icon extraction (`asyar:api:files:icon` →
+ * `files_icon`). Resolves to the `asyar-thumb://` URL, or `null` when
+ * the platform has no icon source; scope denials reject. */
+export async function filesIcon(
+  extensionId: string | null,
+  pathStr: string,
+): Promise<string | null> {
+  return invoke<string | null>('files_icon', { extensionId, pathStr });
+}
+
+/** Extension-scoped read-only SQLite query (`asyar:api:files:query` →
+ * `files_query`). Enforces `files:read` scope, SELECT-only authorizer,
+ * timeout, and row cap. */
+export async function filesQuery(
+  extensionId: string | null,
+  pathStr: string,
+  sql: string,
+  params?: unknown[],
+): Promise<Record<string, unknown>[]> {
+  return invoke<Record<string, unknown>[]>('files_query', { extensionId, pathStr, sql, params });
 }

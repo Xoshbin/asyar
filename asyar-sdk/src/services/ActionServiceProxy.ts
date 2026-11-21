@@ -1,4 +1,4 @@
-import type { IActionService, ExtensionAction } from '../types';
+import type { IActionService, ExtensionAction, ExtensionActionInput } from '../types';
 import { ActionContext } from '../types';
 import { BaseServiceProxy } from './BaseServiceProxy';
 import { extensionBridge } from '../ExtensionBridge';
@@ -6,9 +6,14 @@ import { extensionBridge } from '../ExtensionBridge';
 export class ActionServiceProxy extends BaseServiceProxy implements IActionService {
   private currentContext: ActionContext = ActionContext.GLOBAL;
 
-  registerAction(action: ExtensionAction): void {
-    extensionBridge.registerAction(action.extensionId, action);
-    const { execute, ...actionData } = action;
+  registerAction(action: ExtensionActionInput): void {
+    const extensionId = action.extensionId ?? this.extensionId;
+    const normalizedAction: ExtensionAction = {
+      ...action,
+      extensionId,
+    };
+    extensionBridge.registerAction(extensionId, normalizedAction);
+    const { execute, ...actionData } = normalizedAction;
     this.broker
       .invoke('actions:registerAction', { action: actionData })
       .catch((err) => console.warn('[ActionServiceProxy] registerAction failed:', err));

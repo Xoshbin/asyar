@@ -1459,7 +1459,34 @@
         "installs": "Installations",
         "not_installed": "Non installée",
         "commands": "Commandes",
-        "lazy_failed": "Impossible de charger la vue"
+        "lazy_failed": "Impossible de charger la vue",
+        "capabilities": "Capacités"
+      },
+      "filter": {
+        "button_title": "Filtrer",
+        "all": "Toutes les extensions",
+        "installed": "Installées",
+        "categories_group": "Catégories",
+        "capabilities_group": "Capacités"
+      },
+      "categories": {
+        "ai": "IA et recherche",
+        "developer_tools": "Outils de développement",
+        "design_tools": "Outils de design",
+        "productivity": "Productivité",
+        "communication": "Communication",
+        "finance": "Finance",
+        "media": "Médias",
+        "utilities": "Utilitaires",
+        "system": "Système",
+        "theme": "Thèmes",
+        "other": "Autre"
+      },
+      "capabilities": {
+        "web_search": "Recherche Web",
+        "ai_provider": "Fournisseur d'IA",
+        "web_reader": "Lecteur Web",
+        "file_search": "Recherche de fichiers"
       }
     },
     "agents": {

@@ -7,20 +7,37 @@ use futures_util::StreamExt;
 use log::{info, warn};
 use std::fs;
 use std::path::Path;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tempfile::NamedTempFile;
 use tokio::fs::File as TokioFile;
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
+const EXTENSION_DOWNLOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const EXTENSION_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 pub(crate) async fn download_to_temp_file(url: &str) -> Result<NamedTempFile, AppError> {
-    // Create a temporary file (still uses std::fs internally, but that's okay for creation)
+    download_to_temp_file_with_timeout(url, EXTENSION_CONNECT_TIMEOUT, EXTENSION_DOWNLOAD_TIMEOUT)
+        .await
+}
+
+pub(crate) async fn download_to_temp_file_with_timeout(
+    url: &str,
+    connect_timeout: std::time::Duration,
+    download_timeout: std::time::Duration,
+) -> Result<NamedTempFile, AppError> {
     let temp_file = NamedTempFile::new().map_err(AppError::Io)?;
-    // Open the temp file using Tokio for async writing
-    let mut dest = TokioFile::create(temp_file.path()).await?;
+    let std_file = temp_file.as_file().try_clone().map_err(AppError::Io)?;
+    let mut dest = TokioFile::from_std(std_file);
+
+    let client = reqwest::Client::builder()
+        .connect_timeout(connect_timeout)
+        .timeout(download_timeout)
+        .build()
+        .map_err(AppError::Network)?;
 
     // Make the HTTP request
-    let response = reqwest::get(url).await?;
+    let response = client.get(url).send().await?;
 
     if !response.status().is_success() {
         return Err(AppError::Network(response.error_for_status().unwrap_err()));
@@ -30,10 +47,7 @@ pub(crate) async fn download_to_temp_file(url: &str) -> Result<NamedTempFile, Ap
     let mut stream = response.bytes_stream();
     while let Some(chunk_result) = stream.next().await {
         let chunk = chunk_result?;
-        // Use async write_all
-        dest.write_all(&chunk)
-            .await // Use await for async write
-            .map_err(AppError::Io)?;
+        dest.write_all(&chunk).await.map_err(AppError::Io)?;
     }
 
     Ok(temp_file)
@@ -215,6 +229,23 @@ pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> 
     Ok(())
 }
 
+/// IDs become directory names at installation and update boundaries.
+pub(crate) fn validate_extension_id(id: &str) -> Result<(), AppError> {
+    if id.is_empty()
+        || id.ends_with('.')
+        || id.contains("..")
+        || !id
+            .chars()
+            .all(|c| c.is_alphanumeric() || matches!(c, '-' | '.' | '_'))
+    {
+        return Err(AppError::Validation(format!(
+            "Extension ID '{}' is not a safe directory name (path traversal is forbidden)",
+            id
+        )));
+    }
+    Ok(())
+}
+
 /// Validates the structural correctness of an extracted extension package.
 pub(crate) fn validate_package_structure(
     extracted_dir: &Path,
@@ -236,23 +267,7 @@ pub(crate) fn validate_package_structure(
         ));
     }
 
-    // ID format: alphanumeric, hyphens, dots, underscores. No ".."
-    if manifest.id.contains("..") {
-        return Err(AppError::Validation(format!(
-            "Extension ID '{}' contains '..' path traversal",
-            manifest.id
-        )));
-    }
-    if !manifest
-        .id
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '-' || c == '.' || c == '_')
-    {
-        return Err(AppError::Validation(format!(
-            "Extension ID '{}' contains invalid characters",
-            manifest.id
-        )));
-    }
+    validate_extension_id(&manifest.id)?;
 
     // `type` defaults to `"extension"` when absent. The new schema rejects
     // legacy `"view"` and `"result"` values at manifest parse time via
@@ -347,7 +362,9 @@ pub(crate) fn verify_checksum(file_path: &Path, expected_checksum: &str) -> Resu
         hasher.update(&buffer[..count]);
     }
     let calculated = format!("sha256:{:x}", hasher.finalize());
-    if calculated != expected_checksum {
+    if !expected_checksum.starts_with("sha256:")
+        || !calculated.eq_ignore_ascii_case(expected_checksum)
+    {
         return Err(AppError::Validation(format!(
             "Checksum mismatch! Expected: {}, Calculated: {}",
             expected_checksum, calculated
@@ -400,7 +417,7 @@ pub(crate) fn validate_file_path(path: &Path) -> Result<(), AppError> {
 pub(crate) async fn install_from_file(
     app_handle: &AppHandle,
     file_path: &str,
-    _registry: &crate::extensions::ExtensionRegistryState,
+    registry: &crate::extensions::ExtensionRegistryState,
 ) -> Result<(), AppError> {
     let path = Path::new(file_path);
     validate_file_path(path)?;
@@ -429,6 +446,8 @@ pub(crate) async fn install_from_file(
             }
         )));
     }
+
+    let _update_guard = registry.update_locks.lock(&manifest.id).await?;
 
     let extensions_dir = crate::extensions::get_app_data_dir(app_handle)?.join("extensions");
     fs::create_dir_all(&extensions_dir)?;
@@ -504,16 +523,26 @@ pub(crate) async fn install_from_url(
             "Download URL is required and cannot be empty".to_string(),
         ));
     }
-    if extension_id.trim().is_empty() {
-        return Err(AppError::Validation(
-            "Extension ID is required and cannot be empty".to_string(),
-        ));
-    }
+    validate_extension_id(extension_id)?;
+    let registry = app_handle.state::<crate::extensions::ExtensionRegistryState>();
+    let _update_guard = registry.update_locks.lock(extension_id).await?;
 
     // Validate URL format
     validate_download_url(download_url)?;
 
-    // --- 1. Determine Installation Directory ---
+    // --- 1. Download the Extension ---
+    info!("Downloading extension from: {}", download_url);
+    let temp_file = download_to_temp_file(download_url).await?;
+    info!(
+        "Extension downloaded successfully to temporary file: {:?}",
+        temp_file.path()
+    );
+
+    if let Some(expected_checksum) = checksum {
+        verify_checksum(temp_file.path(), expected_checksum)?;
+    }
+
+    // --- 2. Determine Installation Directory ---
     let base_extensions_dir = get_app_data_dir(app_handle)?.join("extensions");
 
     // Create the base extensions directory if it doesn't exist
@@ -532,7 +561,7 @@ pub(crate) async fn install_from_url(
 
     let install_dir = base_extensions_dir.join(extension_id);
 
-    // Clean up existing directory if it exists
+    // Clean up existing directory if it exists (only after download and checksum verification succeed)
     if install_dir.exists() {
         warn!(
             "Existing installation directory found for {}. Removing it first: {:?}",
@@ -544,18 +573,6 @@ pub(crate) async fn install_from_url(
                 install_dir, e
             ))
         })?;
-    }
-
-    // --- 2. Download the Extension ---
-    info!("Downloading extension from: {}", download_url);
-    let temp_file = download_to_temp_file(download_url).await?;
-    info!(
-        "Extension downloaded successfully to temporary file: {:?}",
-        temp_file.path()
-    );
-
-    if let Some(expected_checksum) = checksum {
-        verify_checksum(temp_file.path(), expected_checksum)?;
     }
 
     // --- 3. Extract the Extension ---
@@ -740,6 +757,45 @@ mod tests {
             }
             e => panic!("Expected Validation error, got {:?}", e),
         }
+    }
+
+    #[test]
+    fn checksum_verification_accepts_hex_case_but_rejects_wrong_digests() {
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"abc").unwrap();
+        let hash = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        for hash in [hash.to_owned(), hash.to_uppercase()] {
+            verify_checksum(file.path(), &format!("sha256:{hash}")).unwrap();
+        }
+        for invalid in [
+            format!("sha256:{}", "0".repeat(64)),
+            format!("sha256:{}", &hash[..63]),
+            format!("sha512:{hash}"),
+        ] {
+            assert!(verify_checksum(file.path(), &invalid).is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn download_to_temp_file_respects_timeout() {
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server
+            .mock("GET", "/slow.zip")
+            .with_chunked_body(|_| {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                Ok(())
+            })
+            .create_async()
+            .await;
+
+        let result = download_to_temp_file_with_timeout(
+            &format!("{}/slow.zip", server.url()),
+            std::time::Duration::from_millis(20),
+            std::time::Duration::from_millis(20),
+        )
+        .await;
+
+        assert!(matches!(result, Err(AppError::Network(_))));
     }
 
     #[test]

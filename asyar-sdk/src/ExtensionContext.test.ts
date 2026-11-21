@@ -194,3 +194,52 @@ describe('ExtensionContext.hideLauncher', () => {
     expect(parentPostMessage).toHaveBeenCalledWith({ type: 'asyar:window:hide' }, '*');
   });
 });
+
+describe('ExtensionContext.extensionId & registerAction', () => {
+  it('exposes extensionId via read-only getter', () => {
+    const ctx = new ExtensionContext();
+    expect(ctx.extensionId).toBe('');
+    ctx.setExtensionId('com.example.myext');
+    expect(ctx.extensionId).toBe('com.example.myext');
+  });
+
+  it('registerAction auto-fills extensionId from context when omitted', () => {
+    const ctx = new ExtensionContext();
+    ctx.setExtensionId('com.example.myext');
+    const registerSpy = vi.spyOn(ctx.getService('actions') as any, 'registerAction');
+
+    ctx.registerAction({
+      id: 'open-item',
+      title: 'Open Item',
+      execute: () => {},
+    });
+
+    expect(registerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'open-item',
+        title: 'Open Item',
+        extensionId: 'com.example.myext',
+      }),
+    );
+  });
+
+  it('registerAction preserves explicit extensionId for backward compatibility', () => {
+    const ctx = new ExtensionContext();
+    ctx.setExtensionId('com.example.myext');
+    const registerSpy = vi.spyOn(ctx.getService('actions') as any, 'registerAction');
+
+    ctx.registerAction({
+      id: 'open-item',
+      title: 'Open Item',
+      extensionId: 'com.example.override',
+      execute: () => {},
+    });
+
+    expect(registerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'open-item',
+        extensionId: 'com.example.override',
+      }),
+    );
+  });
+});

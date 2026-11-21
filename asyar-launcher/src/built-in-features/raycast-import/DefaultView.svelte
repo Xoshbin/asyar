@@ -190,6 +190,9 @@
         <Button class="btn-primary" onclick={pickFile} disabled={state.parsing}>
           {t('features.raycast_import.ui.choose_file')}
         </Button>
+        {#if state.parseError}
+          <p class="text-caption password-error">{state.parseError}</p>
+        {/if}
       </EmptyState>
     {:else if state.phase === 'password'}
       <form

@@ -621,6 +621,53 @@ describe('Action registration', () => {
     (mockState.clipboardViewState as any).selectedItem = imageListItemWithoutContent;
     expect((copyOcrAction as any).visible?.()).toBe(true);
 
+    // Single image file (with content) should be visible
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'files-single-img',
+      type: ClipboardItemType.Files,
+      content: JSON.stringify(['/path/to/shot.png']),
+    };
+    expect((copyOcrAction as any).visible?.()).toBe(true);
+
+    // Single image file (summary without content, image extension in preview) should be visible
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'files-single-img-preview',
+      type: ClipboardItemType.Files,
+      preview: '1 file: Screenshot 2026-11-11.png',
+    };
+    expect((copyOcrAction as any).visible?.()).toBe(true);
+
+    // Single image file with truncated preview, resolved via selectedFullItem
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'files-single-img-truncated',
+      type: ClipboardItemType.Files,
+      preview: '1 file: Screenshot 2026-11-1...',
+    };
+    (mockState.clipboardViewState as any).selectedFullItem = {
+      id: 'files-single-img-truncated',
+      type: ClipboardItemType.Files,
+      content: JSON.stringify(['/path/to/Screenshot 2026-11-11.png']),
+    };
+    expect((copyOcrAction as any).visible?.()).toBe(true);
+    (mockState.clipboardViewState as any).selectedFullItem = null;
+
+    // Single non-image file should NOT be visible
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'files-single-pdf',
+      type: ClipboardItemType.Files,
+      content: JSON.stringify(['/path/to/doc.pdf']),
+    };
+    expect((copyOcrAction as any).visible?.()).toBe(false);
+
+    // Multiple files (even if images) should NOT be visible
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'files-multi-img',
+      type: ClipboardItemType.Files,
+      content: JSON.stringify(['/path/to/1.png', '/path/to/2.png']),
+    };
+    expect((copyOcrAction as any).visible?.()).toBe(false);
+
+    (mockState.clipboardViewState as any).selectedItem = imageListItemWithoutContent;
     await copyOcrAction!.execute();
     expect(mockState.clipboardViewState.copyTextFromImage).toHaveBeenCalledWith(
       imageListItemWithoutContent,

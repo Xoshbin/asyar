@@ -1459,7 +1459,34 @@
         "installs": "Instalações",
         "not_installed": "Não instalado",
         "commands": "Comandos",
-        "lazy_failed": "Falha ao carregar a tela"
+        "lazy_failed": "Falha ao carregar a tela",
+        "capabilities": "Recursos"
+      },
+      "filter": {
+        "button_title": "Filtrar",
+        "all": "Todas as extensões",
+        "installed": "Instaladas",
+        "categories_group": "Categorias",
+        "capabilities_group": "Recursos"
+      },
+      "categories": {
+        "ai": "IA e Pesquisa",
+        "developer_tools": "Ferramentas de Desenvolvimento",
+        "design_tools": "Ferramentas de Design",
+        "productivity": "Produtividade",
+        "communication": "Comunicação",
+        "finance": "Finanças",
+        "media": "Mídia",
+        "utilities": "Utilitários",
+        "system": "Sistema",
+        "theme": "Temas",
+        "other": "Outro"
+      },
+      "capabilities": {
+        "web_search": "Pesquisa na Web",
+        "ai_provider": "Provedor de IA",
+        "web_reader": "Leitor Web",
+        "file_search": "Pesquisa de Arquivos"
       }
     },
     "agents": {

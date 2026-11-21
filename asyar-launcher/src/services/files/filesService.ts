@@ -1,11 +1,14 @@
 import {
   fileSearch,
   fileIndexStatus,
+  filesExists,
   filesReadText,
   filesReadRange,
   filesGlob,
   filesGlobEntries,
   filesThumbnail,
+  filesIcon,
+  filesQuery,
 } from '../../lib/ipc/fileSearchCommands';
 import type {
   FileHit,
@@ -62,6 +65,10 @@ export class FilesService {
     return filesReadText(callerExtensionId, path, opts?.maxBytes);
   }
 
+  async exists(callerExtensionId: string | null, path: string): Promise<boolean> {
+    return filesExists(callerExtensionId, path);
+  }
+
   async glob(
     callerExtensionId: string | null,
     pattern: string,
@@ -92,6 +99,19 @@ export class FilesService {
     opts?: { maxDim?: number } | null,
   ): Promise<string | null> {
     return filesThumbnail(callerExtensionId, path, opts?.maxDim);
+  }
+
+  async icon(callerExtensionId: string | null, path: string): Promise<string | null> {
+    return filesIcon(callerExtensionId, path);
+  }
+
+  async query(
+    callerExtensionId: string | null,
+    path: string,
+    sql: string,
+    params?: unknown[],
+  ): Promise<Record<string, unknown>[]> {
+    return filesQuery(callerExtensionId, path, sql, params);
   }
 }
 

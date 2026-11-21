@@ -131,8 +131,14 @@ pub enum ParseOutcome {
     WrongPassword,
 }
 
+const RAYCFG3_MAGIC: &[u8; 8] = b"RAYCFG3\n";
+
 /// Parse any supported Raycast export file.
 pub fn parse_export(bytes: &[u8], password: Option<&str>) -> Result<ParseOutcome, AppError> {
+    if bytes.starts_with(RAYCFG3_MAGIC) {
+        return parse_rayconfig_v3(bytes, password);
+    }
+
     if is_gzip(bytes) {
         let json = gunzip(bytes)?;
         let value: serde_json::Value = serde_json::from_slice(&json)
@@ -329,6 +335,72 @@ fn parse_rayconfig_x(
     })
 }
 
+fn decode_hex_field(encryption: &serde_json::Value, name: &str) -> Result<Vec<u8>, AppError> {
+    let hex_str = encryption
+        .get(name)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            AppError::Validation(format!("rayconfig encryption block missing {name}"))
+        })?;
+    hex::decode(hex_str).map_err(|e| AppError::Validation(format!("Invalid {name} encoding: {e}")))
+}
+
+/// Raycast X v3+ binary `.rayconfig` (`RAYCFG3\n` + u32 LE header length +
+/// gzipped JSON header + optional AES-256-GCM payload with trailing 16-byte tag).
+fn parse_rayconfig_v3(bytes: &[u8], password: Option<&str>) -> Result<ParseOutcome, AppError> {
+    if bytes.len() < 12 {
+        return Err(AppError::Validation("Truncated RAYCFG3 header".to_string()));
+    }
+    let hdr_len = u32::from_le_bytes(
+        bytes[8..12]
+            .try_into()
+            .map_err(|_| AppError::Validation("Invalid RAYCFG3 header length".to_string()))?,
+    ) as usize;
+    let payload_start = 12usize
+        .checked_add(hdr_len)
+        .ok_or_else(|| AppError::Validation("RAYCFG3 header length overflow".to_string()))?;
+    if bytes.len() < payload_start {
+        return Err(AppError::Validation("Truncated RAYCFG3 header".to_string()));
+    }
+
+    let hdr_bytes = &bytes[12..payload_start];
+    let hdr_json = if is_gzip(hdr_bytes) {
+        gunzip(hdr_bytes)?
+    } else {
+        hdr_bytes.to_vec()
+    };
+    let header: serde_json::Value = serde_json::from_slice(&hdr_json)
+        .map_err(|e| AppError::Validation(format!("Invalid RAYCFG3 header JSON: {e}")))?;
+
+    let payload = &bytes[payload_start..];
+    let inner_bytes = match header.get("encryption") {
+        Some(enc) if !enc.is_null() => {
+            let Some(password) = password else {
+                return Ok(ParseOutcome::PasswordRequired);
+            };
+            let iv = decode_hex_field(enc, "iv")?;
+            let salt = decode_hex_field(enc, "salt")?;
+            match decrypt_x_aes_gcm(payload, &iv, &salt, password)? {
+                Some(plaintext) => plaintext,
+                None => return Ok(ParseOutcome::WrongPassword),
+            }
+        }
+        _ => payload.to_vec(),
+    };
+
+    let categories_json = if is_gzip(&inner_bytes) {
+        gunzip(&inner_bytes)?
+    } else {
+        inner_bytes
+    };
+    let categories: serde_json::Value = serde_json::from_slice(&categories_json)
+        .map_err(|e| AppError::Validation(format!("Invalid rayconfig categories: {e}")))?;
+
+    Ok(ParseOutcome::Ok {
+        bundle: bundle_from_x_categories(&categories)?,
+    })
+}
+
 /// AES-256-GCM with an scrypt-derived key (Node `crypto.scrypt` defaults:
 /// N=16384, r=8, p=1). Returns `None` when the auth tag check fails, which
 /// for GCM is the "wrong password" signal.
@@ -337,32 +409,30 @@ fn decrypt_x_payload(
     encryption: &serde_json::Value,
     password: &str,
 ) -> Result<Option<Vec<u8>>, AppError> {
+    let iv = decode_hex_field(encryption, "iv")?;
+    let salt = decode_hex_field(encryption, "salt")?;
+    let auth_tag = decode_hex_field(encryption, "authTag")?;
+
+    let mut ciphertext = data.to_vec();
+    ciphertext.extend_from_slice(&auth_tag);
+    decrypt_x_aes_gcm(&ciphertext, &iv, &salt, password)
+}
+
+fn decrypt_x_aes_gcm(
+    ciphertext_with_tag: &[u8],
+    iv: &[u8],
+    salt: &[u8],
+    password: &str,
+) -> Result<Option<Vec<u8>>, AppError> {
     use aes_gcm::aead::consts::{U12, U16};
     use aes_gcm::aead::Aead;
     use aes_gcm::{AesGcm, KeyInit, Nonce};
 
-    let field = |name: &str| -> Result<Vec<u8>, AppError> {
-        let hex_str = encryption
-            .get(name)
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                AppError::Validation(format!("rayconfig encryption block missing {name}"))
-            })?;
-        hex::decode(hex_str)
-            .map_err(|e| AppError::Validation(format!("Invalid {name} encoding: {e}")))
-    };
-    let iv = field("iv")?;
-    let salt = field("salt")?;
-    let auth_tag = field("authTag")?;
-
     let params = scrypt::Params::new(14, 8, 1, 32)
         .map_err(|e| AppError::Encryption(format!("Invalid scrypt parameters: {e}")))?;
     let mut key = [0u8; 32];
-    scrypt::scrypt(password.as_bytes(), &salt, &params, &mut key)
+    scrypt::scrypt(password.as_bytes(), salt, &params, &mut key)
         .map_err(|e| AppError::Encryption(format!("Key derivation failed: {e}")))?;
-
-    let mut ciphertext = data.to_vec();
-    ciphertext.extend_from_slice(&auth_tag);
 
     // Raycast X uses a 16-byte GCM IV (Node's createCipheriv accepts any
     // length); tolerate the standard 12-byte nonce too.
@@ -371,14 +441,14 @@ fn decrypt_x_payload(
             let cipher = AesGcm::<aes::Aes256, U16>::new_from_slice(&key)
                 .map_err(|e| AppError::Encryption(format!("Cipher init failed: {e}")))?;
             cipher
-                .decrypt(Nonce::<U16>::from_slice(&iv), ciphertext.as_slice())
+                .decrypt(Nonce::<U16>::from_slice(iv), ciphertext_with_tag)
                 .ok()
         }
         12 => {
             let cipher = AesGcm::<aes::Aes256, U12>::new_from_slice(&key)
                 .map_err(|e| AppError::Encryption(format!("Cipher init failed: {e}")))?;
             cipher
-                .decrypt(Nonce::<U12>::from_slice(&iv), ciphertext.as_slice())
+                .decrypt(Nonce::<U12>::from_slice(iv), ciphertext_with_tag)
                 .ok()
         }
         n => {
@@ -391,6 +461,12 @@ fn decrypt_x_payload(
 }
 
 fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBundle, AppError> {
+    if !categories.is_object() {
+        return Err(AppError::Validation(
+            "Invalid rayconfig categories: expected JSON object".to_string(),
+        ));
+    }
+
     let mut bundle = ImportBundle {
         source: SourceFormat::RayconfigX,
         snippets: Vec::new(),
@@ -665,6 +741,17 @@ fn parse_classic(value: &serde_json::Value) -> Result<ImportBundle, AppError> {
 // ---------------------------------------------------------------------------
 
 fn parse_plain_json(items: &[serde_json::Value]) -> Result<ImportBundle, AppError> {
+    if items.is_empty() {
+        return Ok(ImportBundle {
+            source: SourceFormat::SnippetsJson,
+            snippets: Vec::new(),
+            portals: Vec::new(),
+            shortcuts: Vec::new(),
+            aliases: Vec::new(),
+            skipped: SkippedCounts::default(),
+        });
+    }
+
     let looks_like_snippets = items
         .iter()
         .all(|i| i.get("text").is_some() && i.get("name").is_some());
@@ -672,7 +759,7 @@ fn parse_plain_json(items: &[serde_json::Value]) -> Result<ImportBundle, AppErro
         .iter()
         .all(|i| i.get("link").is_some() && i.get("name").is_some());
 
-    if !items.is_empty() && looks_like_snippets {
+    if looks_like_snippets {
         let snippets = items
             .iter()
             .filter_map(|s| {
@@ -700,7 +787,7 @@ fn parse_plain_json(items: &[serde_json::Value]) -> Result<ImportBundle, AppErro
         });
     }
 
-    if !items.is_empty() && looks_like_quicklinks {
+    if looks_like_quicklinks {
         let portals = items
             .iter()
             .filter_map(|q| {
@@ -1127,6 +1214,122 @@ mod tests {
         assert_eq!(b.portals[0].url, "https://duckduckgo.com/?q={query}");
         assert_eq!(b.portals[1].url, "~/Downloads");
         assert!(b.snippets.is_empty());
+    }
+
+    #[test]
+    fn empty_plain_json_array_is_accepted_as_empty_bundle() {
+        let b = bundle(parse_export(b"[]", None).unwrap());
+        assert_eq!(b.source, SourceFormat::SnippetsJson);
+        assert!(b.snippets.is_empty());
+        assert!(b.portals.is_empty());
+        assert!(b.shortcuts.is_empty());
+        assert!(b.aliases.is_empty());
+    }
+
+    fn gzip_bytes(raw: &[u8]) -> Vec<u8> {
+        use flate2::{write::GzEncoder, Compression};
+        use std::io::Write;
+        let mut enc = GzEncoder::new(Vec::new(), Compression::default());
+        enc.write_all(raw).unwrap();
+        enc.finish().unwrap()
+    }
+
+    fn build_raycfg3_fixture(header_json: &serde_json::Value, payload: &[u8]) -> Vec<u8> {
+        let hdr_gz = gzip_bytes(serde_json::to_string(header_json).unwrap().as_bytes());
+        let mut out = Vec::new();
+        out.extend_from_slice(b"RAYCFG3\n");
+        out.extend_from_slice(&(hdr_gz.len() as u32).to_le_bytes());
+        out.extend_from_slice(&hdr_gz);
+        out.extend_from_slice(payload);
+        out
+    }
+
+    #[test]
+    fn raycfg3_plain_parses_categories() {
+        let categories = serde_json::json!({
+            "snippets": {
+                "snippets": [{ "title": "Hi", "keyword": "!hi", "text": "Hello {cursor}" }]
+            },
+            "quicklinks": {
+                "quicklinks": [{ "id": "q1", "name": "Search", "link": "https://example.com?q={argument}" }]
+            }
+        });
+        let header = serde_json::json!({
+            "schemaVersion": 3,
+            "appVersion": "2.13.1.0"
+        });
+        let payload = gzip_bytes(serde_json::to_string(&categories).unwrap().as_bytes());
+        let bytes = build_raycfg3_fixture(&header, &payload);
+
+        let b = bundle(parse_export(&bytes, None).unwrap());
+        assert_eq!(b.source, SourceFormat::RayconfigX);
+        assert_eq!(b.snippets.len(), 1);
+        assert_eq!(b.snippets[0].name, "Hi");
+        assert_eq!(b.portals.len(), 1);
+        assert_eq!(b.portals[0].url, "https://example.com?q={query}");
+    }
+
+    #[test]
+    fn raycfg3_encrypted_password_flow() {
+        use aes_gcm::aead::consts::U16;
+        use aes_gcm::aead::Aead;
+        use aes_gcm::{AesGcm, KeyInit, Nonce};
+
+        let categories = serde_json::json!({
+            "snippets": {
+                "snippets": [{ "title": "Secret", "text": "Top secret" }]
+            }
+        });
+        let inner_gz = gzip_bytes(serde_json::to_string(&categories).unwrap().as_bytes());
+        let iv: [u8; 16] = rand::random();
+        let salt: [u8; 16] = rand::random();
+        let params = scrypt::Params::new(14, 8, 1, 32).unwrap();
+        let mut key: [u8; 32] = rand::random();
+        scrypt::scrypt(b"12345678", &salt, &params, &mut key).unwrap();
+
+        let cipher = AesGcm::<aes::Aes256, U16>::new_from_slice(&key).unwrap();
+        let ciphertext_with_tag = cipher
+            .encrypt(Nonce::<U16>::from_slice(&iv), inner_gz.as_slice())
+            .unwrap();
+
+        let header = serde_json::json!({
+            "schemaVersion": 3,
+            "appVersion": "2.13.1.0",
+            "encryption": {
+                "iv": hex::encode(iv),
+                "salt": hex::encode(salt)
+            }
+        });
+        let bytes = build_raycfg3_fixture(&header, &ciphertext_with_tag);
+
+        assert_eq!(
+            parse_export(&bytes, None).unwrap(),
+            ParseOutcome::PasswordRequired
+        );
+        assert_eq!(
+            parse_export(&bytes, Some("wrong-pw")).unwrap(),
+            ParseOutcome::WrongPassword
+        );
+        let b = bundle(parse_export(&bytes, Some("12345678")).unwrap());
+        assert_eq!(b.snippets.len(), 1);
+        assert_eq!(b.snippets[0].name, "Secret");
+    }
+
+    #[test]
+    fn raycfg3_truncated_header_is_an_error() {
+        let mut bad = b"RAYCFG3\n".to_vec();
+        bad.extend_from_slice(&999u32.to_le_bytes());
+        bad.extend_from_slice(&[1, 2, 3]);
+        assert!(parse_export(&bad, None).is_err());
+    }
+
+    #[test]
+    fn raycfg3_non_object_categories_is_an_error() {
+        let header = serde_json::json!({ "schemaVersion": 3 });
+        for bad_payload in [b"null".as_slice(), b"[]".as_slice(), b"42".as_slice()] {
+            let bytes = build_raycfg3_fixture(&header, &gzip_bytes(bad_payload));
+            assert!(parse_export(&bytes, None).is_err());
+        }
     }
 
     // ---- Errors ----

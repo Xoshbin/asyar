@@ -81,12 +81,49 @@ describe('FilesServiceProxy', () => {
     await expect(proxy.read('/etc/shadow')).rejects.toThrow('not covered');
   });
 
+  it('exists() invokes files:exists and returns boolean', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(true);
+    expect(await proxy.exists('/tmp/repo/.git/HEAD')).toBe(true);
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:exists', {
+      path: '/tmp/repo/.git/HEAD',
+    });
+
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(false);
+    expect(await proxy.exists('/tmp/repo/.git/MISSING')).toBe(false);
+  });
+
+  it('exists() propagates broker rejections', async () => {
+    vi.mocked(mockBroker.invoke).mockRejectedValueOnce(new Error('not covered'));
+    await expect(proxy.exists('/etc/shadow')).rejects.toThrow('not covered');
+  });
+
   it('readRange invokes files:readRange', async () => {
     const chunk = { text: 'line\n', start: 10, end: 15, size: 15, mtimeMs: 100, eof: true };
     mockBroker.invoke.mockResolvedValueOnce(chunk);
     const opts = { offset: 10, maxBytes: 100, align: 'line' as const };
     expect(await proxy.readRange('/tmp/log', opts)).toEqual(chunk);
     expect(mockBroker.invoke).toHaveBeenCalledWith('files:readRange', { path: '/tmp/log', opts });
+  });
+
+  it('query invokes files:query with path, sql, and optional params', async () => {
+    const rows = [{ id: 1, title: 'hello' }];
+    mockBroker.invoke.mockResolvedValueOnce(rows);
+    expect(
+      await proxy.query('/tmp/db.sqlite', 'SELECT id, title FROM items WHERE id = ?1', [1]),
+    ).toEqual(rows);
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:query', {
+      path: '/tmp/db.sqlite',
+      sql: 'SELECT id, title FROM items WHERE id = ?1',
+      params: [1],
+    });
+
+    mockBroker.invoke.mockResolvedValueOnce([]);
+    await proxy.query('/tmp/db.sqlite', 'SELECT 1');
+    expect(mockBroker.invoke).toHaveBeenLastCalledWith('files:query', {
+      path: '/tmp/db.sqlite',
+      sql: 'SELECT 1',
+      params: undefined,
+    });
   });
 
   it('glob invokes files:glob and returns string paths', async () => {
@@ -141,6 +178,21 @@ describe('FilesServiceProxy', () => {
   it('thumbnail() passes through the no-strategy null', async () => {
     vi.mocked(mockBroker.invoke).mockResolvedValueOnce(null);
     const result = await proxy.thumbnail('C:/Steam/notes.txt');
+    expect(result).toBeNull();
+  });
+
+  it('icon() calls broker.invoke with path', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce('asyar-thumb://localhost/icon.png');
+    const result = await proxy.icon('/Applications/Safari.app');
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:icon', {
+      path: '/Applications/Safari.app',
+    });
+    expect(result).toBe('asyar-thumb://localhost/icon.png');
+  });
+
+  it('icon() passes through null when platform has no icon source', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(null);
+    const result = await proxy.icon('/home/user/file.txt');
     expect(result).toBeNull();
   });
 

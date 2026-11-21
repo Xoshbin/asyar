@@ -286,12 +286,36 @@ pub fn get_selected_finder_items() -> Result<Vec<String>, SelectionError> {
         .output()
         .map_err(|e| SelectionError::OperationFailed(e.to_string()))?;
 
-    if !out.status.success() {
-        return Ok(vec![]);
+    interpret_finder_script_output(
+        out.status.success(),
+        &out.status.to_string(),
+        &String::from_utf8_lossy(&out.stdout),
+        &String::from_utf8_lossy(&out.stderr),
+    )
+}
+
+pub(crate) fn interpret_finder_script_output(
+    success: bool,
+    exit_status: &str,
+    stdout: &str,
+    stderr: &str,
+) -> Result<Vec<String>, SelectionError> {
+    if !success {
+        let err = stderr.trim();
+        // Finder exits with -2753 ("The variable sel is not defined") or -2763
+        // ("No result was returned") when no Finder window or selection exists.
+        if err.contains("-2753") || err.contains("-2763") {
+            return Ok(vec![]);
+        }
+        let detail = if err.is_empty() {
+            exit_status.trim()
+        } else {
+            err
+        };
+        return Err(SelectionError::OperationFailed(detail.to_string()));
     }
 
-    let text = String::from_utf8_lossy(&out.stdout);
-    Ok(text
+    Ok(stdout
         .lines()
         .filter(|l| !l.is_empty())
         .map(String::from)
@@ -382,5 +406,84 @@ mod target_tests {
     fn none_when_nothing_known() {
         assert_eq!(pick_target_pid(Some(99), 0, 99), None);
         assert_eq!(pick_target_pid(Some(99), 99, 99), None);
+    }
+}
+
+#[cfg(test)]
+mod finder_script_tests {
+    use super::interpret_finder_script_output;
+    use crate::selection::error::SelectionError;
+
+    #[test]
+    fn parses_selected_paths_on_success() {
+        let items = interpret_finder_script_output(
+            true,
+            "exit status: 0",
+            "/Users/test/a.txt\n/Users/test/b dir/c.pdf\n",
+            "",
+        )
+        .unwrap();
+        assert_eq!(items, vec!["/Users/test/a.txt", "/Users/test/b dir/c.pdf"]);
+    }
+
+    #[test]
+    fn returns_empty_vec_on_success_with_empty_stdout() {
+        let items = interpret_finder_script_output(true, "exit status: 0", "\n", "").unwrap();
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn returns_empty_vec_for_applescript_empty_selection_2753() {
+        let items = interpret_finder_script_output(
+            false,
+            "exit status: 1",
+            "",
+            "execution error: The variable sel is not defined. (-2753)\n",
+        )
+        .unwrap();
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn returns_empty_vec_for_applescript_empty_selection_2763() {
+        let items = interpret_finder_script_output(
+            false,
+            "exit status: 1",
+            "",
+            "execution error: No result was returned from some part of this expression. (-2763)\n",
+        )
+        .unwrap();
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn returns_operation_failed_on_automation_permission_denied_1743() {
+        let err = interpret_finder_script_output(
+            false,
+            "exit status: 1",
+            "",
+            "26:40: execution error: Not authorized to send Apple events to Finder. (-1743)\n",
+        )
+        .unwrap_err();
+        match err {
+            SelectionError::OperationFailed(msg) => {
+                assert_eq!(
+                    msg,
+                    "26:40: execution error: Not authorized to send Apple events to Finder. (-1743)"
+                );
+            }
+            other => panic!("expected OperationFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn falls_back_to_exit_status_when_stderr_is_empty() {
+        let err = interpret_finder_script_output(false, "exit status: 1", "", "   \n").unwrap_err();
+        match err {
+            SelectionError::OperationFailed(msg) => {
+                assert_eq!(msg, "exit status: 1");
+            }
+            other => panic!("expected OperationFailed, got {other:?}"),
+        }
     }
 }

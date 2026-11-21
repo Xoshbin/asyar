@@ -117,6 +117,19 @@ export interface LifecycleSpec {
   background?: boolean;
 }
 
+export type ExtensionCategory =
+  | 'ai'
+  | 'developer-tools'
+  | 'design-tools'
+  | 'productivity'
+  | 'communication'
+  | 'finance'
+  | 'media'
+  | 'utilities'
+  | 'system'
+  | 'theme'
+  | 'other';
+
 export interface ExtensionManifest {
   name: string;
   id: string;
@@ -130,6 +143,10 @@ export interface ExtensionManifest {
    * view/background distinction.
    */
   type?: 'extension' | 'theme';
+  /**
+   * Store/catalog category slug (e.g. `"ai"`, `"developer-tools"`, `"utilities"`).
+   */
+  category?: ExtensionCategory;
   lifecycle?: LifecycleSpec;
   /**
    * Worker bundle declaration. Present iff the extension declares at least
@@ -293,9 +310,9 @@ export interface ExtensionWithState {
 
 // Extension interface only contains functionality methods, no metadata
 export interface Extension {
-  initialize(context: ExtensionContext): Promise<void>;
-  activate(): Promise<void>;
-  deactivate(): Promise<void>;
+  initialize?(context: ExtensionContext): Promise<void> | void;
+  activate?(): Promise<void> | void;
+  deactivate?(): Promise<void> | void;
   onUnload?: () => void | Promise<void>;
   viewActivated?(viewId: string): Promise<void>;
   viewDeactivated?(viewId: string): Promise<void>;

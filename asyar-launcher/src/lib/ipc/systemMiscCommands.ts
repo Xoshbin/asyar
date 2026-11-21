@@ -190,3 +190,12 @@ export async function getSystemLocale(): Promise<{
 } | null> {
   return invokeSafe('get_system_locale');
 }
+
+export async function environmentGetPaths(extensionId: string | null): Promise<{
+  home: string;
+  appData: string;
+  localAppData: string;
+  config: string;
+}> {
+  return invoke('environment_get_paths', { extensionId });
+}

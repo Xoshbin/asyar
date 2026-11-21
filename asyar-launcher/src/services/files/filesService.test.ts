@@ -84,6 +84,23 @@ describe('filesService', () => {
     await expect(filesService.read('ext.a', '/etc/shadow')).rejects.toThrow('not covered');
   });
 
+  it('exists forwards the caller identity and path to files_exists', async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    expect(await filesService.exists('ext.a', '/tmp/repo/.git/HEAD')).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith('files_exists', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/repo/.git/HEAD',
+    });
+
+    invokeMock.mockResolvedValueOnce(false);
+    expect(await filesService.exists('ext.a', '/tmp/repo/.git/MISSING')).toBe(false);
+  });
+
+  it('exists propagates scope denials as errors', async () => {
+    invokeMock.mockRejectedValueOnce(new Error('files:read path is not covered'));
+    await expect(filesService.exists('ext.a', '/etc/shadow')).rejects.toThrow('not covered');
+  });
+
   it('readRange forwards caller id and opts', async () => {
     const chunk = { text: 'line\n', start: 10, end: 15, size: 15, mtimeMs: 100, eof: true };
     invokeMock.mockResolvedValueOnce(chunk);
@@ -154,5 +171,50 @@ describe('filesService', () => {
     invokeMock.mockResolvedValue(null);
     const result = await filesService.thumbnail('ext.a', 'C:/Steam/notes.txt');
     expect(result).toBeNull();
+  });
+
+  it('icon forwards the caller identity and path to files_icon', async () => {
+    invokeMock.mockResolvedValue('asyar-thumb://localhost/icon.png');
+    const result = await filesService.icon('ext.a', '/Applications/Safari.app');
+    expect(invokeMock).toHaveBeenCalledWith('files_icon', {
+      extensionId: 'ext.a',
+      pathStr: '/Applications/Safari.app',
+    });
+    expect(result).toBe('asyar-thumb://localhost/icon.png');
+  });
+
+  it('icon passes through null when platform has no icon source', async () => {
+    invokeMock.mockResolvedValue(null);
+    const result = await filesService.icon('ext.a', '/tmp/file.txt');
+    expect(result).toBeNull();
+  });
+
+  it('query forwards caller id, path, sql, and params to files_query', async () => {
+    const rows = [{ id: 1, name: 'alpha' }];
+    invokeMock.mockResolvedValueOnce(rows);
+    const result = await filesService.query(
+      'ext.a',
+      '/tmp/test.db',
+      'SELECT * FROM items WHERE id = ?1',
+      [1],
+    );
+    expect(invokeMock).toHaveBeenCalledWith('files_query', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/test.db',
+      sql: 'SELECT * FROM items WHERE id = ?1',
+      params: [1],
+    });
+    expect(result).toEqual(rows);
+  });
+
+  it('query omits params when not provided', async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    await filesService.query('ext.a', '/tmp/test.db', 'SELECT 1');
+    expect(invokeMock).toHaveBeenCalledWith('files_query', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/test.db',
+      sql: 'SELECT 1',
+      params: undefined,
+    });
   });
 });

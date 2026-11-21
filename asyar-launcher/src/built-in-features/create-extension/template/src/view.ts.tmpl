@@ -26,9 +26,6 @@ class ViewExtension implements Extension {
     this.extensionManager = ctx.getService<IExtensionManager>('extensions');
   }
 
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
-
   async executeCommand(commandId: string): Promise<unknown> {
     if (commandId === 'open') {
       this.extensionManager?.navigateToView('{{EXTENSION_ID}}/DefaultView');
@@ -36,28 +33,17 @@ class ViewExtension implements Extension {
     }
     return undefined;
   }
-
-  onUnload = (): void => {};
 }
 
-// Parse extensionId from asyar-extension://{id}/. On Windows, Tauri reroutes
-// custom schemes through `asyar-extension.localhost`, so fall back to the
-// first path segment in that case.
-const extensionId =
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === 'asyar-extension.localhost'
-    ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
-    : window.location.hostname || '{{EXTENSION_ID}}';
+const extensionId = manifest.id;
 
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 registerIconElement();
 
 const impl = new ViewExtension();
-extensionBridge.registerManifest(manifest as never);
+extensionBridge.registerManifest(manifest);
 extensionBridge.registerExtensionImplementation(extensionId, impl);
-
-window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
 
 const app = mount(DefaultView, {
   target: document.getElementById('app')!,
