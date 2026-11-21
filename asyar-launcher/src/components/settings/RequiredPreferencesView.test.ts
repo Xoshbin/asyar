@@ -16,8 +16,24 @@ vi.mock('../../services/extension/preferencesPromptStore.svelte', () => ({
 
 vi.mock('../../services/extension/extensionPreferencesService.svelte', () => ({
   extensionPreferencesService: {
-    getDeclarations: () => ({ extension: [{ name: 'targetLang' }], commands: {} }),
+    getDeclarations: () => ({
+      extension: [{ name: 'targetLang' }, { name: 'aiModelPref' }],
+      commands: {},
+    }),
     set: (...args: unknown[]) => mockSet(...args),
+  },
+}));
+
+vi.mock('../../services/ai/aiService', () => ({
+  aiService: {
+    listModels: vi.fn().mockResolvedValue([
+      {
+        providerId: 'openai',
+        providerName: 'OpenAI',
+        modelId: 'gpt-4o',
+        label: 'GPT-4o',
+      },
+    ]),
   },
 }));
 
@@ -244,5 +260,88 @@ describe('RequiredPreferencesView', () => {
       expect(mockExecute).toHaveBeenCalledWith('cmd_org.asyar.sdk-playground_required-prefs-demo');
     });
     actionService.setContext(ActionContext.CORE);
+  });
+
+  it('requires a valid aiModel selection before enabling Continue and persists the object ref', async () => {
+    render(RequiredPreferencesView, {
+      props: {
+        extensionId: 'org.asyar.google-translate',
+        commandId: 'translate',
+        commandObjectId: 'cmd_org.asyar.google-translate_translate',
+        missing: [
+          {
+            name: 'aiModelPref',
+            title: 'AI Model',
+            type: 'aiModel',
+            required: true,
+          },
+        ],
+      },
+    });
+
+    let action = actionService.getAllActions().find((a) => a.id === 'preferences-prompt:continue');
+    expect(action?.disabled).toBe(true);
+
+    const trigger = screen.getByRole('combobox');
+    await vi.waitFor(() => {
+      expect(trigger.textContent).toContain('Select an AI model');
+    });
+    await fireEvent.click(trigger);
+
+    const option = await screen.findByRole('option', { name: /OpenAI — GPT-4o/ });
+    await fireEvent.click(option);
+
+    action = actionService.getAllActions().find((a) => a.id === 'preferences-prompt:continue');
+    expect(action?.disabled).toBe(false);
+
+    await action!.execute();
+    expect(mockSet).toHaveBeenCalledWith('org.asyar.google-translate', null, 'aiModelPref', {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+    });
+    expect(mockExecute).toHaveBeenCalledWith('cmd_org.asyar.google-translate_translate');
+  });
+
+  it('seeds aiModel default when present and blocks malformed aiModel defaults', async () => {
+    const { unmount } = render(RequiredPreferencesView, {
+      props: {
+        extensionId: 'org.asyar.google-translate',
+        commandId: 'translate',
+        commandObjectId: 'cmd_org.asyar.google-translate_translate',
+        missing: [
+          {
+            name: 'aiModelPref',
+            title: 'AI Model',
+            type: 'aiModel',
+            required: true,
+            default: { providerId: 'openai', modelId: 'gpt-4o' },
+          },
+        ],
+      },
+    });
+
+    let action = actionService.getAllActions().find((a) => a.id === 'preferences-prompt:continue');
+    expect(action?.disabled).toBe(false);
+    unmount();
+
+    render(RequiredPreferencesView, {
+      props: {
+        extensionId: 'org.asyar.google-translate',
+        commandId: 'translate',
+        commandObjectId: 'cmd_org.asyar.google-translate_translate',
+        missing: [
+          {
+            name: 'aiModelPref',
+            title: 'AI Model',
+            type: 'aiModel',
+            required: true,
+            default: { providerId: 'openai', modelId: '   ' },
+          },
+        ],
+      },
+    });
+
+    action = actionService.getAllActions().find((a) => a.id === 'preferences-prompt:continue');
+    expect(action?.disabled).toBe(true);
   });
 });

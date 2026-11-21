@@ -551,6 +551,25 @@ pub fn validate_preferences(prefs: &[PreferenceDeclaration]) -> Result<(), Strin
                     }
                 }
             }
+            PreferenceType::AiModel => {
+                if let Some(d) = &p.default {
+                    let valid = d.as_object().is_some_and(|obj| {
+                        obj.get("providerId")
+                            .and_then(|v| v.as_str())
+                            .is_some_and(|s| !s.trim().is_empty())
+                            && obj
+                                .get("modelId")
+                                .and_then(|v| v.as_str())
+                                .is_some_and(|s| !s.trim().is_empty())
+                    });
+                    if !valid {
+                        return Err(format!(
+                            "Preference '{}' aiModel default must be an object with non-empty string providerId and modelId",
+                            p.name
+                        ));
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -2003,6 +2022,44 @@ mod preference_validation_tests {
         let mut p = pref("c", PreferenceType::Checkbox);
         p.default = Some(serde_json::json!("yes"));
         assert!(validate_preferences(&[p]).is_err());
+    }
+
+    #[test]
+    fn ai_model_accepts_no_default_or_valid_object_default() {
+        let p_none = pref("model", PreferenceType::AiModel);
+        assert!(validate_preferences(&[p_none]).is_ok());
+
+        let mut p_valid = pref("model", PreferenceType::AiModel);
+        p_valid.default = Some(serde_json::json!({
+            "providerId": "anthropic",
+            "modelId": "claude-sonnet-4-6"
+        }));
+        assert!(validate_preferences(&[p_valid]).is_ok());
+    }
+
+    #[test]
+    fn ai_model_rejects_invalid_defaults() {
+        for bad in [
+            serde_json::json!("anthropic:claude-sonnet-4-6"),
+            serde_json::json!(["anthropic", "claude-sonnet-4-6"]),
+            serde_json::json!({"providerId": "anthropic"}),
+            serde_json::json!({"modelId": "claude-sonnet-4-6"}),
+            serde_json::json!({"providerId": "  ", "modelId": "claude-sonnet-4-6"}),
+            serde_json::json!({"providerId": "anthropic", "modelId": ""}),
+            serde_json::json!({"providerId": 123, "modelId": "claude-sonnet-4-6"}),
+            serde_json::json!({"providerId": "anthropic", "modelId": 456}),
+        ] {
+            let mut p = pref("model", PreferenceType::AiModel);
+            p.default = Some(bad);
+            assert!(validate_preferences(&[p]).is_err());
+        }
+    }
+
+    #[test]
+    fn ai_model_accepts_required_preference_declaration() {
+        let mut p = pref("model", PreferenceType::AiModel);
+        p.required = Some(true);
+        assert!(validate_preferences(&[p]).is_ok());
     }
 
     #[test]

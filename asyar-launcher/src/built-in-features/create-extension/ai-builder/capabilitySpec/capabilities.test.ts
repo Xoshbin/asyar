@@ -100,7 +100,7 @@ describe('capabilities.json sync guard', () => {
     }
   });
 
-  it('only allows the eight valid preference types', () => {
+  it('only allows the nine valid preference types', () => {
     const valid = [
       'textfield',
       'password',
@@ -110,6 +110,7 @@ describe('capabilities.json sync guard', () => {
       'appPicker',
       'file',
       'directory',
+      'aiModel',
     ];
     expect(capabilities.preferenceTypes.sort()).toEqual([...valid].sort());
   });

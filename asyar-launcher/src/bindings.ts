@@ -29,6 +29,10 @@ export type AgentRunConfig = {
 	defaultAgentId: string | null,
 	temperature: number | null,
 	maxTokens: number,
+	// Optional per-request provider override for silent runs (`ai.complete` / `ai.stream`).
+	providerOverrideId?: string | null,
+	// Optional per-request model override paired with `provider_override_id`.
+	modelOverrideId?: string | null,
 	webSearch?: WebSearchConfig | null,
 	webReader?: WebReaderConfig | null,
 };

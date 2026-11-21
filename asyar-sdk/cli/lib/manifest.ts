@@ -164,11 +164,17 @@ export type PreferenceType =
   | 'dropdown'
   | 'appPicker'
   | 'file'
-  | 'directory';
+  | 'directory'
+  | 'aiModel';
 
 export interface DropdownOption {
   value: string;
   title: string;
+}
+
+export interface AiModelRef {
+  providerId: string;
+  modelId: string;
 }
 
 export interface PreferenceDeclaration {
@@ -177,7 +183,7 @@ export interface PreferenceDeclaration {
   title: string;
   description?: string;
   required?: boolean;
-  default?: string | number | boolean;
+  default?: string | number | boolean | AiModelRef;
   placeholder?: string;
   data?: DropdownOption[];
 }
@@ -191,6 +197,7 @@ const VALID_PREFERENCE_TYPES: PreferenceType[] = [
   'appPicker',
   'file',
   'directory',
+  'aiModel',
 ];
 const PREF_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
@@ -1660,6 +1667,23 @@ export function validatePreferences(
     }
     if (p.type === 'checkbox' && p.default !== undefined && typeof p.default !== 'boolean') {
       errors.push({ field: `${base}.default`, message: 'checkbox default must be a boolean' });
+    }
+    if (p.type === 'aiModel' && p.default !== undefined) {
+      const def = p.default as unknown;
+      if (
+        !def ||
+        typeof def !== 'object' ||
+        Array.isArray(def) ||
+        typeof (def as Record<string, unknown>).providerId !== 'string' ||
+        !(def as { providerId: string }).providerId.trim() ||
+        typeof (def as Record<string, unknown>).modelId !== 'string' ||
+        !(def as { modelId: string }).modelId.trim()
+      ) {
+        errors.push({
+          field: `${base}.default`,
+          message: 'aiModel default must be an object with non-empty string providerId and modelId',
+        });
+      }
     }
   });
 

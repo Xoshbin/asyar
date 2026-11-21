@@ -59,18 +59,21 @@ At runtime a command sees the union: command-scoped keys shadow extension-scoped
 
 For a text preference, use `"type": "textfield"`. The `"text"` type is for command arguments, not preferences. This applies to both extension-level and command-level preferences.
 
-| Type        | Value type      | Rendered as            |
-| ----------- | --------------- | ---------------------- |
-| `textfield` | `string`        | Text input             |
-| `password`  | `string`        | Password input         |
-| `number`    | `number`        | Number input           |
-| `checkbox`  | `boolean`       | Checkbox               |
-| `dropdown`  | `string`        | Native `<select>` menu |
-| `appPicker` | `string` (path) | Text input *           |
-| `file`      | `string` (path) | Text input *           |
-| `directory` | `string` (path) | Text input *           |
+| Type        | Value type                                | Rendered as                           |
+| ----------- | ----------------------------------------- | ------------------------------------- |
+| `textfield` | `string`                                  | Text input                            |
+| `password`  | `string`                                  | Password input                        |
+| `number`    | `number`                                  | Number input                          |
+| `checkbox`  | `boolean`                                 | Checkbox                              |
+| `dropdown`  | `string`                                  | Searchable select menu                |
+| `aiModel`   | `{ providerId: string; modelId: string }` | Searchable configured AI model picker |
+| `appPicker` | `string` (path)                           | Text input *                          |
+| `file`      | `string` (path)                           | Text input *                          |
+| `directory` | `string` (path)                           | Text input *                          |
 
 \* Native picker UIs for `appPicker`, `file`, and `directory` are deferred. They currently accept manual path entry.
+
+When `type` is `"aiModel"` and `required` is not `true`, Settings offers a **"Use Asyar default"** choice that clears the preference to `undefined` (even if a `default` was declared in the manifest). Pass the value straight into `ai.complete(prompt, { model })` or `ai.stream(prompt, onChunk, { model })`. `aiModel` preferences are stored unencrypted (as JSON `{ providerId, modelId }`) and sync across devices with other non-password preferences.
 
 ## Declaration Shape
 
@@ -86,7 +89,7 @@ interface PreferenceDeclaration {
   /** If true, commands cannot execute until the user sets a value. */
   required?: boolean;
   /** Default value used until the user saves a value. */
-  default?: string | number | boolean;
+  default?: string | number | boolean | { providerId: string; modelId: string };
   /** Placeholder text for textfield / number / password. */
   placeholder?: string;
   /** Options for dropdown type. Required when type === 'dropdown'. */
@@ -252,6 +255,7 @@ Rules:
 - `dropdown` requires a non-empty `data` array; if `default` is set, it must be a value in `data[]`.
 - `number` default must be a finite number.
 - `checkbox` default must be a boolean.
+- `aiModel` default, if supplied, must be an object `{ providerId, modelId }` with non-empty strings.
 - No duplicate `name` within the same scope.
 
 ## Reset to Defaults

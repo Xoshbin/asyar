@@ -399,7 +399,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
             Some("mcp")
         }
         // AI Model Prompting — Tier 2 extensions prompting configured AI providers / spending tokens.
-        "asyar:api:ai:streamChat" | "asyar:api:ai:complete" => Some("ai"),
+        "asyar:api:ai:streamChat" | "asyar:api:ai:complete" | "asyar:api:ai:listModels" => {
+            Some("ai")
+        }
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
         // permission-free (discovery, low blast radius).
         // search:rank is intentionally permission-free: the caller supplies its
@@ -1452,6 +1454,26 @@ mod tests {
             Some("ai")
         );
         assert_eq!(get_required_permission("asyar:api:ai:complete"), Some("ai"));
+        assert_eq!(
+            get_required_permission("asyar:api:ai:listModels"),
+            Some("ai")
+        );
+    }
+
+    #[test]
+    fn ai_list_models_is_denied_without_ai_permission_and_allowed_with_it() {
+        let reg = ExtensionPermissionRegistry::new();
+        {
+            let mut inner = reg.inner.lock().unwrap();
+            inner.insert("ext.no.ai".to_string(), HashSet::new());
+            inner.insert("ext.with.ai".to_string(), HashSet::from(["ai".to_string()]));
+        }
+
+        let required = get_required_permission("asyar:api:ai:listModels").unwrap();
+        assert!(reg.check(&Some("ext.no.ai".to_string()), required).is_err());
+        assert!(reg
+            .check(&Some("ext.with.ai".to_string()), required)
+            .is_ok());
     }
 
     #[test]

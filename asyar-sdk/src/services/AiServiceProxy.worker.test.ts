@@ -78,4 +78,21 @@ describe('AiServiceProxy.stream inside a Web Worker', () => {
     });
     await expect(promise).rejects.toBeDefined();
   });
+
+  it('listModels invokes ai:listModels from a Web Worker', async () => {
+    stubWorkerGlobals();
+    const expected = [
+      {
+        providerId: 'openai',
+        providerName: 'OpenAI',
+        modelId: 'gpt-4o',
+        label: 'GPT-4o',
+        isDefault: true,
+      },
+    ];
+    mockInvoke.mockResolvedValueOnce(expected);
+
+    await expect(proxy.listModels()).resolves.toEqual(expected);
+    expect(mockInvoke).toHaveBeenCalledWith('ai:listModels', {}, 'ext.test', undefined);
+  });
 });

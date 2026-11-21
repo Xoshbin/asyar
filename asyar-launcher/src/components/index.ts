@@ -75,6 +75,7 @@ export { default as AppearanceThemeSelector } from './settings/AppearanceThemeSe
 export { default as WindowModeSelector } from './settings/WindowModeSelector.svelte';
 export { default as ExtensionDetailPanel } from './settings/ExtensionDetailPanel.svelte';
 export { default as ExtensionPreferencesForm } from './settings/ExtensionPreferencesForm.svelte';
+export { default as AiModelPreferencePicker } from './settings/AiModelPreferencePicker.svelte';
 export { default as LanHostList } from './settings/LanHostList.svelte';
 export { default as LanDeviceBrowser } from './settings/LanDeviceBrowser.svelte';
 export { default as LanScanSheet } from './settings/LanScanSheet.svelte';

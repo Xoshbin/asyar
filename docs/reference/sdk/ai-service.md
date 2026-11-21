@@ -7,6 +7,22 @@
 `AiService` provides Tier 2 extensions with programmatic access to prompt the user's currently configured AI model without requiring direct provider credentials, API keys, or custom provider configuration. The host routes requests through Asyar's default agent runtime.
 
 ```typescript
+export interface AiModelRef {
+  /** Configured provider instance ID (e.g. `"openai"`, `"ollama"`, `"ext:org.example.groq:groq"`). */
+  providerId: string;
+  /** Model identifier within that provider (e.g. `"gpt-4o"`, `"llama3.2:latest"`). */
+  modelId: string;
+}
+
+export interface AiConfiguredModel extends AiModelRef {
+  /** Human-readable provider display name. */
+  providerName: string;
+  /** Human-readable model label. */
+  label: string;
+  /** True when this model matches Asyar's current default agent. */
+  isDefault: boolean;
+}
+
 export interface AiCompletionOptions {
   /** Optional system prompt to steer model behavior. */
   systemPrompt?: string;
@@ -14,13 +30,23 @@ export interface AiCompletionOptions {
   temperature?: number;
   /** Maximum number of tokens to generate. */
   maxTokens?: number;
+  /** Optional provider/model override (falls back to Asyar's default agent when omitted). */
+  model?: AiModelRef;
   /** Abort signal to cancel the request. */
   signal?: AbortSignal;
 }
 
-export interface AiStreamOptions extends AiCompletionOptions {
-  /** Optional stream identifier for debugging/tracking. */
-  streamId?: string;
+export interface AiStreamOptions {
+  /** Optional system prompt to steer model behavior. */
+  systemPrompt?: string;
+  /** Sampling temperature between 0.0 and 2.0. */
+  temperature?: number;
+  /** Maximum number of tokens to generate. */
+  maxTokens?: number;
+  /** Optional provider/model override (falls back to Asyar's default agent when omitted). */
+  model?: AiModelRef;
+  /** Abort signal to cancel the request. */
+  signal?: AbortSignal;
 }
 
 export interface IAiService {
@@ -28,7 +54,7 @@ export interface IAiService {
    * Prompts the configured AI model for a one-shot completion.
    *
    * @param prompt - The user prompt text.
-   * @param options - Optional completion options (temperature, systemPrompt, signal, etc.).
+   * @param options - Optional completion options (temperature, systemPrompt, model, signal, etc.).
    * @returns The generated response text.
    */
   complete(prompt: string, options?: AiCompletionOptions): Promise<string>;
@@ -38,7 +64,7 @@ export interface IAiService {
    *
    * @param prompt - The user prompt text.
    * @param onChunk - Callback invoked with each incoming chunk.
-   * @param options - Optional stream options including AbortSignal.
+   * @param options - Optional stream options including `model` override and `AbortSignal`.
    * @returns The complete accumulated response text.
    */
   stream(
@@ -46,6 +72,13 @@ export interface IAiService {
     onChunk: (chunk: string) => void,
     options?: AiStreamOptions,
   ): Promise<string>;
+
+  /**
+   * Lists the AI models currently available from configured, enabled providers.
+   * Useful for custom model selectors or inspecting available models alongside
+   * the declarative `aiModel` preference type.
+   */
+  listModels(): Promise<AiConfiguredModel[]>;
 }
 ```
 
@@ -99,9 +132,32 @@ try {
 }
 ```
 
+**Usage (Per-extension / per-request model override with `aiModel` preference):**
+
+```typescript
+import type { AiModelRef, IAiService } from 'asyar-sdk/contracts';
+
+const ai = context.getService<IAiService>('ai');
+const preferredModel = context.preferences.values.model as AiModelRef | undefined;
+
+// When preferredModel is undefined ("Use Asyar default"), Asyar uses its default agent.
+const summary = await ai.complete('Summarize this PR...', {
+  model: preferredModel,
+});
+
+// Or discover configured models dynamically:
+const available = await ai.listModels();
+```
+
+**Model Selection & Validation Behavior:**
+
+- When `options.model` is omitted, `complete()` and `stream()` run through Asyar's default agent.
+- When `options.model` is provided, the host checks that `providerId` and `modelId` are non-empty and validates that the provider is configured, enabled, and has valid credentials/base URL — failing explicitly instead of silently falling back to the default model. Individual `modelId` support is verified by the target provider at request time.
+- `listModels()` queries all usable configured providers and skips providers that fail to respond rather than failing the whole call.
+
 **Security & Permission Gating:**
 
-- **Manifest Permission:** The extension must declare `"ai"` in its manifest permissions (`manifest.json["permissions"]`). Calling `complete()` or `stream()` without declaring `"ai"` is blocked by Asyar's fail-closed permission gate and returns an `AppError::Permission` error.
+- **Manifest Permission:** The extension must declare `"ai"` in its manifest permissions (`manifest.json["permissions"]`). Calling `complete()`, `stream()`, or `listModels()` without declaring `"ai"` is blocked by Asyar's fail-closed permission gate and returns an `AppError::Permission` error.
 - **Privacy & Redaction:** Prompts dispatched through `AiService` automatically flow through Asyar's host secret-redaction pipeline, preventing accidental leakage of credentials (AWS keys, tokens, private keys) to upstream AI providers.
 
 ---

@@ -1,6 +1,9 @@
 import {
   agentsCancelRun,
+  agentsGet,
   agentsRunSilent,
+  aiGetCredentialStatus,
+  aiListModels,
   toAgentProviderDescriptors,
   type AgentRunConfig,
 } from '../../lib/ipc/commands';
@@ -8,10 +11,82 @@ import { providerRegistry } from './providerRegistry';
 import { settingsService } from '../settings/settingsService.svelte';
 import { streamDispatcher } from '../extension/streamDispatcher.svelte';
 import { createAgentStreamChannel } from '../../built-in-features/agents/agentStreamBridge';
+import { providerOptions } from '../../built-in-features/agents/modelCatalog.svelte';
 import { extractErrorMessage } from '../../lib/errors';
-import type { AiCompletionOptions, AiStreamOptions } from 'asyar-sdk/contracts';
+import {
+  isValidAiModelRef,
+  type AiCompletionOptions,
+  type AiConfiguredModel,
+  type AiModelRef,
+  type AiStreamOptions,
+} from 'asyar-sdk/contracts';
+
+function normalizeModelOverride(model: unknown): AiModelRef | null {
+  if (model === undefined || model === null) return null;
+  if (!isValidAiModelRef(model)) {
+    throw new Error(
+      'AI model override must be an object with non-empty providerId and modelId strings',
+    );
+  }
+  return { providerId: model.providerId.trim(), modelId: model.modelId.trim() };
+}
 
 export class AiService {
+  async listModels(_extensionId?: string): Promise<AiConfiguredModel[]> {
+    const settings = settingsService.getSettings();
+    const providers = settings.ai.providers ?? {};
+    const plugins = providerRegistry.list();
+    const defaultAgentId = settings.ai.defaultAgentId ?? '';
+
+    const [credResult, agentResult] = await Promise.allSettled([
+      aiGetCredentialStatus(),
+      defaultAgentId ? agentsGet(defaultAgentId) : Promise.resolve(null),
+    ]);
+
+    const credentialStates =
+      credResult.status === 'fulfilled' ? (credResult.value?.providers ?? null) : null;
+    const defaultAgent = agentResult.status === 'fulfilled' ? agentResult.value : null;
+
+    const runnableProviders = providerOptions(providers, plugins, credentialStates);
+    if (runnableProviders.length === 0) {
+      return [];
+    }
+
+    const perProviderResults = await Promise.allSettled(
+      runnableProviders.map(async (provider) => {
+        const config = providers[provider.id];
+        if (!config) return [];
+
+        const models = await aiListModels(provider.id, config);
+        const seenModelIds = new Set<string>();
+        return models.reduce<AiConfiguredModel[]>((acc, m) => {
+          if (seenModelIds.has(m.id)) return acc;
+          seenModelIds.add(m.id);
+          acc.push({
+            providerId: provider.id,
+            providerName: provider.label,
+            modelId: m.id,
+            label: m.label,
+            isDefault:
+              defaultAgent !== null &&
+              defaultAgent.providerId === provider.id &&
+              defaultAgent.modelId === m.id,
+          });
+          return acc;
+        }, []);
+      }),
+    );
+
+    const combined: AiConfiguredModel[] = [];
+    for (const settled of perProviderResults) {
+      if (settled.status === 'fulfilled') {
+        combined.push(...settled.value);
+      }
+    }
+
+    return combined;
+  }
+
   async complete(
     extensionIdOrPrompt: string,
     promptOrOptions?: string | AiCompletionOptions,
@@ -28,6 +103,8 @@ export class AiService {
       options = promptOrOptions;
     }
 
+    const modelOverride = normalizeModelOverride(options?.model);
+
     const settings = settingsService.getSettings();
     const defaultAgentId = settings.ai.defaultAgentId ?? '';
     const userText = options?.systemPrompt
@@ -40,6 +117,12 @@ export class AiService {
       defaultAgentId,
       temperature: options?.temperature ?? null,
       maxTokens: options?.maxTokens ?? settings.ai.maxTokens,
+      ...(modelOverride
+        ? {
+            providerOverrideId: modelOverride.providerId,
+            modelOverrideId: modelOverride.modelId,
+          }
+        : {}),
     };
 
     const streamId = `ai-complete-${crypto.randomUUID()}`;
@@ -88,6 +171,8 @@ export class AiService {
       originRole = typeof optionsOrRole === 'string' ? optionsOrRole : undefined;
     }
 
+    const modelOverride = normalizeModelOverride(options?.model);
+
     if (!streamId) {
       streamId = `ai-stream-${crypto.randomUUID()}`;
     }
@@ -112,6 +197,12 @@ export class AiService {
       defaultAgentId,
       temperature: options?.temperature ?? null,
       maxTokens: options?.maxTokens ?? settings.ai.maxTokens,
+      ...(modelOverride
+        ? {
+            providerOverrideId: modelOverride.providerId,
+            modelOverrideId: modelOverride.modelId,
+          }
+        : {}),
     };
 
     const stream = createAgentStreamChannel({
