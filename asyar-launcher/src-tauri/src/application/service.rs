@@ -2754,11 +2754,7 @@ mod tests {
             std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
         set_test_mtime(&plist, new_time);
 
-        let cache_key = app
-            .to_string_lossy()
-            .replace(['/', '\\', ':', ' '], "_")
-            .replace(".app", "");
-        let base_name = truncate_cache_key(&cache_key, 200);
+        let base_name = app_icon_cache_base_name_for_platform(app.to_str().unwrap(), false);
         let cached = cache_dir.join(format!("{base_name}.png"));
         std::fs::write(&cached, b"stale-placeholder").unwrap();
         set_test_mtime(&cached, old_time);
