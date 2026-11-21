@@ -126,7 +126,7 @@
 <div
   class="fixed bottom-0 left-0 right-0 flex items-center justify-between px-4 bottom-action-bar"
   class:is-compact={isCompactIdle}
-  style="height: var(--shell-footer-h); z-index: var(--z-footer); background-color: var(--bg-secondary-full-opacity);"
+  style="height: var(--shell-footer-h); z-index: var(--z-footer);"
 >
   <div class="flex-1 min-w-0 flex items-center gap-3">
     {#if argumentValidationError}
@@ -202,7 +202,7 @@
 <div
   class="fixed left-0 right-0 flex items-center justify-between gap-3 px-4 show-more-bar"
   class:is-visible={isCompactIdle}
-  style="top: var(--shell-header-h); height: var(--shell-footer-h); z-index: var(--z-footer); background-color: var(--bg-secondary-full-opacity);"
+  style="top: var(--shell-header-h); height: var(--shell-footer-h); z-index: var(--z-footer);"
 >
   <ShowMoreBarHuds />
   <div class="flex items-center gap-3">
@@ -228,6 +228,13 @@
 </div>
 
 <style>
+  /* No fill of their own: like Spotlight, the launcher is one sheet of glass
+     at Window opacity, compact or expanded. The hairline marks the footer. */
+  .bottom-action-bar,
+  .show-more-bar {
+    border-top: 1px solid var(--separator);
+  }
+
   :global(html:not([data-platform='macos'])) .bottom-action-bar.is-compact {
     display: none;
   }
