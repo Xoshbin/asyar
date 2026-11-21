@@ -577,6 +577,27 @@ fails the build if a component is missing from it, so the barrel is trustworthy
 
 If two components look like they both fit, pick the more specific one.
 
+### Built-in Feature & Extension Icon Standards (Squircle Assets)
+
+Built-in features and extensions provide custom 512×512 icons (`assets/icon.svg` and `assets/icon.png`) rendered as squircle tiles across the launcher and Settings.
+
+1. **Flat Solid Background Colors**:
+   - Use bold, vibrant solid colors (e.g., `#0D9488` Teal, `#F59E0B` Amber, `#4F46E5` Indigo, `#E11D48` Crimson, `#7C3AED` Purple, `#334155` Slate).
+   - **Never use multi-stop gradients with dark/muddy falloffs** or milky radial top-sheens (`opacity: 0.2–0.3`). Gradients destroy edge definition on dark launcher backgrounds and wash out small-scale contrast.
+   - Use a 2px subtle specular rim stroke (`linearGradient` from `#FFFFFF` 40% to `#000000` 15%) for crisp boundary definition across both dark and light modes.
+2. **~19% Optical Margin Sweet-Spot**:
+   - The primary glyph must cover **~62%–65% of the squircle width** (`~276px` inside a `448px` viewBox `32 32 448 448`, leaving `~86px` or `~19%` outer padding).
+   - Avoid cramped glyphs (>75% coverage hugging the rim) and floating tiny glyphs (<50% coverage).
+3. **Single-Container Discipline**:
+   - The squircle tile is already the container. Never place an inner rounded container (such as a 3D keycap box or nested squircle) inside the tile. The primary glyph (e.g., the `⌘` Command symbol, calculator body, or gear) sits directly on the tile surface.
+4. **Micro-Scale Legibility (24px–32px Threshold)**:
+   - When drawing documents, clipboards, or cards with text lines, foreground content on pure white paper (`#FFFFFF`) MUST use dark slate tones (`#0F172A`, `#1E293B`, `#334155`, `#475569`).
+   - Never use pale pastel grays (`#CBD5E1` or lighter) for lines or clamps — subpixel antialiasing turns them into invisible smudges at launcher row scale.
+   - Use distinct silhouettes (e.g., dark obsidian clamps, multi-type category pills) to anchor the object's metaphor.
+5. **Full-Fidelity Headless Browser Rasterization**:
+   - macOS CLI `sips` (Apple ImageIO) **silently strips and discards all SVG `<filter>` tags** (`<feDropShadow>`, `<feGaussianBlur>`, glow merges).
+   - All `icon.png` rasterization MUST be performed using a headless browser engine (such as headless Google Chrome/Blink) to ensure drop shadows, physical depth, and radiant glow auras render accurately into the PNG.
+
 ---
 
 ## 9. Layout
