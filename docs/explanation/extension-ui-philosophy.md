@@ -67,7 +67,7 @@ Choosing open webviews does **not** mean every developer should have to reinvent
 Instead of hiding list UI behind an opaque SDK widget kit, Asyar takes the **shadcn/ui approach**:
 
 1. **Typed view helpers in `asyar-sdk/view`:**
-   [`onSearch(cb)` and `onKey(cb)`](../reference/extension-types/in-view-search.md) wrap the launcher's `asyar:view:search` and `asyar:view:keydown` `postMessage` events with TypeScript types and automatic cleanup — while leaving raw `window.addEventListener('message', ...)` available if you ever want it.
+   [`onSearch(cb)` and `onKey(cb)`](../reference/extension-types/in-view-search.md) wrap the launcher's `asyar:view:search` and `asyar:view:keydown` `postMessage` events with TypeScript types and return an unsubscribe function to remove the listener on unmount — while leaving raw `window.addEventListener('message', ...)` available if you ever want it.
 2. **Copy-owned List View starter template:**
    `create-extension` generates a clean, searchable list view directly into your extension's own [`src/DefaultView.svelte`](../../asyar-launcher/src/built-in-features/create-extension/template/src/DefaultView.svelte.tmpl) (complete with `onSearch` filtering, `ArrowUp`/`ArrowDown` selection, `scrollIntoView`, and `context.registerAction({ primary: true, shortcut: 'Enter' })`).
 3. **Full ownership:**
