@@ -455,7 +455,13 @@ jobs:
         id: prev_tag
         run: |
           CURRENT_TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          PREV_TAG=$(git tag -l 'v*' --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | head -n 1)
+          if [[ "$CURRENT_TAG" == *-* ]]; then
+            # Beta/pre-release: diff against the most recent launcher tag (beta or stable).
+            PREV_TAG=$(git tag -l 'v*' --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | head -n 1)
+          else
+            # Stable release: diff against the previous stable tag so notes include all betas in this cycle.
+            PREV_TAG=$((git tag -l 'v*' --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | grep -v -- '-' || true) | head -n 1)
+          fi
           echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
