@@ -98,6 +98,7 @@ export class ClipboardViewStateClass {
   });
 
   selectedItem = $derived(this.filteredItems[this.selectedIndex] ?? null);
+  selectedFullItem = $state<commands.StoredClipboardItem | null>(null);
 
   /** `selectedIds` resolved against the current `filteredItems`, in
    *  selection order. Ids that scrolled out of the loaded window or were
