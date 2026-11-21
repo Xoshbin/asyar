@@ -119,7 +119,8 @@ pub unsafe fn apply_panel_appearance(ns_window: *mut AnyObject, pref: ThemePrefe
         let content_view: *mut AnyObject = msg_send![ns_window, contentView];
         let vibrancy = find_vibrancy_view(content_view);
         if vibrancy.is_null() {
-            log::warn!("[apply_panel_appearance] vibrancy view not found");
+            // Expected while Window opacity is solid: the blur is switched off.
+            log::debug!("[apply_panel_appearance] vibrancy view not found");
             return;
         }
 

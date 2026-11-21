@@ -173,6 +173,10 @@
   --scrim: rgba(0, 0, 0, 0.4);
   --scrim-opaque: rgba(0, 0, 0, 0.6);
 
+  /* Glass surface opacity, from the Window opacity setting
+     (lib/launcher/windowOpacity.ts). Windows drives its Acrylic tint with it. */
+  --surface-alpha: 0.65;
+
   /* ── Space: the gaps between things ───────────────────────────────────
      A 2px grid, not the 4px grid most systems use. That is deliberate: the
      launcher's content area is 384px tall and a result row is ~48px, so the
@@ -461,10 +465,10 @@ html[data-platform='macos'] .app-root {
     /* Surfaces — deep navy ground, translucent so the wallpaper reads
        through. Opacity climbs with elevation: the further forward a surface
        sits, the less of the desktop it lets past. */
-    --bg-primary: rgba(30, 30, 32, 0.65);
-    --bg-secondary: rgba(40, 40, 42, 0.65);
-    --bg-tertiary: rgba(50, 50, 52, 0.65);
-    --bg-hover: rgba(64, 64, 66, 0.55);
+    --bg-primary: rgba(30, 30, 32, var(--surface-alpha));
+    --bg-secondary: rgba(40, 40, 42, var(--surface-alpha));
+    --bg-tertiary: rgba(50, 50, 52, var(--surface-alpha));
+    --bg-hover: rgba(64, 64, 66, calc(var(--surface-alpha) - 0.1));
     /* Selection is the only chromatic surface. Its pale blue source preserves
        a luminance step as vibrancy brightens over light desktop content, while
        remaining translucent enough for the material to adapt underneath. */
@@ -543,10 +547,10 @@ html[data-platform='macos'] .app-root {
 }
 
 :root[data-theme='dark'] {
-  --bg-primary: rgba(30, 30, 32, 0.65);
-  --bg-secondary: rgba(40, 40, 42, 0.65);
-  --bg-tertiary: rgba(50, 50, 52, 0.65);
-  --bg-hover: rgba(64, 64, 66, 0.55);
+  --bg-primary: rgba(30, 30, 32, var(--surface-alpha));
+  --bg-secondary: rgba(40, 40, 42, var(--surface-alpha));
+  --bg-tertiary: rgba(50, 50, 52, var(--surface-alpha));
+  --bg-hover: rgba(64, 64, 66, calc(var(--surface-alpha) - 0.1));
   --bg-selected: rgba(120, 150, 245, 0.24);
   --bg-secondary-full-opacity: rgba(40, 40, 42);
   --bg-popup: rgb(30, 30, 32);
@@ -611,10 +615,10 @@ html[data-platform='macos'] .app-root {
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
-    --bg-primary: rgba(240, 240, 245, 0.65);
-    --bg-secondary: rgba(230, 230, 235, 0.65);
-    --bg-tertiary: rgba(245, 245, 247, 0.65);
-    --bg-hover: rgba(220, 220, 225, 0.5);
+    --bg-primary: rgba(240, 240, 245, var(--surface-alpha));
+    --bg-secondary: rgba(230, 230, 235, var(--surface-alpha));
+    --bg-tertiary: rgba(245, 245, 247, var(--surface-alpha));
+    --bg-hover: rgba(220, 220, 225, calc(var(--surface-alpha) - 0.15));
     --bg-selected: rgba(42, 85, 214, 0.13);
     --bg-secondary-full-opacity: rgb(230, 230, 235);
     --bg-popup: rgb(240, 240, 245);
@@ -678,10 +682,10 @@ html[data-platform='macos'] .app-root {
 }
 
 :root[data-theme='light'] {
-  --bg-primary: rgba(240, 240, 245, 0.65);
-  --bg-secondary: rgba(230, 230, 235, 0.65);
-  --bg-tertiary: rgba(245, 245, 247, 0.65);
-  --bg-hover: rgba(220, 220, 225, 0.5);
+  --bg-primary: rgba(240, 240, 245, var(--surface-alpha));
+  --bg-secondary: rgba(230, 230, 235, var(--surface-alpha));
+  --bg-tertiary: rgba(245, 245, 247, var(--surface-alpha));
+  --bg-hover: rgba(220, 220, 225, calc(var(--surface-alpha) - 0.15));
   --bg-selected: rgba(42, 85, 214, 0.13);
   --bg-secondary-full-opacity: rgb(230, 230, 235);
   --bg-popup: rgb(240, 240, 245);
@@ -1229,7 +1233,7 @@ html[data-platform='windows'] .macos-panel {
     /* Themed translucent overlay over the DWM Acrylic backdrop. ~85% opaque
        so the theme reads regardless of the desktop wallpaper behind, while a
        hint of system blur still shows through. */
-    --win-acrylic-tint: rgba(240, 240, 245, 0.85);
+    --win-acrylic-tint: rgba(240, 240, 245, var(--surface-alpha));
   }
 }
 
@@ -1241,7 +1245,7 @@ html[data-platform='windows'][data-theme='light'] {
   --bg-tertiary: rgba(243, 246, 249, 0.2);
   --bg-hover: rgba(228, 233, 238, 0.3);
   --bg-selected: rgba(140, 140, 148, 0.22);
-  --win-acrylic-tint: rgba(240, 240, 245, 0.85);
+  --win-acrylic-tint: rgba(240, 240, 245, var(--surface-alpha));
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1253,7 +1257,7 @@ html[data-platform='windows'][data-theme='light'] {
     --bg-tertiary: rgba(28, 33, 38, 0.2);
     --bg-hover: rgba(36, 42, 48, 0.3);
     --bg-selected: rgba(74, 74, 78, 0.65);
-    --win-acrylic-tint: rgba(28, 28, 32, 0.85);
+    --win-acrylic-tint: rgba(28, 28, 32, var(--surface-alpha));
   }
 }
 
@@ -1265,7 +1269,7 @@ html[data-platform='windows'][data-theme='dark'] {
   --bg-tertiary: rgba(28, 33, 38, 0.2);
   --bg-hover: rgba(36, 42, 48, 0.3);
   --bg-selected: rgba(74, 74, 78, 0.65);
-  --win-acrylic-tint: rgba(28, 28, 32, 0.85);
+  --win-acrylic-tint: rgba(28, 28, 32, var(--surface-alpha));
 }
 
 /* DWM (the Windows compositor) paints the system backdrop — Mica or Acrylic
@@ -1282,6 +1286,11 @@ html[data-platform='windows'] .app-root {
   height: 100vh;
   width: 100vw;
   background-color: var(--win-acrylic-tint);
+}
+
+html[data-platform='win32'],
+html[data-platform='windows'] {
+  --surface-alpha: 0.85;
 }
 
 html[data-platform='win32'],

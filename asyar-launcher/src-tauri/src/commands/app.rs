@@ -485,6 +485,43 @@ pub fn set_panel_appearance(app_handle: AppHandle, pref: String) -> Result<(), A
     Ok(())
 }
 
+/// Turns the launcher's native blur (macOS vibrancy, Windows Acrylic/Mica) on
+/// or off, for the Window opacity setting: off when surfaces are solid. A
+/// no-op on Linux, which has no native blur.
+#[tauri::command]
+pub fn set_window_glass(app_handle: AppHandle, enabled: bool) -> Result<(), AppError> {
+    let Some(window) = app_handle.get_webview_window(SPOTLIGHT_LABEL) else {
+        return Ok(());
+    };
+    #[cfg(target_os = "macos")]
+    {
+        let pref = app_handle
+            .try_state::<std::sync::Mutex<crate::ThemePreference>>()
+            .and_then(|state| state.lock().ok().map(|p| *p))
+            .unwrap_or(crate::ThemePreference::System);
+        let _ = app_handle.run_on_main_thread(move || {
+            crate::platform::macos::set_panel_vibrancy(&window, enabled, pref);
+        });
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use window_vibrancy::{apply_acrylic, apply_mica, clear_acrylic, clear_mica};
+        if enabled {
+            if apply_acrylic(&window, Some((0, 0, 0, 0))).is_err() {
+                let _ = apply_mica(&window, None);
+            }
+        } else {
+            let _ = clear_acrylic(&window);
+            let _ = clear_mica(&window);
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (window, enabled);
+    }
+    Ok(())
+}
+
 /// Shows the launcher panel using the same logic as the global-hotkey handler.
 ///
 /// Intended for use from non-command code (e.g., `onboarding::window`) that

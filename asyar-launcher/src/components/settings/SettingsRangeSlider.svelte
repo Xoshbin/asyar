@@ -6,6 +6,7 @@
     value = $bindable(),
     suffix = '',
     label,
+    disabled = false,
     onchange,
   }: {
     min: number;
@@ -15,6 +16,7 @@
     suffix?: string;
     /** Accessible name; the visible label usually sits in the parent row. */
     label?: string;
+    disabled?: boolean;
     onchange?: (value: number) => void;
   } = $props();
 
@@ -28,7 +30,16 @@
 </script>
 
 <div class="settings-range-slider">
-  <input type="range" {min} {max} {step} {value} aria-label={label} oninput={handleInput} />
+  <input
+    type="range"
+    {min}
+    {max}
+    {step}
+    {value}
+    aria-label={label}
+    {disabled}
+    oninput={handleInput}
+  />
   <span class="value-display">
     {value}{suffix}
   </span>
@@ -51,6 +62,10 @@
        this control sits inside a SettingsCard (also --bg-tertiary). */
     background: var(--bg-secondary);
     accent-color: var(--accent-primary);
+  }
+
+  input[type='range']:disabled {
+    opacity: 0.5;
   }
 
   .value-display {

@@ -7,6 +7,7 @@
     ThemePicker,
     Select,
     SettingsCard,
+    SettingsRangeSlider,
     SettingsRow,
     Toggle,
     WindowModeSelector,
@@ -14,6 +15,8 @@
   import { discoverExtensions } from '../../../lib/ipc/commands';
   import { setUiScale } from '../../../lib/ipc/windowCommands';
   import { clampUiScale, DEFAULT_UI_SCALE, UI_SCALE_OPTIONS } from '../../../lib/launcher/uiScale';
+  import { getHostPlatform } from '../../../lib/keyboard/hostPlatform';
+  import { WINDOW_OPACITY_RANGE, resolveWindowOpacity } from '../../../lib/launcher/windowOpacity';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { t } from '../../../services/i18n';
   import { logService } from '../../../services/log/logService';
@@ -31,6 +34,10 @@
     Array<{ id: string; name: string; author?: string; version: string }>
   >([]);
   let activeThemeId = $state<string | null>(null);
+  const platform = getHostPlatform();
+  const windowOpacity = $derived(
+    resolveWindowOpacity(settingsService.currentSettings.appearance, platform),
+  );
   let selectedUiScale = $state(
     clampUiScale(settingsService.currentSettings.appearance.uiScale ?? DEFAULT_UI_SCALE),
   );
@@ -183,6 +190,24 @@
         onchange={(value) => selectUiScale(Number(value))}
       />
     </SettingsRow>
+    <!-- Linux has no native blur to tune. -->
+    {#if platform !== 'other'}
+      <SettingsRow
+        label={t('settings.appearance.window_opacity')}
+        description={activeThemeId
+          ? t('settings.appearance.window_opacity_theme_hint')
+          : t('settings.appearance.window_opacity_description')}
+      >
+        <SettingsRangeSlider
+          {...WINDOW_OPACITY_RANGE}
+          value={windowOpacity}
+          suffix="%"
+          label={t('settings.appearance.window_opacity')}
+          disabled={!!activeThemeId}
+          onchange={(v) => settingsService.updateSettings('appearance', { windowOpacity: v })}
+        />
+      </SettingsRow>
+    {/if}
     <ListDensitySettings />
     {#if handler.selectedLaunchView === 'compact'}
       <SettingsRow

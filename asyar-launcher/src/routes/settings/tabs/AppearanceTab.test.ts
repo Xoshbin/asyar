@@ -57,13 +57,15 @@ vi.mock('../../../services/theme/themeService', () => ({
   removeTheme: vi.fn(),
 }));
 
+vi.mock('../../../lib/keyboard/hostPlatform', () => ({ getHostPlatform: () => 'macos' }));
+
 import AppearanceTab from './AppearanceTab.svelte';
 import type { SettingsHandler } from '../settingsHandlers.svelte';
 
-function createHandler(): SettingsHandler {
+function createHandler(activeTheme: string | null = null): SettingsHandler {
   return {
     settings: {
-      appearance: { activeTheme: null },
+      appearance: { activeTheme },
     },
     selectedTheme: 'system',
     selectedLaunchView: 'default',
@@ -126,5 +128,30 @@ describe('AppearanceTab interface size', () => {
         context: { message: 'Could not save the interface size' },
       }),
     );
+  });
+});
+
+describe('AppearanceTab window opacity', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('starts at the platform default and saves the chosen opacity', async () => {
+    render(AppearanceTab, { props: { handler: createHandler() } });
+
+    const slider = screen.getByRole('slider', { name: 'Window opacity' }) as HTMLInputElement;
+    expect(slider.value).toBe('65');
+    await fireEvent.input(slider, { target: { value: '100' } });
+
+    expect(updateSettingsMock).toHaveBeenCalledWith('appearance', { windowOpacity: 100 });
+  });
+
+  it('hands control to an active custom theme', async () => {
+    render(AppearanceTab, { props: { handler: createHandler('nord') } });
+
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('slider', { name: 'Window opacity' }) as HTMLInputElement).disabled,
+      ).toBe(true),
+    );
+    expect(screen.getByText('Set by the active theme.')).toBeTruthy();
   });
 });

@@ -47,6 +47,7 @@ import { stateChangedBridge } from './extensionState/stateChangedBridge.svelte';
 import { rpcReplyBridge } from './extensionState/rpcReplyBridge.svelte';
 import { initScanPathsSync } from './application/scanPathsSync.svelte';
 import { initVerboseLoggingSync } from './log/verboseLoggingSync.svelte';
+import { initWindowOpacitySync } from './theme/windowOpacitySync.svelte';
 import { initFileIndexConfigSync } from './fileIndex/fileIndexConfigSync.svelte';
 import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
 import { viewRegistry } from './extension/viewRegistry.svelte';
@@ -149,6 +150,7 @@ export const appInitializer = {
       // Must precede applicationService.init() — its first scan reads additionalScanPaths.
       await settingsService.init();
       initVerboseLoggingSync();
+      initWindowOpacitySync();
 
       // Application scanning should never block extension loading or app startup if
       // disk I/O is slow or an external volume takes time to respond.

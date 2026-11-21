@@ -43,6 +43,8 @@ export interface AppSettings {
     uiScale?: number;
     listDensity?: ListDensityPreset;
     customListDensity?: ListDensity;
+    /** Glass surface opacity in percent (0–100); unset keeps the platform default. */
+    windowOpacity?: number;
   };
   extensions: {
     enabled: Record<string, boolean>;
