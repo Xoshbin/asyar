@@ -134,13 +134,19 @@ describe('AppearanceTab interface size', () => {
 describe('AppearanceTab window opacity', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('starts at the platform default and saves the chosen opacity', async () => {
+  it('starts at the platform default and saves the committed opacity without spamming while dragging', async () => {
     render(AppearanceTab, { props: { handler: createHandler() } });
 
     const slider = screen.getByRole('slider', { name: 'Window opacity' }) as HTMLInputElement;
     expect(slider.value).toBe('65');
-    await fireEvent.input(slider, { target: { value: '100' } });
 
+    await fireEvent.input(slider, { target: { value: '80' } });
+    await fireEvent.input(slider, { target: { value: '90' } });
+    expect(slider.value).toBe('90');
+    expect(updateSettingsMock).not.toHaveBeenCalled();
+
+    await fireEvent.change(slider, { target: { value: '100' } });
+    expect(updateSettingsMock).toHaveBeenCalledTimes(1);
     expect(updateSettingsMock).toHaveBeenCalledWith('appearance', { windowOpacity: 100 });
   });
 

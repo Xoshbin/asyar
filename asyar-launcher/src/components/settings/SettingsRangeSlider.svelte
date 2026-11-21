@@ -8,6 +8,7 @@
     label,
     disabled = false,
     onchange,
+    oncommit,
   }: {
     min: number;
     max: number;
@@ -18,6 +19,8 @@
     label?: string;
     disabled?: boolean;
     onchange?: (value: number) => void;
+    /** Fires when the user finishes dragging or commits the value. */
+    oncommit?: (value: number) => void;
   } = $props();
 
   function handleInput(e: Event & { currentTarget: HTMLInputElement }) {
@@ -26,6 +29,12 @@
     if (onchange) {
       onchange(newValue);
     }
+  }
+
+  function handleChange(e: Event & { currentTarget: HTMLInputElement }) {
+    const newValue = parseInt(e.currentTarget.value);
+    value = newValue;
+    oncommit?.(newValue);
   }
 </script>
 
@@ -39,6 +48,7 @@
     aria-label={label}
     {disabled}
     oninput={handleInput}
+    onchange={handleChange}
   />
   <span class="value-display">
     {value}{suffix}

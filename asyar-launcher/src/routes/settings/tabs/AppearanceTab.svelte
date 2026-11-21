@@ -1,6 +1,6 @@
 <script lang="ts">
   import { emit } from '@tauri-apps/api/event';
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import {
     AppearanceThemeSelector,
     ListDensitySettings,
@@ -35,9 +35,34 @@
   >([]);
   let activeThemeId = $state<string | null>(null);
   const platform = getHostPlatform();
+  let draftOpacity = $state<number | null>(null);
+  let opacityTimer: ReturnType<typeof setTimeout> | null = null;
   const windowOpacity = $derived(
-    resolveWindowOpacity(settingsService.currentSettings.appearance, platform),
+    draftOpacity ?? resolveWindowOpacity(settingsService.currentSettings.appearance, platform),
   );
+
+  function commitWindowOpacity(value: number) {
+    if (opacityTimer !== null) {
+      clearTimeout(opacityTimer);
+      opacityTimer = null;
+    }
+    draftOpacity = null;
+    void settingsService.updateSettings('appearance', { windowOpacity: value });
+  }
+
+  function previewWindowOpacity(value: number) {
+    draftOpacity = value;
+    if (opacityTimer !== null) {
+      clearTimeout(opacityTimer);
+    }
+    opacityTimer = setTimeout(() => commitWindowOpacity(value), 150);
+  }
+
+  onDestroy(() => {
+    if (opacityTimer !== null && draftOpacity !== null) {
+      commitWindowOpacity(draftOpacity);
+    }
+  });
   let selectedUiScale = $state(
     clampUiScale(settingsService.currentSettings.appearance.uiScale ?? DEFAULT_UI_SCALE),
   );
@@ -204,7 +229,8 @@
           suffix="%"
           label={t('settings.appearance.window_opacity')}
           disabled={!!activeThemeId}
-          onchange={(v) => settingsService.updateSettings('appearance', { windowOpacity: v })}
+          onchange={previewWindowOpacity}
+          oncommit={commitWindowOpacity}
         />
       </SettingsRow>
     {/if}
