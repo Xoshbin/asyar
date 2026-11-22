@@ -97,7 +97,7 @@ pub fn open_application_path<R: tauri::Runtime>(
 ) -> Result<(), AppError> {
     #[cfg(target_os = "windows")]
     {
-        if path.starts_with("shell:AppsFolder\\") {
+        if crate::application::location::is_store_app(&path) {
             use std::process::Command;
             Command::new("explorer.exe")
                 .arg(&path)
