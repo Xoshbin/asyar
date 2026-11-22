@@ -11,8 +11,9 @@ use super::launcher_resize::{self, Crop, CroppedWindow, LauncherSurface, WindowB
 
 pub fn spotlight_collection_behavior_bits() -> u64 {
     // 1 << 0: NSWindowCollectionBehaviorCanJoinAllSpaces
+    // 1 << 3: NSWindowCollectionBehaviorTransient
     // 1 << 8: NSWindowCollectionBehaviorFullScreenAuxiliary
-    (1 << 0) | (1 << 8)
+    (1 << 0) | (1 << 3) | (1 << 8)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -912,9 +913,11 @@ mod tests {
     fn spotlight_panel_collection_behavior_joins_all_spaces() {
         let bits = spotlight_collection_behavior_bits();
         const CAN_JOIN_ALL_SPACES: u64 = 1 << 0;
+        const TRANSIENT: u64 = 1 << 3;
         const FULL_SCREEN_AUXILIARY: u64 = 1 << 8;
 
         assert!(bits & CAN_JOIN_ALL_SPACES != 0);
+        assert!(bits & TRANSIENT != 0);
         assert!(bits & FULL_SCREEN_AUXILIARY != 0);
     }
 
