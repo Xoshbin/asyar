@@ -5,6 +5,7 @@ import { invokeSafe } from '../ipc/invokeSafe';
 export interface ResolveContext {
   query?: string; // the user's search query (raw, un-encoded)
   trigger?: string; // the shortcode trigger
+  args?: Record<string, string>; // named argument values
 }
 
 export interface ResolveOptions {
@@ -54,6 +55,7 @@ export async function resolveTemplate(
         context: {
           query: context.query || null,
           trigger: context.trigger || null,
+          args: context.args ?? null,
         },
       },
       { silent: true },
@@ -63,13 +65,50 @@ export async function resolveTemplate(
   }
 
   if (options.encodeValues) {
-    // This isn't perfect for encodeValues: true, since it would encode the whole string
-    // but right now encodeValues isn't used anywhere in the codebase yet.
-    // If it is, we'll need to do it at the rust layer per-placeholder.
-    // Assuming for now options.encodeValues is handled by the caller or not used.
+    try {
+      return await invokeSafe<string>(
+        'resolve_portal_template',
+        {
+          template,
+          context: {
+            query: context.query || null,
+            trigger: context.trigger || null,
+            args: context.args ?? null,
+          },
+          encodeValues: true,
+        },
+        { silent: true },
+      );
+    } catch {
+      return resolvedTemplate;
+    }
   }
 
   return resolvedTemplate;
+}
+
+export async function resolvePortalTemplate(
+  template: string,
+  context: ResolveContext = {},
+  encodeValues = true,
+): Promise<string> {
+  try {
+    return await invokeSafe<string>(
+      'resolve_portal_template',
+      {
+        template,
+        context: {
+          query: context.query || null,
+          trigger: context.trigger || null,
+          args: context.args ?? null,
+        },
+        encodeValues,
+      },
+      { silent: true },
+    );
+  } catch {
+    return template;
+  }
 }
 
 /** True if template contains at least one known placeholder token. */

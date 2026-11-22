@@ -11,6 +11,9 @@ import {
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { portalStore } from '../portals/portalStore.svelte';
+import { openPortal, portalObjectId } from '../portals/portalLifecycle';
+import { extractPortalArguments } from '../portals/portalPlaceholders';
+import { commandArgumentsService } from '../../services/search/commandArguments';
 import { logService } from '../../services/log/logService';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { showWindow, registerItemShortcut, unregisterItemShortcut } from '../../lib/ipc/commands';
@@ -159,37 +162,33 @@ class ShortcutService {
       searchStores.query = '';
 
       if (shortcutInfo.objectId.startsWith('cmd_portals_')) {
-        const portalId = shortcutInfo.objectId.replace('cmd_portals_', '');
+        const portalId = shortcutInfo.objectId.replace(/^cmd_portals_(?:dyn_)?/, '');
         // Self-heal shortcuts orphaned by a portal deletion that predates the
         // teardown in deletePortal (or synced in from another device): firing
         // a binding whose portal is gone tears the binding down.
-        if (!portalStore.getById(portalId)) {
+        const portal = portalStore.getById(portalId);
+        if (!portal) {
           logService.warn(`Shortcut fired for deleted portal ${portalId} — unregistering`);
           await this.unregister(shortcutInfo.objectId);
           return;
         }
 
-        const provider = contextModeService.getProviderForCommand(shortcutInfo.objectId);
-        if (provider && provider.needsQuery === false) {
+        const args = extractPortalArguments(portal.url);
+        if (args.length === 0) {
           try {
-            await commandService.executeCommand(shortcutInfo.objectId);
+            await openPortal(portal);
           } catch (e) {
             logService.error(`Failed to execute portal shortcut: ${e}`);
           }
           return;
         }
 
-        // Portals with query tokens activate a chip mode instead of navigating, so there's no
-        // navigateToView for replacement semantics to piggyback on — drain
-        // the stack explicitly before seeding the chip.
+        // Portals with argument placeholders enter inline argument mode in root search.
         while (viewManager.getNavigationStackSize() > 0) {
           viewManager.goBack();
         }
-        // The activation signal is consumed by contextModeService.activate(),
-        // which resolves context PROVIDER ids — portals register theirs as
-        // `portal_<portalId>`. The raw portal id silently activates nothing.
-        contextActivationId.set(`portal_${portalId}`);
         await tick();
+        await commandArgumentsService.enter(portalObjectId(portalId));
         await showWindow();
       } else {
         try {

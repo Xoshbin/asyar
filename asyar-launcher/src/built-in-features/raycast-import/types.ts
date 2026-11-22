@@ -16,6 +16,8 @@ export interface ImportPortal {
   name: string;
   url: string;
   icon: string;
+  openWith?: string;
+  tags?: string[];
 }
 
 export type ShortcutTarget =

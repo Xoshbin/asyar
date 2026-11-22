@@ -1,19 +1,51 @@
 import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
+import { ActionContext } from 'asyar-sdk/contracts';
 import DefaultView from './DefaultView.svelte';
 import PortalForm from './PortalForm.svelte';
 import { portalStore, type Portal } from './portalStore.svelte';
-import { openUrl } from '../../lib/ipc/commands';
 import { actionService } from '../../services/action/actionService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
-import { ActionContext } from 'asyar-sdk/contracts';
-import { syncPortalToIndex, removePortalFromIndex } from './portalLifecycle';
-import { resolveTemplate } from '../../lib/placeholders';
+import { registerBuiltinDynamicDispatcher } from '../../services/extension/builtinDynamicDispatchers';
+import {
+  cleanupLegacyPortalIndexEntries,
+  clearAllPortalsFromIndex,
+  dispatchPortalCommand,
+  openPortal,
+  syncAllPortalsToIndex,
+} from './portalLifecycle';
+import { importPortalsFromJsonDialog } from './importPortalsJson';
+
+registerBuiltinDynamicDispatcher('portals', dispatchPortalCommand);
+
+export const ALL_TAGS_VALUE = '__all__';
 
 class PortalsUiState {
   selectedIndex = $state<number>(-1);
   formMode = $state<'create' | 'edit'>('create');
   editingPortal = $state<Portal | null>(null);
+  searchQuery = $state<string>('');
+  selectedTag = $state<string>(ALL_TAGS_VALUE);
+
+  filteredPortals = $derived.by(() => {
+    const q = this.searchQuery.trim().toLowerCase();
+    const tag = this.selectedTag;
+    const list = portalStore.portals.filter((p) => {
+      if (tag && tag !== ALL_TAGS_VALUE) {
+        if (!p.tags?.some((item) => item === tag)) return false;
+      }
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.url.toLowerCase().includes(q) ||
+        Boolean(p.tags?.some((item) => item.toLowerCase().includes(q)))
+      );
+    });
+
+    const pinned = list.filter((p) => p.pinned);
+    const unpinned = list.filter((p) => !p.pinned);
+    return [...pinned, ...unpinned];
+  });
 
   startCreate() {
     this.formMode = 'create';
@@ -40,24 +72,46 @@ class PortalsExtension implements Extension {
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('extensions');
-    const portals = portalStore.portals;
-    for (const portal of portals) {
-      await syncPortalToIndex(portal);
-    }
+    await cleanupLegacyPortalIndexEntries();
+    await syncAllPortalsToIndex();
   }
 
-  async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
+  async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
     if (commandId === 'open-portals') {
       this.extensionManager?.navigateToView('portals/DefaultView');
       return { type: 'view', viewPath: 'portals/DefaultView' };
     }
+    if (commandId === 'create-portal') {
+      portalsUiState.startCreate();
+      viewManager.navigateToView('portals/PortalFormView', { searchable: false });
+      return { type: 'view', viewPath: 'portals/PortalFormView' };
+    }
+    if (commandId === 'import-portals') {
+      await importPortalsFromJsonDialog();
+      return { type: 'no-view' };
+    }
     // Dynamic portal fallback
     const portal = portalStore.getById(commandId);
     if (portal) {
-      const query = args?.query ?? '';
-      const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
-      await openUrl(url);
+      await openPortal(portal, args);
       return { type: 'no-view' };
+    }
+    return undefined;
+  }
+
+  async onViewSearch(query: string): Promise<void> {
+    if (portalsUiState.searchQuery === query) return;
+    portalsUiState.searchQuery = query;
+    const list = portalsUiState.filteredPortals;
+    portalsUiState.selectedIndex = list.length > 0 ? 0 : -1;
+  }
+
+  async onViewSubmit(_query: string): Promise<void> {
+    const list = portalsUiState.filteredPortals;
+    const idx = portalsUiState.selectedIndex;
+    const portal = idx >= 0 && idx < list.length ? list[idx] : null;
+    if (portal) {
+      await openPortal(portal);
     }
   }
 
@@ -84,12 +138,14 @@ class PortalsExtension implements Extension {
     if (!viewManager.isViewInStack('portals/DefaultView')) {
       portalsUiState.clearDraft();
       portalsUiState.selectedIndex = -1;
+      portalsUiState.searchQuery = '';
+      portalsUiState.selectedTag = ALL_TAGS_VALUE;
     }
   }
 
   private handleKeydown(event: KeyboardEvent) {
     if (!this.inView) return;
-    const portals = portalStore.getAll();
+    const portals = portalsUiState.filteredPortals;
     if (!portals.length) return;
 
     if (event.key === 'ArrowDown') {
@@ -118,17 +174,28 @@ class PortalsExtension implements Extension {
         viewManager.navigateToView('portals/PortalFormView', { searchable: false });
       },
     });
+    actionService.registerAction({
+      id: 'portals:import',
+      label: t('features.portals.act.import'),
+      icon: 'icon:download',
+      description: t('features.portals.act.import_desc'),
+      category: t('categories.portals'),
+      extensionId: 'portals',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        await importPortalsFromJsonDialog();
+      },
+    });
   }
 
   private unregisterViewActions() {
     actionService.unregisterAction('portals:new-portal');
+    actionService.unregisterAction('portals:import');
   }
 
   async activate(): Promise<void> {
-    const portals = portalStore.portals;
-    for (const portal of portals) {
-      await syncPortalToIndex(portal);
-    }
+    await cleanupLegacyPortalIndexEntries();
+    await syncAllPortalsToIndex();
   }
 
   async deactivate(): Promise<void> {
@@ -139,10 +206,7 @@ class PortalsExtension implements Extension {
     this.unregisterViewActions();
     portalsUiState.clearDraft();
     portalsUiState.selectedIndex = -1;
-    const portals = portalStore.portals;
-    for (const portal of portals) {
-      await removePortalFromIndex(portal.id);
-    }
+    await clearAllPortalsFromIndex();
   }
 }
 

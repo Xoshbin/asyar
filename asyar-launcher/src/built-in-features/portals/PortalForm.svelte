@@ -1,14 +1,32 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { FormField, FormView, Input, PlaceholderPicker } from '../../components';
+  import { onDestroy, onMount } from 'svelte';
+  import { readText as readClipboardText } from 'tauri-plugin-clipboard-x-api';
+  import {
+    AppIcon,
+    FormField,
+    FormView,
+    Icon,
+    Input,
+    PlaceholderPicker,
+    SearchableSelect,
+    type SelectOption,
+  } from '../../components';
   import { portalStore, type Portal } from './portalStore.svelte';
   import { portalsUiState } from './index.svelte';
-  import { syncPortalToIndex, removePortalFromIndex } from './portalLifecycle';
-  import { fetchPlaceholders } from '../../lib/placeholders/placeholderResolver';
-  import { actionService } from '../../services/action/actionService.svelte';
+  import { syncAllPortalsToIndex } from './portalLifecycle';
+  import { tokenizePortalLink } from './portalPlaceholders';
+  import {
+    browserGetActiveTab,
+    fetchPortalFavicon,
+    listApplications,
+    portalPickPath,
+    setFocusLock,
+  } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
+  import { openUrl } from '../../lib/ipc/commands';
   import { t } from '../../services/i18n';
 
   let {
@@ -33,21 +51,130 @@
   let cancelled = false;
   onDestroy(() => {
     cancelled = true;
+    if (faviconTimer) clearTimeout(faviconTimer);
   });
 
   let name = $state('');
   let url = $state('');
-  let icon = $state('🌐');
+  let icon = $state('icon:link');
+  let openWith = $state('');
+  let tagsText = $state('');
+  let iconTouched = $state(false);
+  let iconMenuOpen = $state(false);
 
   let pickerOpen = $state(false);
-  let urlInputEl: HTMLInputElement | undefined = $state();
-  // Cursor position stored when picker was opened via `{` trigger; -1 = button-opened
+  let urlTextareaEl: HTMLTextAreaElement | undefined = $state();
   let triggerCursorPos = $state(-1);
+  let appOptions = $state<SelectOption[]>([
+    { value: '', label: t('features.portals.ui.default_app') },
+  ]);
+
+  const QUICK_ICONS = [
+    'icon:link',
+    'icon:globe',
+    'icon:search',
+    'icon:folder',
+    'icon:file-text',
+    'icon:terminal',
+    'icon:dev-tools',
+    'icon:bookmark',
+    'icon:star',
+    'icon:pin',
+  ];
+  const QUICK_EMOJIS = ['🌐', '🔗', '🔍', '📖', '🐙', '📁', '⚡', '🛠️', '📝', '🎵'];
 
   $effect(() => {
     name = resolvedPortal.name ?? '';
     url = resolvedPortal.url ?? '';
-    icon = resolvedPortal.icon ?? '🌐';
+    icon = resolvedPortal.icon ?? 'icon:link';
+    openWith = resolvedPortal.openWith ?? '';
+    tagsText = (resolvedPortal.tags ?? []).join(', ');
+    iconTouched = resolvedIsEditing && Boolean(resolvedPortal.icon);
+  });
+
+  const highlightedSegments = $derived(tokenizePortalLink(url));
+
+  let faviconTimer: ReturnType<typeof setTimeout> | null = null;
+  let faviconRequestId = 0;
+  let linkBackdropEl = $state<HTMLDivElement | null>(null);
+
+  function scheduleFaviconFetch(candidateUrl: string) {
+    if (iconTouched) return;
+    if (faviconTimer) clearTimeout(faviconTimer);
+    const trimmed = candidateUrl.trim();
+    if (!/^https?:\/\/[^/\s]+/i.test(trimmed)) return;
+
+    const reqId = ++faviconRequestId;
+    faviconTimer = setTimeout(async () => {
+      const favicon = await fetchPortalFavicon(trimmed);
+      if (
+        !cancelled &&
+        reqId === faviconRequestId &&
+        url.trim() === trimmed &&
+        favicon &&
+        !iconTouched
+      ) {
+        icon = favicon;
+      }
+    }, 450);
+  }
+
+  onMount(async () => {
+    try {
+      const apps = await listApplications();
+      const sorted = [...apps].sort((a, b) => a.name.localeCompare(b.name));
+      const opts: SelectOption[] = [{ value: '', label: t('features.portals.ui.default_app') }];
+      for (const app of sorted) {
+        opts.push({ value: app.path, label: app.name, icon: app.icon });
+      }
+      if (openWith && !opts.some((o) => o.value === openWith)) {
+        const byName = sorted.find((a) => a.name.toLowerCase() === openWith.trim().toLowerCase());
+        if (byName) {
+          openWith = byName.path;
+        } else {
+          opts.push({ value: openWith, label: openWith, icon: 'icon:app-window' });
+        }
+      }
+      appOptions = opts;
+    } catch {
+      // Keep Default option when application index is unavailable (e.g. unit tests)
+    }
+
+    // Autofill on Create: active browser tab first, then clipboard URL/path
+    if (!resolvedIsEditing && !resolvedPortal.url && !url) {
+      try {
+        const tab = await browserGetActiveTab().catch(() => null);
+        if (!cancelled && !url.trim() && tab?.url && /^https?:\/\//i.test(tab.url)) {
+          url = tab.url;
+          if (!name && tab.title) {
+            name = tab.title;
+          }
+          scheduleFaviconFetch(tab.url);
+          return;
+        }
+      } catch {
+        // Ignore browser bridge unavailability
+      }
+
+      if (cancelled || url.trim()) return;
+
+      try {
+        const clip = (await readClipboardText().catch(() => ''))?.trim() ?? '';
+        if (
+          !cancelled &&
+          !url.trim() &&
+          clip &&
+          (/^(https?:\/\/|[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)/i.test(clip) ||
+            clip.startsWith('~/') ||
+            clip.startsWith('/'))
+        ) {
+          url = clip;
+          scheduleFaviconFetch(clip);
+        }
+      } catch {
+        // Ignore clipboard errors
+      }
+    }
   });
 
   async function saveToStore(nextPortal: Portal): Promise<void> {
@@ -55,12 +182,11 @@
       if (resolvedIsEditing && resolvedPortal.id) {
         const editingId = resolvedPortal.id;
         portalStore.update(editingId, nextPortal);
-        await removePortalFromIndex(editingId);
-        await syncPortalToIndex({ ...nextPortal, id: editingId });
+        await syncAllPortalsToIndex();
       } else {
         portalStore.add(nextPortal);
-        await syncPortalToIndex(nextPortal);
-        const idx = portalStore.portals.findIndex((p) => p.id === nextPortal.id);
+        await syncAllPortalsToIndex();
+        const idx = portalsUiState.filteredPortals.findIndex((p) => p.id === nextPortal.id);
         if (idx >= 0) portalsUiState.selectedIndex = idx;
       }
     } catch (err) {
@@ -73,19 +199,33 @@
       });
     } finally {
       portalsUiState.clearDraft();
-      if (!cancelled && viewManager.activeView === 'portals/PortalFormView') viewManager.goBack();
+      if (!cancelled && viewManager.activeView === 'portals/PortalFormView') {
+        viewManager.goBack();
+      }
     }
   }
 
   async function handleSave() {
     if (!name.trim() || !url.trim()) return;
+    const tags = tagsText
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
     const nextPortal: Portal = {
       id: resolvedPortal.id ?? crypto.randomUUID(),
       name: name.trim(),
       url: url.trim(),
-      icon: icon.trim() || '🌐',
+      icon: icon.trim() || 'icon:link',
+      openWith: openWith.trim() || undefined,
+      tags: tags.length > 0 ? tags : undefined,
+      pinned: resolvedPortal.pinned,
+      hiddenInRootSearch: resolvedPortal.hiddenInRootSearch,
+      openCount: resolvedPortal.openCount,
       createdAt: resolvedPortal.createdAt ?? Date.now(),
+      updatedAt: resolvedIsEditing ? Date.now() : resolvedPortal.updatedAt,
     };
+
     if (onsave) {
       await onsave(nextPortal);
       return;
@@ -96,6 +236,10 @@
   function handleCancel() {
     if (pickerOpen) {
       closePicker();
+      return false;
+    }
+    if (iconMenuOpen) {
+      iconMenuOpen = false;
       return false;
     }
     cancelled = true;
@@ -124,60 +268,79 @@
   });
 
   function handleUrlInput(e: Event) {
-    const input = e.target as HTMLInputElement;
+    const input = e.target as HTMLTextAreaElement;
     const cursorPos = input.selectionStart ?? input.value.length;
     const charBefore = input.value[cursorPos - 1];
     if (charBefore === '{') {
       triggerCursorPos = cursorPos;
       pickerOpen = true;
     }
+    scheduleFaviconFetch(input.value);
   }
 
   function openPickerViaButton() {
-    triggerCursorPos = -1; // button-triggered — no char to replace
+    triggerCursorPos = -1;
     pickerOpen = true;
-    // Focus the input so setRangeText works correctly
-    urlInputEl?.focus();
+    urlTextareaEl?.focus();
   }
 
   function handleInsert(token: string) {
-    if (!urlInputEl) return;
-    urlInputEl.focus();
+    if (!urlTextareaEl) return;
+    urlTextareaEl.focus();
+    const insertion = token === 'query' ? '{argument}' : `{${token}}`;
 
     if (triggerCursorPos > 0) {
-      // User typed `{` to open the picker; replace the `{` with `{token}`
       const replaceStart = triggerCursorPos - 1;
       const replaceEnd = triggerCursorPos;
-      urlInputEl.setRangeText('{' + token + '}', replaceStart, replaceEnd, 'end');
+      urlTextareaEl.setRangeText(insertion, replaceStart, replaceEnd, 'end');
     } else {
-      // Button-triggered; insert at current selection
-      const start = urlInputEl.selectionStart ?? urlInputEl.value.length;
-      const end = urlInputEl.selectionEnd ?? urlInputEl.value.length;
-      urlInputEl.setRangeText('{' + token + '}', start, end, 'end');
+      const start = urlTextareaEl.selectionStart ?? urlTextareaEl.value.length;
+      const end = urlTextareaEl.selectionEnd ?? urlTextareaEl.value.length;
+      urlTextareaEl.setRangeText(insertion, start, end, 'end');
     }
 
-    // Sync Svelte state with the new input value
-    url = urlInputEl.value;
+    url = urlTextareaEl.value;
   }
 
   function closePicker() {
     pickerOpen = false;
     triggerCursorPos = -1;
-    urlInputEl?.focus();
+    urlTextareaEl?.focus();
   }
 
-  // Build the help text listing all tokens
-  let tokenList = $state('');
+  async function handleBrowsePath() {
+    await setFocusLock(true);
+    try {
+      const selected = await portalPickPath('file');
+      if (typeof selected === 'string' && selected.trim()) {
+        url = selected;
+        if (!name.trim()) {
+          name = selected.split(/[\\/]/).pop() ?? selected;
+        }
+        if (!iconTouched) {
+          icon = 'icon:file-text';
+        }
+      }
+    } finally {
+      await setFocusLock(false);
+    }
+  }
 
-  onMount(async () => {
-    const placeholders = await fetchPlaceholders();
-    tokenList = placeholders.map((p) => `{${p.token}}`).join(', ');
-  });
+  async function handleRefreshFavicon() {
+    const favicon = await fetchPortalFavicon(url.trim());
+    if (favicon) {
+      icon = favicon;
+      iconTouched = false;
+    }
+    iconMenuOpen = false;
+  }
 </script>
 
 <FormView
   actionId="portals:save"
-  submitLabel={resolvedIsEditing ? t('common.update') || 'Update' : t('common.save')}
+  submitLabel={resolvedIsEditing
+    ? t('features.portals.ui.update_portal')
+    : t('features.portals.ui.save_portal')}
   extensionId="portals"
   category={t('categories.portals')}
   submitDisabled={!name.trim() || !url.trim()}
@@ -186,98 +349,412 @@
   oncancel={handleCancel}
 >
   {#snippet header()}
-    <h2 class="form-title">{resolvedIsEditing ? 'Edit Portal' : 'New Portal'}</h2>
+    <div class="form-top-bar">
+      <h2 class="form-title">
+        {resolvedIsEditing
+          ? t('features.portals.ui.update_portal')
+          : t('features.portals.ui.create_portal')}
+      </h2>
+      <button
+        type="button"
+        class="guide-link"
+        onclick={() => void openUrl('https://docs.asyar.org')}
+      >
+        {t('features.portals.ui.guide')}
+      </button>
+    </div>
   {/snippet}
 
-  <FormField label={t('common.name')} id="portal-name">
-    <Input
-      unstyled
-      textIntent="natural"
-      id="portal-name"
-      class="field-input"
-      type="text"
-      bind:value={name}
-      placeholder={t('features.portals.placeholder_search')}
-    />
-  </FormField>
-
-  <div style="position: relative">
-    <FormField label={t('features.portals.ui.url')} id="portal-url">
-      <div class="url-input-row">
-        <Input
-          unstyled
-          textIntent="exact"
+  <div class="link-field-wrap">
+    <FormField label={t('features.portals.ui.link')} id="portal-url">
+      <div class="link-box">
+        <div bind:this={linkBackdropEl} class="link-highlight-backdrop" aria-hidden="true">
+          {#each highlightedSegments as seg}
+            <span class:token-highlight={seg.isPlaceholder}>{seg.text}</span>
+          {/each}
+          {#if url.endsWith('\n')}&nbsp;{/if}
+        </div>
+        <textarea
           id="portal-url"
-          class="field-input"
-          type="text"
+          bind:this={urlTextareaEl}
           bind:value={url}
-          bind:ref={urlInputEl}
-          placeholder="https://google.com/search?q={'{query}'}"
+          class="link-textarea custom-scrollbar"
+          rows={3}
+          spellcheck={false}
+          autocomplete="off"
+          placeholder="https://www.google.com/search?q={'{argument}'}"
           oninput={handleUrlInput}
-        />
-        <button
-          class="btn-secondary picker-toggle"
-          type="button"
-          tabindex={-1}
-          title={t('features.portals.ui.insert_placeholder')}
-          onclick={openPickerViaButton}>{'{ }'}</button
-        >
+          onscroll={() => {
+            if (linkBackdropEl && urlTextareaEl) {
+              linkBackdropEl.scrollTop = urlTextareaEl.scrollTop;
+            }
+          }}></textarea>
+        <div class="link-inline-actions">
+          <button
+            type="button"
+            class="inline-icon-btn"
+            tabindex={-1}
+            title={t('features.portals.ui.insert_placeholder')}
+            onclick={openPickerViaButton}
+          >
+            <Icon name="dev-tools" size={14} />
+          </button>
+          <button
+            type="button"
+            class="inline-icon-btn"
+            tabindex={-1}
+            title={t('features.portals.ui.choose_file_or_folder')}
+            onclick={handleBrowsePath}
+          >
+            <Icon name="folder" size={14} />
+          </button>
+        </div>
       </div>
     </FormField>
 
     {#if pickerOpen}
       <PlaceholderPicker onInsert={handleInsert} onClose={closePicker} />
     {/if}
+
+    <p class="link-helper text-caption">
+      {t('features.portals.ui.link_helper_prefix')}
+      <button type="button" class="inline-link" onclick={openPickerViaButton}>
+        {'{'}{t('features.portals.ui.link_helper_token')}{'}'}
+      </button>
+      {t('features.portals.ui.link_helper_suffix')}
+    </p>
   </div>
 
-  <FormField label={t('common.icon')} id="portal-icon">
-    <Input
-      unstyled
-      textIntent="exact"
-      id="portal-icon"
-      class="field-input"
-      type="text"
-      bind:value={icon}
-      placeholder="🌐"
-      maxlength={4}
+  <FormField label={t('features.portals.ui.name_and_icon')} id="portal-name">
+    <div class="name-icon-row">
+      <Input
+        unstyled
+        textIntent="natural"
+        id="portal-name"
+        class="name-input"
+        type="text"
+        bind:value={name}
+        placeholder={t('features.portals.ui.portal_name_placeholder')}
+      />
+      <div class="icon-picker-wrap">
+        <button
+          type="button"
+          class="icon-picker-btn"
+          title={t('features.portals.ui.choose_icon')}
+          onclick={() => (iconMenuOpen = !iconMenuOpen)}
+        >
+          <AppIcon {icon} size={16} glyphSize={14} />
+          <svg class="picker-caret" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+            <path
+              d="M1 1l4 4 4-4"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        {#if iconMenuOpen}
+          <div class="icon-popover launcher-popup" role="dialog" aria-label="Portal Icon">
+            <div class="icon-grid">
+              {#each QUICK_ICONS as qIcon}
+                <button
+                  type="button"
+                  class="icon-choice"
+                  class:selected={icon === qIcon}
+                  onclick={() => {
+                    icon = qIcon;
+                    iconTouched = true;
+                    iconMenuOpen = false;
+                  }}
+                >
+                  <AppIcon icon={qIcon} size={16} glyphSize={14} />
+                </button>
+              {/each}
+              {#each QUICK_EMOJIS as emoji}
+                <button
+                  type="button"
+                  class="icon-choice"
+                  class:selected={icon === emoji}
+                  onclick={() => {
+                    icon = emoji;
+                    iconTouched = true;
+                    iconMenuOpen = false;
+                  }}
+                >
+                  <span>{emoji}</span>
+                </button>
+              {/each}
+            </div>
+            <div class="icon-custom-row">
+              <Input
+                unstyled
+                textIntent="exact"
+                class="icon-custom-input"
+                type="text"
+                bind:value={icon}
+                oninput={() => (iconTouched = true)}
+                placeholder="Emoji or icon:name"
+              />
+              {#if /^https?:\/\//i.test(url.trim())}
+                <button
+                  type="button"
+                  class="btn-secondary favicon-btn"
+                  onclick={handleRefreshFavicon}
+                >
+                  Favicon
+                </button>
+              {/if}
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </FormField>
+
+  <FormField label={t('features.portals.ui.open_with')} id="portal-open-with">
+    <SearchableSelect
+      id="portal-open-with"
+      bind:value={openWith}
+      options={appOptions}
+      placeholder={t('features.portals.ui.default_app')}
+      filterPlaceholder="Search applications..."
     />
   </FormField>
 
-  <p class="text-caption">
-    {t('features.portals.ui.use_placeholders', { tokens: tokenList })}<br />
-    {t('features.portals.ui.browse_pre')} <code class="text-mono code-inline">{'{'}</code>
-    {t('features.portals.ui.browse_mid')} <strong>{'{ }'}</strong>
-    {t('features.portals.ui.browse_post')}
-  </p>
+  <FormField label={t('features.portals.ui.tags')} id="portal-tags">
+    <Input
+      unstyled
+      textIntent="natural"
+      id="portal-tags"
+      class="field-input"
+      type="text"
+      bind:value={tagsText}
+      placeholder={t('features.portals.ui.tags_placeholder')}
+    />
+  </FormField>
 </FormView>
 
 <style>
+  .form-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+  }
   .form-title {
     font-size: var(--font-size-lg);
     font-weight: 600;
     color: var(--text-primary);
-    margin: 0 0 var(--space-2);
+    margin: 0;
   }
-  .code-inline {
-    background: var(--bg-hover);
-    padding: var(--space-0-5) var(--space-1);
-    border-radius: var(--radius-xs);
+  .guide-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    text-decoration: underline;
+    cursor: default;
   }
-  .url-input-row {
+  .guide-link:hover {
+    color: var(--text-primary);
+  }
+  .link-field-wrap {
+    position: relative;
     display: flex;
+    flex-direction: column;
     gap: var(--space-2);
-    align-items: center;
   }
-  :global(.url-input-row .field-input) {
+  .link-box {
+    position: relative;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    min-height: calc(var(--size-xl) * 2 + var(--space-5));
+    transition: border-color var(--dur-quick) var(--ease-travel);
+  }
+  .link-box:focus-within {
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-focus);
+  }
+  .link-highlight-backdrop,
+  .link-textarea {
+    font-family: var(--font-ui);
+    font-size: var(--font-size-md);
+    line-height: 1.5;
+    padding: var(--space-3) var(--space-4) var(--space-8);
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .link-highlight-backdrop {
+    position: absolute;
+    inset: 0;
+    color: var(--text-primary);
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .token-highlight {
+    color: var(--accent-success);
+  }
+  .link-textarea {
+    position: relative;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text-primary);
+    border: none;
+    outline: none;
+    resize: none;
+    min-height: calc(var(--size-xl) * 2 + var(--space-5));
+  }
+  .link-textarea::placeholder {
+    color: var(--text-tertiary);
+  }
+  .link-inline-actions {
+    position: absolute;
+    right: var(--space-2);
+    bottom: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .inline-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--size-lg);
+    height: var(--size-lg);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: default;
+  }
+  .inline-icon-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
+  .link-helper {
+    margin: 0;
+    line-height: 1.4;
+  }
+  .inline-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent-primary);
+    font: inherit;
+    cursor: default;
+  }
+  .inline-link:hover {
+    text-decoration: underline;
+  }
+  .name-icon-row {
+    display: flex;
+    align-items: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    height: var(--size-xl);
+  }
+  .name-icon-row:focus-within {
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-focus);
+  }
+  :global(.name-icon-row .name-input) {
     flex: 1;
     min-width: 0;
-  }
-  .picker-toggle {
-    flex-shrink: 0;
-    height: var(--size-xl);
+    height: 100%;
     padding: 0 var(--space-4);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    white-space: nowrap;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    outline: none;
+  }
+  .icon-picker-wrap {
+    position: relative;
+    flex-shrink: 0;
+    height: 100%;
+    border-left: 1px solid var(--border-color);
+  }
+  .icon-picker-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 100%;
+    padding: 0 var(--space-3);
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: default;
+  }
+  .icon-picker-btn:hover {
+    color: var(--text-primary);
+  }
+  .picker-caret {
+    width: 10px;
+    height: 6px;
+    flex-shrink: 0;
+  }
+  .icon-popover {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--space-1));
+    z-index: var(--z-dropdown);
+    width: 240px;
+    padding: var(--space-3);
+    background: var(--bg-popup);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-popup);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .icon-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--space-1);
+  }
+  .icon-choice {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--size-lg);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: default;
+  }
+  .icon-choice:hover,
+  .icon-choice.selected {
+    background: var(--bg-hover);
+    border-color: var(--border-color);
+  }
+  .icon-custom-row {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+  }
+  :global(.icon-custom-input) {
+    flex: 1;
+    min-width: 0;
+    height: var(--size-lg);
+    padding: 0 var(--space-2);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-xs);
+  }
+  .favicon-btn {
+    height: var(--size-lg);
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-xs);
   }
 </style>

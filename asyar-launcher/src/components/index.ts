@@ -88,6 +88,7 @@ export { default as FormView } from './form/FormView.svelte';
 export { default as PlaceholderPicker } from './form/PlaceholderPicker.svelte';
 export { default as ModelSelector } from './form/ModelSelector.svelte';
 export { default as SearchableSelect } from './form/SearchableSelect.svelte';
+export type { SelectOption } from './form/SearchableSelect.svelte';
 
 // Onboarding
 export { default as GuidanceStep } from './onboarding/GuidanceStep.svelte';

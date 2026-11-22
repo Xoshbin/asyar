@@ -1,13 +1,16 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
   import Input from '../base/Input.svelte';
+  import AppIcon from '../base/AppIcon.svelte';
   import EmptyState from '../feedback/EmptyState.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import type { IconSource } from '../../lib/icon';
   import { t } from '../../services/i18n';
 
   export interface SelectOption {
     value: string;
     label: string;
+    icon?: IconSource;
   }
 
   let {
@@ -238,7 +241,14 @@
     onclick={() => (open ? closePopover(true) : void openPopover())}
     onkeydown={handleTriggerKeydown}
   >
-    <span class="select-label">{displayLabel}</span>
+    <span class="select-label">
+      {#if selectedOption?.icon}
+        <span class="option-icon" aria-hidden="true">
+          <AppIcon icon={selectedOption.icon} size={16} glyphSize={14} />
+        </span>
+      {/if}
+      <span class="select-label-text">{displayLabel}</span>
+    </span>
     <svg class="select-caret" viewBox="0 0 10 6" fill="none" aria-hidden="true">
       <path
         d="M1 1l4 4 4-4"
@@ -294,7 +304,14 @@
               onclick={() => selectOption(opt)}
               onmouseenter={() => (highlightedIndex = idx)}
             >
-              <span class="option-text">{opt.label}</span>
+              <span class="option-text">
+                {#if opt.icon}
+                  <span class="option-icon" aria-hidden="true">
+                    <AppIcon icon={opt.icon} size={16} glyphSize={14} />
+                  </span>
+                {/if}
+                <span class="option-text-label">{opt.label}</span>
+              </span>
               {#if opt.value === value}
                 <span class="option-check" aria-hidden="true">✓</span>
               {/if}
@@ -354,10 +371,24 @@
 
   .select-label {
     flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     min-width: 0;
+  }
+
+  .select-label-text,
+  .option-text-label {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .option-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
 
   .select-caret {
@@ -434,10 +465,10 @@
 
   .option-text {
     flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .option-check {
