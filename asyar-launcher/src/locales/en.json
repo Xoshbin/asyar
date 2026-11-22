@@ -1882,7 +1882,13 @@
         "copy_name": "Copy Name",
         "copy_link": "Copy Link",
         "hide_root": "Hide in Root Search",
-        "show_root": "Show in Root Search"
+        "show_root": "Show in Root Search",
+        "set_alias": "Add Alias",
+        "edit_alias": "Edit Alias",
+        "remove_alias": "Remove Alias",
+        "set_shortcut": "Record Hotkey",
+        "edit_shortcut": "Edit Hotkey",
+        "remove_shortcut": "Remove Shortcut"
       },
       "ui": {
         "save_failed": "Could not save portal: {error}",
@@ -1910,7 +1916,9 @@
         "guide": "Portals Guide",
         "all_tags": "All Tags",
         "last_updated": "Last Updated",
-        "opened": "Opened"
+        "opened": "Opened",
+        "alias": "Alias",
+        "hotkey": "Shortcut"
       }
     },
     "help": {

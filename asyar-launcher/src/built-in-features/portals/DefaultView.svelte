@@ -3,18 +3,34 @@
   import { writeText as writeClipboardText } from 'tauri-plugin-clipboard-x-api';
   import {
     AppIcon,
+    Badge,
     EmptyState,
     Icon,
+    KeyboardHint,
     LauncherListRow,
     MetadataList,
     Modal,
     SearchableSelect,
+    ShortcutCaptureOverlay,
     SplitListDetail,
     type SelectOption,
   } from '../../components';
+  import AliasCapture from '../aliases/AliasCapture.svelte';
+  import { aliasStore } from '../aliases/aliasStore.svelte';
+  import { aliasService } from '../aliases/aliasService';
+  import { shortcutStore, type ItemShortcut } from '../shortcuts/shortcutStore.svelte';
+  import { shortcutService } from '../shortcuts/shortcutService';
+  import { toDisplayString } from '../shortcuts/shortcutFormatter';
+  import { toResolvedIcon } from '../../lib/icon';
   import { portalStore, type Portal } from './portalStore.svelte';
   import { ALL_TAGS_VALUE, portalsUiState } from './index.svelte';
-  import { deletePortal, openPortal, syncAllPortalsToIndex } from './portalLifecycle';
+  import {
+    deletePortal,
+    openPortal,
+    portalObjectId,
+    syncAllPortalsToIndex,
+  } from './portalLifecycle';
+  import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import { tokenizePortalLink } from './portalPlaceholders';
   import { listApplications } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -35,7 +51,17 @@
   let openWithChoice = $state('');
   let appOptions = $state<SelectOption[]>([]);
 
+  let assignShortcutTarget = $state<SearchResult | null>(null);
+  let assignAliasTarget = $state<{ objectId: string; name: string; currentAlias?: string } | null>(
+    null,
+  );
+
+  const shortcutsByObjectId = $derived(
+    new Map<string, ItemShortcut>(shortcutStore.shortcuts.map((s) => [s.objectId, s])),
+  );
+
   onMount(async () => {
+    void aliasStore.refresh().catch(() => {});
     try {
       const apps = await listApplications();
       appOptions = [...apps]
@@ -115,6 +141,10 @@
     const ids = [
       'portals:open',
       'portals:open-with',
+      'portals:set-alias',
+      'portals:remove-alias',
+      'portals:set-shortcut',
+      'portals:remove-shortcut',
       'portals:edit',
       'portals:duplicate',
       'portals:pin',
@@ -127,6 +157,10 @@
       for (const id of ids) actionService.unregisterAction(id);
       return;
     }
+
+    const objId = portalObjectId(portal.id);
+    const currentAlias = aliasStore.byObjectId.get(objId);
+    const currentShortcut = shortcutsByObjectId.get(objId);
 
     actionService.registerAction({
       id: 'portals:open',
@@ -154,6 +188,76 @@
         openWithModalOpen = true;
       },
     });
+    actionService.registerAction({
+      id: 'portals:set-alias',
+      label: currentAlias
+        ? t('selection_actions.change_alias')
+        : t('selection_actions.assign_alias'),
+      icon: 'icon:tag',
+      description: t('selection_actions.assign_alias_desc'),
+      placement: 'manage',
+      extensionId: 'portals',
+      category: t('categories.portals'),
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        assignAliasTarget = { objectId: objId, name: portal.name, currentAlias };
+      },
+    });
+    if (currentAlias) {
+      actionService.registerAction({
+        id: 'portals:remove-alias',
+        title: t('features.portals.act.remove_alias'),
+        icon: 'icon:trash',
+        placement: 'manage',
+        extensionId: 'portals',
+        category: t('categories.portals'),
+        context: ActionContext.EXTENSION_VIEW,
+        execute: async () => {
+          await aliasService.unregister(currentAlias);
+          aliasStore.removeOptimistic(currentAlias);
+        },
+      });
+    } else {
+      actionService.unregisterAction('portals:remove-alias');
+    }
+    actionService.registerAction({
+      id: 'portals:set-shortcut',
+      label: currentShortcut
+        ? t('selection_actions.change_shortcut')
+        : t('selection_actions.assign_shortcut'),
+      icon: 'icon:keyboard',
+      description: t('selection_actions.assign_shortcut_desc'),
+      placement: 'manage',
+      extensionId: 'portals',
+      category: t('categories.portals'),
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        assignShortcutTarget = {
+          objectId: objId,
+          name: portal.name,
+          type: 'command',
+          score: 1,
+          tier: 1,
+          icon: toResolvedIcon(portal.icon),
+        };
+      },
+    });
+    if (currentShortcut) {
+      actionService.registerAction({
+        id: 'portals:remove-shortcut',
+        title: t('features.portals.act.remove_shortcut'),
+        icon: 'icon:trash',
+        placement: 'manage',
+        extensionId: 'portals',
+        category: t('categories.portals'),
+        context: ActionContext.EXTENSION_VIEW,
+        execute: async () => {
+          await shortcutService.unregister(objId);
+        },
+      });
+    } else {
+      actionService.unregisterAction('portals:remove-shortcut');
+    }
     actionService.registerAction({
       id: 'portals:edit',
       title: t('features.portals.action_edit'),
@@ -348,6 +452,9 @@
     emptyMessage={t('features.portals.no_portals')}
   >
     {#snippet listItem(portal, index)}
+      {@const objId = portalObjectId(portal.id)}
+      {@const rowAlias = aliasStore.byObjectId.get(objId)}
+      {@const rowShortcut = shortcutsByObjectId.get(objId)}
       <LauncherListRow
         data-index={index}
         selected={selectedIndex === index}
@@ -360,6 +467,12 @@
         {/snippet}
         {#snippet trailing()}
           <div class="row-trailing-icons">
+            {#if rowAlias}
+              <Badge text={rowAlias} variant="default" mono />
+            {/if}
+            {#if rowShortcut}
+              <KeyboardHint keys={toDisplayString(rowShortcut.shortcut)} />
+            {/if}
             {#if portal.hiddenInRootSearch}
               <span class="row-status-icon" title="Hidden in Root Search">
                 <Icon name="eye" size={13} />
@@ -380,6 +493,9 @@
         {@const segments = tokenizePortalLink(selectedPortal.url)}
         {@const openWithLabel = formatOpenWithLabel(selectedPortal.openWith)}
         {@const openCount = selectedPortal.openCount ?? 0}
+        {@const selectedObjId = portalObjectId(selectedPortal.id)}
+        {@const selectedAlias = aliasStore.byObjectId.get(selectedObjId)}
+        {@const selectedShortcut = shortcutsByObjectId.get(selectedObjId)}
         <div class="portal-detail-content custom-scrollbar">
           <p class="portal-url-preview">
             {#each segments as seg}
@@ -408,6 +524,17 @@
             ...(openWithLabel ? [{ label: 'Open With', value: openWithLabel }] : []),
             ...(selectedPortal.tags && selectedPortal.tags.length > 0
               ? [{ label: 'Tags', value: selectedPortal.tags.join(', ') }]
+              : []),
+            ...(selectedAlias
+              ? [{ label: t('features.portals.ui.alias'), value: selectedAlias }]
+              : []),
+            ...(selectedShortcut
+              ? [
+                  {
+                    label: t('features.portals.ui.hotkey'),
+                    value: toDisplayString(selectedShortcut.shortcut),
+                  },
+                ]
               : []),
             {
               label: t('features.portals.ui.created'),
@@ -471,6 +598,33 @@
       </div>
     </div>
   </Modal>
+{/if}
+
+{#if assignShortcutTarget}
+  <ShortcutCaptureOverlay
+    target={assignShortcutTarget}
+    oncapture={() => {
+      assignShortcutTarget = null;
+    }}
+    oncancel={() => {
+      assignShortcutTarget = null;
+    }}
+  />
+{/if}
+
+{#if assignAliasTarget}
+  <AliasCapture
+    objectId={assignAliasTarget.objectId}
+    itemName={assignAliasTarget.name}
+    itemType="command"
+    currentAlias={assignAliasTarget.currentAlias}
+    onsave={() => {
+      assignAliasTarget = null;
+    }}
+    oncancel={() => {
+      assignAliasTarget = null;
+    }}
+  />
 {/if}
 
 <style>
