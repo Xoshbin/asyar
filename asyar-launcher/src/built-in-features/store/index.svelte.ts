@@ -380,6 +380,7 @@ class StoreExtension implements Extension {
     if (commandId === expectedShortCommandId) {
       this.logService?.debug('[Store Extension] Browse command handler executed.');
       if (this.extensionManager) {
+        storeViewState.themesOnly = args?.filter === 'themes';
         if (args?.slug && typeof args.slug === 'string') {
           this.logService?.info(`[Store Extension] Opening detail view for slug: ${args.slug}`);
           this.viewExtensionDetail(args.slug);

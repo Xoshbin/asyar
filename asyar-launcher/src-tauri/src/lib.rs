@@ -213,6 +213,7 @@ pub mod oauth;
 pub mod ocr;
 pub mod onboarding;
 pub mod opener_scope;
+pub mod opener_service;
 pub mod permissions;
 pub mod platform;
 pub mod power;

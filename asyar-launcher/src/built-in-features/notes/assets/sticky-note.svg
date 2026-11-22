@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="rim-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.40" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15" />
+    </linearGradient>
+    <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.32" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.20" />
+    </filter>
+    <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+    <filter id="star-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur1" />
+      <feGaussianBlur stdDeviation="5" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    
+  </defs>
+
+  <!-- Squircle Base with Solid Color -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="#D97706" />
+
+  <!-- Content Glyph -->
+  <!-- Tilted Post-it Note (rotated -6 degrees around center 256, 260) -->
+  <g transform="rotate(-6 256 264)" filter="url(#card-shadow)">
+    <!-- Sticky pad sheet -->
+    <rect x="136" y="144" width="240" height="240" rx="16" fill="#FEF08A" />
+    <!-- Top sticky adhesive band -->
+    <rect x="136" y="144" width="240" height="42" rx="16" fill="#FDE047" opacity="0.6" />
+
+    <!-- Note lines -->
+    <rect x="168" y="210" width="120" height="10" rx="5" fill="#713F12" />
+    <rect x="168" y="238" width="176" height="8" rx="4" fill="#A16207" />
+    <rect x="168" y="262" width="160" height="8" rx="4" fill="#A16207" />
+    <rect x="168" y="286" width="140" height="8" rx="4" fill="#A16207" />
+
+    <!-- Dog-eared bottom corner fold -->
+    <path d="M 336 384 L 376 344 L 376 384 Z" fill="#FACC15" />
+  </g>
+
+  <!-- Red Pushpin at top center -->
+  <g filter="url(#badge-shadow)">
+    <!-- Pushpin head -->
+    <ellipse cx="256" cy="148" rx="20" ry="12" fill="#EF4444" stroke="#DC2626" stroke-width="2" />
+    <circle cx="256" cy="142" r="14" fill="#EF4444" />
+    <circle cx="252" cy="138" r="5" fill="#FCA5A5" />
+    <!-- Pin shadow point -->
+    <circle cx="256" cy="162" r="4" fill="#450A0A" opacity="0.7" />
+  </g>
+
+  <!-- 2px Specular Rim -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="none" stroke="url(#rim-gradient)" stroke-width="2" />
+</svg>

@@ -193,7 +193,7 @@ class WindowManagementExtension implements Extension {
         y: Math.round(layout.bounds.y),
       }),
       score: 0.7,
-      icon: 'icon:store',
+      icon: 'asyar-extension://window-management/assets/manage-layouts.png',
       actionPayload: { layoutId: layout.id },
     }));
   }

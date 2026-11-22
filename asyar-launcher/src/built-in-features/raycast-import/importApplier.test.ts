@@ -11,6 +11,7 @@ vi.mock('../portals/portalStore.svelte', () => ({
 }));
 vi.mock('../portals/portalLifecycle', () => ({
   syncPortalToIndex: vi.fn(async () => {}),
+  portalObjectId: (id: string) => `cmd_portals_dyn_${id}`,
 }));
 vi.mock('../shortcuts/shortcutService', () => ({
   shortcutService: { register: vi.fn(async () => ({ ok: true })) },
@@ -196,7 +197,7 @@ describe('applyBundle', () => {
     expect(summary.shortcuts).toEqual({ added: 1, skipped: 0 });
     const portal = vi.mocked(portalStore.add).mock.calls[0][0];
     expect(shortcutService.register).toHaveBeenCalledWith(
-      `cmd_portals_${portal.id}`,
+      `cmd_portals_dyn_${portal.id}`,
       'Google',
       'command',
       'Shift+Super+T',
@@ -221,7 +222,7 @@ describe('applyBundle', () => {
     expect(summary.portals).toEqual({ added: 0, skipped: 1 });
     expect(summary.shortcuts).toEqual({ added: 1, skipped: 0 });
     expect(shortcutService.register).toHaveBeenCalledWith(
-      'cmd_portals_existing-id',
+      'cmd_portals_dyn_existing-id',
       'Google',
       'command',
       'Shift+Super+T',
@@ -282,7 +283,7 @@ describe('applyBundle', () => {
     expect(summary.aliases).toEqual({ added: 1, skipped: 0 });
     const portal = vi.mocked(portalStore.add).mock.calls[0][0];
     expect(aliasService.register).toHaveBeenCalledWith(
-      `cmd_portals_${portal.id}`,
+      `cmd_portals_dyn_${portal.id}`,
       'gg',
       'Google',
       'command',

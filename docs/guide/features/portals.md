@@ -1,82 +1,92 @@
 # Portals
 
-> Save URLs as named launchers you can find by name.
+> Save URLs, file/folder paths, and deeplinks as fast, searchable shortcuts.
 
 ![A portal result in search](../../images/feature-portals-hero.png)
 _Figure: a portal result appearing in search._
 
 ## What it does
 
-Portals are named URL shortcuts you can find and open from the Asyar search bar just by typing their name. Think of them as bookmarks that live inside the launcher.
+Portals turn the websites, search engines, local folders, and app deeplinks you open every day into named shortcuts you can run directly from the Asyar search bar.
 
-A portal is made of three things: a **name** (what you search for), a **URL** (where it goes), and an **icon** (an emoji shown in the result list). The URL can be static (`https://github.com`) or dynamic — you can embed placeholders like `{query}` so that typing after the portal name fills in a search query before opening the page.
-
-Portals appear as regular search results the moment you type their name, so finding them is as fast as finding any other command.
+A portal can be a web URL (`https://github.com`), a search URL with inline arguments (`https://google.com/search?q={argument name="Query"}`), a local file or folder path (`~/Projects`), or a deeplink (`spotify://...`). Portals appear directly in root search as soon as you type their name.
 
 ## How to use it
 
 **To create a portal:**
 
-1. Open Asyar and search for **New Portal**, or type `portals` and press `Enter` to open the Portals view, then press `⌘N`.
-2. Fill in the **Name** — this is what you will search for later.
-3. Enter the **URL**. To make it dynamic, include `{query}` in the URL (for example `https://google.com/search?q={query}`). Type `{` to open the placeholder picker, or click the `{ }` button.
-4. Optionally change the **Icon** emoji.
-5. Press **Save** (`⌘S`) or click the Save button.
+1. Open Asyar, search for **Portals**, and press `Enter`, then press `⌘N` (or click **Add your first portal** when empty).
+2. Enter the **Link** — a web URL, file/folder path (click the folder button to browse), or deeplink. When creating a new portal, Asyar can autofill the link from your active browser tab or clipboard.
+3. To make the link dynamic, type `{` or click the placeholder button to insert placeholders like `{argument name="Query"}`, `{clipboard}`, `{selection}`, or `{date}`.
+4. Enter a **Name & Icon**. For `http(s)://` links, Asyar fetches the site's favicon directly from its own origin and caches it locally (or you can pick an icon/emoji).
+5. Optionally choose an **Open With** application and add comma-separated **Tags**.
+6. Press `⌘↵` to save.
 
 **To open a portal:**
 
 1. Open Asyar and start typing the portal's name.
-2. The portal appears in the search results. Press `Enter` to open it in your default browser.
-3. If the URL has a `{query}` placeholder, press `Tab` when you see the portal chip — then type your search query and press `Enter`.
+2. Static portals open immediately on `Enter`.
+3. Portals with `{argument ...}` or `{query}` placeholders show inline argument chips (up to 3, including text fields and `options="..."` dropdowns). Press `Tab` to fill them in, then press `Enter` to open.
 
-**To manage portals:**
+**To search, filter, and manage portals:**
 
-Type `portals` and press `Enter` to open the Portals view. Use `↑` / `↓` to select portals, and use `⌘K` to edit, duplicate, or delete the selected portal.
+Open **Portals** from root search:
+
+- Type in the search bar to filter by name, link, or tag.
+- Press `⌘P` to filter by tag (**All Tags** or a specific tag).
+- Pinned portals stay at the top of the list, and the detail pane shows a live link preview along with **Name**, **Link**, **Open With**, **Tags**, **Created**, **Last Updated**, and **Opened** count.
+- Press `⌘K` to open the Action Panel.
 
 ## Shortcuts & actions
 
-| Action                  | How   |
-| ----------------------- | ----- |
-| New portal (in view)    | `⌘N`  |
-| Edit portal             | `⌘E`  |
-| Duplicate portal        | `⌘D`  |
-| Delete portal (confirm) | `⌃X`  |
-| Save form               | `⌘S`  |
-| Cancel form             | `Esc` |
-| Open action panel       | `⌘K`  |
+| Action                      | How   |
+| --------------------------- | ----- |
+| Open selected portal        | `↵`   |
+| New portal (in view)        | `⌘N`  |
+| Filter by tag               | `⌘P`  |
+| Edit portal                 | `⌘E`  |
+| Duplicate portal            | `⌘D`  |
+| Pin / Unpin portal          | `⌘⇧P` |
+| Copy Name                   | `⌘⇧C` |
+| Copy Link                   | `⌘⇧L` |
+| Delete portal (confirm)     | `⌃X`  |
+| Save / Update form          | `⌘↵`  |
+| Cancel form / close popover | `Esc` |
+| Open action panel           | `⌘K`  |
 
-**Action panel (⌘K) entries inside the Portals view:**
+**Action panel (`⌘K`) entries inside the Portals view:**
 
-- **New Portal** (`⌘N`) — open the new-portal form.
-- **Edit** (`⌘E`) — edit the selected portal's name, URL, or icon.
+- **Open Portal** (`↵`) — open the selected portal with its configured app (or system default).
+- **Open With…** — choose a specific application to open the selected portal once.
+- **Edit** (`⌘E`) — edit the portal's link, name/icon, Open With app, or tags.
 - **Duplicate** (`⌘D`) — create a copy of the selected portal.
+- **Pin Portal / Unpin Portal** (`⌘⇧P`) — keep frequently used portals at the top of the list.
+- **Copy Name** (`⌘⇧C`) / **Copy Link** (`⌘⇧L`) — copy the portal's title or raw link template.
+- **Hide in Root Search / Show in Root Search** — keep a portal out of root search while keeping it accessible inside **Portals**.
+- **New Portal** (`⌘N`) — open the create-portal form.
+- **Import Portals…** — import portals from a Raycast Quicklinks `.json` export file (`name`, `link`, `openWith`, `tags`), skipping duplicates.
 - **Delete** (`⌃X`) — permanently remove the selected portal (with confirmation).
 
-## Available placeholders
+## Dynamic placeholders & modifiers
 
-When building a dynamic portal URL, press `{` or click the `{ }` button to insert any of these:
+All placeholder values inserted into a URL are automatically percent-encoded unless `| raw` is specified.
 
-| Placeholder        | What it inserts                                                           |
-| ------------------ | ------------------------------------------------------------------------- |
-| `{query}`          | The text you type after pressing `Tab` on the portal chip                 |
-| `{Selected Text}`  | Text currently selected in the frontmost app                              |
-| `{Clipboard Text}` | Current text content of the clipboard                                     |
-| `{UUID}`           | A randomly generated UUID v4                                              |
-| `{Date}`           | Today's date (supports `format="..."`, e.g. `{Date format="YYYY-MM-DD"}`) |
-| `{Time}`           | Current time (supports `format="..."`, e.g. `{Time format="HH:mm"}`)      |
-| `{Date & Time}`    | Today's date and current time (supports `format="..."`)                   |
-| `{Weekday}`        | Current day name (supports `format="..."`, e.g. `{Weekday format="EEE"}`) |
+| Placeholder                                            | What it does                                                                       |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `{argument}` / `{query}`                               | Inline text argument chip in root search                                           |
+| `{argument name="Query"}`                              | Named argument chip; reuse the same `name` to fill multiple places from one chip   |
+| `{argument name="tone" default="happy"}`               | Optional argument pre-filled with a default value                                  |
+| `{argument name="tone" options="happy, sad, neutral"}` | Dropdown argument chip with predefined choices                                     |
+| `{selection}` / `{Selected Text}`                      | Text currently selected in the frontmost app                                       |
+| `{clipboard}` / `{Clipboard Text}`                     | Current text content of the clipboard                                              |
+| `{uuid}` / `{UUID}`                                    | A randomly generated UUID v4                                                       |
+| `{date}` / `{time}` / `{datetime}` / `{day}`           | Current date/time; supports `format="..."`, `offset="+1d -2h"`, and `locale="..."` |
 
-## Tips
-
-- **Quick search portals** — set up portals for search engines you use often. For example, a GitHub issues portal with URL `https://github.com/search?q={query}&type=issues` means you can search GitHub Issues directly from Asyar.
-- **Static portals** — a URL without any placeholder opens immediately on `Enter`, no Tab step needed. Great for dashboards or frequently visited pages.
-- **Tab to activate** — for portals with `{query}`, the launcher shows a chip. Press `Tab` to set the chip, type your query, then `Enter` to open.
-- **Icons are emoji** — use any emoji as the icon. It shows up in search results to help you spot the portal at a glance.
+**Modifiers:** append `| raw`, `| uppercase`, `| lowercase`, `| trim`, `| percent-encode`, or `| json-stringify` inside any placeholder (for example `{clipboard | trim | uppercase}` or `{argument name="path" | raw}`).
 
 ## Related
 
 - [The Basics](../the-basics.md)
 - [Aliases & Shortcuts](./aliases-and-shortcuts.md)
 - [Browser Integration](./browser-integration.md)
-- [Import from Raycast](./raycast-import.md) — turn your existing quicklinks into portals instead of recreating them
+- [Import from Raycast](./raycast-import.md) — import `.rayconfig` or Quicklinks JSON files with named arguments, `openWith`, and tags preserved

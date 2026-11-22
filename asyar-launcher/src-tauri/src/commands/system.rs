@@ -294,6 +294,16 @@ pub async fn fetch_remote_icon(
 }
 
 #[tauri::command]
+pub async fn fetch_portal_favicon(
+    url: String,
+    client_pool: tauri::State<'_, crate::network::client_pool::ScopedHttpClientPool>,
+    app_handle: tauri::AppHandle,
+) -> Result<Option<String>, AppError> {
+    let cache_dir = crate::icons::remote::icon_cache_dir(&app_handle);
+    Ok(crate::icons::remote::fetch_portal_favicon(&url, &cache_dir, client_pool.inner()).await)
+}
+
+#[tauri::command]
 pub async fn ws_connect(
     request: WebSocketConnectRequest,
     registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,

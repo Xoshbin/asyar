@@ -118,9 +118,9 @@
             {#snippet leading()}
               <span class="check" class:done={item.completed}>
                 {#if item.completed}
-                  <Icon name="star" size={16} />
+                  <Icon name="star" size={12} />
                 {:else}
-                  <AppIcon icon={item.icon} size={16} />
+                  <AppIcon icon={item.icon} size={12} />
                 {/if}
               </span>
             {/snippet}
@@ -190,8 +190,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: var(--size-sm);
-    height: var(--size-sm);
+    width: var(--row-icon-optical);
+    height: var(--row-icon-optical);
     border-radius: var(--radius-full);
     border: 1px solid var(--separator);
     color: var(--text-tertiary);

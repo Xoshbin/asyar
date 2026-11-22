@@ -605,6 +605,7 @@ pub(crate) async fn build_system_prompt(
         let ctx = crate::templating::TemplateContext {
             query: query.map(|s| s.to_string()),
             trigger: trigger.map(|s| s.to_string()),
+            args: None,
         };
         let resolved = crate::templating::resolve_template(&prompt, &ctx)
             .await
@@ -622,6 +623,7 @@ pub(crate) async fn build_system_prompt(
     let final_ctx = crate::templating::TemplateContext {
         query: query.map(|s| s.to_string()),
         trigger: trigger.map(|s| s.to_string()),
+        args: None,
     };
     crate::templating::resolve_template(&joined, &final_ctx)
         .await

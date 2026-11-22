@@ -30,6 +30,7 @@ describe('Portals DefaultView', () => {
         name: 'Search Google',
         url: 'https://google.com/search?q={query}',
         icon: '🌐',
+        openCount: 3,
         createdAt: Date.now(),
       },
     ];
@@ -37,10 +38,21 @@ describe('Portals DefaultView', () => {
     render(DefaultView);
 
     expect(screen.getByText('Information')).toBeTruthy();
-    expect(screen.getByText('Command')).toBeTruthy();
-    expect(screen.getAllByText('Placeholders').length).toBeGreaterThan(0);
-    expect(screen.getByText('1 placeholder')).toBeTruthy();
+    expect(screen.getByText('Name')).toBeTruthy();
+    expect(screen.getByText('Link')).toBeTruthy();
     expect(screen.getByText('Created')).toBeTruthy();
+    expect(screen.getByText('Opened')).toBeTruthy();
+    expect(screen.getByText('3 times')).toBeTruthy();
+  });
+
+  it('renders emoji icon in the list row', () => {
+    portalStore.portals = [
+      { id: 'jira', name: 'Jira', url: 'https://jira.example.com', icon: '🚀', createdAt: 0 },
+    ];
+
+    const { container } = render(DefaultView);
+
+    expect(container.textContent).toContain('🚀');
   });
 
   it('pushes portals/PortalFormView with searchable: false when clicking empty-state CTA', async () => {

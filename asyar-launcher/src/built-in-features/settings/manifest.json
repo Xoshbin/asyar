@@ -1,7 +1,7 @@
 {
   "id": "settings",
   "name": "Settings",
-  "icon": "icon:settings",
+  "icon": "assets/icon.png",
   "version": "1.0.0",
   "lifecycle": {
     "disableable": false
@@ -13,7 +13,6 @@
     {
       "id": "open-settings",
       "name": "Settings",
-      "icon": "icon:settings",
       "description": "Open application settings",
       "mode": "background"
     }

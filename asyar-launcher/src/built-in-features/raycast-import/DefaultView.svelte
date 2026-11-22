@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { open } from '@tauri-apps/plugin-dialog';
   import { Button, Input, Toggle, EmptyState, LoadingState, Card, Icon } from '../../components';
   import { raycastImportState as state } from './raycastImportState.svelte';
-  import { setFocusLock } from '../../lib/ipc/commands';
+  import { portalPickPath, setFocusLock } from '../../lib/ipc/commands';
   import { logService } from '../../services/log/logService';
   import { actionService } from '../../services/action/actionService.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
@@ -16,12 +15,7 @@
     // CreateExtensionView's handleBrowse.
     await setFocusLock(true);
     try {
-      const selected = await open({
-        multiple: false,
-        filters: [
-          { name: t('features.raycast_import.ui.filter_name'), extensions: ['rayconfig', 'json'] },
-        ],
-      });
+      const selected = await portalPickPath('raycast');
       if (typeof selected === 'string') {
         await state.chooseFile(selected);
       }

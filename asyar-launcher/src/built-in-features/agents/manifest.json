@@ -1,7 +1,7 @@
 {
   "id": "agents",
   "name": "Agents",
-  "icon": "icon:sparkles",
+  "icon": "assets/icon.png",
   "version": "1.0.0",
   "lifecycle": {
     "disableable": true
@@ -15,7 +15,6 @@
     {
       "id": "manage-agents",
       "name": "Manage Agents",
-      "icon": "icon:sparkles",
       "description": "Open the Agents manager",
       "mode": "view",
       "component": "AgentListView"
@@ -23,7 +22,7 @@
     {
       "id": "ask",
       "name": "Ask AI",
-      "icon": "icon:ai-chat",
+      "icon": "assets/ask-ai.png",
       "description": "Ask an AI agent a question",
       "mode": "view",
       "component": "AgentChatView"

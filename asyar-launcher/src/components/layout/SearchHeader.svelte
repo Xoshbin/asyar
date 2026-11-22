@@ -3,6 +3,7 @@
   import { tick } from 'svelte';
   import { developmentBuildIndicator } from '../../lib/developmentBuild';
   import AppIcon from '../base/AppIcon.svelte';
+  import type { IconSource } from '../../lib/icon';
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import ArgumentChipRow from '../search/ArgumentChipRow.svelte';
@@ -35,6 +36,7 @@
     argumentHint = false,
     argumentHintFields = [],
     argumentCommandName = null,
+    argumentCommandIcon = null,
     onArgHintClick,
     onclick,
     oncontextDismiss,
@@ -78,6 +80,7 @@
     }[];
     /** Stands in for the query while it is empty, in placeholder grey. */
     argumentCommandName?: string | null;
+    argumentCommandIcon?: IconSource | null;
     onArgHintClick?: (fieldIdx: number) => void;
     onclick?: () => void;
     oncontextDismiss?: () => void;
@@ -379,6 +382,11 @@
             style:left="min({argHintTextW + ARG_HINT_GAP}px, calc(100% - 60px))"
             style:max-width="max(60px, calc(100% - {argHintTextW + ARG_HINT_GAP}px))"
           >
+            {#if argumentCommandIcon}
+              <span class="arg-command-icon" aria-hidden="true">
+                <AppIcon icon={argumentCommandIcon} size={18} glyphSize={15} />
+              </span>
+            {/if}
             <ArgumentChipRow
               bind:this={argRowRef}
               active={argumentMode}
@@ -398,6 +406,11 @@
             style:left="min({argHintTextW + ARG_HINT_GAP}px, calc(100% - 60px))"
             style:max-width="max(60px, calc(100% - {argHintTextW + ARG_HINT_GAP}px))"
           >
+            {#if argumentCommandIcon}
+              <span class="arg-command-icon" aria-hidden="true">
+                <AppIcon icon={argumentCommandIcon} size={18} glyphSize={15} />
+              </span>
+            {/if}
             {#each argumentHintFields.length ? argumentHintFields : FALLBACK_HINT_FIELDS as field, i}
               <CommandArgInput
                 arg={field.arg}
@@ -513,9 +526,9 @@
     letter-spacing: var(--tracking-tight);
   }
   .leading-slot {
-    /* design-ok: matches the 22px row icon so the query aligns with row titles */
-    width: 22px;
-    height: 22px;
+    /* design-ok: matches the 28px row icon so the query aligns with row titles */
+    width: 28px;
+    height: 28px;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
@@ -577,6 +590,12 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
+  }
+  .arg-command-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
   /* Click-through except on the chips themselves, so clicking the gaps still
      focuses the query. */

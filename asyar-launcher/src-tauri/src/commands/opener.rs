@@ -19,36 +19,7 @@ pub const FS_READ_PERMISSION: &str = "fs:read";
 /// Expands `~` prefix to the user's home directory.
 /// Ensures the path is absolute and exists on disk.
 pub(crate) fn resolve_path(path_str: &str) -> Result<PathBuf, AppError> {
-    let trimmed = path_str.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::Validation("Path cannot be empty".to_string()));
-    }
-
-    let path = if trimmed == "~" || trimmed.starts_with("~/") || trimmed.starts_with("~\\") {
-        let home = dirs::home_dir()
-            .ok_or_else(|| AppError::Other("Could not resolve user home directory".to_string()))?;
-        if trimmed == "~" {
-            home
-        } else {
-            home.join(&trimmed[2..])
-        }
-    } else {
-        PathBuf::from(trimmed)
-    };
-
-    if !path.is_absolute() {
-        return Err(AppError::Validation(format!(
-            "Path must be absolute: {}",
-            path_str
-        )));
-    }
-    if !path.exists() {
-        return Err(AppError::Other(format!(
-            "Path does not exist: {}",
-            path_str
-        )));
-    }
-    Ok(path)
+    crate::opener_service::resolve_existing_path(path_str)
 }
 
 #[tauri::command]
@@ -64,6 +35,26 @@ pub async fn opener_open_url<R: tauri::Runtime>(
         .opener()
         .open_url(&url, None::<&str>)
         .map_err(|e| AppError::Other(format!("OS opener failed: {}", e)))
+}
+
+/// Opens a portal link (URL, deeplink, or local file/folder path) with an
+/// optional target application (`with`).
+#[tauri::command]
+pub async fn portal_open_link(
+    app_handle: tauri::AppHandle,
+    link: String,
+    r#with: Option<String>,
+) -> Result<(), AppError> {
+    crate::opener_service::open_link(&app_handle, &link, r#with.as_deref())
+}
+
+/// Picks a local file or folder path safely across platforms and build modes.
+#[tauri::command]
+pub async fn portal_pick_path(
+    app_handle: tauri::AppHandle,
+    kind: Option<String>,
+) -> Result<Option<String>, AppError> {
+    crate::opener_service::pick_path(&app_handle, kind.as_deref().unwrap_or("file")).await
 }
 
 /// Permission + scheme gate for URLs.

@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="rim-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.40" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15" />
+    </linearGradient>
+    <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.32" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.20" />
+    </filter>
+    <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+    <filter id="star-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur1" />
+      <feGaussianBlur stdDeviation="5" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    
+  </defs>
+
+  <!-- Squircle Base with Solid Color -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="#7C3AED" />
+
+  <!-- Content Glyph -->
+  <!-- Speech Bubble Card -->
+  <g filter="url(#card-shadow)">
+    <path d="M 152 144
+             L 360 144
+             A 32 32 0 0 1 392 176
+             L 392 312
+             A 32 32 0 0 1 360 344
+             L 216 344
+             L 164 384
+             L 172 344
+             L 152 344
+             A 32 32 0 0 1 120 312
+             L 120 176
+             A 32 32 0 0 1 152 144 Z"
+          fill="#FFFFFF" />
+  </g>
+
+  <!-- Signature AI Master Spark inside Bubble -->
+  <g filter="url(#star-glow)">
+    <path d="M 256 186
+             C 256 226 234 248 194 248
+             C 234 248 256 270 256 310
+             C 256 270 278 248 318 248
+             C 278 248 256 226 256 186 Z"
+          fill="#7C3AED" />
+    <!-- Center specular node -->
+    <circle cx="256" cy="248" r="7" fill="#FDE047" />
+
+    <!-- Small satellite spark -->
+    <path d="M 326 188
+             C 326 200 318 208 306 208
+             C 318 208 326 216 326 228
+             C 326 216 334 208 346 208
+             C 334 208 326 200 326 188 Z"
+          fill="#38BDF8" />
+  </g>
+
+  <!-- 2px Specular Rim -->
+  <path d="M 32 128 C 32 57.31 57.31 32 128 32 L 384 32 C 454.69 32 480 57.31 480 128 L 480 384 C 480 454.69 454.69 480 384 480 L 128 480 C 57.31 480 32 454.69 32 384 Z" fill="none" stroke="url(#rim-gradient)" stroke-width="2" />
+</svg>

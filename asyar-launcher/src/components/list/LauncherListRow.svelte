@@ -1,6 +1,13 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import type { IconSource } from '../../lib/icon';
+  import { iconUrlExtensionId, toResolvedIcon, type IconSource } from '../../lib/icon';
+  import {
+    OPTICAL_ICON_RATIO,
+    resolveListDensity,
+    type ListDensity,
+  } from '../../lib/launcher/listDensity';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
+  import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
   import { toDisplayKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
   import AppIcon from '../base/AppIcon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
@@ -29,6 +36,7 @@
     running = false,
     leading,
     trailing,
+    density,
     ...rest
   }: {
     selected?: boolean;
@@ -69,10 +77,25 @@
     status?: ItemStatus | null;
     /** Marks an application as open: a small dot under the icon. */
     running?: boolean;
+    /** Rendered inside the row's icon box, in place of `icon`. */
     leading?: Snippet;
     trailing?: Snippet;
+    /** Overrides the user's list density setting (settings preview). */
+    density?: ListDensity;
     [key: string]: any;
   } = $props();
+
+  const d = $derived(density ?? resolveListDensity(settingsService.currentSettings.appearance));
+  const resolvedIcon = $derived(toResolvedIcon(icon));
+  const opticalSize = $derived(Math.round(d.iconSize * OPTICAL_ICON_RATIO));
+  // Built-in feature icons are full-bleed squircles, unlike padded macOS app icons.
+  const fullBleed = $derived(
+    resolvedIcon?.kind === 'glyph' ||
+      resolvedIcon?.kind === 'emoji' ||
+      (resolvedIcon?.kind === 'image' &&
+        isBuiltInFeature(iconUrlExtensionId(resolvedIcon.src) ?? '')),
+  );
+  const iconSize = $derived(fullBleed ? opticalSize : d.iconSize);
 </script>
 
 <button
@@ -81,16 +104,32 @@
   class:selected-result={selected}
   class:multi-selected-result={multiSelected}
   class:hint-row={variant === 'hint'}
+  class:two-line={d.twoLine}
+  style:--row-h="{d.rowHeight}px"
+  style:--row-icon="{d.iconSize}px"
+  style:--row-icon-optical="{opticalSize}px"
+  style:--row-gap="{d.gap}px"
+  style:--row-title="{d.titleSize}px"
   {onclick}
   {ondblclick}
   {...rest}
 >
   <div class="row-shell">
-    {#if leading}
-      {@render leading()}
-    {:else}
+    {#if leading || icon}
       <div class="row-icon">
-        <AppIcon {icon} {extensionId} size={22} glyphSize={14} emojiSize={12} tile alt={title} />
+        {#if leading}
+          {@render leading()}
+        {:else}
+          <AppIcon
+            {icon}
+            {extensionId}
+            size={iconSize}
+            glyphSize={Math.round(iconSize * 0.64)}
+            emojiSize={iconSize}
+            tile
+            alt={title}
+          />
+        {/if}
         {#if running}
           <span class="running-dot" role="img" aria-label={t('search.app_running')}></span>
         {/if}
@@ -115,7 +154,7 @@
         <span data-test="hint-chip" class="hint-chip text-mono">{subtitle}</span>
       {:else if subtitle || sourceLabel}
         <span
-          class="font-medium text-[var(--text-secondary)] truncate flex-shrink"
+          class="row-subtitle font-medium text-[var(--text-secondary)] truncate flex-shrink"
           style="font-size: var(--font-size-md)">{subtitle || sourceLabel}</span
         >
       {/if}
@@ -152,14 +191,22 @@
     font-weight: var(--font-weight-semibold);
   }
 
+  .result-item {
+    min-height: var(--row-h);
+  }
+
+  .result-title {
+    font-size: var(--row-title);
+  }
+
   .row-shell {
     display: flex;
     align-items: center;
     width: 100%;
-    gap: var(--space-5);
+    gap: var(--row-gap);
   }
 
-  /* Emoji/text icons stay small and muted, as before AppIcon. */
+  /* Emoji/text icons stay muted, as before AppIcon. */
   .row-shell :global(.app-icon-emoji) {
     color: var(--text-secondary);
   }
@@ -175,7 +222,29 @@
   .row-icon {
     position: relative;
     display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
+    width: var(--row-icon);
+    height: var(--row-icon);
+  }
+
+  /* A bare glyph from `leading` gets the optical size, muted like emoji. */
+  .row-icon > :global(svg) {
+    width: var(--row-icon-optical);
+    height: var(--row-icon-optical);
+    color: var(--text-secondary);
+  }
+
+  .two-line .row-body {
+    flex-wrap: wrap;
+    row-gap: 0;
+    padding-block: var(--space-1);
+  }
+
+  .two-line .row-subtitle {
+    order: 1;
+    flex-basis: 100%;
   }
 
   .running-dot {

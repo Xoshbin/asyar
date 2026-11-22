@@ -155,6 +155,24 @@ export async function openUrl(url: string): Promise<void> {
   await invokeSafe('plugin:opener|open_url', { url });
 }
 
+export async function portalOpenLink(link: string, withApp?: string): Promise<void> {
+  await invokeSafe('portal_open_link', { link, with: withApp ?? null });
+}
+
+export async function portalPickPath(
+  kind: 'file' | 'folder' | 'json' | 'raycast' = 'file',
+): Promise<string | null> {
+  return invokeSafe<string | null>('portal_pick_path', { kind });
+}
+
+export async function fetchPortalFavicon(url: string): Promise<string | null> {
+  try {
+    return await invokeSafe<string | null>('fetch_portal_favicon', { url }, { silent: true });
+  } catch {
+    return null;
+  }
+}
+
 /** Scheme-gated opener for router-dispatched callers
  * (`asyar:api:opener:open` → `opener_open_url`). Unlike `openUrl` above,
  * this goes through the Rust command that checks the caller's declared

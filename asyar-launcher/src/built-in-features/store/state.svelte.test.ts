@@ -115,6 +115,20 @@ describe('getInstallCount', () => {
   });
 });
 
+describe('StoreViewStateClass themesOnly', () => {
+  it('shows only themes while themesOnly is set', () => {
+    const state = new StoreViewStateClass();
+    const theme = { ...ext(4, 'Nord'), manifest: { type: 'theme' } };
+    state.setItems([...items, theme, ext(5, 'Dracula', '', 'Acme', 'Theme')]);
+
+    state.themesOnly = true;
+    expect(state.filteredItems.map((it) => it.name)).toEqual(['Nord', 'Dracula']);
+
+    state.themesOnly = false;
+    expect(state.filteredItems).toHaveLength(5);
+  });
+});
+
 describe('StoreViewStateClass category & capability filtering', () => {
   const parallelExt: ApiExtension = {
     ...ext(10, 'Parallel Search', 'Web search provider', 'Parallel', 'ai'),
