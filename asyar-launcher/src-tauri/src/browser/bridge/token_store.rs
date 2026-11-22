@@ -1,6 +1,8 @@
 use crate::browser::types::{BrowserFamily, BrowserKey};
+use crate::crypto::cipher;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub(crate) const KEYRING_SERVICE: &str = "asyar-browser-bridge";
 
@@ -12,7 +14,9 @@ pub trait SecretBackend: Send + Sync {
     fn remove(&self, account: &str) -> Result<(), String>;
 }
 
-/// Production backend: persists secrets in the OS keychain via `keyring`.
+/// Legacy OS-keychain backend via `keyring` (`asyar-browser-bridge` service).
+/// Kept for one-time migration into [`EncryptedFileBackend`] in release builds
+/// and factory-reset cleanup.
 pub struct KeyringBackend;
 
 impl SecretBackend for KeyringBackend {
@@ -35,6 +39,165 @@ impl SecretBackend for KeyringBackend {
             Err(e) => Err(e.to_string()),
         }
     }
+}
+
+/// Filename inside `app_data_dir` for encrypted browser bridge tokens.
+pub const ENCRYPTED_TOKENS_FILENAME: &str = "browser-bridge-tokens.enc";
+
+/// Primary secret backend: stores all browser bridge tokens in a single file
+/// encrypted under the app's 32-byte master key (`AES-256-GCM`).
+///
+/// This avoids creating separate OS Keychain items per browser under
+/// `"asyar-browser-bridge"` and eliminates Keychain password prompts in dev
+/// builds.
+pub struct EncryptedFileBackend {
+    path: PathBuf,
+    master_key: [u8; 32],
+    state: Mutex<Option<HashMap<String, String>>>,
+}
+
+impl EncryptedFileBackend {
+    pub fn new(path: PathBuf, master_key: [u8; 32]) -> Self {
+        Self {
+            path,
+            master_key,
+            state: Mutex::new(None),
+        }
+    }
+
+    fn load_map_locked(&self, guard: &mut Option<HashMap<String, String>>) -> Result<(), String> {
+        if guard.is_some() {
+            return Ok(());
+        }
+        let map = match std::fs::read_to_string(&self.path) {
+            Ok(contents) => {
+                let json = cipher::decrypt(contents.trim(), &self.master_key)
+                    .map_err(|e| format!("decrypt browser bridge tokens: {e}"))?;
+                serde_json::from_str::<HashMap<String, String>>(&json)
+                    .map_err(|e| format!("parse browser bridge tokens: {e}"))?
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
+            Err(e) => return Err(format!("read browser bridge tokens: {e}")),
+        };
+        *guard = Some(map);
+        Ok(())
+    }
+
+    fn persist_map(&self, map: &HashMap<String, String>) -> Result<(), String> {
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("create browser bridge tokens dir: {e}"))?;
+        }
+        let json = serde_json::to_string(map)
+            .map_err(|e| format!("serialize browser bridge tokens: {e}"))?;
+        let encrypted = cipher::encrypt(&json, &self.master_key)
+            .map_err(|e| format!("encrypt browser bridge tokens: {e}"))?;
+        write_restrictive(&self.path, &encrypted)
+    }
+
+    /// One-time migration from the legacy per-browser OS keychain entries into
+    /// this encrypted file. Runs only when `self.path` does not exist yet on
+    /// disk, and persists the file afterwards so it never probes the legacy
+    /// backend a second time.
+    pub fn migrate_from_legacy(&self, legacy: &dyn SecretBackend) {
+        if self.path.exists() {
+            return;
+        }
+        let mut migrated = HashMap::new();
+        for key in all_known_browser_keys() {
+            let account = account_for(&key);
+            match legacy.read(&account) {
+                Ok(Some(token)) => {
+                    migrated.insert(account.clone(), token);
+                    if let Err(e) = legacy.remove(&account) {
+                        log::warn!(
+                            "[browser] failed to remove legacy keychain token for {account}: {e}"
+                        );
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    log::warn!(
+                        "[browser] failed to read legacy keychain token for {account} during migration: {e}"
+                    );
+                }
+            }
+        }
+        if let Err(e) = self.persist_map(&migrated) {
+            log::warn!("[browser] failed to persist migrated bridge tokens: {e}");
+            return;
+        }
+        *self.state.lock().unwrap() = Some(migrated);
+    }
+}
+
+impl SecretBackend for EncryptedFileBackend {
+    fn read(&self, account: &str) -> Result<Option<String>, String> {
+        let mut guard = self.state.lock().unwrap();
+        self.load_map_locked(&mut guard)?;
+        Ok(guard.as_ref().and_then(|m| m.get(account).cloned()))
+    }
+
+    fn write(&self, account: &str, secret: &str) -> Result<(), String> {
+        let mut guard = self.state.lock().unwrap();
+        self.load_map_locked(&mut guard)?;
+        let map = guard.as_mut().expect("loaded above");
+        map.insert(account.to_string(), secret.to_string());
+        self.persist_map(map)
+    }
+
+    fn remove(&self, account: &str) -> Result<(), String> {
+        let mut guard = self.state.lock().unwrap();
+        self.load_map_locked(&mut guard)?;
+        let map = guard.as_mut().expect("loaded above");
+        if map.remove(account).is_some() {
+            self.persist_map(map)?;
+        }
+        Ok(())
+    }
+}
+
+fn write_restrictive(path: &Path, contents: &str) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .map_err(|e| format!("open browser bridge tokens file: {e}"))?;
+        file.write_all(contents.as_bytes())
+            .map_err(|e| format!("write browser bridge tokens file: {e}"))?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, contents).map_err(|e| format!("write browser bridge tokens file: {e}"))
+    }
+}
+
+fn all_known_browser_keys() -> Vec<BrowserKey> {
+    let mut known_keys = Vec::new();
+    for variant in crate::browser::paths::chromium_variants() {
+        known_keys.push(BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: variant.id.to_string(),
+        });
+    }
+    for variant in crate::browser::paths::firefox_variants() {
+        known_keys.push(BrowserKey {
+            family: BrowserFamily::Firefox,
+            variant: variant.id.to_string(),
+        });
+    }
+    known_keys.push(BrowserKey {
+        family: BrowserFamily::Safari,
+        variant: "safari".to_string(),
+    });
+    known_keys
 }
 
 pub trait TokenStore: Send + Sync {
@@ -82,36 +245,24 @@ impl KeyringTokenStore {
     }
 
     pub fn load_paired_from_backend(&self) {
-        let mut known_keys = Vec::new();
-
-        // 1. Chromium variants
-        for variant in crate::browser::paths::chromium_variants() {
-            known_keys.push(BrowserKey {
-                family: BrowserFamily::Chromium,
-                variant: variant.id.to_string(),
-            });
-        }
-
-        // 2. Firefox variants
-        for variant in crate::browser::paths::firefox_variants() {
-            known_keys.push(BrowserKey {
-                family: BrowserFamily::Firefox,
-                variant: variant.id.to_string(),
-            });
-        }
-
-        // 3. Safari
-        known_keys.push(BrowserKey {
-            family: BrowserFamily::Safari,
-            variant: "safari".to_string(),
-        });
-
         let mut paired = Vec::new();
         let mut cache_updates = Vec::new();
-        for key in known_keys {
-            if let Ok(Some(token)) = self.backend.read(&account_for(&key)) {
-                cache_updates.push((key.clone(), Some(token)));
-                paired.push(key);
+        for key in all_known_browser_keys() {
+            let account = account_for(&key);
+            match self.backend.read(&account) {
+                Ok(Some(token)) => {
+                    cache_updates.push((key.clone(), Some(token)));
+                    paired.push(key);
+                }
+                Ok(None) => {
+                    cache_updates.push((key, None));
+                }
+                Err(e) => {
+                    // Cache as absent so a denied/unreadable backend doesn't
+                    // get re-probed on every incoming /bridge reconnect.
+                    log::warn!("[browser] failed to read bridge token for {account}: {e}");
+                    cache_updates.push((key, None));
+                }
             }
         }
 
@@ -150,7 +301,17 @@ impl TokenStore for KeyringTokenStore {
         if let Some(cached) = self.cache.read().unwrap().get(key) {
             return Ok(cached.clone());
         }
-        let value = self.backend.read(&account_for(key))?;
+        let account = account_for(key);
+        let value = match self.backend.read(&account) {
+            Ok(v) => v,
+            Err(e) => {
+                // Cache as absent so a denied keychain prompt or transient
+                // backend failure doesn't re-trigger on every reconnect.
+                log::warn!("[browser] failed to read bridge token for {account}: {e}");
+                self.cache.write().unwrap().insert(key.clone(), None);
+                return Err(e);
+            }
+        };
         self.cache
             .write()
             .unwrap()
@@ -399,5 +560,119 @@ mod tests {
 
         store.load_paired_from_backend();
         assert_eq!(store.list_paired().unwrap(), vec![key]);
+    }
+
+    /// Fake backend that fails every `read` with an error (simulating OS
+    /// keychain denial / "Deny" click) and counts how many times `read` ran.
+    #[derive(Default)]
+    struct FailingReadBackend {
+        reads: AtomicUsize,
+    }
+    impl SecretBackend for FailingReadBackend {
+        fn read(&self, _account: &str) -> Result<Option<String>, String> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            Err("user denied keychain access".to_string())
+        }
+        fn write(&self, _account: &str, _secret: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn remove(&self, _account: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn failed_backend_read_is_cached_so_get_does_not_loop() {
+        let backend = Arc::new(FailingReadBackend::default());
+        let store = KeyringTokenStore::with_backend(backend.clone());
+
+        assert!(store.get(&key()).is_err());
+        for _ in 0..10 {
+            assert_eq!(store.get(&key()).unwrap(), None);
+        }
+        assert_eq!(
+            backend.reads.load(Ordering::SeqCst),
+            1,
+            "a denied keychain read must not be retried on every reconnect"
+        );
+    }
+
+    #[test]
+    fn load_paired_from_backend_caches_unpaired_and_error_keys() {
+        let backend = Arc::new(FailingReadBackend::default());
+        let store = KeyringTokenStore::with_backend(backend.clone());
+
+        store.load_paired_from_backend();
+        let reads_after_boot = backend.reads.load(Ordering::SeqCst);
+        assert!(reads_after_boot > 0);
+
+        assert_eq!(store.get(&key()).unwrap(), None);
+        assert_eq!(
+            backend.reads.load(Ordering::SeqCst),
+            reads_after_boot,
+            "get after load_paired_from_backend must not re-probe failed keys"
+        );
+    }
+
+    #[test]
+    fn encrypted_file_backend_roundtrips_and_encrypts_on_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(ENCRYPTED_TOKENS_FILENAME);
+        let key_bytes = [42u8; 32];
+
+        let backend = EncryptedFileBackend::new(path.clone(), key_bytes);
+        backend.write("chromium:chrome", "secret-tok-1").unwrap();
+        backend.write("firefox:firefox", "secret-tok-2").unwrap();
+
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(raw.starts_with(cipher::VERSION_PREFIX));
+        assert!(!raw.contains("secret-tok-1"));
+        assert!(!raw.contains("chromium:chrome"));
+
+        // Fresh instance with same key reads both back.
+        let reloaded = EncryptedFileBackend::new(path.clone(), key_bytes);
+        assert_eq!(
+            reloaded.read("chromium:chrome").unwrap(),
+            Some("secret-tok-1".to_string())
+        );
+        assert_eq!(
+            reloaded.read("firefox:firefox").unwrap(),
+            Some("secret-tok-2".to_string())
+        );
+        reloaded.remove("chromium:chrome").unwrap();
+
+        let reloaded_after_delete = EncryptedFileBackend::new(path.clone(), key_bytes);
+        assert_eq!(reloaded_after_delete.read("chromium:chrome").unwrap(), None);
+        assert_eq!(
+            reloaded_after_delete.read("firefox:firefox").unwrap(),
+            Some("secret-tok-2".to_string())
+        );
+
+        // Wrong master key fails decryption.
+        let wrong = EncryptedFileBackend::new(path, [99u8; 32]);
+        assert!(wrong.read("firefox:firefox").is_err());
+    }
+
+    #[test]
+    fn migrate_from_legacy_runs_once_and_cleans_up_legacy_backend() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(ENCRYPTED_TOKENS_FILENAME);
+        let legacy = CountingBackend::default();
+        legacy.write("chromium:chrome", "legacy-tok").unwrap();
+
+        let encrypted = EncryptedFileBackend::new(path.clone(), [7u8; 32]);
+        encrypted.migrate_from_legacy(&legacy);
+
+        assert!(path.exists());
+        assert_eq!(
+            encrypted.read("chromium:chrome").unwrap(),
+            Some("legacy-tok".to_string())
+        );
+        assert_eq!(legacy.read("chromium:chrome").unwrap(), None);
+
+        // Second call must not probe the legacy backend again.
+        let reads_before = legacy.reads();
+        encrypted.migrate_from_legacy(&legacy);
+        assert_eq!(legacy.reads(), reads_before);
     }
 }

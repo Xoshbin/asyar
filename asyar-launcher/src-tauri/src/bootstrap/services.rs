@@ -631,14 +631,35 @@ pub fn init_daemons(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     // Browser bridge
     {
         use crate::browser::bridge::{
-            cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
-            rate_limit::ConnectionRateLimiter, server::start_server,
-            token_store::KeyringTokenStore, BridgeState,
+            cache::TabSnapshotCache,
+            connections::CompanionRegistry,
+            pairing::PairingRegistry,
+            rate_limit::ConnectionRateLimiter,
+            server::start_server,
+            token_store::{EncryptedFileBackend, KeyringTokenStore, ENCRYPTED_TOKENS_FILENAME},
+            BridgeState,
         };
 
-        let token_store = Arc::new(KeyringTokenStore::new());
+        let app_data_dir = app
+            .handle()
+            .path()
+            .app_data_dir()
+            .expect("Failed to get app data dir");
+        let master_key = *app
+            .state::<crate::crypto::keystore::KeystoreState>()
+            .master_key();
+        let encrypted_backend = Arc::new(EncryptedFileBackend::new(
+            app_data_dir.join(ENCRYPTED_TOKENS_FILENAME),
+            master_key,
+        ));
+        let token_store = Arc::new(KeyringTokenStore::with_backend(encrypted_backend.clone()));
         let token_store_clone = token_store.clone();
         std::thread::spawn(move || {
+            #[cfg(not(debug_assertions))]
+            {
+                let legacy = crate::browser::bridge::token_store::KeyringBackend;
+                encrypted_backend.migrate_from_legacy(&legacy);
+            }
             token_store_clone.load_paired_from_backend();
         });
 
