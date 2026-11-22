@@ -95,13 +95,19 @@ impl EncryptedFileBackend {
         write_restrictive(&self.path, &encrypted)
     }
 
+    fn migration_marker_path(&self) -> PathBuf {
+        self.path.with_extension("migrated")
+    }
+
     /// One-time migration from the legacy per-browser OS keychain entries into
     /// this encrypted file. Runs under the state lock so concurrent pairings
     /// cannot be overwritten, persists the merged map before deleting legacy
-    /// entries, and writes the file even if empty so migration runs only once.
+    /// entries, and writes a completion marker only when all legacy reads
+    /// succeed so failed reads remain eligible for retry on a later launch.
     pub fn migrate_from_legacy(&self, legacy: &dyn SecretBackend) {
         let mut guard = self.state.lock().unwrap();
-        if self.path.exists() {
+        let marker = self.migration_marker_path();
+        if marker.exists() {
             return;
         }
         if let Err(e) = self.load_map_locked(&mut guard) {
@@ -110,6 +116,7 @@ impl EncryptedFileBackend {
         }
         let mut merged = guard.take().unwrap_or_default();
         let mut migrated_accounts = Vec::new();
+        let mut had_read_error = false;
         for key in all_known_browser_keys() {
             let account = account_for(&key);
             match legacy.read(&account) {
@@ -120,6 +127,7 @@ impl EncryptedFileBackend {
                 }
                 Ok(None) => {}
                 Err(e) => {
+                    had_read_error = true;
                     log::warn!(
                         "[browser] failed to read legacy keychain token during migration: {e}"
                     );
@@ -134,6 +142,11 @@ impl EncryptedFileBackend {
         for account in migrated_accounts {
             if let Err(e) = legacy.remove(&account) {
                 log::warn!("[browser] failed to remove legacy keychain token after migration: {e}");
+            }
+        }
+        if !had_read_error {
+            if let Err(e) = write_restrictive(&marker, "1") {
+                log::warn!("[browser] failed to write migration marker: {e}");
             }
         }
         *guard = Some(merged);
@@ -188,6 +201,10 @@ fn write_restrictive(path: &Path, contents: &str) -> Result<(), String> {
         .map_err(|e| format!("sync browser bridge tokens file: {e}"))?;
     tmp.persist(path)
         .map_err(|e| format!("persist browser bridge tokens file: {}", e.error))?;
+    #[cfg(unix)]
+    std::fs::File::open(parent)
+        .and_then(|dir| dir.sync_all())
+        .map_err(|e| format!("sync browser bridge tokens directory: {e}"))?;
     Ok(())
 }
 
@@ -713,5 +730,33 @@ mod tests {
             legacy.read("chromium:chrome").unwrap(),
             Some("legacy-tok".to_string())
         );
+    }
+
+    #[test]
+    fn migrate_from_legacy_retries_after_read_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(ENCRYPTED_TOKENS_FILENAME);
+        let key_bytes: [u8; 32] = rand::random();
+        let encrypted = EncryptedFileBackend::new(path.clone(), key_bytes);
+
+        // First launch: legacy read fails -> destination file exists, but no marker yet.
+        let failing = FailingReadBackend::default();
+        encrypted.migrate_from_legacy(&failing);
+        assert!(path.exists());
+
+        // Second launch: legacy access recovers -> migration retries and succeeds.
+        let legacy = CountingBackend::default();
+        legacy.write("chromium:chrome", "recovered-tok").unwrap();
+        encrypted.migrate_from_legacy(&legacy);
+        assert_eq!(
+            encrypted.read("chromium:chrome").unwrap(),
+            Some("recovered-tok".to_string())
+        );
+        assert_eq!(legacy.read("chromium:chrome").unwrap(), None);
+
+        // Third launch: marker exists -> legacy is not probed again.
+        let reads_before = legacy.reads();
+        encrypted.migrate_from_legacy(&legacy);
+        assert_eq!(legacy.reads(), reads_before);
     }
 }

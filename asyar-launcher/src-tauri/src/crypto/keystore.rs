@@ -389,15 +389,22 @@ impl KeystoreState {
 
 /// Decide which keystore to use on the current platform.
 ///
-/// In debug/dev builds (unless `ASYAR_KEYCHAIN_SERVICE` is explicitly set),
-/// always use the file-backed keystore inside `app_data_dir` so unsigned dev
-/// rebuilds never trigger OS keychain password prompts.
+/// In isolated debug/dev builds (`org.asyar.dev`, unless `ASYAR_KEYCHAIN_SERVICE`
+/// is explicitly set), use the file-backed keystore inside `app_data_dir` so
+/// unsigned dev rebuilds never trigger OS keychain password prompts while
+/// staying isolated from the release `org.asyar` directory.
 ///
-/// In release builds, macOS and Windows always use the OS-backed primary, and
-/// Linux tries the OS-backed keystore first before falling back to the
-/// file-backed keystore on `NoStorageAccess` / `PlatformFailure`.
+/// In release builds (and non-isolated debug runs sharing `org.asyar`), macOS
+/// and Windows use the OS-backed primary, and Linux tries the OS-backed
+/// keystore first before falling back to the file-backed keystore on
+/// `NoStorageAccess` / `PlatformFailure`.
 pub fn select_keystore(app_data_dir: &Path) -> Box<dyn KeyStore> {
-    if cfg!(debug_assertions) && option_env!("ASYAR_KEYCHAIN_SERVICE").is_none() {
+    let is_isolated_dev_dir =
+        app_data_dir.file_name().and_then(|n| n.to_str()) == Some("org.asyar.dev");
+    if cfg!(debug_assertions)
+        && is_isolated_dev_dir
+        && option_env!("ASYAR_KEYCHAIN_SERVICE").is_none()
+    {
         return Box::new(FileKeyStore::new(app_data_dir));
     }
 
@@ -878,15 +885,26 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    fn debug_select_keystore_uses_file_backend_by_default() {
+    fn debug_select_keystore_uses_file_backend_only_for_isolated_dev_dir() {
         if option_env!("ASYAR_KEYCHAIN_SERVICE").is_some() {
             return;
         }
         let dir = tempfile::tempdir().unwrap();
-        let store = select_keystore(dir.path());
+        let isolated = dir.path().join("org.asyar.dev");
+        let store = select_keystore(&isolated);
         assert!(
             !store.is_os_backed(),
-            "debug builds must use FileKeyStore by default to avoid OS keychain prompts"
+            "isolated dev dir (org.asyar.dev) must use FileKeyStore to avoid OS keychain prompts"
         );
+
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        {
+            let shared = dir.path().join("org.asyar");
+            let shared_store = select_keystore(&shared);
+            assert!(
+                shared_store.is_os_backed(),
+                "shared org.asyar dir must keep OS keystore to avoid conflicting with release keys"
+            );
+        }
     }
 }
