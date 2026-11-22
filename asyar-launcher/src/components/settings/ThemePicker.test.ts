@@ -10,6 +10,7 @@ vi.mock('../../lib/ipc/commands', () => ({
 }));
 
 import ThemePicker from './ThemePicker.svelte';
+import { getThemeDefinition } from '../../lib/ipc/commands';
 
 const themes = [{ id: 'nord', name: 'Nord', author: 'Arctic', version: '1.2.0' }];
 
@@ -40,5 +41,19 @@ describe('ThemePicker', () => {
 
     await fireEvent.click(screen.getByText('Get more themes'));
     expect(ongetmore).toHaveBeenCalled();
+  });
+
+  it('skips previews for themes not installed yet and can hide Get more', () => {
+    render(ThemePicker, {
+      props: {
+        themes: [{ id: 'store-theme', name: 'Store', meta: 'Installing…', installed: false }],
+        activeId: null,
+        onselect: vi.fn(),
+      },
+    });
+
+    expect(getThemeDefinition).not.toHaveBeenCalledWith('store-theme');
+    expect(screen.getByText('Installing…')).toBeTruthy();
+    expect(screen.queryByText('Get more themes')).toBeNull();
   });
 });

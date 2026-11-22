@@ -6,6 +6,7 @@
     Button,
     LoadingState,
     AppearanceThemeSelector,
+    ThemePicker,
     WindowModeSelector,
   } from '../../../components';
   import { advanceStep, fetchTopThemes } from '../stepLogic';
@@ -162,6 +163,34 @@
     }
   }
 
+  const cards = $derived(
+    themes.map((theme) => {
+      const installedId = getInstalledThemeId(theme);
+      return {
+        theme,
+        id: installedId ?? theme.manifest?.id ?? String(theme.id),
+        name: theme.name,
+        author: theme.author?.name,
+        meta: installingId === theme.id ? t('common.installing') : undefined,
+        installed: installedId !== null,
+      };
+    }),
+  );
+  const activeCardId = $derived(
+    activeThemeId === null
+      ? null
+      : (cards.find((c) => statusFor(c.theme) === 'applied')?.id ?? activeThemeId),
+  );
+
+  function selectTheme(id: string | null) {
+    if (installingId !== null || id === activeCardId) return;
+    if (id === null) return void useDefault();
+    const card = cards.find((c) => c.id === id);
+    if (!card) return;
+    if (card.installed) void apply(card.theme);
+    else void install(card.theme);
+  }
+
   const currentMode = $derived(settingsService.currentSettings.appearance.theme);
   const currentLaunchView = $derived(settingsService.currentSettings.appearance.launchView);
 
@@ -230,96 +259,9 @@
   {#if loading}
     <LoadingState message={t('common.loading')} />
   {:else}
-    <ul class="grid">
-      <li class="grid__item" class:grid__item--active={activeThemeId === null}>
-        <div
-          class="grid__tile"
-          role="button"
-          tabindex="0"
-          onclick={() => {
-            if (installingId !== null || activeThemeId === null) return;
-            void useDefault();
-          }}
-          onkeydown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              if (installingId !== null || activeThemeId === null) return;
-              void useDefault();
-            }
-          }}
-        >
-          <div class="grid__label">
-            <span class="grid__name">{t('settings.general.default_theme')}</span>
-            <span class="grid__hint">{t('settings.general.default_theme_meta')}</span>
-          </div>
-          {#if activeThemeId === null}
-            <span class="grid__status grid__status--applied">{t('settings.general.applied')}</span>
-          {:else}
-            <Button
-              class="btn-secondary"
-              onclick={(e: MouseEvent) => {
-                e.stopPropagation();
-                void useDefault();
-              }}
-              disabled={installingId !== null}
-            >
-              {t('settings.general.use_default')}
-            </Button>
-          {/if}
-        </div>
-      </li>
-
-      {#each themes as theme (theme.id)}
-        {@const status = statusFor(theme)}
-        <li class="grid__item" class:grid__item--active={status === 'applied'}>
-          <div
-            class="grid__tile"
-            role="button"
-            tabindex="0"
-            onclick={() => {
-              if (installingId !== null || status === 'applied') return;
-              if (status === 'installed') {
-                void apply(theme);
-              } else {
-                void install(theme);
-              }
-            }}
-            onkeydown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (installingId !== null || status === 'applied') return;
-                if (status === 'installed') void apply(theme);
-                else void install(theme);
-              }
-            }}
-          >
-            <div class="grid__label">
-              <span class="grid__name">{theme.name}</span>
-              {#if theme.description}
-                <span class="grid__hint" title={theme.description}>{theme.description}</span>
-              {/if}
-            </div>
-            {#if status === 'installing'}
-              <span class="grid__status">{t('common.installing')}</span>
-            {:else if status === 'applied'}
-              <span class="grid__status grid__status--applied">{t('settings.general.applied')}</span
-              >
-            {:else}
-              <Button
-                onclick={(e: MouseEvent) => {
-                  e.stopPropagation();
-                  if (status === 'installed') void apply(theme);
-                  else void install(theme);
-                }}
-                disabled={installingId !== null}
-              >
-                {status === 'installed' ? t('common.apply') : t('common.install')}
-              </Button>
-            {/if}
-          </div>
-        </li>
-      {/each}
-    </ul>
+    <div class="themes">
+      <ThemePicker themes={cards} activeId={activeCardId} onselect={selectTheme} />
+    </div>
 
     {#if themes.length === 0}
       <div class="theme-empty">
@@ -350,80 +292,8 @@
     color: var(--text-primary);
   }
 
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-3);
+  .themes {
     margin: var(--space-4) 0;
-    padding: 0;
-    list-style: none;
-  }
-  .grid__item {
-    display: flex;
-    padding: 0;
-    background: var(--bg-secondary);
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
-    transition: all var(--transition-fast);
-  }
-  .grid__item:hover {
-    background: var(--bg-hover);
-  }
-  .grid__item--active {
-    border-color: var(--asyar-brand);
-  }
-  .grid__tile {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-3);
-    width: 100%;
-    padding: var(--space-3);
-    border-radius: var(--radius-md);
-    cursor: default;
-    user-select: none;
-    outline: none;
-  }
-  .grid__item--active .grid__tile {
-    cursor: default;
-  }
-  .grid__tile:focus-visible {
-    box-shadow: var(--shadow-focus);
-  }
-  .grid__label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-0-5);
-    flex: 1 1 0%;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .grid__name {
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .grid__hint {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .grid__status {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
-  .grid__status--applied {
-    color: var(--asyar-brand);
-    font-weight: 600;
-  }
-  .grid__tile :global(.btn) {
-    flex-shrink: 0;
-    white-space: nowrap;
   }
   .theme-empty {
     display: flex;

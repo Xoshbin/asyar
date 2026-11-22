@@ -40,6 +40,7 @@ vi.mock('../../../services/theme/themeService', () => ({
 vi.mock('../../../lib/ipc/commands', () => ({
   discoverExtensions,
   listInstalledExtensions,
+  getThemeDefinition: vi.fn().mockResolvedValue({ variables: {}, fonts: [] }),
 }));
 
 const { mockSettings } = vi.hoisted(() => ({
@@ -90,6 +91,17 @@ vi.mock('../../../services/i18n', () => ({
 
 import PickTheme from './PickTheme.svelte';
 
+const radio = (name: RegExp) => screen.getByRole('radio', { name });
+const INSTALLED = [
+  {
+    manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
+    enabled: true,
+    is_built_in: false,
+    disableable: true,
+    path: '/path/to/org.asyar.catppuccin',
+  },
+];
+
 describe('PickTheme step', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -98,22 +110,22 @@ describe('PickTheme step', () => {
     listInstalledExtensions.mockResolvedValue([]);
   });
 
-  it('renders default theme tile with Applied by default', async () => {
+  it('selects the default theme card by default', async () => {
     fetchTopThemes.mockResolvedValueOnce([]);
 
     render(PickTheme);
 
     expect(await screen.findByText('Default Theme')).toBeTruthy();
     expect(screen.getByText('Built-in Asyar theme')).toBeTruthy();
-    expect(screen.getByText('Applied')).toBeTruthy();
+    expect(radio(/Default Theme/).getAttribute('aria-checked')).toBe('true');
   });
 
-  it('renders available store themes with Install buttons', async () => {
+  it('renders store themes as unselected picker cards', async () => {
     fetchTopThemes.mockResolvedValueOnce([
       {
         id: 'org.asyar.catppuccin',
         name: 'Catppuccin',
-        description: 'Soothing pastel colors',
+        author: { id: 1, name: 'Pastel Co' },
         manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
       },
     ]);
@@ -121,109 +133,66 @@ describe('PickTheme step', () => {
     render(PickTheme);
 
     expect(await screen.findByText('Catppuccin')).toBeTruthy();
-    expect(screen.getByText('Soothing pastel colors')).toBeTruthy();
-    const installBtn = screen.getByRole('button', { name: 'Install' });
-    expect(installBtn).toBeTruthy();
+    expect(screen.getByText('Pastel Co')).toBeTruthy();
+    expect(radio(/Catppuccin/).getAttribute('aria-checked')).toBe('false');
   });
 
-  it('installs and auto-applies a theme when Install is clicked', async () => {
-    const theme = {
-      id: 'org.asyar.catppuccin',
-      name: 'Catppuccin',
-      manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
-    };
-    fetchTopThemes.mockResolvedValueOnce([theme]);
-    installThemeExtension.mockImplementation(async () => {
-      discoverExtensions.mockResolvedValueOnce([
-        {
-          manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
-          enabled: true,
-          is_built_in: false,
-          disableable: true,
-          path: '/path/to/org.asyar.catppuccin',
-        },
-      ]);
-    });
-
-    render(PickTheme);
-
-    const installBtn = await screen.findByRole('button', { name: 'Install' });
-    await fireEvent.click(installBtn);
-
-    await vi.waitFor(() => {
-      expect(installThemeExtension).toHaveBeenCalledWith(theme);
-      expect(applyInstalledTheme).toHaveBeenCalledWith('org.asyar.catppuccin');
-    });
-  });
-
-  it('shows Apply button for installed themes that are not currently active', async () => {
-    const theme = {
-      id: 'org.asyar.catppuccin',
-      name: 'Catppuccin',
-      manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
-    };
-    fetchTopThemes.mockResolvedValueOnce([theme]);
-    discoverExtensions.mockResolvedValueOnce([
+  it('applies an installed theme without reinstalling it', async () => {
+    fetchTopThemes.mockResolvedValueOnce([
       {
+        id: 'org.asyar.catppuccin',
+        name: 'Catppuccin',
         manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
-        enabled: true,
-        is_built_in: false,
-        disableable: true,
-        path: '/path/to/org.asyar.catppuccin',
       },
     ]);
+    discoverExtensions.mockResolvedValue(INSTALLED);
 
     render(PickTheme);
 
-    expect(await screen.findByText('Catppuccin')).toBeTruthy();
-    const applyBtn = screen.getByRole('button', { name: 'Apply' });
-    expect(applyBtn).toBeTruthy();
+    await screen.findByText('Catppuccin');
+    await vi.waitFor(() => expect(discoverExtensions).toHaveBeenCalled());
+    await fireEvent.click(radio(/Catppuccin/));
 
-    await fireEvent.click(applyBtn);
-    expect(applyInstalledTheme).toHaveBeenCalledWith('org.asyar.catppuccin');
+    await vi.waitFor(() =>
+      expect(applyInstalledTheme).toHaveBeenCalledWith('org.asyar.catppuccin'),
+    );
+    expect(installThemeExtension).not.toHaveBeenCalled();
   });
 
-  it('shows Applied status on the active theme', async () => {
+  it('selects the active theme card', async () => {
     mockSettings.appearance.activeTheme = 'org.asyar.catppuccin';
-    const theme = {
-      id: 'org.asyar.catppuccin',
-      name: 'Catppuccin',
-      manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
-    };
-    fetchTopThemes.mockResolvedValueOnce([theme]);
-    discoverExtensions.mockResolvedValueOnce([
+    fetchTopThemes.mockResolvedValueOnce([
       {
+        id: 'org.asyar.catppuccin',
+        name: 'Catppuccin',
         manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
-        enabled: true,
-        is_built_in: false,
-        disableable: true,
-        path: '/path/to/org.asyar.catppuccin',
+      },
+    ]);
+    discoverExtensions.mockResolvedValue(INSTALLED);
+
+    render(PickTheme);
+
+    await screen.findByText('Catppuccin');
+    await vi.waitFor(() => expect(radio(/Catppuccin/).getAttribute('aria-checked')).toBe('true'));
+    expect(radio(/Default Theme/).getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('reverts to the default theme from its card', async () => {
+    mockSettings.appearance.activeTheme = 'org.asyar.catppuccin';
+    fetchTopThemes.mockResolvedValueOnce([
+      {
+        id: 'org.asyar.catppuccin',
+        name: 'Catppuccin',
+        manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
       },
     ]);
 
     render(PickTheme);
 
-    expect(await screen.findByText('Catppuccin')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Use default' })).toBeTruthy();
-    const appliedElements = screen.getAllByText('Applied');
-    expect(appliedElements.length).toBe(1);
-  });
+    await screen.findByText('Catppuccin');
+    await fireEvent.click(radio(/Default Theme/));
 
-  it('allows reverting to default theme when an active custom theme is set', async () => {
-    mockSettings.appearance.activeTheme = 'org.asyar.catppuccin';
-    const theme = {
-      id: 'org.asyar.catppuccin',
-      name: 'Catppuccin',
-      manifest: { id: 'org.asyar.catppuccin', name: 'Catppuccin', type: 'theme' },
-    };
-    fetchTopThemes.mockResolvedValueOnce([theme]);
-
-    render(PickTheme);
-
-    const useDefaultBtn = await screen.findByRole('button', { name: 'Use default' });
-    await fireEvent.click(useDefaultBtn);
-
-    expect(removeTheme).toHaveBeenCalled();
+    await vi.waitFor(() => expect(removeTheme).toHaveBeenCalled());
     expect(emitMock).toHaveBeenCalledWith('asyar:theme-changed', { themeId: null });
   });
 
@@ -249,7 +218,7 @@ describe('PickTheme step', () => {
     expect(await screen.findByText('Catppuccin')).toBeTruthy();
   });
 
-  it('installs and applies when clicking anywhere on the theme card', async () => {
+  it('installs and applies a store theme when its card is clicked', async () => {
     const theme = {
       id: 'org.asyar.catppuccin',
       name: 'Catppuccin',
