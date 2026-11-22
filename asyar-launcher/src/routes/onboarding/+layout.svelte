@@ -74,6 +74,10 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="onboarding-frame">
+  <div
+    class="onboarding-frame__spot"
+    class:onboarding-frame__spot--on={onboardingService.state?.current === 'welcome'}
+  ></div>
   <header class="onboarding-frame__header" data-tauri-drag-region>
     <button
       type="button"
@@ -121,11 +125,13 @@
       radial-gradient(ellipse 75% 65% at 80% -5%, var(--onb-lavender), transparent 70%),
       radial-gradient(ellipse 90% 55% at 60% 40%, var(--onb-violet), transparent 70%),
       radial-gradient(ellipse 30% 55% at 18% 35%, var(--onb-indigo), transparent 75%),
-      radial-gradient(ellipse 25% 30% at 0% 75%, var(--onb-indigo), transparent 75%); */
-    /* Graphite spotlight, after the app icon: a beam from the top centre that
-       fades as it falls, a bright source, and a pool of light on the floor. */
+      radial-gradient(ellipse 25% 30% at 0% 75%, var(--onb-indigo), transparent 75%);
+    --onb-spot: none; */
+    /* Graphite, with the app icon's spotlight on Welcome: a beam from the top
+       centre that fades as it falls, a bright source, and a pool of light. */
     --onb-shadow: #111113;
-    --onb-light:
+    --onb-light: radial-gradient(ellipse 90% 70% at 50% 0%, #26262b, transparent 75%);
+    --onb-spot:
       radial-gradient(ellipse 38% 7% at 50% 86%, rgb(255 255 255 / 0.12), transparent 70%),
       linear-gradient(to bottom, transparent 20%, rgb(17 17 19 / 0.75) 95%),
       conic-gradient(
@@ -135,18 +141,49 @@
         rgb(255 255 255 / 0.08) 37deg,
         transparent 46deg
       ),
-      radial-gradient(circle at 50% 0%, rgb(255 255 255 / 0.22), transparent 22%),
-      radial-gradient(ellipse 90% 70% at 50% 0%, #26262b, transparent 75%);
+      radial-gradient(circle at 50% 0%, rgb(255 255 255 / 0.22), transparent 22%);
     background-color: var(--onb-shadow);
-    background-image:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E"),
-      var(--onb-light);
-    /* Grain overlays the light; the rest blend normally. Spelled out because a
-       short list repeats across layers (enough here for 8). */
-    background-blend-mode: overlay, normal, normal, normal, normal, normal, normal, normal;
+    background-image: var(--onb-light);
     color: var(--text-primary);
     border-radius: var(--radius-xl);
     overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* Fields stay selectable so typed text can still be edited. */
+  .onboarding-frame :global(:is(input, textarea, [contenteditable='true'])) {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  /* Gradients can't interpolate, so the spotlight is its own layer that fades
+     and settles in on Welcome and out on every other step. */
+  .onboarding-frame__spot {
+    position: absolute;
+    inset: 0;
+    /* WebKit drops the parent's rounded clip while steps slide; round this layer itself. */
+    border-radius: inherit;
+    background-image: var(--onb-spot);
+    opacity: 0;
+    transform: translateY(-3%);
+    transition:
+      opacity 700ms var(--ease-emerge),
+      transform 900ms var(--ease-emerge);
+    pointer-events: none;
+  }
+  .onboarding-frame__spot--on {
+    opacity: 1;
+    transform: none;
+  }
+  /* Grain sits above both light layers so it reads the same with or without the spotlight. */
+  .onboarding-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+    pointer-events: none;
   }
 
   /* Windows: DWM paints the system backdrop (Acrylic, with Mica fallback —
@@ -170,8 +207,6 @@
     display: flex;
     justify-content: flex-end;
     padding: var(--space-3);
-    user-select: none;
-    -webkit-user-select: none;
   }
   .onboarding-frame__close {
     background: var(--bg-secondary);
@@ -192,6 +227,9 @@
     color: var(--text-primary);
   }
   .onboarding-frame__main {
+    /* Above the spotlight and grain, below the header so it stays draggable. */
+    position: relative;
+    z-index: var(--z-base);
     flex: 1;
     min-height: 0;
     display: flex;
