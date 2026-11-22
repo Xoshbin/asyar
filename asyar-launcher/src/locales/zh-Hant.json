@@ -1874,7 +1874,15 @@
       "delete_confirm_title": "刪除門戶",
       "act": {
         "new": "新增傳送門",
-        "new_desc": "新增傳送門網址捷徑"
+        "new_desc": "新增傳送門網址捷徑",
+        "open": "Open Portal",
+        "open_with": "Open With…",
+        "pin": "Pin Portal",
+        "unpin": "Unpin Portal",
+        "copy_name": "Copy Name",
+        "copy_link": "Copy Link",
+        "hide_root": "Hide in Root Search",
+        "show_root": "Show in Root Search"
       },
       "ui": {
         "save_failed": "無法儲存傳送門：{error}",
@@ -1891,7 +1899,18 @@
         "browse_mid": "或點擊",
         "browse_post": "按鈕以瀏覽所有預留位置。",
         "command": "指令",
-        "created": "建立時間"
+        "created": "建立時間",
+        "link": "Link",
+        "name_and_icon": "Name & Icon",
+        "portal_name_placeholder": "Portal name",
+        "open_with": "Open With",
+        "default_app": "Default",
+        "tags": "Tags",
+        "tags_placeholder": "Tags (comma-separated)",
+        "guide": "Portals Guide",
+        "all_tags": "All Tags",
+        "last_updated": "Last Updated",
+        "opened": "Opened"
       }
     },
     "help": {

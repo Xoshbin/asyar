@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen } from '@testing-library/svelte';
 import PortalForm from './PortalForm.svelte';
 import { portalStore } from './portalStore.svelte';
 import { portalsUiState } from './index.svelte';
@@ -18,11 +18,16 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 vi.mock('./portalLifecycle', () => ({
+  syncAllPortalsToIndex: vi.fn().mockResolvedValue(undefined),
   syncPortalToIndex: vi.fn().mockResolvedValue(undefined),
   removePortalFromIndex: vi.fn().mockResolvedValue(undefined),
+  dispatchPortalCommand: vi.fn().mockResolvedValue(undefined),
+  cleanupLegacyPortalIndexEntries: vi.fn().mockResolvedValue(undefined),
+  clearAllPortalsFromIndex: vi.fn().mockResolvedValue(undefined),
+  openPortal: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { syncPortalToIndex, removePortalFromIndex } from './portalLifecycle';
+import { syncAllPortalsToIndex } from './portalLifecycle';
 
 describe('Portals PortalFormView', () => {
   beforeEach(() => {
@@ -40,7 +45,7 @@ describe('Portals PortalFormView', () => {
     portalsUiState.startCreate();
     render(PortalForm);
 
-    expect(screen.getByText('New Portal')).toBeTruthy();
+    expect(screen.getByText('Create Portal')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /cancel/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull();
 
@@ -63,7 +68,7 @@ describe('Portals PortalFormView', () => {
 
     render(PortalForm);
 
-    expect(screen.getByText('Edit Portal')).toBeTruthy();
+    expect(screen.getByText('Update Portal')).toBeTruthy();
     expect((screen.getByLabelText(/name/i) as HTMLInputElement).value).toBe('Search Google');
 
     const saveAction = actionService.getAllActions().find((a) => a.id === 'portals:save');
@@ -73,7 +78,8 @@ describe('Portals PortalFormView', () => {
     expect(portalsUiState.formMode).toBe('create');
     expect(portalsUiState.editingPortal).toBeNull();
   });
-  it.each(['remove', 'sync'])('does not pop again after cancel during %s', async (phase) => {
+
+  it('does not pop again after cancel during syncAllPortalsToIndex', async () => {
     portalsUiState.startEdit({
       id: 'p',
       name: 'Portal',
@@ -84,9 +90,7 @@ describe('Portals PortalFormView', () => {
     const goBack = vi.spyOn(viewManager, 'goBack').mockImplementation(() => {});
     render(PortalForm);
     let resolve!: () => void;
-    vi.mocked(phase === 'remove' ? removePortalFromIndex : syncPortalToIndex).mockReturnValueOnce(
-      new Promise((r) => (resolve = r)),
-    );
+    vi.mocked(syncAllPortalsToIndex).mockReturnValueOnce(new Promise((r) => (resolve = r)));
     const pending = actionService
       .getAllActions()
       .find((a) => a.id === 'portals:save')!

@@ -1,29 +1,85 @@
 <script lang="ts">
-  import { tick } from 'svelte';
-  import { portalStore, type Portal } from './portalStore.svelte';
-  import { portalsUiState } from './index.svelte';
-  import { syncPortalToIndex, deletePortal } from './portalLifecycle';
-  import { parseUrlPlaceholders } from '../../lib/placeholders';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
+  import { writeText as writeClipboardText } from 'tauri-plugin-clipboard-x-api';
   import {
-    SplitListDetail,
-    LauncherListRow,
-    IconBox,
-    Badge,
-    MetadataList,
+    AppIcon,
     EmptyState,
+    Icon,
+    LauncherListRow,
+    MetadataList,
+    Modal,
+    SearchableSelect,
+    SplitListDetail,
+    type SelectOption,
   } from '../../components';
+  import { portalStore, type Portal } from './portalStore.svelte';
+  import { ALL_TAGS_VALUE, portalsUiState } from './index.svelte';
+  import { deletePortal, openPortal, syncAllPortalsToIndex } from './portalLifecycle';
+  import { tokenizePortalLink } from './portalPlaceholders';
+  import { listApplications } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
-  import { ActionContext } from 'asyar-sdk/contracts';
+  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { ActionContext, type SearchBarAccessoryDropdownOption } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
-  import { toResolvedIcon } from '../../lib/icon';
 
-  let portals = $derived(portalStore.portals);
+  let portals = $derived(portalsUiState.filteredPortals);
   let selectedIndex = $derived(portalsUiState.selectedIndex);
   let selectedPortal = $derived(
     selectedIndex >= 0 && selectedIndex < portals.length ? portals[selectedIndex] : null,
   );
+
+  let openWithModalOpen = $state(false);
+  let openWithTarget = $state<Portal | null>(null);
+  let openWithChoice = $state('');
+  let appOptions = $state<SelectOption[]>([]);
+
+  onMount(async () => {
+    try {
+      const apps = await listApplications();
+      appOptions = [...apps]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((a) => ({ value: a.path, label: a.name, icon: a.icon }));
+    } catch {
+      appOptions = [];
+    }
+  });
+
+  // Sync tag filter accessory in header (⌘P) without re-subscribing on tag change
+  let lastTagListKey = '';
+  $effect(() => {
+    const tags = portalStore.getAllTags();
+    const key = tags.join('\0');
+    if (key === lastTagListKey) return;
+    lastTagListKey = key;
+
+    const options: SearchBarAccessoryDropdownOption[] = [
+      { title: t('features.portals.ui.all_tags'), value: ALL_TAGS_VALUE },
+      ...tags.map((tag) => ({ title: tag, value: tag })),
+    ];
+    const currentTag = untrack(() => portalsUiState.selectedTag);
+    void searchBarAccessoryService.declare({
+      extensionId: 'portals',
+      commandId: 'open-portals',
+      options,
+      value: currentTag,
+      buttonTitle: currentTag === ALL_TAGS_VALUE ? t('features.portals.ui.all_tags') : currentTag,
+    });
+  });
+
+  onMount(() => {
+    const unsub = searchBarAccessoryService.subscribe('portals', 'open-portals', (val) => {
+      if (portalsUiState.selectedTag !== val) {
+        portalsUiState.selectedTag = val;
+        portalsUiState.selectedIndex = portalsUiState.filteredPortals.length > 0 ? 0 : -1;
+      }
+    });
+    return () => {
+      unsub();
+      searchBarAccessoryService.clear();
+    };
+  });
 
   $effect(() => {
     if (portals.length === 0) {
@@ -56,12 +112,48 @@
 
   $effect(() => {
     const portal = selectedPortal;
+    const ids = [
+      'portals:open',
+      'portals:open-with',
+      'portals:edit',
+      'portals:duplicate',
+      'portals:pin',
+      'portals:copy-name',
+      'portals:copy-link',
+      'portals:toggle-hide',
+      'portals:delete',
+    ];
     if (!portal) {
-      actionService.unregisterAction('portals:edit');
-      actionService.unregisterAction('portals:duplicate');
-      actionService.unregisterAction('portals:delete');
+      for (const id of ids) actionService.unregisterAction(id);
       return;
     }
+
+    actionService.registerAction({
+      id: 'portals:open',
+      title: t('features.portals.act.open'),
+      icon: 'icon:globe',
+      shortcut: 'Enter',
+      primary: true,
+      extensionId: 'portals',
+      category: t('categories.portals'),
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        await openPortal(portal);
+      },
+    });
+    actionService.registerAction({
+      id: 'portals:open-with',
+      title: t('features.portals.act.open_with'),
+      icon: 'icon:terminal',
+      extensionId: 'portals',
+      category: t('categories.portals'),
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        openWithTarget = portal;
+        openWithChoice = portal.openWith ?? appOptions[0]?.value ?? '';
+        openWithModalOpen = true;
+      },
+    });
     actionService.registerAction({
       id: 'portals:edit',
       title: t('features.portals.action_edit'),
@@ -87,6 +179,56 @@
       },
     });
     actionService.registerAction({
+      id: 'portals:pin',
+      title: portal.pinned ? t('features.portals.act.unpin') : t('features.portals.act.pin'),
+      icon: 'icon:pin',
+      shortcut: 'Mod+Shift+P',
+      extensionId: 'portals',
+      category: t('categories.portals'),
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        portalStore.togglePin(portal.id);
+      },
+    });
+    actionService.registerAction({
+      id: 'portals:copy-name',
+      title: t('features.portals.act.copy_name'),
+      icon: 'icon:copy',
+      shortcut: 'Mod+Shift+C',
+      extensionId: 'portals',
+      category: t('categories.portals'),
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        await writeClipboardText(portal.name);
+      },
+    });
+    actionService.registerAction({
+      id: 'portals:copy-link',
+      title: t('features.portals.act.copy_link'),
+      icon: 'icon:link',
+      shortcut: 'Mod+Shift+L',
+      extensionId: 'portals',
+      category: t('categories.portals'),
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        await writeClipboardText(portal.url);
+      },
+    });
+    actionService.registerAction({
+      id: 'portals:toggle-hide',
+      title: portal.hiddenInRootSearch
+        ? t('features.portals.act.show_root')
+        : t('features.portals.act.hide_root'),
+      icon: 'icon:eye',
+      extensionId: 'portals',
+      category: t('categories.portals'),
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        portalStore.toggleHiddenInRootSearch(portal.id);
+        await syncAllPortalsToIndex();
+      },
+    });
+    actionService.registerAction({
       id: 'portals:delete',
       label: t('features.portals.action_delete'),
       icon: 'icon:trash',
@@ -100,18 +242,32 @@
         await handleDelete(portal);
       },
     });
+
     return () => {
-      actionService.unregisterAction('portals:edit');
-      actionService.unregisterAction('portals:duplicate');
-      actionService.unregisterAction('portals:delete');
+      for (const id of ids) actionService.unregisterAction(id);
     };
   });
 
-  const dateFormat = new Intl.DateTimeFormat('en-US', {
-    month: 'long',
+  const dateTimeFormat = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
     day: 'numeric',
     year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
   });
+
+  function formatOpenWithLabel(openWith?: string): string | undefined {
+    if (!openWith) return undefined;
+    const match = appOptions.find((a) => a.value === openWith);
+    if (match) return match.label;
+    return (
+      openWith
+        .split(/[\\/]/)
+        .pop()
+        ?.replace(/\.app$/i, '') ?? openWith
+    );
+  }
 
   function startCreate() {
     portalsUiState.startCreate();
@@ -148,12 +304,14 @@
     const dup: Portal = {
       ...portal,
       id: crypto.randomUUID(),
-      name: portal.name + ' Copy',
+      name: `${portal.name} Copy`,
+      openCount: 0,
       createdAt: Date.now(),
+      updatedAt: undefined,
     };
     portalStore.add(dup);
     try {
-      await syncPortalToIndex(dup);
+      await syncAllPortalsToIndex();
     } catch (err) {
       feedbackService.report({
         source: 'frontend',
@@ -164,8 +322,18 @@
       });
     }
     await tick();
-    const idx = portalStore.portals.findIndex((p) => p.id === dup.id);
+    const idx = portalsUiState.filteredPortals.findIndex((p) => p.id === dup.id);
     if (idx >= 0) portalsUiState.selectedIndex = idx;
+  }
+
+  async function confirmOpenWith() {
+    const target = openWithTarget;
+    const app = openWithChoice;
+    openWithModalOpen = false;
+    openWithTarget = null;
+    if (target) {
+      await openPortal(target, undefined, app || undefined);
+    }
   }
 </script>
 
@@ -180,66 +348,82 @@
     emptyMessage={t('features.portals.no_portals')}
   >
     {#snippet listItem(portal, index)}
-      {#snippet textIcon()}
-        <span class="portal-text-icon">{portal.icon}</span>
-      {/snippet}
       <LauncherListRow
         data-index={index}
         selected={selectedIndex === index}
         title={portal.name}
-        subtitle={portal.url}
-        icon={portal.icon}
-        leading={portal.icon && !toResolvedIcon(portal.icon) ? textIcon : undefined}
         onclick={() => (portalsUiState.selectedIndex = index)}
-      />
+        ondblclick={() => void openPortal(portal)}
+      >
+        {#snippet leading()}
+          <AppIcon icon={portal.icon} size={18} glyphSize={15} />
+        {/snippet}
+        {#snippet trailing()}
+          <div class="row-trailing-icons">
+            {#if portal.hiddenInRootSearch}
+              <span class="row-status-icon" title="Hidden in Root Search">
+                <Icon name="eye" size={13} />
+              </span>
+            {/if}
+            {#if portal.pinned}
+              <span class="row-status-icon" title="Pinned">
+                <Icon name="pin" size={13} />
+              </span>
+            {/if}
+          </div>
+        {/snippet}
+      </LauncherListRow>
     {/snippet}
 
     {#snippet detail()}
       {#if selectedPortal}
-        {@const tokens = parseUrlPlaceholders(selectedPortal.url)}
+        {@const segments = tokenizePortalLink(selectedPortal.url)}
+        {@const openWithLabel = formatOpenWithLabel(selectedPortal.openWith)}
+        {@const openCount = selectedPortal.openCount ?? 0}
         <div class="portal-detail-content custom-scrollbar">
-          <div class="detail-header">
-            <div class="detail-title-row">
-              <IconBox size="lg">
-                {#snippet content()}
-                  {selectedPortal.icon}
-                {/snippet}
-              </IconBox>
-              <h2 class="portal-name">{selectedPortal.name}</h2>
-            </div>
-          </div>
-
-          <div class="field-group">
-            <div class="field-label">{t('features.portals.ui.url')}</div>
-            <pre class="portal-url">{selectedPortal.url}</pre>
-          </div>
-
-          {#if tokens.length > 0}
-            <div class="field-group">
-              <div class="field-label">{t('features.portals.ui.placeholders')}</div>
-              <div class="placeholder-row">
-                {#each tokens as token}
-                  <Badge text={token} variant="default" mono />
-                {/each}
-              </div>
-            </div>
-          {/if}
+          <p class="portal-url-preview">
+            {#each segments as seg}
+              {#if seg.isArgument}
+                <span class="preview-arg-slot">_</span>
+              {:else if seg.isPlaceholder}
+                <span class="preview-placeholder">{seg.text}</span>
+              {:else}
+                {seg.text}
+              {/if}
+            {/each}
+          </p>
         </div>
         <MetadataList
           title={t('common.information')}
           items={[
             {
-              label: t('features.portals.ui.command'),
+              label: t('common.name'),
               value: selectedPortal.name,
-              title: `cmd_portals_${selectedPortal.id}`,
             },
             {
-              label: t('features.portals.ui.placeholders'),
-              value: `${tokens.length} placeholder${tokens.length === 1 ? '' : 's'}`,
+              label: 'Link',
+              value: selectedPortal.url,
+              title: selectedPortal.url,
             },
+            ...(openWithLabel ? [{ label: 'Open With', value: openWithLabel }] : []),
+            ...(selectedPortal.tags && selectedPortal.tags.length > 0
+              ? [{ label: 'Tags', value: selectedPortal.tags.join(', ') }]
+              : []),
             {
               label: t('features.portals.ui.created'),
-              value: dateFormat.format(selectedPortal.createdAt),
+              value: dateTimeFormat.format(selectedPortal.createdAt),
+            },
+            ...(selectedPortal.updatedAt
+              ? [
+                  {
+                    label: 'Last Updated',
+                    value: dateTimeFormat.format(selectedPortal.updatedAt),
+                  },
+                ]
+              : []),
+            {
+              label: 'Opened',
+              value: `${openCount} ${openCount === 1 ? 'time' : 'times'}`,
             },
           ]}
         />
@@ -253,19 +437,12 @@
             : t('features.portals.select_portal_description')}
         >
           {#snippet icon()}
-            <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-              />
-            </svg>
+            <Icon name="link" size={48} />
           {/snippet}
           {#if portals.length === 0}
-            <button class="btn-primary mt-4" onclick={startCreate}
-              >{t('features.portals.ui.add_first')}</button
-            >
+            <button class="btn-primary mt-4" onclick={startCreate}>
+              {t('features.portals.ui.add_first')}
+            </button>
           {/if}
         </EmptyState>
       {/if}
@@ -273,67 +450,73 @@
   </SplitListDetail>
 </div>
 
-<style>
-  /* Free-text icons the resolver doesn't understand still show, as before. */
-  .portal-text-icon {
-    overflow: hidden;
-    color: var(--text-secondary);
-    font-size: var(--font-size-md);
-    white-space: nowrap;
-  }
+{#if openWithModalOpen && openWithTarget}
+  <Modal
+    bind:isOpen={openWithModalOpen}
+    title="Open With…"
+    onEscape={() => (openWithModalOpen = false)}
+  >
+    <div class="open-with-modal-body">
+      <SearchableSelect
+        bind:value={openWithChoice}
+        options={appOptions}
+        placeholder="Choose application…"
+        filterPlaceholder="Search applications..."
+      />
+      <div class="open-with-modal-actions">
+        <button type="button" class="btn-secondary" onclick={() => (openWithModalOpen = false)}>
+          {t('common.cancel')}
+        </button>
+        <button type="button" class="btn-primary" onclick={confirmOpenWith}> Open Portal </button>
+      </div>
+    </div>
+  </Modal>
+{/if}
 
+<style>
   .portal-detail-content {
     flex: 1;
     overflow-y: auto;
     padding: var(--space-6);
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
+    gap: var(--space-4);
   }
-  .detail-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-5);
-  }
-  .detail-title-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
-  .portal-name {
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .field-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .field-label {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .portal-url {
-    font-family: var(--font-mono);
+  .portal-url-preview {
+    font-family: var(--font-ui);
     font-size: var(--font-size-md);
     line-height: 1.6;
     color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-all;
-    background: var(--bg-secondary);
-    border-radius: var(--radius-sm);
-    padding: var(--space-4) var(--space-5);
     margin: 0;
   }
-  .placeholder-row {
+  .preview-arg-slot {
+    color: var(--accent-success);
+    font-weight: 600;
+  }
+  .preview-placeholder {
+    color: var(--accent-primary);
+  }
+  .row-trailing-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--text-tertiary);
+  }
+  .row-status-icon {
+    display: inline-flex;
+    align-items: center;
+  }
+  .open-with-modal-body {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 320px;
+  }
+  .open-with-modal-actions {
+    display: flex;
+    justify-content: flex-end;
     gap: var(--space-2);
   }
 </style>

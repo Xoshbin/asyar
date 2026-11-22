@@ -5,7 +5,13 @@ export interface Portal {
   name: string;
   url: string;
   icon: string;
+  openWith?: string;
+  tags?: string[];
+  pinned?: boolean;
+  hiddenInRootSearch?: boolean;
   createdAt: number;
+  updatedAt?: number;
+  openCount?: number;
 }
 
 const DEFAULT_PORTALS: Omit<Portal, 'createdAt'>[] = [
@@ -113,9 +119,98 @@ class PortalStoreClass {
   }
 
   update(id: string, changes: Partial<Portal>) {
-    this.portals = this.portals.map((p) => (p.id === id ? { ...p, ...changes } : p));
+    this.portals = this.portals.map((p) =>
+      p.id === id ? { ...p, ...changes, updatedAt: changes.updatedAt ?? Date.now() } : p,
+    );
     persistence.save($state.snapshot(this.portals) as Portal[]);
     this.#notify({ type: 'upsert', itemId: id });
+  }
+
+  togglePin(id: string) {
+    this.portals = this.portals.map((p) =>
+      p.id === id ? { ...p, pinned: !p.pinned, updatedAt: Date.now() } : p,
+    );
+    persistence.save($state.snapshot(this.portals) as Portal[]);
+    this.#notify({ type: 'upsert', itemId: id });
+  }
+
+  toggleHiddenInRootSearch(id: string) {
+    this.portals = this.portals.map((p) =>
+      p.id === id ? { ...p, hiddenInRootSearch: !p.hiddenInRootSearch, updatedAt: Date.now() } : p,
+    );
+    persistence.save($state.snapshot(this.portals) as Portal[]);
+    this.#notify({ type: 'upsert', itemId: id });
+  }
+
+  recordOpen(id: string) {
+    this.portals = this.portals.map((p) =>
+      p.id === id ? { ...p, openCount: (p.openCount ?? 0) + 1 } : p,
+    );
+    persistence.save($state.snapshot(this.portals) as Portal[]);
+  }
+
+  getAllTags(): string[] {
+    const tags = new Set<string>();
+    for (const p of this.portals) {
+      if (p.tags) {
+        for (const tag of p.tags) {
+          const trimmed = tag.trim();
+          if (trimmed) tags.add(trimmed);
+        }
+      }
+    }
+    return [...tags].sort((a, b) => a.localeCompare(b));
+  }
+
+  importPortals(
+    items: Array<{
+      name: string;
+      url: string;
+      icon?: string;
+      openWith?: string;
+      tags?: string[];
+    }>,
+  ): { added: Portal[]; skipped: number } {
+    const existingKeys = new Set(
+      this.portals.map((p) => `${p.name.trim().toLowerCase()}\0${p.url.trim()}`),
+    );
+    const added: Portal[] = [];
+    let skipped = 0;
+
+    for (const item of items) {
+      const name = item.name?.trim();
+      const url = item.url?.trim();
+      if (!name || !url) {
+        skipped += 1;
+        continue;
+      }
+      const key = `${name.toLowerCase()}\0${url}`;
+      if (existingKeys.has(key)) {
+        skipped += 1;
+        continue;
+      }
+      existingKeys.add(key);
+      const portal: Portal = {
+        id: crypto.randomUUID(),
+        name,
+        url,
+        icon: item.icon?.trim() || '🔗',
+        openWith: item.openWith?.trim() || undefined,
+        tags: item.tags?.map((t) => t.trim()).filter(Boolean),
+        createdAt: Date.now(),
+      };
+      added.push(portal);
+    }
+
+    if (added.length > 0) {
+      this.portals = [...this.portals, ...added];
+      persistence.save($state.snapshot(this.portals) as Portal[]);
+      for (const p of added) {
+        this.#notify({ type: 'upsert', itemId: p.id });
+      }
+    }
+
+    return { added, skipped };
   }
 
   remove(id: string) {

@@ -160,6 +160,81 @@ pub async fn fetch_remote_icon(
     Ok(icon_url(&filename))
 }
 
+/// Privacy-first favicon fetcher for Portals: fetches directly from the
+/// target URL's own origin (never via a third-party proxy), enforces SSRF/LAN
+/// checks, caches locally in `icon_cache/`, and returns an `asyar-icon://` URL.
+pub async fn fetch_portal_favicon(
+    raw_url: &str,
+    cache_dir: &Path,
+    client_pool: &ScopedHttpClientPool,
+) -> Option<String> {
+    let parsed = reqwest::Url::parse(raw_url.trim()).ok()?;
+    let scheme = parsed.scheme();
+    if scheme != "https" && scheme != "http" {
+        return None;
+    }
+    let host = parsed.host_str()?;
+    let origin = match parsed.port() {
+        Some(port) => format!("{scheme}://{host}:{port}"),
+        None => format!("{scheme}://{host}"),
+    };
+
+    let mut hasher = Sha256::new();
+    hasher.update(origin.as_bytes());
+    let key = format!("portal-favicon-{}", hex::encode(&hasher.finalize()[..12]));
+
+    if let Some(filename) = cached_icon(cache_dir, &key) {
+        return Some(icon_url(&filename));
+    }
+
+    let lan_policy = LanPolicy::from_manifest(None).ok();
+    let candidates = [
+        format!("{origin}/favicon.ico"),
+        format!("{origin}/apple-touch-icon.png"),
+        format!("{origin}/favicon.png"),
+    ];
+
+    for candidate in candidates {
+        let fetched = match fetch_scoped_bytes(
+            FetchRequest {
+                url: candidate,
+                method: None,
+                headers: None,
+                body: None,
+                timeout_ms: Some(3_500),
+            },
+            MAX_ICON_BYTES,
+            false,
+            lan_policy.as_ref(),
+            None,
+            client_pool,
+        )
+        .await
+        {
+            Ok(res) if (200..300).contains(&res.status) => res,
+            _ => continue,
+        };
+
+        let dir = cache_dir.to_path_buf();
+        let key_clone = key.clone();
+        let saved = tokio::task::spawn_blocking(move || -> Option<String> {
+            let processed = process_remote_icon(&fetched.bytes).ok()?;
+            let filename = format!("{CACHE_PREFIX}{key_clone}.{}", processed.extension);
+            write_cache_file(&dir, &filename, &processed.bytes).ok()?;
+            Some(filename)
+        })
+        .await
+        .ok()
+        .flatten();
+
+        if let Some(filename) = saved {
+            return Some(icon_url(&filename));
+        }
+    }
+
+    None
+}
+
 /// Remote icons are only allowed for a real extension owner. `None`/`asyar`
 /// are the host's privileged identities, and letting them through would bypass
 /// the permission check entirely.

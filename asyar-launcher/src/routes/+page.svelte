@@ -364,6 +364,12 @@
     return controller.searchResultItemsMapped[controller.selectedIndexVal]?.title ?? null;
   });
 
+  const argumentCommandIcon = $derived.by(() => {
+    if (argumentMode) return argumentMode.icon ?? null;
+    if (!argumentHint) return null;
+    return controller.searchResultItemsMapped[controller.selectedIndexVal]?.icon ?? null;
+  });
+
   $effect(() => {
     commandArgumentsService.syncQuery(controller.localSearchValue);
   });
@@ -535,6 +541,7 @@
     {argumentHint}
     {argumentHintFields}
     {argumentCommandName}
+    {argumentCommandIcon}
     onArgHintClick={handleArgHintClick}
     oninput={(e) => controller.handleSearchInput(e)}
     oncompositionend={(e) => controller.handleSearchCompositionEnd(e)}

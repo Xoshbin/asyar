@@ -1,53 +1,54 @@
+import type { DynamicCommandRegistration } from 'asyar-sdk/contracts';
 import { portalStore, type Portal } from './portalStore.svelte';
-import { openUrl, hideWindow } from '../../lib/ipc/commands';
+import { extractPortalArguments } from './portalPlaceholders';
 import { searchService } from '../../services/search/SearchService';
-import { commandService } from '../../services/extension/commandService.svelte';
-import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { shortcutService } from '../shortcuts/shortcutService';
-import {
-  resolveTemplate,
-  fetchPlaceholders,
-  type PlaceholderDefinition,
-} from '../../lib/placeholders';
+import { resolvePortalTemplate } from '../../lib/placeholders/placeholderResolver';
+import { portalOpenLink, replaceDynamicCommandsBuiltin } from '../../lib/ipc/commands';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { logService } from '../../services/log/logService';
 
-export async function syncPortalToIndex(portal: Portal): Promise<void> {
-  await searchService.indexItem({
-    category: 'command',
-    id: `cmd_portals_${portal.id}`,
-    name: portal.name,
-    extension: 'portals',
-    trigger: portal.name,
-    type: 'portal',
-    icon: portal.icon,
-  });
+const PORTALS_EXTENSION_ID = 'portals';
 
-  // Register runtime command handler
-  commandService.registerCommand(
-    `cmd_portals_${portal.id}`,
-    {
-      execute: async (args?: Record<string, any>) => {
-        const query = args?.query ?? '';
-        const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
-        await openUrl(url);
-        return { type: 'no-view' };
-      },
-    },
-    'portals',
-  );
+export function portalObjectId(portalId: string): string {
+  return `cmd_portals_dyn_${portalId}`;
+}
 
-  // Register with context mode service so it participates in the chip/hint system
-  registerPortalContextProvider(portal);
+export async function syncAllPortalsToIndex(): Promise<void> {
+  const portals = portalStore.getAll();
+  const regs: DynamicCommandRegistration[] = portals
+    .filter((portal) => !portal.hiddenInRootSearch)
+    .map((portal) => ({
+      id: portal.id,
+      name: portal.name,
+      icon: portal.icon || '🔗',
+      typeLabel: 'Portal',
+      arguments: extractPortalArguments(portal.url),
+    }));
+
+  await replaceDynamicCommandsBuiltin(PORTALS_EXTENSION_ID, regs);
+}
+
+export async function clearAllPortalsFromIndex(): Promise<void> {
+  await replaceDynamicCommandsBuiltin(PORTALS_EXTENSION_ID, []);
 }
 
 /**
- * Tear down a portal's runtime registrations (search index, command handler,
- * context provider) without touching the store or the item shortcut. Used by
- * the edit flow, which re-indexes the same portal id right after.
+ * Clean up legacy `cmd_portals_<id>` entries from the persistent search index
+ * so portals don't appear twice after migrating to `cmd_portals_dyn_<id>`.
  */
-export async function removePortalFromIndex(portalId: string): Promise<void> {
-  await searchService.deleteItem(`cmd_portals_${portalId}`);
-  commandService.unregisterCommand(`cmd_portals_${portalId}`);
-  contextModeService.unregisterProvider(`portal_${portalId}`);
+export async function cleanupLegacyPortalIndexEntries(): Promise<void> {
+  for (const portal of portalStore.getAll()) {
+    await searchService.deleteItem(`cmd_portals_${portal.id}`).catch(() => {});
+  }
+}
+
+export async function syncPortalToIndex(_portal: Portal): Promise<void> {
+  await syncAllPortalsToIndex();
+}
+
+export async function removePortalFromIndex(_portalId: string): Promise<void> {
+  await syncAllPortalsToIndex();
 }
 
 /**
@@ -58,91 +59,57 @@ export async function removePortalFromIndex(portalId: string): Promise<void> {
  */
 export async function deletePortal(portalId: string): Promise<void> {
   portalStore.remove(portalId);
-  await shortcutService.unregister(`cmd_portals_${portalId}`);
-  await removePortalFromIndex(portalId);
+  await shortcutService.unregister(portalObjectId(portalId));
+  await shortcutService.unregister(`cmd_portals_${portalId}`).catch(() => {});
+  await syncAllPortalsToIndex();
 }
 
-/** Extract `{token}` placeholder names from a portal URL. */
-function getPortalTokens(portalUrl: string): string[] {
-  const TOKEN_RE = /\{([^{}]+)\}/g;
-  return [...portalUrl.matchAll(TOKEN_RE)].map((m) => m[1]);
-}
+function normalizeArgValues(args?: Record<string, unknown>): Record<string, string> {
+  if (!args || typeof args !== 'object') return {};
+  const rawMap =
+    'arguments' in args && args.arguments && typeof args.arguments === 'object'
+      ? (args.arguments as Record<string, unknown>)
+      : args;
 
-/**
- * True when the portal URL contains a user-query token ({query}/{Argument}).
- * These portals can't be resolved without the user typing something, so
- * activating them (via Tab or an alias) must wait for input rather than
- * firing immediately.
- */
-let cachedPlaceholders: PlaceholderDefinition[] = [];
-
-// Initialize placeholder metadata cache asynchronously
-void fetchPlaceholders().then((list) => {
-  if (list) {
-    cachedPlaceholders = list;
-  }
-});
-
-/**
- * Determine if a portal URL requires user query input before firing.
- * Driven by the query placeholders.
- */
-function portalNeedsQuery(portalUrl: string): boolean {
-  const queryTokens =
-    cachedPlaceholders.length > 0
-      ? cachedPlaceholders
-          .filter((p) => p.id === 'query')
-          .flatMap((p) => [p.token, ...(p.aliases || [])])
-      : ['query', 'Argument'];
-  return getPortalTokens(portalUrl).some((t) => queryTokens.includes(t));
-}
-
-/**
- * Resolve a pre-fill value for the query bar when the chip is first set (Tab).
- *
- * Driven by the PLACEHOLDERS registry — no hardcoded token checks.
- * Portals that use {query}/{Argument} expect the user to type — no pre-fill.
- * All other known placeholders are pre-filled with their resolved value so the
- * user sees the value that will be used and can edit it before pressing Enter.
- */
-async function resolveChipPrefill(portalUrl: string): Promise<string> {
-  if (portalNeedsQuery(portalUrl)) return '';
-
-  // Resolve and return the first known placeholder's value.
-  for (const tokenText of getPortalTokens(portalUrl)) {
-    const rawToken = `{${tokenText}}`;
-    const resolved = await resolveTemplate(rawToken, {});
-    if (resolved !== rawToken) {
-      return resolved;
+  const out: Record<string, string> = {};
+  for (const [key, val] of Object.entries(rawMap)) {
+    if (val !== undefined && val !== null) {
+      out[key] = String(val);
     }
   }
-  return '';
+  return out;
 }
 
-function registerPortalContextProvider(portal: Portal): void {
-  contextModeService.registerProvider({
-    id: `portal_${portal.id}`,
-    commandObjectId: `cmd_portals_${portal.id}`,
-    needsQuery: portalNeedsQuery(portal.url),
-    triggers: [portal.name],
-    display: {
-      name: portal.name,
-      icon: portal.icon,
-      // No custom color — portals use the default accent-primary chip color
-    },
-    type: 'url',
-    onActivate: async (query?: string) => {
-      if (!query) {
-        // Tab just set the chip — pre-fill query bar with resolved user-content tokens
-        const prefill = await resolveChipPrefill(portal.url);
-        if (prefill) contextModeService.updateQuery(prefill);
-        return;
-      }
+export async function openPortal(
+  portal: Portal,
+  args?: Record<string, unknown>,
+  overrideOpenWith?: string,
+): Promise<void> {
+  const argValues = normalizeArgValues(args);
+  const query =
+    argValues.query ?? argValues.Query ?? argValues.Argument ?? argValues.argument ?? '';
+  const resolved = await resolvePortalTemplate(portal.url, { query, args: argValues }, true);
+  const openWith = overrideOpenWith !== undefined ? overrideOpenWith : portal.openWith;
+  await portalOpenLink(resolved, openWith);
+  portalStore.recordOpen(portal.id);
+}
 
-      const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
-      await openUrl(url);
-      searchService.saveIndex();
-      await hideWindow();
-    },
-  });
+export async function dispatchPortalCommand(
+  dynamicId: string,
+  args?: Record<string, unknown>,
+): Promise<void> {
+  const portal = portalStore.getById(dynamicId);
+  if (!portal) {
+    logService.warn(`[portals] dispatchPortalCommand: portal ${dynamicId} not found`);
+    feedbackService.report({
+      kind: 'action_failed',
+      severity: 'warning',
+      retryable: false,
+      source: 'frontend',
+      context: { message: `Portal ${dynamicId} not found` },
+    });
+    return;
+  }
+
+  await openPortal(portal, args);
 }

@@ -1874,7 +1874,15 @@
       "delete_confirm_title": "Excluir portal",
       "act": {
         "new": "Novo portal",
-        "new_desc": "Adicionar um novo atalho de URL de portal"
+        "new_desc": "Adicionar um novo atalho de URL de portal",
+        "open": "Open Portal",
+        "open_with": "Open With…",
+        "pin": "Pin Portal",
+        "unpin": "Unpin Portal",
+        "copy_name": "Copy Name",
+        "copy_link": "Copy Link",
+        "hide_root": "Hide in Root Search",
+        "show_root": "Show in Root Search"
       },
       "ui": {
         "save_failed": "Não foi possível salvar o portal: {error}",
@@ -1891,7 +1899,18 @@
         "browse_mid": "ou o botão",
         "browse_post": "para ver todos os marcadores.",
         "command": "Comando",
-        "created": "Criado em"
+        "created": "Criado em",
+        "link": "Link",
+        "name_and_icon": "Name & Icon",
+        "portal_name_placeholder": "Portal name",
+        "open_with": "Open With",
+        "default_app": "Default",
+        "tags": "Tags",
+        "tags_placeholder": "Tags (comma-separated)",
+        "guide": "Portals Guide",
+        "all_tags": "All Tags",
+        "last_updated": "Last Updated",
+        "opened": "Opened"
       }
     },
     "help": {

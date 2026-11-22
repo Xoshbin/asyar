@@ -170,7 +170,7 @@ describe('built-in action shortcut declarations', () => {
             if (chord === 'Mod+.' && count === 2) continue;
             if (feature === 'clipboard-history' && chord === 'Mod+O' && count === 2) continue;
             if (
-              (feature === 'scripts' || feature === 'snippets') &&
+              (feature === 'scripts' || feature === 'snippets' || feature === 'portals') &&
               chord === 'Enter' &&
               count === 2
             )

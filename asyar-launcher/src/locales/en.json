@@ -1874,7 +1874,15 @@
       "delete_confirm_title": "Delete portal",
       "act": {
         "new": "New Portal",
-        "new_desc": "Add a new portal URL shortcut"
+        "new_desc": "Add a new portal URL shortcut",
+        "open": "Open Portal",
+        "open_with": "Open With…",
+        "pin": "Pin Portal",
+        "unpin": "Unpin Portal",
+        "copy_name": "Copy Name",
+        "copy_link": "Copy Link",
+        "hide_root": "Hide in Root Search",
+        "show_root": "Show in Root Search"
       },
       "ui": {
         "save_failed": "Could not save portal: {error}",
@@ -1891,7 +1899,18 @@
         "browse_mid": "or the",
         "browse_post": "button to browse all placeholders.",
         "command": "Command",
-        "created": "Created"
+        "created": "Created",
+        "link": "Link",
+        "name_and_icon": "Name & Icon",
+        "portal_name_placeholder": "Portal name",
+        "open_with": "Open With",
+        "default_app": "Default",
+        "tags": "Tags",
+        "tags_placeholder": "Tags (comma-separated)",
+        "guide": "Portals Guide",
+        "all_tags": "All Tags",
+        "last_updated": "Last Updated",
+        "opened": "Opened"
       }
     },
     "help": {

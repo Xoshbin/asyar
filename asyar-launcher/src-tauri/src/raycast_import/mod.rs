@@ -38,6 +38,10 @@ pub struct ImportPortal {
     pub name: String,
     pub url: String,
     pub icon: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub open_with: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 
 /// What an imported hotkey points at.
@@ -527,6 +531,7 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
             else {
                 continue;
             };
+            let (open_with, tags) = extract_portal_extras(q);
             bundle.portals.push(ImportPortal {
                 raycast_id: q
                     .get("id")
@@ -536,6 +541,8 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
                 name: name.to_string(),
                 url: translate_placeholders(link, true),
                 icon: PORTAL_ICON.to_string(),
+                open_with,
+                tags,
             });
         }
     }
@@ -724,11 +731,14 @@ fn parse_classic(value: &serde_json::Value) -> Result<ImportBundle, AppError> {
             let Some(url) = q.get("url").and_then(|v| v.as_str()) else {
                 continue;
             };
+            let (open_with, tags) = extract_portal_extras(q);
             bundle.portals.push(ImportPortal {
                 raycast_id: q.get("uuid").and_then(|v| v.as_str()).map(str::to_string),
                 name: name.to_string(),
                 url: translate_placeholders(url, true),
                 icon: PORTAL_ICON.to_string(),
+                open_with,
+                tags,
             });
         }
     }
@@ -793,11 +803,14 @@ fn parse_plain_json(items: &[serde_json::Value]) -> Result<ImportBundle, AppErro
             .filter_map(|q| {
                 let name = q.get("name")?.as_str()?;
                 let link = q.get("link")?.as_str()?;
+                let (open_with, tags) = extract_portal_extras(q);
                 Some(ImportPortal {
                     raycast_id: None,
                     name: name.to_string(),
                     url: translate_placeholders(link, true),
                     icon: PORTAL_ICON.to_string(),
+                    open_with,
+                    tags,
                 })
             })
             .collect();
@@ -828,7 +841,31 @@ const PORTAL_ICON: &str = "🔗";
 /// tokens (see `src/lib/placeholders/placeholderResolver.ts`). Unknown
 /// tokens are left untouched — Asyar renders them literally, which degrades
 /// gracefully. `{cursor}` is dropped: Asyar has no cursor-position concept.
-fn translate_placeholders(text: &str, _is_url: bool) -> String {
+fn extract_portal_extras(q: &serde_json::Value) -> (Option<String>, Vec<String>) {
+    let open_with = q
+        .get("openWith")
+        .and_then(|v| {
+            v.as_str()
+                .map(str::to_string)
+                .or_else(|| v.get("path").and_then(|p| p.as_str()).map(str::to_string))
+                .or_else(|| v.get("name").and_then(|n| n.as_str()).map(str::to_string))
+        })
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let tags = q
+        .get("tags")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|t| t.as_str().map(str::trim).filter(|s| !s.is_empty()))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    (open_with, tags)
+}
+
+fn translate_placeholders(text: &str, is_url: bool) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find('{') {
@@ -847,7 +884,15 @@ fn translate_placeholders(text: &str, _is_url: bool) -> String {
             .to_ascii_lowercase();
         let rest_of_token = token_body[token_name.len()..].trim();
         match token_name.as_str() {
-            "argument" | "query" => out.push_str("{query}"),
+            "argument" | "query" => {
+                if is_url {
+                    out.push('{');
+                    out.push_str(token_body);
+                    out.push('}');
+                } else {
+                    out.push_str("{query}");
+                }
+            }
             "clipboard" => out.push_str("{Clipboard Text}"),
             "selection" => out.push_str("{Selected Text}"),
             "date" => {
@@ -1071,12 +1116,15 @@ mod tests {
         let google = &b.portals[0];
         assert_eq!(google.raycast_id.as_deref(), Some("02A"));
         assert_eq!(google.name, "Search Google");
-        assert_eq!(google.url, "https://google.com/search?q={query}");
+        assert_eq!(google.url, "https://google.com/search?q={argument}");
         assert_eq!(google.icon, "🔗");
 
-        // {Query} and {argument name="word" ...} both become {query}
+        // {Query} and {argument name="word" ...} are preserved losslessly for portals
         let translate = &b.portals[1];
-        assert_eq!(translate.url, "https://t.example/?text={query}&x={query}");
+        assert_eq!(
+            translate.url,
+            "https://t.example/?text={Query}&x={argument name=\"word\" default=\"hi\"}"
+        );
     }
 
     #[test]
@@ -1174,7 +1222,7 @@ mod tests {
 
         assert_eq!(b.portals.len(), 1);
         assert_eq!(b.portals[0].name, "DuckDuckGo");
-        assert_eq!(b.portals[0].url, "https://duckduckgo.com/?q={query}");
+        assert_eq!(b.portals[0].url, "https://duckduckgo.com/?q={argument}");
         assert!(b.shortcuts.is_empty());
     }
 
@@ -1211,8 +1259,9 @@ mod tests {
         let b = bundle(parse_export(QUICKLINKS_JSON, None).unwrap());
         assert_eq!(b.source, SourceFormat::QuicklinksJson);
         assert_eq!(b.portals.len(), 2);
-        assert_eq!(b.portals[0].url, "https://duckduckgo.com/?q={query}");
+        assert_eq!(b.portals[0].url, "https://duckduckgo.com/?q={argument}");
         assert_eq!(b.portals[1].url, "~/Downloads");
+        assert_eq!(b.portals[1].open_with.as_deref(), Some("Finder"));
         assert!(b.snippets.is_empty());
     }
 
@@ -1266,7 +1315,7 @@ mod tests {
         assert_eq!(b.snippets.len(), 1);
         assert_eq!(b.snippets[0].name, "Hi");
         assert_eq!(b.portals.len(), 1);
-        assert_eq!(b.portals[0].url, "https://example.com?q={query}");
+        assert_eq!(b.portals[0].url, "https://example.com?q={argument}");
     }
 
     #[test]
@@ -1525,6 +1574,6 @@ mod tests {
         assert_eq!(b.snippets[0].expansion, "Hello {Time}");
         assert_eq!(b.portals.len(), 1);
         assert_eq!(b.portals[0].name, "Flat Quicklink");
-        assert_eq!(b.portals[0].url, "https://example.com/search?q={query}");
+        assert_eq!(b.portals[0].url, "https://example.com/search?q={argument}");
     }
 }

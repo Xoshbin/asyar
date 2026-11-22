@@ -1,208 +1,155 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const mockReplaceDynamicCommandsBuiltin = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockPortalOpenLink = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockResolvePortalTemplate = vi.hoisted(() => vi.fn(async (url: string) => url));
+
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }));
 vi.mock('../../services/search/SearchService', () => ({
-  searchService: { indexItem: vi.fn(), deleteItem: vi.fn(), saveIndex: vi.fn() },
-}));
-vi.mock('../../services/extension/commandService.svelte', () => ({
-  commandService: { registerCommand: vi.fn(), unregisterCommand: vi.fn() },
-}));
-vi.mock('../../services/context/contextModeService.svelte', () => ({
-  contextModeService: {
-    registerProvider: vi.fn(),
-    unregisterProvider: vi.fn(),
-    updateQuery: vi.fn(),
+  searchService: {
+    indexItem: vi.fn(),
+    deleteItem: vi.fn().mockResolvedValue(undefined),
+    saveIndex: vi.fn(),
   },
 }));
+vi.mock('../../lib/ipc/commands', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/ipc/commands')>();
+  return {
+    ...actual,
+    replaceDynamicCommandsBuiltin: mockReplaceDynamicCommandsBuiltin,
+    portalOpenLink: mockPortalOpenLink,
+  };
+});
+vi.mock('../../lib/placeholders/placeholderResolver', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../lib/placeholders/placeholderResolver')>();
+  return {
+    ...actual,
+    resolvePortalTemplate: mockResolvePortalTemplate,
+  };
+});
 vi.mock('./portalStore.svelte', () => ({
-  portalStore: { portals: [], getAll: vi.fn(() => []), getById: vi.fn(), remove: vi.fn() },
+  portalStore: {
+    portals: [],
+    getAll: vi.fn(() => []),
+    getById: vi.fn(),
+    remove: vi.fn(),
+    recordOpen: vi.fn(),
+  },
 }));
 vi.mock('../shortcuts/shortcutService', () => ({
-  shortcutService: { unregister: vi.fn() },
+  shortcutService: { unregister: vi.fn().mockResolvedValue(undefined) },
 }));
-vi.mock('../../lib/placeholders', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../lib/placeholders')>();
-  return { ...actual, resolveTemplate: vi.fn() };
-});
 
-import { deletePortal, removePortalFromIndex, syncPortalToIndex } from './portalLifecycle';
+import {
+  deletePortal,
+  dispatchPortalCommand,
+  openPortal,
+  syncAllPortalsToIndex,
+} from './portalLifecycle';
 import { portalStore } from './portalStore.svelte';
-import { searchService } from '../../services/search/SearchService';
-import { commandService } from '../../services/extension/commandService.svelte';
-import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { shortcutService } from '../shortcuts/shortcutService';
-import { invoke } from '@tauri-apps/api/core';
-import { resolveTemplate } from '../../lib/placeholders';
 
 describe('deletePortal', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('removes the portal from the store', async () => {
+  it('removes the portal from the store and unregisters both dyn and legacy shortcuts', async () => {
     await deletePortal('p1');
     expect(portalStore.remove).toHaveBeenCalledWith('p1');
-  });
-
-  it('unregisters the item shortcut bound to the portal command', async () => {
-    // Regression for issue #433: deleting a portal left its global hotkey
-    // registered — pressing it kept firing the deleted portal.
-    await deletePortal('p1');
+    expect(shortcutService.unregister).toHaveBeenCalledWith('cmd_portals_dyn_p1');
     expect(shortcutService.unregister).toHaveBeenCalledWith('cmd_portals_p1');
-  });
-
-  it('removes the search-index entry, runtime command, and context provider', async () => {
-    await deletePortal('p1');
-    expect(searchService.deleteItem).toHaveBeenCalledWith('cmd_portals_p1');
-    expect(commandService.unregisterCommand).toHaveBeenCalledWith('cmd_portals_p1');
-    expect(contextModeService.unregisterProvider).toHaveBeenCalledWith('portal_p1');
-  });
-
-  it('still unregisters the shortcut when index removal fails', async () => {
-    vi.mocked(searchService.deleteItem).mockRejectedValueOnce(new Error('index gone'));
-    await expect(deletePortal('p1')).rejects.toThrow('index gone');
-    expect(portalStore.remove).toHaveBeenCalledWith('p1');
-    expect(shortcutService.unregister).toHaveBeenCalledWith('cmd_portals_p1');
+    expect(mockReplaceDynamicCommandsBuiltin).toHaveBeenCalledWith('portals', []);
   });
 });
 
-describe('removePortalFromIndex', () => {
+describe('syncAllPortalsToIndex', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('does NOT touch the item shortcut (edit flow re-indexes the same portal id)', async () => {
-    await removePortalFromIndex('p1');
-    expect(shortcutService.unregister).not.toHaveBeenCalled();
+  it('registers visible portals with extracted arguments and skips hiddenInRootSearch portals', async () => {
+    vi.mocked(portalStore.getAll).mockReturnValue([
+      {
+        id: 'g',
+        name: 'Search Google',
+        url: 'https://google.com/search?q={argument name="Query"}',
+        icon: '🌐',
+        createdAt: 1,
+      },
+      {
+        id: 'hidden',
+        name: 'Secret',
+        url: 'https://example.com',
+        icon: '🔒',
+        hiddenInRootSearch: true,
+        createdAt: 2,
+      },
+    ]);
+
+    await syncAllPortalsToIndex();
+
+    expect(mockReplaceDynamicCommandsBuiltin).toHaveBeenCalledWith('portals', [
+      expect.objectContaining({
+        id: 'g',
+        name: 'Search Google',
+        typeLabel: 'Portal',
+        arguments: [
+          expect.objectContaining({
+            name: 'Query',
+            type: 'text',
+            placeholder: 'Query',
+            required: true,
+          }),
+        ],
+      }),
+    ]);
   });
 });
 
-describe('Portal context provider metadata', () => {
+describe('openPortal / dispatchPortalCommand', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  function getRegisteredProvider(portalId: string) {
-    return vi
-      .mocked(contextModeService.registerProvider)
-      .mock.calls.find((c) => c[0].id === `portal_${portalId}`)![0];
-  }
-
-  it('links the provider to its command object id', async () => {
-    const portal = { id: '20', name: 'Google', url: 'https://google.com/?q={query}', icon: '🔍' };
-    await syncPortalToIndex(portal as any);
-    expect(getRegisteredProvider('20').commandObjectId).toBe('cmd_portals_20');
-  });
-
-  it('marks needsQuery true for a {query} portal', async () => {
-    const portal = { id: '21', name: 'Google', url: 'https://google.com/?q={query}', icon: '🔍' };
-    await syncPortalToIndex(portal as any);
-    expect(getRegisteredProvider('21').needsQuery).toBe(true);
-  });
-
-  it('marks needsQuery true for an {Argument} portal (query alias)', async () => {
-    const portal = { id: '22', name: 'Wiki', url: 'https://wiki.com/?q={Argument}', icon: '📖' };
-    await syncPortalToIndex(portal as any);
-    expect(getRegisteredProvider('22').needsQuery).toBe(true);
-  });
-
-  it('marks needsQuery false for a portal with no query placeholder', async () => {
-    const portal = { id: '23', name: 'GitHub', url: 'https://github.com', icon: '🐙' };
-    await syncPortalToIndex(portal as any);
-    expect(getRegisteredProvider('23').needsQuery).toBe(false);
-  });
-});
-
-describe('Portal onActivate guard', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  async function getOnActivate(portal: any) {
-    await syncPortalToIndex(portal as any);
-    const call = vi
-      .mocked(contextModeService.registerProvider)
-      .mock.calls.find((c) => c[0].id === `portal_${portal.id}`);
-    return call![0].onActivate!;
-  }
-
-  it('empty string query (Tab/trigger just set chip) → does NOT open browser', async () => {
-    const portal = { id: '1', name: 'Google', url: 'https://google.com/?q={query}', icon: '🔍' };
-    const onActivate = await getOnActivate(portal);
-    await onActivate('');
-    expect(invoke).not.toHaveBeenCalledWith('plugin:opener|open_url', expect.anything());
-  });
-
-  it('undefined query (same guard) → does NOT open browser', async () => {
-    const portal = { id: '2', name: 'Google', url: 'https://google.com/?q={query}', icon: '🔍' };
-    const onActivate = await getOnActivate(portal);
-    await onActivate(undefined);
-    expect(invoke).not.toHaveBeenCalledWith('plugin:opener|open_url', expect.anything());
-  });
-
-  it('non-empty query → resolves template and opens browser', async () => {
-    const portal = { id: '3', name: 'Google', url: 'https://google.com/?q={query}', icon: '🔍' };
-    vi.mocked(resolveTemplate).mockResolvedValue('https://google.com/?q=hello');
-    const onActivate = await getOnActivate(portal);
-    await onActivate('hello');
-    expect(resolveTemplate).toHaveBeenCalledWith(
-      portal.url,
-      { query: 'hello' },
-      { encodeValues: true },
-    );
-    expect(invoke).toHaveBeenCalledWith('plugin:opener|open_url', {
-      url: 'https://google.com/?q=hello',
-    });
-  });
-
-  it('{Selected Text} portal with non-empty query → opens browser', async () => {
+  it('resolves template with args, opens link with openWith, and records openCount', async () => {
+    mockResolvePortalTemplate.mockResolvedValueOnce('https://google.com/search?q=asyar');
     const portal = {
-      id: '4',
-      name: 'Translate',
-      url: 'https://translate.google.com/?text={Selected Text}',
+      id: 'g',
+      name: 'Search Google',
+      url: 'https://google.com/search?q={argument}',
       icon: '🌐',
+      openWith: '/Applications/Safari.app',
+      createdAt: 1,
     };
-    vi.mocked(resolveTemplate).mockResolvedValue('https://translate.google.com/?text=hello+world');
-    const onActivate = await getOnActivate(portal);
-    await onActivate('hello world');
-    expect(invoke).toHaveBeenCalledWith('plugin:opener|open_url', {
-      url: 'https://translate.google.com/?text=hello+world',
-    });
-  });
-});
+    vi.mocked(portalStore.getById).mockReturnValue(portal);
 
-describe('Portal chip pre-fill (onActivate with empty query)', () => {
-  beforeEach(() => vi.clearAllMocks());
+    await dispatchPortalCommand('g', { arguments: { Argument: 'asyar' } });
 
-  async function getOnActivate(portal: any) {
-    await syncPortalToIndex(portal as any);
-    const call = vi
-      .mocked(contextModeService.registerProvider)
-      .mock.calls.find((c) => c[0].id === `portal_${portal.id}`);
-    return call![0].onActivate!;
-  }
-
-  // resolveChipPrefill is data-driven via PLACEHOLDERS — it calls def.resolve({}) directly,
-  // not resolveTemplate. These tests mock resolveTemplate for the onActivate open-URL path
-  // and verify updateQuery is called with whatever the placeholder resolver returns.
-
-  it('{query} portal → no pre-fill, no updateQuery call', async () => {
-    const portal = { id: '7', name: 'Google', url: 'https://google.com/?q={query}', icon: '🔍' };
-    const onActivate = await getOnActivate(portal);
-    await onActivate('');
-    expect(vi.mocked(contextModeService.updateQuery)).not.toHaveBeenCalled();
-    expect(invoke).not.toHaveBeenCalledWith('plugin:opener|open_url', expect.anything());
+    expect(mockResolvePortalTemplate).toHaveBeenCalledWith(
+      'https://google.com/search?q={argument}',
+      { query: 'asyar', args: { Argument: 'asyar' } },
+      true,
+    );
+    expect(mockPortalOpenLink).toHaveBeenCalledWith(
+      'https://google.com/search?q=asyar',
+      '/Applications/Safari.app',
+    );
+    expect(portalStore.recordOpen).toHaveBeenCalledWith('g');
   });
 
-  it('{Argument} alias portal → no pre-fill (treated same as {query})', async () => {
-    const portal = { id: '10', name: 'Wiki', url: 'https://wiki.com/?q={Argument}', icon: '📖' };
-    const onActivate = await getOnActivate(portal);
-    await onActivate('');
-    expect(vi.mocked(contextModeService.updateQuery)).not.toHaveBeenCalled();
-  });
+  it('supports overrideOpenWith when invoked from Open With… action', async () => {
+    mockResolvePortalTemplate.mockResolvedValueOnce('/Users/test/Projects');
+    const portal = {
+      id: 'proj',
+      name: 'Projects',
+      url: '~/Projects',
+      icon: '📁',
+      createdAt: 1,
+    };
 
-  it('non-empty query → opens URL (no pre-fill branch reached)', async () => {
-    const portal = { id: '11', name: 'Google', url: 'https://google.com/?q={query}', icon: '🔍' };
-    vi.mocked(resolveTemplate).mockResolvedValue('https://google.com/?q=hello');
-    const onActivate = await getOnActivate(portal);
-    await onActivate('hello');
-    expect(invoke).toHaveBeenCalledWith('plugin:opener|open_url', {
-      url: 'https://google.com/?q=hello',
-    });
-    expect(vi.mocked(contextModeService.updateQuery)).not.toHaveBeenCalled();
+    await openPortal(portal, undefined, '/Applications/Visual Studio Code.app');
+
+    expect(mockPortalOpenLink).toHaveBeenCalledWith(
+      '/Users/test/Projects',
+      '/Applications/Visual Studio Code.app',
+    );
   });
 });

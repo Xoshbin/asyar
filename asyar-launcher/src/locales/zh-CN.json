@@ -1874,7 +1874,15 @@
       "delete_confirm_title": "删除门户",
       "act": {
         "new": "新建门户",
-        "new_desc": "添加新的门户网址快捷方式"
+        "new_desc": "添加新的门户网址快捷方式",
+        "open": "Open Portal",
+        "open_with": "Open With…",
+        "pin": "Pin Portal",
+        "unpin": "Unpin Portal",
+        "copy_name": "Copy Name",
+        "copy_link": "Copy Link",
+        "hide_root": "Hide in Root Search",
+        "show_root": "Show in Root Search"
       },
       "ui": {
         "save_failed": "无法保存门户：{error}",
@@ -1891,7 +1899,18 @@
         "browse_mid": "或点击",
         "browse_post": "按钮以浏览所有占位符。",
         "command": "命令",
-        "created": "创建时间"
+        "created": "创建时间",
+        "link": "Link",
+        "name_and_icon": "Name & Icon",
+        "portal_name_placeholder": "Portal name",
+        "open_with": "Open With",
+        "default_app": "Default",
+        "tags": "Tags",
+        "tags_placeholder": "Tags (comma-separated)",
+        "guide": "Portals Guide",
+        "all_tags": "All Tags",
+        "last_updated": "Last Updated",
+        "opened": "Opened"
       }
     },
     "help": {
