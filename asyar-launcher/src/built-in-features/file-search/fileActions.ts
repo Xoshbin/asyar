@@ -167,6 +167,7 @@ export function buildFileActions(opts: {
       children: () =>
         applicationsCache.hasLoadedOnce
           ? [...applicationsCache.apps]
+              .filter((app) => !app.path.startsWith('shell:AppsFolder\\'))
               .sort((a, b) => a.name.localeCompare(b.name))
               .map((app) => ({
                 id: `file-search:open-with:${app.path}`,

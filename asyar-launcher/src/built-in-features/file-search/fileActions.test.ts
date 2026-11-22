@@ -106,6 +106,23 @@ describe('buildFileActions', () => {
     applicationsCache.hasLoadedOnce = true;
   });
 
+  it('omits Windows Store AppsFolder entries from Open With', () => {
+    const prev = applicationsCache.apps;
+    applicationsCache.apps = [
+      ...prev,
+      {
+        id: 'uwp',
+        name: 'Photos',
+        path: 'shell:AppsFolder\\Microsoft.Windows.Photos!App',
+      } as never,
+    ];
+    const openWith = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+      (a) => a.id === 'file-search:open-with',
+    );
+    expect(openWith?.children?.()?.map((a) => a.label)).toEqual(['BBEdit', 'Zed']);
+    applicationsCache.apps = prev;
+  });
+
   it('omits view-only actions unless requested and binds Quick Look to Mod+Y', () => {
     const shared = buildFileActions({ getFile: () => file, context: ActionContext.CORE });
     expect(shared.map((action) => action.id)).not.toContain('file-search:deep-search');

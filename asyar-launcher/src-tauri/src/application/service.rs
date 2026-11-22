@@ -27,15 +27,15 @@ pub struct SyncResult {
     pub total: u32,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 #[derive(Debug, PartialEq, Eq)]
-enum ApplicationLaunchRoute {
+pub(crate) enum ApplicationLaunchRoute {
     GioDesktopEntry,
     Opener,
 }
 
-#[cfg(target_os = "linux")]
-fn application_launch_route(path: &Path) -> ApplicationLaunchRoute {
+#[cfg(any(target_os = "linux", test))]
+pub(crate) fn application_launch_route(path: &Path) -> ApplicationLaunchRoute {
     if path
         .extension()
         .is_some_and(|extension| extension == "desktop")
@@ -46,16 +46,23 @@ fn application_launch_route(path: &Path) -> ApplicationLaunchRoute {
     }
 }
 
-#[cfg(target_os = "linux")]
-fn linux_desktop_entry_command(path: &Path) -> std::process::Command {
+#[cfg(any(target_os = "linux", test))]
+fn linux_desktop_entry_command(path: &Path, target_path: Option<&Path>) -> std::process::Command {
     let mut command = std::process::Command::new("gio");
     command.arg("launch").arg(path);
+    if let Some(target) = target_path {
+        command.arg(target);
+    }
+    #[cfg(target_os = "linux")]
     crate::platform::linux::sanitize_command(&mut command);
     command
 }
 
 #[cfg(target_os = "linux")]
-fn launch_linux_desktop_entry(path: &Path) -> Result<(), AppError> {
+pub(crate) fn launch_linux_desktop_entry(
+    path: &Path,
+    target_path: Option<&Path>,
+) -> Result<(), AppError> {
     if !path.is_file() {
         return Err(AppError::Platform(format!(
             "Failed to load desktop entry '{}': missing desktop entry",
@@ -63,7 +70,7 @@ fn launch_linux_desktop_entry(path: &Path) -> Result<(), AppError> {
         )));
     }
 
-    let status = linux_desktop_entry_command(path)
+    let status = linux_desktop_entry_command(path, target_path)
         .status()
         .map_err(|error| {
             AppError::Platform(format!(
@@ -102,7 +109,7 @@ pub fn open_application_path<R: tauri::Runtime>(
 
     #[cfg(target_os = "linux")]
     if application_launch_route(Path::new(&path)) == ApplicationLaunchRoute::GioDesktopEntry {
-        return launch_linux_desktop_entry(Path::new(&path));
+        return launch_linux_desktop_entry(Path::new(&path), None);
     }
 
     #[cfg(target_os = "linux")]
@@ -3060,16 +3067,38 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
-    fn linux_desktop_entry_command_uses_host_gio_with_one_path_argument() {
+    fn application_launch_route_detects_desktop_entries() {
+        assert_eq!(
+            application_launch_route(Path::new("/usr/share/applications/code.desktop")),
+            ApplicationLaunchRoute::GioDesktopEntry
+        );
+        assert_eq!(
+            application_launch_route(Path::new("/usr/bin/code")),
+            ApplicationLaunchRoute::Opener
+        );
+    }
+
+    #[test]
+    fn linux_desktop_entry_command_uses_host_gio_with_optional_target_argument() {
         let path = Path::new("/home/example/My Applications/Example App.desktop");
-        let command = linux_desktop_entry_command(path);
+        let command = linux_desktop_entry_command(path, None);
 
         assert_eq!(command.get_program(), "gio");
         assert_eq!(
             command.get_args().collect::<Vec<_>>(),
             vec![std::ffi::OsStr::new("launch"), path.as_os_str()]
+        );
+
+        let target = Path::new("/home/example/Documents/notes.txt");
+        let with_target = linux_desktop_entry_command(path, Some(target));
+        assert_eq!(
+            with_target.get_args().collect::<Vec<_>>(),
+            vec![
+                std::ffi::OsStr::new("launch"),
+                path.as_os_str(),
+                target.as_os_str()
+            ]
         );
     }
 
@@ -3078,7 +3107,7 @@ mod tests {
     fn nonexistent_linux_desktop_entry_returns_controlled_error() {
         let missing = Path::new("/definitely/missing/Example App.desktop");
 
-        let error = launch_linux_desktop_entry(missing).unwrap_err();
+        let error = launch_linux_desktop_entry(missing, None).unwrap_err();
 
         assert!(matches!(error, AppError::Platform(_)));
         assert!(error.to_string().contains("Example App.desktop"));

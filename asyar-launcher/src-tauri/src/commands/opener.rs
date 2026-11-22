@@ -90,6 +90,27 @@ pub async fn opener_open_path<R: tauri::Runtime>(
 ) -> Result<(), AppError> {
     opener_path_check(&permissions, &extension_id, &path)?;
     let resolved = resolve_path(&path)?;
+
+    #[cfg(target_os = "linux")]
+    if let Some(ref app_path) = r#with {
+        let app = std::path::Path::new(app_path);
+        if crate::application::service::application_launch_route(app)
+            == crate::application::service::ApplicationLaunchRoute::GioDesktopEntry
+        {
+            return crate::application::service::launch_linux_desktop_entry(app, Some(&resolved));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    if r#with
+        .as_deref()
+        .is_some_and(|app_path| app_path.starts_with("shell:AppsFolder\\"))
+    {
+        return Err(AppError::Platform(
+            "Opening files with Microsoft Store apps is not supported".to_string(),
+        ));
+    }
+
     use tauri_plugin_opener::OpenerExt;
     app_handle
         .opener()
