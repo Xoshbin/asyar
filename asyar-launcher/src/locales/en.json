@@ -929,6 +929,7 @@
     "hidden_create": "Create the command",
     "hidden_ready": "✓ Grammar Fix ready",
     "portals_heading": "Portals",
+    "sample_portal_name": "Search YouTube",
     "snippets_expansion_error": "Could not enable expansion — grant Accessibility permission above and try again.",
     "ax_text_pre": "This needs macOS",
     "ax_name": "Accessibility",

@@ -33,7 +33,7 @@
     border-radius: 28%;
     color: var(--asyar-brand);
     background: var(--bg-secondary);
-    border: 1px solid var(--separator);
+    border: var(--border-width-thin) solid var(--separator);
   }
   .stage__logo {
     width: 100%;

@@ -33,6 +33,7 @@
       </div>
       <SegmentedControl
         {options}
+        label={t('settings.privacy.crash_reports')}
         bind:value={crashMode}
         onchange={(v) =>
           settingsService.updateSettings('privacy', { crashReportMode: v as CrashReportMode })}
@@ -45,6 +46,7 @@
       </div>
       <SegmentedControl
         {options}
+        label={t('settings.privacy.usage_share')}
         bind:value={usageMode}
         onchange={(v) =>
           settingsService.updateSettings('privacy', { usageShareMode: v as UsageShareMode })}

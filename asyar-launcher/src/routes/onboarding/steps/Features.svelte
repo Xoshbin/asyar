@@ -4,7 +4,7 @@
   import { onboardingNav } from '../onboardingNav.svelte';
   import { t } from '../../../services/i18n';
   import AccessibilityGate from './AccessibilityGate.svelte';
-  import { SAMPLE_PORTAL_NAME, hasSamplePortal, seedSamplePortal } from './portalsSetup';
+  import { samplePortalName, hasSamplePortal, seedSamplePortal } from './portalsSetup';
   import {
     SAMPLE_EXPANSION,
     SAMPLE_KEYWORD,
@@ -28,9 +28,9 @@
       title: t('onboarding.portals_heading'),
       desc: t('onboarding.features_portals_desc'),
       sample: {
-        preview: `📺 ${SAMPLE_PORTAL_NAME}`,
+        preview: `📺 ${samplePortalName()}`,
         tryWhere: t('onboarding.features_portals_try'),
-        tryText: SAMPLE_PORTAL_NAME,
+        tryText: samplePortalName(),
       },
     },
     {
@@ -46,11 +46,13 @@
     },
   ]);
 
+  let expansionFailed = $state(false);
   // Samples are opt-in and applied on click; Continue never depends on them.
   const added = $derived<Record<CardId, boolean>>({
     clipboard: true,
     portals: hasSamplePortal(),
-    snippets: hasSampleSnippet(),
+    // Without expansion the sample does nothing, so keep the retry button.
+    snippets: hasSampleSnippet() && !expansionFailed,
   });
   let snippetsPending = $state(false);
   let axGranted = $state(false);
@@ -62,8 +64,10 @@
     error = '';
     try {
       seedSampleSnippet();
-      if (!(await enableExpansion())) error = t('onboarding.snippets_expansion_error');
+      expansionFailed = !(await enableExpansion());
+      if (expansionFailed) error = t('onboarding.snippets_expansion_error');
     } catch (e) {
+      expansionFailed = true;
       error = e instanceof Error ? e.message : String(e);
     } finally {
       snippetsPending = false;

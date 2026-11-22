@@ -929,6 +929,7 @@
     "hidden_create": "创建命令",
     "hidden_ready": "✓ 语法修正已就绪",
     "portals_heading": "门户",
+    "sample_portal_name": "搜索 YouTube",
     "snippets_expansion_error": "无法启用展开功能——请在上方授予辅助功能权限后重试。",
     "ax_text_pre": "这需要 macOS 的",
     "ax_name": "辅助功能",
