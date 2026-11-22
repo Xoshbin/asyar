@@ -70,6 +70,11 @@
     return extensionManager.getManifestById(extensionId) ?? null;
   });
   let hasFeedback = $derived(feedbackService.current !== null);
+  let feedbackTone = $derived.by(() => {
+    const severity = feedbackService.current?.severity;
+    if (severity === 'error' || severity === 'fatal') return 'danger';
+    return severity === 'warning' || severity === 'success' ? severity : null;
+  });
 
   export function getEnrichedActions() {
     return enrichedActionsInternal;
@@ -132,7 +137,7 @@
     {#if argumentValidationError}
       <!-- Takes the slot while the user is mid-entry: what they just typed is
            more immediate than anything already sitting there. -->
-      <div class="arg-validation" role="status">
+      <div class="arg-validation action-capsule feedback-capsule" data-tone="danger" role="status">
         <StatusDot color="danger" />
         {#if argumentValidationError.startsWith('Required  ')}
           <!-- Prefix matches missingArgumentNotice exactly; change together. -->
@@ -144,7 +149,9 @@
         {/if}
       </div>
     {:else if hasFeedback}
-      <FeedbackBar />
+      <div class="action-capsule feedback-capsule" data-tone={feedbackTone}>
+        <FeedbackBar />
+      </div>
     {:else if activeViewManifest}
       <InformationPanel {activeViewManifest} />
     {/if}
@@ -169,25 +176,27 @@
       <span aria-hidden="true" class="bottom-bar-separator"></span>
     {/if}
 
-    <PrimaryActionDisplay
-      selectedItem={viewManager.activeView || effectiveViewLabel ? null : selectedItem}
-      activeViewLabel={effectiveViewLabel}
-      activeViewShortcut={effectiveViewShortcut}
-      disabled={effectiveViewDisabled}
-      onclick={viewPrimaryAction ? handlePrimaryActionClick : undefined}
-    />
+    <div class="action-capsule">
+      <PrimaryActionDisplay
+        selectedItem={viewManager.activeView || effectiveViewLabel ? null : selectedItem}
+        activeViewLabel={effectiveViewLabel}
+        activeViewShortcut={effectiveViewShortcut}
+        disabled={effectiveViewDisabled}
+        onclick={viewPrimaryAction ? handlePrimaryActionClick : undefined}
+      />
 
-    {#if (viewManager.activeView || effectiveViewLabel ? null : selectedItem) || effectiveViewLabel}
-      <span aria-hidden="true" class="bottom-bar-separator"></span>
-    {/if}
+      {#if (viewManager.activeView || effectiveViewLabel ? null : selectedItem) || effectiveViewLabel}
+        <span aria-hidden="true" class="bottom-bar-separator capsule-separator"></span>
+      {/if}
 
-    <BottomBarButton
-      label={t('actions.title')}
-      keyHint={['⌘', 'K']}
-      onclick={handleActionClick}
-      ariaHaspopup="true"
-      ariaExpanded={isActionListOpen}
-    />
+      <BottomBarButton
+        label={t('actions.title')}
+        keyHint={['⌘', 'K']}
+        onclick={handleActionClick}
+        ariaHaspopup="true"
+        ariaExpanded={isActionListOpen}
+      />
+    </div>
   </div>
 </div>
 
@@ -223,16 +232,73 @@
       </button>
       <span aria-hidden="true" class="bottom-bar-separator"></span>
     {/if}
-    <BottomBarButton label={t('common.show_more')} keyHint="↓" onclick={() => onexpand?.()} />
+    <div class="action-capsule">
+      <BottomBarButton label={t('common.show_more')} keyHint="↓" onclick={() => onexpand?.()} />
+    </div>
   </div>
 </div>
 
 <style>
-  /* No fill of their own: like Spotlight, the launcher is one sheet of glass
-     at Window opacity, compact or expanded. The hairline marks the footer. */
+  /* Elsewhere no fill of their own: the launcher is one sheet of glass at
+     Window opacity, compact or expanded. The hairline marks the footer. */
   .bottom-action-bar,
   .show-more-bar {
     border-top: 1px solid var(--separator);
+  }
+
+  /* macOS: Raycast's look. No strip; the actions float in a glass capsule
+     while the list scrolls under a blur that fades in toward the bottom. */
+  :global(html[data-platform='macos']) .bottom-action-bar,
+  :global(html[data-platform='macos']) .show-more-bar {
+    border-top: none;
+  }
+  :global(html[data-platform='macos']) .bottom-action-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    mask-image: linear-gradient(to bottom, transparent, black 60%);
+    pointer-events: none;
+  }
+  :global(html[data-platform='macos']) .action-capsule {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: calc(var(--shell-footer-h) - var(--space-3));
+    padding: 0 var(--space-2) 0 var(--space-4);
+    border-radius: var(--radius-full);
+    background: var(--footer-glass-bg);
+    border: 1px solid var(--popup-border-color);
+    box-shadow: inset 0 1px 0 var(--rim-light);
+    backdrop-filter: blur(60px) saturate(200%);
+    -webkit-backdrop-filter: blur(60px) saturate(200%);
+  }
+  :global(html[data-platform='macos']) .capsule-separator {
+    display: none;
+  }
+  .action-capsule {
+    display: contents;
+  }
+
+  :global(html[data-platform='macos']) .feedback-capsule {
+    min-width: 0;
+    max-width: 100%;
+    padding: 0 var(--space-2) 0 var(--space-3);
+    color: var(--text-primary);
+  }
+  :global(html[data-platform='macos']) .feedback-capsule :global(.feedback) {
+    color: var(--text-primary);
+  }
+  :global(html[data-platform='macos']) .feedback-capsule[data-tone='danger'] {
+    border-color: color-mix(in srgb, var(--accent-danger) 40%, transparent);
+  }
+  :global(html[data-platform='macos']) .feedback-capsule[data-tone='warning'] {
+    border-color: color-mix(in srgb, var(--accent-warning) 40%, transparent);
+  }
+  :global(html[data-platform='macos']) .feedback-capsule[data-tone='success'] {
+    border-color: color-mix(in srgb, var(--accent-success) 40%, transparent);
   }
 
   :global(html:not([data-platform='macos'])) .bottom-action-bar.is-compact {

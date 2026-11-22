@@ -59,6 +59,17 @@
   let searchInput = $state<HTMLInputElement | null>(null);
   let listContainer = $state<HTMLDivElement | undefined>(undefined);
   let shellContentEl = $state<HTMLDivElement | null>(null);
+  // Views stay clear of the glass footer unless their command opts in.
+  let clearsFooter = $derived.by(() => {
+    if (preferencesPromptStore.active) return true;
+    const view = controller.activeViewVal;
+    if (!view) return false;
+    const [extensionId, component = 'DefaultView'] = view.split('/');
+    const command = extensionManager
+      .getManifestById(extensionId)
+      ?.commands?.find((c) => c.component === component);
+    return !command?.footerUnderlay;
+  });
   let bottomActionBarInstance = $state<ReturnType<typeof BottomActionBar>>();
   let isActionPanelOpen = $state(false);
   // Bound by SearchHeader when the accessory dropdown is rendered. Task 15
@@ -570,6 +581,8 @@
     bind:this={shellContentEl}
     class="shell-content custom-scrollbar"
     class:shell-content--view={!!controller.activeViewVal || !!preferencesPromptStore.active}
+    class:shell-content--clear-footer={clearsFooter}
+    class:shell-scroll-safe={!controller.activeViewVal && !preferencesPromptStore.active}
   >
     {#if preferencesPromptStore.active}
       {@const prompt = preferencesPromptStore.active}

@@ -273,6 +273,7 @@ export interface ManifestCommand {
   preferences?: PreferenceDeclaration[];
   arguments?: CommandArgument[];
   searchBarAccessory?: SearchBarAccessoryManifestDeclaration;
+  footerUnderlay?: boolean;
 }
 
 export interface ValidationError {
@@ -1097,6 +1098,15 @@ function validateCommand(cmd: ManifestCommand, i: number, errors: ValidationErro
     errors.push({
       field: `${base}.searchBarAccessory`,
       message: `searchBarAccessory is only valid on mode="view" commands (got mode="${cmd.mode}")`,
+    });
+  }
+
+  if (cmd.footerUnderlay !== undefined && typeof cmd.footerUnderlay !== 'boolean') {
+    errors.push({ field: `${base}.footerUnderlay`, message: 'footerUnderlay must be a boolean' });
+  } else if (cmd.footerUnderlay && cmd.mode !== undefined && cmd.mode !== 'view') {
+    errors.push({
+      field: `${base}.footerUnderlay`,
+      message: `footerUnderlay is only valid on mode="view" commands (got mode="${cmd.mode}")`,
     });
   }
 

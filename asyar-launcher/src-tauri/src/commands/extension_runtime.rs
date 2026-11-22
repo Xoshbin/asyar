@@ -1060,6 +1060,7 @@ mod onboarding_dispatch_tests {
                     actions: None,
                     arguments: None,
                     require_any_of: None,
+                    footer_underlay: None,
                     search_bar_accessory: None,
                 },
                 ExtensionCommand {
@@ -1077,6 +1078,7 @@ mod onboarding_dispatch_tests {
                     actions: None,
                     arguments: None,
                     require_any_of: None,
+                    footer_underlay: None,
                     search_bar_accessory: None,
                 },
             ],

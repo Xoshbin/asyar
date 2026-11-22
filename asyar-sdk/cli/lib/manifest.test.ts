@@ -828,6 +828,36 @@ describe('manifest validation — searchBarAccessory', () => {
   });
 });
 
+describe('manifest validation — footerUnderlay', () => {
+  const withUnderlay = (footerUnderlay: unknown, mode: 'view' | 'background'): AsyarManifest => ({
+    ...viewOnly,
+    commands: [
+      {
+        id: 'open',
+        name: 'Open',
+        description: 'Open the view',
+        mode,
+        component: mode === 'view' ? 'DefaultView' : undefined,
+        footerUnderlay: footerUnderlay as boolean,
+      },
+    ],
+  });
+  const underlayErrors = (m: AsyarManifest) =>
+    validateManifest(m, './').filter((e) => e.field.includes('footerUnderlay'));
+
+  it('accepts footerUnderlay on mode=view', () => {
+    expect(underlayErrors(withUnderlay(true, 'view'))).toEqual([]);
+  });
+
+  it('rejects footerUnderlay on mode=background', () => {
+    expect(underlayErrors(withUnderlay(true, 'background'))).toHaveLength(1);
+  });
+
+  it('rejects a non-boolean footerUnderlay', () => {
+    expect(underlayErrors(withUnderlay('yes', 'view'))).toHaveLength(1);
+  });
+});
+
 describe('manifest validation — permissions', () => {
   // GATED_PERMISSIONS is generated from the launcher's Rust permissions.rs
   // gate (see scripts/generate-gated-permissions.mjs). If the launcher gates

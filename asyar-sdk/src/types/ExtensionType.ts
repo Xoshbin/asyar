@@ -258,6 +258,13 @@ export interface ExtensionCommand {
    * and `default` (when present) must be one of those options' values.
    */
   searchBarAccessory?: import('./SearchBarAccessoryType').SearchBarAccessoryManifestDeclaration;
+  /**
+   * Only on `mode: "view"` commands. When true, the view extends under the
+   * launcher's glass footer on macOS instead of stopping above it. Pad the
+   * bottom of your scroller with `var(--shell-safe-bottom, 0px)` so the last
+   * item can scroll clear; the variable is 0px wherever nothing overlays.
+   */
+  footerUnderlay?: boolean;
 }
 
 export interface ExtensionResult {

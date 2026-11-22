@@ -305,6 +305,11 @@ pub struct ExtensionCommand {
     /// [`validate_extension_command`].
     #[serde(default)]
     pub search_bar_accessory: Option<SearchBarAccessory>,
+    /// When true, the view extends under the launcher's glass footer on macOS
+    /// instead of stopping above it. Only legal on `mode: "view"` commands;
+    /// cross-validated by [`validate_extension_command`].
+    #[serde(default)]
+    pub footer_underlay: Option<bool>,
 }
 
 /// Declares the onboarding entry-point for an extension. When present, the
@@ -886,6 +891,12 @@ pub fn validate_extension_command(cmd: &ExtensionCommand) -> Result<(), String> 
                 cmd.id
             ));
         }
+    }
+    if cmd.footer_underlay == Some(true) && cmd.mode.as_deref() != Some("view") {
+        return Err(format!(
+            "command '{}': footerUnderlay is only valid on mode='view' commands",
+            cmd.id
+        ));
     }
     if let Some(args) = &cmd.arguments {
         dynamic_commands::validate_arguments(args)
@@ -1809,6 +1820,7 @@ mod tests {
             actions: None,
             arguments: None,
             require_any_of: None,
+            footer_underlay: None,
             search_bar_accessory: Some(SearchBarAccessory::Dropdown {
                 default: None,
                 options: vec![SearchBarAccessoryDropdownOption {
@@ -1823,6 +1835,16 @@ mod tests {
             err.contains("searchBarAccessory") && err.contains("view"),
             "got: {err}"
         );
+    }
+
+    #[test]
+    fn validate_extension_command_footer_underlay_only_on_view() {
+        let mut cmd = make_cmd_with_args(vec![]);
+        cmd.footer_underlay = Some(true);
+        let err = validate_extension_command(&cmd).unwrap_err();
+        assert!(err.contains("footerUnderlay"), "got: {err}");
+        cmd.mode = Some("view".to_string());
+        assert!(validate_extension_command(&cmd).is_ok());
     }
 
     fn make_cmd_with_args(args: Vec<CommandArgument>) -> ExtensionCommand {
@@ -1841,6 +1863,7 @@ mod tests {
             actions: None,
             arguments: Some(args),
             require_any_of: None,
+            footer_underlay: None,
             search_bar_accessory: None,
         }
     }

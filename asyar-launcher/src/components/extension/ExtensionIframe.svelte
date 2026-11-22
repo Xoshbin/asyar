@@ -140,6 +140,10 @@
       // (without this, Chromium/WebView2 paints an opaque white canvas when
       // the parent is dark and the child defaults to color-scheme: normal).
       'color-scheme': resolveColorScheme(),
+      // Read at the iframe: 0px unless its command opted into footerUnderlay.
+      '--shell-safe-bottom': iframeElement
+        ? getComputedStyle(iframeElement).getPropertyValue('--shell-safe-bottom').trim()
+        : '0px',
     });
   }
 

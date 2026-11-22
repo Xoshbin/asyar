@@ -15,6 +15,7 @@
       "icon": "icon:globe",
       "description": "Search and manage your saved portals",
       "mode": "view",
+      "footerUnderlay": true,
       "component": "DefaultView"
     }
   ],

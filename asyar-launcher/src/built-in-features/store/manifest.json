@@ -18,6 +18,7 @@
       "trigger": "store",
       "description": "Find and install new extensions",
       "mode": "view",
+      "footerUnderlay": true,
       "component": "DefaultView",
       "searchBarAccessory": {
         "type": "dropdown",

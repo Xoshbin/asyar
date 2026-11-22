@@ -17,6 +17,7 @@
       "trigger": "shortcuts",
       "description": "Manage assigned global shortcuts",
       "mode": "view",
+      "footerUnderlay": true,
       "component": "DefaultView"
     }
   ],

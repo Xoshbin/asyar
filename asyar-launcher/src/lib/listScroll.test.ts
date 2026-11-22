@@ -30,6 +30,7 @@ function makeContainer(opts: {
   scrollerClientHeight?: number;
   scrollerScrollHeight?: number;
   scrollerInitialScrollTop?: number;
+  scrollerScrollPaddingBottom?: string;
 }): HTMLElement {
   const container = document.createElement('div');
   for (const r of opts.rows) container.appendChild(r);
@@ -58,6 +59,7 @@ function makeContainer(opts: {
   vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
     return {
       overflowY: el === container ? (opts.scrollerOverflowY ?? 'auto') : 'visible',
+      scrollPaddingBottom: el === container ? (opts.scrollerScrollPaddingBottom ?? 'auto') : 'auto',
     } as unknown as CSSStyleDeclaration;
   });
   document.body.appendChild(container);
@@ -117,6 +119,21 @@ describe('scrollSelectedIntoView', () => {
     });
     scrollSelectedIntoView(container, 1);
     expect(container.scrollTop).toBe(138);
+  });
+
+  it('keeps the row clear of a glass footer covering the scroller bottom', () => {
+    // Same row as above, with 40px of scroll-padding-bottom: 230 + 8 + 40 - 100.
+    const rows = [makeRow(0, 0, 30), makeRow(1, 200, 30), makeRow(2, 260, 30)];
+    const container = makeContainer({
+      rows,
+      scrollerInitialScrollTop: 0,
+      scrollerScrollHeight: 600,
+      scrollerClientHeight: 100,
+      scrollerTop: 0,
+      scrollerScrollPaddingBottom: '40px',
+    });
+    scrollSelectedIntoView(container, 1);
+    expect(container.scrollTop).toBe(178);
   });
 
   it('pulls scrollTop up when the row is above the viewport', () => {
