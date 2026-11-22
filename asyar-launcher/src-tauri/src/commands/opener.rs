@@ -80,12 +80,34 @@ pub async fn opener_open_path<R: tauri::Runtime>(
     r#with: Option<String>,
 ) -> Result<(), AppError> {
     opener_path_check(&permissions, &extension_id, &path)?;
+    validate_open_with_target(r#with.as_deref(), cfg!(target_os = "windows"))?;
     let resolved = resolve_path(&path)?;
+
+    #[cfg(target_os = "linux")]
+    if let Some(ref app_path) = r#with {
+        let app = std::path::Path::new(app_path);
+        if crate::application::service::application_launch_route(app)
+            == crate::application::service::ApplicationLaunchRoute::GioDesktopEntry
+        {
+            return crate::application::service::launch_linux_desktop_entry(app, Some(&resolved));
+        }
+    }
+
     use tauri_plugin_opener::OpenerExt;
     app_handle
         .opener()
         .open_path(resolved.to_string_lossy().to_string(), r#with.as_deref())
         .map_err(|e| AppError::Other(format!("OS opener failed: {}", e)))
+}
+
+/// Rejects synthetic `with` targets that cannot accept a file path argument.
+fn validate_open_with_target(with: Option<&str>, is_windows: bool) -> Result<(), AppError> {
+    if is_windows && with.is_some_and(crate::application::location::is_store_app) {
+        return Err(AppError::Platform(
+            "Opening files with Microsoft Store apps is not supported".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Permission + path validity gate for open_path.
@@ -267,6 +289,17 @@ mod tests {
 
         let reg = ExtensionPermissionRegistry::default();
         assert!(opener_path_check(&reg, &None, file.to_str().unwrap()).is_ok());
+    }
+
+    // --- validate_open_with_target tests ---
+
+    #[test]
+    fn validate_open_with_target_rejects_store_apps_on_windows() {
+        let store_app = Some(r"shell:AppsFolder\Microsoft.Windows.Photos!App");
+        let err = validate_open_with_target(store_app, true).unwrap_err();
+        assert!(matches!(err, AppError::Platform(_)));
+        assert!(validate_open_with_target(Some(r"C:\Program Files\Zed\zed.exe"), true).is_ok());
+        assert!(validate_open_with_target(None, true).is_ok());
     }
 
     // --- opener_reveal_check tests ---

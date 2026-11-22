@@ -22,6 +22,7 @@
     disabled = false,
     searchable = true,
     autofocus = false,
+    customOption,
     onchange,
   }: {
     id?: string;
@@ -32,6 +33,8 @@
     disabled?: boolean;
     searchable?: boolean;
     autofocus?: boolean;
+    /** Turns the typed filter text into an extra option, e.g. a pasted path. */
+    customOption?: (query: string) => SelectOption | null;
     onchange?: (value: string) => void;
   } = $props();
 
@@ -55,9 +58,13 @@
   let filteredOptions = $derived.by(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    return options.filter(
+    const matches = options.filter(
       (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
     );
+    const custom = customOption?.(query.trim());
+    return custom && !matches.some((o) => o.value === custom.value)
+      ? [...matches, custom]
+      : matches;
   });
 
   const activeOptionId = $derived(

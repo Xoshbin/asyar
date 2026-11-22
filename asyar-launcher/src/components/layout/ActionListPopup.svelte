@@ -34,7 +34,7 @@
     | {
         type: 'actions';
         title?: string;
-        actions?: ActionForDisplay[];
+        children?: () => ApplicationAction[] | null;
       }
     | {
         type: 'prompt';
@@ -70,8 +70,14 @@
 
   let currentView = $derived(viewStack[viewStack.length - 1]);
 
+  let nestedView = $derived(
+    currentView?.type === 'actions' && currentView.children ? currentView : null,
+  );
+  let nestedActions = $derived(nestedView?.children?.() ?? null);
   let activeActionList = $derived(
-    currentView?.type === 'actions' && currentView.actions ? currentView.actions : availableActions,
+    nestedView
+      ? (nestedActions ?? []).map((c) => ({ ...c, displayCategory: nestedView.title ?? '' }))
+      : availableActions,
   );
 
   let filteredForSearch = $derived(filterActions(activeActionList, searchQuery));
@@ -223,14 +229,10 @@
     const action = flatActions.find((a) => a.id === actionId);
     if (!action) return;
 
-    if ((action as any).children?.length) {
+    if (action.children) {
       viewStack = [
         ...viewStack,
-        {
-          type: 'actions',
-          title: action.label,
-          actions: (action as any).children,
-        },
+        { type: 'actions', title: action.label, children: action.children },
       ];
       searchQuery = '';
       return;
@@ -240,7 +242,7 @@
       closePopup();
     }
 
-    await invokeAction(action);
+    await invokeAction(action, { direct: !!nestedView });
 
     if (!actionService.activePrompt) {
       closePopup();
@@ -367,7 +369,11 @@
           {/each}
         </div>
       {:else}
-        <EmptyState message={t('dialogs.action_list.no_matching_actions')} />
+        <EmptyState
+          message={nestedView && !nestedActions
+            ? t('common.loading_ellipsis')
+            : t('dialogs.action_list.no_matching_actions')}
+        />
       {/each}
     </div>
 

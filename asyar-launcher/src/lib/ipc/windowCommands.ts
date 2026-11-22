@@ -152,17 +152,15 @@ export async function showSettingsWindow(tab?: string, extensionId?: string): Pr
   const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
   const settingsWindow = await WebviewWindow.getByLabel('settings');
   if (settingsWindow) {
+    if (tab) {
+      // Navigate while still hidden so the window opens on the target page
+      // instead of flashing the last one. The settings window is created
+      // hidden at startup, so its listener is already registered.
+      const { emit } = await import('@tauri-apps/api/event');
+      await emit('asyar:navigate-settings-tab', { tab, extensionId: extensionId ?? null });
+    }
     await settingsWindow.show();
     await settingsWindow.setFocus();
-    if (tab) {
-      const { emit } = await import('@tauri-apps/api/event');
-      // Delay ensures the settings window's onMount listener is registered
-      // before the event fires (relevant when the window was hidden/just shown).
-      setTimeout(
-        () => emit('asyar:navigate-settings-tab', { tab, extensionId: extensionId ?? null }),
-        50,
-      );
-    }
   }
 }
 

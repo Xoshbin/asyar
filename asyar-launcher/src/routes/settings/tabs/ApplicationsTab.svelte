@@ -33,7 +33,11 @@
   import { aliasService } from '../../../built-in-features/aliases/aliasService';
   import AliasCapture from '../../../built-in-features/aliases/AliasCapture.svelte';
   import type { Application } from '../../../bindings';
-  import { applicationsCache, withIds, type IndexedApp } from './applicationsCache.svelte';
+  import {
+    applicationsCache,
+    withIds,
+    type IndexedApp,
+  } from '../../../services/application/applicationsCache.svelte';
 
   // A preloaded or previously visited tab starts from the cache: no spinner.
   let apps = $state<IndexedApp[]>(
