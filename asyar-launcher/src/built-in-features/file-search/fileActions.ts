@@ -7,7 +7,6 @@ import {
 } from '../../lib/ipc/fileSearchCommands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
-import { showSettingsWindow } from '../../lib/ipc/windowCommands';
 import type { ApplicationAction } from '../../services/action/actionService.svelte';
 import {
   applicationsCache,
@@ -64,26 +63,8 @@ export type FileAction = ExtensionAction & {
   children?: () => ApplicationAction[] | null;
 };
 
-// The "Custom app" preference. Built-ins re-initialize on preference changes,
-// so `initialize` keeps this current.
-let customApp = '';
-export function setCustomApp(app: unknown): void {
-  customApp = typeof app === 'string' ? app.trim() : '';
-}
-
 function loadInstalledApps(): void {
   preloadApplications(settingsService.currentSettings.search?.additionalScanPaths ?? []);
-}
-
-/** Display name for an app path: its indexed (localized) name, else the bundle's file name. */
-function appName(path: string): string {
-  return (
-    applicationsCache.apps.find((a) => a.path === path)?.name ??
-    path
-      .split(/[/\\]/)
-      .pop()!
-      .replace(/\.(app|exe)$/i, '')
-  );
 }
 
 export function buildFileActions(opts: {
@@ -172,24 +153,6 @@ export function buildFileActions(opts: {
       execute: async () => {
         const file = getFile();
         if (file?.url) await writeText(`[${file.name}](${file.url})`);
-      },
-    },
-    {
-      ...base,
-      id: 'file-search:open-with-custom-app',
-      title: customApp
-        ? t('features.file_search.act.open_with_app', { app: appName(customApp) })
-        : t('features.file_search.act.open_custom_app'),
-      description: t('features.file_search.act.open_custom_app_desc'),
-      icon: 'icon:window',
-      shortcut: 'Mod+Shift+O',
-      visible: isLocalFile,
-      execute: async () => {
-        const file = getFile();
-        if (!file?.path) return;
-        // No app chosen yet: send the user straight to where they pick one.
-        if (!customApp) return showSettingsWindow('extensions', 'file-search');
-        await openerService.openPath(null, file.path, { with: customApp });
       },
     },
     {
