@@ -109,3 +109,25 @@ export function reasoningEffortAfterModelChange(
     ? currentEffort
     : undefined;
 }
+
+export type ProviderStatus =
+  'ready' | 'checking' | 'cli_missing' | 'needs_key' | 'needs_url' | 'needs_model' | 'error';
+
+/** A row's status from what is already known locally; never probes the network. */
+export function providerStatus(
+  plugin: IProviderPlugin | null | undefined,
+  config: ProviderConfig,
+  credentialState: CredentialState | undefined,
+  cli: { checking: boolean; installed: boolean | undefined },
+  fetchError: string,
+): ProviderStatus {
+  if (config.connectionMode === 'cli') {
+    if (cli.checking || cli.installed === undefined) return 'checking';
+    if (!cli.installed) return 'cli_missing';
+  } else {
+    if (plugin?.requiresApiKey && credentialState !== 'configured') return 'needs_key';
+    if (plugin?.requiresBaseUrl && !config.baseUrl?.trim()) return 'needs_url';
+  }
+  if (fetchError) return 'fetch_failed';
+  return config.lastModelId ? 'ready' : 'needs_model';
+}

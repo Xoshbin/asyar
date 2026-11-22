@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import { t } from '../../services/i18n';
   import type { ModelInfo } from '../../services/ai/IProviderPlugin';
+  import { floating } from '../../lib/floating';
 
   type ListItem = { type: 'model'; model: ModelInfo } | { type: 'custom'; modelId: string };
 
@@ -238,6 +239,7 @@
     <div
       class="ms-popover"
       bind:this={popoverRef}
+      use:floating={{ anchor: containerRef }}
       onkeydown={handlePopoverKeydown}
       role="region"
       aria-label={t('model_selector.popover_aria')}
