@@ -273,7 +273,6 @@
         bind:modifier={grammarModifier}
         bind:key={grammarKey}
         onsave={recordGrammarHotkey}
-        disabled={grammarWorking || grammarReady}
       />
       <AccessibilityGate bind:granted={grammarAx} />
       <Button onclick={setUpGrammarFix} disabled={grammarWorking || grammarReady || !grammarAx}>

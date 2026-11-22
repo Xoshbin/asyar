@@ -5,7 +5,6 @@
     onchange,
     onfocus,
     onblur,
-    label,
   }: {
     options: { value: string; label: string }[];
     value: string;
@@ -14,8 +13,6 @@
     onchange?: (value: string) => void;
     onfocus?: () => void;
     onblur?: () => void;
-    /** Accessible name for the group. */
-    label?: string;
   } = $props();
 
   function select(next: string) {
@@ -25,7 +22,7 @@
   }
 </script>
 
-<div class="segmented-control" role="radiogroup" aria-label={label}>
+<div class="segmented-control" role="radiogroup">
   {#each options as option}
     <button
       type="button"

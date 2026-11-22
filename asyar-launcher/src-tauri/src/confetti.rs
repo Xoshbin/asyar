@@ -2,7 +2,6 @@
 //! always-on-top window (label `"confetti"`, `tauri.conf.json`) stretched
 //! over the monitor under the cursor for one burst, then hidden again.
 
-use std::sync::Mutex;
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -14,15 +13,7 @@ pub const CONFETTI_WINDOW_LABEL: &str = "confetti";
 /// How long the window stays up; the route's animation fits inside it.
 const BURST_DURATION: Duration = Duration::from_millis(4500);
 
-/// Latest burst's generation; held while starting a burst and while hiding,
-/// so an older burst's timer can never hide a newer one.
-static GENERATION: Mutex<u64> = Mutex::new(0);
-
 pub fn show(app: &AppHandle) -> Result<(), AppError> {
-    let mut generation = GENERATION.lock().unwrap_or_else(|e| e.into_inner());
-    *generation += 1;
-    let burst = *generation;
-
     let window = app
         .get_webview_window(CONFETTI_WINDOW_LABEL)
         .ok_or_else(|| AppError::NotFound("confetti window".to_string()))?;
@@ -50,10 +41,6 @@ pub fn show(app: &AppHandle) -> Result<(), AppError> {
         std::thread::sleep(BURST_DURATION);
         let inner = handle.clone();
         let _ = handle.run_on_main_thread(move || {
-            let current = GENERATION.lock().unwrap_or_else(|e| e.into_inner());
-            if *current != burst {
-                return;
-            }
             if let Some(w) = inner.get_webview_window(CONFETTI_WINDOW_LABEL) {
                 let _ = w.hide();
             }

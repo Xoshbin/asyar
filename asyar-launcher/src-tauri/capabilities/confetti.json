@@ -3,5 +3,10 @@
   "identifier": "confetti",
   "description": "Minimal capability for the click-through confetti overlay window: listen for `confetti:burst` and nothing else.",
   "windows": ["confetti"],
-  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
 }

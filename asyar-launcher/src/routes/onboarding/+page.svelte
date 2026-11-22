@@ -20,7 +20,6 @@
   import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
 
   const state = $derived(onboardingService.state);
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const nav = $derived(onboardingNav.current);
 
   // Slide direction follows travel: forward enters from the right, Back from the left.
@@ -49,12 +48,8 @@
       {#key state.current}
         <div
           class="onboarding-stage__step custom-scrollbar"
-          in:fly={reduceMotion
-            ? { duration: 0 }
-            : { x: 32 * direction, duration: 360, delay: 140, easing: cubicOut }}
-          out:fly={reduceMotion
-            ? { duration: 0 }
-            : { x: -32 * direction, duration: 160, easing: cubicIn }}
+          in:fly={{ x: 32 * direction, duration: 360, delay: 140, easing: cubicOut }}
+          out:fly={{ x: -32 * direction, duration: 160, easing: cubicIn }}
         >
           <OnboardingStage glyph={STEP_GLYPHS[state.current]} />
           <div class="onboarding-stage__body">
@@ -117,7 +112,6 @@
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    --onb-content-width: 640px;
   }
   /* Outgoing and incoming steps share one grid cell so the slide never reflows. */
   .onboarding-stage__viewport {
@@ -139,13 +133,13 @@
   }
   .onboarding-stage__body {
     width: 100%;
-    max-width: var(--onb-content-width);
+    max-width: 640px;
     animation: body-rise var(--dur-emerge) var(--ease-emerge) 120ms both;
   }
 
   .onboarding-stage__footer {
     width: 100%;
-    max-width: var(--onb-content-width);
+    max-width: 640px;
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
@@ -171,7 +165,7 @@
   @keyframes body-rise {
     from {
       opacity: 0;
-      transform: translateY(var(--space-4));
+      transform: translateY(10px);
     }
   }
 </style>
