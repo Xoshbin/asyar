@@ -2,7 +2,7 @@
   import FormView from '../form/FormView.svelte';
   import ExtensionAvatar from '../base/ExtensionAvatar.svelte';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
-  import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
+  import { isValidAiModelRef, type PreferenceDeclaration } from 'asyar-sdk/contracts';
   import { preferencesPromptStore } from '../../services/extension/preferencesPromptStore.svelte';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
   import { commandService } from '../../services/extension/commandService.svelte';
@@ -55,6 +55,7 @@
       const v = values[p.name];
       if (p.type === 'checkbox') return typeof v === 'boolean';
       if (p.type === 'number') return typeof v === 'number' && Number.isFinite(v);
+      if (p.type === 'aiModel') return isValidAiModelRef(v);
       return v !== undefined && v !== null && v !== '';
     }),
   );

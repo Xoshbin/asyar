@@ -111,6 +111,12 @@ pub struct AgentRunConfig {
     pub default_agent_id: Option<String>,
     pub temperature: Option<f64>,
     pub max_tokens: u32,
+    /// Optional per-request provider override for silent runs (`ai.complete` / `ai.stream`).
+    #[serde(default)]
+    pub provider_override_id: Option<String>,
+    /// Optional per-request model override paired with `provider_override_id`.
+    #[serde(default)]
+    pub model_override_id: Option<String>,
     #[serde(default)]
     pub web_search: Option<WebSearchConfig>,
     #[serde(default)]

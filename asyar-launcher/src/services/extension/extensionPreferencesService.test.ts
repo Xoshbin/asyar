@@ -138,3 +138,95 @@ describe('extensionPreferencesService sync re-emit', () => {
     expect(extensionIframeManager.sendPreferencesToExtension).toHaveBeenCalled();
   });
 });
+
+describe('extensionPreferencesService aiModel & clearing', () => {
+  it('treats missing or incomplete aiModel objects as missing required preferences', async () => {
+    extensionPreferencesService.registerManifest('ext.ai', {
+      extension: [{ name: 'model', type: 'aiModel', title: 'AI Model', required: true }],
+      commands: {
+        run: [],
+      },
+    });
+
+    // Unset -> missing
+    let missing = await extensionPreferencesService.getMissingRequired('ext.ai', 'run');
+    expect(missing.map((p) => p.name)).toEqual(['model']);
+
+    // Incomplete object -> missing
+    await extensionPreferencesService.set('ext.ai', null, 'model', {
+      providerId: 'openai',
+      modelId: '   ',
+    });
+    missing = await extensionPreferencesService.getMissingRequired('ext.ai', 'run');
+    expect(missing.map((p) => p.name)).toEqual(['model']);
+
+    // Valid object -> complete
+    await extensionPreferencesService.set('ext.ai', null, 'model', {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+    });
+    missing = await extensionPreferencesService.getMissingRequired('ext.ai', 'run');
+    expect(missing).toEqual([]);
+  });
+
+  it('clearing an optional aiModel preference with undefined persists null and resolves to undefined', async () => {
+    extensionPreferencesService.registerManifest('ext.ai', {
+      extension: [
+        {
+          name: 'model',
+          type: 'aiModel',
+          title: 'AI Model',
+          default: { providerId: 'openai', modelId: 'gpt-4o' },
+        },
+        {
+          name: 'fallbackModel',
+          type: 'aiModel',
+          title: 'Fallback Model',
+        },
+      ],
+      commands: {},
+    });
+
+    await extensionPreferencesService.set('ext.ai', null, 'model', undefined);
+    await extensionPreferencesService.set('ext.ai', null, 'fallbackModel', undefined);
+    const effective = await extensionPreferencesService.getEffectivePreferences('ext.ai');
+    expect(effective.extension.model).toBeUndefined();
+    expect(effective.extension.fallbackModel).toBeUndefined();
+  });
+
+  it('reset(scope) restores aiModel manifest default or clears to undefined when no default', async () => {
+    extensionPreferencesService.registerManifest('ext.ai', {
+      extension: [
+        {
+          name: 'withDefault',
+          type: 'aiModel',
+          title: 'With Default',
+          default: { providerId: 'openai', modelId: 'gpt-4o-mini' },
+        },
+        {
+          name: 'noDefault',
+          type: 'aiModel',
+          title: 'No Default',
+        },
+      ],
+      commands: {},
+    });
+
+    await extensionPreferencesService.set('ext.ai', null, 'withDefault', {
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+    });
+    await extensionPreferencesService.set('ext.ai', null, 'noDefault', {
+      providerId: 'ollama',
+      modelId: 'llama3.2:latest',
+    });
+
+    await extensionPreferencesService.reset('ext.ai', 'extension');
+    const after = await extensionPreferencesService.getEffectivePreferences('ext.ai');
+    expect(after.extension.withDefault).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-4o-mini',
+    });
+    expect(after.extension.noDefault).toBeUndefined();
+  });
+});

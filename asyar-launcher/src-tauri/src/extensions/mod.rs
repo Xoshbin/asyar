@@ -119,6 +119,7 @@ pub enum PreferenceType {
     AppPicker,
     File,
     Directory,
+    AiModel,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1626,6 +1627,7 @@ mod tests {
             "appPicker",
             "file",
             "directory",
+            "aiModel",
         ] {
             let json = format!(r#"{{ "name":"x", "type":"{}", "title":"x" }}"#, t);
             let _: PreferenceDeclaration = serde_json::from_str(&json)

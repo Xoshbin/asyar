@@ -339,7 +339,53 @@ describe('manifest validation — actionable diagnostics', () => {
       {
         field: 'preferences[0].type',
         message:
-          "Unknown preference type 'invalid'. Must be one of: textfield, password, number, checkbox, dropdown, appPicker, file, directory",
+          "Unknown preference type 'invalid'. Must be one of: textfield, password, number, checkbox, dropdown, appPicker, file, directory, aiModel",
+      },
+    ]);
+  });
+
+  it('accepts aiModel preferences at extension and command scopes', () => {
+    const preferences = [
+      { name: 'model', title: 'AI Model', type: 'aiModel' as const },
+      {
+        name: 'fallbackModel',
+        title: 'Fallback Model',
+        type: 'aiModel' as const,
+        default: { providerId: 'openai', modelId: 'gpt-4o' },
+      },
+    ];
+    expect(
+      validateManifest(
+        { ...viewOnly, preferences, commands: [{ ...viewOnly.commands[0], preferences }] },
+        './',
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['string', 'openai:gpt-4o'],
+    ['null', null],
+    ['array', ['openai', 'gpt-4o']],
+    ['missing providerId', { modelId: 'gpt-4o' }],
+    ['empty providerId', { providerId: '   ', modelId: 'gpt-4o' }],
+    ['missing modelId', { providerId: 'openai' }],
+    ['empty modelId', { providerId: 'openai', modelId: '' }],
+  ])('rejects invalid aiModel default (%s)', (_label, badDefault) => {
+    const manifest = {
+      ...viewOnly,
+      preferences: [
+        {
+          name: 'model',
+          title: 'AI Model',
+          type: 'aiModel',
+          default: badDefault,
+        },
+      ],
+    } as unknown as AsyarManifest;
+    expect(validateManifest(manifest, './')).toEqual([
+      {
+        field: 'preferences[0].default',
+        message: 'aiModel default must be an object with non-empty string providerId and modelId',
       },
     ]);
   });

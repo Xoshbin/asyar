@@ -65,6 +65,8 @@ fn run_config(
         default_agent_id: None,
         temperature,
         max_tokens,
+        provider_override_id: None,
+        model_override_id: None,
         web_search: None,
         web_reader: None,
     }
@@ -1464,6 +1466,8 @@ async fn test_runner_emits_tools_unavailable_once_in_cli_mode_with_dropped_tools
         default_agent_id: None,
         temperature: None,
         max_tokens: 100,
+        provider_override_id: None,
+        model_override_id: None,
         web_search: None,
         web_reader: None,
     };
@@ -2017,6 +2021,8 @@ async fn test_run_loop_extension_ai_provider_streaming() {
         default_agent_id: None,
         temperature: Some(0.7),
         max_tokens: 1024,
+        provider_override_id: None,
+        model_override_id: None,
         web_search: None,
         web_reader: None,
     };

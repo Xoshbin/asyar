@@ -3,7 +3,7 @@ import {
   extensionPreferencesSet,
   extensionPreferencesReset,
 } from '../../lib/ipc/commands';
-import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
+import { isValidAiModelRef, type PreferenceDeclaration } from 'asyar-sdk/contracts';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { setWorkerPreferenceProvider } from './workerHost.svelte';
 
@@ -64,7 +64,10 @@ class ExtensionPreferencesService {
     for (const decl of decls.extension) {
       const row = stored.find((r) => r.commandId === null && r.key === decl.name);
       if (row) {
-        bundle.extension[decl.name] = JSON.parse(row.value);
+        const parsed = JSON.parse(row.value);
+        if (parsed !== null) {
+          bundle.extension[decl.name] = parsed;
+        }
       } else if (decl.default !== undefined) {
         bundle.extension[decl.name] = decl.default;
       }
@@ -76,7 +79,10 @@ class ExtensionPreferencesService {
       for (const decl of commandDecls) {
         const row = stored.find((r) => r.commandId === commandId && r.key === decl.name);
         if (row) {
-          bundle.commands[commandId][decl.name] = JSON.parse(row.value);
+          const parsed = JSON.parse(row.value);
+          if (parsed !== null) {
+            bundle.commands[commandId][decl.name] = parsed;
+          }
         } else if (decl.default !== undefined) {
           bundle.commands[commandId][decl.name] = decl.default;
         }
@@ -101,16 +107,19 @@ class ExtensionPreferencesService {
     if (!decls) return [];
     const bundle = await this.getEffectivePreferences(extensionId);
 
-    const isEmpty = (v: unknown) => v === undefined || v === null || v === '';
+    const isUnsetForRequired = (decl: PreferenceDeclaration, v: unknown) => {
+      if (decl.type === 'aiModel') return !isValidAiModelRef(v);
+      return v === undefined || v === null || v === '';
+    };
     const missing: PreferenceDeclaration[] = [];
 
     for (const p of decls.extension) {
-      if (p.required && isEmpty(bundle.extension[p.name])) missing.push(p);
+      if (p.required && isUnsetForRequired(p, bundle.extension[p.name])) missing.push(p);
     }
     const cmdPrefs = decls.commands[commandId] ?? [];
     for (const p of cmdPrefs) {
       const v = bundle.commands[commandId]?.[p.name];
-      if (p.required && isEmpty(v)) missing.push(p);
+      if (p.required && isUnsetForRequired(p, v)) missing.push(p);
     }
     return missing;
   }
@@ -130,7 +139,13 @@ class ExtensionPreferencesService {
     if (!decl) throw new Error(`Preference '${key}' not declared`);
 
     const isEncrypted = decl.type === 'password';
-    await extensionPreferencesSet(extensionId, commandId, key, JSON.stringify(value), isEncrypted);
+    await extensionPreferencesSet(
+      extensionId,
+      commandId,
+      key,
+      JSON.stringify(value ?? null),
+      isEncrypted,
+    );
 
     await this.pushSnapshotToIframe(extensionId);
   }

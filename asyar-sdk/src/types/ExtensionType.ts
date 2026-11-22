@@ -1,4 +1,5 @@
 import type { ExtensionContext } from '../ExtensionContext';
+import type { AiModelRef } from '../contracts/IAiService';
 import type { ManifestTool } from '../contracts/tools';
 import type { WalkthroughTaskDecl } from '../contracts/walkthrough';
 import type { ManifestWebSearchEngine } from '../contracts/webSearch';
@@ -14,6 +15,7 @@ import type { ManifestFileSearchProvider } from '../contracts/fileSearch';
  *   - checkbox → boolean
  *   - dropdown → string (from the `data` array)
  *   - appPicker → { path: string; name: string; bundleId?: string }
+ *   - aiModel → { providerId: string; modelId: string }
  *
  * `password` values are encrypted at rest using a device-local AES-256-GCM
  * key and are excluded from cloud sync.
@@ -26,7 +28,8 @@ export type PreferenceType =
   | 'dropdown'
   | 'appPicker'
   | 'file'
-  | 'directory';
+  | 'directory'
+  | 'aiModel';
 
 export interface DropdownOption {
   value: string;
@@ -51,7 +54,7 @@ export interface PreferenceDeclaration {
   /** If true, commands cannot execute until the user sets a value. */
   required?: boolean;
   /** Default value used until the user saves a value. */
-  default?: string | number | boolean;
+  default?: string | number | boolean | AiModelRef;
   /** Placeholder text for textfield / number / password. */
   placeholder?: string;
   /** Options for dropdown type. */

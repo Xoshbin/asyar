@@ -63,7 +63,8 @@
     "dropdown",
     "appPicker",
     "file",
-    "directory"
+    "directory",
+    "aiModel"
   ],
   "commandModes": ["view", "background"],
   "extensionTypes": ["extension", "theme"],

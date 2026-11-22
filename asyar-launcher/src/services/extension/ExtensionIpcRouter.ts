@@ -94,6 +94,7 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   // ai
   'ai:complete': ['prompt', 'options'],
   'ai:streamChat': ['prompt', 'streamId', 'options'],
+  'ai:listModels': [],
 
   // mcp
   'mcp:listServers': [],

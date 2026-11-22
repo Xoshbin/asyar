@@ -95,6 +95,59 @@ describe('AiServiceProxy', () => {
       resolveInvoke('too late');
     });
 
+    it('forwards model override in options to ai:complete', async () => {
+      mockInvoke.mockResolvedValueOnce('Response from claude');
+
+      const result = await proxy.complete('Summarize', {
+        temperature: 0.2,
+        model: { providerId: 'anthropic', modelId: 'claude-sonnet-4-6' },
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'ai:complete',
+        {
+          prompt: 'Summarize',
+          options: {
+            temperature: 0.2,
+            model: { providerId: 'anthropic', modelId: 'claude-sonnet-4-6' },
+          },
+        },
+        'test.extension',
+        undefined,
+      );
+      expect(result).toBe('Response from claude');
+    });
+
+    it('forwards model override alongside AbortSignal and aborts cleanly', async () => {
+      let resolveInvoke!: (val: string) => void;
+      mockInvoke.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveInvoke = resolve;
+        }),
+      );
+      const controller = new AbortController();
+      const promise = proxy.complete('Summarize', {
+        model: { providerId: 'anthropic', modelId: 'claude-sonnet-4-6' },
+        signal: controller.signal,
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'ai:complete',
+        {
+          prompt: 'Summarize',
+          options: expect.objectContaining({
+            model: { providerId: 'anthropic', modelId: 'claude-sonnet-4-6' },
+          }),
+        },
+        'test.extension',
+        undefined,
+      );
+
+      controller.abort(new Error('Aborted override'));
+      await expect(promise).rejects.toThrow('Aborted override');
+      resolveInvoke('late');
+    });
+
     it('propagates errors from invoke', async () => {
       mockInvoke.mockRejectedValueOnce(new Error('Provider rate limit'));
 
@@ -282,6 +335,104 @@ describe('AiServiceProxy', () => {
 
       expect(chunks).toEqual(['correct']);
       expect(result).toBe('correct');
+    });
+
+    it('forwards model override in options to ai:streamChat', async () => {
+      mockInvoke.mockImplementationOnce(async (_cmd: string, payload: any) => {
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            data: {
+              type: 'asyar:stream',
+              streamId: payload.streamId,
+              phase: 'chunk',
+              data: { delta: 'ok' },
+            },
+          }),
+        );
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            data: {
+              type: 'asyar:stream',
+              streamId: payload.streamId,
+              phase: 'done',
+            },
+          }),
+        );
+        return 'ok';
+      });
+
+      const result = await proxy.stream('Hi', vi.fn(), {
+        model: { providerId: 'ollama', modelId: 'llama3.2:latest' },
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'ai:streamChat',
+        {
+          prompt: 'Hi',
+          streamId: expect.any(String),
+          options: { model: { providerId: 'ollama', modelId: 'llama3.2:latest' } },
+        },
+        'test.extension',
+        undefined,
+      );
+      expect(result).toBe('ok');
+    });
+
+    it('forwards model override and aborts stream on AbortSignal', async () => {
+      mockInvoke.mockReturnValueOnce(new Promise(() => {}));
+      const controller = new AbortController();
+      const promise = proxy.stream('Hi', vi.fn(), {
+        model: { providerId: 'ollama', modelId: 'llama3.2:latest' },
+        signal: controller.signal,
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'ai:streamChat',
+        {
+          prompt: 'Hi',
+          streamId: expect.any(String),
+          options: expect.objectContaining({
+            model: { providerId: 'ollama', modelId: 'llama3.2:latest' },
+          }),
+        },
+        'test.extension',
+        undefined,
+      );
+
+      controller.abort(new Error('Cancelled stream'));
+      await expect(promise).rejects.toThrow('Cancelled stream');
+    });
+  });
+
+  describe('listModels', () => {
+    it('invokes ai:listModels and returns configured models', async () => {
+      const models = [
+        {
+          providerId: 'openai',
+          providerName: 'OpenAI',
+          modelId: 'gpt-4o',
+          label: 'GPT-4o',
+          isDefault: true,
+        },
+      ];
+      mockInvoke.mockResolvedValueOnce(models);
+
+      const result = await proxy.listModels();
+
+      expect(mockInvoke).toHaveBeenCalledWith('ai:listModels', {}, 'test.extension', undefined);
+      expect(result).toEqual(models);
+    });
+
+    it('returns an empty array when host returns non-array', async () => {
+      mockInvoke.mockResolvedValueOnce(undefined);
+
+      await expect(proxy.listModels()).resolves.toEqual([]);
+    });
+
+    it('propagates errors from ai:listModels', async () => {
+      mockInvoke.mockRejectedValueOnce(new Error('Permission denied'));
+
+      await expect(proxy.listModels()).rejects.toThrow('Permission denied');
     });
   });
 
