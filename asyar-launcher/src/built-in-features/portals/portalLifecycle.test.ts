@@ -147,9 +147,42 @@ describe('openPortal / dispatchPortalCommand', () => {
 
     await openPortal(portal, undefined, '/Applications/Visual Studio Code.app');
 
+    expect(mockResolvePortalTemplate).toHaveBeenCalledWith(
+      '~/Projects',
+      { query: '', args: {} },
+      false,
+    );
     expect(mockPortalOpenLink).toHaveBeenCalledWith(
       '/Users/test/Projects',
       '/Applications/Visual Studio Code.app',
     );
+  });
+
+  it('serializes concurrent syncAllPortalsToIndex calls in order', async () => {
+    let releaseFirst!: () => void;
+    mockReplaceDynamicCommandsBuiltin.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseFirst = resolve;
+        }),
+    );
+
+    vi.mocked(portalStore.getAll).mockReturnValueOnce([
+      { id: 'first', name: 'First', url: 'https://first.test', icon: '🔗', createdAt: 1 },
+    ]);
+    const p1 = syncAllPortalsToIndex();
+
+    vi.mocked(portalStore.getAll).mockReturnValueOnce([
+      { id: 'second', name: 'Second', url: 'https://second.test', icon: '🔗', createdAt: 2 },
+    ]);
+    const p2 = syncAllPortalsToIndex();
+
+    await Promise.resolve();
+    expect(mockReplaceDynamicCommandsBuiltin).toHaveBeenCalledTimes(1);
+
+    releaseFirst();
+    await Promise.all([p1, p2]);
+    expect(mockReplaceDynamicCommandsBuiltin).toHaveBeenCalledTimes(2);
+    expect(mockReplaceDynamicCommandsBuiltin.mock.calls[1][1][0].id).toBe('second');
   });
 });

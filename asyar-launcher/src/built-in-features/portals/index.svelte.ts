@@ -176,9 +176,9 @@ class PortalsExtension implements Extension {
     });
     actionService.registerAction({
       id: 'portals:import',
-      label: 'Import Portals…',
+      label: t('features.portals.act.import'),
       icon: 'icon:download',
-      description: 'Import portals from a Quicklinks JSON file',
+      description: t('features.portals.act.import_desc'),
       category: t('categories.portals'),
       extensionId: 'portals',
       context: ActionContext.EXTENSION_VIEW,

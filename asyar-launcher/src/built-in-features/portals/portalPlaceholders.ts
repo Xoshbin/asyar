@@ -1,4 +1,5 @@
 import type { CommandArgument } from 'asyar-sdk/contracts';
+import { t } from '../../services/i18n';
 
 const MAX_PORTAL_ARGUMENTS = 3;
 
@@ -23,9 +24,12 @@ const KNOWN_PLACEHOLDER_NAMES = new Set([
 
 const PARAM_RE = /([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))/g;
 
-/** Sanitize a human-readable argument name into `/^[a-zA-Z_][a-zA-Z0-9_]*$/`. */
+/** Sanitize an argument display name into `/^[a-zA-Z_][a-zA-Z0-9_]*$/` matching Rust. */
 export function sanitizePortalArgName(raw: string): string {
-  const cleaned = raw.replace(/[^a-zA-Z0-9_]/g, '_');
+  let cleaned = '';
+  for (const ch of raw) {
+    cleaned += /^[a-zA-Z0-9_]$/.test(ch) ? ch : '_';
+  }
   if (!cleaned || /^[0-9]/.test(cleaned)) {
     return `arg_${cleaned}`;
   }
@@ -101,7 +105,9 @@ export function isKnownPortalPlaceholder(rawInner: string): boolean {
  * and legacy `{query}` / `{Query}` / `{Argument}`.
  */
 export function extractPortalArguments(url: string): CommandArgument[] {
-  const seen = new Map<string, CommandArgument>();
+  const seenDisplayNames = new Set<string>();
+  const usedKeys = new Set<string>();
+  const collected: CommandArgument[] = [];
   const TOKEN_RE = /\{([^{}]+)\}/g;
 
   for (const match of url.matchAll(TOKEN_RE)) {
@@ -110,11 +116,26 @@ export function extractPortalArguments(url: string): CommandArgument[] {
     const lower = parsed.name.toLowerCase();
     if (lower !== 'argument' && lower !== 'query') continue;
 
+    const rawName = parsed.params.name?.trim() || (parsed.name === 'Query' ? 'Query' : 'Argument');
+    if (seenDisplayNames.has(rawName)) continue;
+    if (collected.length >= MAX_PORTAL_ARGUMENTS) break;
+    seenDisplayNames.add(rawName);
+
     const displayName =
-      parsed.params.name?.trim() || (parsed.name === 'Query' ? 'Query' : 'Argument');
-    const argKey = sanitizePortalArgName(displayName);
-    if (seen.has(argKey)) continue;
-    if (seen.size >= MAX_PORTAL_ARGUMENTS) break;
+      parsed.params.name?.trim() ||
+      t(
+        parsed.name === 'Query'
+          ? 'features.portals.ui.defaultQueryPlaceholder'
+          : 'features.portals.ui.defaultArgumentPlaceholder',
+      );
+
+    const baseKey = sanitizePortalArgName(rawName);
+    let argKey = baseKey;
+    let suffix = 2;
+    while (usedKeys.has(argKey)) {
+      argKey = `${baseKey}_${suffix++}`;
+    }
+    usedKeys.add(argKey);
 
     const optionsRaw = parsed.params.options;
     const defaultVal = parsed.params.default;
@@ -127,7 +148,7 @@ export function extractPortalArguments(url: string): CommandArgument[] {
         .filter(Boolean);
       if (items.length > 0) {
         const defaultOpt = hasDefault && items.includes(defaultVal) ? defaultVal : items[0];
-        seen.set(argKey, {
+        collected.push({
           name: argKey,
           type: 'dropdown',
           placeholder: displayName,
@@ -139,7 +160,7 @@ export function extractPortalArguments(url: string): CommandArgument[] {
       }
     }
 
-    seen.set(argKey, {
+    collected.push({
       name: argKey,
       type: 'text',
       placeholder: displayName,
@@ -149,9 +170,8 @@ export function extractPortalArguments(url: string): CommandArgument[] {
   }
 
   // Rust dynamic command validation requires required arguments to precede optional ones.
-  const all = [...seen.values()];
-  const required = all.filter((a) => a.required);
-  const optional = all.filter((a) => !a.required);
+  const required = collected.filter((a) => a.required);
+  const optional = collected.filter((a) => !a.required);
   return [...required, ...optional];
 }
 

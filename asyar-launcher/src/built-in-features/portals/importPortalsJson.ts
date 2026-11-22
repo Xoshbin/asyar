@@ -4,6 +4,7 @@ import { portalStore } from './portalStore.svelte';
 import { syncAllPortalsToIndex } from './portalLifecycle';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { logService } from '../../services/log/logService';
+import { t } from '../../services/i18n';
 
 interface RawQuicklinkJson {
   name?: unknown;
@@ -81,13 +82,30 @@ export async function importPortalsFromJsonDialog(): Promise<void> {
     const { added, skipped } = portalStore.importPortals(items);
     await syncAllPortalsToIndex();
 
+    const portalNoun =
+      added.length === 1
+        ? t('features.portals.ui.portal_singular')
+        : t('features.portals.ui.portal_plural');
+    const dupNoun =
+      skipped === 1
+        ? t('features.portals.ui.duplicate_singular')
+        : t('features.portals.ui.duplicate_plural');
+    const skippedPart =
+      skipped > 0
+        ? t('features.portals.ui.imported_skipped', { count: skipped, noun: dupNoun })
+        : '';
+
     feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'info',
       retryable: false,
       context: {
-        message: `Imported ${added.length} portal${added.length === 1 ? '' : 's'}${skipped > 0 ? ` (${skipped} duplicate${skipped === 1 ? '' : 's'} skipped)` : ''}.`,
+        message: t('features.portals.ui.imported_summary', {
+          count: added.length,
+          noun: portalNoun,
+          skipped: skippedPart,
+        }),
       },
     });
   } catch (err) {
@@ -98,7 +116,9 @@ export async function importPortalsFromJsonDialog(): Promise<void> {
       severity: 'warning',
       retryable: false,
       context: {
-        message: `Failed to import portals: ${err instanceof Error ? err.message : String(err)}`,
+        message: t('features.portals.ui.import_failed', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
       },
     });
   } finally {

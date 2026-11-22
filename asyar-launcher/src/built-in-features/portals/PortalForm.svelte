@@ -95,15 +95,25 @@
   const highlightedSegments = $derived(tokenizePortalLink(url));
 
   let faviconTimer: ReturnType<typeof setTimeout> | null = null;
+  let faviconRequestId = 0;
+  let linkBackdropEl = $state<HTMLDivElement | null>(null);
+
   function scheduleFaviconFetch(candidateUrl: string) {
     if (iconTouched) return;
     if (faviconTimer) clearTimeout(faviconTimer);
     const trimmed = candidateUrl.trim();
     if (!/^https?:\/\/[^/\s]+/i.test(trimmed)) return;
 
+    const reqId = ++faviconRequestId;
     faviconTimer = setTimeout(async () => {
       const favicon = await fetchPortalFavicon(trimmed);
-      if (!cancelled && favicon && !iconTouched) {
+      if (
+        !cancelled &&
+        reqId === faviconRequestId &&
+        url.trim() === trimmed &&
+        favicon &&
+        !iconTouched
+      ) {
         icon = favicon;
       }
     }, 450);
@@ -134,7 +144,7 @@
     if (!resolvedIsEditing && !resolvedPortal.url && !url) {
       try {
         const tab = await browserGetActiveTab().catch(() => null);
-        if (!cancelled && tab?.url && /^https?:\/\//i.test(tab.url)) {
+        if (!cancelled && !url.trim() && tab?.url && /^https?:\/\//i.test(tab.url)) {
           url = tab.url;
           if (!name && tab.title) {
             name = tab.title;
@@ -146,10 +156,13 @@
         // Ignore browser bridge unavailability
       }
 
+      if (cancelled || url.trim()) return;
+
       try {
         const clip = (await readClipboardText().catch(() => ''))?.trim() ?? '';
         if (
           !cancelled &&
+          !url.trim() &&
           clip &&
           (/^(https?:\/\/|[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)/i.test(clip) ||
             clip.startsWith('~/') ||
@@ -325,7 +338,9 @@
 
 <FormView
   actionId="portals:save"
-  submitLabel={resolvedIsEditing ? 'Update Portal' : 'Save Portal'}
+  submitLabel={resolvedIsEditing
+    ? t('features.portals.ui.update_portal')
+    : t('features.portals.ui.save_portal')}
   extensionId="portals"
   category={t('categories.portals')}
   submitDisabled={!name.trim() || !url.trim()}
@@ -335,7 +350,11 @@
 >
   {#snippet header()}
     <div class="form-top-bar">
-      <h2 class="form-title">{resolvedIsEditing ? 'Update Portal' : 'Create Portal'}</h2>
+      <h2 class="form-title">
+        {resolvedIsEditing
+          ? t('features.portals.ui.update_portal')
+          : t('features.portals.ui.create_portal')}
+      </h2>
       <button
         type="button"
         class="guide-link"
@@ -349,7 +368,7 @@
   <div class="link-field-wrap">
     <FormField label={t('features.portals.ui.link')} id="portal-url">
       <div class="link-box">
-        <div class="link-highlight-backdrop" aria-hidden="true">
+        <div bind:this={linkBackdropEl} class="link-highlight-backdrop" aria-hidden="true">
           {#each highlightedSegments as seg}
             <span class:token-highlight={seg.isPlaceholder}>{seg.text}</span>
           {/each}
@@ -364,7 +383,12 @@
           spellcheck={false}
           autocomplete="off"
           placeholder="https://www.google.com/search?q={'{argument}'}"
-          oninput={handleUrlInput}></textarea>
+          oninput={handleUrlInput}
+          onscroll={() => {
+            if (linkBackdropEl && urlTextareaEl) {
+              linkBackdropEl.scrollTop = urlTextareaEl.scrollTop;
+            }
+          }}></textarea>
         <div class="link-inline-actions">
           <button
             type="button"
@@ -379,7 +403,7 @@
             type="button"
             class="inline-icon-btn"
             tabindex={-1}
-            title="Choose file or folder"
+            title={t('features.portals.ui.choose_file_or_folder')}
             onclick={handleBrowsePath}
           >
             <Icon name="folder" size={14} />
@@ -393,11 +417,11 @@
     {/if}
 
     <p class="link-helper text-caption">
-      Include
+      {t('features.portals.ui.link_helper_prefix')}
       <button type="button" class="inline-link" onclick={openPickerViaButton}>
-        {'{Dynamic Placeholders}'}
+        {'{'}{t('features.portals.ui.link_helper_token')}{'}'}
       </button>
-      to add arguments or context like the selected or copied text in the link
+      {t('features.portals.ui.link_helper_suffix')}
     </p>
   </div>
 
@@ -416,7 +440,7 @@
         <button
           type="button"
           class="icon-picker-btn"
-          title="Choose Icon"
+          title={t('features.portals.ui.choose_icon')}
           onclick={() => (iconMenuOpen = !iconMenuOpen)}
         >
           <AppIcon {icon} size={16} glyphSize={14} />
@@ -547,7 +571,7 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    min-height: 84px;
+    min-height: calc(var(--size-xl) * 2 + var(--space-5));
     transition: border-color var(--dur-quick) var(--ease-travel);
   }
   .link-box:focus-within {
@@ -584,7 +608,7 @@
     border: none;
     outline: none;
     resize: none;
-    min-height: 84px;
+    min-height: calc(var(--size-xl) * 2 + var(--space-5));
   }
   .link-textarea::placeholder {
     color: var(--text-tertiary);

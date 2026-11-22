@@ -55,6 +55,7 @@ export async function resolveTemplate(
         context: {
           query: context.query || null,
           trigger: context.trigger || null,
+          args: context.args ?? null,
         },
       },
       { silent: true },

@@ -67,4 +67,14 @@ describe('portalPlaceholders', () => {
       { text: '&op=translate', isPlaceholder: false, isArgument: false },
     ]);
   });
+
+  it('disambiguates colliding sanitized keys while deduplicating identical names', () => {
+    const args = extractPortalArguments(
+      'https://example.com/?a={argument name="First Name"}&b={argument name="First-Name"}&c={argument name="First Name"}',
+    );
+    expect(args.map((a) => ({ name: a.name, placeholder: a.placeholder }))).toEqual([
+      { name: 'First_Name', placeholder: 'First Name' },
+      { name: 'First_Name_2', placeholder: 'First-Name' },
+    ]);
+  });
 });

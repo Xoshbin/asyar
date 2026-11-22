@@ -73,12 +73,7 @@ pub fn open_link(app_handle: &AppHandle, link: &str, with: Option<&str>) -> Resu
 
     use tauri_plugin_opener::OpenerExt;
     if is_local_path {
-        let raw_path = if lower.starts_with("file://") {
-            &trimmed[7..]
-        } else {
-            trimmed
-        };
-        let resolved = resolve_existing_path(raw_path)?;
+        let resolved = resolve_local_open_target(trimmed, &lower)?;
         app_handle
             .opener()
             .open_path(resolved.to_string_lossy().to_string(), target_app)
@@ -188,4 +183,50 @@ async fn pick_path_platform(
     }
     let result = rx.await.ok().flatten();
     Ok(result.map(|p| p.to_string()))
+}
+
+fn resolve_local_open_target(trimmed: &str, lower: &str) -> Result<std::path::PathBuf, AppError> {
+    if lower.starts_with("file://") {
+        let parsed = url::Url::parse(trimmed)
+            .map_err(|_| AppError::Validation(format!("Invalid file URL: {}", trimmed)))?;
+        let file_path = parsed
+            .to_file_path()
+            .map_err(|_| AppError::Validation(format!("Invalid file URL path: {}", trimmed)))?;
+        if !file_path.exists() {
+            return Err(AppError::Validation(format!(
+                "Path does not exist: {}",
+                file_path.display()
+            )));
+        }
+        return Ok(file_path);
+    }
+    resolve_existing_path(trimmed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_local_open_target;
+
+    #[test]
+    fn resolves_percent_encoded_file_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("My Report.pdf");
+        std::fs::write(&file_path, b"pdf").unwrap();
+
+        let file_url = url::Url::from_file_path(&file_path).unwrap();
+        let resolved =
+            resolve_local_open_target(file_url.as_str(), &file_url.as_str().to_lowercase())
+                .unwrap();
+        assert_eq!(resolved, file_path);
+    }
+
+    #[test]
+    fn rejects_missing_file_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("Missing File.pdf");
+        let file_url = url::Url::from_file_path(&missing).unwrap();
+        let err = resolve_local_open_target(file_url.as_str(), &file_url.as_str().to_lowercase())
+            .unwrap_err();
+        assert!(err.to_string().contains("Path does not exist"), "{err}");
+    }
 }

@@ -7,26 +7,32 @@ import { resolvePortalTemplate } from '../../lib/placeholders/placeholderResolve
 import { portalOpenLink, replaceDynamicCommandsBuiltin } from '../../lib/ipc/commands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { logService } from '../../services/log/logService';
+import { t } from '../../services/i18n';
 
 const PORTALS_EXTENSION_ID = 'portals';
+let syncQueue: Promise<void> = Promise.resolve();
 
 export function portalObjectId(portalId: string): string {
   return `cmd_portals_dyn_${portalId}`;
 }
 
-export async function syncAllPortalsToIndex(): Promise<void> {
-  const portals = portalStore.getAll();
-  const regs: DynamicCommandRegistration[] = portals
-    .filter((portal) => !portal.hiddenInRootSearch)
-    .map((portal) => ({
-      id: portal.id,
-      name: portal.name,
-      icon: portal.icon || '🔗',
-      typeLabel: 'Portal',
-      arguments: extractPortalArguments(portal.url),
-    }));
+export function syncAllPortalsToIndex(): Promise<void> {
+  const next = syncQueue.then(async () => {
+    const portals = portalStore.getAll();
+    const regs: DynamicCommandRegistration[] = portals
+      .filter((portal) => !portal.hiddenInRootSearch)
+      .map((portal) => ({
+        id: portal.id,
+        name: portal.name,
+        icon: portal.icon || '🔗',
+        typeLabel: t('features.portals.ui.typeLabel'),
+        arguments: extractPortalArguments(portal.url),
+      }));
 
-  await replaceDynamicCommandsBuiltin(PORTALS_EXTENSION_ID, regs);
+    await replaceDynamicCommandsBuiltin(PORTALS_EXTENSION_ID, regs);
+  });
+  syncQueue = next.catch(() => {});
+  return next;
 }
 
 export async function clearAllPortalsFromIndex(): Promise<void> {
@@ -80,6 +86,18 @@ function normalizeArgValues(args?: Record<string, unknown>): Record<string, stri
   return out;
 }
 
+function isLocalPathTemplate(template: string): boolean {
+  const trimmed = template.trim();
+  const lower = trimmed.toLowerCase();
+  return (
+    trimmed.startsWith('~/') ||
+    trimmed.startsWith('/') ||
+    lower.startsWith('file://') ||
+    /^[a-z]:[\\/]/i.test(trimmed) ||
+    trimmed.startsWith('\\\\')
+  );
+}
+
 export async function openPortal(
   portal: Portal,
   args?: Record<string, unknown>,
@@ -88,7 +106,12 @@ export async function openPortal(
   const argValues = normalizeArgValues(args);
   const query =
     argValues.query ?? argValues.Query ?? argValues.Argument ?? argValues.argument ?? '';
-  const resolved = await resolvePortalTemplate(portal.url, { query, args: argValues }, true);
+  const encodeValues = !isLocalPathTemplate(portal.url);
+  const resolved = await resolvePortalTemplate(
+    portal.url,
+    { query, args: argValues },
+    encodeValues,
+  );
   const openWith = overrideOpenWith !== undefined ? overrideOpenWith : portal.openWith;
   await portalOpenLink(resolved, openWith);
   portalStore.recordOpen(portal.id);

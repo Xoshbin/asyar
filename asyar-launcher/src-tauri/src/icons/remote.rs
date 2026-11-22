@@ -174,6 +174,10 @@ pub async fn fetch_portal_favicon(
         return None;
     }
     let host = parsed.host_str()?;
+    let expected_origin = parsed.origin();
+    if !expected_origin.is_tuple() {
+        return None;
+    }
     let origin = match parsed.port() {
         Some(port) => format!("{scheme}://{host}:{port}"),
         None => format!("{scheme}://{host}"),
@@ -211,7 +215,12 @@ pub async fn fetch_portal_favicon(
         )
         .await
         {
-            Ok(res) if (200..300).contains(&res.status) => res,
+            Ok(res)
+                if (200..300).contains(&res.status)
+                    && is_same_origin(&expected_origin, &res.url) =>
+            {
+                res
+            }
             _ => continue,
         };
 
@@ -233,6 +242,13 @@ pub async fn fetch_portal_favicon(
     }
 
     None
+}
+
+fn is_same_origin(expected: &url::Origin, final_url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(final_url) else {
+        return false;
+    };
+    parsed.origin().is_tuple() && parsed.origin() == *expected
 }
 
 /// Remote icons are only allowed for a real extension owner. `None`/`asyar`
@@ -495,5 +511,24 @@ mod tests {
         )
         .await
         .is_err());
+    }
+
+    #[test]
+    fn portal_favicon_rejects_cross_origin_redirects() {
+        let origin = reqwest::Url::parse("https://example.com/path")
+            .unwrap()
+            .origin();
+        assert!(is_same_origin(&origin, "https://example.com/favicon.ico"));
+        assert!(is_same_origin(
+            &origin,
+            "https://example.com:443/apple-touch-icon.png"
+        ));
+        assert!(!is_same_origin(&origin, "https://tracker.net/pixel.png"));
+        assert!(!is_same_origin(&origin, "http://example.com/favicon.ico"));
+        assert!(!is_same_origin(
+            &origin,
+            "https://sub.example.com/favicon.ico"
+        ));
+        assert!(!is_same_origin(&origin, "not-a-url"));
     }
 }

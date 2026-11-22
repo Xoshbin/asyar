@@ -580,21 +580,23 @@
 {#if openWithModalOpen && openWithTarget}
   <Modal
     bind:isOpen={openWithModalOpen}
-    title="Open With…"
+    title={t('features.portals.ui.open_with_title')}
     onEscape={() => (openWithModalOpen = false)}
   >
     <div class="open-with-modal-body">
       <SearchableSelect
         bind:value={openWithChoice}
         options={appOptions}
-        placeholder="Choose application…"
-        filterPlaceholder="Search applications..."
+        placeholder={t('features.portals.ui.choose_application')}
+        filterPlaceholder={t('features.portals.ui.search_applications')}
       />
       <div class="open-with-modal-actions">
         <button type="button" class="btn-secondary" onclick={() => (openWithModalOpen = false)}>
           {t('common.cancel')}
         </button>
-        <button type="button" class="btn-primary" onclick={confirmOpenWith}> Open Portal </button>
+        <button type="button" class="btn-primary" onclick={confirmOpenWith}>
+          {t('features.portals.ui.open_portal_btn')}
+        </button>
       </div>
     </div>
   </Modal>
@@ -666,7 +668,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    min-width: 320px;
+    min-width: calc(var(--size-3xl) * 5);
   }
   .open-with-modal-actions {
     display: flex;

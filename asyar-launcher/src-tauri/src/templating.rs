@@ -326,6 +326,12 @@ pub async fn resolve_portal_template(
             rest = "";
             break;
         };
+        if let Some(nested_open) = after[..end].find('{') {
+            out.push('{');
+            out.push_str(&after[..nested_open]);
+            rest = &after[nested_open..];
+            continue;
+        }
         let raw_inner = &after[..end];
         let full_token = &rest[start..start + 1 + end + 1];
 
@@ -380,20 +386,12 @@ pub async fn resolve_portal_template(
                             None => Some(now),
                         };
                         target_dt.map(|dt| {
-                            let default_fmt = match name_lower.as_str() {
-                                "date" => "%-m/%-d/%Y",
-                                "time" => "%-I:%M:%S %p",
-                                "date-time" | "datetime" | "date & time" => {
-                                    "%-m/%-d/%Y, %-I:%M:%S %p"
-                                }
-                                "weekday" | "day" => "%A",
-                                _ => "%-m/%-d/%Y",
-                            };
-                            let fmt = match spec.params.get("format") {
-                                Some(f) if !f.trim().is_empty() => convert_date_format(f.trim()),
-                                _ => default_fmt.to_string(),
-                            };
-                            dt.format(&fmt).to_string()
+                            format_datetime_with_locale(
+                                dt,
+                                &name_lower,
+                                spec.params.get("locale").map(String::as_str),
+                                spec.params.get("format").map(String::as_str),
+                            )
                         })
                     }
                 }
@@ -523,6 +521,155 @@ pub fn convert_date_format(format: &str) -> String {
     }
 
     out
+}
+
+fn format_datetime_with_locale(
+    dt: chrono::DateTime<chrono::Local>,
+    name_lower: &str,
+    locale: Option<&str>,
+    format: Option<&str>,
+) -> String {
+    if let Some(f) = format.map(str::trim).filter(|f| !f.is_empty()) {
+        return dt.format(&convert_date_format(f)).to_string();
+    }
+
+    let normalized = locale
+        .map(|l| l.trim().replace('_', "-").to_ascii_lowercase())
+        .filter(|l| !l.is_empty());
+
+    if matches!(name_lower, "weekday" | "day") {
+        if let Some(ref tag) = normalized {
+            if let Some(localized) = localized_weekday(dt, tag) {
+                return localized.to_string();
+            }
+        }
+        return dt.format("%A").to_string();
+    }
+
+    let (date_fmt, time_fmt) = locale_date_time_patterns(normalized.as_deref());
+    let fmt = match name_lower {
+        "date" => date_fmt.to_string(),
+        "time" => time_fmt.to_string(),
+        "date-time" | "datetime" | "date & time" => format!("{date_fmt}, {time_fmt}"),
+        _ => date_fmt.to_string(),
+    };
+    dt.format(&fmt).to_string()
+}
+
+fn locale_date_time_patterns(locale: Option<&str>) -> (&'static str, &'static str) {
+    let Some(tag) = locale else {
+        return ("%-m/%-d/%Y", "%-I:%M:%S %p");
+    };
+    let lang = tag.split('-').next().unwrap_or(tag);
+    match tag {
+        "en-us" | "en" => ("%-m/%-d/%Y", "%-I:%M:%S %p"),
+        "en-ca" => ("%Y-%m-%d", "%-I:%M:%S %p"),
+        "en-au" => ("%d/%m/%Y", "%-I:%M:%S %p"),
+        "en-gb" | "en-ie" | "en-nz" | "en-in" => ("%d/%m/%Y", "%H:%M:%S"),
+        _ => match lang {
+            "de" | "ru" | "pl" | "cs" | "tr" | "fi" | "no" | "nb" | "nn" => {
+                ("%d.%m.%Y", "%H:%M:%S")
+            }
+            "sv" | "lt" => ("%Y-%m-%d", "%H:%M:%S"),
+            "ja" | "zh" | "ko" => ("%Y/%-m/%-d", "%H:%M:%S"),
+            "fr" | "es" | "it" | "pt" | "nl" | "ar" | "fa" => ("%d/%m/%Y", "%H:%M:%S"),
+            _ => ("%-m/%-d/%Y", "%-I:%M:%S %p"),
+        },
+    }
+}
+
+fn localized_weekday(dt: chrono::DateTime<chrono::Local>, tag: &str) -> Option<&'static str> {
+    use chrono::Datelike;
+    let idx = dt.weekday().num_days_from_monday() as usize;
+    let lang = tag.split('-').next().unwrap_or(tag);
+    let names: [&'static str; 7] = match lang {
+        "fr" => [
+            "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche",
+        ],
+        "de" => [
+            "Montag",
+            "Dienstag",
+            "Mittwoch",
+            "Donnerstag",
+            "Freitag",
+            "Samstag",
+            "Sonntag",
+        ],
+        "es" => [
+            "lunes",
+            "martes",
+            "miércoles",
+            "jueves",
+            "viernes",
+            "sábado",
+            "domingo",
+        ],
+        "pt" => [
+            "segunda-feira",
+            "terça-feira",
+            "quarta-feira",
+            "quinta-feira",
+            "sexta-feira",
+            "sábado",
+            "domingo",
+        ],
+        "it" => [
+            "lunedì",
+            "martedì",
+            "mercoledì",
+            "giovedì",
+            "venerdì",
+            "sabato",
+            "domenica",
+        ],
+        "nl" => [
+            "maandag",
+            "dinsdag",
+            "woensdag",
+            "donderdag",
+            "vrijdag",
+            "zaterdag",
+            "zondag",
+        ],
+        "ja" => [
+            "月曜日",
+            "火曜日",
+            "水曜日",
+            "木曜日",
+            "金曜日",
+            "土曜日",
+            "日曜日",
+        ],
+        "zh" => [
+            "星期一",
+            "星期二",
+            "星期三",
+            "星期四",
+            "星期五",
+            "星期六",
+            "星期日",
+        ],
+        "ko" => [
+            "월요일",
+            "화요일",
+            "수요일",
+            "목요일",
+            "금요일",
+            "토요일",
+            "일요일",
+        ],
+        "ru" => [
+            "понедельник",
+            "вторник",
+            "среда",
+            "четверг",
+            "пятница",
+            "суббота",
+            "воскресенье",
+        ],
+        _ => return None,
+    };
+    Some(names[idx])
 }
 
 #[cfg(test)]
@@ -741,5 +888,36 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(bad, "{date format=\"yyyy-MM-dd\" locale=\"fr-FR\"}");
+    }
+
+    #[tokio::test]
+    async fn test_nested_literal_braces_preserve_inner_placeholders() {
+        let mut args = std::collections::HashMap::new();
+        args.insert("Q".to_string(), "rust".to_string());
+        let ctx = TemplateContext {
+            args: Some(args),
+            ..Default::default()
+        };
+        let out = resolve_portal_template(r#"{"q":"{argument name='Q'}","ok":true}"#, &ctx, false)
+            .await
+            .unwrap();
+        assert_eq!(out, r#"{"q":"rust","ok":true}"#);
+    }
+
+    #[tokio::test]
+    async fn test_date_time_locale_formatting() {
+        let ctx = TemplateContext::default();
+        assert_renders("{date locale=\"en-GB\"}", &ctx, |t| {
+            t.format("%d/%m/%Y").to_string()
+        })
+        .await;
+        assert_renders("{time locale=\"de-DE\"}", &ctx, |t| {
+            t.format("%H:%M:%S").to_string()
+        })
+        .await;
+        assert_renders("{date locale=\"ja-JP\"}", &ctx, |t| {
+            t.format("%Y/%-m/%-d").to_string()
+        })
+        .await;
     }
 }
