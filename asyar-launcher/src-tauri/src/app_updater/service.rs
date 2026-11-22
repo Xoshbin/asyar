@@ -17,6 +17,14 @@ pub async fn check_and_maybe_download(
     app: &AppHandle,
     channel: &str,
 ) -> Result<Option<String>, String> {
+    // Never self-update in dev builds: tauri-plugin-updater treats `target/debug/asyar`
+    // as a `.app` bundle, clobbering `target/debug/` and breaking macOS TCC/Accessibility.
+    if cfg!(debug_assertions) {
+        info!("app_updater: skipping update check in dev build");
+        crate::event_bridge::bridge_emit(app, "asyar:app-update:idle", ());
+        return Ok(None);
+    }
+
     // 1. Emit checking
     crate::event_bridge::bridge_emit(app, "asyar:app-update:checking", ());
 
@@ -142,6 +150,11 @@ pub async fn check_and_maybe_download(
 /// Called at cold start (before the main window shows). If a sentinel exists,
 /// it means a previous run downloaded an update; re-check and apply it now.
 pub async fn apply_on_start(app: &AppHandle) {
+    // Never apply updates in dev builds; see `check_and_maybe_download`.
+    if cfg!(debug_assertions) {
+        return;
+    }
+
     let sentinel = crate::app_updater::sentinel::read_sentinel(app);
     if sentinel.is_none() {
         return;
