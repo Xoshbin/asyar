@@ -74,10 +74,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="onboarding-frame">
-  <div
-    class="onboarding-frame__spot"
-    class:onboarding-frame__spot--on={onboardingService.state?.current === 'welcome'}
-  ></div>
+  <div class="onboarding-frame__spot"></div>
   <header class="onboarding-frame__header" data-tauri-drag-region>
     <button
       type="button"
@@ -127,7 +124,7 @@
       radial-gradient(ellipse 30% 55% at 18% 35%, var(--onb-indigo), transparent 75%),
       radial-gradient(ellipse 25% 30% at 0% 75%, var(--onb-indigo), transparent 75%);
     --onb-spot: none; */
-    /* Graphite, with the app icon's spotlight on Welcome: a beam from the top
+    /* Graphite, with the app icon's spotlight: a beam from the top
        centre that fades as it falls, a bright source, and a pool of light. */
     --onb-shadow: #111113;
     --onb-light: radial-gradient(ellipse 90% 70% at 50% 0%, #26262b, transparent 75%);
@@ -156,26 +153,15 @@
     -webkit-user-select: text;
   }
 
-  /* Gradients can't interpolate, so the spotlight is its own layer that fades
-     and settles in on Welcome and out on every other step. */
   .onboarding-frame__spot {
     position: absolute;
     inset: 0;
     /* WebKit drops the parent's rounded clip while steps slide; round this layer itself. */
     border-radius: inherit;
     background-image: var(--onb-spot);
-    opacity: 0;
-    transform: translateY(-3%);
-    transition:
-      opacity 700ms var(--ease-emerge),
-      transform 900ms var(--ease-emerge);
     pointer-events: none;
   }
-  .onboarding-frame__spot--on {
-    opacity: 1;
-    transform: none;
-  }
-  /* Grain sits above both light layers so it reads the same with or without the spotlight. */
+  /* Grain sits above both light layers. */
   .onboarding-frame::after {
     content: '';
     position: absolute;
