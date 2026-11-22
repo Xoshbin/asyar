@@ -387,11 +387,20 @@ impl KeystoreState {
     }
 }
 
-/// Decide which keystore to use on the current platform. macOS and
-/// Windows always use the OS-backed primary. Linux tries the OS-backed
-/// keystore first; on a `NoStorageAccess` / `PlatformFailure` error it
-/// falls back to the file-backed keystore inside `app_data_dir`.
+/// Decide which keystore to use on the current platform.
+///
+/// In debug/dev builds (unless `ASYAR_KEYCHAIN_SERVICE` is explicitly set),
+/// always use the file-backed keystore inside `app_data_dir` so unsigned dev
+/// rebuilds never trigger OS keychain password prompts.
+///
+/// In release builds, macOS and Windows always use the OS-backed primary, and
+/// Linux tries the OS-backed keystore first before falling back to the
+/// file-backed keystore on `NoStorageAccess` / `PlatformFailure`.
 pub fn select_keystore(app_data_dir: &Path) -> Box<dyn KeyStore> {
+    if cfg!(debug_assertions) && option_env!("ASYAR_KEYCHAIN_SERVICE").is_none() {
+        return Box::new(FileKeyStore::new(app_data_dir));
+    }
+
     let os_store = OsKeyStore::new();
 
     #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -864,6 +873,20 @@ mod tests {
             "select_keystore.is_os_backed() was {}, but expected ASYAR_EXPECT_KEYSTORE={}",
             store.is_os_backed(),
             if expected { "os" } else { "file" }
+        );
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn debug_select_keystore_uses_file_backend_by_default() {
+        if option_env!("ASYAR_KEYCHAIN_SERVICE").is_some() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let store = select_keystore(dir.path());
+        assert!(
+            !store.is_os_backed(),
+            "debug builds must use FileKeyStore by default to avoid OS keychain prompts"
         );
     }
 }
