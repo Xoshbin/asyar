@@ -59,18 +59,18 @@ At runtime a command sees the union: command-scoped keys shadow extension-scoped
 
 For a text preference, use `"type": "textfield"`. The `"text"` type is for command arguments, not preferences. This applies to both extension-level and command-level preferences.
 
-| Type        | Value type      | Rendered as            |
-| ----------- | --------------- | ---------------------- |
-| `textfield` | `string`        | Text input             |
-| `password`  | `string`        | Password input         |
-| `number`    | `number`        | Number input           |
-| `checkbox`  | `boolean`       | Checkbox               |
-| `dropdown`  | `string`        | Native `<select>` menu |
-| `appPicker` | `string` (path) | Text input *           |
-| `file`      | `string` (path) | Text input *           |
-| `directory` | `string` (path) | Text input *           |
+| Type        | Value type      | Rendered as                                      |
+| ----------- | --------------- | ------------------------------------------------ |
+| `textfield` | `string`        | Text input                                       |
+| `password`  | `string`        | Password input                                   |
+| `number`    | `number`        | Number input                                     |
+| `checkbox`  | `boolean`       | Checkbox                                         |
+| `dropdown`  | `string`        | Native `<select>` menu                           |
+| `appPicker` | `string` (path) | Searchable app dropdown (with manual path entry) |
+| `file`      | `string` (path) | Text input *                                     |
+| `directory` | `string` (path) | Text input *                                     |
 
-\* Native picker UIs for `appPicker`, `file`, and `directory` are deferred. They currently accept manual path entry.
+\* Native picker UIs for `file` and `directory` are deferred. They currently accept manual path entry.
 
 ## Declaration Shape
 
