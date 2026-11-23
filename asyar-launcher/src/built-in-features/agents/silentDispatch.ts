@@ -278,10 +278,7 @@ async function applyOutputAction(
       await spinner.replace('✓ Copied', { spinning: false, durationMs: 1500 });
       return;
     case 'hud':
-      await spinner.replace(result.trim(), {
-        spinning: false,
-        durationMs: 4000,
-      });
+      await spinner.replace(result.trim(), { spinning: false });
   }
 }
 

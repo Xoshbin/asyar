@@ -221,7 +221,6 @@ describe('dispatchSilentAgentCommand', () => {
     await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'hello' });
     expect(spinnerMock.replace).toHaveBeenCalledWith(paragraphs.trim(), {
       spinning: false,
-      durationMs: 4000,
     });
   });
 
