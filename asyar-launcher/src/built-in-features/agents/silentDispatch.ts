@@ -278,7 +278,10 @@ async function applyOutputAction(
       await spinner.replace('✓ Copied', { spinning: false, durationMs: 1500 });
       return;
     case 'hud':
-      await spinner.replace(lastNonEmptyLine(result), { spinning: false });
+      await spinner.replace(result.trim(), {
+        spinning: false,
+        durationMs: 4000,
+      });
   }
 }
 
@@ -303,15 +306,6 @@ async function writeAndPaste(result: string): Promise<void> {
       void writeText(savedClipboard).catch(() => undefined);
     }, CLIPBOARD_RESTORE_DELAY_MS);
   }
-}
-
-export function lastNonEmptyLine(text: string): string {
-  const lines = text.split(/\r?\n/);
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index].trim();
-    if (line.length > 0) return line;
-  }
-  return text.trim();
 }
 
 async function loadAgent(agentId: string): Promise<AgentDef> {

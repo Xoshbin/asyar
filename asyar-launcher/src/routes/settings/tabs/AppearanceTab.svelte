@@ -261,5 +261,14 @@
           })}
       />
     </SettingsRow>
+    <SettingsRow label={t('settings.appearance.hud_follow_cursor')}>
+      <Toggle
+        checked={handler.settings.appearance.hudFollowCursor ?? false}
+        onchange={() =>
+          settingsService.updateSettings('appearance', {
+            hudFollowCursor: !handler.settings.appearance.hudFollowCursor,
+          })}
+      />
+    </SettingsRow>
   </div>
 </SettingsCard>

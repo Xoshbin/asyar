@@ -49,8 +49,11 @@ instead of opening the chat view:
      for apps without selection semantics.
    - `copy` — write result to clipboard only. No paste, no clipboard
      restore.
-   - `hud` — show the last non-empty line of the result in a HUD
-     toast.
+   - `hud` — show the full result in a HUD. Paragraphs wrap, and longer
+     results can be scrolled. Results disappear after four seconds. Hover over a
+     multiline result to keep reading; it closes one second after the pointer leaves.
+     Enable **Show HUD near the mouse pointer** in
+     **Settings → Appearance** to display the result where you invoked the agent.
 
 The original clipboard contents are restored after a short delay so
 the paste lands before the restore overwrites the result. Image and

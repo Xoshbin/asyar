@@ -216,6 +216,7 @@ describe('HUD', () => {
   );
 
   it('supports a spinning HUD for headless work', async () => {
+    vi.mocked(commands.showHud).mockResolvedValueOnce([-1200, 260]);
     const handle = feedbackService.showHUDSpinning('Working');
     await handle.replace('Done');
     await handle.dismiss();
@@ -225,6 +226,12 @@ describe('HUD', () => {
       spinning: true,
     });
     expect(commands.hideHud).toHaveBeenCalledOnce();
+    expect(commands.showHud).toHaveBeenLastCalledWith({
+      title: 'Done',
+      durationMs: 1500,
+      spinning: false,
+      anchor: [-1200, 260],
+    });
   });
 
   it('keeps an error replacement visible long enough to read', async () => {
