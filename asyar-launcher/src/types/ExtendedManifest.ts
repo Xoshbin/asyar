@@ -12,6 +12,7 @@ export type HostManifestAction = ManifestAction & WithResolvedIcon;
 export type HostCommand = ExtensionCommand &
   WithResolvedIcon & {
     actions?: HostManifestAction[];
+    footerUnderlay?: boolean;
   };
 
 /**

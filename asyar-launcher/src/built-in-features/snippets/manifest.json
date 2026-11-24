@@ -17,6 +17,7 @@
       "trigger": "snippets",
       "description": "Manage text expansion snippets",
       "mode": "view",
+      "footerUnderlay": true,
       "component": "DefaultView"
     }
   ],

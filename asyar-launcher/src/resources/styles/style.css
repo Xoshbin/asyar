@@ -233,6 +233,10 @@
      host. They exist as tokens so those five stay in agreement. */
   --shell-header-h: 56px;
   --shell-footer-h: 40px;
+  /* How much of a scroller's bottom the footer overlays. 0 where the footer
+     is opaque chrome; the footer height on macOS, where it is glass that
+     content scrolls under (see .shell-content). */
+  --shell-safe-bottom: 0px;
   /* The result row. This is the most consequential number in the product:
      with a 480px window, a 56px header and a 40px footer, the content area is
      384px and the list insets it by --space-3 top and bottom, leaving 368px.
@@ -441,6 +445,10 @@ html[data-platform='macos'] .app-root {
   height: 480px;
 }
 
+html[data-platform='macos'] {
+  --shell-safe-bottom: var(--shell-footer-h);
+}
+
 /* ── Theme ────────────────────────────────────────────────
    Two palettes, each defined twice: under `prefers-color-scheme` (scoped
    with `:not([data-theme])`) for OS-tracking, and under `[data-theme]` for
@@ -475,6 +483,7 @@ html[data-platform='macos'] .app-root {
     --bg-selected: rgba(120, 150, 245, 0.24);
     --bg-secondary-full-opacity: rgba(40, 40, 42);
     --bg-popup: rgb(30, 30, 32);
+    --footer-glass-bg: rgba(255, 255, 255, 0.07);
 
     /* Text */
     --text-primary: rgba(255, 255, 255, 0.95);
@@ -554,6 +563,7 @@ html[data-platform='macos'] .app-root {
   --bg-selected: rgba(120, 150, 245, 0.24);
   --bg-secondary-full-opacity: rgba(40, 40, 42);
   --bg-popup: rgb(30, 30, 32);
+  --footer-glass-bg: rgba(255, 255, 255, 0.07);
 
   --text-primary: rgba(255, 255, 255, 0.95);
   --text-secondary: rgba(235, 235, 245, 0.65);
@@ -622,6 +632,7 @@ html[data-platform='macos'] .app-root {
     --bg-selected: rgba(42, 85, 214, 0.13);
     --bg-secondary-full-opacity: rgb(230, 230, 235);
     --bg-popup: rgb(240, 240, 245);
+    --footer-glass-bg: rgba(255, 255, 255, 0.55);
 
     --text-primary: rgba(15, 23, 42, 0.9);
     --text-secondary: rgba(60, 60, 67, 0.7);
@@ -689,6 +700,7 @@ html[data-platform='macos'] .app-root {
   --bg-selected: rgba(42, 85, 214, 0.13);
   --bg-secondary-full-opacity: rgb(230, 230, 235);
   --bg-popup: rgb(240, 240, 245);
+  --footer-glass-bg: rgba(255, 255, 255, 0.55);
 
   --text-primary: rgba(15, 23, 42, 0.9);
   --text-secondary: rgba(60, 60, 67, 0.7);
@@ -789,11 +801,30 @@ html[data-platform='macos'] .app-root {
     z-index: var(--z-header);
   }
 
-  /* The scrollable area between the two fixed bars. */
+  /* The scrollable area below the header. It stops at the footer, or on
+     macOS runs under the glass footer by --shell-safe-bottom. */
   .shell-content {
     @apply fixed left-0 right-0 overflow-y-auto;
     top: var(--shell-header-h);
+    bottom: calc(var(--shell-footer-h) - var(--shell-safe-bottom));
+  }
+
+  /* A view that hasn't opted into footerUnderlay keeps clear of the glass. */
+  .shell-content.shell-content--clear-footer {
     bottom: var(--shell-footer-h);
+    --shell-safe-bottom: 0px;
+  }
+
+  /* A scroller that runs under the glass footer: its last item can still
+     scroll clear, and keyboard scrollIntoView stops above the glass. */
+  .shell-scroll-safe {
+    scroll-padding-bottom: var(--shell-safe-bottom);
+  }
+  .shell-scroll-safe::after {
+    content: '';
+    display: block;
+    flex-shrink: 0;
+    height: var(--shell-safe-bottom);
   }
 
   .shell-content.shell-content--view {

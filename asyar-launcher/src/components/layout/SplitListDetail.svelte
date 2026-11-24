@@ -56,7 +56,7 @@
   {#snippet left()}
     <div
       bind:this={listContainer}
-      class="list-panel custom-scrollbar"
+      class="list-panel custom-scrollbar shell-scroll-safe"
       role="listbox"
       aria-label={ariaLabel}
       tabindex="0"
@@ -92,8 +92,10 @@
     outline: none;
   }
 
+  /* The list scrolls under the glass footer; the detail stops above it. */
   .detail-panel {
     height: 100%;
+    padding-bottom: var(--shell-safe-bottom);
     display: flex;
     flex-direction: column;
     overflow: hidden;

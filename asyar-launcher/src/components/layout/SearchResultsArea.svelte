@@ -30,7 +30,7 @@
   }: Props = $props();
 </script>
 
-<div class="min-h-full flex flex-col">
+<div class="flex flex-col" style="min-height: calc(100% - var(--shell-safe-bottom))">
   <div bind:this={listContainer}>
     {#if feedbackService.current && SEARCH_FATAL_KINDS.has(feedbackService.current.kind)}
       <ErrorState status={feedbackService.current} />

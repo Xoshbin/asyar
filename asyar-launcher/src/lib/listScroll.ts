@@ -63,7 +63,9 @@ export function scrollSelectedIntoView(listContainer: HTMLElement, selectedIndex
   const offsetTop = rowRect.top - scrollerRect.top + scroller.scrollTop;
   const rowBottom = offsetTop + rowRect.height;
 
-  const minScroll = rowBottom + EDGE_GAP - scroller.clientHeight;
+  // A glass footer overlays the scroller's bottom (see .shell-scroll-safe).
+  const coveredBottom = parseFloat(getComputedStyle(scroller).scrollPaddingBottom) || 0;
+  const minScroll = rowBottom + EDGE_GAP + coveredBottom - scroller.clientHeight;
   const maxScroll = offsetTop - EDGE_GAP;
 
   if (scroller.scrollTop > maxScroll) {

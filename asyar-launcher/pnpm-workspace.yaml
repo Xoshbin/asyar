@@ -6,4 +6,4 @@ allowBuilds:
   esbuild: set this to true or false
   keytar: set this to true or false
 minimumReleaseAgeExclude:
-  - asyar-sdk@4.18.1 || 4.21.0
+  - asyar-sdk@4.18.1 || 4.21.0 || 4.22.0

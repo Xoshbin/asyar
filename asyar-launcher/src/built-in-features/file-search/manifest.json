@@ -16,6 +16,7 @@
       "description": "Search files by name",
       "trigger": "files",
       "mode": "view",
+      "footerUnderlay": true,
       "component": "DefaultView",
       "searchBarAccessory": {
         "type": "dropdown",

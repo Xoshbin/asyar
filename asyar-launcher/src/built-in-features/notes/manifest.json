@@ -17,6 +17,7 @@
       "trigger": "notes",
       "description": "Browse, search, and write notes",
       "mode": "view",
+      "footerUnderlay": true,
       "component": "DefaultView"
     },
     {
