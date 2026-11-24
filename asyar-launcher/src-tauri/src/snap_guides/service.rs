@@ -1,7 +1,9 @@
 //! Snap-guides window service — show/hide/paint, and nothing else. See
 //! `mod.rs` for why this module has no opinion on *when* to show itself.
 
-use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
+#[cfg(not(target_os = "windows"))]
+use tauri::{LogicalPosition, LogicalSize};
 
 use crate::error::AppError;
 use crate::snap_guides::{SnapGuideState, SnapGuidesState};
@@ -22,22 +24,28 @@ pub fn show<R: Runtime>(
         .get_webview_window(SNAP_GUIDES_WINDOW_LABEL)
         .ok_or_else(|| AppError::NotFound("snap-guides window".to_string()))?;
 
-    window
-        .set_size(tauri::Size::Logical(LogicalSize {
-            width: size.0,
-            height: size.1,
-        }))
-        .map_err(|e| AppError::Platform(format!("snap-guides set_size: {e}")))?;
-    window
-        .set_position(tauri::Position::Logical(LogicalPosition {
-            x: origin.0,
-            y: origin.1,
-        }))
-        .map_err(|e| AppError::Platform(format!("snap-guides set_position: {e}")))?;
-    let _ = window.show();
-    // set_ignore_cursor_events must be deferred until after the window is shown/realized
-    // to avoid event loop / tao aborts on hidden/unmapped windows on Linux and Windows.
-    let _ = window.set_ignore_cursor_events(true);
+    #[cfg(target_os = "windows")]
+    crate::platform::windows::passive_overlay::show(&window, origin, size)?;
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        window
+            .set_size(tauri::Size::Logical(LogicalSize {
+                width: size.0,
+                height: size.1,
+            }))
+            .map_err(|e| AppError::Platform(format!("snap-guides set_size: {e}")))?;
+        window
+            .set_position(tauri::Position::Logical(LogicalPosition {
+                x: origin.0,
+                y: origin.1,
+            }))
+            .map_err(|e| AppError::Platform(format!("snap-guides set_position: {e}")))?;
+        let _ = window.show();
+        // set_ignore_cursor_events must be deferred until after the window is shown/realized
+        // to avoid event loop / tao aborts on hidden/unmapped windows on Linux.
+        let _ = window.set_ignore_cursor_events(true);
+    }
     Ok(())
 }
 
@@ -46,6 +54,9 @@ pub fn show<R: Runtime>(
 /// its first `set_state` call lands.
 pub fn hide<R: Runtime>(app: &AppHandle<R>) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(SNAP_GUIDES_WINDOW_LABEL) {
+        #[cfg(target_os = "windows")]
+        crate::platform::windows::passive_overlay::hide(&window)?;
+        #[cfg(not(target_os = "windows"))]
         let _ = window.hide();
     }
     if let Some(state) = app.try_state::<SnapGuidesState>() {
