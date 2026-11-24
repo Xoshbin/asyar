@@ -1,5 +1,6 @@
 import type { ActionContext, ExtensionAction, FileHit } from 'asyar-sdk/contracts';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
+import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
 import {
   fileSearchClearHistory,
   openInTerminal,
@@ -84,10 +85,10 @@ export function buildFileActions(opts: {
   };
   const actions: FileAction[] = [];
   loadInstalledApps();
-  // Inline root-search rows are tagged 'file-search' but are still local files.
+  const platform = getHostPlatform();
   const isLocalFile = () => {
     const file = getFile();
-    return Boolean(file?.path && (!file.extensionId || file.extensionId === 'file-search'));
+    return Boolean(file?.path && !file.extensionId);
   };
 
   if (opts.include?.open) {
@@ -184,8 +185,13 @@ export function buildFileActions(opts: {
     {
       ...base,
       id: 'file-search:reveal-in-finder',
-      title: t('features.file_search.act.reveal'),
-      description: t('features.file_search.act.reveal_desc'),
+      title:
+        platform === 'macos'
+          ? t('features.file_search.act.reveal')
+          : platform === 'windows'
+            ? t('core_actions.reveal_app_win')
+            : t('core_actions.reveal_app'),
+      description: t('features.clipboard.act.reveal_desc'),
       icon: 'icon:folder',
       shortcut: 'Mod+R',
       visible: () => Boolean(getFile()?.path),

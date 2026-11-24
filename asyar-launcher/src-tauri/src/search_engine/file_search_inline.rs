@@ -85,7 +85,7 @@ pub fn append_inline_file_results(
                 score: hit.score.min(1.0),
                 path: Some(hit.path),
                 icon: None,
-                extension_id: Some("file-search".to_string()),
+                extension_id: None,
                 description,
                 type_label: None,
                 has_arguments: false,
@@ -317,6 +317,18 @@ mod tests {
             ],
         );
         assert_eq!(inserted, 2);
+    }
+
+    #[test]
+    fn indexed_directory_is_a_host_result() {
+        let index = tree(&[("/home/me/common", EntryKind::Dir)]);
+        let mut rows = Vec::new();
+        assert_eq!(
+            append_inline_file_results(&mut rows, "common", &index, 100, None),
+            1
+        );
+        let row = &rows[0];
+        assert!(row.extension_id.is_none());
     }
 
     #[test]

@@ -80,7 +80,7 @@ pub fn exact_path_row(path: &Path, home: Option<&Path>) -> Option<SearchResult> 
         description: parent_description(&path_str, home.and_then(Path::to_str)),
         path: Some(path_str),
         icon: None,
-        extension_id: Some("file-search".to_string()),
+        extension_id: None,
         type_label: None,
         has_arguments: false,
         favorite: false,
@@ -240,7 +240,7 @@ mod tests {
         assert_eq!(row.result_type, "file");
         assert_eq!(row.name, "a b.txt");
         assert_eq!(row.path.as_deref(), Some(file.to_str().unwrap()));
-        assert_eq!(row.extension_id.as_deref(), Some("file-search"));
+        assert!(row.extension_id.is_none());
         assert_eq!(row.tier, Tier::ExactTitle as u8);
         assert_eq!(row.description.as_deref(), Some("~"));
         assert!(row.object_id.starts_with("file_") && row.object_id.len() == "file_".len() + 16);
