@@ -41,7 +41,7 @@ export function resolveItemMeta(
   if (!result.icon) {
     if (type === 'application') icon = '🖥️';
     else if (type === 'command') icon = '❯_';
-    else if (type === 'file') icon = 'icon:file';
+    else if (type === 'file') icon = 'icon:file-text';
   }
 
   // --- TypeLabel resolution ---

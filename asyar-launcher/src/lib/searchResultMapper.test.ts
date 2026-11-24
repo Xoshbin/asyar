@@ -70,6 +70,11 @@ const noManifest = (_id: string) => null;
 // ── Icon resolution ───────────────────────────────────────────────────────────
 
 describe('icon resolution', () => {
+  it('uses a registered file glyph while the native file icon loads', () => {
+    const { icon } = resolveItemMeta(makeResult({ type: 'file' }), noManifest);
+    expect(icon).toBe('icon:file-text');
+  });
+
   it('uses the result icon when provided', () => {
     const { icon } = resolveItemMeta(
       makeResult({ icon: { kind: 'emoji', value: '🎯' } }),

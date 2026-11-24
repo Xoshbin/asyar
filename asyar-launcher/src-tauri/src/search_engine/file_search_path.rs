@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use asyar_search::Tier;
 
-use super::file_search_inline::{normalize_path_for_dedup, parent_description};
+use super::file_search_inline::{folder_icon, normalize_path_for_dedup, parent_description};
 use super::models::SearchResult;
 use crate::file_index::file_id::{derive_from_metadata, to_hex};
 
@@ -79,7 +79,7 @@ pub fn exact_path_row(path: &Path, home: Option<&Path>) -> Option<SearchResult> 
         score: 1.0,
         description: parent_description(&path_str, home.and_then(Path::to_str)),
         path: Some(path_str),
-        icon: None,
+        icon: folder_icon(meta.is_dir()),
         extension_id: None,
         type_label: None,
         has_arguments: false,
@@ -241,6 +241,7 @@ mod tests {
         assert_eq!(row.name, "a b.txt");
         assert_eq!(row.path.as_deref(), Some(file.to_str().unwrap()));
         assert!(row.extension_id.is_none());
+        assert!(row.icon.is_none());
         assert_eq!(row.tier, Tier::ExactTitle as u8);
         assert_eq!(row.description.as_deref(), Some("~"));
         assert!(row.object_id.starts_with("file_") && row.object_id.len() == "file_".len() + 16);
@@ -251,7 +252,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let hidden = dir.path().join(".hidden");
         std::fs::write(&hidden, "x").unwrap();
-        assert!(exact_path_row(dir.path(), None).is_some());
+        let folder = exact_path_row(dir.path(), None).unwrap();
+        assert!(
+            matches!(&folder.icon, Some(crate::icons::ResolvedIcon::Glyph { name, .. }) if name == "folder")
+        );
         assert_eq!(exact_path_row(&hidden, None).unwrap().name, ".hidden");
     }
 

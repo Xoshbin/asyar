@@ -6,11 +6,21 @@ use asyar_search::Tier;
 use crate::file_index::query::QueryOptions;
 use crate::file_index::service::FileIndexState;
 use crate::file_index::types::IndexStateKind;
+use crate::icons::ResolvedIcon;
 
 use super::models::SearchResult;
 
 pub const ROOT_FILE_ROW_CAP: usize = 4;
 pub const MIN_FILE_QUERY_CHARS: usize = 3;
+
+/// Keep directories recognizable while the native icon loads or if it is unavailable.
+pub(super) fn folder_icon(is_dir: bool) -> Option<ResolvedIcon> {
+    is_dir.then(|| ResolvedIcon::Glyph {
+        name: "folder".into(),
+        color: None,
+    })
+}
+
 /// Hits requested from the index for a path-shaped query: as many as the index
 /// will return (it clamps to `DEFAULT_LIMIT`). The sibling filter runs after
 /// that limit, so a very short typed segment (`/Users/me/a`) can in principle
@@ -84,7 +94,7 @@ pub fn append_inline_file_results(
                 result_type: "file".to_string(),
                 score: hit.score.min(1.0),
                 path: Some(hit.path),
-                icon: None,
+                icon: folder_icon(hit.is_dir),
                 extension_id: None,
                 description,
                 type_label: None,
@@ -320,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn indexed_directory_is_a_host_result() {
+    fn indexed_directory_is_a_host_result_with_a_folder_icon() {
         let index = tree(&[("/home/me/common", EntryKind::Dir)]);
         let mut rows = Vec::new();
         assert_eq!(
@@ -329,6 +339,9 @@ mod tests {
         );
         let row = &rows[0];
         assert!(row.extension_id.is_none());
+        assert!(
+            matches!(&row.icon, Some(crate::icons::ResolvedIcon::Glyph { name, .. }) if name == "folder")
+        );
     }
 
     #[test]
