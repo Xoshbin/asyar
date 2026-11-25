@@ -79,7 +79,15 @@ pub async fn opener_open_path<R: tauri::Runtime>(
     path: String,
     r#with: Option<String>,
 ) -> Result<(), AppError> {
-    opener_path_check(&permissions, &extension_id, &path)?;
+    opener_path_check(&permissions, &extension_id, &path).map_err(|e| {
+        log::error!(
+            "[opener_open_path] path check failed for {:?} (ext={:?}): {:?}",
+            path,
+            extension_id,
+            e
+        );
+        e
+    })?;
     validate_open_with_target(r#with.as_deref(), cfg!(target_os = "windows"))?;
     let resolved = resolve_path(&path)?;
 
@@ -89,7 +97,16 @@ pub async fn opener_open_path<R: tauri::Runtime>(
         if crate::application::service::application_launch_route(app)
             == crate::application::service::ApplicationLaunchRoute::GioDesktopEntry
         {
-            return crate::application::service::launch_linux_desktop_entry(app, Some(&resolved));
+            return crate::application::service::launch_linux_desktop_entry(app, Some(&resolved))
+                .map_err(|e| {
+                    log::error!(
+                        "[opener_open_path] desktop entry {:?} failed for {:?}: {}",
+                        app,
+                        resolved,
+                        e
+                    );
+                    e
+                });
         }
     }
 
@@ -97,7 +114,14 @@ pub async fn opener_open_path<R: tauri::Runtime>(
     app_handle
         .opener()
         .open_path(resolved.to_string_lossy().to_string(), r#with.as_deref())
-        .map_err(|e| AppError::Other(format!("OS opener failed: {}", e)))
+        .map_err(|e| {
+            log::error!(
+                "[opener_open_path] OS opener failed for {:?}: {}",
+                resolved,
+                e
+            );
+            AppError::Other(format!("OS opener failed: {}", e))
+        })
 }
 
 /// Rejects synthetic `with` targets that cannot accept a file path argument.

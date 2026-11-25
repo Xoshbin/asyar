@@ -384,7 +384,8 @@ export function buildMappedItems({
             await openerService.openPath(result.extensionId ?? null, path);
             return;
           } catch (err) {
-            logService.error(`openerService.openPath failed: ${err}`);
+            const errMsg = typeof err === 'string' ? err : JSON.stringify(err);
+            logService.error(`openerService.openPath failed: ${errMsg}`);
             if (!result.url) {
               onError(`Failed to open ${name}`);
               throw err;
