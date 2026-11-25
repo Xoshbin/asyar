@@ -102,6 +102,31 @@ describe('calculator extension (thin presenter)', () => {
     expect(writeText).toHaveBeenCalledWith('hsl(210, 50%, 13%)');
   });
 
+  it('rowActions offers one copy action per number base and copies that exact value', async () => {
+    vi.mocked(invokeSafe).mockResolvedValueOnce([
+      { value: '0x5', detail: '5 · 0b101 · 0o5', kind: 'base' },
+    ] satisfies CalcResult[]);
+    const [row] = await calculator.searchRows('0b101 in hex');
+
+    expect((row.actionPayload as { baseFormats: string[] }).baseFormats).toEqual([
+      '5',
+      '0b101',
+      '0o5',
+      '0x5',
+    ]);
+
+    const actions = calculator.rowActions(row.id, row.actionPayload);
+    expect(actions.map((a) => a.id)).toEqual([
+      'calculator:copy-base-dec',
+      'calculator:copy-base-bin',
+      'calculator:copy-base-oct',
+      'calculator:copy-base-hex',
+    ]);
+
+    await actions[0].execute();
+    expect(writeText).toHaveBeenCalledWith('5');
+  });
+
   it('rowActions is empty for non-color rows', async () => {
     vi.mocked(invokeSafe).mockResolvedValueOnce([
       { value: '4', detail: '2+2', kind: 'math' },

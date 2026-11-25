@@ -86,8 +86,30 @@ fn parse_literal(s: &str) -> Option<u128> {
     }
 }
 
-fn all_bases_detail(n: u128) -> String {
-    format!("0b{n:b} · 0o{n:o} · 0x{n:X}")
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum BaseKind {
+    Dec,
+    Bin,
+    Oct,
+    Hex,
+}
+
+fn format_base(n: u128, kind: BaseKind) -> String {
+    match kind {
+        BaseKind::Dec => group_thousands(&n.to_string()),
+        BaseKind::Bin => format!("0b{n:b}"),
+        BaseKind::Oct => format!("0o{n:o}"),
+        BaseKind::Hex => format!("0x{n:X}"),
+    }
+}
+
+fn other_bases_detail(n: u128, exclude: BaseKind) -> String {
+    [BaseKind::Dec, BaseKind::Bin, BaseKind::Oct, BaseKind::Hex]
+        .into_iter()
+        .filter(|&kind| kind != exclude)
+        .map(|kind| format_base(n, kind))
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 /// Whole-query based literals (`0xff`) and base conversion requests
@@ -99,21 +121,25 @@ pub fn evaluate_bases(query: &str) -> Option<CalcResult> {
     if p.literal.is_match(q) {
         let n = parse_literal(q)?;
         return Some(CalcResult::new(
-            group_thousands(&n.to_string()),
-            all_bases_detail(n),
+            format_base(n, BaseKind::Dec),
+            other_bases_detail(n, BaseKind::Dec),
             CalcKind::Base,
         ));
     }
 
     if let Some(c) = p.to_base.captures(q) {
         let n = parse_literal(&c[1])?;
-        let value = match c[2].to_ascii_lowercase().as_str() {
-            "hex" | "hexadecimal" => format!("0x{n:X}"),
-            "binary" | "bin" => format!("0b{n:b}"),
-            "octal" | "oct" => format!("0o{n:o}"),
-            _ => group_thousands(&n.to_string()),
+        let target = match c[2].to_ascii_lowercase().as_str() {
+            "hex" | "hexadecimal" => BaseKind::Hex,
+            "binary" | "bin" => BaseKind::Bin,
+            "octal" | "oct" => BaseKind::Oct,
+            _ => BaseKind::Dec,
         };
-        return Some(CalcResult::new(value, all_bases_detail(n), CalcKind::Base));
+        return Some(CalcResult::new(
+            format_base(n, target),
+            other_bases_detail(n, target),
+            CalcKind::Base,
+        ));
     }
 
     None
@@ -274,6 +300,25 @@ mod tests {
         assert_eq!(evaluate_bases("12 to binary").unwrap().value, "0b1100");
         assert_eq!(evaluate_bases("12 in bin").unwrap().value, "0b1100");
         assert_eq!(evaluate_bases("8 to octal").unwrap().value, "0o10");
+    }
+
+    #[test]
+    fn base_conversion_detail_includes_decimal_and_excludes_target_base() {
+        let hex = evaluate_bases("0b101 in hex").unwrap();
+        assert_eq!(hex.value, "0x5");
+        assert_eq!(hex.detail, "5 · 0b101 · 0o5");
+
+        let bin = evaluate_bases("255 to binary").unwrap();
+        assert_eq!(bin.value, "0b11111111");
+        assert_eq!(bin.detail, "255 · 0o377 · 0xFF");
+
+        let oct = evaluate_bases("8 to octal").unwrap();
+        assert_eq!(oct.value, "0o10");
+        assert_eq!(oct.detail, "8 · 0b1000 · 0x8");
+
+        let dec = evaluate_bases("0x2f to decimal").unwrap();
+        assert_eq!(dec.value, "47");
+        assert_eq!(dec.detail, "0b101111 · 0o57 · 0x2F");
     }
 
     #[test]
