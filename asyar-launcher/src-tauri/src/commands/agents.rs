@@ -608,7 +608,7 @@ pub async fn agents_run_thread(
     };
 
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
-    let master_key = *keystore.master_key();
+    let master_key = keystore.master_key()?;
 
     let result = crate::agents::runner::run_thread_loop_impl(
         &store,
@@ -650,7 +650,7 @@ pub async fn agents_run_silent(
     on_event: Channel<AgentStreamEvent>,
 ) -> Result<String, AppError> {
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
-    let master_key = *keystore.master_key();
+    let master_key = keystore.master_key()?;
 
     let agent = {
         let conn = store.conn()?;

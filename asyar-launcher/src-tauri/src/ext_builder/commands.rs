@@ -43,10 +43,11 @@ pub async fn ext_builder_start(
     let db = app.state::<crate::storage::DataStore>();
     let ks = app.state::<crate::crypto::keystore::KeystoreState>();
     let conn = db.conn().map_err(|e| e.to_string())?;
+    let master_key = ks.master_key().map_err(|e| e.to_string())?;
     let resolved_key = match crate::storage::ai_credentials::get(
         &conn,
         "provider:anthropic",
-        ks.master_key(),
+        &master_key,
     ) {
         Ok(Some(k)) => k,
         Ok(None) => {

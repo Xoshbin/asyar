@@ -19,7 +19,7 @@ pub fn clipboard_list_initial(
     Ok(super::clipboard::list_initial(
         &conn,
         limit as usize,
-        keystore.master_key(),
+        &*keystore.master_key()?,
         filter.as_ref(),
     )?)
 }
@@ -37,7 +37,7 @@ pub fn clipboard_list_older(
         &conn,
         &cursor,
         limit as usize,
-        keystore.master_key(),
+        &*keystore.master_key()?,
         filter.as_ref(),
     )?)
 }
@@ -57,7 +57,7 @@ pub fn clipboard_search(
         fts.inner(),
         &query,
         limit as usize,
-        keystore.master_key(),
+        &*keystore.master_key()?,
         filter.as_ref(),
     )?)
 }
@@ -80,7 +80,7 @@ pub fn clipboard_get_item(
     Ok(super::clipboard::get_item(
         &conn,
         &id,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }
 
@@ -94,7 +94,7 @@ pub fn clipboard_get_merged_text(
     Ok(super::clipboard::get_merged_text(
         &conn,
         &ids,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }
 
@@ -110,7 +110,7 @@ pub fn clipboard_export_for_sync(
         &conn,
         cursor.as_ref(),
         limit as usize,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }
 
@@ -141,7 +141,7 @@ pub fn clipboard_record_capture(
         &conn,
         &item,
         Some((&cache_dir, &crate::application::service::extract_app_icon)),
-        keystore.master_key(),
+        &*keystore.master_key()?,
         fts.inner(),
         retention_ms,
     )?;
@@ -164,7 +164,7 @@ pub async fn clipboard_apply_synced(
     Ok(super::clipboard::apply_synced_item_with_fts(
         &conn,
         &item,
-        keystore.master_key(),
+        &*keystore.master_key()?,
         fts.inner(),
         retention_ms,
     )?)
@@ -192,7 +192,7 @@ pub fn clipboard_set_custom_title(
         &conn,
         &id,
         title.as_deref(),
-        keystore.master_key(),
+        &*keystore.master_key()?,
         fts.inner(),
     )?)
 }
@@ -208,7 +208,7 @@ pub fn clipboard_delete_item(
     Ok(super::clipboard::delete_item_with_fts(
         &conn,
         &id,
-        keystore.master_key(),
+        &*keystore.master_key()?,
         fts.inner(),
     )?)
 }
@@ -222,7 +222,7 @@ pub fn clipboard_clear_non_favorites(
     let conn = store.conn()?;
     Ok(super::clipboard::clear_non_favorites_with_fts(
         &conn,
-        keystore.master_key(),
+        &*keystore.master_key()?,
         fts.inner(),
     )?)
 }
@@ -239,7 +239,7 @@ pub fn snippet_upsert(
     Ok(super::snippets::upsert(
         &conn,
         &snippet,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }
 
@@ -249,7 +249,7 @@ pub fn snippet_get_all(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<super::snippets::Snippet>, AppError> {
     let conn = store.conn()?;
-    Ok(super::snippets::get_all(&conn, keystore.master_key())?)
+    Ok(super::snippets::get_all(&conn, &*keystore.master_key()?)?)
 }
 
 #[tauri::command]
@@ -278,7 +278,7 @@ pub fn snippet_export_for_sync(
     let conn = store.conn()?;
     Ok(super::snippets::export_for_sync(
         &conn,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }
 
@@ -311,7 +311,7 @@ pub fn note_upsert(
 ) -> Result<(), AppError> {
     {
         let conn = store.conn()?;
-        super::notes::upsert_with_fts(&conn, &note, keystore.master_key(), fts.inner())?;
+        super::notes::upsert_with_fts(&conn, &note, &*keystore.master_key()?, fts.inner())?;
     }
     emit_note_changed(&app, &note.id, "upsert");
     Ok(())
@@ -323,7 +323,7 @@ pub fn note_get_all(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<super::notes::Note>, AppError> {
     let conn = store.conn()?;
-    Ok(super::notes::get_all(&conn, keystore.master_key())?)
+    Ok(super::notes::get_all(&conn, &*keystore.master_key()?)?)
 }
 
 #[tauri::command]
@@ -333,7 +333,11 @@ pub fn note_get_by_id(
     keystore: State<'_, KeystoreState>,
 ) -> Result<Option<super::notes::Note>, AppError> {
     let conn = store.conn()?;
-    Ok(super::notes::get_by_id(&conn, &id, keystore.master_key())?)
+    Ok(super::notes::get_by_id(
+        &conn,
+        &id,
+        &*keystore.master_key()?,
+    )?)
 }
 
 #[tauri::command]
@@ -358,7 +362,7 @@ pub fn note_update(
             body.as_deref(),
             pinned,
             updated_at,
-            keystore.master_key(),
+            &*keystore.master_key()?,
             fts.inner(),
         )?;
     }
@@ -412,7 +416,7 @@ pub fn note_search(
         fts.inner(),
         &query,
         limit as usize,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }
 
@@ -445,7 +449,7 @@ pub fn note_find(
     Ok(super::notes::get_by_id_or_title(
         &conn,
         &id_or_title,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }
 
@@ -460,7 +464,7 @@ pub fn note_backlinks(
     Ok(super::notes::backlinks(
         &conn,
         &id_or_title,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }
 
@@ -478,7 +482,7 @@ pub async fn note_export_markdown(
 
     let note = {
         let conn = store.conn()?;
-        super::notes::get_by_id(&conn, &id, keystore.master_key())?
+        super::notes::get_by_id(&conn, &id, &*keystore.master_key()?)?
     }
     .ok_or_else(|| AppError::NotFound(format!("note {id} not found")))?;
 

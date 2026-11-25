@@ -447,8 +447,8 @@ pub fn agents_editor_load(
     } else {
         None
     };
-    let cred_statuses =
-        crate::storage::ai_credentials::list_all_statuses(&conn, keystore.master_key())?;
+    let master_key = keystore.master_key()?;
+    let cred_statuses = crate::storage::ai_credentials::list_all_statuses(&conn, &master_key)?;
     build_editor_view_model(
         &state,
         agent.as_ref(),
@@ -471,8 +471,8 @@ pub fn agents_provider_removal_blockers(
     configs: HashMap<String, ProviderConfig>,
 ) -> Result<Option<String>, AppError> {
     let conn = db.conn()?;
-    let cred_statuses =
-        crate::storage::ai_credentials::list_all_statuses(&conn, keystore.master_key())?;
+    let master_key = keystore.master_key()?;
+    let cred_statuses = crate::storage::ai_credentials::list_all_statuses(&conn, &master_key)?;
     let agents = crate::commands::agents::agents_list_impl(&conn)?;
     let stranded = agents_stranded_by_provider_removal(
         &provider_id,

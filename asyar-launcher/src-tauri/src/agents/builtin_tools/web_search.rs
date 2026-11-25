@@ -50,7 +50,7 @@ pub struct SearchResultEntry {
 pub enum WebSearchCredentialSource {
     Store {
         data_store: DataStore,
-        master_key: [u8; 32],
+        keystore: crate::crypto::keystore::KeystoreState,
     },
     None,
 }
@@ -64,6 +64,16 @@ pub struct WebSearchTool {
 
 impl WebSearchTool {
     pub fn with_store(data_store: DataStore, master_key: [u8; 32]) -> Self {
+        Self::with_keystore(
+            data_store,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+        )
+    }
+
+    pub fn with_keystore(
+        data_store: DataStore,
+        keystore: crate::crypto::keystore::KeystoreState,
+    ) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
             .user_agent(USER_AGENT)
@@ -74,7 +84,7 @@ impl WebSearchTool {
             base_url: None,
             credentials: WebSearchCredentialSource::Store {
                 data_store,
-                master_key,
+                keystore,
             },
         }
     }
@@ -116,13 +126,14 @@ impl WebSearchTool {
         match &self.credentials {
             WebSearchCredentialSource::Store {
                 data_store,
-                master_key,
+                keystore,
             } => {
                 let conn = data_store.conn()?;
+                let master_key = keystore.master_key()?;
                 let stored_key = match crate::storage::ai_credentials::get(
                     &conn,
                     &crate::storage::ai_credentials::web_search_credential_id(engine),
-                    master_key,
+                    &master_key,
                 ) {
                     Ok(Some(k)) => Some(k),
                     Ok(None) => None,
@@ -287,12 +298,11 @@ impl WebSearchTool {
         let api_key = match &self.credentials {
             WebSearchCredentialSource::Store {
                 data_store,
-                master_key,
+                keystore,
             } => {
-                let conn = data_store.conn();
-                if let Ok(conn) = conn {
+                if let (Ok(conn), Ok(master_key)) = (data_store.conn(), keystore.master_key()) {
                     let cred_id = format!("web_search:ext:{extension_id}:{engine_id}");
-                    crate::storage::ai_credentials::get(&conn, &cred_id, master_key)
+                    crate::storage::ai_credentials::get(&conn, &cred_id, &master_key)
                         .ok()
                         .flatten()
                 } else {

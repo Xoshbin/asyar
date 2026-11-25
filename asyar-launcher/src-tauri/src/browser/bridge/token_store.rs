@@ -52,15 +52,22 @@ pub const ENCRYPTED_TOKENS_FILENAME: &str = "browser-bridge-tokens.enc";
 /// builds.
 pub struct EncryptedFileBackend {
     path: PathBuf,
-    master_key: [u8; 32],
+    keystore: crate::crypto::keystore::KeystoreState,
     state: Mutex<Option<HashMap<String, String>>>,
 }
 
 impl EncryptedFileBackend {
     pub fn new(path: PathBuf, master_key: [u8; 32]) -> Self {
+        Self::with_keystore(
+            path,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+        )
+    }
+
+    pub fn with_keystore(path: PathBuf, keystore: crate::crypto::keystore::KeystoreState) -> Self {
         Self {
             path,
-            master_key,
+            keystore,
             state: Mutex::new(None),
         }
     }
@@ -71,7 +78,11 @@ impl EncryptedFileBackend {
         }
         let map = match std::fs::read_to_string(&self.path) {
             Ok(contents) => {
-                let json = cipher::decrypt(contents.trim(), &self.master_key)
+                let master_key = self
+                    .keystore
+                    .master_key()
+                    .map_err(|e| format!("resolve browser bridge key: {e}"))?;
+                let json = cipher::decrypt(contents.trim(), &master_key)
                     .map_err(|e| format!("decrypt browser bridge tokens: {e}"))?;
                 serde_json::from_str::<HashMap<String, String>>(&json)
                     .map_err(|e| format!("parse browser bridge tokens: {e}"))?
@@ -88,9 +99,13 @@ impl EncryptedFileBackend {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("create browser bridge tokens dir: {e}"))?;
         }
+        let master_key = self
+            .keystore
+            .master_key()
+            .map_err(|e| format!("resolve browser bridge key: {e}"))?;
         let json = serde_json::to_string(map)
             .map_err(|e| format!("serialize browser bridge tokens: {e}"))?;
-        let encrypted = cipher::encrypt(&json, &self.master_key)
+        let encrypted = cipher::encrypt(&json, &master_key)
             .map_err(|e| format!("encrypt browser bridge tokens: {e}"))?;
         write_restrictive(&self.path, &encrypted)
     }

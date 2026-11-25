@@ -648,7 +648,8 @@ pub fn resolve_model_listing_key(
     let data_store = app.state::<crate::storage::DataStore>();
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
     let conn = data_store.conn()?;
-    resolve_model_listing_key_in(&conn, keystore.master_key(), provider_id, config)
+    let master_key = keystore.master_key()?;
+    resolve_model_listing_key_in(&conn, &master_key, provider_id, config)
 }
 
 #[tauri::command]

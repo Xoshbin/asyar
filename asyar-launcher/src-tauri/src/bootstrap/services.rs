@@ -59,15 +59,15 @@ pub fn register_builtin_tools(
     let data_store = app_handle.state::<crate::storage::DataStore>();
     let keystore = app_handle.state::<crate::crypto::keystore::KeystoreState>();
     registry
-        .register_builtin(Arc::new(WebFetchTool::with_store(
+        .register_builtin(Arc::new(WebFetchTool::with_keystore(
             (*data_store).clone(),
-            *keystore.master_key(),
+            keystore.inner().clone(),
         )))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
-        .register_builtin(Arc::new(WebSearchTool::with_store(
+        .register_builtin(Arc::new(WebSearchTool::with_keystore(
             (*data_store).clone(),
-            *keystore.master_key(),
+            keystore.inner().clone(),
         )))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
@@ -645,12 +645,13 @@ pub fn init_daemons(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             .path()
             .app_data_dir()
             .expect("Failed to get app data dir");
-        let master_key = *app
+        let keystore = app
             .state::<crate::crypto::keystore::KeystoreState>()
-            .master_key();
-        let encrypted_backend = Arc::new(EncryptedFileBackend::new(
+            .inner()
+            .clone();
+        let encrypted_backend = Arc::new(EncryptedFileBackend::with_keystore(
             app_data_dir.join(ENCRYPTED_TOKENS_FILENAME),
-            master_key,
+            keystore,
         ));
         let token_store = Arc::new(KeyringTokenStore::with_backend(encrypted_backend.clone()));
         let token_store_clone = token_store.clone();
