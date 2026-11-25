@@ -52,12 +52,15 @@ pub fn clipboard_search(
     fts: State<'_, Arc<ClipboardFts>>,
 ) -> Result<super::clipboard::SearchResult, AppError> {
     let conn = store.conn()?;
+    let master_key = keystore
+        .try_cached_master_key()
+        .ok_or_else(|| AppError::Encryption("keystore is locked".into()))?;
     Ok(super::clipboard::search(
         &conn,
         fts.inner(),
         &query,
         limit as usize,
-        &*keystore.master_key()?,
+        &master_key,
         filter.as_ref(),
     )?)
 }
@@ -411,12 +414,15 @@ pub fn note_search(
     fts: State<'_, Arc<NotesFts>>,
 ) -> Result<super::notes::NoteSearchResult, AppError> {
     let conn = store.conn()?;
+    let master_key = keystore
+        .try_cached_master_key()
+        .ok_or_else(|| AppError::Encryption("keystore is locked".into()))?;
     Ok(super::notes::search(
         &conn,
         fts.inner(),
         &query,
         limit as usize,
-        &*keystore.master_key()?,
+        &master_key,
     )?)
 }
 

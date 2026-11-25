@@ -68,96 +68,120 @@ pub fn init_storage(
     Ok(data_store)
 }
 
+fn spawn_clipboard_fts_rebuild(
+    app_handle: tauri::AppHandle,
+    store: crate::storage::DataStore,
+    fts: Arc<crate::storage::clipboard_fts::ClipboardFts>,
+    master_key: [u8; 32],
+) {
+    tauri::async_runtime::spawn(async move {
+        let result = tokio::task::spawn_blocking(move || {
+            let conn = match store.conn() {
+                Ok(c) => c,
+                Err(_) => return false,
+            };
+            crate::storage::clipboard_fts::rebuild_from_disk(&conn, &fts, &master_key).is_ok()
+        })
+        .await
+        .unwrap_or(false);
+        if result {
+            crate::storage::clipboard_fts::mark_ready();
+            crate::event_bridge::bridge_emit(&app_handle, "clipboard:fts-ready", ());
+        }
+    });
+}
+
+fn spawn_notes_fts_rebuild(
+    app_handle: tauri::AppHandle,
+    store: crate::storage::DataStore,
+    fts: Arc<crate::storage::notes_fts::NotesFts>,
+    master_key: [u8; 32],
+) {
+    tauri::async_runtime::spawn(async move {
+        let result = tokio::task::spawn_blocking(move || {
+            let conn = match store.conn() {
+                Ok(c) => c,
+                Err(_) => return false,
+            };
+            crate::storage::notes_fts::rebuild_from_disk(&conn, &fts, &master_key).is_ok()
+        })
+        .await
+        .unwrap_or(false);
+        if result {
+            crate::storage::notes_fts::mark_ready();
+            crate::event_bridge::bridge_emit(&app_handle, "notes:fts-ready", ());
+        }
+    });
+}
+
 /// Initializes clipboard and notes in-memory FTS indexes and kicks off background rebuild tasks.
 /// Also registers Notes AI tools once the master key and NotesFts are available.
 pub fn init_fts(
     app: &mut tauri::App,
     data_store: &Arc<crate::storage::DataStore>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let cached_master_key = app
+    let keystore = app
         .state::<crate::crypto::keystore::KeystoreState>()
-        .try_cached_master_key();
+        .inner()
+        .clone();
 
-    // Clipboard FTS: build the in-memory index and spawn a background task
-    // that decrypts every row, feeds the FTS, and backfills content_hash for
-    // legacy rows. Emits `clipboard:fts-ready` when done.
-    {
-        let fts = Arc::new(
-            crate::storage::clipboard_fts::ClipboardFts::new_in_memory()
-                .expect("Clipboard FTS in-memory DB must initialise"),
+    let clipboard_fts = Arc::new(
+        crate::storage::clipboard_fts::ClipboardFts::new_in_memory()
+            .expect("Clipboard FTS in-memory DB must initialise"),
+    );
+    app.manage(clipboard_fts.clone());
+
+    let notes_fts = Arc::new(
+        crate::storage::notes_fts::NotesFts::new_in_memory()
+            .expect("Notes FTS in-memory DB must initialise"),
+    );
+    app.manage(notes_fts.clone());
+
+    // Notes AI tools registered here because they need this block's DataStore / KeystoreState / NotesFts
+    register_notes_tools(app.handle(), notes_fts.clone())?;
+
+    if let Some(master_key) = keystore.try_cached_master_key() {
+        spawn_clipboard_fts_rebuild(
+            app.handle().clone(),
+            data_store.as_ref().clone(),
+            clipboard_fts,
+            *master_key,
         );
-        app.manage(fts.clone());
-
-        if let Some(ref master_key) = cached_master_key {
-            let master_key = **master_key;
-            let store = data_store.as_ref().clone();
-            let app_handle = app.handle().clone();
-            let fts_for_task = fts;
-            tauri::async_runtime::spawn(async move {
-                let result = tokio::task::spawn_blocking(move || {
-                    let conn = match store.conn() {
-                        Ok(c) => c,
-                        Err(_) => return false,
-                    };
-                    crate::storage::clipboard_fts::rebuild_from_disk(
-                        &conn,
-                        &fts_for_task,
-                        &master_key,
-                    )
-                    .is_ok()
-                })
-                .await
-                .unwrap_or(false);
-                if result {
-                    crate::storage::clipboard_fts::mark_ready();
-                    crate::event_bridge::bridge_emit(&app_handle, "clipboard:fts-ready", ());
-                }
-            });
-        } else {
-            log::warn!(
-                "[bootstrap::storage] deferring clipboard FTS rebuild because keystore is locked"
-            );
-        }
-    }
-
-    // Notes FTS: in-memory-index-plus-background-rebuild pattern.
-    // Emits `notes:fts-ready` when done.
-    {
-        let fts = Arc::new(
-            crate::storage::notes_fts::NotesFts::new_in_memory()
-                .expect("Notes FTS in-memory DB must initialise"),
+        spawn_notes_fts_rebuild(
+            app.handle().clone(),
+            data_store.as_ref().clone(),
+            notes_fts,
+            *master_key,
         );
-        app.manage(fts.clone());
-
-        if let Some(ref master_key) = cached_master_key {
-            let master_key = **master_key;
-            let store = data_store.as_ref().clone();
-            let app_handle = app.handle().clone();
-            let fts_for_task = fts.clone();
-            tauri::async_runtime::spawn(async move {
-                let result = tokio::task::spawn_blocking(move || {
-                    let conn = match store.conn() {
-                        Ok(c) => c,
-                        Err(_) => return false,
-                    };
-                    crate::storage::notes_fts::rebuild_from_disk(&conn, &fts_for_task, &master_key)
-                        .is_ok()
-                })
-                .await
-                .unwrap_or(false);
-                if result {
-                    crate::storage::notes_fts::mark_ready();
-                    crate::event_bridge::bridge_emit(&app_handle, "notes:fts-ready", ());
-                }
-            });
-        } else {
-            log::warn!(
-                "[bootstrap::storage] deferring notes FTS rebuild because keystore is locked"
+    } else {
+        log::warn!(
+            "[bootstrap::storage] deferring FTS rebuilds and credential migration until keystore unlocks"
+        );
+        let app_handle = app.handle().clone();
+        let store_for_unlock = data_store.clone();
+        keystore.set_on_first_unlock(move |master_key| {
+            if let Err(e) = crate::ai::migration::migrate_settings_dat(
+                &app_handle,
+                &store_for_unlock,
+                &master_key,
+            ) {
+                log::error!(
+                    "[ai::migration] Failed to migrate credentials from settings.dat on unlock: {e}"
+                );
+            }
+            spawn_clipboard_fts_rebuild(
+                app_handle.clone(),
+                store_for_unlock.as_ref().clone(),
+                clipboard_fts,
+                master_key,
             );
-        }
-
-        // Notes AI tools registered here because they need this block's DataStore / KeystoreState / NotesFts
-        register_notes_tools(app.handle(), fts)?;
+            spawn_notes_fts_rebuild(
+                app_handle,
+                store_for_unlock.as_ref().clone(),
+                notes_fts,
+                master_key,
+            );
+        });
     }
 
     Ok(())

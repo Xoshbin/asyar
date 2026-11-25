@@ -424,7 +424,7 @@ pub fn select_initial_model_id(
 }
 
 #[tauri::command]
-pub fn agents_editor_load(
+pub async fn agents_editor_load(
     state: tauri::State<'_, crate::agents::tools::ToolRegistryState>,
     db: tauri::State<'_, DataStore>,
     keystore: tauri::State<'_, crate::crypto::keystore::KeystoreState>,
@@ -447,7 +447,7 @@ pub fn agents_editor_load(
     } else {
         None
     };
-    let master_key = keystore.master_key()?;
+    let master_key = keystore.master_key_async().await?;
     let cred_statuses = crate::storage::ai_credentials::list_all_statuses(&conn, &master_key)?;
     build_editor_view_model(
         &state,
@@ -463,7 +463,7 @@ pub fn agents_editor_load(
 /// or `None` when it's safe to apply. The message is fully formed here so
 /// Settings only ever needs to display it.
 #[tauri::command]
-pub fn agents_provider_removal_blockers(
+pub async fn agents_provider_removal_blockers(
     db: tauri::State<'_, DataStore>,
     keystore: tauri::State<'_, crate::crypto::keystore::KeystoreState>,
     provider_id: String,
@@ -471,7 +471,7 @@ pub fn agents_provider_removal_blockers(
     configs: HashMap<String, ProviderConfig>,
 ) -> Result<Option<String>, AppError> {
     let conn = db.conn()?;
-    let master_key = keystore.master_key()?;
+    let master_key = keystore.master_key_async().await?;
     let cred_statuses = crate::storage::ai_credentials::list_all_statuses(&conn, &master_key)?;
     let agents = crate::commands::agents::agents_list_impl(&conn)?;
     let stranded = agents_stranded_by_provider_removal(

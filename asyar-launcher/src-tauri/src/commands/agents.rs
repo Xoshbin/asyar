@@ -583,6 +583,9 @@ pub async fn agents_run_thread(
     let workspace_dir = crate::ai::cli::resolve_cli_workspace_dir(&app_data_dir)?;
     let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
 
+    let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
+    let master_key = keystore.master_key()?;
+
     let cancellation = runner_state.begin_run(&stream_id)?;
 
     // Per-caller event sink: the channel is scoped to the invoking view,
@@ -606,9 +609,6 @@ pub async fn agents_run_thread(
         let agent_id = dispatch_agent_id.clone();
         async move { execute_agent_tool(&registry, &runtime, &agent_id, &request).await }
     };
-
-    let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
-    let master_key = keystore.master_key()?;
 
     let result = crate::agents::runner::run_thread_loop_impl(
         &store,

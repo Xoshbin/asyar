@@ -374,9 +374,12 @@ pub struct KeystoreState {
     inner: Arc<KeystoreStateInner>,
 }
 
+type UnlockCallback = Box<dyn FnOnce([u8; 32]) + Send + Sync>;
+
 struct KeystoreStateInner {
     store: Option<Arc<dyn KeyStore>>,
     master_key: RwLock<Option<Zeroizing<[u8; 32]>>>,
+    on_first_unlock: Mutex<Option<UnlockCallback>>,
     is_os_backed: bool,
 }
 
@@ -387,6 +390,7 @@ impl KeystoreState {
             inner: Arc::new(KeystoreStateInner {
                 store: None,
                 master_key: RwLock::new(Some(key)),
+                on_first_unlock: Mutex::new(None),
                 is_os_backed: store.is_os_backed(),
             }),
         })
@@ -409,6 +413,7 @@ impl KeystoreState {
             inner: Arc::new(KeystoreStateInner {
                 store: Some(store),
                 master_key: RwLock::new(initial_key),
+                on_first_unlock: Mutex::new(None),
                 is_os_backed,
             }),
         }
@@ -420,8 +425,24 @@ impl KeystoreState {
             inner: Arc::new(KeystoreStateInner {
                 store: None,
                 master_key: RwLock::new(Some(Zeroizing::new(key))),
+                on_first_unlock: Mutex::new(None),
                 is_os_backed: false,
             }),
+        }
+    }
+
+    /// Register a one-shot callback to run when a locked keystore transitions
+    /// to unlocked for the first time. If already unlocked, invokes `cb` immediately.
+    pub fn set_on_first_unlock<F>(&self, cb: F)
+    where
+        F: FnOnce([u8; 32]) + Send + Sync + 'static,
+    {
+        if let Some(key) = self.try_cached_master_key() {
+            cb(*key);
+            return;
+        }
+        if let Ok(mut guard) = self.inner.on_first_unlock.lock() {
+            *guard = Some(Box::new(cb));
         }
     }
 
@@ -442,7 +463,25 @@ impl KeystoreState {
             .ok_or_else(|| AppError::Encryption("keystore is locked".into()))?;
         let key = store.load_or_create()?;
         *guard = Some(key.clone());
+        drop(guard);
+        if let Ok(mut cb_guard) = self.inner.on_first_unlock.lock() {
+            if let Some(cb) = cb_guard.take() {
+                cb(*key);
+            }
+        }
         Ok(key)
+    }
+
+    /// Resolve the master key without blocking an async executor / main thread
+    /// when a locked OS keychain needs to be probed.
+    pub async fn master_key_async(&self) -> Result<Zeroizing<[u8; 32]>, AppError> {
+        if let Some(key) = self.try_cached_master_key() {
+            return Ok(key);
+        }
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.master_key())
+            .await
+            .map_err(|e| AppError::Encryption(format!("keystore unlock task failed: {e}")))?
     }
 
     /// Return the cached master key without attempting to access the OS keychain.
@@ -1081,5 +1120,28 @@ mod tests {
         assert!(state.is_unlocked());
         assert!(!state.is_os_backed());
         assert_eq!(*state.master_key().unwrap(), key);
+    }
+
+    #[test]
+    fn keystore_state_on_first_unlock_fires_once() {
+        let expected = [55u8; 32];
+        let store = std::sync::Arc::new(ToggleableKeyStore::new(true, expected));
+        let state = KeystoreState::from_keystore_or_locked(store.clone());
+
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let calls_cb = calls.clone();
+        state.set_on_first_unlock(move |k| {
+            assert_eq!(k, expected);
+            calls_cb.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        });
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+
+        store.unlock();
+        assert_eq!(*state.master_key().unwrap(), expected);
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        // Subsequent calls must not fire the callback again.
+        assert_eq!(*state.master_key().unwrap(), expected);
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 }

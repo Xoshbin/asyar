@@ -644,6 +644,9 @@ pub fn resolve_model_listing_key(
     provider_id: &str,
     config: &ProviderConfig,
 ) -> Result<Option<zeroize::Zeroizing<String>>, AppError> {
+    if config.connection_mode.as_deref() == Some("cli") {
+        return Ok(None);
+    }
     use tauri::Manager;
     let data_store = app.state::<crate::storage::DataStore>();
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();

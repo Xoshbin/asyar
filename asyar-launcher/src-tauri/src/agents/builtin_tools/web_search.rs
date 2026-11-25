@@ -129,20 +129,32 @@ impl WebSearchTool {
                 keystore,
             } => {
                 let conn = data_store.conn()?;
-                let master_key = keystore.master_key()?;
-                let stored_key = match crate::storage::ai_credentials::get(
-                    &conn,
-                    &crate::storage::ai_credentials::web_search_credential_id(engine),
-                    &master_key,
-                ) {
-                    Ok(Some(k)) => Some(k),
-                    Ok(None) => None,
-                    Err(asyar_storage::StorageError::Encryption(_)) => {
-                        return Err(AppError::Validation(
-                            "Web search API key cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.".into(),
-                        ));
+                let stored_key = match keystore.master_key() {
+                    Ok(master_key) => {
+                        match crate::storage::ai_credentials::get(
+                            &conn,
+                            &crate::storage::ai_credentials::web_search_credential_id(engine),
+                            &master_key,
+                        ) {
+                            Ok(Some(k)) => Some(k),
+                            Ok(None) => None,
+                            Err(asyar_storage::StorageError::Encryption(_)) => {
+                                return Err(AppError::Validation(
+                                    "Web search API key cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.".into(),
+                                ));
+                            }
+                            Err(e) => return Err(e.into()),
+                        }
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(key_err) => {
+                        if let Ok(env_val) = std::env::var(env_var) {
+                            let trimmed = env_val.trim();
+                            if !trimmed.is_empty() {
+                                return Ok(zeroize::Zeroizing::new(trimmed.to_string()));
+                            }
+                        }
+                        return Err(key_err);
+                    }
                 };
                 if let Some(k) = stored_key {
                     return Ok(k);
