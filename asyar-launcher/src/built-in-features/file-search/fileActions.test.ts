@@ -54,6 +54,8 @@ vi.mock('./state.svelte', () => ({
 }));
 
 import { buildFileActions } from './fileActions';
+import * as host from '../../lib/keyboard/hostPlatform';
+import { t } from '../../services/i18n';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 
@@ -61,6 +63,18 @@ const file = { fileId: 'abc', path: '/tmp/report.txt', name: 'report.txt' };
 
 describe('buildFileActions', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('names File Explorer in the Windows reveal action', () => {
+    const platform = vi.spyOn(host, 'getHostPlatform').mockReturnValue('windows');
+    try {
+      const actions = buildFileActions({ getFile: () => file, context: ActionContext.CORE });
+      const reveal = actions.find((action) => action.id === 'file-search:reveal-in-finder');
+      expect(reveal?.title).toBe(t('core_actions.reveal_app_win'));
+      expect(reveal?.description).not.toContain('Finder');
+    } finally {
+      platform.mockRestore();
+    }
+  });
 
   it('builds the same shared actions for both contexts', () => {
     const core = buildFileActions({ getFile: () => file, context: ActionContext.CORE });
