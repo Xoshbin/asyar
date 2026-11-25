@@ -18,6 +18,7 @@ const mockActions = vi.hoisted(
 );
 
 vi.mock('../../services/action/actionService.svelte', () => ({
+  setSelectedItemProvider: vi.fn(),
   actionService: {
     registerAction: (action: {
       id: string;

@@ -18,7 +18,7 @@ import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
 import { contextModeService } from '../context/contextModeService.svelte';
-import { actionService, setSelectedItemProvider } from '../action/actionService.svelte';
+import { actionService } from '../action/actionService.svelte';
 import { invokeExtensionFileSearch } from '../extension/extensionFileSearchDispatch';
 import { settingsService } from '../settings/settingsService.svelte';
 import type { ManifestFileSearchProvider } from 'asyar-sdk/contracts';
@@ -406,9 +406,3 @@ class SearchOrchestratorClass {
 }
 
 export const searchOrchestrator = new SearchOrchestratorClass();
-
-// Wire provider so actionService doesn't import searchOrchestrator (breaks circular dependency)
-setSelectedItemProvider(() => {
-  const idx = searchStores.selectedIndex;
-  return idx >= 0 ? searchOrchestrator.items[idx] : undefined;
-});

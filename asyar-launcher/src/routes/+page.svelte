@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { LauncherController } from '../lib/launcher/launcherController.svelte';
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
   import WorkerIframes from '../components/extension/WorkerIframes.svelte';
@@ -591,6 +591,12 @@
         localSearchValue={controller.localSearchValue}
         showSections={controller.localSearchValue.trim() === ''}
         bind:listContainer
+        onopenactions={async (index) => {
+          searchStores.selectedIndex = index;
+          // Let the selection effects register this row's actions before opening the panel.
+          await tick();
+          actionService.openActionPanel();
+        }}
         onselect={(detail) => {
           if (isCompactIdle) return;
           const clickedIndex = controller.searchResultItemsMapped.findIndex(
@@ -624,8 +630,7 @@
       if (isActionPanelOpen) {
         handleActionPanelClose();
       } else {
-        actionService.refreshFiltered();
-        isActionPanelOpen = true;
+        actionService.openActionPanel();
       }
     }}
     onactionListClosed={handleActionPanelClose}
