@@ -365,14 +365,12 @@ impl Default for KeyringTokenStore {
 
 impl TokenStore for KeyringTokenStore {
     fn set(&self, key: &BrowserKey, token: &str) -> Result<(), String> {
+        self.backend.write(&account_for(key), token)?;
+        let mut cache = self.cache.write().unwrap();
+        let mut idx = self.index.write().unwrap();
         self.mutation_gen
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.backend.write(&account_for(key), token)?;
-        self.cache
-            .write()
-            .unwrap()
-            .insert(key.clone(), Some(token.to_string()));
-        let mut idx = self.index.write().unwrap();
+        cache.insert(key.clone(), Some(token.to_string()));
         if !idx.contains(key) {
             idx.push(key.clone());
         }
@@ -414,13 +412,14 @@ impl TokenStore for KeyringTokenStore {
     }
 
     fn delete(&self, key: &BrowserKey) -> Result<(), String> {
+        self.backend.remove(&account_for(key))?;
+        let mut cache = self.cache.write().unwrap();
+        let mut idx = self.index.write().unwrap();
         self.mutation_gen
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.backend.remove(&account_for(key))?;
         // Mark as known-absent rather than evicting, so a follow-up `get` is
         // still served from cache instead of re-probing the backend.
-        self.cache.write().unwrap().insert(key.clone(), None);
-        let mut idx = self.index.write().unwrap();
+        cache.insert(key.clone(), None);
         idx.retain(|k| k != key);
         Ok(())
     }

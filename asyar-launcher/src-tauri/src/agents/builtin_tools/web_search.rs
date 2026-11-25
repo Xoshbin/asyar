@@ -128,9 +128,9 @@ impl WebSearchTool {
                 data_store,
                 keystore,
             } => {
-                let conn = data_store.conn()?;
                 let stored_key = match keystore.master_key_async().await {
                     Ok(master_key) => {
+                        let conn = data_store.conn()?;
                         match crate::storage::ai_credentials::get(
                             &conn,
                             &crate::storage::ai_credentials::web_search_credential_id(engine),
@@ -312,9 +312,8 @@ impl WebSearchTool {
                 data_store,
                 keystore,
             } => {
-                if let (Ok(conn), Ok(master_key)) =
-                    (data_store.conn(), keystore.master_key_async().await)
-                {
+                let master_key = keystore.master_key_async().await;
+                if let (Ok(master_key), Ok(conn)) = (master_key, data_store.conn()) {
                     let cred_id = format!("web_search:ext:{extension_id}:{engine_id}");
                     crate::storage::ai_credentials::get(&conn, &cred_id, &master_key)
                         .ok()
