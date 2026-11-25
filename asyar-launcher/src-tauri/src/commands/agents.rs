@@ -584,7 +584,7 @@ pub async fn agents_run_thread(
     let codex_home_dir = crate::ai::cli::resolve_codex_home_dir(&app_data_dir)?;
 
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
-    let master_key = keystore.master_key()?;
+    let master_key = keystore.master_key_async().await?;
 
     let cancellation = runner_state.begin_run(&stream_id)?;
 
@@ -650,7 +650,7 @@ pub async fn agents_run_silent(
     on_event: Channel<AgentStreamEvent>,
 ) -> Result<String, AppError> {
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
-    let master_key = keystore.master_key()?;
+    let master_key = keystore.master_key_async().await?;
 
     let agent = {
         let conn = store.conn()?;

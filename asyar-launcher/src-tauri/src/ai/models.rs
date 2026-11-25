@@ -639,7 +639,7 @@ pub(crate) fn resolve_model_listing_key_in(
     }
 }
 
-pub fn resolve_model_listing_key(
+pub async fn resolve_model_listing_key(
     app: &tauri::AppHandle,
     provider_id: &str,
     config: &ProviderConfig,
@@ -651,7 +651,7 @@ pub fn resolve_model_listing_key(
     let data_store = app.state::<crate::storage::DataStore>();
     let keystore = app.state::<crate::crypto::keystore::KeystoreState>();
     let conn = data_store.conn()?;
-    let master_key = keystore.master_key()?;
+    let master_key = keystore.master_key_async().await?;
     resolve_model_listing_key_in(&conn, &master_key, provider_id, config)
 }
 
@@ -661,7 +661,7 @@ pub async fn ai_list_models(
     provider_id: String,
     config: ProviderConfig,
 ) -> Result<Vec<ModelInfo>, AppError> {
-    let resolved = resolve_model_listing_key(&app, &provider_id, &config)?;
+    let resolved = resolve_model_listing_key(&app, &provider_id, &config).await?;
     let key_to_use = resolved.as_deref().map(|s| s.as_str());
     list_models(&provider_id, &config, key_to_use).await
 }

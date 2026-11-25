@@ -281,6 +281,7 @@ pub struct KeyringTokenStore {
     cache: RwLock<HashMap<BrowserKey, Option<String>>>,
     index: RwLock<Vec<BrowserKey>>,
     needs_reload: std::sync::atomic::AtomicBool,
+    mutation_gen: std::sync::atomic::AtomicU64,
 }
 
 impl KeyringTokenStore {
@@ -294,6 +295,7 @@ impl KeyringTokenStore {
             cache: RwLock::new(HashMap::new()),
             index: RwLock::new(Vec::new()),
             needs_reload: std::sync::atomic::AtomicBool::new(false),
+            mutation_gen: std::sync::atomic::AtomicU64::new(0),
         }
     }
 
@@ -302,6 +304,7 @@ impl KeyringTokenStore {
     }
 
     pub fn load_paired_from_backend(&self) {
+        let gen_before = self.mutation_gen.load(std::sync::atomic::Ordering::SeqCst);
         let mut paired = Vec::new();
         let mut cache_updates = Vec::new();
         let mut saw_locked = false;
@@ -328,14 +331,19 @@ impl KeyringTokenStore {
             }
         }
 
-        if !cache_updates.is_empty() {
-            let mut cache = self.cache.write().unwrap();
-            for (key, val) in cache_updates {
-                cache.insert(key, val);
-            }
+        let mut cache = self.cache.write().unwrap();
+        let mut index = self.index.write().unwrap();
+        if self.mutation_gen.load(std::sync::atomic::Ordering::SeqCst) != gen_before {
+            // A concurrent set()/delete() modified pairings while we were reading
+            // from the backend; skip publishing stale entries and retry on next access.
+            self.needs_reload
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            return;
         }
-
-        *self.index.write().unwrap() = paired;
+        for (key, val) in cache_updates {
+            cache.insert(key, val);
+        }
+        *index = paired;
         self.needs_reload
             .store(saw_locked, std::sync::atomic::Ordering::SeqCst);
     }
@@ -357,6 +365,8 @@ impl Default for KeyringTokenStore {
 
 impl TokenStore for KeyringTokenStore {
     fn set(&self, key: &BrowserKey, token: &str) -> Result<(), String> {
+        self.mutation_gen
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.backend.write(&account_for(key), token)?;
         self.cache
             .write()
@@ -404,6 +414,8 @@ impl TokenStore for KeyringTokenStore {
     }
 
     fn delete(&self, key: &BrowserKey) -> Result<(), String> {
+        self.mutation_gen
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.backend.remove(&account_for(key))?;
         // Mark as known-absent rather than evicting, so a follow-up `get` is
         // still served from cache instead of re-probing the backend.

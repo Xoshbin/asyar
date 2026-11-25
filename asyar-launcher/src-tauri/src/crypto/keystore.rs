@@ -15,7 +15,7 @@ use base64::Engine;
 use rand::RngExt;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use zeroize::Zeroizing;
 
 /// Service identifier under which the OS keychain entry lives. The
@@ -378,7 +378,8 @@ type UnlockCallback = Box<dyn FnOnce([u8; 32]) + Send + Sync>;
 
 struct KeystoreStateInner {
     store: Option<Arc<dyn KeyStore>>,
-    master_key: RwLock<Option<Zeroizing<[u8; 32]>>>,
+    cached_key: OnceLock<Zeroizing<[u8; 32]>>,
+    unlock_gate: Mutex<()>,
     on_first_unlock: Mutex<Option<UnlockCallback>>,
     is_os_backed: bool,
 }
@@ -386,10 +387,13 @@ struct KeystoreStateInner {
 impl KeystoreState {
     pub fn from_keystore(store: &dyn KeyStore) -> Result<Self, AppError> {
         let key = store.load_or_create()?;
+        let cached_key = OnceLock::new();
+        let _ = cached_key.set(key);
         Ok(Self {
             inner: Arc::new(KeystoreStateInner {
                 store: None,
-                master_key: RwLock::new(Some(key)),
+                cached_key,
+                unlock_gate: Mutex::new(()),
                 on_first_unlock: Mutex::new(None),
                 is_os_backed: store.is_os_backed(),
             }),
@@ -400,19 +404,22 @@ impl KeystoreState {
     /// startup if `load_or_create()` returns an error.
     pub fn from_keystore_or_locked(store: Arc<dyn KeyStore>) -> Self {
         let is_os_backed = store.is_os_backed();
-        let initial_key = match store.load_or_create() {
-            Ok(key) => Some(key),
+        let cached_key = OnceLock::new();
+        match store.load_or_create() {
+            Ok(key) => {
+                let _ = cached_key.set(key);
+            }
             Err(e) => {
                 log::warn!(
                     "[crypto] keystore unavailable at startup ({e}); starting locked and will retry on demand"
                 );
-                None
             }
-        };
+        }
         Self {
             inner: Arc::new(KeystoreStateInner {
                 store: Some(store),
-                master_key: RwLock::new(initial_key),
+                cached_key,
+                unlock_gate: Mutex::new(()),
                 on_first_unlock: Mutex::new(None),
                 is_os_backed,
             }),
@@ -421,10 +428,13 @@ impl KeystoreState {
 
     /// Construct an already-unlocked `KeystoreState` from raw key bytes (for tests).
     pub fn from_key(key: [u8; 32]) -> Self {
+        let cached_key = OnceLock::new();
+        let _ = cached_key.set(Zeroizing::new(key));
         Self {
             inner: Arc::new(KeystoreStateInner {
                 store: None,
-                master_key: RwLock::new(Some(Zeroizing::new(key))),
+                cached_key,
+                unlock_gate: Mutex::new(()),
                 on_first_unlock: Mutex::new(None),
                 is_os_backed: false,
             }),
@@ -437,12 +447,19 @@ impl KeystoreState {
     where
         F: FnOnce([u8; 32]) + Send + Sync + 'static,
     {
-        if let Some(key) = self.try_cached_master_key() {
-            cb(*key);
-            return;
-        }
-        if let Ok(mut guard) = self.inner.on_first_unlock.lock() {
-            *guard = Some(Box::new(cb));
+        let already_unlocked = {
+            let Ok(mut guard) = self.inner.on_first_unlock.lock() else {
+                return;
+            };
+            if let Some(key) = self.inner.cached_key.get() {
+                Some(*key.clone())
+            } else {
+                *guard = Some(Box::new(cb));
+                return;
+            }
+        };
+        if let Some(key) = already_unlocked {
+            cb(key);
         }
     }
 
@@ -452,9 +469,9 @@ impl KeystoreState {
         if let Some(key) = self.try_cached_master_key() {
             return Ok(key);
         }
-        let mut guard = self.inner.master_key.write().map_err(|_| AppError::Lock)?;
-        if let Some(ref key) = *guard {
-            return Ok(key.clone());
+        let _gate = self.inner.unlock_gate.lock().map_err(|_| AppError::Lock)?;
+        if let Some(key) = self.try_cached_master_key() {
+            return Ok(key);
         }
         let store = self
             .inner
@@ -462,12 +479,17 @@ impl KeystoreState {
             .as_ref()
             .ok_or_else(|| AppError::Encryption("keystore is locked".into()))?;
         let key = store.load_or_create()?;
-        *guard = Some(key.clone());
-        drop(guard);
-        if let Ok(mut cb_guard) = self.inner.on_first_unlock.lock() {
-            if let Some(cb) = cb_guard.take() {
-                cb(*key);
-            }
+        let cb = {
+            let mut cb_guard = self
+                .inner
+                .on_first_unlock
+                .lock()
+                .map_err(|_| AppError::Lock)?;
+            let _ = self.inner.cached_key.set(key.clone());
+            cb_guard.take()
+        };
+        if let Some(cb) = cb {
+            cb(*key);
         }
         Ok(key)
     }
@@ -484,13 +506,9 @@ impl KeystoreState {
             .map_err(|e| AppError::Encryption(format!("keystore unlock task failed: {e}")))?
     }
 
-    /// Return the cached master key without attempting to access the OS keychain.
+    /// Return the cached master key without blocking on any keychain probe.
     pub fn try_cached_master_key(&self) -> Option<Zeroizing<[u8; 32]>> {
-        self.inner
-            .master_key
-            .read()
-            .ok()
-            .and_then(|guard| guard.clone())
+        self.inner.cached_key.get().cloned()
     }
 
     pub fn is_unlocked(&self) -> bool {

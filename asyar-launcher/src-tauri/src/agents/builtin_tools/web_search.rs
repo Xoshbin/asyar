@@ -118,7 +118,7 @@ impl WebSearchTool {
         tool
     }
 
-    fn resolve_key(
+    async fn resolve_key(
         &self,
         engine: &str,
         env_var: &str,
@@ -129,7 +129,7 @@ impl WebSearchTool {
                 keystore,
             } => {
                 let conn = data_store.conn()?;
-                let stored_key = match keystore.master_key() {
+                let stored_key = match keystore.master_key_async().await {
                     Ok(master_key) => {
                         match crate::storage::ai_credentials::get(
                             &conn,
@@ -244,15 +244,15 @@ impl WebSearchTool {
 
         match engine {
             "brave" => {
-                let key = self.resolve_key("brave", "BRAVE_API_KEY")?;
+                let key = self.resolve_key("brave", "BRAVE_API_KEY").await?;
                 self.search_brave(query, limit, &key).await
             }
             "tavily" => {
-                let key = self.resolve_key("tavily", "TAVILY_API_KEY")?;
+                let key = self.resolve_key("tavily", "TAVILY_API_KEY").await?;
                 self.search_tavily(query, limit, &key).await
             }
             "serply" => {
-                let key = self.resolve_key("serply", "SERPLY_API_KEY")?;
+                let key = self.resolve_key("serply", "SERPLY_API_KEY").await?;
                 self.search_serply(query, limit, &key).await
             }
             "searxng" => {
@@ -312,7 +312,9 @@ impl WebSearchTool {
                 data_store,
                 keystore,
             } => {
-                if let (Ok(conn), Ok(master_key)) = (data_store.conn(), keystore.master_key()) {
+                if let (Ok(conn), Ok(master_key)) =
+                    (data_store.conn(), keystore.master_key_async().await)
+                {
                     let cred_id = format!("web_search:ext:{extension_id}:{engine_id}");
                     crate::storage::ai_credentials::get(&conn, &cred_id, &master_key)
                         .ok()
