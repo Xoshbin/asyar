@@ -2242,6 +2242,7 @@
     "assign_shortcut_desc": "Attribuer un raccourci global",
     "copy_color_as": "Copier en {format}",
     "copy_color_as_desc": "Copier cette couleur en {format}",
+    "copy_base_as_desc": "Copier ce nombre en {format}",
     "cancel_run": "Annuler l'exécution",
     "cancel_run_desc": "Annuler cette tâche en cours",
     "dismiss_failure": "Ignorer l'échec",
