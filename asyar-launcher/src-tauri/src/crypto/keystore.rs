@@ -15,7 +15,7 @@ use base64::Engine;
 use rand::RngExt;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, OnceLock};
 use zeroize::Zeroizing;
 
 /// Service identifier under which the OS keychain entry lives. The
@@ -364,26 +364,159 @@ fn decode_key(encoded: &str) -> Result<Zeroizing<[u8; 32]>, AppError> {
 }
 
 /// Tauri-managed state holding the resolved master key for the session.
+///
+/// Supports starting in a locked state when the OS keychain is temporarily
+/// unavailable at boot (e.g. macOS dark wake or a canceled authorization
+/// prompt), then lazily unlocking on the first `master_key()` call once the
+/// keychain becomes accessible.
+#[derive(Clone)]
 pub struct KeystoreState {
-    master_key: Zeroizing<[u8; 32]>,
+    inner: Arc<KeystoreStateInner>,
+}
+
+type UnlockCallback = Box<dyn FnOnce([u8; 32]) + Send + Sync>;
+
+struct KeystoreStateInner {
+    store: Option<Arc<dyn KeyStore>>,
+    cached_key: OnceLock<Zeroizing<[u8; 32]>>,
+    unlock_gate: Mutex<()>,
+    on_first_unlock: Mutex<Option<UnlockCallback>>,
     is_os_backed: bool,
 }
 
 impl KeystoreState {
     pub fn from_keystore(store: &dyn KeyStore) -> Result<Self, AppError> {
         let key = store.load_or_create()?;
+        let cached_key = OnceLock::new();
+        let _ = cached_key.set(key);
         Ok(Self {
-            master_key: key,
-            is_os_backed: store.is_os_backed(),
+            inner: Arc::new(KeystoreStateInner {
+                store: None,
+                cached_key,
+                unlock_gate: Mutex::new(()),
+                on_first_unlock: Mutex::new(None),
+                is_os_backed: store.is_os_backed(),
+            }),
         })
     }
 
-    pub fn master_key(&self) -> &[u8; 32] {
-        &self.master_key
+    /// Initialize from `store`, starting in a locked state rather than failing
+    /// startup if `load_or_create()` returns an error.
+    pub fn from_keystore_or_locked(store: Arc<dyn KeyStore>) -> Self {
+        let is_os_backed = store.is_os_backed();
+        let cached_key = OnceLock::new();
+        match store.load_or_create() {
+            Ok(key) => {
+                let _ = cached_key.set(key);
+            }
+            Err(e) => {
+                log::warn!(
+                    "[crypto] keystore unavailable at startup ({e}); starting locked and will retry on demand"
+                );
+            }
+        }
+        Self {
+            inner: Arc::new(KeystoreStateInner {
+                store: Some(store),
+                cached_key,
+                unlock_gate: Mutex::new(()),
+                on_first_unlock: Mutex::new(None),
+                is_os_backed,
+            }),
+        }
+    }
+
+    /// Construct an already-unlocked `KeystoreState` from raw key bytes (for tests).
+    pub fn from_key(key: [u8; 32]) -> Self {
+        let cached_key = OnceLock::new();
+        let _ = cached_key.set(Zeroizing::new(key));
+        Self {
+            inner: Arc::new(KeystoreStateInner {
+                store: None,
+                cached_key,
+                unlock_gate: Mutex::new(()),
+                on_first_unlock: Mutex::new(None),
+                is_os_backed: false,
+            }),
+        }
+    }
+
+    /// Register a one-shot callback to run when a locked keystore transitions
+    /// to unlocked for the first time. If already unlocked, invokes `cb` immediately.
+    pub fn set_on_first_unlock<F>(&self, cb: F)
+    where
+        F: FnOnce([u8; 32]) + Send + Sync + 'static,
+    {
+        let already_unlocked = {
+            let Ok(mut guard) = self.inner.on_first_unlock.lock() else {
+                return;
+            };
+            if let Some(key) = self.inner.cached_key.get() {
+                Some(*key.clone())
+            } else {
+                *guard = Some(Box::new(cb));
+                return;
+            }
+        };
+        if let Some(key) = already_unlocked {
+            cb(key);
+        }
+    }
+
+    /// Return the cached master key, or lazily unlock via the underlying
+    /// `KeyStore` if the state started locked.
+    pub fn master_key(&self) -> Result<Zeroizing<[u8; 32]>, AppError> {
+        if let Some(key) = self.try_cached_master_key() {
+            return Ok(key);
+        }
+        let _gate = self.inner.unlock_gate.lock().map_err(|_| AppError::Lock)?;
+        if let Some(key) = self.try_cached_master_key() {
+            return Ok(key);
+        }
+        let store = self
+            .inner
+            .store
+            .as_ref()
+            .ok_or_else(|| AppError::Encryption("keystore is locked".into()))?;
+        let key = store.load_or_create()?;
+        let cb = {
+            let mut cb_guard = self
+                .inner
+                .on_first_unlock
+                .lock()
+                .map_err(|_| AppError::Lock)?;
+            let _ = self.inner.cached_key.set(key.clone());
+            cb_guard.take()
+        };
+        if let Some(cb) = cb {
+            cb(*key);
+        }
+        Ok(key)
+    }
+
+    /// Resolve the master key without blocking an async executor / main thread
+    /// when a locked OS keychain needs to be probed.
+    pub async fn master_key_async(&self) -> Result<Zeroizing<[u8; 32]>, AppError> {
+        if let Some(key) = self.try_cached_master_key() {
+            return Ok(key);
+        }
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.master_key())
+            .await
+            .map_err(|e| AppError::Encryption(format!("keystore unlock task failed: {e}")))?
+    }
+
+    /// Return the cached master key without blocking on any keychain probe.
+    pub fn try_cached_master_key(&self) -> Option<Zeroizing<[u8; 32]>> {
+        self.inner.cached_key.get().cloned()
+    }
+
+    pub fn is_unlocked(&self) -> bool {
+        self.try_cached_master_key().is_some()
     }
 
     pub fn is_os_backed(&self) -> bool {
-        self.is_os_backed
+        self.inner.is_os_backed
     }
 }
 
@@ -509,7 +642,7 @@ mod tests {
         let store = InMemoryKeyStore::new();
         let state = KeystoreState::from_keystore(&store).unwrap();
         assert!(!state.is_os_backed());
-        assert_eq!(state.master_key().len(), 32);
+        assert_eq!(state.master_key().unwrap().len(), 32);
     }
 
     #[test]
@@ -906,5 +1039,127 @@ mod tests {
                 "shared org.asyar dir must keep OS keystore to avoid conflicting with release keys"
             );
         }
+    }
+
+    struct ToggleableKeyStore {
+        locked: std::sync::atomic::AtomicBool,
+        load_calls: std::sync::atomic::AtomicUsize,
+        key: [u8; 32],
+    }
+
+    impl ToggleableKeyStore {
+        fn new(locked: bool, key: [u8; 32]) -> Self {
+            Self {
+                locked: std::sync::atomic::AtomicBool::new(locked),
+                load_calls: std::sync::atomic::AtomicUsize::new(0),
+                key,
+            }
+        }
+
+        fn unlock(&self) {
+            self.locked
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+        }
+
+        fn calls(&self) -> usize {
+            self.load_calls.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    impl KeyStore for ToggleableKeyStore {
+        fn load_or_create(&self) -> Result<Zeroizing<[u8; 32]>, AppError> {
+            self.load_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if self.locked.load(std::sync::atomic::Ordering::SeqCst) {
+                Err(AppError::Encryption(
+                    "keychain read failed: Platform secure storage failure: In dark wake, no UI possible"
+                        .into(),
+                ))
+            } else {
+                Ok(Zeroizing::new(self.key))
+            }
+        }
+
+        fn is_os_backed(&self) -> bool {
+            true
+        }
+
+        fn read_slot(&self, _account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, AppError> {
+            Ok(None)
+        }
+
+        fn write_slot(&self, _account: &str, _value: &[u8]) -> Result<(), AppError> {
+            Ok(())
+        }
+
+        fn delete_slot(&self, _account: &str) -> Result<(), AppError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn keystore_state_starts_locked_when_store_fails_at_startup() {
+        let store = std::sync::Arc::new(ToggleableKeyStore::new(true, [42u8; 32]));
+        let state = KeystoreState::from_keystore_or_locked(store.clone());
+
+        assert!(state.is_os_backed());
+        assert!(!state.is_unlocked());
+        assert!(state.try_cached_master_key().is_none());
+        assert!(state.master_key().is_err());
+    }
+
+    #[test]
+    fn keystore_state_unlocks_lazily_and_caches_key() {
+        let expected = [77u8; 32];
+        let store = std::sync::Arc::new(ToggleableKeyStore::new(true, expected));
+        let state = KeystoreState::from_keystore_or_locked(store.clone());
+        assert_eq!(store.calls(), 1);
+        assert!(!state.is_unlocked());
+
+        store.unlock();
+        let resolved = state
+            .master_key()
+            .expect("should unlock once store recovers");
+        assert_eq!(*resolved, expected);
+        assert!(state.is_unlocked());
+        assert_eq!(*state.try_cached_master_key().unwrap(), expected);
+        assert_eq!(store.calls(), 2);
+
+        // Subsequent calls must return the cached key without hitting the store again.
+        let cached = state.master_key().expect("cached key");
+        assert_eq!(*cached, expected);
+        assert_eq!(store.calls(), 2);
+    }
+
+    #[test]
+    fn keystore_state_from_key_is_immediately_unlocked() {
+        let key = [99u8; 32];
+        let state = KeystoreState::from_key(key);
+        assert!(state.is_unlocked());
+        assert!(!state.is_os_backed());
+        assert_eq!(*state.master_key().unwrap(), key);
+    }
+
+    #[test]
+    fn keystore_state_on_first_unlock_fires_once() {
+        let expected = [55u8; 32];
+        let store = std::sync::Arc::new(ToggleableKeyStore::new(true, expected));
+        let state = KeystoreState::from_keystore_or_locked(store.clone());
+
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let calls_cb = calls.clone();
+        state.set_on_first_unlock(move |k| {
+            assert_eq!(k, expected);
+            calls_cb.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        });
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+
+        store.unlock();
+        assert_eq!(*state.master_key().unwrap(), expected);
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        // Subsequent calls must not fire the callback again.
+        assert_eq!(*state.master_key().unwrap(), expected);
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 }
