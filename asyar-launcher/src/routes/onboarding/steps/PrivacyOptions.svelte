@@ -1,8 +1,6 @@
 <script lang="ts">
   import { SegmentedControl, SystemAccessSection } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
-  import { advanceStep } from '../stepLogic';
-  import { onboardingNav } from '../onboardingNav.svelte';
   import type {
     CrashReportMode,
     UsageShareMode,
@@ -17,10 +15,6 @@
     { value: 'ask', label: t('onboarding.privacy_ask') },
     { value: 'auto', label: t('onboarding.privacy_auto') },
   ]);
-
-  $effect(() => {
-    onboardingNav.set({ showSkip: false, onPrimary: advanceStep });
-  });
 </script>
 
 <div class="privacy">
@@ -59,10 +53,13 @@
 
 <style>
   .privacy {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--space-5);
+    gap: var(--space-4);
   }
   .privacy__title {
     margin: 0;
@@ -70,6 +67,9 @@
     font-weight: 600;
     letter-spacing: -0.5px;
     color: var(--text-primary);
+  }
+  .privacy__access {
+    width: 100%;
   }
   .privacy__rows {
     width: 100%;
@@ -102,10 +102,6 @@
     font-size: var(--font-size-md);
     font-weight: 600;
     color: var(--text-primary);
-  }
-  .privacy__access {
-    width: 100%;
-    max-width: 480px;
   }
   .privacy__note {
     margin: 0;

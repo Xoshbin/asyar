@@ -129,7 +129,7 @@ mod tests {
         let advanced = advance_inner(&c).unwrap();
         let fetched = get_state_inner(&c).unwrap();
         assert_eq!(fetched, advanced);
-        assert_eq!(fetched.current, OnboardingStep::SummonSearch);
+        assert_eq!(fetched.current, OnboardingStep::AiSetup);
     }
 
     #[test]

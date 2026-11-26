@@ -67,6 +67,7 @@
       onClose: handleClose,
       onPrimary: nav.primaryDisabled ? undefined : () => void nav.onPrimary(),
       onSkip: nav.showSkip ? () => void nav.onSkip() : undefined,
+      primaryOnModEnter: nav.primaryOnModEnter,
     });
   }
 </script>

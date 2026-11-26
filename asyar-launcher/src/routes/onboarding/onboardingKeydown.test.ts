@@ -191,5 +191,29 @@ describe('handleOnboardingKeydown', () => {
       expect(handled).toBe(false);
       expect(onPrimary).not.toHaveBeenCalled();
     });
+
+    it('with primaryOnModEnter, runs primary on Cmd/Ctrl+Enter even from a text field', () => {
+      const field = document.createElement('textarea');
+      document.body.appendChild(field);
+      for (const mod of [{ metaKey: true }, { ctrlKey: true }]) {
+        const event = createKeyEvent({ key: 'Enter', ...mod });
+        Object.defineProperty(event, 'target', { value: field });
+        handleOnboardingKeydown(event, { onClose, onPrimary, onSkip, primaryOnModEnter: true });
+      }
+      field.remove();
+      expect(onPrimary).toHaveBeenCalledTimes(2);
+      expect(onSkip).not.toHaveBeenCalled();
+    });
+
+    it('with primaryOnModEnter, leaves plain Enter alone', () => {
+      const handled = handleOnboardingKeydown(createKeyEvent({ key: 'Enter' }), {
+        onClose,
+        onPrimary,
+        onSkip,
+        primaryOnModEnter: true,
+      });
+      expect(handled).toBe(false);
+      expect(onPrimary).not.toHaveBeenCalled();
+    });
   });
 });

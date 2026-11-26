@@ -50,3 +50,12 @@ export async function setSnippetsEnabled(enabled: boolean): Promise<boolean> {
 export async function checkSnippetPermission(): Promise<boolean> {
   return invokeSafe<boolean>('check_snippet_permission');
 }
+
+export interface SnippetPreview {
+  keywordLen: number;
+  expansion: string;
+}
+
+export async function snippetsPreviewExpansion(text: string): Promise<SnippetPreview | null> {
+  return (await invokeSafe<SnippetPreview | null>('snippets_preview_expansion', { text })) ?? null;
+}

@@ -2,6 +2,7 @@ export interface OnboardingKeydownOptions {
   onClose: () => void;
   onPrimary?: () => void;
   onSkip?: () => void;
+  primaryOnModEnter?: boolean;
 }
 
 // Enter belongs to whatever is focused here: typing, clicking a button, recording a hotkey.
@@ -34,7 +35,15 @@ export function handleOnboardingKeydown(
   }
 
   if (e.key === 'Enter' && noConflictingModifiers) {
-    const action = isPrimary ? options.onSkip : ownsEnter(e.target) ? undefined : options.onPrimary;
+    const action = options.primaryOnModEnter
+      ? isPrimary
+        ? options.onPrimary
+        : undefined
+      : isPrimary
+        ? options.onSkip
+        : ownsEnter(e.target)
+          ? undefined
+          : options.onPrimary;
     if (!action) return false;
     e.preventDefault();
     action();

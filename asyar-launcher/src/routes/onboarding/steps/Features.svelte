@@ -1,261 +1,261 @@
 <script lang="ts">
-  import { Button, Icon } from '../../../components';
+  import type { Component } from 'svelte';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
+  import { Icon } from '../../../components';
   import { advanceStep } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
   import { t } from '../../../services/i18n';
-  import AccessibilityGate from './AccessibilityGate.svelte';
-  import { SAMPLE_PORTAL_NAME, hasSamplePortal, seedSamplePortal } from './portalsSetup';
-  import {
-    SAMPLE_EXPANSION,
-    SAMPLE_KEYWORD,
-    hasSampleSnippet,
-    seedSampleSnippet,
-    enableExpansion,
-  } from './snippetsSetup';
+  import { TOUR_SLIDES, type TourSlideId } from './features/featureTour';
+  import { SAMPLE_EXPANSION, SAMPLE_KEYWORD } from './snippetsSetup';
+  import ClipboardSlide from './features/ClipboardSlide.svelte';
+  import SnippetsSlide from './features/SnippetsSlide.svelte';
+  import EmojiSlide from './features/EmojiSlide.svelte';
+  import AiSlide from './features/AiSlide.svelte';
+  import FilesSlide from './features/FilesSlide.svelte';
+  import WindowSlide from './features/WindowSlide.svelte';
+  import MiniLauncherDemo from './features/MiniLauncherDemo.svelte';
+  import TypingDemo from './features/TypingDemo.svelte';
 
-  type CardId = 'clipboard' | 'portals' | 'snippets';
+  const SLIDES: Record<TourSlideId, { icon: string; wide: boolean; sandbox: Component }> = {
+    clipboard: { icon: 'clipboard', wide: true, sandbox: ClipboardSlide },
+    snippets: { icon: 'snippets', wide: false, sandbox: SnippetsSlide },
+    emoji: { icon: 'type', wide: false, sandbox: EmojiSlide },
+    ai: { icon: 'sparkles', wide: true, sandbox: AiSlide },
+    files: { icon: 'folder-search', wide: false, sandbox: FilesSlide },
+    window: { icon: 'window', wide: true, sandbox: WindowSlide },
+  };
 
-  const cards = $derived([
-    {
-      id: 'clipboard' as CardId,
-      icon: 'clipboard',
-      title: t('features.clipboard.title'),
-      desc: t('onboarding.features_clipboard_desc'),
-    },
-    {
-      id: 'portals' as CardId,
-      icon: 'globe',
-      title: t('onboarding.portals_heading'),
-      desc: t('onboarding.features_portals_desc'),
-      sample: {
-        preview: `📺 ${SAMPLE_PORTAL_NAME}`,
-        tryWhere: t('onboarding.features_portals_try'),
-        tryText: SAMPLE_PORTAL_NAME,
-      },
-    },
-    {
-      id: 'snippets' as CardId,
-      icon: 'snippets',
-      title: t('onboarding.snippets_heading'),
-      desc: t('onboarding.features_snippets_desc'),
-      sample: {
-        preview: `${SAMPLE_KEYWORD} → ${SAMPLE_EXPANSION}`,
-        tryWhere: t('onboarding.features_snippets_try'),
-        tryText: SAMPLE_KEYWORD,
-      },
-    },
-  ]);
+  // null shows the bento grid with every feature animating; an id opens that feature live.
+  let open = $state<TourSlideId | null>(null);
+  const index = $derived(open ? TOUR_SLIDES.indexOf(open) : -1);
+  const isLast = $derived(index === TOUR_SLIDES.length - 1);
 
-  // Samples are opt-in and applied on click; Continue never depends on them.
-  const added = $derived<Record<CardId, boolean>>({
-    clipboard: true,
-    portals: hasSamplePortal(),
-    snippets: hasSampleSnippet(),
-  });
-  let snippetsPending = $state(false);
-  let axGranted = $state(false);
-  let working = $state(false);
-  let error = $state('');
-
-  async function addSnippets() {
-    working = true;
-    error = '';
-    try {
-      seedSampleSnippet();
-      if (!(await enableExpansion())) error = t('onboarding.snippets_expansion_error');
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      snippetsPending = false;
-      working = false;
+  $effect(() => {
+    if (!open) {
+      onboardingNav.set({ onPrimary: advanceStep });
+      return;
     }
-  }
-
-  function addSample(id: CardId) {
-    if (id === 'portals') seedSamplePortal();
-    // Expansion needs Accessibility; the gate below finishes the job once it's granted.
-    if (id === 'snippets') snippetsPending = true;
-  }
-
-  $effect(() => {
-    if (snippetsPending && axGranted && !working) void addSnippets();
+    onboardingNav.set({
+      glyph: SLIDES[open].icon,
+      primaryOnModEnter: true,
+      primaryLabel: isLast ? t('onboarding.tour.all_features') : t('onboarding.tour.next'),
+      onPrimary: () => {
+        open = isLast ? null : TOUR_SLIDES[index + 1];
+      },
+      onBack: () => {
+        open = null;
+      },
+    });
   });
 
+  // A button clicked on the way here keeps focus, so plain Enter would natively click
+  // whatever that button says now; on a live feature only ⌘↵ advances.
   $effect(() => {
-    onboardingNav.set({ onPrimary: advanceStep });
+    void open;
+    if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
   });
 </script>
 
-<div class="features">
-  <div class="features__header">
-    <h1 class="features__title">{t('onboarding.features_heading')}</h1>
-  </div>
-
-  <div class="features__grid">
-    {#each cards as card, i (card.id)}
-      <div class="feature" class:feature--on={card.sample && added[card.id]} style:--i={i}>
-        <div class="feature__top">
-          <span class="feature__icon"><Icon name={card.icon} size={18} /></span>
-          {#if card.id === 'clipboard'}
-            <span class="feature__always">{t('onboarding.features_always_on')}</span>
-          {/if}
-        </div>
-        <span class="feature__title">{card.title}</span>
-        <span class="feature__desc">{card.desc}</span>
-        {#if card.sample}
-          <div class="feature__sample" aria-live="polite">
-            {#if added[card.id]}
-              <span class="feature__sample-done">✓ {t('onboarding.features_sample_added')}</span>
-              <span class="feature__sample-try">
-                {card.sample.tryWhere}
-                <kbd class="feature__sample-preview">{card.sample.tryText}</kbd>
-              </span>
-            {:else}
-              <span class="feature__sample-label">{t('onboarding.features_sample_label')}</span>
-              <code class="feature__sample-preview">{card.sample.preview}</code>
-              <Button
-                class="btn-secondary"
-                disabled={working || (card.id === 'snippets' && snippetsPending)}
-                onclick={() => addSample(card.id)}
-              >
-                {t('onboarding.features_add_sample')}
-              </Button>
-            {/if}
-          </div>
-        {/if}
+{#if open}
+  {@const Sandbox = SLIDES[open].sandbox}
+  {#key open}
+    <div class="feature" in:fly={{ x: 24, duration: 280, easing: cubicOut }}>
+      <div class="feature__header">
+        <h1 class="feature__title">{t(`onboarding.tour.${open}_title`)}</h1>
+        <p class="feature__desc">{t(`onboarding.tour.${open}_desc`)}</p>
       </div>
-    {/each}
+      <div class="feature__stage">
+        <Sandbox />
+      </div>
+      <p class="feature__tip">{t(`onboarding.tour.${open}_tip`)}</p>
+    </div>
+  {/key}
+{:else}
+  <div class="bento-wrap">
+    <h1 class="feature__title">{t('onboarding.features_heading')}</h1>
+    <div class="bento">
+      {#each TOUR_SLIDES as id, i (id)}
+        <button
+          class="bento__tile"
+          class:bento__tile--wide={SLIDES[id].wide}
+          style:--i={i}
+          onclick={() => (open = id)}
+        >
+          <span class="bento__head">
+            <Icon name={SLIDES[id].icon} size={14} />
+            <span class="bento__name">{t(`onboarding.tour.${id}_title`)}</span>
+            <span class="bento__try">{t('onboarding.tour.try_it')} →</span>
+          </span>
+          <span class="bento__demo">
+            {#if id === 'clipboard'}
+              <MiniLauncherDemo
+                query={t('onboarding.tour.reel_clipboard_query')}
+                rows={[
+                  { icon: 'icon:clipboard', title: t('onboarding.tour.reel_clipboard_row1') },
+                  { icon: 'icon:clipboard', title: t('onboarding.tour.reel_clipboard_row2') },
+                ]}
+              />
+            {:else if id === 'snippets'}
+              <TypingDemo
+                before={`${t('onboarding.tour.snippets_demo_prefix')} ${SAMPLE_KEYWORD}`}
+                after={`${t('onboarding.tour.snippets_demo_prefix')} ${SAMPLE_EXPANSION}`}
+              />
+            {:else if id === 'emoji'}
+              <TypingDemo
+                before={`${t('onboarding.tour.reel_emoji_text')} :rocket:`}
+                after={`${t('onboarding.tour.reel_emoji_text')} 🚀`}
+              />
+            {:else if id === 'ai'}
+              <TypingDemo
+                before={t('onboarding.tour.ai_sample')}
+                after={t('onboarding.tour.ai_fixed')}
+              />
+            {:else if id === 'files'}
+              <MiniLauncherDemo
+                query={t('onboarding.tour.reel_files_query')}
+                rows={[
+                  { icon: 'icon:file-text', title: t('onboarding.tour.reel_files_row1') },
+                  { icon: 'icon:folder', title: t('onboarding.tour.reel_files_row2') },
+                ]}
+              />
+            {:else}
+              <WindowSlide />
+            {/if}
+          </span>
+        </button>
+      {/each}
+    </div>
   </div>
-
-  {#if snippetsPending}
-    <AccessibilityGate bind:granted={axGranted} />
-  {/if}
-  {#if error}<p class="features__error">{error}</p>{/if}
-</div>
+{/if}
 
 <style>
-  .features {
+  .feature,
+  .bento-wrap {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
   }
-  .features__header {
+  .feature__header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
     text-align: center;
   }
-  .features__title {
+  .feature__title {
     margin: 0;
+    text-align: center;
     font-size: var(--font-size-display);
     font-weight: 600;
     letter-spacing: -0.5px;
     color: var(--text-primary);
   }
-  .features__grid {
+  .feature__desc {
+    margin: 0;
+    max-width: 46ch;
+    font-size: var(--font-size-md);
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+  .feature__stage {
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    overflow: hidden;
+  }
+  .feature__tip {
+    margin: 0;
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+  }
+
+  .bento {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-3);
   }
-  .feature {
+  .bento__tile {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
-    padding: var(--space-4);
-    background: var(--bg-secondary);
+    min-width: 0;
+    padding: 0;
     border: 1px solid var(--separator);
     border-radius: var(--radius-lg);
-    transition:
-      border-color var(--dur-quick) var(--ease-travel),
-      background var(--dur-quick) var(--ease-travel);
-    animation: card-in var(--dur-emerge) var(--ease-emerge) both;
-    animation-delay: calc(160ms + var(--i) * 60ms);
+    background: var(--bg-secondary);
+    overflow: hidden;
+    text-align: left;
+    font: inherit;
+    cursor: default;
+    transition: border-color var(--dur-quick) var(--ease-travel);
+    animation: tile-in var(--dur-emerge) var(--ease-emerge) both;
+    animation-delay: calc(120ms + var(--i) * 60ms);
   }
-  .feature--on {
+  .bento__tile--wide {
+    grid-column: span 2;
+  }
+  .bento__tile:hover,
+  .bento__tile:focus-visible {
     border-color: color-mix(in srgb, var(--asyar-brand) 55%, transparent);
-    background: color-mix(in srgb, var(--asyar-brand) 8%, var(--bg-secondary));
   }
-  .feature__icon {
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-md);
-    color: var(--asyar-brand);
-    background: var(--asyar-brand-muted);
-  }
-  .feature__top {
+  .bento__head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-2);
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4) 0;
+    color: var(--asyar-brand);
   }
-  .feature__title {
-    font-size: var(--font-size-md);
+  .bento__name {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--text-primary);
   }
-  .feature__desc {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    line-height: 1.5;
-    margin-bottom: var(--space-3);
-  }
-  /* Pinned to the card bottom so samples line up across cards. */
-  .feature__sample {
-    margin-top: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-2);
-  }
-  .feature__sample-label {
+  .bento__try {
     font-size: var(--font-size-2xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-tertiary);
+    opacity: 0;
+    transition: opacity var(--dur-quick) var(--ease-travel);
   }
-  .feature__sample-preview {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--text-primary);
+  .bento__tile:hover .bento__try,
+  .bento__tile:focus-visible .bento__try {
+    opacity: 1;
   }
-  .feature__sample-done {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--asyar-brand);
+  /* Demos are sized for the full stage; tiles show them at 75% so all six fit one screen. */
+  .bento__demo {
+    --tile-demo-h: calc(var(--font-size-md) * 8.5);
+    display: block;
+    height: var(--tile-demo-h);
+    overflow: hidden;
+    pointer-events: none;
   }
-  .feature__sample-try {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+  .bento__demo > :global(*) {
+    width: calc(100% / 0.75);
+    transform: scale(0.75);
+    transform-origin: top left;
   }
-  kbd.feature__sample-preview {
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-sm);
-    background: var(--bg-tertiary);
+  .bento__demo :global(.mini-launcher-demo) {
+    min-height: 0;
+    padding: var(--space-3) var(--space-4);
   }
-  .feature__always {
-    font-size: var(--font-size-2xs);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--asyar-brand);
-    white-space: nowrap;
+  .bento__demo :global(.typing-demo) {
+    min-height: 0;
   }
-  .features__error {
-    margin: 0;
-    color: var(--accent-danger);
-    font-size: var(--font-size-md);
+  .bento__demo :global(.window-slide) {
+    padding: var(--space-2) var(--space-4);
   }
-
-  @keyframes card-in {
+  .bento__demo :global(.window-slide__desk) {
+    aspect-ratio: auto;
+    height: calc(var(--tile-demo-h) / 0.75 - var(--space-2) * 2);
+  }
+  @keyframes tile-in {
     from {
       opacity: 0;
-      transform: translateY(12px) scale(0.97);
+      transform: translateY(10px) scale(0.98);
     }
   }
 </style>

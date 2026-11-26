@@ -7,7 +7,7 @@
   import { onboardingNav } from '../onboardingNav.svelte';
   import { aiCheckCliStatus } from '../../../lib/ipc/commands';
   import type { CliStatus } from '../../../bindings';
-  import { Button, Card, Badge, ShortcutRecorder } from '../../../components';
+  import { Button, Card, ShortcutRecorder } from '../../../components';
   import { t } from '../../../services/i18n';
   import { connectCliProvider } from './aiSetup';
   import { DEFAULT_GRAMMAR_FIX_HOTKEY } from '../../../built-in-features/agents/defaultAgent';
@@ -177,6 +177,7 @@
 <div class="ai-step">
   <div class="ai-step__header">
     <h1 class="ai-step__title">{t('onboarding.ai_step_title')}</h1>
+    <p class="ai-step__lede">{t('onboarding.ai_step_lede')}</p>
   </div>
 
   {#if scanning}
@@ -187,15 +188,6 @@
     </Card>
   {:else if detectedEntries.length > 0}
     <div class="detected-section">
-      <div class="detected-section__header">
-        <div class="detected-badge-wrapper">
-          <span class="detected-live-dot" aria-hidden="true"></span>
-          <span class="detected-kicker">{t('onboarding.ai_step_cli_detected_badge')}</span>
-          <Badge text={t('common.experimental')} variant="warning" />
-        </div>
-        <p class="detected-desc">{t('onboarding.ai_step_cli_detected_sub')}</p>
-      </div>
-
       <div class="detected-cards">
         {#each detectedEntries as spec (spec.id)}
           {@const status = cliResults[spec.id]}
@@ -319,6 +311,16 @@
     gap: var(--space-4);
   }
 
+  .ai-step__header {
+    text-align: center;
+  }
+
+  .ai-step__lede {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+  }
+
   .ai-step__title {
     margin: 0 0 var(--space-2);
     font-size: var(--font-size-display);
@@ -347,33 +349,6 @@
     background: var(--bg-secondary);
     border: 1px solid var(--separator);
     border-radius: var(--radius-lg);
-  }
-
-  .detected-badge-wrapper {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .detected-live-dot {
-    width: var(--size-xs);
-    height: var(--size-xs);
-    border-radius: var(--radius-full);
-    background: var(--accent-success);
-  }
-
-  .detected-kicker {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-primary);
-  }
-
-  .detected-desc {
-    margin: var(--space-1) 0 0;
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
   }
 
   .detected-cards {

@@ -44,6 +44,43 @@ pub fn set_snippets_enabled(
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnippetPreview {
+    pub keyword_len: usize,
+    pub expansion: String,
+}
+
+/// Expands the keyword `text` ends with, using the user's snippets and
+/// extension shortcodes, without touching the OS keyboard.
+#[tauri::command]
+pub fn snippets_preview_expansion(
+    text: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<SnippetPreview>, AppError> {
+    let merged = {
+        let user = state.active_snippets.lock().map_err(|_| AppError::Lock)?;
+        let contributed = state
+            .contributed_snippets
+            .lock()
+            .map_err(|_| AppError::Lock)?;
+        crate::snippets::merge_active_snippets(&user, &contributed)
+    };
+    let triggers = state
+        .shortcode_triggers
+        .lock()
+        .map_err(|_| AppError::Lock)?
+        .clone();
+    Ok(
+        crate::snippets::expansion_at_end(&text, &merged, &triggers).map(
+            |(keyword_len, expansion)| SnippetPreview {
+                keyword_len,
+                expansion,
+            },
+        ),
+    )
+}
+
 /// Returns `true` if the Accessibility permission required for snippets is granted (macOS only).
 #[tauri::command]
 pub fn check_snippet_permission() -> bool {

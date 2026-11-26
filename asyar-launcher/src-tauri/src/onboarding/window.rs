@@ -12,7 +12,7 @@ const WINDOW_URL: &str = "/onboarding";
 // instruction/setup content on one side, a vibrant tilted feature image on the
 // other — so it needs space to breathe.
 const WINDOW_WIDTH: f64 = 1000.0;
-const WINDOW_HEIGHT: f64 = 700.0;
+const WINDOW_HEIGHT: f64 = 740.0;
 // Watchdog for the macOS flash-free reveal. Generous compared to the HUD's
 // 250ms: this window is created cold (webview process spawn + first commit),
 // not merely repainted.

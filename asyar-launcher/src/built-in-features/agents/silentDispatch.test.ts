@@ -326,6 +326,21 @@ describe('dispatchSilentAgentCommand', () => {
     );
   });
 
+  it('hands the result only to onFinalText when skipOutputAction is set', async () => {
+    const onFinalText = vi.fn();
+
+    await dispatchSilentAgentCommand({
+      agentId: 'agent-1',
+      userText: 'hello',
+      onFinalText,
+      skipOutputAction: true,
+    });
+
+    expect(onFinalText).toHaveBeenCalledWith('Corrected text');
+    expect(writeText).not.toHaveBeenCalled();
+    expect(spinnerMock.dismiss).toHaveBeenCalled();
+  });
+
   it('invokes onFinalText and isolates callback failures', async () => {
     const onFinalText = vi.fn().mockRejectedValue(new Error('cache failed'));
 

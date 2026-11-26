@@ -9,7 +9,7 @@
     ThemePicker,
     WindowModeSelector,
   } from '../../../components';
-  import { advanceStep, fetchTopThemes } from '../stepLogic';
+  import { advanceStep, goBackStep, fetchTopThemes } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
   import type { ApiExtension } from '../../../built-in-features/store/state.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
@@ -21,6 +21,11 @@
   import { applyInstalledTheme, installThemeExtension } from './themeSetup';
   import { isExtensionInstalled } from '../../../lib/installedExtensions';
   import { appListen } from '../../../lib/ipc/bridgeEvents';
+
+  let {
+    onDone = advanceStep,
+    onBack = goBackStep,
+  }: { onDone?: () => void | Promise<void>; onBack?: () => void | Promise<void> } = $props();
 
   let themes = $state<ApiExtension[]>([]);
   let loading = $state(true);
@@ -204,7 +209,13 @@
   }
 
   $effect(() => {
-    onboardingNav.set({ showSkip: true, onPrimary: advanceStep, onSkip: advanceStep });
+    onboardingNav.set({
+      glyph: 'palette',
+      showSkip: true,
+      onPrimary: onDone,
+      onSkip: onDone,
+      onBack,
+    });
   });
 
   onMount(() => {

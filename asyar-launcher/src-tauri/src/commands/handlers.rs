@@ -445,6 +445,7 @@ macro_rules! system_commands {
                 $crate::commands::open_accessibility_preferences,
                 $crate::commands::contribute_shortcodes,
                 $crate::commands::revoke_shortcodes,
+                $crate::commands::snippets_preview_expansion,
                 $crate::commands::scripts::scripts_add_directory,
                 $crate::commands::scripts::scripts_remove_directory,
                 $crate::commands::scripts::scripts_list_directories,

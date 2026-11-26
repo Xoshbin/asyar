@@ -6,14 +6,10 @@
   import { onboardingService } from '../../services/onboarding/onboardingService.svelte';
   import StepProgress from '../../components/onboarding/StepProgress.svelte';
   import Welcome from './steps/Welcome.svelte';
-  import SummonSearch from './steps/SummonSearch.svelte';
   import Features from './steps/Features.svelte';
-  import Emoji from './steps/Emoji.svelte';
-  import FeaturedExtensions from './steps/FeaturedExtensions.svelte';
-  import PickTheme from './steps/PickTheme.svelte';
   import CheatSheet from './steps/CheatSheet.svelte';
+  import Personalize from './steps/Personalize.svelte';
   import AiSetupStep from './steps/AiSetupStep.svelte';
-  import PrivacyConsent from './steps/PrivacyConsent.svelte';
   import { Button, OnboardingStage } from '../../components';
   import { STEP_GLYPHS } from './stepVisuals';
   import { onboardingNav } from './onboardingNav.svelte';
@@ -51,24 +47,16 @@
           in:fly={{ x: 32 * direction, duration: 360, delay: 140, easing: cubicOut }}
           out:fly={{ x: -32 * direction, duration: 160, easing: cubicIn }}
         >
-          <OnboardingStage glyph={STEP_GLYPHS[state.current]} />
+          <OnboardingStage glyph={nav.glyph ?? STEP_GLYPHS[state.current]} />
           <div class="onboarding-stage__body">
             {#if state.current === 'welcome'}
               <Welcome />
-            {:else if state.current === 'summonSearch'}
-              <SummonSearch />
             {:else if state.current === 'features'}
               <Features />
-            {:else if state.current === 'emoji'}
-              <Emoji />
             {:else if state.current === 'aiSetup'}
               <AiSetupStep />
-            {:else if state.current === 'pickTheme'}
-              <PickTheme />
-            {:else if state.current === 'featuredExtensions'}
-              <FeaturedExtensions />
-            {:else if state.current === 'privacyConsent'}
-              <PrivacyConsent />
+            {:else if state.current === 'personalize'}
+              <Personalize />
             {:else if state.current === 'cheatSheet'}
               <CheatSheet />
             {/if}
@@ -86,12 +74,15 @@
       <div class="onboarding-stage__footer-right">
         {#if nav.showSkip}
           <Button class="btn-secondary" onclick={nav.onSkip}
-            >{nav.skipLabel}<kbd class="onboarding-stage__key">{state.isMacos ? '⌘' : 'Ctrl'} ↵</kbd
-            ></Button
+            >{nav.skipLabel}{#if !nav.primaryOnModEnter}<kbd class="onboarding-stage__key"
+                >{state.isMacos ? '⌘' : 'Ctrl'} ↵</kbd
+              >{/if}</Button
           >
         {/if}
         <Button onclick={nav.onPrimary} disabled={nav.primaryDisabled}
-          >{nav.primaryLabel}<kbd class="onboarding-stage__key">↵</kbd></Button
+          >{nav.primaryLabel}<kbd class="onboarding-stage__key"
+            >{nav.primaryOnModEnter ? `${state.isMacos ? '⌘' : 'Ctrl'} ↵` : '↵'}</kbd
+          ></Button
         >
       </div>
     </div>
