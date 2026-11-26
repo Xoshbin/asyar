@@ -82,9 +82,20 @@ pub fn get_frontmost_application_metadata() -> Option<(String, String, String, S
                     .to_string()
             });
 
-        let title = get_focused_window_title().unwrap_or_default();
+        // Querying our own AX tree from this (non-main) thread re-enters AppKit and
+        // traps on macOS 27 (dispatch_assert_queue), so skip the title for ourselves.
+        let pid: i32 = msg_send![app, processIdentifier];
+        let title = if is_own_process(pid) {
+            String::new()
+        } else {
+            get_focused_window_title().unwrap_or_default()
+        };
         Some((name, bid, path, title))
     }
+}
+
+fn is_own_process(pid: i32) -> bool {
+    u32::try_from(pid).is_ok_and(|pid| pid == std::process::id())
 }
 
 fn get_focused_window_title() -> Option<String> {
@@ -204,5 +215,18 @@ pub fn activate_running_app(bundle_id: &str) -> bool {
         const OPTS: u64 = (1 << 0) | (1 << 1);
         let _: Bool = msg_send![app, activateWithOptions: OPTS];
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_own_process;
+
+    #[test]
+    fn is_own_process_matches_only_this_pid() {
+        let own = std::process::id() as i32;
+        assert!(is_own_process(own));
+        assert!(!is_own_process(own + 1));
+        assert!(!is_own_process(-1));
     }
 }
