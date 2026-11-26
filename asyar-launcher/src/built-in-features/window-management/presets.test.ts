@@ -104,6 +104,11 @@ describe('getPresetBounds', () => {
     });
   });
 
+  it('fill covers the whole screen without fullscreen', () => {
+    const result = getPresetBounds('fill', SW, SH);
+    expect(result).toEqual({ bounds: { x: 0, y: 0, width: SW, height: SH } });
+  });
+
   it('maximize returns fullscreen:true and no bounds', () => {
     const result = getPresetBounds('maximize', SW, SH);
     expect(result).toEqual({ fullscreen: true });
@@ -114,8 +119,8 @@ describe('getPresetBounds', () => {
     expect(result).toBeNull();
   });
 
-  it('PRESET_IDS contains all 20 layout preset ids', () => {
-    expect(PRESET_IDS).toHaveLength(20);
+  it('PRESET_IDS contains all 21 layout preset ids', () => {
+    expect(PRESET_IDS).toHaveLength(21);
     expect(PRESET_IDS).toContain('left-half');
     expect(PRESET_IDS).toContain('maximize');
     expect(PRESET_IDS).toContain('first-fourth');

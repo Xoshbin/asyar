@@ -145,6 +145,13 @@
       "mode": "background"
     },
     {
+      "id": "fill",
+      "name": "Fill Screen",
+      "description": "Fill the usable screen area, keeping the menu bar and Dock visible",
+      "trigger": "fill screen maximize window",
+      "mode": "background"
+    },
+    {
       "id": "maximize",
       "name": "Maximize",
       "description": "Fill the entire screen (fullscreen)",
