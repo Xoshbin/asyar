@@ -25,8 +25,10 @@ order: 4
 my-dark-theme.asyar  (renamed ZIP)
 ├── manifest.json
 ├── theme.json
-└── fonts/              (optional)
-    └── MyFont-Regular.woff2
+├── fonts/              (optional)
+│   └── MyFont-Regular.woff2
+└── images/             (optional)
+    └── grain.png
 ```
 
 **`manifest.json`:**
@@ -95,11 +97,42 @@ cannot verify yours.
 - Only `.woff2`, `.ttf`, and `.otf` font files are accepted.
 - `family` names must be alphanumeric with spaces and hyphens only. Characters like `;`, `{`, `}`, `url(`, and `@` are rejected to prevent CSS injection.
 
+**Background layers (optional):**
+
+`backgrounds` paints images over the launcher's `--bg-primary` fill — a grain
+texture, a corner accent. The first layer is drawn on top.
+
+```json
+{
+  "variables": { "--bg-primary": "rgba(28, 26, 23, 0.94)" },
+  "backgrounds": [
+    {
+      "src": "images/corner.png",
+      "position": "right top",
+      "size": "96px auto",
+      "repeat": "no-repeat"
+    },
+    { "src": "images/grain.png", "size": "256px" }
+  ]
+}
+```
+
+`position`, `size` and `repeat` take CSS `background-*` values. Omitted ones
+fall back to `0% 0%`, `auto` and `repeat`. Keep images subtle and partly
+transparent so text keeps its contrast.
+
+**Background validation rules (enforced at install time and when a theme loads):**
+
+- At most 4 layers.
+- `src` must be a relative path inside the package using only letters, digits, `/`, `.`, `-` and `_`. Path traversal (`..`) is rejected.
+- Only `.png`, `.jpg`, `.jpeg`, and `.webp` files are accepted.
+- `position`, `size` and `repeat` may only contain letters, digits, spaces, `%`, `.` and `-`.
+
 **Building the `.asyar` package:**
 
 ```bash
 # Create the ZIP and rename it
-zip -r my-dark-theme.zip manifest.json theme.json fonts/
+zip -r my-dark-theme.zip manifest.json theme.json fonts/ images/
 mv my-dark-theme.zip my-dark-theme.asyar
 ```
 

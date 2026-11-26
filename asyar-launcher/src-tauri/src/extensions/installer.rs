@@ -226,6 +226,77 @@ pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> 
         }
     }
 
+    validate_theme_backgrounds(extension_dir, &definition)
+}
+
+/// Background layers end up inside a CSS `url("…")` and CSS values, so every
+/// field is held to a charset that cannot close the string or start a new value.
+pub(crate) fn validate_theme_backgrounds(
+    extension_dir: &Path,
+    definition: &crate::extensions::ThemeDefinition,
+) -> Result<(), AppError> {
+    const MAX_LAYERS: usize = 4;
+    const ALLOWED_EXTENSIONS: [&str; 4] = ["png", "jpg", "jpeg", "webp"];
+
+    if definition.backgrounds.len() > MAX_LAYERS {
+        return Err(AppError::Validation(format!(
+            "Theme declares {} background layers — at most {} allowed",
+            definition.backgrounds.len(),
+            MAX_LAYERS
+        )));
+    }
+
+    for layer in &definition.backgrounds {
+        let src = &layer.src;
+        if src.is_empty()
+            || src.starts_with('/')
+            || src.contains("..")
+            || !src
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '-' | '_'))
+        {
+            return Err(AppError::Validation(format!(
+                "Invalid background src '{}': use a relative path of letters, digits, '/', '.', '-' or '_'",
+                src
+            )));
+        }
+
+        let ext = Path::new(src)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .unwrap_or_default();
+        if !ALLOWED_EXTENSIONS.contains(&ext.as_str()) {
+            return Err(AppError::Validation(format!(
+                "Invalid background extension '.{}' in '{}' — allowed: .png, .jpg, .jpeg, .webp",
+                ext, src
+            )));
+        }
+
+        if !extension_dir.join(src).is_file() {
+            return Err(AppError::Validation(format!(
+                "Background file not found: {}",
+                src
+            )));
+        }
+
+        for value in [&layer.position, &layer.size, &layer.repeat]
+            .into_iter()
+            .flatten()
+        {
+            if value.is_empty()
+                || !value
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '%' | '.' | '-'))
+            {
+                return Err(AppError::Validation(format!(
+                    "Invalid background value '{}': only letters, digits, spaces, '%', '.' and '-' allowed",
+                    value
+                )));
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -891,6 +962,60 @@ mod tests {
         .unwrap();
         let result = validate_theme_json(dest.path());
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_valid_backgrounds() {
+        let dest = make_zip_and_extract(&[
+            (
+                "theme.json",
+                br#"{"variables":{},"backgrounds":[{"src":"images/corner.png","position":"top right","size":"120px auto","repeat":"no-repeat"},{"src":"images/grain.webp"}]}"#,
+            ),
+            ("images/corner.png", b"png"),
+            ("images/grain.webp", b"webp"),
+        ])
+        .await
+        .unwrap();
+        assert!(validate_theme_json(dest.path()).is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_rejects_bad_backgrounds() {
+        let cases: [&[u8]; 6] = [
+            br#"{"variables":{},"backgrounds":[{"src":"../grain.png"}]}"#,
+            br#"{"variables":{},"backgrounds":[{"src":"/etc/grain.png"}]}"#,
+            br#"{"variables":{},"backgrounds":[{"src":"grain.png"),url("https://x/y.png"}]}"#,
+            br#"{"variables":{},"backgrounds":[{"src":"grain.svg"}]}"#,
+            br#"{"variables":{},"backgrounds":[{"src":"missing.png"}]}"#,
+            br#"{"variables":{},"backgrounds":[{"src":"grain.png","position":"top; color: red"}]}"#,
+        ];
+        for theme in cases {
+            let dest = make_zip_and_extract(&[
+                ("theme.json", theme),
+                ("grain.png", b"png"),
+                ("grain.svg", b"svg"),
+            ])
+            .await
+            .unwrap();
+            assert!(
+                validate_theme_json(dest.path()).is_err(),
+                "accepted {}",
+                String::from_utf8_lossy(theme)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_rejects_too_many_backgrounds() {
+        let layer = r#"{"src":"g.png"}"#;
+        let theme = format!(
+            r#"{{"variables":{{}},"backgrounds":[{}]}}"#,
+            [layer; 5].join(",")
+        );
+        let dest = make_zip_and_extract(&[("theme.json", theme.as_bytes()), ("g.png", b"png")])
+            .await
+            .unwrap();
+        assert!(validate_theme_json(dest.path()).is_err());
     }
 
     #[tokio::test]

@@ -157,4 +157,26 @@ describe('themeService', () => {
     await applyTheme('theme-b');
     expect(document.documentElement.dataset.customTheme).toBe('theme-b');
   });
+
+  it('applyTheme layers background images over the root and removeTheme clears them', async () => {
+    vi.mocked(getThemeDefinition).mockResolvedValue({
+      variables: {},
+      fonts: [],
+      backgrounds: [
+        { src: 'images/corner.png', position: 'right top', size: '96px', repeat: 'no-repeat' },
+        { src: 'images/grain.png' },
+      ],
+    });
+    await applyTheme('ember');
+    const style = document.documentElement.style;
+    expect(style.getPropertyValue('background-image')).toBe(
+      'url("asyar-extension://ember/images/corner.png"), url("asyar-extension://ember/images/grain.png")',
+    );
+    expect(style.getPropertyValue('background-repeat')).toBe('no-repeat, repeat');
+    expect(style.getPropertyValue('background-size')).toBe('96px, auto');
+
+    removeTheme();
+    expect(style.getPropertyValue('background-image')).toBe('');
+    expect(style.getPropertyValue('background-repeat')).toBe('');
+  });
 });

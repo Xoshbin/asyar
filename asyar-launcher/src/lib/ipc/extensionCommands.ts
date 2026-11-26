@@ -209,9 +209,17 @@ export interface ThemeFontEntry {
   src: string;
 }
 
+export interface ThemeBackgroundLayer {
+  src: string;
+  position?: string;
+  size?: string;
+  repeat?: string;
+}
+
 export interface ThemeDefinition {
   variables: Record<string, string>;
   fonts: ThemeFontEntry[];
+  backgrounds?: ThemeBackgroundLayer[];
 }
 
 // -- Plugin system commands --

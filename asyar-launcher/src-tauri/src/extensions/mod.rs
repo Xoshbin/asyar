@@ -675,6 +675,22 @@ pub struct ThemeDefinition {
     pub variables: HashMap<String, String>,
     #[serde(default)]
     pub fonts: Vec<ThemeFontEntry>,
+    /// Image layers painted over the launcher background, first on top.
+    #[serde(default)]
+    pub backgrounds: Vec<ThemeBackgroundLayer>,
+}
+
+/// One background image layer declared by a theme. `position`, `size` and
+/// `repeat` are CSS background values; omitted ones use the CSS initial value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeBackgroundLayer {
+    pub src: String,
+    #[serde(default)]
+    pub position: Option<String>,
+    #[serde(default)]
+    pub size: Option<String>,
+    #[serde(default)]
+    pub repeat: Option<String>,
 }
 
 /// A single @font-face entry declared by a theme.
