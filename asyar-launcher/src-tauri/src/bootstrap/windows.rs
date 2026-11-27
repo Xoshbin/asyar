@@ -272,6 +272,14 @@ pub fn init_windows(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         }
     }
 
+    // Confetti floats above the launcher too, as a non-activating overlay panel.
+    #[cfg(target_os = "macos")]
+    if let Some(confetti) = handle.get_webview_window(crate::confetti::CONFETTI_WINDOW_LABEL) {
+        if let Err(e) = crate::platform::macos::setup_hud_window(&confetti) {
+            log::warn!("[confetti] panel setup failed: {e}");
+        }
+    }
+
     #[cfg(target_os = "macos")]
     crate::platform::macos::install_appearance_observer(handle);
 

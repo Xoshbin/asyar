@@ -12,7 +12,7 @@ const WINDOW_URL: &str = "/onboarding";
 // instruction/setup content on one side, a vibrant tilted feature image on the
 // other — so it needs space to breathe.
 const WINDOW_WIDTH: f64 = 1000.0;
-const WINDOW_HEIGHT: f64 = 700.0;
+const WINDOW_HEIGHT: f64 = 740.0;
 // Watchdog for the macOS flash-free reveal. Generous compared to the HUD's
 // 250ms: this window is created cold (webview process spawn + first commit),
 // not merely repainted.
@@ -110,7 +110,42 @@ pub fn close(app: &AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Show the launcher panel. Mirrors whatever code path the global hotkey uses.
-pub fn show_launcher_panel(app: &AppHandle) -> Result<(), AppError> {
-    crate::commands::app::show_launcher(app)
+/// Close the onboarding window, then summon the launcher once it is gone.
+pub fn close_then_show_launcher(app: &AppHandle) -> Result<(), AppError> {
+    let handle = app.clone();
+    let summon = move || {
+        let coordinator = handle.state::<std::sync::Arc<crate::launcher::LauncherCoordinator>>();
+        match coordinator.request(crate::launcher::LauncherAction::Show) {
+            Ok(()) => log::info!("[onboarding] finished; launcher summon requested"),
+            Err(e) => log::warn!("[onboarding] launcher summon failed: {e}"),
+        }
+    };
+    let handle_for_confetti = app.clone();
+    let Some(w) = app.get_webview_window(WINDOW_LABEL) else {
+        summon();
+        return Ok(());
+    };
+    w.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::Destroyed) {
+            // shortcut: fixed settle delay; AppKit deactivates the app asynchronously
+            // after the policy flip and that resigns a panel shown too early. Upgrade
+            // to an NSApplicationDidResignActive observer if 250ms proves flaky.
+            let summon = summon.clone();
+            let handle_for_confetti = handle_for_confetti.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                // First time the launcher opens: celebrate. Confetti goes up first so the
+                // launcher, summoned after it, ends up key instead of resigning to it.
+                let inner = handle_for_confetti.clone();
+                let _ = handle_for_confetti.run_on_main_thread(move || {
+                    if let Err(e) = crate::confetti::show(&inner) {
+                        log::warn!("[onboarding] confetti failed: {e}");
+                    }
+                });
+                summon();
+            });
+        }
+    });
+    w.close()
+        .map_err(|e| AppError::Other(format!("close onboarding: {e}")))
 }

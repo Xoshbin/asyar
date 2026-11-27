@@ -15,6 +15,13 @@
       "name": "Quit Asyar",
       "description": "Quit the Asyar application",
       "mode": "background"
+    },
+    {
+      "id": "confetti",
+      "name": "Confetti",
+      "icon": "icon:sparkles",
+      "description": "Celebrate with full-screen confetti",
+      "mode": "background"
     }
   ]
 }

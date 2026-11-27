@@ -1,6 +1,6 @@
 import { t } from '../../services/i18n';
 import type { Extension, ExtensionContext } from 'asyar-sdk/contracts';
-import { quitApp, setFocusLock } from '../../lib/ipc/commands';
+import { hideWindow, quitApp, setFocusLock, showConfetti } from '../../lib/ipc/commands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
 class QuitExtension implements Extension {
@@ -9,6 +9,11 @@ class QuitExtension implements Extension {
   async initialize(_context: ExtensionContext): Promise<void> {}
 
   async executeCommand(commandId: string): Promise<any> {
+    if (commandId === 'confetti') {
+      await hideWindow();
+      await showConfetti();
+      return undefined;
+    }
     if (commandId === 'quit-asyar') {
       // Lock focus so the launcher doesn't dismiss while the dialog is open
       await setFocusLock(true);

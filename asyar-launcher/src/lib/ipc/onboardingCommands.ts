@@ -4,19 +4,7 @@ import { invokeSafe } from './invokeSafe';
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
 
-export type OnboardingStepKind =
-  | 'welcome'
-  | 'summonSearch'
-  | 'clipboard'
-  | 'portals'
-  | 'aiSetup'
-  | 'hiddenCommands'
-  | 'emoji'
-  | 'snippets'
-  | 'featuredExtensions'
-  | 'pickTheme'
-  | 'cheatSheet'
-  | 'privacyConsent';
+export type OnboardingStepKind = 'welcome' | 'aiSetup' | 'features' | 'personalize' | 'cheatSheet';
 
 export interface OnboardingState {
   current: OnboardingStepKind;

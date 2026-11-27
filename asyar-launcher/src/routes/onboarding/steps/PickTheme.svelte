@@ -1,8 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
-  import { Card, Button, LoadingState } from '../../../components';
-  import { advanceStep, fetchTopThemes } from '../stepLogic';
+  import {
+    Card,
+    Button,
+    LoadingState,
+    AppearanceThemeSelector,
+    ThemePicker,
+    WindowModeSelector,
+  } from '../../../components';
+  import { advanceStep, goBackStep, fetchTopThemes } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
   import type { ApiExtension } from '../../../built-in-features/store/state.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
@@ -14,6 +21,11 @@
   import { applyInstalledTheme, installThemeExtension } from './themeSetup';
   import { isExtensionInstalled } from '../../../lib/installedExtensions';
   import { appListen } from '../../../lib/ipc/bridgeEvents';
+
+  let {
+    onDone = advanceStep,
+    onBack = goBackStep,
+  }: { onDone?: () => void | Promise<void>; onBack?: () => void | Promise<void> } = $props();
 
   let themes = $state<ApiExtension[]>([]);
   let loading = $state(true);
@@ -156,8 +168,54 @@
     }
   }
 
+  const cards = $derived(
+    themes.map((theme) => {
+      const installedId = getInstalledThemeId(theme);
+      return {
+        theme,
+        id: installedId ?? theme.manifest?.id ?? String(theme.id),
+        name: theme.name,
+        author: theme.author?.name,
+        meta: installingId === theme.id ? t('common.installing') : undefined,
+        installed: installedId !== null,
+      };
+    }),
+  );
+  const activeCardId = $derived(
+    activeThemeId === null
+      ? null
+      : (cards.find((c) => statusFor(c.theme) === 'applied')?.id ?? activeThemeId),
+  );
+
+  function selectTheme(id: string | null) {
+    if (installingId !== null || id === activeCardId) return;
+    if (id === null) return void useDefault();
+    const card = cards.find((c) => c.id === id);
+    if (!card) return;
+    if (card.installed) void apply(card.theme);
+    else void install(card.theme);
+  }
+
+  const currentMode = $derived(settingsService.currentSettings.appearance.theme);
+  const currentLaunchView = $derived(settingsService.currentSettings.appearance.launchView);
+
+  async function pickMode(theme: 'light' | 'dark' | 'system') {
+    await settingsService.updateSettings('appearance', { theme });
+  }
+
+  async function pickLaunchView(launchView: 'default' | 'compact') {
+    await settingsService.updateSettings('appearance', { launchView });
+    await emit('asyar:launch-view-changed', { launchView });
+  }
+
   $effect(() => {
-    onboardingNav.set({ showSkip: true, onPrimary: advanceStep, onSkip: advanceStep });
+    onboardingNav.set({
+      glyph: 'palette',
+      showSkip: true,
+      onPrimary: onDone,
+      onSkip: onDone,
+      onBack,
+    });
   });
 
   onMount(() => {
@@ -195,101 +253,26 @@
 
 <Card>
   <h1>{t('onboarding.theme_heading')}</h1>
-  <p>{t('onboarding.theme_desc')}</p>
+
+  <div class="look__row">
+    <div class="look__label">
+      <span class="look__title">{t('onboarding.tour_appearance')}</span>
+    </div>
+    <AppearanceThemeSelector value={currentMode} onchange={pickMode} />
+  </div>
+  <div class="look__row">
+    <div class="look__label">
+      <span class="look__title">{t('onboarding.tour_window_mode')}</span>
+    </div>
+    <WindowModeSelector value={currentLaunchView} onchange={pickLaunchView} />
+  </div>
 
   {#if loading}
     <LoadingState message={t('common.loading')} />
   {:else}
-    <ul class="grid">
-      <li class="grid__item" class:grid__item--active={activeThemeId === null}>
-        <div
-          class="grid__tile"
-          role="button"
-          tabindex="0"
-          onclick={() => {
-            if (installingId !== null || activeThemeId === null) return;
-            void useDefault();
-          }}
-          onkeydown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              if (installingId !== null || activeThemeId === null) return;
-              void useDefault();
-            }
-          }}
-        >
-          <div class="grid__label">
-            <span class="grid__name">{t('settings.general.default_theme')}</span>
-            <span class="grid__hint">{t('settings.general.default_theme_meta')}</span>
-          </div>
-          {#if activeThemeId === null}
-            <span class="grid__status grid__status--applied">{t('settings.general.applied')}</span>
-          {:else}
-            <Button
-              class="btn-secondary"
-              onclick={(e: MouseEvent) => {
-                e.stopPropagation();
-                void useDefault();
-              }}
-              disabled={installingId !== null}
-            >
-              {t('settings.general.use_default')}
-            </Button>
-          {/if}
-        </div>
-      </li>
-
-      {#each themes as theme (theme.id)}
-        {@const status = statusFor(theme)}
-        <li class="grid__item" class:grid__item--active={status === 'applied'}>
-          <div
-            class="grid__tile"
-            role="button"
-            tabindex="0"
-            onclick={() => {
-              if (installingId !== null || status === 'applied') return;
-              if (status === 'installed') {
-                void apply(theme);
-              } else {
-                void install(theme);
-              }
-            }}
-            onkeydown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (installingId !== null || status === 'applied') return;
-                if (status === 'installed') void apply(theme);
-                else void install(theme);
-              }
-            }}
-          >
-            <div class="grid__label">
-              <span class="grid__name">{theme.name}</span>
-              {#if theme.description}
-                <span class="grid__hint" title={theme.description}>{theme.description}</span>
-              {/if}
-            </div>
-            {#if status === 'installing'}
-              <span class="grid__status">{t('common.installing')}</span>
-            {:else if status === 'applied'}
-              <span class="grid__status grid__status--applied">{t('settings.general.applied')}</span
-              >
-            {:else}
-              <Button
-                onclick={(e: MouseEvent) => {
-                  e.stopPropagation();
-                  if (status === 'installed') void apply(theme);
-                  else void install(theme);
-                }}
-                disabled={installingId !== null}
-              >
-                {status === 'installed' ? t('common.apply') : t('common.install')}
-              </Button>
-            {/if}
-          </div>
-        </li>
-      {/each}
-    </ul>
+    <div class="themes">
+      <ThemePicker themes={cards} activeId={activeCardId} onselect={selectTheme} />
+    </div>
 
     {#if themes.length === 0}
       <div class="theme-empty">
@@ -301,80 +284,27 @@
 </Card>
 
 <style>
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-3);
-    margin: var(--space-4) 0;
-    padding: 0;
-    list-style: none;
-  }
-  .grid__item {
+  .look__row {
     display: flex;
-    padding: 0;
-    background: var(--bg-secondary);
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
-    transition: all var(--transition-fast);
-  }
-  .grid__item:hover {
-    background: var(--bg-hover);
-  }
-  .grid__item--active {
-    border-color: var(--asyar-brand);
-  }
-  .grid__tile {
-    display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: var(--space-3);
-    width: 100%;
-    padding: var(--space-3);
-    border-radius: var(--radius-md);
-    cursor: default;
-    user-select: none;
-    outline: none;
+    justify-content: space-between;
+    gap: var(--space-5);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--separator);
   }
-  .grid__item--active .grid__tile {
-    cursor: default;
-  }
-  .grid__tile:focus-visible {
-    box-shadow: var(--shadow-focus);
-  }
-  .grid__label {
+  .look__label {
     display: flex;
     flex-direction: column;
     gap: var(--space-0-5);
-    flex: 1 1 0%;
-    min-width: 0;
-    overflow: hidden;
   }
-  .grid__name {
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .grid__hint {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .grid__status {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
-  .grid__status--applied {
-    color: var(--asyar-brand);
+  .look__title {
+    font-size: var(--font-size-md);
     font-weight: 600;
+    color: var(--text-primary);
   }
-  .grid__tile :global(.btn) {
-    flex-shrink: 0;
-    white-space: nowrap;
+
+  .themes {
+    margin: var(--space-4) 0;
   }
   .theme-empty {
     display: flex;

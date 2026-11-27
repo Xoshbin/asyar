@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { total, position } = $props<{ total: number; position: number }>();
+  let { total, position }: { total: number; position: number } = $props();
 </script>
 
 <ol class="dots" aria-label={`Step ${position} of ${total}`}>
@@ -15,18 +15,15 @@
     list-style: none;
     padding: 0;
     margin: 0;
-    align-items: center;
   }
   .dots li {
     width: 6px;
     height: 6px;
     border-radius: var(--radius-full);
     background: var(--border-color);
-    transition: var(--transition-smooth);
+    transition: background var(--dur-quick) var(--ease-travel);
   }
-  .dot--active {
-    width: 22px;
-    background: var(--asyar-brand);
-    box-shadow: 0 0 12px var(--asyar-brand);
+  .dots .dot--active {
+    background: var(--text-primary);
   }
 </style>

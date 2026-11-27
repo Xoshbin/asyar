@@ -1,10 +1,22 @@
 export interface OnboardingKeydownOptions {
   onClose: () => void;
+  onPrimary?: () => void;
+  onSkip?: () => void;
+  primaryOnModEnter?: boolean;
+}
+
+// Enter belongs to whatever is focused here: typing, clicking a button, recording a hotkey.
+function ownsEnter(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)
+  );
 }
 
 /**
  * Handles keyboard shortcuts for the onboarding window.
- * Closes the tour on Cmd+W (macOS) or Ctrl+W (Windows/Linux).
+ * Cmd/Ctrl+W closes the tour, Enter runs the primary action and
+ * Cmd/Ctrl+Enter skips the step.
  */
 export function handleOnboardingKeydown(
   e: KeyboardEvent,
@@ -19,6 +31,22 @@ export function handleOnboardingKeydown(
   if (isPrimary && noConflictingModifiers && isW) {
     e.preventDefault();
     options.onClose();
+    return true;
+  }
+
+  if (e.key === 'Enter' && noConflictingModifiers) {
+    const action = options.primaryOnModEnter
+      ? isPrimary
+        ? options.onPrimary
+        : undefined
+      : isPrimary
+        ? options.onSkip
+        : ownsEnter(e.target)
+          ? undefined
+          : options.onPrimary;
+    if (!action) return false;
+    e.preventDefault();
+    action();
     return true;
   }
 

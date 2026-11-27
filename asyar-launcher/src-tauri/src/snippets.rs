@@ -122,6 +122,29 @@ pub fn evaluate_snippet_buffer(
     SnippetMatchAction::None
 }
 
+/// Runs `text` through the same buffer the keyboard listener uses and returns
+/// `(keyword_len, expansion)` when its last char completes a keyword. Lets a
+/// sandbox inside Asyar's own windows, which the OS key monitor never sees,
+/// expand exactly as other apps do.
+pub fn expansion_at_end(
+    text: &str,
+    merged_snippets: &ShortcodeMap,
+    triggers: &[String],
+) -> Option<(usize, String)> {
+    let mut buffer = Vec::new();
+    let mut last = None;
+    for c in text.chars() {
+        last = match evaluate_snippet_buffer(&mut buffer, c, merged_snippets, triggers) {
+            SnippetMatchAction::Expand {
+                keyword_len,
+                expansion,
+            } => Some((keyword_len, expansion)),
+            _ => None,
+        };
+    }
+    last
+}
+
 /// Appends a typed character to the snippet buffer, checks for active snippet expansions,
 /// and detects completed shortcodes for miss reporting.
 pub fn process_snippet_char(app_handle: &AppHandle, buffer: &mut Vec<char>, c: char) {
@@ -387,6 +410,27 @@ mod tests {
         assert!(!super::is_valid_shortcode_key(":party!:", ":"));
         let too_long = ":".to_string() + &"a".repeat(33) + ":";
         assert!(!super::is_valid_shortcode_key(&too_long, ":"));
+    }
+
+    #[test]
+    fn expansion_at_end_matches_only_a_trailing_keyword() {
+        use super::{expansion_at_end, ShortcodeMap};
+        let mut snippets = ShortcodeMap::new();
+        snippets.insert(";email".to_string(), "you@example.com".to_string());
+        snippets.insert(":rocket:".to_string(), "🚀".to_string());
+        let triggers = vec![":".to_string()];
+        assert_eq!(
+            expansion_at_end("mail me at ;email", &snippets, &triggers),
+            Some((6, "you@example.com".to_string()))
+        );
+        assert_eq!(
+            expansion_at_end("ship it :rocket:", &snippets, &triggers),
+            Some((8, "🚀".to_string()))
+        );
+        assert_eq!(
+            expansion_at_end(";email and more", &snippets, &triggers),
+            None
+        );
     }
 
     #[test]

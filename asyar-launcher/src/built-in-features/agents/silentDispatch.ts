@@ -34,6 +34,8 @@ interface SilentDispatchOptions {
   rawInputLength?: number;
   abortSignal?: AbortSignal;
   onFinalText?: (text: string) => void | Promise<void>;
+  /** Hand the result to `onFinalText` only, e.g. when the caller shows it in its own field. */
+  skipOutputAction?: boolean;
 }
 
 export interface SilentDispatchInput extends SilentDispatchOptions {
@@ -148,14 +150,18 @@ async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> 
       return;
     }
 
-    await applyOutputAction(
-      agent.outputAction,
-      result,
-      spinner,
-      agent.inputSource,
-      userText,
-      input.rawInputLength,
-    );
+    if (input.skipOutputAction) {
+      await spinner.dismiss();
+    } else {
+      await applyOutputAction(
+        agent.outputAction,
+        result,
+        spinner,
+        agent.inputSource,
+        userText,
+        input.rawInputLength,
+      );
+    }
     spinner = null;
     await callFinalText(input, result);
   } catch (cause) {

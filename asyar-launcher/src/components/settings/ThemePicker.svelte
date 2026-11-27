@@ -4,7 +4,14 @@
   import { logService } from '../../services/log/logService';
   import { t } from '../../services/i18n';
 
-  type ThemeEntry = { id: string; name: string; author?: string; version: string };
+  type ThemeEntry = {
+    id: string;
+    name: string;
+    author?: string;
+    version?: string;
+    meta?: string;
+    installed?: boolean;
+  };
 
   let {
     themes,
@@ -15,7 +22,8 @@
     themes: ThemeEntry[];
     activeId: string | null;
     onselect: (id: string | null) => void;
-    ongetmore: () => void;
+    /** Omit to hide the "Get more themes" card. */
+    ongetmore?: () => void;
   } = $props();
 
   const PREVIEW_VARS = [
@@ -31,7 +39,7 @@
 
   $effect(() => {
     for (const theme of themes) {
-      if (requested.has(theme.id)) continue;
+      if (theme.installed === false || requested.has(theme.id)) continue;
       requested.add(theme.id);
       getThemeDefinition(theme.id)
         .then((definition) => {
@@ -55,7 +63,9 @@
     ...themes.map((theme) => ({
       id: theme.id,
       name: theme.name,
-      meta: theme.author ? `${theme.author} · v${theme.version}` : `v${theme.version}`,
+      meta:
+        theme.meta ??
+        [theme.author, theme.version && `v${theme.version}`].filter(Boolean).join(' · '),
     })),
   ]);
 </script>
@@ -93,12 +103,14 @@
       <span class="card-meta truncate">{card.meta}</span>
     </button>
   {/each}
-  <button type="button" class="theme-card get-more" onclick={ongetmore}>
-    <div class="mini mini-empty" aria-hidden="true">
-      <Icon name="plus" size={20} />
-    </div>
-    <span class="card-name truncate">{t('settings.appearance.get_more_themes')}</span>
-  </button>
+  {#if ongetmore}
+    <button type="button" class="theme-card get-more" onclick={ongetmore}>
+      <div class="mini mini-empty" aria-hidden="true">
+        <Icon name="plus" size={20} />
+      </div>
+      <span class="card-name truncate">{t('settings.appearance.get_more_themes')}</span>
+    </button>
+  {/if}
 </div>
 
 <style>

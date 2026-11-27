@@ -688,6 +688,12 @@ fn reveal_launcher(
     panel: &tauri_nspanel::Panel,
 ) {
     crate::launcher::pop_to_root::on_native_summon(app);
+    let _ = tauri::Emitter::emit_to(
+        app,
+        crate::onboarding::window::WINDOW_LABEL,
+        "launcher:summoned",
+        (),
+    );
     state.asyar_visible.store(true, Ordering::Relaxed);
     state.mark_interaction();
     crate::platform::macos::reveal_launcher_panel(window, panel);
@@ -701,6 +707,12 @@ fn reveal_launcher(
     window: &tauri::WebviewWindow,
 ) {
     crate::launcher::pop_to_root::on_native_summon(app);
+    let _ = tauri::Emitter::emit_to(
+        app,
+        crate::onboarding::window::WINDOW_LABEL,
+        "launcher:summoned",
+        (),
+    );
     state.asyar_visible.store(true, Ordering::Relaxed);
     state.mark_interaction();
     #[cfg(target_os = "windows")]

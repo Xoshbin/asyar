@@ -267,6 +267,10 @@ export async function getSnapGuideState(): Promise<SnapGuideState | null> {
   return invokeSafe<SnapGuideState | null>('get_snap_guide_state');
 }
 
+export async function showConfetti(): Promise<void> {
+  return invokeSafe<void>('show_confetti');
+}
+
 // ── Window dragging ───────────────────────────────────────────────────────────
 // `data-tauri-drag-region` relies on the native startDragging path, which is
 // not dependable for the NSPanel-converted launcher and sticky windows on

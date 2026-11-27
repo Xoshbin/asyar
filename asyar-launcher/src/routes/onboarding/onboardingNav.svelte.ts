@@ -2,6 +2,9 @@ import { t } from '../../services/i18n';
 import { advanceStep, goBackStep } from './stepLogic';
 
 export interface OnbNav {
+  glyph?: string;
+  /** Primary runs on Cmd/Ctrl+Enter (so it works while typing) and Skip has no key. */
+  primaryOnModEnter?: boolean;
   showBack: boolean;
   showSkip: boolean;
   skipLabel: string;

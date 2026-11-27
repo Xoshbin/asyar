@@ -57,6 +57,28 @@ describe('FeaturedExtensions step', () => {
     expect(screen.queryByText('Emoji')).toBeNull();
   });
 
+  it('shows the top five and finds the rest of the store by search', async () => {
+    fetchTopExtensions.mockResolvedValueOnce(
+      ['One', 'Two', 'Three', 'Four', 'Five', 'Color Picker'].map((name, i) => ({
+        id: i,
+        name,
+        slug: name.toLowerCase(),
+        description: '',
+        category: '',
+      })),
+    );
+
+    render(FeaturedExtensions);
+
+    expect(await screen.findByText('Five')).toBeTruthy();
+    expect(screen.queryByText('Color Picker')).toBeNull();
+
+    await fireEvent.input(screen.getByRole('textbox'), { target: { value: 'color' } });
+
+    expect(screen.getByText('Color Picker')).toBeTruthy();
+    expect(screen.queryByText('Five')).toBeNull();
+  });
+
   it('renders extension list and mentions creating custom extensions with AI when store feels empty', async () => {
     fetchTopExtensions.mockResolvedValueOnce([
       {
@@ -104,7 +126,7 @@ describe('FeaturedExtensions step', () => {
 
     expect(await screen.findByText('Installed')).toBeTruthy();
     expect(
-      (screen.getByRole('checkbox', { name: /GitHub Assistant/ }) as HTMLInputElement).disabled,
+      (screen.getByRole('button', { name: /GitHub Assistant/ }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 
@@ -120,8 +142,8 @@ describe('FeaturedExtensions step', () => {
     ]);
 
     render(FeaturedExtensions);
-    const checkbox = await screen.findByRole('checkbox', { name: /GitHub Assistant/ });
-    await fireEvent.click(checkbox);
+    const row = await screen.findByRole('button', { name: /GitHub Assistant/ });
+    await fireEvent.click(row);
     await onboardingNav.current.onPrimary();
 
     expect(await screen.findByText('Installed')).toBeTruthy();
@@ -145,7 +167,7 @@ describe('FeaturedExtensions step', () => {
 
     expect(await screen.findByText('Installed')).toBeTruthy();
     expect(
-      (screen.getByRole('checkbox', { name: /GitHub Assistant/ }) as HTMLInputElement).disabled,
+      (screen.getByRole('button', { name: /GitHub Assistant/ }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 
@@ -181,7 +203,7 @@ describe('FeaturedExtensions step', () => {
 
     expect(await screen.findByText('Installed')).toBeTruthy();
     expect(
-      (screen.getByRole('checkbox', { name: /GitHub Assistant/ }) as HTMLInputElement).disabled,
+      (screen.getByRole('button', { name: /GitHub Assistant/ }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 

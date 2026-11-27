@@ -4,16 +4,9 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub enum OnboardingStep {
     Welcome,
-    SummonSearch,
-    Clipboard,
-    Portals,
     AiSetup,
-    HiddenCommands,
-    Emoji,
-    Snippets,
-    FeaturedExtensions,
-    PickTheme,
-    PrivacyConsent,
+    Features,
+    Personalize,
     CheatSheet,
 }
 
@@ -29,16 +22,9 @@ pub struct OnboardingState {
 pub fn step_order(_is_macos: bool) -> Vec<OnboardingStep> {
     vec![
         OnboardingStep::Welcome,
-        OnboardingStep::SummonSearch,
-        OnboardingStep::Clipboard,
-        OnboardingStep::Portals,
         OnboardingStep::AiSetup,
-        OnboardingStep::HiddenCommands,
-        OnboardingStep::Emoji,
-        OnboardingStep::Snippets,
-        OnboardingStep::FeaturedExtensions,
-        OnboardingStep::PickTheme,
-        OnboardingStep::PrivacyConsent,
+        OnboardingStep::Features,
+        OnboardingStep::Personalize,
         OnboardingStep::CheatSheet,
     ]
 }
@@ -81,18 +67,11 @@ pub fn go_back(state: OnboardingState) -> OnboardingState {
 mod tests {
     use super::*;
 
-    const EXPECTED: [OnboardingStep; 12] = [
+    const EXPECTED: [OnboardingStep; 5] = [
         OnboardingStep::Welcome,
-        OnboardingStep::SummonSearch,
-        OnboardingStep::Clipboard,
-        OnboardingStep::Portals,
         OnboardingStep::AiSetup,
-        OnboardingStep::HiddenCommands,
-        OnboardingStep::Emoji,
-        OnboardingStep::Snippets,
-        OnboardingStep::FeaturedExtensions,
-        OnboardingStep::PickTheme,
-        OnboardingStep::PrivacyConsent,
+        OnboardingStep::Features,
+        OnboardingStep::Personalize,
         OnboardingStep::CheatSheet,
     ];
 
@@ -103,36 +82,8 @@ mod tests {
     }
 
     #[test]
-    fn order_has_twelve_steps() {
-        assert_eq!(step_order(true).len(), 12);
-    }
-
-    #[test]
-    fn ai_setup_precedes_hidden_commands() {
-        let order = step_order(false);
-        let ai = order
-            .iter()
-            .position(|s| *s == OnboardingStep::AiSetup)
-            .unwrap();
-        let hidden = order
-            .iter()
-            .position(|s| *s == OnboardingStep::HiddenCommands)
-            .unwrap();
-        assert!(ai < hidden);
-    }
-
-    #[test]
-    fn text_expansion_cluster_is_contiguous() {
-        let order = step_order(false);
-        let emoji = order
-            .iter()
-            .position(|s| *s == OnboardingStep::Emoji)
-            .unwrap();
-        let snippets = order
-            .iter()
-            .position(|s| *s == OnboardingStep::Snippets)
-            .unwrap();
-        assert_eq!(snippets, emoji + 1);
+    fn order_has_five_steps() {
+        assert_eq!(step_order(true).len(), 5);
     }
 
     #[test]
@@ -140,14 +91,14 @@ mod tests {
         let s = initial(true);
         assert_eq!(s.current, OnboardingStep::Welcome);
         assert_eq!(s.position, 1);
-        assert_eq!(s.total, 12);
+        assert_eq!(s.total, 5);
         assert!(s.is_macos);
     }
 
     #[test]
     fn advance_moves_one_step() {
         let s = advance(initial(true));
-        assert_eq!(s.current, OnboardingStep::SummonSearch);
+        assert_eq!(s.current, OnboardingStep::AiSetup);
         assert_eq!(s.position, 2);
     }
 
