@@ -332,7 +332,8 @@ pub fn sticky_new(
 
     {
         let conn = store.conn()?;
-        crate::storage::notes::upsert_with_fts(&conn, &note, keystore.master_key(), fts.inner())?;
+        let master_key = keystore.master_key()?;
+        crate::storage::notes::upsert_with_fts(&conn, &note, &master_key, fts.inner())?;
     }
 
     open(&app, &note.id)?;

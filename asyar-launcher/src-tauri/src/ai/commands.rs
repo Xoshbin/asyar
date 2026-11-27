@@ -163,7 +163,8 @@ pub async fn ai_save_credential(
     }
     let credential_id = target.to_credential_id()?;
     let conn = data_store.conn()?;
-    crate::storage::ai_credentials::set(&conn, &credential_id, trimmed, keystore.master_key())?;
+    let master_key = keystore.master_key()?;
+    crate::storage::ai_credentials::set(&conn, &credential_id, trimmed, &master_key)?;
     Ok(())
 }
 
@@ -189,7 +190,8 @@ pub async fn ai_resolve_provider_credential(
     }
     .to_credential_id()?;
     let conn = data_store.conn()?;
-    match crate::storage::ai_credentials::get(&conn, &credential_id, keystore.master_key()) {
+    let master_key = keystore.master_key()?;
+    match crate::storage::ai_credentials::get(&conn, &credential_id, &master_key) {
         Ok(Some(k)) => Ok(Some(k.to_string())),
         Ok(None) => Ok(None),
         Err(asyar_storage::StorageError::Encryption(_)) => Err(AppError::Validation(format!(
@@ -249,8 +251,8 @@ pub async fn ai_get_credential_status(
     keystore: tauri::State<'_, crate::crypto::keystore::KeystoreState>,
 ) -> Result<AiCredentialStatus, AppError> {
     let conn = data_store.conn()?;
-    let master_key = keystore.master_key();
-    let cred_map = crate::storage::ai_credentials::list_all_statuses(&conn, master_key)?;
+    let master_key = keystore.master_key()?;
+    let cred_map = crate::storage::ai_credentials::list_all_statuses(&conn, &master_key)?;
 
     let mut providers = std::collections::HashMap::new();
 

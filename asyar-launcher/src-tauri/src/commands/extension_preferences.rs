@@ -33,7 +33,7 @@ pub async fn extension_preferences_get_all(
     Ok(prefs_store::get_all_for_extension(
         &conn,
         &extension_id,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }
 
@@ -66,7 +66,7 @@ pub async fn extension_preferences_set(
             &key,
             &value,
             is_encrypted,
-            keystore.master_key(),
+            &*keystore.master_key()?,
         )?;
     }
     emit_changed(&app_handle, &extension_id);
@@ -121,6 +121,6 @@ pub async fn extension_preferences_import_all(
         &conn,
         payload,
         strat,
-        keystore.master_key(),
+        &*keystore.master_key()?,
     )?)
 }

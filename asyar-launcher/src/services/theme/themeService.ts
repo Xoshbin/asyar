@@ -1,6 +1,6 @@
 import { getThemeDefinition } from '../../lib/ipc/commands';
-import type { ThemeDefinition } from '../../lib/ipc/commands';
 import { THEMEABLE_VAR_NAMES } from '../../lib/themeVariables';
+import { parseThemeId, resolveThemeVariant } from '../../lib/themeVariants';
 
 export const THEME_STYLE_ID = 'asyar-theme-fonts';
 
@@ -8,28 +8,31 @@ let appliedVariableNames: string[] = [];
 
 /**
  * Apply a theme extension's CSS variables and fonts to the document.
- * Calls Rust get_theme_definition command (file I/O stays in Rust).
+ * Supports both single-theme IDs (`"org.asyar.catppuccin"`) and variant IDs
+ * (`"org.asyar.tokyo-night#storm"`).
  */
 export async function applyTheme(themeId: string): Promise<void> {
   removeTheme();
 
-  const definition = await getThemeDefinition(themeId);
+  const { extensionId, variantId } = parseThemeId(themeId);
+  const definition = await getThemeDefinition(extensionId);
+  const { variables, fonts } = resolveThemeVariant(definition, variantId);
 
   const allowedSet = new Set(THEMEABLE_VAR_NAMES);
-  for (const [name, value] of Object.entries(definition.variables)) {
+  for (const [name, value] of Object.entries(variables)) {
     if (allowedSet.has(name)) {
       document.documentElement.style.setProperty(name, value);
       appliedVariableNames.push(name);
     }
   }
 
-  if (definition.fonts.length > 0) {
-    const fontFaceRules = definition.fonts.map((font) => {
+  if (fonts.length > 0) {
+    const fontFaceRules = fonts.map((font) => {
       const weight = font.weight ?? '400';
       const style = font.style ?? 'normal';
       return `@font-face {
   font-family: "${font.family}";
-  src: url("asyar-extension://${themeId}/${font.src}");
+  src: url("asyar-extension://${extensionId}/${font.src}");
   font-weight: ${weight};
   font-style: ${style};
 }`;

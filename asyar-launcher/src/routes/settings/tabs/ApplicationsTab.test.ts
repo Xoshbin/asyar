@@ -91,7 +91,10 @@ vi.mock('../../../built-in-features/aliases/aliasService', () => ({
 }));
 
 import ApplicationsTab from './ApplicationsTab.svelte';
-import { applicationsCache, resetApplicationsCache } from './applicationsCache.svelte';
+import {
+  applicationsCache,
+  resetApplicationsCache,
+} from '../../../services/application/applicationsCache.svelte';
 
 describe('Settings → Applications path entry', () => {
   beforeEach(() => {

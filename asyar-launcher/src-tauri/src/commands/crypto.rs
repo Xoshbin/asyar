@@ -35,7 +35,8 @@ pub async fn crypto_encrypt(
     plaintext: String,
     keystore: State<'_, KeystoreState>,
 ) -> Result<String, AppError> {
-    cipher::encrypt(&plaintext, keystore.master_key())
+    let master_key = keystore.master_key()?;
+    cipher::encrypt(&plaintext, &master_key)
 }
 
 #[tauri::command]
@@ -43,7 +44,8 @@ pub async fn crypto_decrypt(
     value: String,
     keystore: State<'_, KeystoreState>,
 ) -> Result<String, AppError> {
-    cipher::decrypt(&value, keystore.master_key())
+    let master_key = keystore.master_key()?;
+    cipher::decrypt(&value, &master_key)
 }
 
 pub(crate) fn status_inner(keystore: &KeystoreState) -> EncryptionStatus {

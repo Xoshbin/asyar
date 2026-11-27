@@ -32,13 +32,14 @@ pub fn init_storage(
     std::fs::create_dir_all(&app_data_dir)?;
     let store: Arc<dyn crate::crypto::keystore::KeyStore> =
         Arc::from(crate::crypto::keystore::select_keystore(&app_data_dir));
-    let keystore_state = crate::crypto::keystore::KeystoreState::from_keystore(&*store)?;
-    let master_key = *keystore_state.master_key();
+    let keystore_state =
+        crate::crypto::keystore::KeystoreState::from_keystore_or_locked(store.clone());
     log::info!(
-        "[crypto] keystore initialised — os-backed: {}",
-        keystore_state.is_os_backed()
+        "[crypto] keystore initialised — os-backed: {}, unlocked: {}",
+        keystore_state.is_os_backed(),
+        keystore_state.is_unlocked()
     );
-    app.manage(keystore_state);
+    app.manage(keystore_state.clone());
     app.manage(store);
 
     // Initialize the SQLite data store for clipboard, snippets, shortcuts, search
@@ -52,13 +53,65 @@ pub fn init_storage(
     }
 
     // Migrate any plaintext AI & web search credentials from settings.dat to encrypted SQLite table
-    if let Err(e) =
-        crate::ai::migration::migrate_settings_dat(app.handle(), &data_store, &master_key)
-    {
-        log::error!("[ai::migration] Failed to migrate credentials from settings.dat: {e}");
+    if let Some(master_key) = keystore_state.try_cached_master_key() {
+        if let Err(e) =
+            crate::ai::migration::migrate_settings_dat(app.handle(), &data_store, &master_key)
+        {
+            log::error!("[ai::migration] Failed to migrate credentials from settings.dat: {e}");
+        }
+    } else {
+        log::warn!(
+            "[ai::migration] Skipping settings.dat credential migration because keystore is locked"
+        );
     }
 
     Ok(data_store)
+}
+
+fn spawn_clipboard_fts_rebuild(
+    app_handle: tauri::AppHandle,
+    store: crate::storage::DataStore,
+    fts: Arc<crate::storage::clipboard_fts::ClipboardFts>,
+    master_key: [u8; 32],
+) {
+    tauri::async_runtime::spawn(async move {
+        let result = tokio::task::spawn_blocking(move || {
+            let conn = match store.conn() {
+                Ok(c) => c,
+                Err(_) => return false,
+            };
+            crate::storage::clipboard_fts::rebuild_from_disk(&conn, &fts, &master_key).is_ok()
+        })
+        .await
+        .unwrap_or(false);
+        if result {
+            crate::storage::clipboard_fts::mark_ready();
+            crate::event_bridge::bridge_emit(&app_handle, "clipboard:fts-ready", ());
+        }
+    });
+}
+
+fn spawn_notes_fts_rebuild(
+    app_handle: tauri::AppHandle,
+    store: crate::storage::DataStore,
+    fts: Arc<crate::storage::notes_fts::NotesFts>,
+    master_key: [u8; 32],
+) {
+    tauri::async_runtime::spawn(async move {
+        let result = tokio::task::spawn_blocking(move || {
+            let conn = match store.conn() {
+                Ok(c) => c,
+                Err(_) => return false,
+            };
+            crate::storage::notes_fts::rebuild_from_disk(&conn, &fts, &master_key).is_ok()
+        })
+        .await
+        .unwrap_or(false);
+        if result {
+            crate::storage::notes_fts::mark_ready();
+            crate::event_bridge::bridge_emit(&app_handle, "notes:fts-ready", ());
+        }
+    });
 }
 
 /// Initializes clipboard and notes in-memory FTS indexes and kicks off background rebuild tasks.
@@ -67,72 +120,68 @@ pub fn init_fts(
     app: &mut tauri::App,
     data_store: &Arc<crate::storage::DataStore>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let master_key: [u8; 32] = *app
+    let keystore = app
         .state::<crate::crypto::keystore::KeystoreState>()
-        .master_key();
+        .inner()
+        .clone();
 
-    // Clipboard FTS: build the in-memory index and spawn a background task
-    // that decrypts every row, feeds the FTS, and backfills content_hash for
-    // legacy rows. Emits `clipboard:fts-ready` when done.
-    {
-        let fts = Arc::new(
-            crate::storage::clipboard_fts::ClipboardFts::new_in_memory()
-                .expect("Clipboard FTS in-memory DB must initialise"),
+    let clipboard_fts = Arc::new(
+        crate::storage::clipboard_fts::ClipboardFts::new_in_memory()
+            .expect("Clipboard FTS in-memory DB must initialise"),
+    );
+    app.manage(clipboard_fts.clone());
+
+    let notes_fts = Arc::new(
+        crate::storage::notes_fts::NotesFts::new_in_memory()
+            .expect("Notes FTS in-memory DB must initialise"),
+    );
+    app.manage(notes_fts.clone());
+
+    // Notes AI tools registered here because they need this block's DataStore / KeystoreState / NotesFts
+    register_notes_tools(app.handle(), notes_fts.clone())?;
+
+    if let Some(master_key) = keystore.try_cached_master_key() {
+        spawn_clipboard_fts_rebuild(
+            app.handle().clone(),
+            data_store.as_ref().clone(),
+            clipboard_fts,
+            *master_key,
         );
-        app.manage(fts.clone());
-
-        let store = data_store.as_ref().clone();
-        let app_handle = app.handle().clone();
-        let fts_for_task = fts;
-        tauri::async_runtime::spawn(async move {
-            let result = tokio::task::spawn_blocking(move || {
-                let conn = match store.conn() {
-                    Ok(c) => c,
-                    Err(_) => return false,
-                };
-                crate::storage::clipboard_fts::rebuild_from_disk(&conn, &fts_for_task, &master_key)
-                    .is_ok()
-            })
-            .await
-            .unwrap_or(false);
-            if result {
-                crate::storage::clipboard_fts::mark_ready();
-                crate::event_bridge::bridge_emit(&app_handle, "clipboard:fts-ready", ());
-            }
-        });
-    }
-
-    // Notes FTS: in-memory-index-plus-background-rebuild pattern.
-    // Emits `notes:fts-ready` when done.
-    {
-        let fts = Arc::new(
-            crate::storage::notes_fts::NotesFts::new_in_memory()
-                .expect("Notes FTS in-memory DB must initialise"),
+        spawn_notes_fts_rebuild(
+            app.handle().clone(),
+            data_store.as_ref().clone(),
+            notes_fts,
+            *master_key,
         );
-        app.manage(fts.clone());
-
-        let store = data_store.as_ref().clone();
+    } else {
+        log::warn!(
+            "[bootstrap::storage] deferring FTS rebuilds and credential migration until keystore unlocks"
+        );
         let app_handle = app.handle().clone();
-        let fts_for_task = fts.clone();
-        tauri::async_runtime::spawn(async move {
-            let result = tokio::task::spawn_blocking(move || {
-                let conn = match store.conn() {
-                    Ok(c) => c,
-                    Err(_) => return false,
-                };
-                crate::storage::notes_fts::rebuild_from_disk(&conn, &fts_for_task, &master_key)
-                    .is_ok()
-            })
-            .await
-            .unwrap_or(false);
-            if result {
-                crate::storage::notes_fts::mark_ready();
-                crate::event_bridge::bridge_emit(&app_handle, "notes:fts-ready", ());
+        let store_for_unlock = data_store.clone();
+        keystore.set_on_first_unlock(move |master_key| {
+            if let Err(e) = crate::ai::migration::migrate_settings_dat(
+                &app_handle,
+                &store_for_unlock,
+                &master_key,
+            ) {
+                log::error!(
+                    "[ai::migration] Failed to migrate credentials from settings.dat on unlock: {e}"
+                );
             }
+            spawn_clipboard_fts_rebuild(
+                app_handle.clone(),
+                store_for_unlock.as_ref().clone(),
+                clipboard_fts,
+                master_key,
+            );
+            spawn_notes_fts_rebuild(
+                app_handle,
+                store_for_unlock.as_ref().clone(),
+                notes_fts,
+                master_key,
+            );
         });
-
-        // Notes AI tools registered here because they need this block's DataStore / master key / NotesFts
-        register_notes_tools(app.handle(), fts)?;
     }
 
     Ok(())
@@ -154,33 +203,42 @@ fn register_notes_tools(
         .ok_or("DataStore not managed")?
         .inner()
         .clone();
-    let master_key: [u8; 32] = *app_handle
+    let keystore = app_handle
         .try_state::<crate::crypto::keystore::KeystoreState>()
         .ok_or("KeystoreState not managed")?
-        .master_key();
+        .inner()
+        .clone();
 
     registry
-        .register_builtin(Arc::new(NotesSearchTool::new(
+        .register_builtin(Arc::new(NotesSearchTool::with_keystore(
             data_store.clone(),
-            master_key,
+            keystore.clone(),
             fts.clone(),
         )))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
-        .register_builtin(Arc::new(NotesListTool::new(data_store.clone(), master_key)))
-        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
-    registry
-        .register_builtin(Arc::new(NotesGetTool::new(data_store.clone(), master_key)))
-        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
-    registry
-        .register_builtin(Arc::new(NotesCreateTool::new(
+        .register_builtin(Arc::new(NotesListTool::with_keystore(
             data_store.clone(),
-            master_key,
+            keystore.clone(),
+        )))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesGetTool::with_keystore(
+            data_store.clone(),
+            keystore.clone(),
+        )))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesCreateTool::with_keystore(
+            data_store.clone(),
+            keystore.clone(),
             fts.clone(),
         )))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
-        .register_builtin(Arc::new(NotesAppendTool::new(data_store, master_key, fts)))
+        .register_builtin(Arc::new(NotesAppendTool::with_keystore(
+            data_store, keystore, fts,
+        )))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     Ok(())
 }

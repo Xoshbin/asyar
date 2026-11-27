@@ -167,14 +167,14 @@ pub(crate) async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), 
     Ok(())
 }
 
-/// Validate a theme.json file within an extracted extension directory.
-pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> {
-    let definition = read_theme_definition(extension_dir)?;
-
+fn validate_theme_fonts(
+    extension_dir: &Path,
+    fonts: &[crate::extensions::ThemeFontEntry],
+) -> Result<(), AppError> {
     let allowed_font_extensions = ["woff2", "ttf", "otf"];
     let forbidden_family_patterns = [";", "{", "}", "url(", "@"];
 
-    for font in &definition.fonts {
+    for font in fonts {
         // Check font family name for CSS injection
         if forbidden_family_patterns
             .iter()
@@ -224,6 +224,50 @@ pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> 
                 font_path
             )));
         }
+    }
+
+    Ok(())
+}
+
+/// Validate a theme.json file within an extracted extension directory.
+pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> {
+    let definition = read_theme_definition(extension_dir)?;
+    validate_theme_fonts(extension_dir, &definition.fonts)?;
+
+    let mut seen_variant_ids = std::collections::HashSet::new();
+    for variant in &definition.variants {
+        if variant.id.is_empty()
+            || !variant
+                .id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(AppError::Validation(format!(
+                "Invalid theme variant id '{}': must be non-empty alphanumeric, '-', or '_'",
+                variant.id
+            )));
+        }
+        if !seen_variant_ids.insert(&variant.id) {
+            return Err(AppError::Validation(format!(
+                "Duplicate theme variant id '{}'",
+                variant.id
+            )));
+        }
+        if variant.name.trim().is_empty() {
+            return Err(AppError::Validation(format!(
+                "Theme variant '{}' must have a non-empty name",
+                variant.id
+            )));
+        }
+        if let Some(appearance) = &variant.appearance {
+            if appearance != "light" && appearance != "dark" {
+                return Err(AppError::Validation(format!(
+                    "Invalid appearance '{}' for theme variant '{}': expected 'light' or 'dark'",
+                    appearance, variant.id
+                )));
+            }
+        }
+        validate_theme_fonts(extension_dir, &variant.fonts)?;
     }
 
     Ok(())
@@ -891,6 +935,40 @@ mod tests {
         .unwrap();
         let result = validate_theme_json(dest.path());
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_valid_variants() {
+        let dest = make_zip_and_extract(&[(
+            "theme.json",
+            br##"{"variants":[{"id":"night","name":"Night","appearance":"dark","variables":{"--bg-primary":"#1a1b26"}},{"id":"day","name":"Day","appearance":"light","variables":{"--bg-primary":"#e1e2e7"}}]}"##,
+        )])
+        .await
+        .unwrap();
+        assert!(validate_theme_json(dest.path()).is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_rejects_duplicate_variant_ids() {
+        let dest = make_zip_and_extract(&[(
+            "theme.json",
+            br#"{"variants":[{"id":"night","name":"Night","variables":{}},{"id":"night","name":"Night 2","variables":{}}]}"#,
+        )])
+        .await
+        .unwrap();
+        let err = validate_theme_json(dest.path()).unwrap_err().to_string();
+        assert!(err.contains("Duplicate theme variant id"));
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_rejects_invalid_variant_font() {
+        let dest = make_zip_and_extract(&[(
+            "theme.json",
+            br#"{"variants":[{"id":"night","name":"Night","variables":{},"fonts":[{"family":"Evil","src":"../secret.ttf"}]}]}"#,
+        )])
+        .await
+        .unwrap();
+        assert!(validate_theme_json(dest.path()).is_err());
     }
 
     #[tokio::test]

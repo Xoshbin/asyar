@@ -2,6 +2,8 @@
 
 pub use asyar_platform::windows::*;
 
+pub(crate) mod passive_overlay;
+
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;

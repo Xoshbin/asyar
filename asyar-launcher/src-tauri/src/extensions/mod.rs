@@ -672,6 +672,22 @@ impl Default for ExtensionRegistryState {
 /// (with hyphens) and simple lowercase field names, not camelCase.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeDefinition {
+    #[serde(default)]
+    pub variables: HashMap<String, String>,
+    #[serde(default)]
+    pub fonts: Vec<ThemeFontEntry>,
+    #[serde(default)]
+    pub variants: Vec<ThemeVariant>,
+}
+
+/// A named flavor/variant inside a multi-variant theme.json (e.g. Night, Storm, Day).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeVariant {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub appearance: Option<String>,
+    #[serde(default)]
     pub variables: HashMap<String, String>,
     #[serde(default)]
     pub fonts: Vec<ThemeFontEntry>,
@@ -1474,6 +1490,34 @@ mod tests {
         let json = r#"{"variables": {"--bg-primary": "red"}}"#;
         let def: ThemeDefinition = serde_json::from_str(json).unwrap();
         assert!(def.fonts.is_empty());
+        assert!(def.variants.is_empty());
+    }
+
+    #[test]
+    fn test_theme_definition_variants_deserialize() {
+        let json = r##"{
+            "variants": [
+                {
+                    "id": "night",
+                    "name": "Night",
+                    "appearance": "dark",
+                    "variables": {"--bg-primary": "#1a1b26"}
+                },
+                {
+                    "id": "day",
+                    "name": "Day",
+                    "appearance": "light",
+                    "variables": {"--bg-primary": "#e1e2e7"}
+                }
+            ]
+        }"##;
+        let def: ThemeDefinition = serde_json::from_str(json).unwrap();
+        assert!(def.variables.is_empty());
+        assert_eq!(def.variants.len(), 2);
+        assert_eq!(def.variants[0].id, "night");
+        assert_eq!(def.variants[0].appearance.as_deref(), Some("dark"));
+        assert_eq!(def.variants[1].id, "day");
+        assert_eq!(def.variants[1].appearance.as_deref(), Some("light"));
     }
 
     #[test]

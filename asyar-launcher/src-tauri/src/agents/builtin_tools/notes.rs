@@ -79,15 +79,27 @@ fn optional_limit(args: &serde_json::Value, default: usize) -> Result<usize, App
 
 pub struct NotesSearchTool {
     data_store: DataStore,
-    master_key: [u8; 32],
+    keystore: crate::crypto::keystore::KeystoreState,
     fts: Arc<NotesFts>,
 }
 
 impl NotesSearchTool {
     pub fn new(data_store: DataStore, master_key: [u8; 32], fts: Arc<NotesFts>) -> Self {
+        Self::with_keystore(
+            data_store,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+            fts,
+        )
+    }
+
+    pub fn with_keystore(
+        data_store: DataStore,
+        keystore: crate::crypto::keystore::KeystoreState,
+        fts: Arc<NotesFts>,
+    ) -> Self {
         Self {
             data_store,
-            master_key,
+            keystore,
             fts,
         }
     }
@@ -124,7 +136,8 @@ impl BuiltinTool for NotesSearchTool {
         let limit = optional_limit(&args, 10)?;
 
         let conn = self.data_store.conn()?;
-        let result = notes::search(&conn, &self.fts, query, limit, &self.master_key)?;
+        let master_key = self.keystore.master_key()?;
+        let result = notes::search(&conn, &self.fts, query, limit, &master_key)?;
 
         if result.index_state == "indexing" {
             return Ok(json!({
@@ -152,14 +165,24 @@ impl BuiltinTool for NotesSearchTool {
 
 pub struct NotesListTool {
     data_store: DataStore,
-    master_key: [u8; 32],
+    keystore: crate::crypto::keystore::KeystoreState,
 }
 
 impl NotesListTool {
     pub fn new(data_store: DataStore, master_key: [u8; 32]) -> Self {
+        Self::with_keystore(
+            data_store,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+        )
+    }
+
+    pub fn with_keystore(
+        data_store: DataStore,
+        keystore: crate::crypto::keystore::KeystoreState,
+    ) -> Self {
         Self {
             data_store,
-            master_key,
+            keystore,
         }
     }
 }
@@ -189,7 +212,8 @@ impl BuiltinTool for NotesListTool {
     async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError> {
         let limit = optional_limit(&args, 20)?;
         let conn = self.data_store.conn()?;
-        let all = notes::get_all(&conn, &self.master_key)?;
+        let master_key = self.keystore.master_key()?;
+        let all = notes::get_all(&conn, &master_key)?;
         let results: Vec<serde_json::Value> = all
             .iter()
             .take(limit)
@@ -210,14 +234,24 @@ impl BuiltinTool for NotesListTool {
 
 pub struct NotesGetTool {
     data_store: DataStore,
-    master_key: [u8; 32],
+    keystore: crate::crypto::keystore::KeystoreState,
 }
 
 impl NotesGetTool {
     pub fn new(data_store: DataStore, master_key: [u8; 32]) -> Self {
+        Self::with_keystore(
+            data_store,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+        )
+    }
+
+    pub fn with_keystore(
+        data_store: DataStore,
+        keystore: crate::crypto::keystore::KeystoreState,
+    ) -> Self {
         Self {
             data_store,
-            master_key,
+            keystore,
         }
     }
 }
@@ -248,7 +282,8 @@ impl BuiltinTool for NotesGetTool {
     async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError> {
         let id_or_title = require_str(&args, "idOrTitle")?;
         let conn = self.data_store.conn()?;
-        let note = find_note(&conn, &self.master_key, id_or_title)?
+        let master_key = self.keystore.master_key()?;
+        let note = find_note(&conn, &master_key, id_or_title)?
             .ok_or_else(|| AppError::NotFound(format!("no note matching '{id_or_title}'")))?;
         Ok(note_to_json(&note))
     }
@@ -258,15 +293,27 @@ impl BuiltinTool for NotesGetTool {
 
 pub struct NotesCreateTool {
     data_store: DataStore,
-    master_key: [u8; 32],
+    keystore: crate::crypto::keystore::KeystoreState,
     fts: Arc<NotesFts>,
 }
 
 impl NotesCreateTool {
     pub fn new(data_store: DataStore, master_key: [u8; 32], fts: Arc<NotesFts>) -> Self {
+        Self::with_keystore(
+            data_store,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+            fts,
+        )
+    }
+
+    pub fn with_keystore(
+        data_store: DataStore,
+        keystore: crate::crypto::keystore::KeystoreState,
+        fts: Arc<NotesFts>,
+    ) -> Self {
         Self {
             data_store,
-            master_key,
+            keystore,
             fts,
         }
     }
@@ -311,7 +358,8 @@ impl BuiltinTool for NotesCreateTool {
         };
 
         let conn = self.data_store.conn()?;
-        notes::upsert_with_fts(&conn, &note, &self.master_key, &self.fts)?;
+        let master_key = self.keystore.master_key()?;
+        notes::upsert_with_fts(&conn, &note, &master_key, &self.fts)?;
         Ok(json!({ "id": note.id, "title": note.title }))
     }
 }
@@ -320,15 +368,27 @@ impl BuiltinTool for NotesCreateTool {
 
 pub struct NotesAppendTool {
     data_store: DataStore,
-    master_key: [u8; 32],
+    keystore: crate::crypto::keystore::KeystoreState,
     fts: Arc<NotesFts>,
 }
 
 impl NotesAppendTool {
     pub fn new(data_store: DataStore, master_key: [u8; 32], fts: Arc<NotesFts>) -> Self {
+        Self::with_keystore(
+            data_store,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+            fts,
+        )
+    }
+
+    pub fn with_keystore(
+        data_store: DataStore,
+        keystore: crate::crypto::keystore::KeystoreState,
+        fts: Arc<NotesFts>,
+    ) -> Self {
         Self {
             data_store,
-            master_key,
+            keystore,
             fts,
         }
     }
@@ -364,7 +424,8 @@ impl BuiltinTool for NotesAppendTool {
         let text = require_str(&args, "text")?;
 
         let conn = self.data_store.conn()?;
-        let note = find_note(&conn, &self.master_key, id_or_title)?
+        let master_key = self.keystore.master_key()?;
+        let note = find_note(&conn, &master_key, id_or_title)?
             .ok_or_else(|| AppError::NotFound(format!("no note matching '{id_or_title}'")))?;
 
         let new_body = if note.body.trim().is_empty() {
@@ -380,7 +441,7 @@ impl BuiltinTool for NotesAppendTool {
             Some(&new_body),
             None,
             now_ms(),
-            &self.master_key,
+            &master_key,
             &self.fts,
         )?;
         Ok(json!({ "id": note.id, "title": note.title }))

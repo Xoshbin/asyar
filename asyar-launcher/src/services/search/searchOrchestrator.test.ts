@@ -75,7 +75,6 @@ vi.mock('../action/actionService.svelte', () => ({
   actionService: {
     executeExtensionAction: vi.fn().mockReturnValue(true),
   },
-  setSelectedItemProvider: vi.fn(),
 }));
 
 vi.mock('./builtinSearchProviders', () => ({

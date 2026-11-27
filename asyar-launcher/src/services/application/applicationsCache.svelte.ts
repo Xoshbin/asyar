@@ -1,5 +1,5 @@
-import { getDefaultAppScanPaths, listApplications } from '../../../lib/ipc/commands';
-import type { Application } from '../../../bindings';
+import { getDefaultAppScanPaths, listApplications } from '../../lib/ipc/commands';
+import type { Application } from '../../bindings';
 
 export type IndexedApp = Application & { id: string };
 
@@ -8,8 +8,8 @@ export function withIds(list: Application[]): IndexedApp[] {
 }
 
 /**
- * In-memory copy of the application list for the Applications tab, so revisiting
- * the tab paints immediately and refreshes silently instead of showing a spinner.
+ * In-memory copy of the application list for the Applications tab and app-picker
+ * preferences, so they paint immediately and refresh silently instead of showing a spinner.
  */
 export const applicationsCache = $state({
   defaultPaths: [] as string[],

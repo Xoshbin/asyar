@@ -16,6 +16,7 @@
     localSearchValue: string;
     listContainer?: HTMLDivElement;
     onselect: (detail: { item: any }) => void;
+    onopenactions: (index: number) => void;
     showSections?: boolean;
   }
 
@@ -26,12 +27,25 @@
     localSearchValue,
     listContainer = $bindable(),
     onselect,
+    onopenactions,
     showSections = false,
   }: Props = $props();
+
+  function handleContextMenu(event: MouseEvent) {
+    if (!(event.target instanceof Element)) return;
+    const row = event.target.closest<HTMLButtonElement>('button[data-index]');
+    if (!row) return;
+
+    const index = Number(row.dataset.index);
+    if (!Number.isInteger(index) || index < 0 || index >= items.length) return;
+    event.preventDefault();
+    onopenactions(index);
+  }
 </script>
 
 <div class="min-h-full flex flex-col">
-  <div bind:this={listContainer}>
+  <!-- svelte-ignore a11y_no_static_element_interactions (Only the result buttons handle a context menu via delegation.) -->
+  <div bind:this={listContainer} oncontextmenu={handleContextMenu}>
     {#if feedbackService.current && SEARCH_FATAL_KINDS.has(feedbackService.current.kind)}
       <ErrorState status={feedbackService.current} />
     {:else if items.length > 0}

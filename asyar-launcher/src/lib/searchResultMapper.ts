@@ -41,7 +41,7 @@ export function resolveItemMeta(
   if (!result.icon) {
     if (type === 'application') icon = '🖥️';
     else if (type === 'command') icon = '❯_';
-    else if (type === 'file') icon = 'icon:file';
+    else if (type === 'file') icon = 'icon:file-text';
   }
 
   // --- TypeLabel resolution ---
@@ -384,7 +384,8 @@ export function buildMappedItems({
             await openerService.openPath(result.extensionId ?? null, path);
             return;
           } catch (err) {
-            logService.error(`openerService.openPath failed: ${err}`);
+            const errMsg = typeof err === 'string' ? err : JSON.stringify(err);
+            logService.error(`openerService.openPath failed: ${errMsg}`);
             if (!result.url) {
               onError(`Failed to open ${name}`);
               throw err;

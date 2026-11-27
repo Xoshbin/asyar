@@ -315,7 +315,7 @@ impl FileIndex {
         }
         let mut path = String::new();
         for (i, &e) in chain.iter().rev().enumerate() {
-            if i > 0 {
+            if i > 0 && !path.ends_with(std::path::is_separator) {
                 path.push(std::path::MAIN_SEPARATOR);
             }
             path.push_str(self.disp_name(e));
@@ -762,6 +762,19 @@ mod tests {
                 "separator offset must not map to an entry"
             );
         }
+    }
+
+    #[test]
+    fn a_filesystem_root_joins_its_children_with_one_separator() {
+        let root = if cfg!(windows) { "C:/" } else { "/" };
+        let path = np(&format!("{root}games"));
+        let index = FileIndex::build(
+            vec![PathBuf::from(np(root))],
+            vec![scanned(&path, EntryKind::Dir, NOW as u32)],
+            NOW,
+        );
+        assert_eq!(index.materialize_path(1), path);
+        assert_eq!(index.lookup_path(Path::new(&path)), Some(1));
     }
 
     #[test]

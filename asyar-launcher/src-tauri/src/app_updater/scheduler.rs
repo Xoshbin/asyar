@@ -88,6 +88,11 @@ pub fn can_idle_restart(
 /// an update is pending, the launcher is closed/hidden, no processes are active,
 /// and the app has been idle for >= 2 hours, triggers app.restart().
 async fn run_idle_restart_check(app: &AppHandle) {
+    // Never auto-restart for updates in dev builds; see `app_updater::service::check_and_maybe_download`.
+    if cfg!(debug_assertions) {
+        return;
+    }
+
     let settings = read_update_settings(app);
     if !settings.auto_check {
         return;

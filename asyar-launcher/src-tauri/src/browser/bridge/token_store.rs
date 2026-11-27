@@ -12,6 +12,13 @@ pub trait SecretBackend: Send + Sync {
     fn read(&self, account: &str) -> Result<Option<String>, String>;
     fn write(&self, account: &str, secret: &str) -> Result<(), String>;
     fn remove(&self, account: &str) -> Result<(), String>;
+
+    /// Returns `true` when failures are due to a temporarily locked keystore
+    /// rather than a permanent read/decryption error, so callers avoid caching
+    /// missing entries until the keystore unlocks.
+    fn is_temporarily_locked(&self) -> bool {
+        false
+    }
 }
 
 /// Legacy OS-keychain backend via `keyring` (`asyar-browser-bridge` service).
@@ -52,15 +59,22 @@ pub const ENCRYPTED_TOKENS_FILENAME: &str = "browser-bridge-tokens.enc";
 /// builds.
 pub struct EncryptedFileBackend {
     path: PathBuf,
-    master_key: [u8; 32],
+    keystore: crate::crypto::keystore::KeystoreState,
     state: Mutex<Option<HashMap<String, String>>>,
 }
 
 impl EncryptedFileBackend {
     pub fn new(path: PathBuf, master_key: [u8; 32]) -> Self {
+        Self::with_keystore(
+            path,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+        )
+    }
+
+    pub fn with_keystore(path: PathBuf, keystore: crate::crypto::keystore::KeystoreState) -> Self {
         Self {
             path,
-            master_key,
+            keystore,
             state: Mutex::new(None),
         }
     }
@@ -71,7 +85,11 @@ impl EncryptedFileBackend {
         }
         let map = match std::fs::read_to_string(&self.path) {
             Ok(contents) => {
-                let json = cipher::decrypt(contents.trim(), &self.master_key)
+                let master_key = self
+                    .keystore
+                    .master_key()
+                    .map_err(|e| format!("resolve browser bridge key: {e}"))?;
+                let json = cipher::decrypt(contents.trim(), &master_key)
                     .map_err(|e| format!("decrypt browser bridge tokens: {e}"))?;
                 serde_json::from_str::<HashMap<String, String>>(&json)
                     .map_err(|e| format!("parse browser bridge tokens: {e}"))?
@@ -88,9 +106,13 @@ impl EncryptedFileBackend {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("create browser bridge tokens dir: {e}"))?;
         }
+        let master_key = self
+            .keystore
+            .master_key()
+            .map_err(|e| format!("resolve browser bridge key: {e}"))?;
         let json = serde_json::to_string(map)
             .map_err(|e| format!("serialize browser bridge tokens: {e}"))?;
-        let encrypted = cipher::encrypt(&json, &self.master_key)
+        let encrypted = cipher::encrypt(&json, &master_key)
             .map_err(|e| format!("encrypt browser bridge tokens: {e}"))?;
         write_restrictive(&self.path, &encrypted)
     }
@@ -154,6 +176,10 @@ impl EncryptedFileBackend {
 }
 
 impl SecretBackend for EncryptedFileBackend {
+    fn is_temporarily_locked(&self) -> bool {
+        !self.keystore.is_unlocked()
+    }
+
     fn read(&self, account: &str) -> Result<Option<String>, String> {
         let mut guard = self.state.lock().unwrap();
         self.load_map_locked(&mut guard)?;
@@ -254,6 +280,8 @@ pub struct KeyringTokenStore {
     backend: Arc<dyn SecretBackend>,
     cache: RwLock<HashMap<BrowserKey, Option<String>>>,
     index: RwLock<Vec<BrowserKey>>,
+    needs_reload: std::sync::atomic::AtomicBool,
+    mutation_gen: std::sync::atomic::AtomicU64,
 }
 
 impl KeyringTokenStore {
@@ -266,6 +294,8 @@ impl KeyringTokenStore {
             backend,
             cache: RwLock::new(HashMap::new()),
             index: RwLock::new(Vec::new()),
+            needs_reload: std::sync::atomic::AtomicBool::new(false),
+            mutation_gen: std::sync::atomic::AtomicU64::new(0),
         }
     }
 
@@ -274,8 +304,10 @@ impl KeyringTokenStore {
     }
 
     pub fn load_paired_from_backend(&self) {
+        let gen_before = self.mutation_gen.load(std::sync::atomic::Ordering::SeqCst);
         let mut paired = Vec::new();
         let mut cache_updates = Vec::new();
+        let mut saw_locked = false;
         for key in all_known_browser_keys() {
             let account = account_for(&key);
             match self.backend.read(&account) {
@@ -287,22 +319,41 @@ impl KeyringTokenStore {
                     cache_updates.push((key, None));
                 }
                 Err(e) => {
-                    // Cache as absent so a denied/unreadable backend doesn't
-                    // get re-probed on every incoming /bridge reconnect.
                     log::warn!("[browser] failed to read bridge token: {e}");
-                    cache_updates.push((key, None));
+                    if self.backend.is_temporarily_locked() {
+                        saw_locked = true;
+                    } else {
+                        // Cache as absent so a genuine/permanent backend error
+                        // doesn't get re-probed on every incoming /bridge reconnect.
+                        cache_updates.push((key, None));
+                    }
                 }
             }
         }
 
-        if !cache_updates.is_empty() {
-            let mut cache = self.cache.write().unwrap();
-            for (key, val) in cache_updates {
-                cache.insert(key, val);
-            }
+        let mut cache = self.cache.write().unwrap();
+        let mut index = self.index.write().unwrap();
+        if self.mutation_gen.load(std::sync::atomic::Ordering::SeqCst) != gen_before {
+            // A concurrent set()/delete() modified pairings while we were reading
+            // from the backend; skip publishing stale entries and retry on next access.
+            self.needs_reload
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            return;
         }
+        for (key, val) in cache_updates {
+            cache.insert(key, val);
+        }
+        *index = paired;
+        self.needs_reload
+            .store(saw_locked, std::sync::atomic::Ordering::SeqCst);
+    }
 
-        *self.index.write().unwrap() = paired;
+    fn reload_if_unlocked(&self) {
+        if self.needs_reload.load(std::sync::atomic::Ordering::SeqCst)
+            && !self.backend.is_temporarily_locked()
+        {
+            self.load_paired_from_backend();
+        }
     }
 }
 
@@ -315,11 +366,11 @@ impl Default for KeyringTokenStore {
 impl TokenStore for KeyringTokenStore {
     fn set(&self, key: &BrowserKey, token: &str) -> Result<(), String> {
         self.backend.write(&account_for(key), token)?;
-        self.cache
-            .write()
-            .unwrap()
-            .insert(key.clone(), Some(token.to_string()));
+        let mut cache = self.cache.write().unwrap();
         let mut idx = self.index.write().unwrap();
+        self.mutation_gen
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        cache.insert(key.clone(), Some(token.to_string()));
         if !idx.contains(key) {
             idx.push(key.clone());
         }
@@ -327,6 +378,7 @@ impl TokenStore for KeyringTokenStore {
     }
 
     fn get(&self, key: &BrowserKey) -> Result<Option<String>, String> {
+        self.reload_if_unlocked();
         if let Some(cached) = self.cache.read().unwrap().get(key) {
             return Ok(cached.clone());
         }
@@ -334,10 +386,15 @@ impl TokenStore for KeyringTokenStore {
         let value = match self.backend.read(&account) {
             Ok(v) => v,
             Err(e) => {
-                // Cache as absent so a denied keychain prompt or transient
-                // backend failure doesn't re-trigger on every reconnect.
                 log::warn!("[browser] failed to read bridge token: {e}");
-                self.cache.write().unwrap().insert(key.clone(), None);
+                if self.backend.is_temporarily_locked() {
+                    self.needs_reload
+                        .store(true, std::sync::atomic::Ordering::SeqCst);
+                } else {
+                    // Cache as absent so a denied keychain prompt or genuine
+                    // backend failure doesn't re-trigger on every reconnect.
+                    self.cache.write().unwrap().insert(key.clone(), None);
+                }
                 return Err(e);
             }
         };
@@ -356,15 +413,19 @@ impl TokenStore for KeyringTokenStore {
 
     fn delete(&self, key: &BrowserKey) -> Result<(), String> {
         self.backend.remove(&account_for(key))?;
+        let mut cache = self.cache.write().unwrap();
+        let mut idx = self.index.write().unwrap();
+        self.mutation_gen
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         // Mark as known-absent rather than evicting, so a follow-up `get` is
         // still served from cache instead of re-probing the backend.
-        self.cache.write().unwrap().insert(key.clone(), None);
-        let mut idx = self.index.write().unwrap();
+        cache.insert(key.clone(), None);
         idx.retain(|k| k != key);
         Ok(())
     }
 
     fn list_paired(&self) -> Result<Vec<BrowserKey>, String> {
+        self.reload_if_unlocked();
         Ok(self.index.read().unwrap().clone())
     }
 }
@@ -758,5 +819,73 @@ mod tests {
         let reads_before = legacy.reads();
         encrypted.migrate_from_legacy(&legacy);
         assert_eq!(legacy.reads(), reads_before);
+    }
+
+    #[test]
+    fn locked_keystore_does_not_permanently_cache_missing_pairings() {
+        use crate::crypto::keystore::{KeyStore, KeystoreState};
+        use crate::error::AppError;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use zeroize::Zeroizing;
+
+        struct ToggleStore {
+            locked: AtomicBool,
+            key: [u8; 32],
+        }
+
+        impl KeyStore for ToggleStore {
+            fn load_or_create(&self) -> Result<Zeroizing<[u8; 32]>, AppError> {
+                if self.locked.load(Ordering::SeqCst) {
+                    Err(AppError::Encryption("locked".into()))
+                } else {
+                    Ok(Zeroizing::new(self.key))
+                }
+            }
+            fn is_os_backed(&self) -> bool {
+                true
+            }
+            fn read_slot(&self, _account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, AppError> {
+                Ok(None)
+            }
+            fn write_slot(&self, _account: &str, _value: &[u8]) -> Result<(), AppError> {
+                Ok(())
+            }
+            fn delete_slot(&self, _account: &str) -> Result<(), AppError> {
+                Ok(())
+            }
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(ENCRYPTED_TOKENS_FILENAME);
+        let key_bytes: [u8; 32] = rand::random();
+        let browser = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+
+        // Pre-populate encrypted token file using the unlocked key.
+        {
+            let writer = EncryptedFileBackend::new(path.clone(), key_bytes);
+            writer.write(&account_for(&browser), "tok-123").unwrap();
+        }
+
+        // Start a fresh store with a locked keystore.
+        let raw_store = Arc::new(ToggleStore {
+            locked: AtomicBool::new(true),
+            key: key_bytes,
+        });
+        let keystore = KeystoreState::from_keystore_or_locked(raw_store.clone());
+        let backend = Arc::new(EncryptedFileBackend::with_keystore(path, keystore.clone()));
+        let token_store = KeyringTokenStore::with_backend(backend);
+
+        token_store.load_paired_from_backend();
+        assert!(token_store.list_paired().unwrap().is_empty());
+        assert!(token_store.get(&browser).is_err());
+
+        // Unlock the keystore and verify both `get` and `list_paired` recover.
+        raw_store.locked.store(false, Ordering::SeqCst);
+        let _ = keystore.master_key().unwrap();
+        assert_eq!(token_store.get(&browser).unwrap(), Some("tok-123".into()));
+        assert_eq!(token_store.list_paired().unwrap(), vec![browser]);
     }
 }

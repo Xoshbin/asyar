@@ -34,6 +34,36 @@ const KIND_ICONS: Record<CalcResult['kind'], string> = {
   ratio: '➗',
 };
 
+type BaseFormat = 'DEC' | 'BIN' | 'OCT' | 'HEX';
+
+const BASE_FORMAT_ORDER: readonly BaseFormat[] = ['DEC', 'BIN', 'OCT', 'HEX'];
+
+function baseFormatOf(value: string): BaseFormat | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('0b')) return 'BIN';
+  if (lower.startsWith('0o')) return 'OCT';
+  if (lower.startsWith('0x')) return 'HEX';
+  if (/^[\d,.\s]+$/.test(trimmed)) return 'DEC';
+  return null;
+}
+
+function sortBaseFormats(values: string[]): string[] {
+  const byFormat = new Map<BaseFormat, string>();
+  for (const value of values) {
+    const trimmed = value.trim();
+    const format = baseFormatOf(trimmed);
+    if (format && !byFormat.has(format)) {
+      byFormat.set(format, trimmed);
+    }
+  }
+  return BASE_FORMAT_ORDER.flatMap((fmt) => {
+    const v = byFormat.get(fmt);
+    return v ? [v] : [];
+  });
+}
+
 class CalculatorExtension implements Extension {
   private logService?: ILogService;
   private feedbackService?: IFeedbackService;
@@ -100,32 +130,53 @@ class CalculatorExtension implements Extension {
       primaryActionLabel: t('common.copy'),
       actionPayload: {
         copyValue: r.value.replace(/^≈ /, ''),
-        // Every notation of a color, so ⌘K can offer each one without
-        // another round-trip. Plain data: it travels with the row.
+        // Every notation of a color or number base, so ⌘K can offer each one
+        // without another round-trip. Plain data: it travels with the row.
         ...(r.kind === 'color' && {
           colorFormats: sortColorFormats([r.value, ...r.detail.split(' · ')]),
+        }),
+        ...(r.kind === 'base' && {
+          baseFormats: sortBaseFormats([r.value, ...r.detail.split(' · ')]),
         }),
       },
     }));
   }
 
   rowActions(rowId: string, payload?: unknown): BuiltinRowAction[] {
-    const formats = (payload as { colorFormats?: unknown } | undefined)?.colorFormats;
-    if (!Array.isArray(formats)) return [];
-    return formats.flatMap((value): BuiltinRowAction[] => {
-      const format = typeof value === 'string' ? colorFormatOf(value) : null;
-      if (!format) return [];
-      return [
-        {
+    const data = payload as { colorFormats?: unknown; baseFormats?: unknown } | undefined;
+    const actions: BuiltinRowAction[] = [];
+
+    if (Array.isArray(data?.colorFormats)) {
+      for (const value of data.colorFormats) {
+        const format = typeof value === 'string' ? colorFormatOf(value) : null;
+        if (!format) continue;
+        actions.push({
           id: `calculator:copy-color-${format.toLowerCase()}`,
           label: t('selection_actions.copy_color_as', { format }),
           description: t('selection_actions.copy_color_as_desc', { format }),
           icon: 'icon:copy',
           category: t('components.calc_card.color'),
           execute: () => this.executeSearchResult(rowId, { copyValue: value }),
-        },
-      ];
-    });
+        });
+      }
+    }
+
+    if (Array.isArray(data?.baseFormats)) {
+      for (const value of data.baseFormats) {
+        const format = typeof value === 'string' ? baseFormatOf(value) : null;
+        if (!format) continue;
+        actions.push({
+          id: `calculator:copy-base-${format.toLowerCase()}`,
+          label: t('selection_actions.copy_color_as', { format }),
+          description: t('selection_actions.copy_base_as_desc', { format }),
+          icon: 'icon:copy',
+          category: t('components.calc_card.base'),
+          execute: () => this.executeSearchResult(rowId, { copyValue: value }),
+        });
+      }
+    }
+
+    return actions;
   }
 
   async executeSearchResult(_id: string, payload?: unknown): Promise<void> {

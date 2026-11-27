@@ -7,6 +7,7 @@ const registerAction = vi.hoisted(() => vi.fn());
 const unregisterAction = vi.hoisted(() => vi.fn());
 
 vi.mock('../../services/action/actionService.svelte', () => ({
+  setSelectedItemProvider: vi.fn(),
   actionService: {
     registerAction,
     unregisterAction,

@@ -7,7 +7,15 @@ const {
   open: openMock,
   reveal: revealMock,
   confirmAlert,
+  applicationsCache,
 } = vi.hoisted(() => ({
+  applicationsCache: {
+    hasLoadedOnce: true,
+    apps: [
+      { name: 'Zed', path: '/Applications/Zed.app' },
+      { name: 'BBEdit', path: '/Applications/BBEdit.app' },
+    ],
+  },
   quickLookPath: vi.fn(),
   openPath: vi.fn(),
   open: vi.fn(),
@@ -31,6 +39,13 @@ vi.mock('../../services/fileManager/fileManagerService', () => ({
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn(), confirmAlert },
 }));
+vi.mock('../../services/application/applicationsCache.svelte', () => ({
+  applicationsCache,
+  preloadApplications: vi.fn(),
+}));
+vi.mock('../../services/settings/settingsService.svelte', () => ({
+  settingsService: { currentSettings: {} },
+}));
 vi.mock('./aiChipBridge', () => ({ primeAiChipForFile: vi.fn() }));
 vi.mock('./state.svelte', () => ({
   runDeepSearch: vi.fn(),
@@ -39,6 +54,8 @@ vi.mock('./state.svelte', () => ({
 }));
 
 import { buildFileActions } from './fileActions';
+import * as host from '../../lib/keyboard/hostPlatform';
+import { t } from '../../services/i18n';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 
@@ -47,13 +64,25 @@ const file = { fileId: 'abc', path: '/tmp/report.txt', name: 'report.txt' };
 describe('buildFileActions', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('names File Explorer in the Windows reveal action', () => {
+    const platform = vi.spyOn(host, 'getHostPlatform').mockReturnValue('windows');
+    try {
+      const actions = buildFileActions({ getFile: () => file, context: ActionContext.CORE });
+      const reveal = actions.find((action) => action.id === 'file-search:reveal-in-finder');
+      expect(reveal?.title).toBe(t('core_actions.reveal_app_win'));
+      expect(reveal?.description).not.toContain('Finder');
+    } finally {
+      platform.mockRestore();
+    }
+  });
+
   it('builds the same shared actions for both contexts', () => {
     const core = buildFileActions({ getFile: () => file, context: ActionContext.CORE });
     const view = buildFileActions({
       getFile: () => file,
       context: ActionContext.EXTENSION_VIEW,
     });
-    expect(core).toHaveLength(12);
+    expect(core).toHaveLength(13);
     expect(view.map((action) => action.id)).toEqual(core.map((action) => action.id));
     expect(core.every((action) => action.context === ActionContext.CORE)).toBe(true);
 
@@ -71,6 +100,43 @@ describe('buildFileActions', () => {
     expect(trash?.destructive).toBe(true);
   });
 
+  it('lists installed apps under Open With and opens the file with the picked one', async () => {
+    const openWith = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+      (a) => a.id === 'file-search:open-with',
+    );
+    const apps = openWith?.children?.() ?? [];
+    expect(apps.map((a) => a.label)).toEqual(['BBEdit', 'Zed']);
+
+    await apps[1].execute();
+    expect(openPath).toHaveBeenCalledWith(null, file.path, { with: '/Applications/Zed.app' });
+  });
+
+  it('reports Open With as loading until the app list arrives', () => {
+    applicationsCache.hasLoadedOnce = false;
+    const openWith = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+      (a) => a.id === 'file-search:open-with',
+    );
+    expect(openWith?.children?.()).toBeNull();
+    applicationsCache.hasLoadedOnce = true;
+  });
+
+  it('omits Windows Store AppsFolder entries from Open With', () => {
+    const prev = applicationsCache.apps;
+    applicationsCache.apps = [
+      ...prev,
+      {
+        id: 'uwp',
+        name: 'Photos',
+        path: 'shell:AppsFolder\\Microsoft.Windows.Photos!App',
+      } as never,
+    ];
+    const openWith = buildFileActions({ getFile: () => file, context: ActionContext.CORE }).find(
+      (a) => a.id === 'file-search:open-with',
+    );
+    expect(openWith?.children?.()?.map((a) => a.label)).toEqual(['BBEdit', 'Zed']);
+    applicationsCache.apps = prev;
+  });
+
   it('omits view-only actions unless requested and binds Quick Look to Mod+Y', () => {
     const shared = buildFileActions({ getFile: () => file, context: ActionContext.CORE });
     expect(shared.map((action) => action.id)).not.toContain('file-search:deep-search');
@@ -82,7 +148,7 @@ describe('buildFileActions', () => {
       context: ActionContext.EXTENSION_VIEW,
       include: { open: true, deepSearch: true, clearHistory: true },
     });
-    expect(view).toHaveLength(15);
+    expect(view).toHaveLength(16);
     expect(view.find((action) => action.id === 'file-search:open')?.shortcut).toBe('Enter');
   });
 

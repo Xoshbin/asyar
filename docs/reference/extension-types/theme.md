@@ -70,6 +70,33 @@ my-dark-theme.asyar  (renamed ZIP)
 }
 ```
 
+**Multi-variant themes (optional):**
+
+A single theme package can bundle multiple flavors (such as dark/light variants) using `variants` in `theme.json`. Any top-level `variables` or `fonts` act as shared defaults that each variant overrides:
+
+```json
+{
+  "variants": [
+    {
+      "id": "night",
+      "name": "Night",
+      "appearance": "dark",
+      "variables": {
+        "--bg-primary": "rgba(26, 27, 38, 0.92)"
+      }
+    },
+    {
+      "id": "day",
+      "name": "Day",
+      "appearance": "light",
+      "variables": {
+        "--bg-primary": "rgba(225, 226, 231, 0.92)"
+      }
+    }
+  ]
+}
+```
+
 **Variable validation rules:**
 
 - Keys are validated against the Asyar design token allowlist (see [design system tokens](../design-system/tokens.md)). Unknown variable names are silently ignored — they will not apply.

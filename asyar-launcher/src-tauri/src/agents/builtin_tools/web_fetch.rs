@@ -12,7 +12,7 @@ pub const WEB_READER_REQUEST_TIMEOUT_SECS: u64 = 25;
 pub enum WebFetchCredentialSource {
     Store {
         data_store: DataStore,
-        master_key: [u8; 32],
+        keystore: crate::crypto::keystore::KeystoreState,
     },
     None,
 }
@@ -30,10 +30,20 @@ impl WebFetchTool {
     }
 
     pub fn with_store(data_store: DataStore, master_key: [u8; 32]) -> Self {
+        Self::with_keystore(
+            data_store,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+        )
+    }
+
+    pub fn with_keystore(
+        data_store: DataStore,
+        keystore: crate::crypto::keystore::KeystoreState,
+    ) -> Self {
         Self {
             credentials: WebFetchCredentialSource::Store {
                 data_store,
-                master_key,
+                keystore,
             },
         }
     }
@@ -180,12 +190,11 @@ impl BuiltinTool for WebFetchTool {
         let api_key = match &self.credentials {
             WebFetchCredentialSource::Store {
                 data_store,
-                master_key,
+                keystore,
             } => {
-                let conn = data_store.conn();
-                if let Ok(conn) = conn {
+                if let (Ok(conn), Ok(master_key)) = (data_store.conn(), keystore.master_key()) {
                     let cred_id = format!("web_reader:{reader}");
-                    crate::storage::ai_credentials::get(&conn, &cred_id, master_key)
+                    crate::storage::ai_credentials::get(&conn, &cred_id, &master_key)
                         .ok()
                         .flatten()
                 } else {

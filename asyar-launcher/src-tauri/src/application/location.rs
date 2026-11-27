@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 const APPS_FOLDER_PREFIX: &str = "shell:AppsFolder\\";
 
-fn is_store_app(path: &str) -> bool {
+pub(crate) fn is_store_app(path: &str) -> bool {
     path.starts_with(APPS_FOLDER_PREFIX)
 }
 

@@ -1,7 +1,7 @@
 import { t } from '../../services/i18n';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { getCompactSyncService } from '../../services/launcher/compactSyncService.svelte';
-import { actionService } from '../../services/action/actionService.svelte';
+import { actionService, setSelectedItemProvider } from '../../services/action/actionService.svelte';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { buildMappedItems } from '../searchResultMapper';
 import { classifyItems } from '../classifyItems';
@@ -26,6 +26,14 @@ import { preferencesPromptStore } from '../../services/extension/preferencesProm
 
 export function setupSelectionEffects(state: LauncherState) {
   const rootFileIcons = createRootFileIconCache();
+  // Both the panel header and core actions follow the original item for the displayed row.
+  $effect(() => {
+    // Reading the target while registering an action must not subscribe that registration
+    // to each fresh copy of the same result returned while typing.
+    setSelectedItemProvider(() => untrack(() => state.currentSelectedItemOriginal ?? undefined));
+    return () => setSelectedItemProvider(() => undefined);
+  });
+
   // Effect 6: Reset selected index when search items change.
   //
   // Compact idle has no visible list, so it has no selection either: a

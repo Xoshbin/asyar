@@ -50,7 +50,7 @@ pub struct SearchResultEntry {
 pub enum WebSearchCredentialSource {
     Store {
         data_store: DataStore,
-        master_key: [u8; 32],
+        keystore: crate::crypto::keystore::KeystoreState,
     },
     None,
 }
@@ -64,6 +64,16 @@ pub struct WebSearchTool {
 
 impl WebSearchTool {
     pub fn with_store(data_store: DataStore, master_key: [u8; 32]) -> Self {
+        Self::with_keystore(
+            data_store,
+            crate::crypto::keystore::KeystoreState::from_key(master_key),
+        )
+    }
+
+    pub fn with_keystore(
+        data_store: DataStore,
+        keystore: crate::crypto::keystore::KeystoreState,
+    ) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
             .user_agent(USER_AGENT)
@@ -74,7 +84,7 @@ impl WebSearchTool {
             base_url: None,
             credentials: WebSearchCredentialSource::Store {
                 data_store,
-                master_key,
+                keystore,
             },
         }
     }
@@ -108,7 +118,7 @@ impl WebSearchTool {
         tool
     }
 
-    fn resolve_key(
+    async fn resolve_key(
         &self,
         engine: &str,
         env_var: &str,
@@ -116,22 +126,35 @@ impl WebSearchTool {
         match &self.credentials {
             WebSearchCredentialSource::Store {
                 data_store,
-                master_key,
+                keystore,
             } => {
-                let conn = data_store.conn()?;
-                let stored_key = match crate::storage::ai_credentials::get(
-                    &conn,
-                    &crate::storage::ai_credentials::web_search_credential_id(engine),
-                    master_key,
-                ) {
-                    Ok(Some(k)) => Some(k),
-                    Ok(None) => None,
-                    Err(asyar_storage::StorageError::Encryption(_)) => {
-                        return Err(AppError::Validation(
-                            "Web search API key cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.".into(),
-                        ));
+                let stored_key = match keystore.master_key_async().await {
+                    Ok(master_key) => {
+                        let conn = data_store.conn()?;
+                        match crate::storage::ai_credentials::get(
+                            &conn,
+                            &crate::storage::ai_credentials::web_search_credential_id(engine),
+                            &master_key,
+                        ) {
+                            Ok(Some(k)) => Some(k),
+                            Ok(None) => None,
+                            Err(asyar_storage::StorageError::Encryption(_)) => {
+                                return Err(AppError::Validation(
+                                    "Web search API key cannot be decrypted (keychain master key changed). Please re-enter your key in Settings → AI.".into(),
+                                ));
+                            }
+                            Err(e) => return Err(e.into()),
+                        }
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(key_err) => {
+                        if let Ok(env_val) = std::env::var(env_var) {
+                            let trimmed = env_val.trim();
+                            if !trimmed.is_empty() {
+                                return Ok(zeroize::Zeroizing::new(trimmed.to_string()));
+                            }
+                        }
+                        return Err(key_err);
+                    }
                 };
                 if let Some(k) = stored_key {
                     return Ok(k);
@@ -221,15 +244,15 @@ impl WebSearchTool {
 
         match engine {
             "brave" => {
-                let key = self.resolve_key("brave", "BRAVE_API_KEY")?;
+                let key = self.resolve_key("brave", "BRAVE_API_KEY").await?;
                 self.search_brave(query, limit, &key).await
             }
             "tavily" => {
-                let key = self.resolve_key("tavily", "TAVILY_API_KEY")?;
+                let key = self.resolve_key("tavily", "TAVILY_API_KEY").await?;
                 self.search_tavily(query, limit, &key).await
             }
             "serply" => {
-                let key = self.resolve_key("serply", "SERPLY_API_KEY")?;
+                let key = self.resolve_key("serply", "SERPLY_API_KEY").await?;
                 self.search_serply(query, limit, &key).await
             }
             "searxng" => {
@@ -287,12 +310,12 @@ impl WebSearchTool {
         let api_key = match &self.credentials {
             WebSearchCredentialSource::Store {
                 data_store,
-                master_key,
+                keystore,
             } => {
-                let conn = data_store.conn();
-                if let Ok(conn) = conn {
+                let master_key = keystore.master_key_async().await;
+                if let (Ok(master_key), Ok(conn)) = (master_key, data_store.conn()) {
                     let cred_id = format!("web_search:ext:{extension_id}:{engine_id}");
-                    crate::storage::ai_credentials::get(&conn, &cred_id, master_key)
+                    crate::storage::ai_credentials::get(&conn, &cred_id, &master_key)
                         .ok()
                         .flatten()
                 } else {

@@ -1,5 +1,6 @@
 import type { ActionContext, ExtensionAction, FileHit } from 'asyar-sdk/contracts';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
+import { getHostPlatform } from '../../lib/keyboard/hostPlatform';
 import {
   fileSearchClearHistory,
   openInTerminal,
@@ -7,7 +8,13 @@ import {
 } from '../../lib/ipc/fileSearchCommands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
+import type { ApplicationAction } from '../../services/action/actionService.svelte';
+import {
+  applicationsCache,
+  preloadApplications,
+} from '../../services/application/applicationsCache.svelte';
 import { t } from '../../services/i18n';
+import { settingsService } from '../../services/settings/settingsService.svelte';
 import { openerService } from '../../services/opener/openerService';
 import { primeAiChipForFile } from './aiChipBridge';
 import {
@@ -54,7 +61,12 @@ function parentDirOf(file: { isDir?: boolean; path?: string }): string {
 export type FileAction = ExtensionAction & {
   visible?: () => boolean;
   confirmInExecute?: boolean;
+  children?: () => ApplicationAction[] | null;
 };
+
+function loadInstalledApps(): void {
+  preloadApplications(settingsService.currentSettings.search?.additionalScanPaths ?? []);
+}
 
 export function buildFileActions(opts: {
   getFile: () => ActionableFile | null | undefined;
@@ -72,13 +84,19 @@ export function buildFileActions(opts: {
     context: opts.context,
   };
   const actions: FileAction[] = [];
+  loadInstalledApps();
+  const platform = getHostPlatform();
+  const isLocalFile = () => {
+    const file = getFile();
+    return Boolean(file?.path && !file.extensionId);
+  };
 
   if (opts.include?.open) {
     actions.push({
       ...base,
       id: 'file-search:open',
       title: t('actions.open'),
-      icon: 'icon:file',
+      icon: 'icon:file-text',
       shortcut: 'Enter',
       visible: () => Boolean(getFile()?.path || getFile()?.url),
       execute: async () => {
@@ -140,9 +158,40 @@ export function buildFileActions(opts: {
     },
     {
       ...base,
+      id: 'file-search:open-with',
+      title: t('features.file_search.act.open_with'),
+      description: t('features.file_search.act.open_with_desc'),
+      icon: 'icon:layers',
+      visible: isLocalFile,
+      // The panel only runs `children` rows, never this.
+      execute: () => {},
+      children: () =>
+        applicationsCache.hasLoadedOnce
+          ? [...applicationsCache.apps]
+              .filter((app) => !app.path.startsWith('shell:AppsFolder\\'))
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((app) => ({
+                id: `file-search:open-with:${app.path}`,
+                label: app.name,
+                icon: app.icon ?? undefined,
+                extensionId: 'file-search',
+                execute: async () => {
+                  const file = getFile();
+                  if (file?.path) await openerService.openPath(null, file.path, { with: app.path });
+                },
+              }))
+          : null,
+    },
+    {
+      ...base,
       id: 'file-search:reveal-in-finder',
-      title: t('features.file_search.act.reveal'),
-      description: t('features.file_search.act.reveal_desc'),
+      title:
+        platform === 'macos'
+          ? t('features.file_search.act.reveal')
+          : platform === 'windows'
+            ? t('core_actions.reveal_app_win')
+            : t('core_actions.reveal_app'),
+      description: t('features.clipboard.act.reveal_desc'),
       icon: 'icon:folder',
       shortcut: 'Mod+R',
       visible: () => Boolean(getFile()?.path),
