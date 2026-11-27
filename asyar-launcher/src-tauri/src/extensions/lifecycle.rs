@@ -556,15 +556,18 @@ pub(crate) fn discover_all(
         match discovery::read_manifest(&actual_path) {
             Ok(manifest) => {
                 let compatibility = discovery::validate_compatibility(&manifest);
-                all_records.push(ExtensionRecord {
-                    first_view_component: manifest.first_view_component().map(String::from),
-                    manifest,
-                    enabled: true,
-                    is_built_in: false,
-                    disableable: true,
-                    path: path.clone(),
-                    compatibility,
-                });
+                upsert_extension_record(
+                    &mut all_records,
+                    ExtensionRecord {
+                        first_view_component: manifest.first_view_component().map(String::from),
+                        manifest,
+                        enabled: true,
+                        is_built_in: false,
+                        disableable: true,
+                        path: path.clone(),
+                        compatibility,
+                    },
+                );
             }
             Err(e) => warn!("Failed to load dev extension {}: {}", id, e),
         }
@@ -600,6 +603,14 @@ pub(crate) fn discover_all(
     );
 
     Ok(all_records)
+}
+
+/// Inserts or replaces an extension record by `manifest.id` so discovery never
+/// emits duplicate IDs when an extension exists in both `extensions/` (e.g.
+/// symlinked by `asyar link --dev`) and `dev_extensions.json`.
+fn upsert_extension_record(records: &mut Vec<ExtensionRecord>, record: ExtensionRecord) {
+    records.retain(|existing| existing.manifest.id != record.manifest.id);
+    records.push(record);
 }
 
 /// Built-ins first, then each group ordered alphabetically by name
@@ -727,6 +738,26 @@ mod tests {
             &["192.168.1.20:1400".parse().unwrap()],
         )
         .unwrap();
+    }
+
+    #[test]
+    fn upsert_extension_record_replaces_duplicate_id() {
+        let mut installed = make_record("org.asyar.tokyo-night", "Tokyo Night", false);
+        installed.path = "/installed/tokyo".to_string();
+        let mut dev = make_record("org.asyar.tokyo-night", "Tokyo Night", false);
+        dev.path = "/dev/tokyo".to_string();
+        let other = make_record("org.asyar.catppuccin", "Catppuccin", false);
+
+        let mut records = vec![installed, other];
+        upsert_extension_record(&mut records, dev);
+
+        assert_eq!(records.len(), 2);
+        let tokyo: Vec<_> = records
+            .iter()
+            .filter(|r| r.manifest.id == "org.asyar.tokyo-night")
+            .collect();
+        assert_eq!(tokyo.len(), 1);
+        assert_eq!(tokyo[0].path, "/dev/tokyo");
     }
 
     #[test]
