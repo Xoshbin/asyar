@@ -6,6 +6,13 @@ export const THEME_STYLE_ID = 'asyar-theme-fonts';
 
 let appliedVariableNames: string[] = [];
 
+const BACKGROUND_PROPERTIES = [
+  'background-image',
+  'background-position',
+  'background-size',
+  'background-repeat',
+] as const;
+
 /**
  * Apply a theme extension's CSS variables and fonts to the document.
  * Calls Rust get_theme_definition command (file I/O stays in Rust).
@@ -41,6 +48,20 @@ export async function applyTheme(themeId: string): Promise<void> {
     document.head.appendChild(styleEl);
   }
 
+  // Layers paint over the root's --bg-primary fill; first layer is on top.
+  // Rust validates src/values to a charset that cannot escape url("…").
+  const layers = definition.backgrounds ?? [];
+  if (layers.length > 0) {
+    const root = document.documentElement.style;
+    root.setProperty(
+      'background-image',
+      layers.map((l) => `url("asyar-extension://${themeId}/${l.src}")`).join(', '),
+    );
+    root.setProperty('background-position', layers.map((l) => l.position ?? '0% 0%').join(', '));
+    root.setProperty('background-size', layers.map((l) => l.size ?? 'auto').join(', '));
+    root.setProperty('background-repeat', layers.map((l) => l.repeat ?? 'repeat').join(', '));
+  }
+
   // Marker for CSS: while a custom theme is active, the .settings-page opaque
   // overrides (which force system light/dark surfaces) step aside so the
   // theme's full palette — text and accents included — flows through. Without
@@ -57,6 +78,10 @@ export function removeTheme(): void {
     document.documentElement.style.removeProperty(name);
   }
   appliedVariableNames = [];
+
+  for (const name of BACKGROUND_PROPERTIES) {
+    document.documentElement.style.removeProperty(name);
+  }
 
   const existing = document.getElementById(THEME_STYLE_ID);
   if (existing) {

@@ -300,7 +300,10 @@ pub async fn get_theme_definition(
         )));
     }
 
-    extensions::read_theme_definition(&extension_dir)
+    let definition = extensions::read_theme_definition(&extension_dir)?;
+    // Dev themes skip install-time validation, so check the layers here too.
+    extensions::installer::validate_theme_backgrounds(&extension_dir, &definition)?;
+    Ok(definition)
 }
 
 #[cfg(test)]
