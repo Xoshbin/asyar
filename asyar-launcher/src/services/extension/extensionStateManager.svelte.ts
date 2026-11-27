@@ -254,7 +254,8 @@ export class ExtensionStateManager {
 
       // If uninstalling the active theme, clear CSS overrides and setting
       const currentSettings = settingsService.getSettings();
-      if (currentSettings.appearance?.activeTheme === extensionId) {
+      const activeTheme = currentSettings.appearance?.activeTheme;
+      if (activeTheme === extensionId || activeTheme?.startsWith(`${extensionId}#`)) {
         removeTheme();
         await settingsService.updateSettings('appearance', { activeTheme: null });
       }

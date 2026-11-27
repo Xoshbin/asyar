@@ -265,13 +265,21 @@ pub async fn get_theme_definition(
     registry: tauri::State<'_, ExtensionRegistryState>,
     extension_id: String,
 ) -> Result<ThemeDefinition, AppError> {
+    // Theme selection IDs may carry a `#variant` suffix (e.g. `org.asyar.tokyo-night#storm`);
+    // strip it so both full extension IDs and variant IDs resolve to the package dir.
+    let base_extension_id = extension_id
+        .split('#')
+        .next()
+        .unwrap_or(&extension_id)
+        .to_string();
+
     // Resolve the extension directory via the registry so that dev extensions
     // (cloned into extensions/<name>/ rather than installed into the app-data
     // dir) are found correctly. The registry stores the real filesystem path
     // in ExtensionRecord.path regardless of how the extension was loaded.
     let extension_dir = {
         let reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
-        reg.get(&extension_id)
+        reg.get(&base_extension_id)
             .map(|record| std::path::PathBuf::from(&record.path))
     };
 
@@ -282,11 +290,11 @@ pub async fn get_theme_definition(
             // registry was populated (e.g. called before discover_extensions).
             let fallback = extensions::get_app_data_dir(&app_handle)?
                 .join("extensions")
-                .join(&extension_id);
+                .join(&base_extension_id);
             if !fallback.exists() {
                 return Err(AppError::NotFound(format!(
                     "Extension '{}' not found in registry or app-data dir.",
-                    extension_id
+                    base_extension_id
                 )));
             }
             fallback

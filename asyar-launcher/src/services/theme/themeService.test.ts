@@ -157,4 +157,37 @@ describe('themeService', () => {
     await applyTheme('theme-b');
     expect(document.documentElement.dataset.customTheme).toBe('theme-b');
   });
+
+  it('applyTheme resolves variant variables and uses base extensionId for font URLs', async () => {
+    vi.mocked(getThemeDefinition).mockResolvedValue({
+      variables: { '--accent-primary': '#7aa2f7' },
+      fonts: [],
+      variants: [
+        {
+          id: 'night',
+          name: 'Night',
+          appearance: 'dark',
+          variables: { '--bg-primary': '#1a1b26' },
+          fonts: [],
+        },
+        {
+          id: 'day',
+          name: 'Day',
+          appearance: 'light',
+          variables: { '--bg-primary': '#e1e2e7' },
+          fonts: [{ family: 'Inter', weight: '400', style: 'normal', src: 'fonts/Inter.woff2' }],
+        },
+      ],
+    });
+
+    await applyTheme('org.asyar.tokyo-night#day');
+    expect(getThemeDefinition).toHaveBeenCalledWith('org.asyar.tokyo-night');
+    expect(document.documentElement.style.getPropertyValue('--bg-primary')).toBe('#e1e2e7');
+    expect(document.documentElement.style.getPropertyValue('--accent-primary')).toBe('#7aa2f7');
+    expect(document.documentElement.dataset.customTheme).toBe('org.asyar.tokyo-night#day');
+    const styleEl = document.getElementById(THEME_STYLE_ID);
+    expect(styleEl?.textContent).toContain(
+      'asyar-extension://org.asyar.tokyo-night/fonts/Inter.woff2',
+    );
+  });
 });
