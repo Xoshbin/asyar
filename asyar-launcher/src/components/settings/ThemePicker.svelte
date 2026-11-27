@@ -1,6 +1,8 @@
 <script lang="ts">
   import Icon from '../base/Icon.svelte';
   import { getThemeDefinition } from '../../lib/ipc/commands';
+  import type { ThemeDefinition } from '../../lib/ipc/commands';
+  import { formatThemeId } from '../../lib/themeVariants';
   import { logService } from '../../services/log/logService';
   import { t } from '../../services/i18n';
 
@@ -26,8 +28,14 @@
     '--accent-primary',
   ];
 
-  let colors = $state<Record<string, Record<string, string>>>({});
+  let definitions = $state<Record<string, ThemeDefinition>>({});
   const requested = new Set<string>();
+
+  function pickPreviewVars(variables: Record<string, string>): Record<string, string> {
+    return Object.fromEntries(
+      PREVIEW_VARS.filter((name) => variables[name]).map((name) => [name, variables[name]]),
+    );
+  }
 
   $effect(() => {
     for (const theme of themes) {
@@ -35,12 +43,7 @@
       requested.add(theme.id);
       getThemeDefinition(theme.id)
         .then((definition) => {
-          colors[theme.id] = Object.fromEntries(
-            PREVIEW_VARS.filter((name) => definition.variables[name]).map((name) => [
-              name,
-              definition.variables[name],
-            ]),
-          );
+          definitions[theme.id] = definition;
         })
         .catch((e) => logService.warn(`Failed to load theme preview for ${theme.id}: ${e}`));
     }
@@ -48,21 +51,38 @@
 
   const cards = $derived([
     {
-      id: null,
+      id: null as string | null,
       name: t('settings.general.default_theme'),
       meta: t('settings.general.default_theme_meta'),
+      vars: {} as Record<string, string>,
     },
-    ...themes.map((theme) => ({
-      id: theme.id,
-      name: theme.name,
-      meta: theme.author ? `${theme.author} · v${theme.version}` : `v${theme.version}`,
-    })),
+    ...themes.flatMap((theme) => {
+      const def = definitions[theme.id];
+      const meta = theme.author ? `${theme.author} · v${theme.version}` : `v${theme.version}`;
+      const variants = def?.variants ?? [];
+      if (variants.length > 0) {
+        return variants.map((variant) => ({
+          id: formatThemeId(theme.id, variant.id),
+          name: `${theme.name} · ${variant.name}`,
+          meta,
+          vars: pickPreviewVars({ ...(def.variables ?? {}), ...(variant.variables ?? {}) }),
+        }));
+      }
+      return [
+        {
+          id: theme.id,
+          name: theme.name,
+          meta,
+          vars: pickPreviewVars(def?.variables ?? {}),
+        },
+      ];
+    }),
   ]);
 </script>
 
 <div class="theme-grid" role="radiogroup" aria-label={t('settings.appearance.theme_picker_aria')}>
   {#each cards as card (card.id)}
-    {@const vars = card.id ? (colors[card.id] ?? {}) : {}}
+    {@const vars = card.vars}
     <button
       type="button"
       class="theme-card"

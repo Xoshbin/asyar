@@ -209,9 +209,18 @@ export interface ThemeFontEntry {
   src: string;
 }
 
+export interface ThemeVariant {
+  id: string;
+  name: string;
+  appearance?: 'light' | 'dark' | string;
+  variables: Record<string, string>;
+  fonts?: ThemeFontEntry[];
+}
+
 export interface ThemeDefinition {
   variables: Record<string, string>;
   fonts: ThemeFontEntry[];
+  variants?: ThemeVariant[];
 }
 
 // -- Plugin system commands --

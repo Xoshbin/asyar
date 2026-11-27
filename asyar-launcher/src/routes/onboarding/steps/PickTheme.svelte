@@ -133,7 +133,8 @@
     const candidateIds = [mid, theme.manifest?.id, theme.id].filter(
       (id): id is string => typeof id === 'string' && id.length > 0,
     );
-    if (candidateIds.some((id) => activeThemeId === id)) return 'applied';
+    if (candidateIds.some((id) => activeThemeId === id || activeThemeId?.startsWith(`${id}#`)))
+      return 'applied';
     if (!mid) return 'available';
     return 'installed';
   }
