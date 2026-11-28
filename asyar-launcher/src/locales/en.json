@@ -168,6 +168,8 @@
       "window_mode_aria": "Window mode",
       "hide_show_more": "Hide Show More bar",
       "hide_show_more_description": "Show only the search bar in compact mode. Press ↓ to expand.",
+      "hud_follow_cursor": "Show HUD near the mouse pointer",
+      "hud_follow_cursor_description": "Display HUD feedback beside the pointer instead of the bottom of the screen.",
       "show_running_indicator": "Show running indicator",
       "show_running_indicator_description": "Show a dot under the icon of apps that are open.",
       "list_density": "List density",

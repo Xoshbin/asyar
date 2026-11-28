@@ -331,12 +331,13 @@ class FeedbackService implements IFeedbackService {
    *     visible result is the feedback — e.g. text replaced in place).
    */
   showHUDSpinning(title: string): HudSpinnerHandle {
-    void commands.showHud({ title, durationMs: 0, spinning: true });
+    // Keep the invocation point even when the pointer moves while the agent is working.
+    const anchor = commands.showHud({ title, durationMs: 0, spinning: true }).catch(() => null);
     return {
       replace: async (newTitle, options) => {
         const spinning = options?.spinning ?? false;
         const durationMs = options?.durationMs ?? defaultHudDuration(options?.severity);
-        await commands.showHud({ title: newTitle, durationMs, spinning });
+        await commands.showHud({ title: newTitle, durationMs, spinning, anchor: await anchor });
       },
       dismiss: async () => {
         await commands.hideHud();

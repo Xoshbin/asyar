@@ -103,6 +103,7 @@ macro_rules! window_commands {
                 $crate::commands::get_hud_state,
                 $crate::commands::get_snap_guide_state,
                 $crate::commands::hud_mark_shown,
+                $crate::commands::hud_set_reading,
                 $crate::commands::simulate_paste,
                 $crate::commands::check_accessibility_permission,
                 $crate::commands::update_global_shortcut,

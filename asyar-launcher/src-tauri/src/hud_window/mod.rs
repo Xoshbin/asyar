@@ -12,20 +12,25 @@
 //! routes through `ExtensionIpcRouter` → host `feedbackService.showHUD` →
 //! `commands.showHud` (TS wrapper) → `show_hud` (Rust command) → here.
 
+mod placement;
 pub mod service;
 
 use std::sync::atomic::AtomicU64;
 use std::sync::Mutex;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::async_runtime::JoinHandle;
 
 /// Latest state of the HUD window. Held by `HudState.current` so the HUD's
 /// Svelte route can fetch it on mount via `get_hud_state` (the lazy-loaded
 /// HUD route may attach its `hud:show` listener after the first emit).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HudContent {
+    pub max_width: f64,
+    pub max_height: f64,
+    #[serde(skip)]
+    placement: placement::Placement,
     pub title: String,
     /// When true, the HUD route renders a spinner alongside the title and
     /// no auto-hide is scheduled — the HUD stays visible until an explicit
@@ -50,7 +55,22 @@ pub struct HudContent {
 ///   echo so a stale echo from a superseded show can't reveal mid-dance.
 #[derive(Default)]
 pub struct HudState {
-    pub auto_hide_task: Mutex<Option<JoinHandle<()>>>,
+    auto_hide_task: Mutex<HideTimer>,
     pub current: Mutex<Option<HudContent>>,
     pub reveal_gen: AtomicU64,
+}
+
+#[derive(Default)]
+struct HideTimer {
+    revision: u64,
+    task: Option<JoinHandle<()>>,
+}
+
+impl HideTimer {
+    fn cancel(&mut self) {
+        self.revision += 1;
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
+    }
 }

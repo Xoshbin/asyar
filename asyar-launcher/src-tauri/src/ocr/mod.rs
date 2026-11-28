@@ -167,7 +167,7 @@ pub fn dispatch_ocr_result(
             let app_clone = app_handle.clone();
             let _ = app_handle.run_on_main_thread(move || {
                 let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let _ = crate::hud_window::service::show(&app_clone, msg, 2000, false);
+                    let _ = crate::hud_window::service::show(&app_clone, msg, 2000, false, None);
                 }));
             });
             Ok(None)
@@ -195,7 +195,13 @@ pub fn dispatch_ocr_result(
             let app_clone = app_handle.clone();
             let _ = app_handle.run_on_main_thread(move || {
                 let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let _ = crate::hud_window::service::show(&app_clone, hud_message, 2000, false);
+                    let _ = crate::hud_window::service::show(
+                        &app_clone,
+                        hud_message,
+                        2000,
+                        false,
+                        None,
+                    );
                 }));
             });
 

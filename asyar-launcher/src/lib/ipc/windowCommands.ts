@@ -218,6 +218,8 @@ export async function windowCloseWindow(id: string): Promise<void> {
 // ── HUD ───────────────────────────────────────────────────────────────────────
 
 export interface HudContent {
+  maxWidth: number;
+  maxHeight: number;
   title: string;
   spinning: boolean;
   /** Monotonic reveal generation; echo back via hudMarkShown after the
@@ -230,27 +232,30 @@ export async function getHudState(): Promise<HudContent | null> {
   return invokeSafe<HudContent | null>('get_hud_state');
 }
 
-/** Tells Rust the HUD content for `revealGen` is painted, so the window's
- * alpha can flip to 1. Safe to call redundantly; stale generations are
- * dropped Rust-side. No-op on non-macOS. */
-export async function hudMarkShown(revealGen: number): Promise<void> {
-  await invokeSafe('hud_mark_shown', { revealGen });
+/** Fit the native window to the painted card and complete the macOS reveal. */
+export async function hudMarkShown(
+  revealGen: number,
+  width: number,
+  height: number,
+): Promise<void> {
+  await invokeSafe('hud_mark_shown', { revealGen, width, height });
 }
 
 export async function showHud(args: {
   title: string;
   durationMs: number;
   spinning: boolean;
-}): Promise<void> {
-  await invokeSafe('show_hud', {
-    title: args.title,
-    durationMs: args.durationMs,
-    spinning: args.spinning,
-  });
+  anchor?: [number, number] | null;
+}): Promise<[number, number] | null> {
+  return invokeSafe('show_hud', args);
 }
 
 export async function hideHud(): Promise<void> {
   await invokeSafe('hide_hud');
+}
+
+export async function hudSetReading(revealGen: number, reading: boolean): Promise<void> {
+  await invokeSafe('hud_set_reading', { revealGen, reading });
 }
 
 // ── Snap guides ───────────────────────────────────────────────────────────────

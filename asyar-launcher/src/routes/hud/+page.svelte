@@ -1,11 +1,21 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { getHudState, hudMarkShown, type HudContent } from '../../lib/ipc/commands';
+  import {
+    getHudState,
+    hudMarkShown,
+    hudSetReading,
+    type HudContent,
+  } from '../../lib/ipc/commands';
   import '../../resources/styles/style.css';
 
   let title = $state<string | null>(null);
   let spinning = $state<boolean>(false);
+  let card = $state<HTMLDivElement>();
+  let maxWidth = $state(360);
+  let maxHeight = $state(80);
+  let generation = $state(0);
+  let reading = false;
   let unlisten: UnlistenFn | null = null;
 
   /**
@@ -19,14 +29,34 @@
   function markShownAfterPaint(content: HudContent): void {
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        hudMarkShown(content.revealGen).catch((err) =>
-          console.error('[hud] hud_mark_shown failed:', err),
-        );
+        if (generation !== content.revealGen || !card) return;
+        const { width, height } = card.getBoundingClientRect();
+        // Four logical pixels on each side leave room for the shadow.
+        hudMarkShown(content.revealGen, width + 8, height + 8)
+          .then(() => {
+            if (generation === content.revealGen) updateReading(card?.matches(':hover') ?? false);
+          })
+          .catch((err) => console.error('[hud] hud_mark_shown failed:', err));
       }),
     );
   }
 
+  function updateReading(hovered: boolean): void {
+    const text = card?.querySelector<HTMLElement>('.hud-title');
+    if (!text || spinning) return;
+    const multiline = text.scrollHeight > Math.ceil(parseFloat(getComputedStyle(text).lineHeight));
+    const next = hovered && multiline;
+    if (next === reading) return;
+    reading = next;
+    void hudSetReading(generation, next).catch((err) => console.error('[hud] reading:', err));
+  }
+
   function applyContent(content: HudContent): void {
+    if (content.revealGen <= generation) return;
+    generation = content.revealGen;
+    reading = false;
+    maxWidth = content.maxWidth;
+    maxHeight = content.maxHeight;
     title = content.title;
     spinning = content.spinning;
     markShownAfterPaint(content);
@@ -51,18 +81,11 @@
     // first `show_hud` call this fallback is what populates the pill
     // before the listener takes over for subsequent calls.)
     try {
-      const initial = await getHudState();
-      if (initial) {
-        applyContent(initial);
-      }
-    } catch (err) {
-      console.error('[hud] get_hud_state failed:', err);
-    }
-
-    try {
       unlisten = await listen<HudContent>('hud:show', (event) => {
         applyContent(event.payload);
       });
+      const initial = await getHudState();
+      if (initial) applyContent(initial);
     } catch (err) {
       console.error('[hud] listen hud:show failed:', err);
     }
@@ -80,14 +103,22 @@
   <title>Asyar HUD</title>
 </svelte:head>
 
-<div class="hud-root">
+<div class="hud-root" style:--max-width={maxWidth + 'px'} style:--max-height={maxHeight + 'px'}>
   {#if title}
-    <div class="hud-pill">
-      {#if spinning}
-        <span class="hud-spinner" aria-hidden="true"></span>
-      {/if}
-      <span class="hud-title">{title}</span>
-    </div>
+    {#key generation}
+      <div
+        class="hud-pill"
+        role="status"
+        bind:this={card}
+        onpointerenter={() => updateReading(true)}
+        onpointerleave={() => updateReading(false)}
+      >
+        {#if spinning}
+          <span class="hud-spinner" aria-hidden="true"></span>
+        {/if}
+        <span class="hud-title custom-scrollbar">{title}</span>
+      </div>
+    {/key}
   {/if}
 </div>
 
@@ -135,7 +166,7 @@
     background: rgba(68, 56, 58, 0.62);
     backdrop-filter: blur(60px) saturate(200%);
     -webkit-backdrop-filter: blur(60px) saturate(200%);
-    border-radius: 9999px;
+    border-radius: 26px;
     display: inline-flex;
     align-items: center;
     gap: 12px;
@@ -156,10 +187,10 @@
     font-weight: 600;
     line-height: 1.3;
     letter-spacing: -0.01em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: calc(100vw - 40px);
+    box-sizing: border-box;
+    flex: none;
+    width: max-content;
+    max-width: calc(var(--max-width) - 8px);
   }
 
   /*
@@ -194,8 +225,11 @@
   }
 
   .hud-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 0;
+    max-height: calc(var(--max-height) - 42px);
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 
   @keyframes hud-spin {

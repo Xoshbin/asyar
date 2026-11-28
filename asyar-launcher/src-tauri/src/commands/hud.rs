@@ -15,8 +15,9 @@ pub fn show_hud(
     title: String,
     duration_ms: u32,
     spinning: bool,
-) -> Result<(), AppError> {
-    service::show(&app_handle, title, duration_ms, spinning)
+    anchor: Option<[f64; 2]>,
+) -> Result<Option<[f64; 2]>, AppError> {
+    service::show(&app_handle, title, duration_ms, spinning, anchor)
 }
 
 /// Hide the HUD immediately.
@@ -29,8 +30,23 @@ pub fn hide_hud(app_handle: AppHandle) -> Result<(), AppError> {
 /// `reveal_gen` — completes the flash-free reveal `show_hud` started at
 /// alpha 0. Safe to call redundantly; stale generations are dropped.
 #[tauri::command]
-pub fn hud_mark_shown(app_handle: AppHandle, reveal_gen: u64) -> Result<(), AppError> {
-    service::mark_shown(&app_handle, reveal_gen)
+pub fn hud_mark_shown(
+    app_handle: AppHandle,
+    reveal_gen: u64,
+    width: f64,
+    height: f64,
+) -> Result<(), AppError> {
+    service::mark_shown(&app_handle, reveal_gen, width, height)
+}
+
+/// Pause dismissal while a multiline HUD is being read, or resume after pointer exit.
+#[tauri::command]
+pub fn hud_set_reading(
+    app_handle: AppHandle,
+    reveal_gen: u64,
+    reading: bool,
+) -> Result<(), AppError> {
+    service::set_reading(&app_handle, reveal_gen, reading)
 }
 
 /// Returns the most recently set HUD content (or `null` if none).

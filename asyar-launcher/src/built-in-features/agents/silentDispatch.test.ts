@@ -70,7 +70,7 @@ vi.mock('./agentStreamBridge', () => ({
   }),
 }));
 
-import { dispatchSilentAgentCommand, lastNonEmptyLine } from './silentDispatch';
+import { dispatchSilentAgentCommand } from './silentDispatch';
 import { agentService } from './agentService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -109,16 +109,6 @@ function makeAgent(overrides: Partial<AgentDef> = {}): AgentDef {
     ...overrides,
   };
 }
-
-describe('lastNonEmptyLine', () => {
-  it('returns the final trimmed non-empty line', () => {
-    expect(lastNonEmptyLine('first\r\n second \n\n')).toBe('second');
-  });
-
-  it('returns an empty string for empty input', () => {
-    expect(lastNonEmptyLine('')).toBe('');
-  });
-});
 
 describe('dispatchSilentAgentCommand', () => {
   beforeEach(() => {
@@ -226,9 +216,12 @@ describe('dispatchSilentAgentCommand', () => {
       },
     } as never);
     vi.mocked(providerRegistry.list).mockReturnValue(providers as never);
-    vi.mocked(commands.agentsRunSilent).mockResolvedValue('first\nfinal line\n');
+    const paragraphs = 'First paragraph.\n\nFinal paragraph.\n'.repeat(40);
+    vi.mocked(commands.agentsRunSilent).mockResolvedValue(paragraphs);
     await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'hello' });
-    expect(spinnerMock.replace).toHaveBeenCalledWith('final line', { spinning: false });
+    expect(spinnerMock.replace).toHaveBeenCalledWith(paragraphs.trim(), {
+      spinning: false,
+    });
   });
 
   it('passes the userText directly for a shortcodeMiss input source', async () => {

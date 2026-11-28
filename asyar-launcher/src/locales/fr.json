@@ -168,6 +168,8 @@
       "window_mode_aria": "Mode de fenêtre",
       "hide_show_more": "Masquer la barre « Afficher plus »",
       "hide_show_more_description": "N'afficher que la barre de recherche en mode compact. Appuyez sur ↓ pour déplier.",
+      "hud_follow_cursor": "Afficher le HUD près du pointeur",
+      "hud_follow_cursor_description": "Affiche les notifications HUD à côté du pointeur plutôt qu'en bas de l'écran.",
       "show_running_indicator": "Afficher l'indicateur d'exécution",
       "show_running_indicator_description": "Affiche un point sous l'icône des apps ouvertes.",
       "list_density": "Densité des listes",
