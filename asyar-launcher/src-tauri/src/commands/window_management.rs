@@ -10,7 +10,7 @@ use crate::window_management::types::{
 };
 use crate::AppState;
 
-/// Returns the bounds of the frontmost OS application window.
+/// Returns the bounds of the frontmost (or specified) OS application window.
 /// Requires 'window:manage' permission.
 #[tauri::command]
 #[allow(unused_variables)]
@@ -18,20 +18,31 @@ pub async fn window_management_get_bounds(
     state: tauri::State<'_, AppState>,
     permissions: tauri::State<'_, ExtensionPermissionRegistry>,
     extension_id: Option<String>,
+    window_id: Option<String>,
 ) -> Result<WindowBounds, AppError> {
     permissions.check(&extension_id, "window:manage")?;
+    let target_id = window_id.filter(|s| !s.is_empty());
 
     #[cfg(target_os = "macos")]
-    return crate::window_management::macos::get_window_bounds();
+    return match target_id {
+        Some(id) => crate::window_management::macos::get_window_bounds_by_id(&id),
+        None => crate::window_management::macos::get_window_bounds(),
+    };
 
     #[cfg(target_os = "windows")]
     {
+        if let Some(id) = target_id {
+            return crate::window_management::windows::get_window_bounds_by_id(&id);
+        }
         let hwnd = *state.previous_hwnd.lock().map_err(|_| AppError::Lock)?;
         return crate::window_management::windows::get_window_bounds(hwnd);
     }
 
     #[cfg(target_os = "linux")]
     {
+        if let Some(id) = target_id {
+            return crate::window_management::linux::get_window_bounds_by_id(&id);
+        }
         let wid = *state
             .linux_prev_window_id
             .lock()
@@ -45,10 +56,10 @@ pub async fn window_management_get_bounds(
     ))
 }
 
-/// Updates the bounds of the frontmost OS application window.
+/// Updates the bounds of the frontmost (or specified) OS application window.
 /// Requires 'window:manage' permission.
 #[tauri::command]
-#[allow(unused_variables)]
+#[allow(unused_variables, clippy::too_many_arguments)]
 pub async fn window_management_set_bounds(
     state: tauri::State<'_, AppState>,
     permissions: tauri::State<'_, ExtensionPermissionRegistry>,
@@ -57,6 +68,7 @@ pub async fn window_management_set_bounds(
     y: Option<f64>,
     width: Option<f64>,
     height: Option<f64>,
+    window_id: Option<String>,
 ) -> Result<(), AppError> {
     permissions.check(&extension_id, "window:manage")?;
     let update = WindowBoundsUpdate {
@@ -66,18 +78,28 @@ pub async fn window_management_set_bounds(
         height,
     };
     validate_bounds_update(&update)?;
+    let target_id = window_id.filter(|s| !s.is_empty());
 
     #[cfg(target_os = "macos")]
-    return crate::window_management::macos::set_window_bounds(&update);
+    return match target_id {
+        Some(id) => crate::window_management::macos::set_window_bounds_by_id(&id, &update),
+        None => crate::window_management::macos::set_window_bounds(&update),
+    };
 
     #[cfg(target_os = "windows")]
     {
+        if let Some(id) = target_id {
+            return crate::window_management::windows::set_window_bounds_by_id(&id, &update);
+        }
         let hwnd = *state.previous_hwnd.lock().map_err(|_| AppError::Lock)?;
         return crate::window_management::windows::set_window_bounds(hwnd, &update);
     }
 
     #[cfg(target_os = "linux")]
     {
+        if let Some(id) = target_id {
+            return crate::window_management::linux::set_window_bounds_by_id(&id, &update);
+        }
         let wid = *state
             .linux_prev_window_id
             .lock()

@@ -75,7 +75,11 @@ export type {
   Disposer as AppPresenceDisposer,
 } from './ApplicationService';
 export { ApplicationServiceProxy } from './ApplicationService';
-export type { IWindowManagementService, WindowBounds } from './WindowManagementService';
+export type {
+  AppWindowInfo,
+  IWindowManagementService,
+  WindowBounds,
+} from './WindowManagementService';
 export { WindowManagementServiceProxy } from './WindowManagementService';
 
 export type {

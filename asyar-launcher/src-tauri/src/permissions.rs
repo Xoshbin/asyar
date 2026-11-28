@@ -285,6 +285,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:window:setWindowBounds" => Some("window:manage"),
         "asyar:api:window:setFullscreen" => Some("window:manage"),
         "asyar:api:window:applyPreset" => Some("window:manage"),
+        "asyar:api:window:listWindows" => Some("window:manage"),
+        "asyar:api:window:focusWindow" => Some("window:manage"),
         // Extension Preferences
         "asyar:api:preferences:getAll" => Some("preferences:read"),
         "asyar:api:preferences:set" => Some("preferences:write"),
@@ -1374,6 +1376,14 @@ mod tests {
         );
         assert_eq!(
             get_required_permission("asyar:api:window:setFullscreen"),
+            Some("window:manage")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:window:listWindows"),
+            Some("window:manage")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:window:focusWindow"),
             Some("window:manage")
         );
     }

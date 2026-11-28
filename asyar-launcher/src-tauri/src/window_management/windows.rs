@@ -154,8 +154,8 @@ pub fn list_windows(_app: &tauri::AppHandle) -> Result<Vec<AppWindowInfo>, AppEr
     Ok(state.windows)
 }
 
-/// Restores and brings the target window to the foreground on Windows.
-pub fn focus_window(id: &str) -> Result<(), AppError> {
+/// Parses a Windows window ID (`"win:<hwnd>"` or raw integer) into an `isize` HWND.
+pub fn parse_hwnd(id: &str) -> Result<isize, AppError> {
     let raw = id.strip_prefix("win:").unwrap_or(id);
     let hwnd_val: isize = raw
         .parse()
@@ -163,6 +163,22 @@ pub fn focus_window(id: &str) -> Result<(), AppError> {
     if hwnd_val == 0 {
         return Err(AppError::NotFound("Null HWND".to_string()));
     }
+    Ok(hwnd_val)
+}
+
+pub fn get_window_bounds_by_id(id: &str) -> Result<WindowBounds, AppError> {
+    let hwnd = parse_hwnd(id)?;
+    get_window_bounds(hwnd)
+}
+
+pub fn set_window_bounds_by_id(id: &str, update: &WindowBoundsUpdate) -> Result<(), AppError> {
+    let hwnd = parse_hwnd(id)?;
+    set_window_bounds(hwnd, update)
+}
+
+/// Restores and brings the target window to the foreground on Windows.
+pub fn focus_window(id: &str) -> Result<(), AppError> {
+    let hwnd_val = parse_hwnd(id)?;
 
     unsafe {
         let hwnd = HWND(hwnd_val as *mut _);

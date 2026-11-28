@@ -93,4 +93,57 @@ describe('WindowManagementServiceProxy', () => {
       presetId: 'next-display',
     });
   });
+
+  it('getWindowBounds forwards windowId when provided', async () => {
+    const bounds = { x: 10, y: 20, width: 500, height: 400 };
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(bounds);
+
+    const result = await proxy.getWindowBounds('macos:100:200');
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('window:getWindowBounds', {
+      windowId: 'macos:100:200',
+    });
+    expect(result).toEqual(bounds);
+  });
+
+  it('setWindowBounds forwards windowId when provided', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(undefined);
+
+    await proxy.setWindowBounds({ x: 10, y: 20 }, 'win:12345');
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('window:setWindowBounds', {
+      x: 10,
+      y: 20,
+      width: undefined,
+      height: undefined,
+      windowId: 'win:12345',
+    });
+  });
+
+  it('listWindows calls window:listWindows', async () => {
+    const windows = [
+      {
+        id: 'macos:1:2',
+        pid: 1,
+        appName: 'Code',
+        title: 'main.ts',
+        isMinimized: false,
+        isFocused: true,
+      },
+    ];
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(windows);
+
+    const result = await proxy.listWindows();
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('window:listWindows');
+    expect(result).toEqual(windows);
+  });
+
+  it('focusWindow calls window:focusWindow with id', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(undefined);
+
+    await proxy.focusWindow('linux:999');
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('window:focusWindow', { id: 'linux:999' });
+  });
 });

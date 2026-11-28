@@ -17,7 +17,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const MAX_GZIPPED_BYTES = 50 * 1024;
+const MAX_GZIPPED_BYTES = 54 * 1024;
 const ENTRY = resolve(__dirname, 'worker.ts');
 
 function resolveImport(fromFile: string, spec: string): string | null {

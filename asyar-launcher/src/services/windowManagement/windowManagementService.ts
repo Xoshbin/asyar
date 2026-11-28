@@ -3,7 +3,7 @@ import type { WindowBounds, WindowBoundsUpdate } from '../../lib/ipc/commands';
 import * as commands from '../../lib/ipc/commands';
 
 export interface IWindowManagementService {
-  getWindowBounds(): Promise<WindowBounds>;
+  getWindowBounds(windowId?: string): Promise<WindowBounds>;
   setWindowBounds(update: WindowBoundsUpdate): Promise<void>;
   setFullscreen(enable: boolean): Promise<void>;
   getMonitors(): Promise<WindowBounds[]>;
@@ -16,8 +16,8 @@ export interface IWindowManagementService {
 }
 
 export class WindowManagementService implements IWindowManagementService {
-  async getWindowBounds(): Promise<WindowBounds> {
-    return commands.windowGetBounds();
+  async getWindowBounds(windowId?: string): Promise<WindowBounds> {
+    return windowId !== undefined ? commands.windowGetBounds(windowId) : commands.windowGetBounds();
   }
 
   async setWindowBounds(update: WindowBoundsUpdate): Promise<void> {

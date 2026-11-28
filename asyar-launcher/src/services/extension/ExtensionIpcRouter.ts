@@ -362,12 +362,14 @@ export const METHOD_PARAM_SCHEMAS: Record<string, string[]> = {
   'statusBar:clearItemsForExtension': [],
 
   // window
-  'window:getWindowBounds': [],
+  'window:getWindowBounds': ['windowId'],
   'window:setFullscreen': ['enable'],
   'window:getMonitors': [],
   'window:applyPreset': ['presetId'],
   'window:previousDisplay': [],
   'window:nextDisplay': [],
+  'window:listWindows': [],
+  'window:focusWindow': ['id'],
 };
 
 export class ExtensionIpcRouter {
