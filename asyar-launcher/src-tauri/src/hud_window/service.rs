@@ -8,6 +8,9 @@
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+#[cfg(target_os = "macos")]
+use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager};
+#[cfg(not(target_os = "macos"))]
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
 use tauri_plugin_store::StoreExt;
@@ -63,8 +66,7 @@ pub fn show(
 
     let state = app.state::<HudState>();
     let reveal_gen = state.reveal_gen.fetch_add(1, Ordering::SeqCst) + 1;
-    let placement = resolve_placement(&window, anchor)?;
-    let anchor = placement.cursor;
+    let (placement, anchor) = resolve_placement(&window, anchor)?;
     let (max_width, max_height) = placement.limits();
     let content = HudContent {
         max_width,
@@ -238,10 +240,11 @@ pub fn hide(app: &AppHandle) -> Result<(), AppError> {
 }
 
 /// All positions use Tauri physical desktop coordinates, including mixed-DPI displays.
+/// Returns `(placement, anchor_for_caller)`.
 fn resolve_placement<R: tauri::Runtime>(
     window: &tauri::WebviewWindow<R>,
     anchor: Option<[f64; 2]>,
-) -> Result<Placement, AppError> {
+) -> Result<(Placement, Option<[f64; 2]>), AppError> {
     let follow = window
         .app_handle()
         .store("settings.dat")
@@ -249,31 +252,62 @@ fn resolve_placement<R: tauri::Runtime>(
         .and_then(|store| store.get("settings"))
         .and_then(|s| s.pointer("/appearance/hudFollowCursor")?.as_bool())
         .unwrap_or(false);
+    #[cfg(target_os = "macos")]
     let pointer = if follow || cfg!(target_os = "macos") {
+        anchor.or_else(|| {
+            let primary_scale = window
+                .primary_monitor()
+                .ok()
+                .flatten()
+                .map(|m| m.scale_factor())
+                .unwrap_or(1.0)
+                .max(1.0);
+            window
+                .cursor_position()
+                .ok()
+                .map(|p| [p.x / primary_scale, p.y / primary_scale])
+        })
+    } else {
+        None
+    };
+    #[cfg(not(target_os = "macos"))]
+    let pointer = if follow {
         anchor.or_else(|| window.cursor_position().ok().map(|p| [p.x, p.y]))
     } else {
         None
     };
     let monitor = pointer.and_then(|[x, y]| window.monitor_from_point(x, y).ok().flatten());
-    let cursor = if follow && monitor.is_some() {
-        pointer
-    } else {
-        None
-    };
+    let has_monitor = monitor.is_some();
     let monitor = monitor
         .or_else(|| window.primary_monitor().ok().flatten())
         .ok_or_else(|| AppError::NotFound("HUD monitor".to_string()))?;
+    let scale = monitor.scale_factor();
+    let (cursor, next_anchor) = if follow && has_monitor {
+        #[cfg(target_os = "macos")]
+        {
+            (pointer.map(|[x, y]| [x * scale, y * scale]), pointer)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            (pointer, pointer)
+        }
+    } else {
+        (None, None)
+    };
     let work = monitor.work_area();
-    Ok(Placement {
-        work: [
-            work.position.x.into(),
-            work.position.y.into(),
-            work.size.width.into(),
-            work.size.height.into(),
-        ],
-        scale: monitor.scale_factor(),
-        cursor,
-    })
+    Ok((
+        Placement {
+            work: [
+                work.position.x.into(),
+                work.position.y.into(),
+                work.size.width.into(),
+                work.size.height.into(),
+            ],
+            scale,
+            cursor,
+        },
+        next_anchor,
+    ))
 }
 
 fn fit_window<R: tauri::Runtime>(
@@ -286,14 +320,30 @@ fn fit_window<R: tauri::Runtime>(
     let width = width.ceil().clamp(1.0, content.max_width);
     let height = height.ceil().clamp(1.0, content.max_height);
     let (x, y) = placement.origin(width, height);
-    window
-        .set_position(PhysicalPosition::new(x, y))
-        .map_err(|e| AppError::Platform(format!("HUD position: {e}")))?;
-    window
-        .set_size(PhysicalSize::new(
-            (width * placement.scale).ceil() as u32,
-            (height * placement.scale).ceil() as u32,
-        ))
-        .map_err(|e| AppError::Platform(format!("HUD size: {e}")))?;
+    #[cfg(target_os = "macos")]
+    {
+        let scale = placement.scale.max(1.0);
+        window
+            .set_position(LogicalPosition::new(
+                f64::from(x) / scale,
+                f64::from(y) / scale,
+            ))
+            .map_err(|e| AppError::Platform(format!("HUD position: {e}")))?;
+        window
+            .set_size(LogicalSize::new(width, height))
+            .map_err(|e| AppError::Platform(format!("HUD size: {e}")))?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        window
+            .set_position(PhysicalPosition::new(x, y))
+            .map_err(|e| AppError::Platform(format!("HUD position: {e}")))?;
+        window
+            .set_size(PhysicalSize::new(
+                (width * placement.scale).ceil() as u32,
+                (height * placement.scale).ceil() as u32,
+            ))
+            .map_err(|e| AppError::Platform(format!("HUD size: {e}")))?;
+    }
     Ok(())
 }

@@ -261,7 +261,10 @@
           })}
       />
     </SettingsRow>
-    <SettingsRow label={t('settings.appearance.hud_follow_cursor')}>
+    <SettingsRow
+      label={t('settings.appearance.hud_follow_cursor')}
+      description={t('settings.appearance.hud_follow_cursor_description')}
+    >
       <Toggle
         checked={handler.settings.appearance.hudFollowCursor ?? false}
         onchange={() =>

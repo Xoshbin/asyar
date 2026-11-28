@@ -169,6 +169,7 @@
       "hide_show_more": "隱藏「顯示更多」列",
       "hide_show_more_description": "緊湊模式下僅顯示搜尋列。按 ↓ 展開。",
       "hud_follow_cursor": "在滑鼠指標旁顯示 HUD",
+      "hud_follow_cursor_description": "在指標旁而非螢幕底部顯示 HUD 回饋。",
       "show_running_indicator": "顯示執行指示",
       "show_running_indicator_description": "在已開啟應用程式的圖示下方顯示一個圓點。",
       "list_density": "列表密度",

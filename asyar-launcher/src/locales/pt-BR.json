@@ -169,6 +169,7 @@
       "hide_show_more": "Ocultar barra Mostrar mais",
       "hide_show_more_description": "Exibe apenas a barra de pesquisa no modo compacto. Pressione ↓ para expandir.",
       "hud_follow_cursor": "Mostrar o HUD perto do ponteiro",
+      "hud_follow_cursor_description": "Exibe as notificações HUD ao lado do ponteiro em vez da parte inferior da tela.",
       "show_running_indicator": "Mostrar indicador de execução",
       "show_running_indicator_description": "Mostra um ponto abaixo do ícone dos apps que estão abertos.",
       "list_density": "Densidade da lista",
