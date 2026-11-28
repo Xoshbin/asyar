@@ -608,34 +608,30 @@ pub fn focus_window(id: &str) -> Result<(), AppError> {
             }
         }
 
-        // Fallback: if not matched by wid, use first window in array
-        if target_window.is_null() && !win_array.is_empty() {
-            if let Some(w) = win_array.get(0) {
-                target_window = w.as_CFTypeRef() as *mut c_void;
-            }
+        if target_window.is_null() {
+            CFRelease(app_elem);
+            return Err(AppError::NotFound(format!("Window not found: {id}")));
         }
 
-        if !target_window.is_null() {
-            // Restore if minimized
-            let min_attr = NSString::from_str("AXMinimized");
-            AXUIElementSetAttributeValue(
-                target_window,
-                Retained::as_ptr(&min_attr) as *mut _,
-                kCFBooleanFalse,
-            );
+        // Restore if minimized
+        let min_attr = NSString::from_str("AXMinimized");
+        AXUIElementSetAttributeValue(
+            target_window,
+            Retained::as_ptr(&min_attr) as *mut _,
+            kCFBooleanFalse,
+        );
 
-            // Raise window
-            let raise_action = NSString::from_str("AXRaise");
-            AXUIElementPerformAction(target_window, Retained::as_ptr(&raise_action) as *mut _);
+        // Raise window
+        let raise_action = NSString::from_str("AXRaise");
+        AXUIElementPerformAction(target_window, Retained::as_ptr(&raise_action) as *mut _);
 
-            // Focus window
-            let focus_attr = NSString::from_str("AXFocusedWindow");
-            AXUIElementSetAttributeValue(
-                app_elem,
-                Retained::as_ptr(&focus_attr) as *mut _,
-                target_window,
-            );
-        }
+        // Focus window
+        let focus_attr = NSString::from_str("AXFocusedWindow");
+        AXUIElementSetAttributeValue(
+            app_elem,
+            Retained::as_ptr(&focus_attr) as *mut _,
+            target_window,
+        );
 
         CFRelease(app_elem);
     }

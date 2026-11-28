@@ -4,7 +4,7 @@
 
 **Permission required:** `window:manage` (except `getMonitors()`, which is permission-free).
 
-The `WindowManagementService` lets extensions read and manipulate the position, size, and fullscreen state of the **frontmost OS application window** — or target **specific open windows** by ID via `listWindows()`.
+The `WindowManagementService` lets extensions read and update the position and size of the **frontmost OS application window** or target **specific open windows** by ID via `listWindows()`, `getWindowBounds(windowId)`, `setWindowBounds(update, windowId)`, and `focusWindow(id)`. Fullscreen toggling (`setFullscreen`) and presets always target the **frontmost** window.
 
 ```typescript
 interface IWindowManagementService {
