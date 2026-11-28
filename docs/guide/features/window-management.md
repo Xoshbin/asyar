@@ -98,6 +98,7 @@ If you use multiple displays, use display navigation commands:
 | **Last Fourth**             | Fourth 25% vertical column (rightmost)    |
 | **Center**                  | Centered window (80% width × 80% height)  |
 | **Almost Maximize**         | Centered window (90% width × 90% height)  |
+| **Fill Screen**             | Fills the screen, menu bar and Dock stay  |
 | **Maximize**                | Full screen                               |
 | **Next Display**            | Move to next monitor                      |
 | **Previous Display**        | Move to previous monitor                  |

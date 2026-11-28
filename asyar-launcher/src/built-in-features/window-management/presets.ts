@@ -58,6 +58,8 @@ export function getPresetBounds(
       return { bounds: { x: sw * 0.1, y: sh * 0.1, width: sw * 0.8, height: sh * 0.8 } };
     case 'almost-maximize':
       return { bounds: { x: sw * 0.05, y: sh * 0.05, width: sw * 0.9, height: sh * 0.9 } };
+    case 'fill':
+      return { bounds: { x: 0, y: 0, width: sw, height: sh } };
     case 'maximize':
       return { fullscreen: true };
     default:
@@ -86,6 +88,7 @@ export const PRESET_IDS: readonly string[] = [
   'last-fourth',
   'center',
   'almost-maximize',
+  'fill',
   'maximize',
 ] as const;
 

@@ -176,6 +176,7 @@ pub fn calculate_preset_action(
         "last-fourth" => (mx + (mw / 4.0) * 3.0, my, mw / 4.0, mh),
         "center" => (mx + mw * 0.1, my + mh * 0.1, mw * 0.8, mh * 0.8),
         "almost-maximize" => (mx + mw * 0.05, my + mh * 0.05, mw * 0.9, mh * 0.9),
+        "fill" => (mx, my, mw, mh),
         _ => {
             return Err(AppError::Validation(format!(
                 "Unknown preset ID: {preset_id}"
@@ -425,6 +426,17 @@ mod tests {
         } else {
             panic!("Expected PresetAction::Bounds");
         }
+
+        // Fill covers the whole monitor without going fullscreen
+        assert_eq!(
+            calculate_preset_action("fill", &win, &monitors).unwrap(),
+            PresetAction::Bounds(WindowBoundsUpdate {
+                x: Some(0.0),
+                y: Some(0.0),
+                width: Some(1920.0),
+                height: Some(1080.0),
+            })
+        );
 
         // Unknown preset returns Validation error
         assert!(calculate_preset_action("invalid-preset", &win, &monitors).is_err());
