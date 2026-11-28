@@ -4,6 +4,7 @@ import {
   canTestAndFetch,
   configForNewProvider,
   modelSelectionAfterFetch,
+  providerStatus,
   reasoningEffortAfterModelChange,
   reasoningEffortsForModel,
 } from './AiTab.helpers';
@@ -202,5 +203,39 @@ describe('modelSelectionAfterFetch', () => {
     );
     expect(result.configPatch.reasoningEffort).toBeUndefined();
     expect('reasoningEffort' in result.configPatch).toBe(true);
+  });
+});
+
+describe('providerStatus', () => {
+  const keyed = makePlugin('anthropic', { requiresApiKey: true });
+  const idle = { checking: false, installed: undefined };
+
+  it('asks for a missing key or base URL before anything else', () => {
+    expect(providerStatus(keyed, { enabled: true }, 'notConfigured', idle, '')).toBe('needs_key');
+    expect(providerStatus(keyed, { enabled: true }, 'needsReentry', idle, '')).toBe('needs_key');
+    const local = makePlugin('ollama', { requiresBaseUrl: true });
+    expect(providerStatus(local, { enabled: true, baseUrl: ' ' }, undefined, idle, '')).toBe(
+      'needs_url',
+    );
+  });
+
+  it('reports CLI detection and ignores the key in CLI mode', () => {
+    const cli: ProviderConfig = { enabled: true, connectionMode: 'cli', lastModelId: 'sonnet' };
+    expect(providerStatus(keyed, cli, undefined, idle, '')).toBe('checking');
+    expect(providerStatus(keyed, cli, undefined, { checking: false, installed: false }, '')).toBe(
+      'cli_missing',
+    );
+    expect(providerStatus(keyed, cli, undefined, { checking: false, installed: true }, '')).toBe(
+      'ready',
+    );
+  });
+
+  it('surfaces a model fetch error, then a missing model', () => {
+    const cfg: ProviderConfig = { enabled: true };
+    expect(providerStatus(keyed, cfg, 'configured', idle, 'boom')).toBe('fetch_failed');
+    expect(providerStatus(keyed, cfg, 'configured', idle, '')).toBe('needs_model');
+    expect(providerStatus(keyed, { ...cfg, lastModelId: 'm' }, 'configured', idle, '')).toBe(
+      'ready',
+    );
   });
 });

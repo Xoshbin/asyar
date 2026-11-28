@@ -432,6 +432,15 @@ body {
   font-size: var(--font-size-base);
 }
 
+/* Undo the UA popover look so top-layer dropdowns (lib/floating.ts) keep
+   their component styles; :where keeps any component rule in charge. */
+:where([popover]) {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+}
+
 /* macOS launcher: WKWebView is pinned at 480, NSWindow is cropped around it
    (platform/macos.rs). Freezing the height chain keeps the DOM static — using
    100vh would force WebKit to re-lay out on every setFrame. */

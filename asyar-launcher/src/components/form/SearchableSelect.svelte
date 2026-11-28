@@ -1,16 +1,18 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy, tick, type Snippet } from 'svelte';
   import Input from '../base/Input.svelte';
   import AppIcon from '../base/AppIcon.svelte';
   import EmptyState from '../feedback/EmptyState.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import type { IconSource } from '../../lib/icon';
+  import { floating } from '../../lib/floating';
   import { t } from '../../services/i18n';
 
   export interface SelectOption {
     value: string;
     label: string;
     icon?: IconSource;
+    description?: string;
   }
 
   let {
@@ -22,6 +24,7 @@
     disabled = false,
     searchable = true,
     autofocus = false,
+    trigger,
     customOption,
     onchange,
   }: {
@@ -33,6 +36,8 @@
     disabled?: boolean;
     searchable?: boolean;
     autofocus?: boolean;
+    /** Replaces the select-style trigger, e.g. for an "Add …" button that picks without showing a value. */
+    trigger?: Snippet;
     /** Turns the typed filter text into an extra option, e.g. a pasted path. */
     customOption?: (query: string) => SelectOption | null;
     onchange?: (value: string) => void;
@@ -59,7 +64,10 @@
     const q = query.trim().toLowerCase();
     if (!q) return options;
     const matches = options.filter(
-      (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        o.value.toLowerCase().includes(q) ||
+        !!o.description?.toLowerCase().includes(q),
     );
     const custom = customOption?.(query.trim());
     return custom && !matches.some((o) => o.value === custom.value)
@@ -139,6 +147,12 @@
   }
 
   function selectOption(opt: SelectOption): void {
+    // A custom trigger shows no value, so every pick is an action.
+    if (trigger) {
+      closePopover(true);
+      onchange?.(opt.value);
+      return;
+    }
     const changed = value !== opt.value;
     value = opt.value;
     closePopover(true);
@@ -236,35 +250,40 @@
     {id}
     type="button"
     class="select-trigger"
+    class:custom-trigger={!!trigger}
     class:open
     class:is-placeholder={!selectedOption}
     {disabled}
     data-autofocus={autofocus ? 'true' : undefined}
     data-select-trigger
-    role="combobox"
+    role={trigger ? undefined : 'combobox'}
     aria-controls={listboxId}
     aria-expanded={open}
     aria-haspopup="listbox"
     onclick={() => (open ? closePopover(true) : void openPopover())}
     onkeydown={handleTriggerKeydown}
   >
-    <span class="select-label">
-      {#if selectedOption?.icon}
-        <span class="option-icon" aria-hidden="true">
-          <AppIcon icon={selectedOption.icon} size={16} glyphSize={14} />
-        </span>
-      {/if}
-      <span class="select-label-text">{displayLabel}</span>
-    </span>
-    <svg class="select-caret" viewBox="0 0 10 6" fill="none" aria-hidden="true">
-      <path
-        d="M1 1l4 4 4-4"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
+    {#if trigger}
+      {@render trigger()}
+    {:else}
+      <span class="select-label">
+        {#if selectedOption?.icon}
+          <span class="option-icon" aria-hidden="true">
+            <AppIcon icon={selectedOption.icon} size={16} glyphSize={14} />
+          </span>
+        {/if}
+        <span class="select-label-text">{displayLabel}</span>
+      </span>
+      <svg class="select-caret" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+        <path
+          d="M1 1l4 4 4-4"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    {/if}
   </button>
 
   {#if open}
@@ -272,6 +291,7 @@
       bind:this={popoverRef}
       class="select-popover launcher-popup"
       class:place-above={placeAbove}
+      use:floating={{ anchor: containerRef, above: placeAbove }}
       role="presentation"
       onkeydown={handlePopoverKeydown}
     >
@@ -317,7 +337,14 @@
                     <AppIcon icon={opt.icon} size={16} glyphSize={14} />
                   </span>
                 {/if}
-                <span class="option-text-label">{opt.label}</span>
+                {#if opt.description}
+                  <span class="option-text-stack">
+                    <span class="option-text-label">{opt.label}</span>
+                    <span class="option-description">{opt.description}</span>
+                  </span>
+                {:else}
+                  <span class="option-text-label">{opt.label}</span>
+                {/if}
               </span>
               {#if opt.value === value}
                 <span class="option-check" aria-hidden="true">✓</span>
@@ -366,6 +393,11 @@
   .select-trigger.open {
     border-color: var(--accent-primary);
     box-shadow: var(--shadow-focus);
+  }
+
+  .select-trigger.custom-trigger {
+    width: auto;
+    margin-left: auto;
   }
 
   .select-trigger:disabled {
@@ -476,6 +508,20 @@
     align-items: center;
     gap: var(--space-2);
     min-width: 0;
+  }
+
+  .option-text-stack {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .option-description {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .option-check {

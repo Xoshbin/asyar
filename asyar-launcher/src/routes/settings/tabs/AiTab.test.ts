@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../components', async () => ({
@@ -15,6 +15,15 @@ vi.mock('../../../components', async () => ({
   ModelSelector: (await import('../../../components/form/ModelSelector.svelte')).default,
   Select: (await import('../../../components/base/Select.svelte')).default,
   CredentialField: (await import('../../../components/settings/CredentialField.svelte')).default,
+  AppIcon: (await import('../../../components/base/AppIcon.svelte')).default,
+  Badge: (await import('../../../components/base/Badge.svelte')).default,
+  IconButton: (await import('../../../components/base/IconButton.svelte')).default,
+  StatusDot: (await import('../../../components/base/StatusDot.svelte')).default,
+  SegmentedControl: (await import('../../../components/base/SegmentedControl.svelte')).default,
+  SearchableSelect: (await import('../../../components/form/SearchableSelect.svelte')).default,
+}));
+vi.mock('../../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { confirmAlert: vi.fn().mockResolvedValue(true) },
 }));
 vi.mock('../../../services/settings/settingsService.svelte', () => ({
   settingsService: {
@@ -71,6 +80,7 @@ vi.mock('../../../services/extension/extensionAiProviderDispatch', () => ({
 import AiTab from './AiTab.svelte';
 import {
   agentsProviderRemovalBlockers,
+  aiCheckCliStatus,
   aiGetCredentialStatus,
   aiSaveCredential,
   aiDeleteCredential,
@@ -79,6 +89,12 @@ import {
 import { invokeExtensionAiProviderListModels } from '../../../services/extension/extensionAiProviderDispatch';
 import { settingsService } from '../../../services/settings/settingsService.svelte';
 import { providerRegistry } from '../../../services/ai/providerRegistry';
+import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
+
+async function clickRemove(name: string) {
+  await fireEvent.click(screen.getByRole('button', { name: `More actions for ${name}` }));
+  await fireEvent.click(screen.getByRole('menuitem', { name: `Remove ${name}` }));
+}
 
 describe('AiTab', () => {
   beforeEach(() => {
@@ -115,7 +131,7 @@ describe('AiTab', () => {
 
     render(AiTab, { mode: 'providers-only' });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Remove Anthropic' }));
+    await clickRemove('Anthropic');
 
     expect(await screen.findByText(/Can't remove Anthropic.*Asyar Assistant/)).toBeTruthy();
     expect(settingsService.updateSettings).not.toHaveBeenCalled();
@@ -126,7 +142,7 @@ describe('AiTab', () => {
 
     render(AiTab, { mode: 'providers-only' });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Remove Anthropic' }));
+    await clickRemove('Anthropic');
 
     await vi.waitFor(() => {
       expect(settingsService.updateSettings).toHaveBeenCalledWith(
@@ -169,7 +185,7 @@ describe('AiTab', () => {
 
     expect(screen.getByText('Local Ollama')).toBeTruthy();
     expect(screen.getByText('Custom (OpenAI-compatible)')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Remove Local Ollama' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'More actions for Local Ollama' })).toBeTruthy();
   });
 
   it('renders model default for temperature when undefined and allows setting custom value', async () => {
@@ -400,7 +416,8 @@ describe('AiTab', () => {
     await fireEvent.click(screen.getByText('Anthropic'));
 
     // Model selector is immediately visible with the saved lastModelId
-    expect(screen.getByText(/claude-sonnet-5/)).toBeTruthy();
+    const body = document.getElementById('row-body-anthropic')!;
+    expect(within(body).getByText(/claude-sonnet-5/)).toBeTruthy();
   });
 
   it('renders web search card and allows changing engine', async () => {
@@ -530,7 +547,7 @@ describe('AiTab', () => {
 
     render(AiTab, { mode: 'providers-only' });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Remove Local Ollama' }));
+    await clickRemove('Local Ollama');
 
     expect(aiDeleteCredential).toHaveBeenCalledWith({
       type: 'provider',
@@ -550,10 +567,12 @@ describe('AiTab', () => {
     // Expand Anthropic row
     await fireEvent.click(screen.getByText('Anthropic'));
 
-    const modeSelect = screen.getByLabelText('Connection method') as HTMLSelectElement;
-    expect(modeSelect.value).toBe('api_key');
+    const modes = screen.getByRole('group', { name: 'Connection method' });
+    expect(within(modes).getByRole('radio', { name: 'API key' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
 
-    await fireEvent.change(modeSelect, { target: { value: 'cli' } });
+    await fireEvent.click(within(modes).getByRole('radio', { name: 'Local CLI' }));
 
     expect(aiDeleteCredential).not.toHaveBeenCalled();
     expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
@@ -745,7 +764,7 @@ describe('AiTab', () => {
     vi.mocked(aiDeleteCredential).mockRejectedValueOnce(new Error('db locked'));
 
     render(AiTab, { mode: 'providers-only' });
-    await fireEvent.click(screen.getByRole('button', { name: 'Remove Anthropic' }));
+    await clickRemove('Anthropic');
 
     expect(
       await screen.findByText("Couldn't remove this provider's saved key. Please try again."),
@@ -794,15 +813,50 @@ describe('AiTab', () => {
   });
 
   it('shows extension-declared AI providers in the Add Provider dropdown', async () => {
-    const { container } = render(AiTab, { mode: 'full', handler: mockExtensionHandler });
+    render(AiTab, { mode: 'full', handler: mockExtensionHandler });
 
-    const addBtn = screen.getByRole('button', { name: /\+ Add provider/i });
-    await fireEvent.click(addBtn);
+    await fireEvent.click(screen.getByRole('button', { name: /\+ Add provider/i }));
 
-    const select = container.querySelector<HTMLSelectElement>('select.provider-picker')!;
-    expect(select).toBeTruthy();
-    const optionValues = Array.from(select.querySelectorAll('option')).map((o) => o.value);
-    expect(optionValues).toContain('ext:test-ext:groq');
+    expect(screen.getByRole('option', { name: /Groq.*From Test Extension/ })).toBeTruthy();
+  });
+
+  it('asks for confirmation before removing a provider', async () => {
+    vi.mocked(agentsProviderRemovalBlockers).mockResolvedValue(null);
+    vi.mocked(feedbackService.confirmAlert).mockResolvedValueOnce(false);
+
+    render(AiTab, { mode: 'providers-only' });
+    await clickRemove('Anthropic');
+
+    await vi.waitFor(() => expect(feedbackService.confirmAlert).toHaveBeenCalled());
+    expect(aiDeleteCredential).not.toHaveBeenCalled();
+    expect(settingsService.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it('adds a detected CLI as a ready CLI-mode provider from the empty state', async () => {
+    settingsService.currentSettings = {
+      ai: { providers: {}, defaultAgentId: null, historyRetentionCap: 100 },
+    } as any;
+    vi.mocked(aiCheckCliStatus).mockResolvedValue({
+      installed: true,
+      path: '/usr/local/bin/claude',
+      version: '2.1.0',
+      error: null,
+      account: null,
+    });
+
+    render(AiTab, { mode: 'providers-only' });
+    const row = (await screen.findByText('claude')).closest('li')!;
+    await fireEvent.click(within(row).getByRole('button', { name: 'Connect' }));
+
+    await vi.waitFor(() => expect(settingsService.updateSettings).toHaveBeenCalled());
+    const patch = vi.mocked(settingsService.updateSettings).mock.calls[0][1] as any;
+    const [[id, config]] = Object.entries(patch.providers);
+    expect(id).toMatch(/^anthropic_/);
+    expect(config).toMatchObject({
+      connectionMode: 'cli',
+      cliBinaryPath: '/usr/local/bin/claude',
+      providerType: 'anthropic',
+    });
   });
 
   it('renders extension provider row with API key placeholder and models when configured', async () => {

@@ -10,19 +10,28 @@
 </script>
 
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import {
     SettingsRow,
     Toggle,
     Button,
     Input,
     InlineError,
-    EmptyState,
     SettingsCard,
     ModelSelector,
     Select,
     CredentialField,
+    AppIcon,
+    Badge,
+    IconButton,
+    StatusDot,
+    SegmentedControl,
+    SearchableSelect,
+    type SelectOption,
   } from '../../../components';
+  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
+  import { providerLogo } from '../../../services/ai/providerLogos';
+  import type { IconSource } from '../../../lib/icon';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
@@ -36,13 +45,16 @@
     aiResolveProviderCredential,
   } from '../../../lib/ipc/commands';
   import { t } from '../../../services/i18n';
+  import { floating } from '../../../lib/floating';
   import {
     availableProvidersForNewRow,
     canTestAndFetch,
     configForNewProvider,
     modelSelectionAfterFetch,
+    providerStatus,
     reasoningEffortAfterModelChange,
     reasoningEffortsForModel,
+    type ProviderStatus,
   } from './AiTab.helpers';
   import type {
     ConnectionMode,
@@ -134,6 +146,7 @@
       provider: ManifestAiProvider;
       extensionId: string;
       extensionName: string;
+      extensionIcon: IconSource;
     }> = [];
     for (const ext of handler?.extensions ?? []) {
       if (ext.enabled === false) continue;
@@ -144,6 +157,7 @@
           provider: prov,
           extensionId: extId,
           extensionName: ext.title,
+          extensionIcon: ext.icon,
         });
       }
     }
@@ -286,10 +300,6 @@
       webReader: { ...credStatus.webReader, [reader]: 'notConfigured' },
     };
   }
-
-  // Draft row: a new row the user started via "+ Add" but hasn't committed yet
-  let draftActive = $state(false);
-  let draftPickedId = $state<ProviderId | null>(null);
 
   // Per-row expand/collapse state. Already-configured rows start collapsed;
   // newly-added rows auto-expand so the user can fill in credentials.
@@ -597,45 +607,132 @@
     }
   }
 
-  function addProviderRow() {
-    draftActive = true;
-    draftPickedId = null;
+  const STATUS_COLOR: Record<ProviderStatus, 'success' | 'warning' | 'danger' | 'info'> = {
+    ready: 'success',
+    checking: 'info',
+    needs_key: 'warning',
+    needs_url: 'warning',
+    needs_model: 'warning',
+    cli_missing: 'danger',
+    fetch_failed: 'danger',
+  };
+
+  function logoFor(providerId: string): IconSource {
+    const type = getConfig(providerId).providerType ?? providerId;
+    const ext = extensionAiProviders.find((e) => e.fullId === type);
+    return providerLogo(type, ext?.extensionIcon);
   }
 
-  function onDraftProviderPick(e: Event) {
-    const val = (e.currentTarget as HTMLSelectElement).value as ProviderId;
-    if (!val) return;
-    draftPickedId = val;
-    const plugin = allPlugins.find((p) => p.id === val);
+  function tagline(plugin: IProviderPlugin): string {
+    const ext = extensionAiProviders.find((e) => e.fullId === plugin.id);
+    return ext
+      ? t('settings.ai.tagline_extension', { name: ext.extensionName })
+      : t(`settings.ai.tagline_${plugin.id}`);
+  }
+
+  // Installed CLIs, probed once so the add list can offer a key-free connection.
+  let detectedClis = $state<Record<string, CliStatus>>({});
+
+  onMount(() => {
+    for (const plugin of providerRegistry.list()) {
+      if (!plugin.supportsCliMode) continue;
+      void (async () => {
+        try {
+          const status = await aiCheckCliStatus(plugin.id);
+          if (status?.installed) detectedClis = { ...detectedClis, [plugin.id]: status };
+        } catch {
+          // A failed probe just means the CLI isn't offered.
+        }
+      })();
+    }
+  });
+
+  let cliOptions = $derived(
+    allPlugins
+      .filter((p) => detectedClis[p.id])
+      .map((p): SelectOption => ({
+        value: `cli:${p.id}`,
+        label: p.cliName ?? p.name,
+        icon: providerLogo(p.id),
+        description: t('settings.ai.cli_detected'),
+      })),
+  );
+
+  let addOptions = $derived([
+    ...cliOptions,
+    ...availableProvidersForNewRow(allPlugins, configuredIds).map((p): SelectOption => ({
+      value: p.id,
+      label: p.name,
+      icon: logoFor(p.id),
+      description: tagline(p),
+    })),
+  ]);
+
+  const SUGGESTED = ['anthropic', 'openai', 'ollama'];
+  let suggestions = $derived([
+    ...cliOptions,
+    ...addOptions.filter((o) => SUGGESTED.includes(o.value)),
+  ]);
+
+  /** Adds a provider from the picker; `cli:<type>` connects a detected CLI instead of an API key. */
+  async function onAddPick(value: string) {
+    const cli = value.startsWith('cli:');
+    const type = (cli ? value.slice(4) : value) as ProviderId;
+    const plugin = allPlugins.find((p) => p.id === type);
     if (!plugin) return;
-    const newId = val.startsWith('ext:') ? val : `${val}_${crypto.randomUUID().slice(0, 8)}`;
+    const status = cli ? detectedClis[type] : undefined;
+    const newId = type.startsWith('ext:') ? type : `${type}_${crypto.randomUUID().slice(0, 8)}`;
+    // A CLI row gets its model from the fetch that follows, which also makes it the default
+    // when none exists yet.
     const newConfig = configForNewProvider(plugin, {
       enabled: true,
       name: plugin.name,
-      providerType: val,
-      lastModelId: plugin.staticModels?.[0]?.id,
+      providerType: type,
+      ...(status
+        ? { connectionMode: 'cli' as const, cliBinaryPath: status.path ?? undefined }
+        : { lastModelId: plugin.staticModels?.[0]?.id }),
     });
-    // Persist immediately with enabled: true
-    settingsService.updateSettings('ai', {
-      providers: {
-        ...settings.providers,
-        [newId]: newConfig,
-      },
+    if (status) cliStatuses = { ...cliStatuses, [newId]: status };
+    await settingsService.updateSettings('ai', {
+      providers: { ...settings.providers, [newId]: newConfig },
     });
-    // Auto-expand the newly added row so the user can configure it immediately
     expandedRows = { ...expandedRows, [newId]: true };
-    // Draft row is now a real row
-    draftActive = false;
-    draftPickedId = null;
+    await tick();
+    (
+      document.getElementById(`apikey-${newId}`) ?? document.getElementById(`baseurl-${newId}`)
+    )?.focus();
   }
 
-  function cancelDraft() {
-    draftActive = false;
-    draftPickedId = null;
+  let openMenuFor = $state<string | null>(null);
+  const menuAnchors = $state<Record<string, HTMLElement>>({});
+
+  function dismissOnOutside(node: HTMLElement) {
+    const close = (e: Event) => {
+      const outside =
+        e instanceof KeyboardEvent
+          ? e.key === 'Escape'
+          : !node.parentElement?.contains(e.target as Node);
+      if (outside) openMenuFor = null;
+    };
+    window.addEventListener('mousedown', close);
+    window.addEventListener('keydown', close);
+    return {
+      destroy() {
+        window.removeEventListener('mousedown', close);
+        window.removeEventListener('keydown', close);
+      },
+    };
   }
 
-  /** Plugins available for the draft row dropdown */
-  let availableForDraft = $derived(availableProvidersForNewRow(allPlugins, configuredIds));
+  async function confirmRemove(id: string, name: string) {
+    const confirmed = await feedbackService.confirmAlert({
+      title: t('settings.ai.remove_confirm_title', { name }),
+      message: t('settings.ai.remove_confirm_message'),
+      confirmText: t('common.remove'),
+      variant: 'danger',
+    });
+    if (confirmed) await removeProvider(id);
+  }
 
   const standardRetentionCaps = [0, 25, 50, 100];
   let customRetentionMode = $state(false);
@@ -733,26 +830,54 @@
     <div class="section-header">{t('settings.ai.providers_section')}</div>
   {/if}
 
-  <!-- Provider rows -->
+  {#snippet addPicker(label: string)}
+    <SearchableSelect
+      options={addOptions}
+      value=""
+      filterPlaceholder={t('settings.ai.search_providers')}
+      onchange={onAddPick}
+    >
+      {#snippet trigger()}
+        <span class="add-trigger">{label}</span>
+      {/snippet}
+    </SearchableSelect>
+  {/snippet}
+
   <div id={mode === 'full' ? 'ai-providers' : undefined} class="anchor-group">
     <SettingsCard>
       <div class="providers-section">
-        {#if configuredIds.length === 0 && !draftActive}
-          <EmptyState compact bordered message={t('settings.ai.no_provider')}>
-            <Button onclick={addProviderRow}>{t('settings.ai.add_provider')}</Button>
-          </EmptyState>
+        {#if configuredIds.length === 0}
+          <div class="suggestions">
+            <p class="suggestions-title">{t('settings.ai.connect_title')}</p>
+            <p class="providers-hint">{t('settings.ai.connect_hint')}</p>
+            <ul class="suggestion-list">
+              {#each suggestions as s (s.value)}
+                <li class="suggestion-row">
+                  <span class="provider-logo" aria-hidden="true">
+                    <AppIcon icon={s.icon} size={20} glyphSize={16} />
+                  </span>
+                  <span class="row-titles">
+                    <span class="provider-label">{s.label}</span>
+                    <span class="row-subtitle">{s.description}</span>
+                  </span>
+                  <Button
+                    size="small"
+                    variant={s.value.startsWith('cli:') ? 'primary' : 'secondary'}
+                    onclick={() => onAddPick(s.value)}
+                  >
+                    {s.value.startsWith('cli:') ? t('settings.ai.connect') : t('settings.ai.add')}
+                  </Button>
+                </li>
+              {/each}
+            </ul>
+            <div class="providers-toolbar">
+              {@render addPicker(t('settings.ai.browse_all_providers'))}
+            </div>
+          </div>
         {:else}
-          <!-- Top toolbar: explanation on the left, Add button on the right -->
           <div class="providers-toolbar">
-            <p class="providers-hint">
-              {t('settings.ai.providers_hint_pre')} <span class="hint-star">★</span>
-              {t('settings.ai.providers_hint_post')}
-            </p>
-            {#if !draftActive && availableForDraft.length > 0}
-              <button class="add-provider-btn" onclick={addProviderRow}
-                >{t('settings.ai.add_provider')}</button
-              >
-            {/if}
+            <p class="providers-hint">{t('settings.ai.providers_hint')}</p>
+            {@render addPicker(t('settings.ai.add_provider'))}
           </div>
 
           {#each configuredIds as providerId (providerId)}
@@ -780,10 +905,19 @@
               effectiveModels,
               selectedModelId,
             )}
-
+            {@const status = providerStatus(
+              plugin,
+              config,
+              credStatus.providers[providerId],
+              {
+                checking: !!checkingCli[providerId],
+                installed: cliStatuses[providerId]?.installed,
+              },
+              fetchError,
+            )}
+            {@const displayName = config.name || plugin?.name || providerId}
             {@const expanded = isExpanded(providerId)}
-            <div class="provider-row" class:is-default={defaultRow}>
-              <!-- Row header: chevron + provider name (clickable to toggle) + star + remove -->
+            <div class="provider-row" class:is-default={defaultRow} class:is-expanded={expanded}>
               <div class="row-header">
                 <button
                   class="row-toggle"
@@ -791,48 +925,85 @@
                   aria-expanded={expanded}
                   aria-controls="row-body-{providerId}"
                 >
-                  <span class="row-chevron" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
-                  <span class="provider-label">{config.name || plugin?.name || providerId}</span>
-                  {#if config.name && plugin && config.name !== plugin.name}
-                    <span class="provider-type-badge">{plugin.name}</span>
-                  {/if}
-                  {#if config.connectionMode === 'cli'}
-                    <span class="cli-experimental-badge"
-                      >{t('settings.ai.cli_experimental_badge')}</span
-                    >
-                  {/if}
-                  {#if !expanded && config.lastModelId}
-                    <span class="row-summary">{config.lastModelId}</span>
-                  {/if}
+                  <span class="provider-logo" aria-hidden="true">
+                    <AppIcon icon={logoFor(providerId)} size={20} glyphSize={16} />
+                  </span>
+                  <span class="row-titles">
+                    <span class="row-title-line">
+                      <span class="provider-label">{displayName}</span>
+                      {#if config.name && plugin && config.name !== plugin.name}
+                        <span class="provider-type-badge">{plugin.name}</span>
+                      {/if}
+                    </span>
+                    <span class="row-subtitle">
+                      {config.connectionMode === 'cli'
+                        ? t('settings.ai.via_cli')
+                        : t('settings.ai.via_api_key')}{#if config.lastModelId}
+                        · {config.lastModelId}{/if}
+                    </span>
+                  </span>
                 </button>
                 <div class="row-actions">
-                  <!-- Default star -->
+                  <span class="status-pill" data-status={status}>
+                    <StatusDot
+                      color={STATUS_COLOR[status]}
+                      size={6}
+                      pulse={status === 'checking'}
+                    />
+                    {t(`settings.ai.status_${status}`)}
+                  </span>
+                  {#if defaultRow}
+                    <Badge text={t('settings.ai.default_badge')} variant="info" />
+                  {/if}
+                  <div class="row-menu" bind:this={menuAnchors[providerId]}>
+                    <IconButton
+                      size="sm"
+                      ariaLabel={t('settings.ai.more_actions_named', { name: displayName })}
+                      title={t('settings.ai.more_actions')}
+                      onclick={() => (openMenuFor = openMenuFor === providerId ? null : providerId)}
+                    >
+                      <span class="menu-dots" aria-hidden="true">⋯</span>
+                    </IconButton>
+                    {#if openMenuFor === providerId}
+                      <div
+                        class="row-menu-popup launcher-popup"
+                        role="menu"
+                        use:dismissOnOutside
+                        use:floating={{ anchor: menuAnchors[providerId], align: 'end' }}
+                      >
+                        <button
+                          role="menuitem"
+                          class="menu-item"
+                          disabled={defaultRow || !canBeDefault}
+                          title={canBeDefault ? undefined : t('settings.ai.fetch_model_first')}
+                          onclick={() => {
+                            openMenuFor = null;
+                            void setAsDefault(providerId, selectedModelId);
+                          }}
+                        >
+                          {t('settings.ai.set_as_default')}
+                        </button>
+                        <button
+                          role="menuitem"
+                          class="menu-item is-danger"
+                          aria-label={t('settings.ai.remove_named', { name: displayName })}
+                          onclick={() => {
+                            openMenuFor = null;
+                            void confirmRemove(providerId, displayName);
+                          }}
+                        >
+                          {t('settings.ai.remove_provider_ellipsis')}
+                        </button>
+                      </div>
+                    {/if}
+                  </div>
                   <button
-                    class="star-btn"
-                    class:is-filled={defaultRow}
-                    disabled={!canBeDefault}
-                    title={canBeDefault
-                      ? defaultRow
-                        ? t('settings.ai.default_provider')
-                        : t('settings.ai.set_as_default')
-                      : t('settings.ai.fetch_model_first')}
-                    onclick={() => setAsDefault(providerId, selectedModelId)}
-                    aria-label={defaultRow
-                      ? t('settings.ai.default_provider')
-                      : t('settings.ai.set_as_default')}
+                    class="chevron-btn"
+                    onclick={() => toggleExpanded(providerId)}
+                    aria-label={displayName}
+                    tabindex={-1}
                   >
-                    {defaultRow ? '★' : '☆'}
-                  </button>
-                  <!-- Remove -->
-                  <button
-                    class="remove-btn"
-                    onclick={() => removeProvider(providerId)}
-                    aria-label={t('settings.ai.remove_named', {
-                      name: config.name || plugin?.name || providerId,
-                    })}
-                    title={t('settings.ai.remove_provider')}
-                  >
-                    ×
+                    <span class="row-chevron" class:open={expanded} aria-hidden="true">›</span>
                   </button>
                 </div>
               </div>
@@ -850,51 +1021,27 @@
 
               {#if expanded}
                 <div class="row-body" id="row-body-{providerId}">
-                  <div class="card-field">
-                    <label class="field-label" for="name-{providerId}"
-                      >{t('settings.ai.field_name')}</label
-                    >
-                    <Input
-                      unstyled
-                      textIntent="exact"
-                      class="card-input"
-                      id="name-{providerId}"
-                      type="text"
-                      value={config.name ?? plugin?.name ?? ''}
-                      placeholder={plugin?.name ?? t('settings.ai.name_placeholder')}
-                      autocomplete="off"
-                      onblur={(e) =>
-                        updateProviderConfig(providerId, {
-                          name: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
-                        })}
-                    />
-                  </div>
-
                   {#if plugin?.supportsCliMode}
                     <div class="card-field">
-                      <label class="field-label" for="connection-mode-{providerId}"
-                        >{t('settings.ai.connection_method')}</label
+                      <span class="field-label" id="connection-mode-{providerId}"
+                        >{t('settings.ai.connection_method')}</span
                       >
-                      <select
-                        class="card-select"
-                        id="connection-mode-{providerId}"
-                        value={config.connectionMode ?? 'api_key'}
-                        onchange={(e) => {
-                          const mode = (e.currentTarget as HTMLSelectElement)
-                            .value as ConnectionMode;
-                          updateProviderConfig(providerId, { connectionMode: mode });
-                          if (mode === 'cli') {
-                            checkCli(providerId, config.cliBinaryPath);
-                          }
-                        }}
-                      >
-                        <option value="api_key">{t('settings.ai.connection_api_key')}</option>
-                        <option value="cli"
-                          >{t('settings.ai.connection_cli', {
-                            name: plugin.cliName ?? 'CLI',
-                          })}</option
-                        >
-                      </select>
+                      <div role="group" aria-labelledby="connection-mode-{providerId}">
+                        <SegmentedControl
+                          options={[
+                            { value: 'api_key', label: t('settings.ai.connection_api_key') },
+                            { value: 'cli', label: t('settings.ai.connection_cli_short') },
+                          ]}
+                          value={config.connectionMode ?? 'api_key'}
+                          onchange={(value) => {
+                            const mode = value as ConnectionMode;
+                            updateProviderConfig(providerId, { connectionMode: mode });
+                            if (mode === 'cli') {
+                              checkCli(providerId, config.cliBinaryPath);
+                            }
+                          }}
+                        />
+                      </div>
                       <p class="field-description">
                         {#if config.connectionMode === 'cli'}
                           {t('settings.ai.connection_cli_desc', { name: plugin.cliName ?? 'CLI' })}
@@ -968,32 +1115,6 @@
                             t('settings.ai.cli_not_found', { name: plugin?.cliName ?? 'CLI' })}
                         </p>
                       {/if}
-                      <div class="card-field">
-                        <label class="field-label" for="cli-path-{providerId}">
-                          {t('settings.ai.custom_cli_path')}
-                          <span class="field-hint">{t('settings.ai.optional')}</span>
-                        </label>
-                        <Input
-                          unstyled
-                          textIntent="exact"
-                          class="card-input"
-                          id="cli-path-{providerId}"
-                          type="text"
-                          value={config.cliBinaryPath ?? ''}
-                          placeholder={plugin?.id === 'google'
-                            ? '/Users/.../.local/bin/agy'
-                            : plugin?.id === 'anthropic'
-                              ? '/Users/.../.local/bin/claude'
-                              : '/opt/homebrew/bin/codex'}
-                          autocomplete="off"
-                          onblur={(e) => {
-                            const path =
-                              (e.currentTarget as HTMLInputElement).value.trim() || undefined;
-                            updateProviderConfig(providerId, { cliBinaryPath: path });
-                            checkCli(providerId, path);
-                          }}
-                        />
-                      </div>
                     </div>
                   {/if}
 
@@ -1012,16 +1133,17 @@
                         onRemove={() => removeProviderKey(providerId)}
                       />
                       {#if plugin?.keyHelpUrl}
-                        <p class="field-description">
-                          <a href={plugin.keyHelpUrl} target="_blank" rel="noopener noreferrer">
-                            {plugin.keyHelpUrl}
-                          </a>
-                        </p>
+                        <a
+                          class="field-link"
+                          href={plugin.keyHelpUrl}
+                          target="_blank"
+                          rel="noopener noreferrer">{t('settings.ai.get_api_key')} ↗</a
+                        >
                       {/if}
                     </div>
                   {/if}
 
-                  {#if plugin?.requiresBaseUrl || plugin?.baseUrlPlaceholder}
+                  {#if plugin?.requiresBaseUrl}
                     <div class="card-field">
                       <label class="field-label" for="baseurl-{providerId}"
                         >{t('settings.ai.base_url')}</label
@@ -1034,7 +1156,7 @@
                         type="url"
                         value={config.baseUrl ?? ''}
                         placeholder={plugin?.baseUrlPlaceholder ??
-                          (providerId === 'ollama'
+                          (plugin?.id === 'ollama'
                             ? 'http://localhost:11434'
                             : 'https://your-api.example.com')}
                         onblur={(e) =>
@@ -1042,59 +1164,6 @@
                             baseUrl: (e.currentTarget as HTMLInputElement).value || undefined,
                           })}
                       />
-                    </div>
-                  {/if}
-
-                  {#if plugin?.supportsOpenAIApiMode && config.connectionMode !== 'cli'}
-                    <div class="card-field">
-                      <label class="field-label" for="openai-api-mode-{providerId}"
-                        >{t('settings.ai.api_format')}</label
-                      >
-                      <select
-                        class="card-select"
-                        id="openai-api-mode-{providerId}"
-                        value={openAIApiMode}
-                        onchange={(e) =>
-                          updateProviderConfig(providerId, {
-                            openAIApiMode: (e.currentTarget as HTMLSelectElement)
-                              .value as OpenAIApiMode,
-                          })}
-                      >
-                        <option value="responses">{t('settings.ai.api_format_responses')}</option>
-                        <option value="chat-completions">{t('settings.ai.api_format_chat')}</option>
-                      </select>
-                      <p class="field-description">
-                        {t('settings.ai.api_format_desc_pre')} <code>/responses</code>{t(
-                          'settings.ai.api_format_desc_post',
-                        )}
-                      </p>
-                    </div>
-                  {/if}
-
-                  {#if plugin?.supportsHostedWebSearch && config.connectionMode !== 'cli' && (providerId !== 'openai' || openAIApiMode === 'responses')}
-                    <div class="hosted-search-setting">
-                      <div class="hosted-search-heading">
-                        <label class="field-label" for="hosted-web-search-{providerId}">
-                          {plugin.id === 'google'
-                            ? t('settings.ai.google_search')
-                            : t('settings.ai.openai_hosted_search')}
-                        </label>
-                        <Toggle
-                          id="hosted-web-search-{providerId}"
-                          checked={config.hostedWebSearch === true}
-                          onchange={(e) =>
-                            updateProviderConfig(providerId, {
-                              hostedWebSearch: (e.currentTarget as HTMLInputElement).checked,
-                            })}
-                        />
-                      </div>
-                      <p class="field-description">
-                        {#if plugin.id === 'google'}
-                          {t('settings.ai.google_search_description')}
-                        {:else}
-                          {t('settings.ai.openai_hosted_search_desc')}
-                        {/if}
-                      </p>
                     </div>
                   {/if}
 
@@ -1205,228 +1274,337 @@
                     </div>
                   {/if}
 
-                  {#if reasoningEfforts.length > 0 && selectedModelId}
-                    <div class="card-field">
-                      <label class="field-label" for="reasoning-effort-{providerId}"
-                        >{t('settings.ai.reasoning')}</label
-                      >
-                      <select
-                        class="card-select"
-                        id="reasoning-effort-{providerId}"
-                        value={config.reasoningEffort ?? ''}
-                        onchange={(e) => {
-                          const value = (e.currentTarget as HTMLSelectElement).value;
-                          updateProviderConfig(providerId, {
-                            reasoningEffort: value ? (value as ReasoningEffort) : undefined,
-                          });
-                        }}
-                      >
-                        <option value="">{t('settings.ai.model_default')}</option>
-                        {#each reasoningEfforts as effort (effort)}
-                          <option value={effort}>{reasoningEffortLabel(effort)}</option>
-                        {/each}
-                      </select>
-                      <p class="field-description">
-                        {t('settings.ai.reasoning_desc')}
-                      </p>
-                    </div>
-                  {/if}
-
-                  <div class="card-field">
-                    <div class="field-header-row">
-                      <label class="field-label" for="temp-{providerId}">
-                        {t('settings.ai.temperature', {
-                          value:
-                            config.temperature !== undefined
-                              ? config.temperature.toFixed(2)
-                              : t('settings.ai.model_default'),
-                        })}
-                        {#if config.temperature === undefined}
-                          <span class="field-hint">{t('settings.ai.omitted')}</span>
-                        {/if}
-                      </label>
-                      {#if config.temperature !== undefined}
-                        <button
-                          class="text-btn"
-                          onclick={() =>
-                            updateProviderConfig(providerId, { temperature: undefined })}
+                  <details class="advanced">
+                    <summary class="advanced-summary">{t('settings.ai.advanced')}</summary>
+                    <div class="advanced-body">
+                      <div class="card-field">
+                        <label class="field-label" for="name-{providerId}"
+                          >{t('settings.ai.field_name')}</label
                         >
-                          {t('settings.ai.use_model_default')}
-                        </button>
-                      {/if}
-                    </div>
-                    <input
-                      class="field-range"
-                      id="temp-{providerId}"
-                      type="range"
-                      min="0"
-                      max="2"
-                      step="0.05"
-                      value={config.temperature ?? 0.7}
-                      oninput={(e) =>
-                        updateProviderConfig(providerId, {
-                          temperature: parseFloat((e.currentTarget as HTMLInputElement).value),
-                        })}
-                    />
-                  </div>
-
-                  <div class="card-field">
-                    <div class="field-header-row">
-                      <label class="field-label" for="maxtokens-{providerId}">
-                        {t('settings.ai.max_tokens')}
-                      </label>
-                      {#if config.maxTokens !== undefined && config.maxTokens !== 2048}
-                        <button
-                          class="text-btn"
-                          onclick={() => updateProviderConfig(providerId, { maxTokens: 2048 })}
-                        >
-                          {t('settings.ai.reset_n', { value: 2048 })}
-                        </button>
-                      {/if}
-                    </div>
-                    <Input
-                      unstyled
-                      textIntent="exact"
-                      class="card-input"
-                      id="maxtokens-{providerId}"
-                      type="number"
-                      value={config.maxTokens !== undefined ? String(config.maxTokens) : '2048'}
-                      placeholder="2048"
-                      min="128"
-                      max="32768"
-                      step="128"
-                      onblur={(e) => {
-                        const val = parseInt((e.currentTarget as HTMLInputElement).value);
-                        updateProviderConfig(providerId, {
-                          maxTokens: !isNaN(val) && val > 0 ? val : 2048,
-                        });
-                      }}
-                    />
-                  </div>
-
-                  {#if config.connectionMode !== 'cli'}
-                    {@const headerEntries = Object.entries(config.customHeaders ?? {})}
-                    <div class="card-field">
-                      <div class="field-header-row">
-                        <label class="field-label">{t('settings.ai.custom_headers')}</label>
-                        <button
-                          class="text-btn"
-                          onclick={() => {
-                            const existing = { ...(config.customHeaders ?? {}) };
-                            existing[''] = '';
-                            updateProviderConfig(providerId, { customHeaders: existing });
-                          }}
-                        >
-                          {t('settings.ai.add_header')}
-                        </button>
+                        <Input
+                          unstyled
+                          textIntent="exact"
+                          class="card-input"
+                          id="name-{providerId}"
+                          type="text"
+                          value={config.name ?? plugin?.name ?? ''}
+                          placeholder={plugin?.name ?? t('settings.ai.name_placeholder')}
+                          autocomplete="off"
+                          onblur={(e) =>
+                            updateProviderConfig(providerId, {
+                              name: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                            })}
+                        />
                       </div>
-                      {#if headerEntries.length > 0}
-                        <p class="field-description">
-                          {t('settings.ai.custom_headers_desc')}
-                        </p>
-                        {#each headerEntries as [hKey, hValue], hi (hi)}
-                          <div class="custom-header-row">
-                            <Input
-                              unstyled
-                              textIntent="exact"
-                              class="card-input custom-header-key"
-                              type="text"
-                              value={hKey}
-                              placeholder={t('settings.ai.header_name_placeholder')}
-                              autocomplete="off"
-                              onblur={(e) => {
-                                const newKey = (e.currentTarget as HTMLInputElement).value.trim();
-                                const entries = Object.entries(config.customHeaders ?? {});
-                                const rebuilt: Record<string, string> = {};
-                                for (let i = 0; i < entries.length; i++) {
-                                  const [k, v] = entries[i];
-                                  rebuilt[i === hi ? newKey : k] = v;
-                                }
+
+                      {#if config.connectionMode === 'cli'}
+                        <div class="card-field">
+                          <label class="field-label" for="cli-path-{providerId}">
+                            {t('settings.ai.custom_cli_path')}
+                            <span class="field-hint">{t('settings.ai.optional')}</span>
+                          </label>
+                          <Input
+                            unstyled
+                            textIntent="exact"
+                            class="card-input"
+                            id="cli-path-{providerId}"
+                            type="text"
+                            value={config.cliBinaryPath ?? ''}
+                            placeholder={plugin?.id === 'google'
+                              ? '/Users/.../.local/bin/agy'
+                              : plugin?.id === 'anthropic'
+                                ? '/Users/.../.local/bin/claude'
+                                : '/opt/homebrew/bin/codex'}
+                            autocomplete="off"
+                            onblur={(e) => {
+                              const path =
+                                (e.currentTarget as HTMLInputElement).value.trim() || undefined;
+                              updateProviderConfig(providerId, { cliBinaryPath: path });
+                              checkCli(providerId, path);
+                            }}
+                          />
+                        </div>
+                      {/if}
+
+                      {#if !plugin?.requiresBaseUrl && plugin?.baseUrlPlaceholder}
+                        <div class="card-field">
+                          <label class="field-label" for="baseurl-{providerId}"
+                            >{t('settings.ai.base_url')}</label
+                          >
+                          <Input
+                            unstyled
+                            textIntent="exact"
+                            class="card-input"
+                            id="baseurl-{providerId}"
+                            type="url"
+                            value={config.baseUrl ?? ''}
+                            placeholder={plugin?.baseUrlPlaceholder ??
+                              (plugin?.id === 'ollama'
+                                ? 'http://localhost:11434'
+                                : 'https://your-api.example.com')}
+                            onblur={(e) =>
+                              updateProviderConfig(providerId, {
+                                baseUrl: (e.currentTarget as HTMLInputElement).value || undefined,
+                              })}
+                          />
+                        </div>
+                      {/if}
+
+                      {#if plugin?.supportsOpenAIApiMode && config.connectionMode !== 'cli'}
+                        <div class="card-field">
+                          <label class="field-label" for="openai-api-mode-{providerId}"
+                            >{t('settings.ai.api_format')}</label
+                          >
+                          <select
+                            class="card-select"
+                            id="openai-api-mode-{providerId}"
+                            value={openAIApiMode}
+                            onchange={(e) =>
+                              updateProviderConfig(providerId, {
+                                openAIApiMode: (e.currentTarget as HTMLSelectElement)
+                                  .value as OpenAIApiMode,
+                              })}
+                          >
+                            <option value="responses"
+                              >{t('settings.ai.api_format_responses')}</option
+                            >
+                            <option value="chat-completions"
+                              >{t('settings.ai.api_format_chat')}</option
+                            >
+                          </select>
+                          <p class="field-description">
+                            {t('settings.ai.api_format_desc_pre')} <code>/responses</code>{t(
+                              'settings.ai.api_format_desc_post',
+                            )}
+                          </p>
+                        </div>
+                      {/if}
+
+                      {#if plugin?.supportsHostedWebSearch && config.connectionMode !== 'cli' && (providerId !== 'openai' || openAIApiMode === 'responses')}
+                        <div class="hosted-search-setting">
+                          <div class="hosted-search-heading">
+                            <label class="field-label" for="hosted-web-search-{providerId}">
+                              {plugin.id === 'google'
+                                ? t('settings.ai.google_search')
+                                : t('settings.ai.openai_hosted_search')}
+                            </label>
+                            <Toggle
+                              id="hosted-web-search-{providerId}"
+                              checked={config.hostedWebSearch === true}
+                              onchange={(e) =>
                                 updateProviderConfig(providerId, {
-                                  customHeaders:
-                                    Object.keys(rebuilt).length > 0 ? rebuilt : undefined,
-                                });
-                              }}
+                                  hostedWebSearch: (e.currentTarget as HTMLInputElement).checked,
+                                })}
                             />
-                            <Input
-                              unstyled
-                              textIntent="exact"
-                              class="card-input custom-header-value"
-                              type="text"
-                              value={hValue}
-                              placeholder={t('settings.ai.header_value_placeholder')}
-                              autocomplete="off"
-                              onblur={(e) => {
-                                const newVal = (e.currentTarget as HTMLInputElement).value;
-                                const entries = Object.entries(config.customHeaders ?? {});
-                                const rebuilt: Record<string, string> = {};
-                                for (let i = 0; i < entries.length; i++) {
-                                  const [k, v] = entries[i];
-                                  rebuilt[k] = i === hi ? newVal : v;
-                                }
-                                updateProviderConfig(providerId, {
-                                  customHeaders:
-                                    Object.keys(rebuilt).length > 0 ? rebuilt : undefined,
-                                });
-                              }}
-                            />
+                          </div>
+                          <p class="field-description">
+                            {#if plugin.id === 'google'}
+                              {t('settings.ai.google_search_description')}
+                            {:else}
+                              {t('settings.ai.openai_hosted_search_desc')}
+                            {/if}
+                          </p>
+                        </div>
+                      {/if}
+
+                      {#if reasoningEfforts.length > 0 && selectedModelId}
+                        <div class="card-field">
+                          <label class="field-label" for="reasoning-effort-{providerId}"
+                            >{t('settings.ai.reasoning')}</label
+                          >
+                          <select
+                            class="card-select"
+                            id="reasoning-effort-{providerId}"
+                            value={config.reasoningEffort ?? ''}
+                            onchange={(e) => {
+                              const value = (e.currentTarget as HTMLSelectElement).value;
+                              updateProviderConfig(providerId, {
+                                reasoningEffort: value ? (value as ReasoningEffort) : undefined,
+                              });
+                            }}
+                          >
+                            <option value="">{t('settings.ai.model_default')}</option>
+                            {#each reasoningEfforts as effort (effort)}
+                              <option value={effort}>{reasoningEffortLabel(effort)}</option>
+                            {/each}
+                          </select>
+                          <p class="field-description">
+                            {t('settings.ai.reasoning_desc')}
+                          </p>
+                        </div>
+                      {/if}
+
+                      <div class="card-field">
+                        <div class="field-header-row">
+                          <label class="field-label" for="temp-{providerId}">
+                            {t('settings.ai.temperature', {
+                              value:
+                                config.temperature !== undefined
+                                  ? config.temperature.toFixed(2)
+                                  : t('settings.ai.model_default'),
+                            })}
+                            {#if config.temperature === undefined}
+                              <span class="field-hint">{t('settings.ai.omitted')}</span>
+                            {/if}
+                          </label>
+                          {#if config.temperature !== undefined}
                             <button
-                              class="remove-btn"
-                              aria-label={t('settings.ai.remove_header')}
+                              class="text-btn"
+                              onclick={() =>
+                                updateProviderConfig(providerId, { temperature: undefined })}
+                            >
+                              {t('settings.ai.use_model_default')}
+                            </button>
+                          {/if}
+                        </div>
+                        <input
+                          class="field-range"
+                          id="temp-{providerId}"
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="0.05"
+                          value={config.temperature ?? 0.7}
+                          oninput={(e) =>
+                            updateProviderConfig(providerId, {
+                              temperature: parseFloat((e.currentTarget as HTMLInputElement).value),
+                            })}
+                        />
+                      </div>
+
+                      <div class="card-field">
+                        <div class="field-header-row">
+                          <label class="field-label" for="maxtokens-{providerId}">
+                            {t('settings.ai.max_tokens')}
+                          </label>
+                          {#if config.maxTokens !== undefined && config.maxTokens !== 2048}
+                            <button
+                              class="text-btn"
+                              onclick={() => updateProviderConfig(providerId, { maxTokens: 2048 })}
+                            >
+                              {t('settings.ai.reset_n', { value: 2048 })}
+                            </button>
+                          {/if}
+                        </div>
+                        <Input
+                          unstyled
+                          textIntent="exact"
+                          class="card-input"
+                          id="maxtokens-{providerId}"
+                          type="number"
+                          value={config.maxTokens !== undefined ? String(config.maxTokens) : '2048'}
+                          placeholder="2048"
+                          min="128"
+                          max="32768"
+                          step="128"
+                          onblur={(e) => {
+                            const val = parseInt((e.currentTarget as HTMLInputElement).value);
+                            updateProviderConfig(providerId, {
+                              maxTokens: !isNaN(val) && val > 0 ? val : 2048,
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {#if config.connectionMode !== 'cli'}
+                        {@const headerEntries = Object.entries(config.customHeaders ?? {})}
+                        <div class="card-field">
+                          <div class="field-header-row">
+                            <label class="field-label">{t('settings.ai.custom_headers')}</label>
+                            <button
+                              class="text-btn"
                               onclick={() => {
-                                const entries = Object.entries(config.customHeaders ?? {});
-                                const rebuilt: Record<string, string> = {};
-                                for (let i = 0; i < entries.length; i++) {
-                                  if (i !== hi) {
-                                    const [k, v] = entries[i];
-                                    rebuilt[k] = v;
-                                  }
-                                }
-                                updateProviderConfig(providerId, {
-                                  customHeaders:
-                                    Object.keys(rebuilt).length > 0 ? rebuilt : undefined,
-                                });
+                                const existing = { ...(config.customHeaders ?? {}) };
+                                existing[''] = '';
+                                updateProviderConfig(providerId, { customHeaders: existing });
                               }}
                             >
-                              ×
+                              {t('settings.ai.add_header')}
                             </button>
                           </div>
-                        {/each}
+                          {#if headerEntries.length > 0}
+                            <p class="field-description">
+                              {t('settings.ai.custom_headers_desc')}
+                            </p>
+                            {#each headerEntries as [hKey, hValue], hi (hi)}
+                              <div class="custom-header-row">
+                                <Input
+                                  unstyled
+                                  textIntent="exact"
+                                  class="card-input custom-header-key"
+                                  type="text"
+                                  value={hKey}
+                                  placeholder={t('settings.ai.header_name_placeholder')}
+                                  autocomplete="off"
+                                  onblur={(e) => {
+                                    const newKey = (
+                                      e.currentTarget as HTMLInputElement
+                                    ).value.trim();
+                                    const entries = Object.entries(config.customHeaders ?? {});
+                                    const rebuilt: Record<string, string> = {};
+                                    for (let i = 0; i < entries.length; i++) {
+                                      const [k, v] = entries[i];
+                                      rebuilt[i === hi ? newKey : k] = v;
+                                    }
+                                    updateProviderConfig(providerId, {
+                                      customHeaders:
+                                        Object.keys(rebuilt).length > 0 ? rebuilt : undefined,
+                                    });
+                                  }}
+                                />
+                                <Input
+                                  unstyled
+                                  textIntent="exact"
+                                  class="card-input custom-header-value"
+                                  type="text"
+                                  value={hValue}
+                                  placeholder={t('settings.ai.header_value_placeholder')}
+                                  autocomplete="off"
+                                  onblur={(e) => {
+                                    const newVal = (e.currentTarget as HTMLInputElement).value;
+                                    const entries = Object.entries(config.customHeaders ?? {});
+                                    const rebuilt: Record<string, string> = {};
+                                    for (let i = 0; i < entries.length; i++) {
+                                      const [k, v] = entries[i];
+                                      rebuilt[k] = i === hi ? newVal : v;
+                                    }
+                                    updateProviderConfig(providerId, {
+                                      customHeaders:
+                                        Object.keys(rebuilt).length > 0 ? rebuilt : undefined,
+                                    });
+                                  }}
+                                />
+                                <button
+                                  class="remove-btn"
+                                  aria-label={t('settings.ai.remove_header')}
+                                  onclick={() => {
+                                    const entries = Object.entries(config.customHeaders ?? {});
+                                    const rebuilt: Record<string, string> = {};
+                                    for (let i = 0; i < entries.length; i++) {
+                                      if (i !== hi) {
+                                        const [k, v] = entries[i];
+                                        rebuilt[k] = v;
+                                      }
+                                    }
+                                    updateProviderConfig(providerId, {
+                                      customHeaders:
+                                        Object.keys(rebuilt).length > 0 ? rebuilt : undefined,
+                                    });
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            {/each}
+                          {/if}
+                        </div>
                       {/if}
                     </div>
-                  {/if}
+                  </details>
                 </div>
               {/if}
             </div>
           {/each}
-
-          <!-- Draft row (in-progress, not yet persisted) -->
-          {#if draftActive}
-            <div class="provider-row draft-row">
-              <div class="row-header">
-                <select class="card-select provider-picker" value="" onchange={onDraftProviderPick}>
-                  <option value="" disabled>{t('settings.ai.choose_provider')}</option>
-                  {#if availableForDraft.some((p) => !p.id.startsWith('ext:'))}
-                    <optgroup label="Built-in">
-                      {#each availableForDraft.filter((p) => !p.id.startsWith('ext:')) as p (p.id)}
-                        <option value={p.id}>{p.name}</option>
-                      {/each}
-                    </optgroup>
-                  {/if}
-                  {#if availableForDraft.some((p) => p.id.startsWith('ext:'))}
-                    <optgroup label="Extensions">
-                      {#each availableForDraft.filter((p) => p.id.startsWith('ext:')) as p (p.id)}
-                        <option value={p.id}>{p.name}</option>
-                      {/each}
-                    </optgroup>
-                  {/if}
-                </select>
-                <button class="remove-btn" onclick={cancelDraft} aria-label={t('common.cancel')}
-                  >×</button
-                >
-              </div>
-            </div>
-          {/if}
         {/if}
       </div>
     </SettingsCard>
@@ -1735,10 +1913,6 @@
     line-height: 1.4;
   }
 
-  .hint-star {
-    color: var(--accent-primary);
-  }
-
   /* Provider rows */
   .provider-row {
     border: 1px solid var(--border-color);
@@ -1750,6 +1924,197 @@
 
   .provider-row.is-default {
     border-color: color-mix(in srgb, var(--accent-primary) 40%, var(--border-color));
+  }
+
+  .provider-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: var(--size-lg);
+    height: var(--size-lg);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+
+  .row-titles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+    min-width: 0;
+  }
+
+  .row-title-line {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .row-subtitle {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+  }
+
+  .row-menu {
+    position: relative;
+  }
+
+  .menu-dots {
+    font-size: var(--font-size-lg);
+    line-height: 1;
+  }
+
+  .row-menu-popup {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--space-1));
+    z-index: var(--z-dropdown);
+    display: flex;
+    flex-direction: column;
+    min-width: 11rem;
+    padding: var(--space-1);
+    background: var(--bg-popup);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-popup);
+  }
+
+  .menu-item {
+    padding: var(--space-2);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: default;
+  }
+
+  .menu-item:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+
+  .menu-item:disabled {
+    color: var(--text-tertiary);
+  }
+
+  .menu-item.is-danger {
+    color: var(--accent-danger);
+  }
+
+  .chevron-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--size-sm);
+    height: var(--size-sm);
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-tertiary);
+    cursor: default;
+  }
+
+  .row-chevron {
+    font-size: var(--font-size-lg);
+    line-height: 1;
+    transition: transform var(--dur-quick) var(--ease-travel);
+  }
+
+  .row-chevron.open {
+    transform: rotate(90deg);
+  }
+
+  .add-trigger {
+    white-space: nowrap;
+  }
+
+  .suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .suggestions-title {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .suggestion-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+  }
+
+  .suggestion-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .suggestion-row + .suggestion-row {
+    border-top: 1px solid var(--separator);
+  }
+
+  .suggestion-row .row-titles {
+    flex: 1;
+  }
+
+  .advanced {
+    border-top: 1px solid var(--separator);
+    padding-top: var(--space-2);
+  }
+
+  .advanced-summary {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: default;
+    user-select: none;
+  }
+
+  .advanced-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+  }
+
+  .field-link {
+    align-self: flex-start;
+    color: var(--accent-primary);
+    font-size: var(--font-size-xs);
+    text-decoration: none;
+  }
+
+  .field-link:hover {
+    text-decoration: underline;
   }
 
   .row-header {
@@ -1764,7 +2129,7 @@
     flex: 1;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
     background: none;
     border: none;
     padding: 0;
@@ -1772,23 +2137,6 @@
     text-align: left;
     color: inherit;
     font: inherit;
-    min-width: 0;
-  }
-
-  .row-chevron {
-    color: var(--text-tertiary);
-    font-size: var(--font-size-sm);
-    width: 1ch;
-    flex: 0 0 auto;
-  }
-
-  .row-summary {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    margin-left: var(--space-2);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     min-width: 0;
   }
 
@@ -1812,33 +2160,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-1);
-  }
-
-  .star-btn {
-    background: none;
-    border: none;
-    padding: var(--space-1);
-    cursor: default;
-    font-size: var(--font-size-xl);
-    line-height: 1;
-    color: var(--text-tertiary);
-    transition:
-      color var(--transition-smooth),
-      opacity var(--transition-smooth);
-    border-radius: var(--radius-sm);
-  }
-
-  .star-btn:hover:not(:disabled) {
-    color: var(--accent-primary);
-  }
-
-  .star-btn.is-filled {
-    color: var(--accent-primary);
-  }
-
-  .star-btn:disabled {
-    opacity: 0.35;
-    cursor: default;
   }
 
   .remove-btn {
@@ -1952,36 +2273,6 @@
      expanding the row. */
   .row-banner {
     padding: 0 var(--space-3) var(--space-2);
-  }
-
-  /* Draft row */
-  .draft-row .row-header {
-    border-bottom: none;
-  }
-
-  .provider-picker {
-    flex: 1;
-  }
-
-  /* Add provider button */
-  .add-provider-btn {
-    background: none;
-    border: 1px dashed var(--border-color);
-    border-radius: var(--radius-md);
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    padding: var(--space-2) var(--space-3);
-    cursor: default;
-    text-align: center;
-    width: 100%;
-    transition:
-      color var(--transition-smooth),
-      border-color var(--transition-smooth);
-  }
-
-  .add-provider-btn:hover {
-    color: var(--text-primary);
-    border-color: var(--accent-primary);
   }
 
   .model-manual-row {
