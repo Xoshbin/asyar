@@ -33,6 +33,15 @@ describe('WindowManagementService', () => {
       expect(commands.windowGetBounds).toHaveBeenCalledOnce();
       expect(result).toEqual(bounds);
     });
+    it('calls windowGetBounds with windowId when provided', async () => {
+      const bounds = { x: 10, y: 20, width: 640, height: 480 };
+      vi.mocked(commands.windowGetBounds).mockResolvedValueOnce(bounds);
+
+      const result = await service.getWindowBounds('macos:10:20');
+
+      expect(commands.windowGetBounds).toHaveBeenCalledWith('macos:10:20');
+      expect(result).toEqual(bounds);
+    });
   });
 
   describe('setWindowBounds', () => {
@@ -50,6 +59,14 @@ describe('WindowManagementService', () => {
       await service.setWindowBounds({ x: 0, y: 0 });
 
       expect(commands.windowSetBounds).toHaveBeenCalledWith({ x: 0, y: 0 });
+    });
+
+    it('calls windowSetBounds with windowId in update when provided', async () => {
+      vi.mocked(commands.windowSetBounds).mockResolvedValueOnce(undefined);
+
+      await service.setWindowBounds({ width: 500, windowId: 'win:99' });
+
+      expect(commands.windowSetBounds).toHaveBeenCalledWith({ width: 500, windowId: 'win:99' });
     });
   });
 

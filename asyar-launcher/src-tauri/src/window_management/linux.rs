@@ -238,6 +238,30 @@ pub fn list_windows(_app: &tauri::AppHandle) -> Result<Vec<AppWindowInfo>, AppEr
     Ok(Vec::new())
 }
 
+/// Parses a Linux X11 window ID (`"linux:<wid>"` or raw integer).
+pub fn parse_x11_wid(id: &str) -> Result<u64, AppError> {
+    let raw = id.strip_prefix("linux:").unwrap_or(id);
+    let wid: u64 = raw
+        .parse()
+        .map_err(|_| AppError::Validation(format!("Invalid Linux X11 window ID: {id}")))?;
+    if wid == 0 {
+        return Err(AppError::NotFound("Zero X11 window ID".to_string()));
+    }
+    Ok(wid)
+}
+
+#[cfg(target_os = "linux")]
+pub fn get_window_bounds_by_id(id: &str) -> Result<WindowBounds, AppError> {
+    let wid = parse_x11_wid(id)?;
+    get_window_bounds(wid)
+}
+
+#[cfg(target_os = "linux")]
+pub fn set_window_bounds_by_id(id: &str, update: &WindowBoundsUpdate) -> Result<(), AppError> {
+    let wid = parse_x11_wid(id)?;
+    set_window_bounds(wid, update)
+}
+
 /// Activates and brings the target window to the foreground on Linux (X11).
 pub fn focus_window(id: &str) -> Result<(), AppError> {
     #[cfg(target_os = "linux")]
@@ -305,6 +329,14 @@ mod tests {
     #[test]
     fn parse_geometry_empty_errors() {
         assert!(parse_xdotool_geometry("").is_err());
+    }
+
+    #[test]
+    fn parse_x11_wid_valid_and_invalid() {
+        assert_eq!(parse_x11_wid("linux:123456").unwrap(), 123456);
+        assert_eq!(parse_x11_wid("98765").unwrap(), 98765);
+        assert!(parse_x11_wid("linux:0").is_err());
+        assert!(parse_x11_wid("linux:abc").is_err());
     }
 
     // These tests use check_x11_inner which is Linux-only

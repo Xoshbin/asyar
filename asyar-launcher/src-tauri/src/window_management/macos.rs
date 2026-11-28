@@ -58,6 +58,7 @@ extern "C" {
     fn AXValueCreate(the_type: u32, value: *const c_void) -> *mut c_void;
     fn AXValueGetValue(value: *mut c_void, the_type: u32, value_ptr: *mut c_void) -> bool;
     fn _AXUIElementGetWindow(element: *mut c_void, wid: *mut u32) -> i32;
+    fn CFRetain(cf: *mut c_void) -> *mut c_void;
     fn CFRelease(cf: *mut c_void);
     static kCFBooleanTrue: *mut c_void;
     static kCFBooleanFalse: *mut c_void;
@@ -104,157 +105,194 @@ pub fn check_ax_permission() -> Result<(), AppError> {
     Ok(())
 }
 
+/// Parses a macOS window ID of the form `"macos:<pid>:<wid>"`.
+pub fn parse_macos_window_id(id: &str) -> Result<(i32, u32), AppError> {
+    let parts: Vec<&str> = id.split(':').collect();
+    if parts.len() < 3 || parts[0] != "macos" {
+        return Err(AppError::Validation(format!(
+            "Invalid macOS window ID: {id}"
+        )));
+    }
+    let pid: i32 = parts[1]
+        .parse()
+        .map_err(|_| AppError::Validation(format!("Invalid pid in window ID: {id}")))?;
+    let wid: u32 = parts[2]
+        .parse()
+        .map_err(|_| AppError::Validation(format!("Invalid wid in window ID: {id}")))?;
+    Ok((pid, wid))
+}
+
+/// Gets the AX element for a specific window ID (`"macos:<pid>:<wid>"`).
+/// Caller must CFRelease the returned pointer.
+unsafe fn get_window_element_by_id(id: &str) -> Result<*mut c_void, AppError> {
+    let (pid, wid) = parse_macos_window_id(id)?;
+    let app_elem = AXUIElementCreateApplication(pid);
+    if app_elem.is_null() {
+        return Err(AppError::Platform(
+            "AXUIElementCreateApplication returned null".to_string(),
+        ));
+    }
+
+    let windows_attr = NSString::from_str("AXWindows");
+    let mut windows_ref: *mut c_void = ptr::null_mut();
+    let err = AXUIElementCopyAttributeValue(
+        app_elem,
+        Retained::as_ptr(&windows_attr) as *mut _,
+        &mut windows_ref,
+    );
+    CFRelease(app_elem);
+    if err != 0 || windows_ref.is_null() {
+        return Err(AppError::Platform(format!("AXWindows unavailable: {err}")));
+    }
+
+    let win_array: CFArray<CFType> = CFArray::wrap_under_create_rule(windows_ref as _);
+    for i in 0..win_array.len() {
+        if let Some(w) = win_array.get(i) {
+            let win_elem = w.as_CFTypeRef() as *mut c_void;
+            let mut elem_wid: u32 = 0;
+            if _AXUIElementGetWindow(win_elem, &mut elem_wid) == 0 && elem_wid == wid {
+                return Ok(CFRetain(win_elem));
+            }
+        }
+    }
+
+    Err(AppError::NotFound(format!("Window not found: {id}")))
+}
+
+unsafe fn read_element_bounds(window_ref: *mut c_void) -> Result<WindowBounds, AppError> {
+    let pos_attr = NSString::from_str("AXPosition");
+    let mut pos_ref: *mut c_void = ptr::null_mut();
+    let err = AXUIElementCopyAttributeValue(
+        window_ref,
+        Retained::as_ptr(&pos_attr) as *mut _,
+        &mut pos_ref,
+    );
+    if err != 0 || pos_ref.is_null() {
+        return Err(AppError::Platform(format!("AXPosition error: {err}")));
+    }
+    let mut point = CGPoint { x: 0.0, y: 0.0 };
+    AXValueGetValue(
+        pos_ref,
+        K_AX_VALUE_CG_POINT,
+        &mut point as *mut _ as *mut c_void,
+    );
+    CFRelease(pos_ref);
+
+    let size_attr = NSString::from_str("AXSize");
+    let mut size_ref: *mut c_void = ptr::null_mut();
+    let err = AXUIElementCopyAttributeValue(
+        window_ref,
+        Retained::as_ptr(&size_attr) as *mut _,
+        &mut size_ref,
+    );
+    if err != 0 || size_ref.is_null() {
+        return Err(AppError::Platform(format!("AXSize error: {err}")));
+    }
+    let mut size = CGSize {
+        width: 0.0,
+        height: 0.0,
+    };
+    AXValueGetValue(
+        size_ref,
+        K_AX_VALUE_CG_SIZE,
+        &mut size as *mut _ as *mut c_void,
+    );
+    CFRelease(size_ref);
+
+    Ok(WindowBounds {
+        x: point.x,
+        y: point.y,
+        width: size.width,
+        height: size.height,
+    })
+}
+
+unsafe fn write_element_bounds(
+    window_ref: *mut c_void,
+    update: &WindowBoundsUpdate,
+) -> Result<(), AppError> {
+    let current = read_element_bounds(window_ref)?;
+
+    if update.x.is_some() || update.y.is_some() {
+        let point = CGPoint {
+            x: update.x.unwrap_or(current.x),
+            y: update.y.unwrap_or(current.y),
+        };
+        let ax_pos = AXValueCreate(K_AX_VALUE_CG_POINT, &point as *const _ as *const c_void);
+        if ax_pos.is_null() {
+            return Err(AppError::Platform(
+                "AXValueCreate(CGPoint) failed".to_string(),
+            ));
+        }
+        let write_pos_attr = NSString::from_str("AXPosition");
+        AXUIElementSetAttributeValue(
+            window_ref,
+            Retained::as_ptr(&write_pos_attr) as *mut _,
+            ax_pos,
+        );
+        CFRelease(ax_pos);
+    }
+
+    if update.width.is_some() || update.height.is_some() {
+        let cgsize = CGSize {
+            width: update.width.unwrap_or(current.width),
+            height: update.height.unwrap_or(current.height),
+        };
+        let ax_size = AXValueCreate(K_AX_VALUE_CG_SIZE, &cgsize as *const _ as *const c_void);
+        if ax_size.is_null() {
+            return Err(AppError::Platform(
+                "AXValueCreate(CGSize) failed".to_string(),
+            ));
+        }
+        let write_size_attr = NSString::from_str("AXSize");
+        AXUIElementSetAttributeValue(
+            window_ref,
+            Retained::as_ptr(&write_size_attr) as *mut _,
+            ax_size,
+        );
+        CFRelease(ax_size);
+    }
+
+    Ok(())
+}
+
 pub fn get_window_bounds() -> Result<WindowBounds, AppError> {
     check_ax_permission()?;
     unsafe {
         let window_ref = get_focused_window_element()?;
-
-        let pos_attr = NSString::from_str("AXPosition");
-        let mut pos_ref: *mut c_void = ptr::null_mut();
-        let err = AXUIElementCopyAttributeValue(
-            window_ref,
-            Retained::as_ptr(&pos_attr) as *mut _,
-            &mut pos_ref,
-        );
-        if err != 0 || pos_ref.is_null() {
-            CFRelease(window_ref);
-            return Err(AppError::Platform(format!("AXPosition error: {err}")));
-        }
-        let mut point = CGPoint { x: 0.0, y: 0.0 };
-        AXValueGetValue(
-            pos_ref,
-            K_AX_VALUE_CG_POINT,
-            &mut point as *mut _ as *mut c_void,
-        );
-        CFRelease(pos_ref);
-
-        let size_attr = NSString::from_str("AXSize");
-        let mut size_ref: *mut c_void = ptr::null_mut();
-        let err = AXUIElementCopyAttributeValue(
-            window_ref,
-            Retained::as_ptr(&size_attr) as *mut _,
-            &mut size_ref,
-        );
-        if err != 0 || size_ref.is_null() {
-            CFRelease(window_ref);
-            return Err(AppError::Platform(format!("AXSize error: {err}")));
-        }
-        let mut size = CGSize {
-            width: 0.0,
-            height: 0.0,
-        };
-        AXValueGetValue(
-            size_ref,
-            K_AX_VALUE_CG_SIZE,
-            &mut size as *mut _ as *mut c_void,
-        );
-        CFRelease(size_ref);
+        let res = read_element_bounds(window_ref);
         CFRelease(window_ref);
+        res
+    }
+}
 
-        Ok(WindowBounds {
-            x: point.x,
-            y: point.y,
-            width: size.width,
-            height: size.height,
-        })
+pub fn get_window_bounds_by_id(id: &str) -> Result<WindowBounds, AppError> {
+    check_ax_permission()?;
+    unsafe {
+        let window_ref = get_window_element_by_id(id)?;
+        let res = read_element_bounds(window_ref);
+        CFRelease(window_ref);
+        res
     }
 }
 
 pub fn set_window_bounds(update: &WindowBoundsUpdate) -> Result<(), AppError> {
     check_ax_permission()?;
     unsafe {
-        // Acquire window element once — all reads and writes use this same ref.
         let window_ref = get_focused_window_element()?;
-
-        // Read current position
-        let pos_attr = NSString::from_str("AXPosition");
-        let mut pos_ref: *mut c_void = ptr::null_mut();
-        let err = AXUIElementCopyAttributeValue(
-            window_ref,
-            Retained::as_ptr(&pos_attr) as *mut _,
-            &mut pos_ref,
-        );
-        if err != 0 || pos_ref.is_null() {
-            CFRelease(window_ref);
-            return Err(AppError::Platform(format!("AXPosition read error: {err}")));
-        }
-        let mut current_point = CGPoint { x: 0.0, y: 0.0 };
-        AXValueGetValue(
-            pos_ref,
-            K_AX_VALUE_CG_POINT,
-            &mut current_point as *mut _ as *mut c_void,
-        );
-        CFRelease(pos_ref);
-
-        // Read current size
-        let size_attr = NSString::from_str("AXSize");
-        let mut size_ref: *mut c_void = ptr::null_mut();
-        let err = AXUIElementCopyAttributeValue(
-            window_ref,
-            Retained::as_ptr(&size_attr) as *mut _,
-            &mut size_ref,
-        );
-        if err != 0 || size_ref.is_null() {
-            CFRelease(window_ref);
-            return Err(AppError::Platform(format!("AXSize read error: {err}")));
-        }
-        let mut current_size = CGSize {
-            width: 0.0,
-            height: 0.0,
-        };
-        AXValueGetValue(
-            size_ref,
-            K_AX_VALUE_CG_SIZE,
-            &mut current_size as *mut _ as *mut c_void,
-        );
-        CFRelease(size_ref);
-
-        // Write position if x or y was specified
-        if update.x.is_some() || update.y.is_some() {
-            let point = CGPoint {
-                x: update.x.unwrap_or(current_point.x),
-                y: update.y.unwrap_or(current_point.y),
-            };
-            let ax_pos = AXValueCreate(K_AX_VALUE_CG_POINT, &point as *const _ as *const c_void);
-            if ax_pos.is_null() {
-                CFRelease(window_ref);
-                return Err(AppError::Platform(
-                    "AXValueCreate(CGPoint) failed".to_string(),
-                ));
-            }
-            let write_pos_attr = NSString::from_str("AXPosition");
-            AXUIElementSetAttributeValue(
-                window_ref,
-                Retained::as_ptr(&write_pos_attr) as *mut _,
-                ax_pos,
-            );
-            CFRelease(ax_pos);
-        }
-
-        // Write size if width or height was specified
-        if update.width.is_some() || update.height.is_some() {
-            let cgsize = CGSize {
-                width: update.width.unwrap_or(current_size.width),
-                height: update.height.unwrap_or(current_size.height),
-            };
-            let ax_size = AXValueCreate(K_AX_VALUE_CG_SIZE, &cgsize as *const _ as *const c_void);
-            if ax_size.is_null() {
-                CFRelease(window_ref);
-                return Err(AppError::Platform(
-                    "AXValueCreate(CGSize) failed".to_string(),
-                ));
-            }
-            let write_size_attr = NSString::from_str("AXSize");
-            AXUIElementSetAttributeValue(
-                window_ref,
-                Retained::as_ptr(&write_size_attr) as *mut _,
-                ax_size,
-            );
-            CFRelease(ax_size);
-        }
-
+        let res = write_element_bounds(window_ref, update);
         CFRelease(window_ref);
-        Ok(())
+        res
+    }
+}
+
+pub fn set_window_bounds_by_id(id: &str, update: &WindowBoundsUpdate) -> Result<(), AppError> {
+    check_ax_permission()?;
+    unsafe {
+        let window_ref = get_window_element_by_id(id)?;
+        let res = write_element_bounds(window_ref, update);
+        CFRelease(window_ref);
+        res
     }
 }
 
@@ -570,34 +608,30 @@ pub fn focus_window(id: &str) -> Result<(), AppError> {
             }
         }
 
-        // Fallback: if not matched by wid, use first window in array
-        if target_window.is_null() && !win_array.is_empty() {
-            if let Some(w) = win_array.get(0) {
-                target_window = w.as_CFTypeRef() as *mut c_void;
-            }
+        if target_window.is_null() {
+            CFRelease(app_elem);
+            return Err(AppError::NotFound(format!("Window not found: {id}")));
         }
 
-        if !target_window.is_null() {
-            // Restore if minimized
-            let min_attr = NSString::from_str("AXMinimized");
-            AXUIElementSetAttributeValue(
-                target_window,
-                Retained::as_ptr(&min_attr) as *mut _,
-                kCFBooleanFalse,
-            );
+        // Restore if minimized
+        let min_attr = NSString::from_str("AXMinimized");
+        AXUIElementSetAttributeValue(
+            target_window,
+            Retained::as_ptr(&min_attr) as *mut _,
+            kCFBooleanFalse,
+        );
 
-            // Raise window
-            let raise_action = NSString::from_str("AXRaise");
-            AXUIElementPerformAction(target_window, Retained::as_ptr(&raise_action) as *mut _);
+        // Raise window
+        let raise_action = NSString::from_str("AXRaise");
+        AXUIElementPerformAction(target_window, Retained::as_ptr(&raise_action) as *mut _);
 
-            // Focus window
-            let focus_attr = NSString::from_str("AXFocusedWindow");
-            AXUIElementSetAttributeValue(
-                app_elem,
-                Retained::as_ptr(&focus_attr) as *mut _,
-                target_window,
-            );
-        }
+        // Focus window
+        let focus_attr = NSString::from_str("AXFocusedWindow");
+        AXUIElementSetAttributeValue(
+            app_elem,
+            Retained::as_ptr(&focus_attr) as *mut _,
+            target_window,
+        );
 
         CFRelease(app_elem);
     }
@@ -706,5 +740,20 @@ mod tests {
             err,
             AppError::Permission(_) | AppError::Validation(_)
         ));
+    }
+
+    #[test]
+    fn parse_macos_window_id_valid() {
+        assert_eq!(
+            parse_macos_window_id("macos:1234:567").unwrap(),
+            (1234, 567)
+        );
+    }
+
+    #[test]
+    fn parse_macos_window_id_invalid() {
+        assert!(parse_macos_window_id("win:123").is_err());
+        assert!(parse_macos_window_id("macos:abc:1").is_err());
+        assert!(parse_macos_window_id("macos:1:xyz").is_err());
     }
 }

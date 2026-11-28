@@ -68,6 +68,7 @@ import { EnvironmentServiceProxy } from './services/EnvironmentServiceProxy';
 import { CalculatorServiceProxy } from './services/CalculatorServiceProxy';
 import { AiServiceProxy } from './services/AiServiceProxy';
 import { McpServiceProxy } from './services/McpServiceProxy';
+import { WindowManagementServiceProxy } from './services/WindowManagementService';
 import { extensionRpc } from './services/ExtensionRpc';
 import type { AiCompletionRequest, AiStreamChunk } from './contracts/aiProvider';
 
@@ -110,6 +111,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     environment: new EnvironmentServiceProxy(),
     ai: new AiServiceProxy(),
     mcp: new McpServiceProxy(),
+    window: new WindowManagementServiceProxy(),
     // Role-neutral: pure postMessage forwarder. Exposes registerAction,
     // unregisterAction, and registerActionHandler so handlers for
     // notification callbacks and search-result actions can register from the

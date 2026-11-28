@@ -74,6 +74,7 @@ export type {
   RankableItem,
   IWindowManagementService,
   WindowBounds,
+  AppWindowInfo,
   ShellHandle,
   ShellChunk,
   SpawnParams,

@@ -176,18 +176,25 @@ export interface WindowBoundsUpdate {
   y?: number;
   width?: number;
   height?: number;
+  windowId?: string;
 }
 
-export async function windowGetBounds(): Promise<WindowBounds> {
-  return invokeSafe<WindowBounds>('window_management_get_bounds');
+export async function windowGetBounds(windowId?: string): Promise<WindowBounds> {
+  return invokeSafe<WindowBounds>('window_management_get_bounds', {
+    windowId: windowId ?? null,
+  });
 }
 
-export async function windowSetBounds(update: WindowBoundsUpdate): Promise<void> {
+export async function windowSetBounds(
+  update: WindowBoundsUpdate,
+  windowId?: string,
+): Promise<void> {
   await invokeSafe('window_management_set_bounds', {
     x: update.x ?? null,
     y: update.y ?? null,
     width: update.width ?? null,
     height: update.height ?? null,
+    windowId: windowId ?? update.windowId ?? null,
   });
 }
 
