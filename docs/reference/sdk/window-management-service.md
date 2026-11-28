@@ -1,22 +1,21 @@
-### 8.24 `WindowManagementService` — Frontmost window bounds and fullscreen
+### 8.24 `WindowManagementService` — Window bounds, listing, and fullscreen
 
-**Runs in:** view only. Window management is invoked from a user-driven
-view action.
+**Runs in:** view and worker.
 
-**Permission required:** `window:manage`
+**Permission required:** `window:manage` (except `getMonitors()`, which is permission-free).
 
-The `WindowManagementService` lets extensions read and manipulate the position, size, and fullscreen state of the **frontmost OS application window** — the window the user had open before invoking Asyar.
+The `WindowManagementService` lets extensions read and manipulate the position, size, and fullscreen state of the **frontmost OS application window** — or target **specific open windows** by ID via `listWindows()`.
 
 ```typescript
 interface IWindowManagementService {
-  /** Returns the current bounds of the frontmost OS application window. */
-  getWindowBounds(): Promise<WindowBounds>;
+  /** Returns the current bounds of the frontmost (or specified) OS application window. */
+  getWindowBounds(windowId?: string): Promise<WindowBounds>;
 
   /**
-   * Updates the position and/or size of the frontmost OS application window.
+   * Updates the position and/or size of the frontmost (or specified) OS application window.
    * Only the fields you provide are changed; omit the rest.
    */
-  setWindowBounds(update: Partial<WindowBounds>): Promise<void>;
+  setWindowBounds(update: Partial<WindowBounds>, windowId?: string): Promise<void>;
 
   /**
    * Toggles the fullscreen state of the frontmost OS application window.
@@ -35,6 +34,23 @@ interface IWindowManagementService {
 
   /** Moves frontmost window to the next display, keeping relative size and position. */
   nextDisplay(): Promise<void>;
+
+  /** Lists visible application windows across monitors. */
+  listWindows(): Promise<AppWindowInfo[]>;
+
+  /** Brings a specific window (by ID from `listWindows()`) to the foreground. */
+  focusWindow(id: string): Promise<void>;
+}
+
+interface AppWindowInfo {
+  id: string;
+  pid: number;
+  appName: string;
+  appBundleId?: string | null;
+  title: string;
+  isMinimized: boolean;
+  isFocused: boolean;
+  appIcon?: string | null;
 }
 
 interface WindowBounds {
